@@ -1,0 +1,247 @@
+{
+    "$schema": "https://awa.io/schema/visualization.schema.json",
+    "visualization": {
+        "id": "a1b2c3d4-0001-4000-8000-000000000001",
+        "workflow_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "name": "Insurance Claims - Standard 2D View",
+        "description": "Default 2D visualization with horizontal swim lanes organized by department",
+        "is_default": true,
+        "view_type": "2d",
+        "engine": "reactflow",
+        "auto_layout": {
+            "algorithm": "dagre",
+            "direction": "lr",
+            "node_spacing": 60,
+            "rank_spacing": 120,
+            "edge_spacing": 15,
+            "respect_lanes": true
+        },
+        "lanes": [
+            {
+                "id": "lane-customer",
+                "name": "customer",
+                "label": "Customer",
+                "description": "Customer-facing activities",
+                "orientation": "horizontal",
+                "order_index": 0,
+                "role_id": "role-customer-001",
+                "color": "#E3F2FD",
+                "collapsed": false
+            },
+            {
+                "id": "lane-ai-intake",
+                "name": "ai_intake",
+                "label": "AI Intake Agent",
+                "description": "AI-powered claim intake processing",
+                "orientation": "horizontal",
+                "order_index": 1,
+                "role_id": "role-ai-intake-001",
+                "color": "#E8F5E9",
+                "collapsed": false
+            },
+            {
+                "id": "lane-ai-analysis",
+                "name": "ai_analysis",
+                "label": "AI Analysis Agent",
+                "description": "Document and fraud analysis",
+                "orientation": "horizontal",
+                "order_index": 2,
+                "role_id": "role-ai-analysis-001",
+                "color": "#FFF3E0",
+                "collapsed": false
+            },
+            {
+                "id": "lane-human-review",
+                "name": "human_review",
+                "label": "Claims Manager",
+                "description": "Human review for exceptions",
+                "orientation": "horizontal",
+                "order_index": 3,
+                "role_id": "role-claims-manager-001",
+                "color": "#FCE4EC",
+                "collapsed": false
+            }
+        ],
+        "node_positions_2d": [
+            {
+                "id": "pos-001",
+                "node_id": "act-claim-submission",
+                "node_type": "activity",
+                "position": {
+                    "x": 100,
+                    "y": 50
+                },
+                "width": 180,
+                "height": 80,
+                "shape": "rounded",
+                "style": {
+                    "background_color": "#BBDEFB",
+                    "border_color": "#1976D2",
+                    "border_width": 2,
+                    "border_radius": 8
+                }
+            },
+            {
+                "id": "pos-002",
+                "node_id": "act-initial-triage",
+                "node_type": "activity",
+                "position": {
+                    "x": 350,
+                    "y": 150
+                },
+                "width": 180,
+                "height": 80,
+                "shape": "rounded",
+                "style": {
+                    "background_color": "#C8E6C9",
+                    "border_color": "#388E3C",
+                    "border_width": 2,
+                    "border_radius": 8
+                }
+            },
+            {
+                "id": "pos-003",
+                "node_id": "act-document-analysis",
+                "node_type": "activity",
+                "position": {
+                    "x": 600,
+                    "y": 250
+                },
+                "width": 180,
+                "height": 80,
+                "shape": "rounded",
+                "style": {
+                    "background_color": "#FFE0B2",
+                    "border_color": "#F57C00",
+                    "border_width": 2,
+                    "border_radius": 8
+                }
+            },
+            {
+                "id": "pos-004",
+                "node_id": "dec-approval-routing",
+                "node_type": "decision",
+                "position": {
+                    "x": 850,
+                    "y": 250
+                },
+                "width": 100,
+                "height": 100,
+                "shape": "diamond",
+                "style": {
+                    "background_color": "#FFF9C4",
+                    "border_color": "#FBC02D",
+                    "border_width": 2
+                }
+            },
+            {
+                "id": "pos-005",
+                "node_id": "act-human-review",
+                "node_type": "activity",
+                "position": {
+                    "x": 1050,
+                    "y": 350
+                },
+                "width": 180,
+                "height": 80,
+                "shape": "rounded",
+                "style": {
+                    "background_color": "#F8BBD9",
+                    "border_color": "#C2185B",
+                    "border_width": 2,
+                    "border_radius": 8
+                }
+            },
+            {
+                "id": "pos-006",
+                "node_id": "act-auto-approval",
+                "node_type": "activity",
+                "position": {
+                    "x": 1050,
+                    "y": 150
+                },
+                "width": 180,
+                "height": 80,
+                "shape": "rounded",
+                "style": {
+                    "background_color": "#C8E6C9",
+                    "border_color": "#388E3C",
+                    "border_width": 2,
+                    "border_radius": 8
+                }
+            }
+        ],
+        "edge_routings": [
+            {
+                "id": "route-001",
+                "edge_id": "edge-submission-to-triage",
+                "curve_type": "smoothstep",
+                "animated": true,
+                "animation_speed": 1.5,
+                "style": {
+                    "stroke_color": "#1976D2",
+                    "stroke_width": 2,
+                    "marker_end": "arrowclosed"
+                }
+            },
+            {
+                "id": "route-002",
+                "edge_id": "edge-triage-to-analysis",
+                "curve_type": "smoothstep",
+                "animated": true,
+                "animation_speed": 1.5,
+                "style": {
+                    "stroke_color": "#388E3C",
+                    "stroke_width": 2,
+                    "marker_end": "arrowclosed"
+                }
+            },
+            {
+                "id": "route-003",
+                "edge_id": "edge-analysis-to-decision",
+                "curve_type": "smoothstep",
+                "animated": true,
+                "animation_speed": 1.5,
+                "style": {
+                    "stroke_color": "#F57C00",
+                    "stroke_width": 2,
+                    "marker_end": "arrowclosed"
+                }
+            }
+        ],
+        "camera_2d": {
+            "center": {
+                "x": 600,
+                "y": 250
+            },
+            "zoom": 0.85,
+            "min_zoom": 0.3,
+            "max_zoom": 2.5,
+            "fit_view": true,
+            "fit_padding": 80
+        },
+        "animation": {
+            "enabled": true,
+            "transition_duration": 350,
+            "easing": "ease_in_out",
+            "edge_flow_enabled": true,
+            "edge_flow_speed": 1.2,
+            "highlight_active_path": true,
+            "playback_speed": 1.0
+        },
+        "theme": {
+            "background_color": "#FAFAFA",
+            "grid_enabled": true,
+            "grid_size": 20,
+            "grid_color": "#E0E0E0",
+            "minimap_enabled": true,
+            "controls_enabled": true
+        },
+        "metadata": {
+            "created_by": "visualization-designer",
+            "purpose": "default-view"
+        },
+        "created_at": "2026-01-29T15:00:00Z",
+        "updated_at": "2026-01-29T15:00:00Z"
+    }
+}

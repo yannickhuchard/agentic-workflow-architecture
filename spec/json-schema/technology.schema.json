@@ -1,0 +1,185 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://awa.io/schema/technology.schema.json",
+    "title": "Technology",
+    "description": "Technology stack entities - System, Machine, Endpoint",
+    "type": "object",
+    "$defs": {
+        "system": {
+            "type": "object",
+            "required": [
+                "id",
+                "name",
+                "type"
+            ],
+            "properties": {
+                "id": {
+                    "$ref": "awa.schema.json#/$defs/uuid"
+                },
+                "name": {
+                    "type": "string",
+                    "description": "System name (e.g., 'SAP S/4HANA')"
+                },
+                "vendor": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "awa.schema.json#/$defs/system_type"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "endpoints": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/endpoint"
+                    }
+                },
+                "base_url": {
+                    "type": "string",
+                    "format": "uri"
+                },
+                "auth_config": {
+                    "$ref": "#/$defs/auth_config"
+                }
+            }
+        },
+        "machine": {
+            "type": "object",
+            "required": [
+                "id",
+                "name",
+                "type"
+            ],
+            "properties": {
+                "id": {
+                    "$ref": "awa.schema.json#/$defs/uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "awa.schema.json#/$defs/machine_type"
+                },
+                "manufacturer": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "serial_number": {
+                    "type": "string"
+                },
+                "location": {
+                    "type": "string"
+                },
+                "protocol": {
+                    "type": "string",
+                    "enum": [
+                        "mqtt",
+                        "opcua",
+                        "modbus",
+                        "http",
+                        "grpc",
+                        "ros"
+                    ]
+                },
+                "connection_string": {
+                    "type": "string"
+                }
+            }
+        },
+        "endpoint": {
+            "type": "object",
+            "required": [
+                "id",
+                "name",
+                "url"
+            ],
+            "properties": {
+                "id": {
+                    "$ref": "awa.schema.json#/$defs/uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string",
+                    "description": "Endpoint URL or path"
+                },
+                "method": {
+                    "type": "string",
+                    "enum": [
+                        "GET",
+                        "POST",
+                        "PUT",
+                        "DELETE",
+                        "PATCH",
+                        "GRPC",
+                        "WEBSOCKET",
+                        "GRAPHQL"
+                    ]
+                },
+                "auth_type": {
+                    "type": "string",
+                    "enum": [
+                        "none",
+                        "api_key",
+                        "oauth2",
+                        "jwt",
+                        "basic",
+                        "mtls"
+                    ]
+                },
+                "openapi_ref": {
+                    "type": "string",
+                    "description": "Reference to OpenAPI operation"
+                },
+                "request_schema": {
+                    "type": "object",
+                    "description": "JSON Schema for request body"
+                },
+                "response_schema": {
+                    "type": "object",
+                    "description": "JSON Schema for response body"
+                }
+            }
+        },
+        "auth_config": {
+            "type": "object",
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "oauth2",
+                        "api_key",
+                        "basic",
+                        "jwt",
+                        "mtls"
+                    ]
+                },
+                "token_url": {
+                    "type": "string",
+                    "format": "uri"
+                },
+                "client_id_ref": {
+                    "type": "string",
+                    "description": "Secret reference for client ID"
+                },
+                "client_secret_ref": {
+                    "type": "string",
+                    "description": "Secret reference for client secret"
+                },
+                "scopes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        }
+    }
+}

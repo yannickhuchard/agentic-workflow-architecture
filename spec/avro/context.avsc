@@ -1,0 +1,19 @@
+{
+  "type": "record",
+  "name": "Context",
+  "namespace": "io.awa.schema",
+  "doc": "Shared data/artifacts for AI agent collaboration",
+  "fields": [
+    { "name": "id", "type": { "type": "string", "logicalType": "uuid" } },
+    { "name": "name", "type": "string" },
+    { "name": "description", "type": ["null", "string"], "default": null },
+    { "name": "type", "type": { "type": "enum", "name": "ContextType", "symbols": ["document", "data", "config", "state", "memory", "artifact"] } },
+    { "name": "schema_json", "type": ["null", "string"], "default": null, "doc": "JSON Schema as string" },
+    { "name": "initial_value", "type": ["null", "string"], "default": null, "doc": "Initial value as JSON string" },
+    { "name": "sync_pattern", "type": { "type": "enum", "name": "SyncPattern", "symbols": ["shared_state", "message_passing", "blackboard", "event_sourcing"] } },
+    { "name": "visibility", "type": { "type": "enum", "name": "Visibility", "symbols": ["private", "workflow", "collection", "global"] }, "default": "workflow" },
+    { "name": "owner_workflow_id", "type": ["null", { "type": "string", "logicalType": "uuid" }], "default": null },
+    { "name": "lifecycle", "type": { "type": "enum", "name": "Lifecycle", "symbols": ["transient", "persistent", "cached"] }, "default": "persistent" },
+    { "name": "ttl_seconds", "type": ["null", "long"], "default": null }
+  ]
+}

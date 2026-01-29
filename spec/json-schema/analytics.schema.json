@@ -1,0 +1,80 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://awa.io/schema/analytics.schema.json",
+    "title": "Analytics",
+    "description": "Value Stream Mapping metrics for workflow and activities",
+    "type": "object",
+    "properties": {
+        "process_time": {
+            "$ref": "awa.schema.json#/$defs/duration",
+            "description": "Time to complete the step"
+        },
+        "cycle_time": {
+            "$ref": "awa.schema.json#/$defs/duration",
+            "description": "End-to-end time including waits"
+        },
+        "lead_time": {
+            "$ref": "awa.schema.json#/$defs/duration",
+            "description": "Total elapsed time"
+        },
+        "wait_time": {
+            "$ref": "awa.schema.json#/$defs/duration",
+            "description": "Non-value-added waiting"
+        },
+        "value_added": {
+            "type": "boolean",
+            "description": "Is this step value-adding"
+        },
+        "waste_categories": {
+            "type": "array",
+            "items": {
+                "$ref": "awa.schema.json#/$defs/waste_category"
+            },
+            "description": "Identified waste categories (DOWNTIME)"
+        },
+        "cost": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "number"
+                },
+                "currency": {
+                    "type": "string",
+                    "pattern": "^[A-Z]{3}$"
+                }
+            }
+        },
+        "resource_utilization": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "0-1 utilization ratio"
+        },
+        "error_rate": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Historical error rate"
+        },
+        "throughput": {
+            "type": "object",
+            "properties": {
+                "value": {
+                    "type": "number"
+                },
+                "unit": {
+                    "type": "string"
+                },
+                "period": {
+                    "$ref": "awa.schema.json#/$defs/duration"
+                }
+            }
+        },
+        "process_cycle_efficiency": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Value-added time / Lead time"
+        }
+    }
+}

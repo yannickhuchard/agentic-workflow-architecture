@@ -1,0 +1,184 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://awa.io/schema/workflow.schema.json",
+    "title": "Workflow",
+    "description": "A directed graph representing an agentic workflow process",
+    "type": "object",
+    "required": [
+        "id",
+        "name",
+        "version",
+        "activities",
+        "edges"
+    ],
+    "properties": {
+        "id": {
+            "$ref": "awa.schema.json#/$defs/uuid",
+            "description": "Unique identifier for the workflow"
+        },
+        "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Workflow name"
+        },
+        "version": {
+            "type": "string",
+            "pattern": "^\\d+\\.\\d+\\.\\d+$",
+            "description": "Semantic version"
+        },
+        "description": {
+            "type": "string",
+            "description": "Natural language description of the workflow"
+        },
+        "owner_id": {
+            "$ref": "awa.schema.json#/$defs/uuid",
+            "description": "Owner entity reference"
+        },
+        "organization_id": {
+            "$ref": "awa.schema.json#/$defs/uuid",
+            "description": "Owning organization reference"
+        },
+        "parent_workflow_id": {
+            "$ref": "awa.schema.json#/$defs/uuid",
+            "description": "Parent workflow if this is an expansion"
+        },
+        "expansion_activity_id": {
+            "$ref": "awa.schema.json#/$defs/uuid",
+            "description": "Activity being expanded by this workflow"
+        },
+        "activities": {
+            "type": "array",
+            "items": {
+                "$ref": "activity.schema.json"
+            },
+            "description": "List of activities in this workflow"
+        },
+        "edges": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/edge"
+            },
+            "description": "Directed connections between nodes"
+        },
+        "events": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/event"
+            },
+            "description": "Start, intermediate, and end events"
+        },
+        "decision_nodes": {
+            "type": "array",
+            "items": {
+                "$ref": "decision.schema.json"
+            },
+            "description": "Decision gateways"
+        },
+        "contexts": {
+            "type": "array",
+            "items": {
+                "$ref": "context.schema.json"
+            },
+            "description": "Shared contexts for this workflow"
+        },
+        "sla": {
+            "$ref": "sla.schema.json",
+            "description": "Workflow-level SLA"
+        },
+        "analytics": {
+            "$ref": "analytics.schema.json",
+            "description": "VSM metrics for this workflow"
+        },
+        "metadata": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Extensible metadata"
+        },
+        "visualization": {
+            "$ref": "visualization.schema.json#/$defs/visualization_config",
+            "description": "Default visualization configuration"
+        },
+        "alternate_visualizations": {
+            "type": "array",
+            "items": {
+                "$ref": "visualization.schema.json#/$defs/visualization_config"
+            },
+            "description": "Alternative visualization layouts"
+        },
+        "created_at": {
+            "$ref": "awa.schema.json#/$defs/datetime_tz"
+        },
+        "updated_at": {
+            "$ref": "awa.schema.json#/$defs/datetime_tz"
+        }
+    },
+    "$defs": {
+        "edge": {
+            "type": "object",
+            "required": [
+                "id",
+                "source_id",
+                "target_id"
+            ],
+            "properties": {
+                "id": {
+                    "$ref": "awa.schema.json#/$defs/uuid"
+                },
+                "source_id": {
+                    "$ref": "awa.schema.json#/$defs/uuid",
+                    "description": "Source node ID"
+                },
+                "target_id": {
+                    "$ref": "awa.schema.json#/$defs/uuid",
+                    "description": "Target node ID"
+                },
+                "source_type": {
+                    "$ref": "awa.schema.json#/$defs/node_type"
+                },
+                "target_type": {
+                    "$ref": "awa.schema.json#/$defs/node_type"
+                },
+                "condition": {
+                    "type": "string",
+                    "description": "Transition condition (FEEL expression)"
+                },
+                "label": {
+                    "type": "string",
+                    "description": "Edge label"
+                },
+                "is_default": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Is this the default path"
+                }
+            }
+        },
+        "event": {
+            "type": "object",
+            "required": [
+                "id",
+                "name",
+                "event_type"
+            ],
+            "properties": {
+                "id": {
+                    "$ref": "awa.schema.json#/$defs/uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "event_type": {
+                    "$ref": "awa.schema.json#/$defs/event_type"
+                },
+                "event_definition": {
+                    "type": "object",
+                    "description": "Event-specific configuration"
+                }
+            }
+        }
+    }
+}

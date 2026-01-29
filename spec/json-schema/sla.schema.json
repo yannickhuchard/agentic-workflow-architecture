@@ -1,0 +1,74 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://awa.io/schema/sla.schema.json",
+    "title": "SLA",
+    "description": "Service Level Agreement for workflow or activity",
+    "type": "object",
+    "properties": {
+        "id": {
+            "$ref": "awa.schema.json#/$defs/uuid"
+        },
+        "name": {
+            "type": "string"
+        },
+        "target_time": {
+            "$ref": "awa.schema.json#/$defs/duration",
+            "description": "Target completion time"
+        },
+        "max_time": {
+            "$ref": "awa.schema.json#/$defs/duration",
+            "description": "Maximum allowed time"
+        },
+        "escalation_policy": {
+            "type": "object",
+            "properties": {
+                "warning_threshold": {
+                    "$ref": "awa.schema.json#/$defs/duration"
+                },
+                "warning_action": {
+                    "type": "string"
+                },
+                "breach_action": {
+                    "type": "string"
+                },
+                "notify_roles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "awa.schema.json#/$defs/uuid"
+                    }
+                }
+            }
+        },
+        "metrics": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "name",
+                    "target"
+                ],
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "target": {
+                        "type": "number"
+                    },
+                    "unit": {
+                        "type": "string"
+                    },
+                    "comparison": {
+                        "type": "string",
+                        "enum": [
+                            "lt",
+                            "lte",
+                            "eq",
+                            "gte",
+                            "gt"
+                        ]
+                    }
+                }
+            }
+        }
+    }
+}

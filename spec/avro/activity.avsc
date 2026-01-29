@@ -1,0 +1,26 @@
+{
+  "type": "record",
+  "name": "Activity",
+  "namespace": "io.awa.schema",
+  "doc": "A unit of work in the agentic workflow",
+  "fields": [
+    { "name": "id", "type": { "type": "string", "logicalType": "uuid" } },
+    { "name": "name", "type": "string" },
+    { "name": "description", "type": ["null", "string"], "default": null },
+    { "name": "role_id", "type": { "type": "string", "logicalType": "uuid" } },
+    { "name": "actor_type", "type": { "type": "enum", "name": "ActorType", "symbols": ["human", "ai_agent", "robot", "application"] } },
+    { "name": "system_id", "type": ["null", { "type": "string", "logicalType": "uuid" }], "default": null },
+    { "name": "machine_id", "type": ["null", { "type": "string", "logicalType": "uuid" }], "default": null },
+    { "name": "endpoint_id", "type": ["null", { "type": "string", "logicalType": "uuid" }], "default": null },
+    { "name": "organization_id", "type": ["null", { "type": "string", "logicalType": "uuid" }], "default": null },
+    { "name": "inputs", "type": { "type": "array", "items": "DataObject" }, "default": [] },
+    { "name": "outputs", "type": { "type": "array", "items": "DataObject" }, "default": [] },
+    { "name": "context_bindings", "type": { "type": "array", "items": "ContextBinding" }, "default": [] },
+    { "name": "access_rights", "type": { "type": "array", "items": "AccessRight" }, "default": [] },
+    { "name": "programs", "type": { "type": "array", "items": "Program" }, "default": [] },
+    { "name": "controls", "type": { "type": "array", "items": "Control" }, "default": [] },
+    { "name": "sla", "type": ["null", "SLA"], "default": null },
+    { "name": "is_expandable", "type": "boolean", "default": false },
+    { "name": "expansion_workflow_id", "type": ["null", { "type": "string", "logicalType": "uuid" }], "default": null }
+  ]
+}

@@ -1,0 +1,293 @@
+{
+    "$schema": "https://awa.io/schema/visualization.schema.json",
+    "visualization": {
+        "id": "a1b2c3d4-0002-4000-8000-000000000002",
+        "workflow_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "name": "Insurance Claims - ELK Hierarchical View",
+        "description": "2D visualization using ELK algorithm for complex hierarchical layout with top-to-bottom flow",
+        "is_default": false,
+        "view_type": "2d",
+        "engine": "reactflow",
+        "auto_layout": {
+            "algorithm": "elk",
+            "direction": "tb",
+            "node_spacing": 40,
+            "rank_spacing": 80,
+            "edge_spacing": 20,
+            "align": "ul",
+            "elk_options": {
+                "elk.algorithm": "layered",
+                "elk.layered.spacing.nodeNodeBetweenLayers": "80",
+                "elk.layered.spacing.edgeNodeBetweenLayers": "30",
+                "elk.layered.crossingMinimization.strategy": "LAYER_SWEEP",
+                "elk.layered.nodePlacement.strategy": "BRANDES_KOEPF",
+                "elk.edgeRouting": "ORTHOGONAL"
+            },
+            "respect_lanes": false
+        },
+        "node_positions_2d": [
+            {
+                "id": "pos-start",
+                "node_id": "evt-claim-received",
+                "node_type": "event",
+                "position": {
+                    "x": 400,
+                    "y": 0
+                },
+                "width": 60,
+                "height": 60,
+                "shape": "circle",
+                "style": {
+                    "background_color": "#4CAF50",
+                    "border_color": "#2E7D32",
+                    "border_width": 3
+                }
+            },
+            {
+                "id": "pos-triage",
+                "node_id": "act-initial-triage",
+                "node_type": "activity",
+                "position": {
+                    "x": 350,
+                    "y": 100
+                },
+                "width": 160,
+                "height": 60,
+                "shape": "rounded",
+                "style": {
+                    "background_color": "#E3F2FD",
+                    "border_color": "#1976D2",
+                    "border_width": 2,
+                    "border_radius": 12
+                }
+            },
+            {
+                "id": "pos-doc-extract",
+                "node_id": "act-document-extraction",
+                "node_type": "activity",
+                "position": {
+                    "x": 150,
+                    "y": 200
+                },
+                "width": 160,
+                "height": 60,
+                "shape": "rounded",
+                "style": {
+                    "background_color": "#F3E5F5",
+                    "border_color": "#7B1FA2",
+                    "border_width": 2,
+                    "border_radius": 12
+                }
+            },
+            {
+                "id": "pos-fraud-check",
+                "node_id": "act-fraud-detection",
+                "node_type": "activity",
+                "position": {
+                    "x": 550,
+                    "y": 200
+                },
+                "width": 160,
+                "height": 60,
+                "shape": "rounded",
+                "style": {
+                    "background_color": "#FFEBEE",
+                    "border_color": "#C62828",
+                    "border_width": 2,
+                    "border_radius": 12
+                }
+            },
+            {
+                "id": "pos-decision",
+                "node_id": "dec-claim-routing",
+                "node_type": "decision",
+                "position": {
+                    "x": 350,
+                    "y": 320
+                },
+                "width": 80,
+                "height": 80,
+                "shape": "diamond",
+                "style": {
+                    "background_color": "#FFF8E1",
+                    "border_color": "#FF8F00",
+                    "border_width": 2
+                }
+            },
+            {
+                "id": "pos-auto-approve",
+                "node_id": "act-auto-approval",
+                "node_type": "activity",
+                "position": {
+                    "x": 100,
+                    "y": 440
+                },
+                "width": 160,
+                "height": 60,
+                "shape": "rounded",
+                "style": {
+                    "background_color": "#E8F5E9",
+                    "border_color": "#43A047",
+                    "border_width": 2,
+                    "border_radius": 12
+                }
+            },
+            {
+                "id": "pos-manual-review",
+                "node_id": "act-manual-review",
+                "node_type": "activity",
+                "position": {
+                    "x": 350,
+                    "y": 440
+                },
+                "width": 160,
+                "height": 60,
+                "shape": "rounded",
+                "style": {
+                    "background_color": "#FFF3E0",
+                    "border_color": "#EF6C00",
+                    "border_width": 2,
+                    "border_radius": 12
+                }
+            },
+            {
+                "id": "pos-escalate",
+                "node_id": "act-escalation",
+                "node_type": "activity",
+                "position": {
+                    "x": 600,
+                    "y": 440
+                },
+                "width": 160,
+                "height": 60,
+                "shape": "rounded",
+                "style": {
+                    "background_color": "#FCE4EC",
+                    "border_color": "#AD1457",
+                    "border_width": 2,
+                    "border_radius": 12
+                }
+            },
+            {
+                "id": "pos-end",
+                "node_id": "evt-claim-processed",
+                "node_type": "event",
+                "position": {
+                    "x": 350,
+                    "y": 560
+                },
+                "width": 60,
+                "height": 60,
+                "shape": "circle",
+                "style": {
+                    "background_color": "#EF5350",
+                    "border_color": "#B71C1C",
+                    "border_width": 3
+                }
+            }
+        ],
+        "edge_routings": [
+            {
+                "id": "route-start-triage",
+                "edge_id": "edge-start-to-triage",
+                "curve_type": "step",
+                "animated": false,
+                "style": {
+                    "stroke_color": "#616161",
+                    "stroke_width": 2,
+                    "marker_end": "arrowclosed"
+                }
+            },
+            {
+                "id": "route-triage-doc",
+                "edge_id": "edge-triage-to-doc",
+                "curve_type": "step",
+                "animated": false,
+                "style": {
+                    "stroke_color": "#7B1FA2",
+                    "stroke_width": 2,
+                    "marker_end": "arrowclosed"
+                }
+            },
+            {
+                "id": "route-triage-fraud",
+                "edge_id": "edge-triage-to-fraud",
+                "curve_type": "step",
+                "animated": false,
+                "style": {
+                    "stroke_color": "#C62828",
+                    "stroke_width": 2,
+                    "marker_end": "arrowclosed"
+                }
+            },
+            {
+                "id": "route-decision-auto",
+                "edge_id": "edge-decision-to-auto",
+                "curve_type": "step",
+                "animated": false,
+                "style": {
+                    "stroke_color": "#43A047",
+                    "stroke_width": 2,
+                    "stroke_dasharray": "none",
+                    "marker_end": "arrowclosed"
+                }
+            },
+            {
+                "id": "route-decision-manual",
+                "edge_id": "edge-decision-to-manual",
+                "curve_type": "step",
+                "animated": false,
+                "style": {
+                    "stroke_color": "#EF6C00",
+                    "stroke_width": 2,
+                    "marker_end": "arrowclosed"
+                }
+            },
+            {
+                "id": "route-decision-escalate",
+                "edge_id": "edge-decision-to-escalate",
+                "curve_type": "step",
+                "animated": false,
+                "style": {
+                    "stroke_color": "#AD1457",
+                    "stroke_width": 2,
+                    "stroke_dasharray": "5,5",
+                    "marker_end": "arrowclosed"
+                }
+            }
+        ],
+        "camera_2d": {
+            "center": {
+                "x": 350,
+                "y": 300
+            },
+            "zoom": 1.0,
+            "min_zoom": 0.25,
+            "max_zoom": 3.0,
+            "fit_view": true,
+            "fit_padding": 60
+        },
+        "animation": {
+            "enabled": true,
+            "transition_duration": 250,
+            "easing": "ease_out",
+            "edge_flow_enabled": false,
+            "highlight_active_path": true,
+            "playback_speed": 1.0
+        },
+        "theme": {
+            "background_color": "#FFFFFF",
+            "grid_enabled": true,
+            "grid_size": 25,
+            "grid_color": "#EEEEEE",
+            "minimap_enabled": true,
+            "controls_enabled": true
+        },
+        "metadata": {
+            "created_by": "visualization-designer",
+            "purpose": "elk-hierarchical-view"
+        },
+        "created_at": "2026-01-29T15:30:00Z",
+        "updated_at": "2026-01-29T15:30:00Z"
+    }
+}

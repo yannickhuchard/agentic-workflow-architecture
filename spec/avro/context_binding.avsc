@@ -1,0 +1,15 @@
+{
+  "type": "record",
+  "name": "ContextBinding",
+  "namespace": "io.awa.schema",
+  "doc": "Defines how an activity interacts with a shared context",
+  "fields": [
+    { "name": "id", "type": ["null", { "type": "string", "logicalType": "uuid" }], "default": null },
+    { "name": "context_id", "type": { "type": "string", "logicalType": "uuid" } },
+    { "name": "activity_id", "type": ["null", { "type": "string", "logicalType": "uuid" }], "default": null },
+    { "name": "access_mode", "type": { "type": "enum", "name": "AccessMode", "symbols": ["read", "write", "read_write", "subscribe", "publish"] } },
+    { "name": "required", "type": "boolean", "default": true },
+    { "name": "transform_on_read", "type": ["null", "string"], "default": null },
+    { "name": "transform_on_write", "type": ["null", "string"], "default": null }
+  ]
+}

@@ -1,0 +1,82 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://awa.io/schema/role.schema.json",
+    "title": "Role",
+    "description": "Actor role definition",
+    "type": "object",
+    "required": [
+        "id",
+        "name",
+        "actor_type"
+    ],
+    "properties": {
+        "id": {
+            "$ref": "awa.schema.json#/$defs/uuid"
+        },
+        "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+        },
+        "description": {
+            "type": "string",
+            "description": "Role responsibilities"
+        },
+        "actor_type": {
+            "$ref": "awa.schema.json#/$defs/actor_type",
+            "description": "Default actor type for this role"
+        },
+        "organization_id": {
+            "$ref": "awa.schema.json#/$defs/uuid",
+            "description": "Owning organization"
+        },
+        "capabilities": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "description": "Required capabilities"
+        },
+        "is_embedded": {
+            "type": "boolean",
+            "default": false,
+            "description": "If true, definition is inline in workflow"
+        },
+        "ai_model_config": {
+            "type": "object",
+            "description": "AI model configuration for ai_agent roles",
+            "properties": {
+                "model_id": {
+                    "type": "string",
+                    "description": "AI model identifier"
+                },
+                "temperature": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 2
+                },
+                "max_tokens": {
+                    "type": "integer"
+                },
+                "system_prompt": {
+                    "type": "string"
+                }
+            }
+        },
+        "mcp_tools": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "server_name": {
+                        "type": "string"
+                    },
+                    "tool_name": {
+                        "type": "string"
+                    }
+                }
+            },
+            "description": "Available MCP tools for this role"
+        }
+    }
+}

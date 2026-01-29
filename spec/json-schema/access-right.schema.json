@@ -1,0 +1,81 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://awa.io/schema/access-right.schema.json",
+    "title": "AccessRight",
+    "description": "Explicit permission required or provisioned by an activity",
+    "type": "object",
+    "required": [
+        "id",
+        "name",
+        "direction",
+        "resource_type",
+        "permission"
+    ],
+    "properties": {
+        "id": {
+            "$ref": "awa.schema.json#/$defs/uuid"
+        },
+        "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+        },
+        "description": {
+            "type": "string"
+        },
+        "activity_id": {
+            "$ref": "awa.schema.json#/$defs/uuid",
+            "description": "Activity requiring this access"
+        },
+        "direction": {
+            "type": "string",
+            "enum": [
+                "requires",
+                "provisions"
+            ],
+            "description": "requires = needs access, provisions = grants access"
+        },
+        "resource_type": {
+            "$ref": "awa.schema.json#/$defs/resource_type"
+        },
+        "resource_id": {
+            "type": "string",
+            "description": "Target resource identifier"
+        },
+        "permission": {
+            "$ref": "awa.schema.json#/$defs/permission"
+        },
+        "scope": {
+            "type": "string",
+            "description": "Permission scope (e.g., 'orders/*', 'users/self')"
+        },
+        "conditions": {
+            "type": "object",
+            "properties": {
+                "time_window": {
+                    "type": "object",
+                    "properties": {
+                        "start": {
+                            "type": "string",
+                            "format": "time"
+                        },
+                        "end": {
+                            "type": "string",
+                            "format": "time"
+                        }
+                    }
+                },
+                "ip_whitelist": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "expression": {
+                    "type": "string",
+                    "description": "Custom condition expression"
+                }
+            }
+        }
+    }
+}

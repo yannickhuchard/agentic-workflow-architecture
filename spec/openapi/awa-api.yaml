@@ -1,0 +1,714 @@
+openapi: 3.1.0
+info:
+  title: Agentic Workflow Architecture (AWA) API
+  description: |
+    REST API for the Agentic Workflow Architecture - the specification standard 
+    for AI-native, queryable workflow architecture.
+  version: 1.0.0
+  contact:
+    name: AWA Specification
+    url: https://awa.io
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+
+servers:
+  - url: https://api.awa.io/v1
+    description: Production server
+  - url: http://localhost:8080/v1
+    description: Local development
+
+tags:
+  - name: workflows
+    description: Workflow management
+  - name: activities
+    description: Activity operations
+  - name: contexts
+    description: Context management for agent collaboration
+  - name: access-rights
+    description: Access right declarations
+  - name: collections
+    description: Workflow collections
+  - name: query
+    description: Cross-entity querying
+
+paths:
+  /workflows:
+    get:
+      tags: [workflows]
+      operationId: list_workflows
+      summary: List all workflows
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/offset'
+        - name: owner_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: organization_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: List of workflows
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowList'
+    post:
+      tags: [workflows]
+      operationId: create_workflow
+      summary: Create a new workflow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowCreate'
+      responses:
+        '201':
+          description: Workflow created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workflow'
+
+  /workflows/{workflow_id}:
+    parameters:
+      - $ref: '#/components/parameters/workflow_id'
+    get:
+      tags: [workflows]
+      operationId: get_workflow
+      summary: Get a workflow by ID
+      responses:
+        '200':
+          description: Workflow details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workflow'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [workflows]
+      operationId: update_workflow
+      summary: Update a workflow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowUpdate'
+      responses:
+        '200':
+          description: Workflow updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workflow'
+    delete:
+      tags: [workflows]
+      operationId: delete_workflow
+      summary: Delete a workflow
+      responses:
+        '204':
+          description: Workflow deleted
+
+  /workflows/{workflow_id}/activities:
+    parameters:
+      - $ref: '#/components/parameters/workflow_id'
+    get:
+      tags: [activities]
+      operationId: list_workflow_activities
+      summary: List activities in a workflow
+      parameters:
+        - name: actor_type
+          in: query
+          schema:
+            $ref: '#/components/schemas/ActorType'
+        - name: role_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: system_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: List of activities
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivityList'
+
+  /workflows/{workflow_id}/activities/{activity_id}:
+    parameters:
+      - $ref: '#/components/parameters/workflow_id'
+      - $ref: '#/components/parameters/activity_id'
+    get:
+      tags: [activities]
+      operationId: get_activity
+      summary: Get an activity by ID
+      responses:
+        '200':
+          description: Activity details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Activity'
+
+  /workflows/{workflow_id}/contexts:
+    parameters:
+      - $ref: '#/components/parameters/workflow_id'
+    get:
+      tags: [contexts]
+      operationId: list_workflow_contexts
+      summary: List contexts in a workflow
+      parameters:
+        - name: type
+          in: query
+          schema:
+            $ref: '#/components/schemas/ContextType'
+        - name: sync_pattern
+          in: query
+          schema:
+            $ref: '#/components/schemas/SyncPattern'
+      responses:
+        '200':
+          description: List of contexts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContextList'
+    post:
+      tags: [contexts]
+      operationId: create_context
+      summary: Create a new context
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContextCreate'
+      responses:
+        '201':
+          description: Context created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Context'
+
+  /workflows/{workflow_id}/access-rights:
+    parameters:
+      - $ref: '#/components/parameters/workflow_id'
+    get:
+      tags: [access-rights]
+      operationId: list_workflow_access_rights
+      summary: List all access rights in a workflow
+      parameters:
+        - name: direction
+          in: query
+          schema:
+            type: string
+            enum: [requires, provisions]
+        - name: permission
+          in: query
+          schema:
+            $ref: '#/components/schemas/Permission'
+        - name: resource_type
+          in: query
+          schema:
+            $ref: '#/components/schemas/ResourceType'
+      responses:
+        '200':
+          description: List of access rights
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessRightList'
+
+  /contexts/{context_id}/bindings:
+    parameters:
+      - name: context_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [contexts]
+      operationId: list_context_bindings
+      summary: List all bindings for a context
+      parameters:
+        - name: access_mode
+          in: query
+          schema:
+            $ref: '#/components/schemas/AccessMode'
+      responses:
+        '200':
+          description: List of context bindings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContextBindingList'
+
+  /collections:
+    get:
+      tags: [collections]
+      operationId: list_collections
+      summary: List all collections
+      responses:
+        '200':
+          description: List of collections
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionList'
+    post:
+      tags: [collections]
+      operationId: create_collection
+      summary: Create a collection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CollectionCreate'
+      responses:
+        '201':
+          description: Collection created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Collection'
+
+  /collections/{collection_id}/workflows:
+    parameters:
+      - name: collection_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [collections]
+      operationId: list_collection_workflows
+      summary: List workflows in a collection
+      responses:
+        '200':
+          description: List of workflows
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowList'
+
+  /query/activities:
+    get:
+      tags: [query]
+      operationId: query_activities
+      summary: Query activities across all workflows
+      parameters:
+        - name: actor_type
+          in: query
+          schema:
+            $ref: '#/components/schemas/ActorType'
+        - name: system_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: role_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: has_access_right
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Query results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivityList'
+
+  /query/access-rights:
+    get:
+      tags: [query]
+      operationId: query_access_rights
+      summary: Query access rights across all workflows
+      parameters:
+        - name: permission
+          in: query
+          schema:
+            $ref: '#/components/schemas/Permission'
+        - name: resource_type
+          in: query
+          schema:
+            $ref: '#/components/schemas/ResourceType'
+        - name: resource_id
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Query results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessRightList'
+
+components:
+  parameters:
+    workflow_id:
+      name: workflow_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    activity_id:
+      name: activity_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        default: 20
+        maximum: 100
+    offset:
+      name: offset
+      in: query
+      schema:
+        type: integer
+        default: 0
+
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    # Enums
+    ActorType:
+      type: string
+      enum: [human, ai_agent, robot, application]
+    
+    AccessMode:
+      type: string
+      enum: [read, write, read_write, subscribe, publish]
+    
+    SyncPattern:
+      type: string
+      enum: [shared_state, message_passing, blackboard, event_sourcing]
+    
+    ContextType:
+      type: string
+      enum: [document, data, config, state, memory, artifact]
+    
+    Permission:
+      type: string
+      enum: [read, write, execute, admin, delete, create]
+    
+    ResourceType:
+      type: string
+      enum: [system, api, database, file, service, secret]
+
+    # Core entities
+    Workflow:
+      type: object
+      required: [id, name, version, activities, edges]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        version:
+          type: string
+        description:
+          type: string
+        owner_id:
+          type: string
+          format: uuid
+        organization_id:
+          type: string
+          format: uuid
+        activities:
+          type: array
+          items:
+            $ref: '#/components/schemas/Activity'
+        edges:
+          type: array
+          items:
+            $ref: '#/components/schemas/Edge'
+        contexts:
+          type: array
+          items:
+            $ref: '#/components/schemas/Context'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    WorkflowCreate:
+      type: object
+      required: [name, version]
+      properties:
+        name:
+          type: string
+        version:
+          type: string
+        description:
+          type: string
+
+    WorkflowUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+
+    WorkflowList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Workflow'
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+
+    Activity:
+      type: object
+      required: [id, name, role_id, actor_type]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        role_id:
+          type: string
+          format: uuid
+        actor_type:
+          $ref: '#/components/schemas/ActorType'
+        system_id:
+          type: string
+          format: uuid
+        machine_id:
+          type: string
+          format: uuid
+        context_bindings:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContextBinding'
+        access_rights:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccessRight'
+
+    ActivityList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Activity'
+        total:
+          type: integer
+
+    Edge:
+      type: object
+      required: [id, source_id, target_id]
+      properties:
+        id:
+          type: string
+          format: uuid
+        source_id:
+          type: string
+          format: uuid
+        target_id:
+          type: string
+          format: uuid
+        condition:
+          type: string
+        label:
+          type: string
+
+    Context:
+      type: object
+      required: [id, name, type, sync_pattern]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        type:
+          $ref: '#/components/schemas/ContextType'
+        sync_pattern:
+          $ref: '#/components/schemas/SyncPattern'
+        visibility:
+          type: string
+          enum: [private, workflow, collection, global]
+
+    ContextCreate:
+      type: object
+      required: [name, type, sync_pattern]
+      properties:
+        name:
+          type: string
+        type:
+          $ref: '#/components/schemas/ContextType'
+        sync_pattern:
+          $ref: '#/components/schemas/SyncPattern'
+
+    ContextList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Context'
+        total:
+          type: integer
+
+    ContextBinding:
+      type: object
+      required: [context_id, access_mode]
+      properties:
+        id:
+          type: string
+          format: uuid
+        context_id:
+          type: string
+          format: uuid
+        activity_id:
+          type: string
+          format: uuid
+        access_mode:
+          $ref: '#/components/schemas/AccessMode'
+        required:
+          type: boolean
+          default: true
+
+    ContextBindingList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContextBinding'
+        total:
+          type: integer
+
+    AccessRight:
+      type: object
+      required: [id, name, direction, resource_type, permission]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        activity_id:
+          type: string
+          format: uuid
+        direction:
+          type: string
+          enum: [requires, provisions]
+        resource_type:
+          $ref: '#/components/schemas/ResourceType'
+        resource_id:
+          type: string
+        permission:
+          $ref: '#/components/schemas/Permission'
+        scope:
+          type: string
+
+    AccessRightList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccessRight'
+        total:
+          type: integer
+
+    Collection:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        workflow_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+
+    CollectionCreate:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+
+    CollectionList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Collection'
+        total:
+          type: integer
+
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object

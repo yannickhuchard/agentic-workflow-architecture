@@ -1,0 +1,421 @@
+{
+    "$schema": "https://awa.io/schema/awa.schema.json",
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "name": "Order Processing with AI Agents",
+    "version": "1.0.0",
+    "description": "AI-assisted order fulfillment workflow demonstrating multi-agent collaboration with shared context",
+    "owner_id": "user-123",
+    "organization_id": "org-456",
+    "contexts": [
+        {
+            "id": "ctx-order-data",
+            "name": "Order Data",
+            "description": "Shared order information accessible by all agents",
+            "type": "data",
+            "sync_pattern": "shared_state",
+            "visibility": "workflow",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "order_id": {
+                        "type": "string"
+                    },
+                    "customer_id": {
+                        "type": "string"
+                    },
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "product_id": {
+                                    "type": "string"
+                                },
+                                "quantity": {
+                                    "type": "integer"
+                                },
+                                "price": {
+                                    "type": "number"
+                                }
+                            }
+                        }
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "total": {
+                        "type": "number"
+                    }
+                }
+            }
+        },
+        {
+            "id": "ctx-agent-memory",
+            "name": "Agent Memory",
+            "description": "Shared memory for agent reasoning and notes",
+            "type": "memory",
+            "sync_pattern": "blackboard",
+            "visibility": "workflow"
+        }
+    ],
+    "activities": [
+        {
+            "id": "act-receive-order",
+            "name": "Receive Order",
+            "description": "AI agent receives and parses incoming order from customer. Validates basic structure and records in shared context.",
+            "role_id": "role-customer-service-agent",
+            "actor_type": "ai_agent",
+            "context_bindings": [
+                {
+                    "context_id": "ctx-order-data",
+                    "access_mode": "write",
+                    "required": true
+                },
+                {
+                    "context_id": "ctx-agent-memory",
+                    "access_mode": "read_write",
+                    "required": false
+                }
+            ],
+            "programs": [
+                {
+                    "id": "prog-parse-order",
+                    "name": "Parse Order",
+                    "language": "mcp_tool",
+                    "mcp_server": "order-tools",
+                    "parameters": [
+                        {
+                            "name": "raw_input",
+                            "type": "string",
+                            "required": true
+                        }
+                    ]
+                }
+            ],
+            "access_rights": [
+                {
+                    "id": "ar-read-customer-db",
+                    "name": "Read Customer Database",
+                    "direction": "requires",
+                    "resource_type": "database",
+                    "resource_id": "customers",
+                    "permission": "read"
+                }
+            ],
+            "sla": {
+                "target_time": "PT30S",
+                "max_time": "PT2M"
+            }
+        },
+        {
+            "id": "act-validate-order",
+            "name": "Validate Order",
+            "description": "Validation agent checks order against business rules, inventory availability, and fraud detection.",
+            "role_id": "role-validation-agent",
+            "actor_type": "ai_agent",
+            "context_bindings": [
+                {
+                    "context_id": "ctx-order-data",
+                    "access_mode": "read",
+                    "required": true
+                },
+                {
+                    "context_id": "ctx-agent-memory",
+                    "access_mode": "read_write",
+                    "required": false
+                }
+            ],
+            "access_rights": [
+                {
+                    "id": "ar-read-inventory",
+                    "name": "Read Inventory",
+                    "direction": "requires",
+                    "resource_type": "api",
+                    "resource_id": "inventory-api",
+                    "permission": "read"
+                },
+                {
+                    "id": "ar-fraud-check",
+                    "name": "Fraud Detection API",
+                    "direction": "requires",
+                    "resource_type": "api",
+                    "resource_id": "fraud-detection",
+                    "permission": "execute"
+                }
+            ],
+            "analytics": {
+                "value_added": true,
+                "process_time": "PT45S"
+            }
+        },
+        {
+            "id": "act-check-inventory",
+            "name": "Check Inventory",
+            "description": "System integration to verify stock levels",
+            "role_id": "role-system",
+            "actor_type": "program",
+            "system_id": "sys-erp",
+            "endpoint_id": "ep-inventory-check",
+            "context_bindings": [
+                {
+                    "context_id": "ctx-order-data",
+                    "access_mode": "read_write",
+                    "required": true
+                }
+            ],
+            "access_rights": [
+                {
+                    "id": "ar-erp-inventory",
+                    "name": "ERP Inventory Access",
+                    "direction": "requires",
+                    "resource_type": "system",
+                    "resource_id": "erp-sap",
+                    "permission": "read"
+                }
+            ]
+        },
+        {
+            "id": "act-human-approval",
+            "name": "Manual Approval",
+            "description": "Human supervisor reviews high-value or flagged orders",
+            "role_id": "role-supervisor",
+            "actor_type": "human",
+            "context_bindings": [
+                {
+                    "context_id": "ctx-order-data",
+                    "access_mode": "read_write",
+                    "required": true
+                },
+                {
+                    "context_id": "ctx-agent-memory",
+                    "access_mode": "read",
+                    "required": false
+                }
+            ],
+            "analytics": {
+                "value_added": false,
+                "waste_categories": [
+                    "waiting"
+                ]
+            }
+        },
+        {
+            "id": "act-fulfill-order",
+            "name": "Fulfill Order",
+            "description": "AI agent coordinates order fulfillment with warehouse robots",
+            "role_id": "role-fulfillment-agent",
+            "actor_type": "ai_agent",
+            "context_bindings": [
+                {
+                    "context_id": "ctx-order-data",
+                    "access_mode": "read_write",
+                    "required": true
+                }
+            ],
+            "access_rights": [
+                {
+                    "id": "ar-warehouse-control",
+                    "name": "Warehouse Robot Control",
+                    "direction": "requires",
+                    "resource_type": "service",
+                    "resource_id": "warehouse-automation",
+                    "permission": "execute"
+                }
+            ]
+        },
+        {
+            "id": "act-robot-pick",
+            "name": "Robot Picking",
+            "description": "Warehouse robot picks items from shelves",
+            "role_id": "role-warehouse-robot",
+            "actor_type": "robot",
+            "machine_id": "machine-picker-01",
+            "context_bindings": [
+                {
+                    "context_id": "ctx-order-data",
+                    "access_mode": "read",
+                    "required": true
+                }
+            ],
+            "analytics": {
+                "value_added": true,
+                "process_time": "PT3M"
+            }
+        },
+        {
+            "id": "act-notify-customer",
+            "name": "Notify Customer",
+            "description": "AI agent generates and sends personalized order confirmation",
+            "role_id": "role-notification-agent",
+            "actor_type": "ai_agent",
+            "context_bindings": [
+                {
+                    "context_id": "ctx-order-data",
+                    "access_mode": "read",
+                    "required": true
+                }
+            ],
+            "access_rights": [
+                {
+                    "id": "ar-send-email",
+                    "name": "Email Service",
+                    "direction": "requires",
+                    "resource_type": "service",
+                    "resource_id": "email-service",
+                    "permission": "execute"
+                }
+            ]
+        }
+    ],
+    "edges": [
+        {
+            "id": "edge-1",
+            "source_id": "act-receive-order",
+            "target_id": "act-validate-order",
+            "source_type": "activity",
+            "target_type": "activity"
+        },
+        {
+            "id": "edge-2",
+            "source_id": "act-validate-order",
+            "target_id": "act-check-inventory",
+            "source_type": "activity",
+            "target_type": "activity",
+            "condition": "validation_passed == true"
+        },
+        {
+            "id": "edge-3",
+            "source_id": "act-check-inventory",
+            "target_id": "decision-high-value",
+            "source_type": "activity",
+            "target_type": "decision"
+        },
+        {
+            "id": "edge-4",
+            "source_id": "decision-high-value",
+            "target_id": "act-human-approval",
+            "source_type": "decision",
+            "target_type": "activity",
+            "label": "High Value"
+        },
+        {
+            "id": "edge-5",
+            "source_id": "decision-high-value",
+            "target_id": "act-fulfill-order",
+            "source_type": "decision",
+            "target_type": "activity",
+            "is_default": true,
+            "label": "Standard"
+        },
+        {
+            "id": "edge-6",
+            "source_id": "act-human-approval",
+            "target_id": "act-fulfill-order",
+            "source_type": "activity",
+            "target_type": "activity",
+            "condition": "approved == true"
+        },
+        {
+            "id": "edge-7",
+            "source_id": "act-fulfill-order",
+            "target_id": "act-robot-pick",
+            "source_type": "activity",
+            "target_type": "activity"
+        },
+        {
+            "id": "edge-8",
+            "source_id": "act-robot-pick",
+            "target_id": "act-notify-customer",
+            "source_type": "activity",
+            "target_type": "activity"
+        }
+    ],
+    "decision_nodes": [
+        {
+            "id": "decision-high-value",
+            "name": "High Value Check",
+            "description": "Route high-value orders to human approval",
+            "decision_table": {
+                "hit_policy": "first",
+                "inputs": [
+                    {
+                        "name": "order_total",
+                        "label": "Order Total",
+                        "type": "number"
+                    },
+                    {
+                        "name": "is_flagged",
+                        "label": "Flagged by Fraud",
+                        "type": "boolean"
+                    }
+                ],
+                "outputs": [
+                    {
+                        "name": "requires_approval",
+                        "label": "Requires Approval",
+                        "type": "boolean"
+                    }
+                ],
+                "rules": [
+                    {
+                        "description": "High value orders need approval",
+                        "input_entries": [
+                            ">= 1000",
+                            "-"
+                        ],
+                        "output_entries": [
+                            true
+                        ],
+                        "output_edge_id": "edge-4"
+                    },
+                    {
+                        "description": "Flagged orders need approval",
+                        "input_entries": [
+                            "-",
+                            "true"
+                        ],
+                        "output_entries": [
+                            true
+                        ],
+                        "output_edge_id": "edge-4"
+                    },
+                    {
+                        "description": "Standard orders proceed",
+                        "input_entries": [
+                            "< 1000",
+                            "false"
+                        ],
+                        "output_entries": [
+                            false
+                        ],
+                        "output_edge_id": "edge-5"
+                    }
+                ]
+            },
+            "default_output_edge_id": "edge-5"
+        }
+    ],
+    "sla": {
+        "name": "Order Processing SLA",
+        "target_time": "PT15M",
+        "max_time": "PT1H",
+        "escalation_policy": {
+            "warning_threshold": "PT10M",
+            "warning_action": "notify_supervisor",
+            "breach_action": "escalate_to_manager"
+        }
+    },
+    "analytics": {
+        "lead_time": "PT20M",
+        "cycle_time": "PT12M",
+        "process_cycle_efficiency": 0.6
+    },
+    "metadata": {
+        "domain": "e-commerce",
+        "tags": [
+            "order-management",
+            "ai-assisted",
+            "multi-agent"
+        ]
+    }
+}

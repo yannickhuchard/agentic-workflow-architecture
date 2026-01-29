@@ -1,0 +1,505 @@
+{
+    "$schema": "https://awa.io/schema/visualization.schema.json",
+    "visualization": {
+        "id": "a1b2c3d4-0004-4000-8000-000000000004",
+        "workflow_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "name": "Insurance Claims - 3D Cylinder Pipeline",
+        "description": "3D visualization representing workflow as a cylindrical pipeline with activities as stages",
+        "is_default": false,
+        "view_type": "3d",
+        "engine": "babylonjs",
+        "auto_layout": {
+            "algorithm": "manual",
+            "direction": "lr"
+        },
+        "node_positions_3d": [
+            {
+                "id": "pos3d-pipe-start",
+                "node_id": "evt-claim-received",
+                "node_type": "event",
+                "position": {
+                    "x": -12,
+                    "y": 0,
+                    "z": 0
+                },
+                "rotation": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 1.5708,
+                    "w": 0
+                },
+                "scale": {
+                    "x": 1.5,
+                    "y": 0.3,
+                    "z": 1.5
+                },
+                "shape": "cylinder",
+                "material": {
+                    "diffuse_color": "#4CAF50",
+                    "emissive_color": "#2E7D32",
+                    "alpha": 1.0,
+                    "metallic": 0.6,
+                    "roughness": 0.2
+                },
+                "visible": true
+            },
+            {
+                "id": "pos3d-pipe-intake",
+                "node_id": "act-claim-submission",
+                "node_type": "activity",
+                "position": {
+                    "x": -9,
+                    "y": 0,
+                    "z": 0
+                },
+                "rotation": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 1.5708,
+                    "w": 0
+                },
+                "scale": {
+                    "x": 1.8,
+                    "y": 2,
+                    "z": 1.8
+                },
+                "shape": "cylinder",
+                "material": {
+                    "diffuse_color": "#42A5F5",
+                    "emissive_color": "#1565C0",
+                    "alpha": 0.85,
+                    "metallic": 0.4,
+                    "roughness": 0.3
+                },
+                "visible": true
+            },
+            {
+                "id": "pos3d-pipe-triage",
+                "node_id": "act-initial-triage",
+                "node_type": "activity",
+                "position": {
+                    "x": -5,
+                    "y": 0,
+                    "z": 0
+                },
+                "rotation": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 1.5708,
+                    "w": 0
+                },
+                "scale": {
+                    "x": 1.8,
+                    "y": 2,
+                    "z": 1.8
+                },
+                "shape": "cylinder",
+                "material": {
+                    "diffuse_color": "#26C6DA",
+                    "emissive_color": "#00838F",
+                    "alpha": 0.85,
+                    "metallic": 0.4,
+                    "roughness": 0.3
+                },
+                "visible": true
+            },
+            {
+                "id": "pos3d-pipe-doc",
+                "node_id": "act-document-extraction",
+                "node_type": "activity",
+                "position": {
+                    "x": -1,
+                    "y": 0,
+                    "z": 0
+                },
+                "rotation": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 1.5708,
+                    "w": 0
+                },
+                "scale": {
+                    "x": 1.8,
+                    "y": 2,
+                    "z": 1.8
+                },
+                "shape": "cylinder",
+                "material": {
+                    "diffuse_color": "#66BB6A",
+                    "emissive_color": "#2E7D32",
+                    "alpha": 0.85,
+                    "metallic": 0.4,
+                    "roughness": 0.3
+                },
+                "visible": true
+            },
+            {
+                "id": "pos3d-pipe-fraud",
+                "node_id": "act-fraud-detection",
+                "node_type": "activity",
+                "position": {
+                    "x": 3,
+                    "y": 0,
+                    "z": 0
+                },
+                "rotation": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 1.5708,
+                    "w": 0
+                },
+                "scale": {
+                    "x": 1.8,
+                    "y": 2,
+                    "z": 1.8
+                },
+                "shape": "cylinder",
+                "material": {
+                    "diffuse_color": "#FFCA28",
+                    "emissive_color": "#FF8F00",
+                    "alpha": 0.85,
+                    "metallic": 0.4,
+                    "roughness": 0.3
+                },
+                "visible": true
+            },
+            {
+                "id": "pos3d-pipe-decision",
+                "node_id": "dec-claim-routing",
+                "node_type": "decision",
+                "position": {
+                    "x": 7,
+                    "y": 0,
+                    "z": 0
+                },
+                "rotation": {
+                    "x": 0.7071,
+                    "y": 0,
+                    "z": 0,
+                    "w": 0.7071
+                },
+                "scale": {
+                    "x": 2.2,
+                    "y": 0.4,
+                    "z": 2.2
+                },
+                "shape": "hexagon",
+                "material": {
+                    "diffuse_color": "#FF7043",
+                    "emissive_color": "#D84315",
+                    "alpha": 1.0,
+                    "metallic": 0.7,
+                    "roughness": 0.2
+                },
+                "visible": true
+            },
+            {
+                "id": "pos3d-branch-auto",
+                "node_id": "act-auto-approval",
+                "node_type": "activity",
+                "position": {
+                    "x": 11,
+                    "y": 2.5,
+                    "z": 0
+                },
+                "rotation": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 1.5708,
+                    "w": 0
+                },
+                "scale": {
+                    "x": 1.5,
+                    "y": 2,
+                    "z": 1.5
+                },
+                "shape": "cylinder",
+                "material": {
+                    "diffuse_color": "#4CAF50",
+                    "emissive_color": "#1B5E20",
+                    "alpha": 0.9,
+                    "metallic": 0.4,
+                    "roughness": 0.3
+                },
+                "visible": true
+            },
+            {
+                "id": "pos3d-branch-manual",
+                "node_id": "act-human-review",
+                "node_type": "activity",
+                "position": {
+                    "x": 11,
+                    "y": 0,
+                    "z": 0
+                },
+                "rotation": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 1.5708,
+                    "w": 0
+                },
+                "scale": {
+                    "x": 1.5,
+                    "y": 2,
+                    "z": 1.5
+                },
+                "shape": "cylinder",
+                "material": {
+                    "diffuse_color": "#FFA726",
+                    "emissive_color": "#E65100",
+                    "alpha": 0.9,
+                    "metallic": 0.4,
+                    "roughness": 0.3
+                },
+                "visible": true
+            },
+            {
+                "id": "pos3d-branch-escalate",
+                "node_id": "act-escalation",
+                "node_type": "activity",
+                "position": {
+                    "x": 11,
+                    "y": -2.5,
+                    "z": 0
+                },
+                "rotation": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 1.5708,
+                    "w": 0
+                },
+                "scale": {
+                    "x": 1.5,
+                    "y": 2,
+                    "z": 1.5
+                },
+                "shape": "cylinder",
+                "material": {
+                    "diffuse_color": "#EF5350",
+                    "emissive_color": "#B71C1C",
+                    "alpha": 0.9,
+                    "metallic": 0.4,
+                    "roughness": 0.3
+                },
+                "visible": true
+            },
+            {
+                "id": "pos3d-pipe-merge",
+                "node_id": "act-payment-processing",
+                "node_type": "activity",
+                "position": {
+                    "x": 15,
+                    "y": 0,
+                    "z": 0
+                },
+                "rotation": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 1.5708,
+                    "w": 0
+                },
+                "scale": {
+                    "x": 1.8,
+                    "y": 2,
+                    "z": 1.8
+                },
+                "shape": "cylinder",
+                "material": {
+                    "diffuse_color": "#7E57C2",
+                    "emissive_color": "#4527A0",
+                    "alpha": 0.85,
+                    "metallic": 0.4,
+                    "roughness": 0.3
+                },
+                "visible": true
+            },
+            {
+                "id": "pos3d-pipe-end",
+                "node_id": "evt-claim-processed",
+                "node_type": "event",
+                "position": {
+                    "x": 19,
+                    "y": 0,
+                    "z": 0
+                },
+                "rotation": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 1.5708,
+                    "w": 0
+                },
+                "scale": {
+                    "x": 1.5,
+                    "y": 0.3,
+                    "z": 1.5
+                },
+                "shape": "cylinder",
+                "material": {
+                    "diffuse_color": "#EC407A",
+                    "emissive_color": "#AD1457",
+                    "alpha": 1.0,
+                    "metallic": 0.6,
+                    "roughness": 0.2
+                },
+                "visible": true
+            }
+        ],
+        "edge_routings": [
+            {
+                "id": "route3d-pipe-001",
+                "edge_id": "edge-intake-to-triage",
+                "curve_type": "straight",
+                "control_points_3d": [
+                    {
+                        "x": -7,
+                        "y": 0,
+                        "z": 0
+                    }
+                ],
+                "animated": true,
+                "animation_speed": 3.0,
+                "style": {
+                    "stroke_color": "#90CAF9",
+                    "stroke_width": 4
+                }
+            },
+            {
+                "id": "route3d-pipe-002",
+                "edge_id": "edge-triage-to-doc",
+                "curve_type": "straight",
+                "animated": true,
+                "animation_speed": 3.0,
+                "style": {
+                    "stroke_color": "#80DEEA",
+                    "stroke_width": 4
+                }
+            },
+            {
+                "id": "route3d-branch-auto",
+                "edge_id": "edge-decision-to-auto",
+                "curve_type": "bezier",
+                "control_points_3d": [
+                    {
+                        "x": 8.5,
+                        "y": 1,
+                        "z": 0
+                    },
+                    {
+                        "x": 9.5,
+                        "y": 2,
+                        "z": 0
+                    }
+                ],
+                "animated": true,
+                "animation_speed": 2.0,
+                "style": {
+                    "stroke_color": "#A5D6A7",
+                    "stroke_width": 3
+                }
+            },
+            {
+                "id": "route3d-branch-manual",
+                "edge_id": "edge-decision-to-manual",
+                "curve_type": "straight",
+                "animated": true,
+                "animation_speed": 2.0,
+                "style": {
+                    "stroke_color": "#FFCC80",
+                    "stroke_width": 3
+                }
+            },
+            {
+                "id": "route3d-branch-escalate",
+                "edge_id": "edge-decision-to-escalate",
+                "curve_type": "bezier",
+                "control_points_3d": [
+                    {
+                        "x": 8.5,
+                        "y": -1,
+                        "z": 0
+                    },
+                    {
+                        "x": 9.5,
+                        "y": -2,
+                        "z": 0
+                    }
+                ],
+                "animated": true,
+                "animation_speed": 2.0,
+                "style": {
+                    "stroke_color": "#EF9A9A",
+                    "stroke_width": 3
+                }
+            }
+        ],
+        "camera_3d": {
+            "type": "arc_rotate",
+            "position": {
+                "x": 3,
+                "y": 12,
+                "z": 20
+            },
+            "target": {
+                "x": 3,
+                "y": 0,
+                "z": 0
+            },
+            "fov": 55,
+            "near_clip": 0.1,
+            "far_clip": 300,
+            "alpha": 0,
+            "beta": 1.2,
+            "radius": 28
+        },
+        "animation": {
+            "enabled": true,
+            "transition_duration": 400,
+            "easing": "bounce",
+            "edge_flow_enabled": true,
+            "edge_flow_speed": 2.5,
+            "highlight_active_path": true,
+            "playback_speed": 1.2
+        },
+        "theme": {
+            "background_color": "#0D1B2A",
+            "grid_enabled": true,
+            "grid_size": 1,
+            "grid_color": "#1B263B"
+        },
+        "metadata": {
+            "created_by": "3d-designer",
+            "purpose": "pipeline-visualization",
+            "style": "industrial",
+            "lighting": {
+                "ambient_intensity": 0.3,
+                "point_lights": [
+                    {
+                        "position": {
+                            "x": 0,
+                            "y": 10,
+                            "z": 10
+                        },
+                        "intensity": 1.0,
+                        "color": "#FFFFFF"
+                    },
+                    {
+                        "position": {
+                            "x": 10,
+                            "y": 5,
+                            "z": -5
+                        },
+                        "intensity": 0.5,
+                        "color": "#FFE082"
+                    }
+                ]
+            },
+            "fog": {
+                "enabled": true,
+                "color": "#0D1B2A",
+                "density": 0.02
+            }
+        },
+        "created_at": "2026-01-29T16:30:00Z",
+        "updated_at": "2026-01-29T16:30:00Z"
+    }
+}

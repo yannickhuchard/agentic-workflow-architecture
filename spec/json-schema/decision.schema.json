@@ -1,0 +1,129 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://awa.io/schema/decision.schema.json",
+    "title": "DecisionNode",
+    "description": "DMN-inspired decision gateway with decision table",
+    "type": "object",
+    "required": [
+        "id",
+        "name",
+        "decision_table"
+    ],
+    "properties": {
+        "id": {
+            "$ref": "awa.schema.json#/$defs/uuid"
+        },
+        "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+        },
+        "description": {
+            "type": "string"
+        },
+        "decision_table": {
+            "$ref": "#/$defs/decision_table"
+        },
+        "default_output_edge_id": {
+            "$ref": "awa.schema.json#/$defs/uuid",
+            "description": "Default path if no rule matches"
+        }
+    },
+    "$defs": {
+        "decision_table": {
+            "type": "object",
+            "required": [
+                "hit_policy",
+                "inputs",
+                "outputs",
+                "rules"
+            ],
+            "properties": {
+                "hit_policy": {
+                    "$ref": "awa.schema.json#/$defs/hit_policy"
+                },
+                "inputs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/table_column"
+                    },
+                    "minItems": 1
+                },
+                "outputs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/table_column"
+                    },
+                    "minItems": 1
+                },
+                "rules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/decision_rule"
+                    }
+                }
+            }
+        },
+        "table_column": {
+            "type": "object",
+            "required": [
+                "name",
+                "type"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "string",
+                        "number",
+                        "boolean",
+                        "date",
+                        "datetime"
+                    ]
+                },
+                "allowed_values": {
+                    "type": "array",
+                    "items": {}
+                }
+            }
+        },
+        "decision_rule": {
+            "type": "object",
+            "required": [
+                "input_entries",
+                "output_entries"
+            ],
+            "properties": {
+                "id": {
+                    "$ref": "awa.schema.json#/$defs/uuid"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "input_entries": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "description": "FEEL expression for input condition"
+                    }
+                },
+                "output_entries": {
+                    "type": "array",
+                    "items": {
+                        "description": "Output value or expression"
+                    }
+                },
+                "output_edge_id": {
+                    "$ref": "awa.schema.json#/$defs/uuid",
+                    "description": "Edge to follow when rule matches"
+                }
+            }
+        }
+    }
+}

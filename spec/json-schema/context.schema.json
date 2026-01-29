@@ -1,0 +1,103 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://awa.io/schema/context.schema.json",
+    "title": "Context",
+    "description": "Shared data/artifacts for AI agent collaboration",
+    "type": "object",
+    "required": [
+        "id",
+        "name",
+        "type",
+        "sync_pattern"
+    ],
+    "properties": {
+        "id": {
+            "$ref": "awa.schema.json#/$defs/uuid"
+        },
+        "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+        },
+        "description": {
+            "type": "string",
+            "description": "Purpose and usage for agents"
+        },
+        "type": {
+            "$ref": "awa.schema.json#/$defs/context_type"
+        },
+        "schema": {
+            "type": "object",
+            "description": "JSON Schema of context structure"
+        },
+        "initial_value": {
+            "description": "Initial context content"
+        },
+        "sync_pattern": {
+            "$ref": "awa.schema.json#/$defs/sync_pattern"
+        },
+        "visibility": {
+            "$ref": "awa.schema.json#/$defs/visibility",
+            "default": "workflow"
+        },
+        "owner_workflow_id": {
+            "$ref": "awa.schema.json#/$defs/uuid"
+        },
+        "lifecycle": {
+            "type": "string",
+            "enum": [
+                "transient",
+                "persistent",
+                "cached"
+            ],
+            "default": "persistent"
+        },
+        "ttl": {
+            "$ref": "awa.schema.json#/$defs/duration",
+            "description": "Time-to-live for transient contexts"
+        }
+    },
+    "$defs": {
+        "context_binding": {
+            "type": "object",
+            "required": [
+                "context_id",
+                "access_mode"
+            ],
+            "properties": {
+                "id": {
+                    "$ref": "awa.schema.json#/$defs/uuid"
+                },
+                "context_id": {
+                    "$ref": "awa.schema.json#/$defs/uuid",
+                    "description": "Referenced context"
+                },
+                "activity_id": {
+                    "$ref": "awa.schema.json#/$defs/uuid",
+                    "description": "Bound activity"
+                },
+                "access_mode": {
+                    "$ref": "awa.schema.json#/$defs/access_mode"
+                },
+                "required": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Must context exist before activity runs"
+                },
+                "transforms": {
+                    "type": "object",
+                    "properties": {
+                        "on_read": {
+                            "type": "string",
+                            "description": "Transformation expression on read"
+                        },
+                        "on_write": {
+                            "type": "string",
+                            "description": "Transformation expression on write"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,25 @@
+{
+  "type": "record",
+  "name": "Workflow",
+  "namespace": "io.awa.schema",
+  "doc": "A directed graph representing an agentic workflow process",
+  "fields": [
+    { "name": "id", "type": { "type": "string", "logicalType": "uuid" }, "doc": "Unique identifier" },
+    { "name": "name", "type": "string", "doc": "Workflow name" },
+    { "name": "version", "type": "string", "doc": "Semantic version" },
+    { "name": "description", "type": ["null", "string"], "default": null },
+    { "name": "owner_id", "type": ["null", { "type": "string", "logicalType": "uuid" }], "default": null },
+    { "name": "organization_id", "type": ["null", { "type": "string", "logicalType": "uuid" }], "default": null },
+    { "name": "parent_workflow_id", "type": ["null", { "type": "string", "logicalType": "uuid" }], "default": null },
+    { "name": "expansion_activity_id", "type": ["null", { "type": "string", "logicalType": "uuid" }], "default": null },
+    { "name": "activities", "type": { "type": "array", "items": "Activity" } },
+    { "name": "edges", "type": { "type": "array", "items": "Edge" } },
+    { "name": "events", "type": { "type": "array", "items": "Event" }, "default": [] },
+    { "name": "decision_nodes", "type": { "type": "array", "items": "DecisionNode" }, "default": [] },
+    { "name": "contexts", "type": { "type": "array", "items": "Context" }, "default": [] },
+    { "name": "sla", "type": ["null", "SLA"], "default": null },
+    { "name": "metadata", "type": ["null", { "type": "map", "values": "string" }], "default": null },
+    { "name": "created_at", "type": { "type": "long", "logicalType": "timestamp-millis" } },
+    { "name": "updated_at", "type": { "type": "long", "logicalType": "timestamp-millis" } }
+  ]
+}

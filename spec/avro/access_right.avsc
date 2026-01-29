@@ -1,0 +1,18 @@
+{
+  "type": "record",
+  "name": "AccessRight",
+  "namespace": "io.awa.schema",
+  "doc": "Explicit permission required or provisioned by an activity",
+  "fields": [
+    { "name": "id", "type": { "type": "string", "logicalType": "uuid" } },
+    { "name": "name", "type": "string" },
+    { "name": "description", "type": ["null", "string"], "default": null },
+    { "name": "activity_id", "type": ["null", { "type": "string", "logicalType": "uuid" }], "default": null },
+    { "name": "direction", "type": { "type": "enum", "name": "AccessDirection", "symbols": ["requires", "provisions"] } },
+    { "name": "resource_type", "type": { "type": "enum", "name": "ResourceType", "symbols": ["system", "api", "database", "file", "service", "secret"] } },
+    { "name": "resource_id", "type": ["null", "string"], "default": null },
+    { "name": "permission", "type": { "type": "enum", "name": "Permission", "symbols": ["read", "write", "execute", "admin", "delete", "create"] } },
+    { "name": "scope", "type": ["null", "string"], "default": null },
+    { "name": "conditions_json", "type": ["null", "string"], "default": null, "doc": "Conditions as JSON string" }
+  ]
+}

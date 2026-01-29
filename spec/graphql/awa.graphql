@@ -1,0 +1,587 @@
+# Agentic Workflow Architecture (AWA) GraphQL Schema
+
+# Enums
+enum ActorType {
+  human
+  ai_agent
+  robot
+  application
+}
+
+enum AccessMode {
+  read
+  write
+  read_write
+  subscribe
+  publish
+}
+
+enum SyncPattern {
+  shared_state
+  message_passing
+  blackboard
+  event_sourcing
+}
+
+enum ContextType {
+  document
+  data
+  config
+  state
+  memory
+  artifact
+}
+
+enum Visibility {
+  private
+  workflow
+  collection
+  global
+}
+
+enum Permission {
+  read
+  write
+  execute
+  admin
+  delete
+  create
+}
+
+enum ResourceType {
+  system
+  api
+  database
+  file
+  service
+  secret
+}
+
+enum AccessDirection {
+  requires
+  provisions
+}
+
+enum HitPolicy {
+  unique
+  first
+  priority
+  any
+  collect
+  rule_order
+}
+
+enum WasteCategory {
+  defects
+  overproduction
+  waiting
+  non_utilized_talent
+  transport
+  inventory
+  motion
+  extra_processing
+}
+
+enum NodeType {
+  activity
+  event
+  decision
+}
+
+# Scalar types
+scalar UUID
+scalar DateTime
+scalar Duration
+scalar JSON
+
+# Core Types
+
+type Workflow {
+  id: UUID!
+  name: String!
+  version: String!
+  description: String
+  owner_id: UUID
+  organization_id: UUID
+  parent_workflow_id: UUID
+  expansion_activity_id: UUID
+  activities: [Activity!]!
+  edges: [Edge!]!
+  events: [Event!]!
+  decision_nodes: [DecisionNode!]!
+  contexts: [Context!]!
+  sla: SLA
+  analytics: Analytics
+  metadata: JSON
+  created_at: DateTime!
+  updated_at: DateTime!
+  
+  # Computed fields for querying
+  access_rights: [AccessRight!]!
+  activities_by_actor_type(actor_type: ActorType!): [Activity!]!
+  activities_by_system(system_id: UUID!): [Activity!]!
+}
+
+type Activity {
+  id: UUID!
+  name: String!
+  description: String
+  role_id: UUID!
+  role: Role
+  actor_type: ActorType!
+  system_id: UUID
+  system: System
+  machine_id: UUID
+  machine: Machine
+  endpoint_id: UUID
+  endpoint: Endpoint
+  organization_id: UUID
+  inputs: [DataObject!]!
+  outputs: [DataObject!]!
+  context_bindings: [ContextBinding!]!
+  access_rights: [AccessRight!]!
+  programs: [Program!]!
+  controls: [Control!]!
+  sla: SLA
+  analytics: Analytics
+  is_expandable: Boolean!
+  expansion_workflow_id: UUID
+  expansion_workflow: Workflow
+}
+
+type Edge {
+  id: UUID!
+  source_id: UUID!
+  target_id: UUID!
+  source_type: NodeType
+  target_type: NodeType
+  condition: String
+  label: String
+  is_default: Boolean!
+}
+
+type Event {
+  id: UUID!
+  name: String!
+  description: String
+  event_type: String!
+  event_definition: JSON
+}
+
+type Context {
+  id: UUID!
+  name: String!
+  description: String
+  type: ContextType!
+  schema: JSON
+  initial_value: JSON
+  sync_pattern: SyncPattern!
+  visibility: Visibility!
+  owner_workflow_id: UUID
+  lifecycle: String!
+  ttl: Duration
+  
+  # Relationships
+  bindings: [ContextBinding!]!
+  activities_with_access(access_mode: AccessMode): [Activity!]!
+}
+
+type ContextBinding {
+  id: UUID
+  context_id: UUID!
+  context: Context
+  activity_id: UUID
+  activity: Activity
+  access_mode: AccessMode!
+  required: Boolean!
+  transforms: Transforms
+}
+
+type Transforms {
+  on_read: String
+  on_write: String
+}
+
+type AccessRight {
+  id: UUID!
+  name: String!
+  description: String
+  activity_id: UUID
+  activity: Activity
+  direction: AccessDirection!
+  resource_type: ResourceType!
+  resource_id: String
+  permission: Permission!
+  scope: String
+  conditions: JSON
+}
+
+type Role {
+  id: UUID!
+  name: String!
+  description: String
+  actor_type: ActorType!
+  organization_id: UUID
+  capabilities: [String!]!
+  is_embedded: Boolean!
+  ai_model_config: AIModelConfig
+  mcp_tools: [MCPTool!]!
+}
+
+type AIModelConfig {
+  model_id: String
+  temperature: Float
+  max_tokens: Int
+  system_prompt: String
+}
+
+type MCPTool {
+  server_name: String!
+  tool_name: String!
+}
+
+type System {
+  id: UUID!
+  name: String!
+  vendor: String
+  version: String
+  type: String!
+  description: String
+  endpoints: [Endpoint!]!
+  base_url: String
+}
+
+type Machine {
+  id: UUID!
+  name: String!
+  type: String!
+  manufacturer: String
+  model: String
+  serial_number: String
+  location: String
+  protocol: String
+  connection_string: String
+}
+
+type Endpoint {
+  id: UUID!
+  name: String!
+  url: String!
+  method: String
+  auth_type: String
+  openapi_ref: String
+  request_schema: JSON
+  response_schema: JSON
+}
+
+type Program {
+  id: UUID!
+  name: String!
+  language: String!
+  code: String
+  code_uri: String
+  parameters: [Parameter!]!
+  mcp_server: String
+}
+
+type Parameter {
+  name: String!
+  type: String!
+  required: Boolean!
+  default: JSON
+}
+
+type Control {
+  id: UUID!
+  name: String!
+  description: String
+  type: String!
+  expression: String
+  enforcement: String!
+}
+
+type DecisionNode {
+  id: UUID!
+  name: String!
+  description: String
+  decision_table: DecisionTable!
+  default_output_edge_id: UUID
+}
+
+type DecisionTable {
+  hit_policy: HitPolicy!
+  inputs: [TableColumn!]!
+  outputs: [TableColumn!]!
+  rules: [DecisionRule!]!
+}
+
+type TableColumn {
+  name: String!
+  label: String
+  type: String!
+  allowed_values: [JSON!]
+}
+
+type DecisionRule {
+  id: UUID
+  description: String
+  input_entries: [String!]!
+  output_entries: [JSON!]!
+  output_edge_id: UUID
+}
+
+type SLA {
+  id: UUID
+  name: String
+  target_time: Duration
+  max_time: Duration
+  escalation_policy: EscalationPolicy
+  metrics: [SLAMetric!]!
+}
+
+type EscalationPolicy {
+  warning_threshold: Duration
+  warning_action: String
+  breach_action: String
+  notify_roles: [UUID!]!
+}
+
+type SLAMetric {
+  name: String!
+  target: Float!
+  unit: String
+  comparison: String
+}
+
+type Analytics {
+  process_time: Duration
+  cycle_time: Duration
+  lead_time: Duration
+  wait_time: Duration
+  value_added: Boolean
+  waste_categories: [WasteCategory!]!
+  cost: Cost
+  resource_utilization: Float
+  error_rate: Float
+  throughput: Throughput
+  process_cycle_efficiency: Float
+}
+
+type Cost {
+  amount: Float!
+  currency: String!
+}
+
+type Throughput {
+  value: Float!
+  unit: String!
+  period: Duration
+}
+
+type DataObject {
+  name: String!
+  description: String
+  schema: JSON
+  required: Boolean!
+}
+
+type Collection {
+  id: UUID!
+  name: String!
+  description: String
+  workflows: [Workflow!]!
+  shared_contexts: [Context!]!
+  owner_id: UUID
+  organization_id: UUID
+  tags: [String!]!
+  created_at: DateTime!
+  updated_at: DateTime!
+}
+
+# Query Root
+
+type Query {
+  # Workflows
+  workflow(id: UUID!): Workflow
+  workflows(
+    owner_id: UUID
+    organization_id: UUID
+    limit: Int = 20
+    offset: Int = 0
+  ): [Workflow!]!
+  
+  # Activities (cross-workflow query)
+  activities(
+    workflow_id: UUID
+    actor_type: ActorType
+    system_id: UUID
+    role_id: UUID
+    has_access_rights: Boolean
+    limit: Int = 20
+    offset: Int = 0
+  ): [Activity!]!
+  
+  # Contexts
+  context(id: UUID!): Context
+  contexts(
+    workflow_id: UUID
+    type: ContextType
+    sync_pattern: SyncPattern
+    visibility: Visibility
+  ): [Context!]!
+  
+  # Access Rights (cross-workflow query)
+  access_rights(
+    workflow_id: UUID
+    activity_id: UUID
+    direction: AccessDirection
+    permission: Permission
+    resource_type: ResourceType
+    resource_id: String
+  ): [AccessRight!]!
+  
+  # Collections
+  collection(id: UUID!): Collection
+  collections(
+    owner_id: UUID
+    organization_id: UUID
+  ): [Collection!]!
+  
+  # Systems & Technology
+  system(id: UUID!): System
+  systems(type: String): [System!]!
+  
+  # Roles
+  role(id: UUID!): Role
+  roles(actor_type: ActorType): [Role!]!
+}
+
+# Mutation Root
+
+type Mutation {
+  # Workflows
+  createWorkflow(input: WorkflowInput!): Workflow!
+  updateWorkflow(id: UUID!, input: WorkflowUpdateInput!): Workflow!
+  deleteWorkflow(id: UUID!): Boolean!
+  
+  # Activities
+  addActivity(workflow_id: UUID!, input: ActivityInput!): Activity!
+  updateActivity(workflow_id: UUID!, activity_id: UUID!, input: ActivityUpdateInput!): Activity!
+  removeActivity(workflow_id: UUID!, activity_id: UUID!): Boolean!
+  
+  # Edges
+  addEdge(workflow_id: UUID!, input: EdgeInput!): Edge!
+  removeEdge(workflow_id: UUID!, edge_id: UUID!): Boolean!
+  
+  # Contexts
+  createContext(workflow_id: UUID!, input: ContextInput!): Context!
+  updateContext(context_id: UUID!, input: ContextUpdateInput!): Context!
+  deleteContext(context_id: UUID!): Boolean!
+  
+  # Context Bindings
+  bindActivityToContext(input: ContextBindingInput!): ContextBinding!
+  unbindActivityFromContext(binding_id: UUID!): Boolean!
+  
+  # Access Rights
+  addAccessRight(activity_id: UUID!, input: AccessRightInput!): AccessRight!
+  removeAccessRight(access_right_id: UUID!): Boolean!
+  
+  # Collections
+  createCollection(input: CollectionInput!): Collection!
+  addWorkflowToCollection(collection_id: UUID!, workflow_id: UUID!): Collection!
+  removeWorkflowFromCollection(collection_id: UUID!, workflow_id: UUID!): Collection!
+}
+
+# Input Types
+
+input WorkflowInput {
+  name: String!
+  version: String!
+  description: String
+  owner_id: UUID
+  organization_id: UUID
+}
+
+input WorkflowUpdateInput {
+  name: String
+  description: String
+  version: String
+}
+
+input ActivityInput {
+  name: String!
+  description: String
+  role_id: UUID!
+  actor_type: ActorType!
+  system_id: UUID
+  machine_id: UUID
+  endpoint_id: UUID
+}
+
+input ActivityUpdateInput {
+  name: String
+  description: String
+  role_id: UUID
+  actor_type: ActorType
+  system_id: UUID
+  machine_id: UUID
+}
+
+input EdgeInput {
+  source_id: UUID!
+  target_id: UUID!
+  source_type: NodeType
+  target_type: NodeType
+  condition: String
+  label: String
+  is_default: Boolean = false
+}
+
+input ContextInput {
+  name: String!
+  type: ContextType!
+  sync_pattern: SyncPattern!
+  description: String
+  visibility: Visibility = workflow
+  initial_value: JSON
+  schema: JSON
+}
+
+input ContextUpdateInput {
+  name: String
+  description: String
+  visibility: Visibility
+}
+
+input ContextBindingInput {
+  context_id: UUID!
+  activity_id: UUID!
+  access_mode: AccessMode!
+  required: Boolean = true
+}
+
+input AccessRightInput {
+  name: String!
+  description: String
+  direction: AccessDirection!
+  resource_type: ResourceType!
+  resource_id: String
+  permission: Permission!
+  scope: String
+}
+
+input CollectionInput {
+  name: String!
+  description: String
+  owner_id: UUID
+  organization_id: UUID
+  tags: [String!]
+}
+
+# Subscription Root (for real-time updates)
+
+type Subscription {
+  workflowUpdated(workflow_id: UUID!): Workflow!
+  contextUpdated(context_id: UUID!): Context!
+  activityCompleted(workflow_id: UUID!): Activity!
+}

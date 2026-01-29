@@ -1,0 +1,211 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://awa.io/schema/awa.schema.json",
+  "title": "Agentic Workflow Architecture (AWA)",
+  "description": "Root schema for AWA - the specification standard for AI-native, queryable workflow architecture",
+  "type": "object",
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
+    "datetime_tz": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "duration": {
+      "type": "string",
+      "pattern": "^P(?:\\d+Y)?(?:\\d+M)?(?:\\d+W)?(?:\\d+D)?(?:T(?:\\d+H)?(?:\\d+M)?(?:\\d+(?:\\.\\d+)?S)?)?$",
+      "description": "ISO 8601 duration format"
+    },
+    "actor_type": {
+      "type": "string",
+      "enum": [
+        "human",
+        "ai_agent",
+        "robot",
+        "application"
+      ],
+      "description": "Type of actor performing an activity"
+    },
+    "access_mode": {
+      "type": "string",
+      "enum": [
+        "read",
+        "write",
+        "read_write",
+        "subscribe",
+        "publish"
+      ],
+      "description": "How an activity interacts with a context"
+    },
+    "sync_pattern": {
+      "type": "string",
+      "enum": [
+        "shared_state",
+        "message_passing",
+        "blackboard",
+        "event_sourcing"
+      ],
+      "description": "Synchronization pattern for context collaboration"
+    },
+    "context_type": {
+      "type": "string",
+      "enum": [
+        "document",
+        "data",
+        "config",
+        "state",
+        "memory",
+        "artifact"
+      ],
+      "description": "Type of context artifact"
+    },
+    "visibility": {
+      "type": "string",
+      "enum": [
+        "private",
+        "workflow",
+        "collection",
+        "global"
+      ],
+      "description": "Visibility scope of context"
+    },
+    "permission": {
+      "type": "string",
+      "enum": [
+        "read",
+        "write",
+        "execute",
+        "admin",
+        "delete",
+        "create"
+      ],
+      "description": "Access permission type"
+    },
+    "resource_type": {
+      "type": "string",
+      "enum": [
+        "system",
+        "api",
+        "database",
+        "file",
+        "service",
+        "secret"
+      ],
+      "description": "Type of resource being accessed"
+    },
+    "system_type": {
+      "type": "string",
+      "enum": [
+        "erp",
+        "crm",
+        "hrm",
+        "scm",
+        "custom",
+        "saas",
+        "database",
+        "messaging",
+        "storage"
+      ],
+      "description": "Type of enterprise system"
+    },
+    "machine_type": {
+      "type": "string",
+      "enum": [
+        "robot",
+        "sensor",
+        "actuator",
+        "printer",
+        "scanner",
+        "vehicle",
+        "camera",
+        "conveyor"
+      ],
+      "description": "Type of physical machine"
+    },
+    "control_type": {
+      "type": "string",
+      "enum": [
+        "authorization",
+        "validation",
+        "audit",
+        "compliance",
+        "security",
+        "rate_limit"
+      ],
+      "description": "Type of governance control"
+    },
+    "enforcement": {
+      "type": "string",
+      "enum": [
+        "mandatory",
+        "advisory",
+        "informational"
+      ],
+      "description": "How strictly a control is enforced"
+    },
+    "hit_policy": {
+      "type": "string",
+      "enum": [
+        "unique",
+        "first",
+        "priority",
+        "any",
+        "collect",
+        "rule_order"
+      ],
+      "description": "DMN hit policy for decision tables"
+    },
+    "waste_category": {
+      "type": "string",
+      "enum": [
+        "defects",
+        "overproduction",
+        "waiting",
+        "non_utilized_talent",
+        "transport",
+        "inventory",
+        "motion",
+        "extra_processing"
+      ],
+      "description": "Value Stream Mapping waste categories (DOWNTIME)"
+    },
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "start",
+        "intermediate",
+        "end",
+        "timer",
+        "message",
+        "error",
+        "signal",
+        "conditional"
+      ],
+      "description": "Type of workflow event"
+    },
+    "node_type": {
+      "type": "string",
+      "enum": [
+        "activity",
+        "event",
+        "decision"
+      ],
+      "description": "Type of node in the workflow graph"
+    }
+  },
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "const": "https://awa.io/schema/awa.schema.json"
+    },
+    "workflow": {
+      "$ref": "workflow.schema.json"
+    },
+    "collection": {
+      "$ref": "collection.schema.json"
+    }
+  }
+}

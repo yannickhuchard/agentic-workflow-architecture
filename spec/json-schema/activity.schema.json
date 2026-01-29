@@ -1,0 +1,230 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://awa.io/schema/activity.schema.json",
+    "title": "Activity",
+    "description": "A unit of work in the agentic workflow",
+    "type": "object",
+    "required": [
+        "id",
+        "name",
+        "role_id",
+        "actor_type"
+    ],
+    "properties": {
+        "id": {
+            "$ref": "awa.schema.json#/$defs/uuid",
+            "description": "Unique identifier"
+        },
+        "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Activity title"
+        },
+        "description": {
+            "type": "string",
+            "description": "Natural language algorithm for AI elicitation"
+        },
+        "role_id": {
+            "$ref": "awa.schema.json#/$defs/uuid",
+            "description": "Performing role reference"
+        },
+        "actor_type": {
+            "$ref": "awa.schema.json#/$defs/actor_type"
+        },
+        "system_id": {
+            "$ref": "awa.schema.json#/$defs/uuid",
+            "description": "Enterprise system used"
+        },
+        "machine_id": {
+            "$ref": "awa.schema.json#/$defs/uuid",
+            "description": "Physical device/robot"
+        },
+        "endpoint_id": {
+            "$ref": "awa.schema.json#/$defs/uuid",
+            "description": "API endpoint"
+        },
+        "organization_id": {
+            "$ref": "awa.schema.json#/$defs/uuid",
+            "description": "Organization performing this activity"
+        },
+        "inputs": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/data_object"
+            },
+            "description": "Input data specifications"
+        },
+        "outputs": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/data_object"
+            },
+            "description": "Output data specifications"
+        },
+        "context_bindings": {
+            "type": "array",
+            "items": {
+                "$ref": "context.schema.json#/$defs/context_binding"
+            },
+            "description": "Context bindings for this activity"
+        },
+        "access_rights": {
+            "type": "array",
+            "items": {
+                "$ref": "access-right.schema.json"
+            },
+            "description": "Required or provisioned access rights"
+        },
+        "programs": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/program"
+            },
+            "description": "Executable implementations"
+        },
+        "controls": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/control"
+            },
+            "description": "Compliance policies"
+        },
+        "sla": {
+            "$ref": "sla.schema.json",
+            "description": "Activity-level SLA"
+        },
+        "analytics": {
+            "$ref": "analytics.schema.json",
+            "description": "VSM metrics for this activity"
+        },
+        "is_expandable": {
+            "type": "boolean",
+            "default": false,
+            "description": "Can this activity be expanded to a sub-workflow"
+        },
+        "expansion_workflow_id": {
+            "$ref": "awa.schema.json#/$defs/uuid",
+            "description": "Sub-workflow expanding this activity"
+        }
+    },
+    "$defs": {
+        "data_object": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "schema": {
+                    "type": "object",
+                    "description": "JSON Schema of the data object"
+                },
+                "required": {
+                    "type": "boolean",
+                    "default": true
+                }
+            }
+        },
+        "program": {
+            "type": "object",
+            "required": [
+                "id",
+                "name",
+                "language"
+            ],
+            "properties": {
+                "id": {
+                    "$ref": "awa.schema.json#/$defs/uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "language": {
+                    "type": "string",
+                    "enum": [
+                        "python",
+                        "typescript",
+                        "javascript",
+                        "java",
+                        "sql",
+                        "mcp_tool",
+                        "rest_api",
+                        "graphql",
+                        "shell"
+                    ]
+                },
+                "code": {
+                    "type": "string",
+                    "description": "Inline code"
+                },
+                "code_uri": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "External code reference"
+                },
+                "parameters": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": [
+                            "name",
+                            "type"
+                        ],
+                        "properties": {
+                            "name": {
+                                "type": "string"
+                            },
+                            "type": {
+                                "type": "string"
+                            },
+                            "required": {
+                                "type": "boolean",
+                                "default": true
+                            },
+                            "default": {}
+                        }
+                    }
+                },
+                "mcp_server": {
+                    "type": "string",
+                    "description": "MCP server name for mcp_tool language"
+                }
+            }
+        },
+        "control": {
+            "type": "object",
+            "required": [
+                "id",
+                "name",
+                "type"
+            ],
+            "properties": {
+                "id": {
+                    "$ref": "awa.schema.json#/$defs/uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "awa.schema.json#/$defs/control_type"
+                },
+                "expression": {
+                    "type": "string",
+                    "description": "Executable policy expression"
+                },
+                "enforcement": {
+                    "$ref": "awa.schema.json#/$defs/enforcement"
+                }
+            }
+        }
+    }
+}

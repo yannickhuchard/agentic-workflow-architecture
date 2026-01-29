@@ -1,0 +1,127 @@
+{
+    "namespace": "io.awa.visualization",
+    "type": "record",
+    "name": "VisualizationEvent",
+    "doc": "Event schema for visualization state changes",
+    "fields": [
+        {
+            "name": "event_id",
+            "type": "string",
+            "doc": "Unique event identifier"
+        },
+        {
+            "name": "event_type",
+            "type": {
+                "type": "enum",
+                "name": "VisualizationEventType",
+                "symbols": [
+                    "VISUALIZATION_CREATED",
+                    "VISUALIZATION_UPDATED",
+                    "VISUALIZATION_DELETED",
+                    "NODE_POSITION_CHANGED",
+                    "EDGE_ROUTING_CHANGED",
+                    "LANE_UPDATED",
+                    "CAMERA_CHANGED",
+                    "LAYOUT_COMPUTED"
+                ]
+            }
+        },
+        {
+            "name": "timestamp",
+            "type": {
+                "type": "long",
+                "logicalType": "timestamp-millis"
+            }
+        },
+        {
+            "name": "visualization_id",
+            "type": "string"
+        },
+        {
+            "name": "workflow_id",
+            "type": "string"
+        },
+        {
+            "name": "view_type",
+            "type": {
+                "type": "enum",
+                "name": "ViewType",
+                "symbols": ["DIMENSION_2D", "DIMENSION_3D"]
+            }
+        },
+        {
+            "name": "payload",
+            "type": [
+                "null",
+                {
+                    "type": "record",
+                    "name": "NodePositionPayload",
+                    "fields": [
+                        {"name": "node_id", "type": "string"},
+                        {"name": "node_type", "type": "string"},
+                        {"name": "x", "type": "double"},
+                        {"name": "y", "type": "double"},
+                        {"name": "z", "type": ["null", "double"], "default": null},
+                        {"name": "width", "type": ["null", "double"], "default": null},
+                        {"name": "height", "type": ["null", "double"], "default": null}
+                    ]
+                },
+                {
+                    "type": "record",
+                    "name": "EdgeRoutingPayload",
+                    "fields": [
+                        {"name": "edge_id", "type": "string"},
+                        {"name": "curve_type", "type": "string"},
+                        {"name": "control_points", "type": {"type": "array", "items": {"type": "record", "name": "Point", "fields": [{"name": "x", "type": "double"}, {"name": "y", "type": "double"}, {"name": "z", "type": ["null", "double"], "default": null}]}}},
+                        {"name": "animated", "type": "boolean", "default": false}
+                    ]
+                },
+                {
+                    "type": "record",
+                    "name": "LanePayload",
+                    "fields": [
+                        {"name": "lane_id", "type": "string"},
+                        {"name": "name", "type": "string"},
+                        {"name": "orientation", "type": "string"},
+                        {"name": "node_ids", "type": {"type": "array", "items": "string"}}
+                    ]
+                },
+                {
+                    "type": "record",
+                    "name": "CameraPayload",
+                    "fields": [
+                        {"name": "position_x", "type": "double"},
+                        {"name": "position_y", "type": "double"},
+                        {"name": "position_z", "type": ["null", "double"], "default": null},
+                        {"name": "target_x", "type": ["null", "double"], "default": null},
+                        {"name": "target_y", "type": ["null", "double"], "default": null},
+                        {"name": "target_z", "type": ["null", "double"], "default": null},
+                        {"name": "zoom", "type": ["null", "double"], "default": null},
+                        {"name": "fov", "type": ["null", "double"], "default": null}
+                    ]
+                },
+                {
+                    "type": "record",
+                    "name": "LayoutComputedPayload",
+                    "fields": [
+                        {"name": "algorithm", "type": "string"},
+                        {"name": "direction", "type": "string"},
+                        {"name": "node_count", "type": "int"},
+                        {"name": "computation_time_ms", "type": "long"}
+                    ]
+                }
+            ],
+            "default": null
+        },
+        {
+            "name": "user_id",
+            "type": ["null", "string"],
+            "default": null
+        },
+        {
+            "name": "metadata",
+            "type": ["null", {"type": "map", "values": "string"}],
+            "default": null
+        }
+    ]
+}

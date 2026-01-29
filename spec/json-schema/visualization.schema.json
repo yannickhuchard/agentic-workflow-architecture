@@ -1,0 +1,706 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://awa.io/schema/visualization.schema.json",
+    "title": "AWA Visualization Configuration",
+    "description": "Optional visualization layer for 2D and 3D rendering of AWA workflows",
+    "type": "object",
+    "$defs": {
+        "view_type": {
+            "type": "string",
+            "enum": [
+                "2d",
+                "3d"
+            ],
+            "description": "Visualization dimension type"
+        },
+        "layout_algorithm": {
+            "type": "string",
+            "enum": [
+                "dagre",
+                "elk",
+                "d3_hierarchy",
+                "manual"
+            ],
+            "description": "Auto-layout algorithm"
+        },
+        "layout_direction": {
+            "type": "string",
+            "enum": [
+                "tb",
+                "bt",
+                "lr",
+                "rl"
+            ],
+            "description": "Layout direction: top-bottom, bottom-top, left-right, right-left"
+        },
+        "lane_orientation": {
+            "type": "string",
+            "enum": [
+                "horizontal",
+                "vertical"
+            ],
+            "description": "Swim lane orientation"
+        },
+        "curve_type": {
+            "type": "string",
+            "enum": [
+                "bezier",
+                "step",
+                "smoothstep",
+                "straight"
+            ],
+            "description": "Edge curve rendering style"
+        },
+        "node_shape": {
+            "type": "string",
+            "enum": [
+                "rectangle",
+                "rounded",
+                "circle",
+                "diamond",
+                "hexagon",
+                "cylinder",
+                "cube",
+                "sphere"
+            ],
+            "description": "Visual shape for node rendering"
+        },
+        "color": {
+            "type": "string",
+            "pattern": "^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{8})$|^rgba?\\(",
+            "description": "CSS color value (hex or rgba)"
+        },
+        "vector2d": {
+            "type": "object",
+            "required": [
+                "x",
+                "y"
+            ],
+            "properties": {
+                "x": {
+                    "type": "number"
+                },
+                "y": {
+                    "type": "number"
+                }
+            },
+            "description": "2D coordinate"
+        },
+        "vector3d": {
+            "type": "object",
+            "required": [
+                "x",
+                "y",
+                "z"
+            ],
+            "properties": {
+                "x": {
+                    "type": "number"
+                },
+                "y": {
+                    "type": "number"
+                },
+                "z": {
+                    "type": "number"
+                }
+            },
+            "description": "3D coordinate"
+        },
+        "quaternion": {
+            "type": "object",
+            "required": [
+                "x",
+                "y",
+                "z",
+                "w"
+            ],
+            "properties": {
+                "x": {
+                    "type": "number"
+                },
+                "y": {
+                    "type": "number"
+                },
+                "z": {
+                    "type": "number"
+                },
+                "w": {
+                    "type": "number"
+                }
+            },
+            "description": "Quaternion rotation"
+        },
+        "node_position_2d": {
+            "type": "object",
+            "required": [
+                "node_id",
+                "node_type",
+                "position"
+            ],
+            "properties": {
+                "id": {
+                    "$ref": "awa.schema.json#/$defs/uuid"
+                },
+                "node_id": {
+                    "$ref": "awa.schema.json#/$defs/uuid",
+                    "description": "Reference to activity, event, or decision node"
+                },
+                "node_type": {
+                    "$ref": "awa.schema.json#/$defs/node_type"
+                },
+                "position": {
+                    "$ref": "#/$defs/vector2d",
+                    "description": "Top-left position in 2D canvas"
+                },
+                "width": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "Node width in pixels"
+                },
+                "height": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "Node height in pixels"
+                },
+                "z_index": {
+                    "type": "integer",
+                    "description": "Stacking order"
+                },
+                "shape": {
+                    "$ref": "#/$defs/node_shape"
+                },
+                "style": {
+                    "type": "object",
+                    "properties": {
+                        "background_color": {
+                            "$ref": "#/$defs/color"
+                        },
+                        "border_color": {
+                            "$ref": "#/$defs/color"
+                        },
+                        "border_width": {
+                            "type": "number"
+                        },
+                        "border_radius": {
+                            "type": "number"
+                        },
+                        "opacity": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                        }
+                    },
+                    "additionalProperties": true
+                },
+                "collapsed": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Whether expandable node is collapsed"
+                }
+            },
+            "description": "2D node position compatible with ReactFlow"
+        },
+        "node_position_3d": {
+            "type": "object",
+            "required": [
+                "node_id",
+                "node_type",
+                "position"
+            ],
+            "properties": {
+                "id": {
+                    "$ref": "awa.schema.json#/$defs/uuid"
+                },
+                "node_id": {
+                    "$ref": "awa.schema.json#/$defs/uuid",
+                    "description": "Reference to activity, event, or decision node"
+                },
+                "node_type": {
+                    "$ref": "awa.schema.json#/$defs/node_type"
+                },
+                "position": {
+                    "$ref": "#/$defs/vector3d",
+                    "description": "Center position in 3D space"
+                },
+                "rotation": {
+                    "$ref": "#/$defs/quaternion",
+                    "description": "Rotation as quaternion"
+                },
+                "scale": {
+                    "$ref": "#/$defs/vector3d",
+                    "description": "Scale factors"
+                },
+                "shape": {
+                    "$ref": "#/$defs/node_shape"
+                },
+                "material": {
+                    "type": "object",
+                    "properties": {
+                        "diffuse_color": {
+                            "$ref": "#/$defs/color"
+                        },
+                        "emissive_color": {
+                            "$ref": "#/$defs/color"
+                        },
+                        "alpha": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                        },
+                        "metallic": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                        },
+                        "roughness": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                        }
+                    },
+                    "additionalProperties": true
+                },
+                "visible": {
+                    "type": "boolean",
+                    "default": true
+                }
+            },
+            "description": "3D node position compatible with Babylon.js"
+        },
+        "edge_routing": {
+            "type": "object",
+            "required": [
+                "edge_id"
+            ],
+            "properties": {
+                "id": {
+                    "$ref": "awa.schema.json#/$defs/uuid"
+                },
+                "edge_id": {
+                    "$ref": "awa.schema.json#/$defs/uuid",
+                    "description": "Reference to workflow edge"
+                },
+                "curve_type": {
+                    "$ref": "#/$defs/curve_type",
+                    "default": "bezier"
+                },
+                "control_points_2d": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/vector2d"
+                    },
+                    "description": "Control points for 2D edge curves"
+                },
+                "control_points_3d": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/vector3d"
+                    },
+                    "description": "Control points for 3D edge curves"
+                },
+                "animated": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Enable flow animation on edge"
+                },
+                "animation_speed": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "Animation speed multiplier"
+                },
+                "style": {
+                    "type": "object",
+                    "properties": {
+                        "stroke_color": {
+                            "$ref": "#/$defs/color"
+                        },
+                        "stroke_width": {
+                            "type": "number"
+                        },
+                        "stroke_dasharray": {
+                            "type": "string"
+                        },
+                        "marker_start": {
+                            "type": "string"
+                        },
+                        "marker_end": {
+                            "type": "string"
+                        }
+                    },
+                    "additionalProperties": true
+                }
+            },
+            "description": "Edge visual routing configuration"
+        },
+        "lane": {
+            "type": "object",
+            "required": [
+                "id",
+                "name"
+            ],
+            "properties": {
+                "id": {
+                    "$ref": "awa.schema.json#/$defs/uuid"
+                },
+                "name": {
+                    "type": "string",
+                    "description": "Lane identifier"
+                },
+                "label": {
+                    "type": "string",
+                    "description": "Display label"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "orientation": {
+                    "$ref": "#/$defs/lane_orientation",
+                    "default": "horizontal"
+                },
+                "order_index": {
+                    "type": "integer",
+                    "description": "Lane ordering position"
+                },
+                "node_ids": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "awa.schema.json#/$defs/uuid"
+                    },
+                    "description": "Nodes contained in this lane"
+                },
+                "role_id": {
+                    "$ref": "awa.schema.json#/$defs/uuid",
+                    "description": "Optional role association for swimlane"
+                },
+                "organization_id": {
+                    "$ref": "awa.schema.json#/$defs/uuid",
+                    "description": "Optional organization association for pool"
+                },
+                "color": {
+                    "$ref": "#/$defs/color"
+                },
+                "collapsed": {
+                    "type": "boolean",
+                    "default": false
+                }
+            },
+            "description": "Swim lane/pool organization"
+        },
+        "auto_layout_config": {
+            "type": "object",
+            "properties": {
+                "algorithm": {
+                    "$ref": "#/$defs/layout_algorithm",
+                    "default": "dagre"
+                },
+                "direction": {
+                    "$ref": "#/$defs/layout_direction",
+                    "default": "lr"
+                },
+                "node_spacing": {
+                    "type": "number",
+                    "minimum": 0,
+                    "default": 50,
+                    "description": "Minimum spacing between nodes"
+                },
+                "rank_spacing": {
+                    "type": "number",
+                    "minimum": 0,
+                    "default": 100,
+                    "description": "Spacing between ranks/layers"
+                },
+                "edge_spacing": {
+                    "type": "number",
+                    "minimum": 0,
+                    "default": 10,
+                    "description": "Spacing between parallel edges"
+                },
+                "align": {
+                    "type": "string",
+                    "enum": [
+                        "ul",
+                        "ur",
+                        "dl",
+                        "dr"
+                    ],
+                    "description": "Node alignment within rank"
+                },
+                "elk_options": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "description": "Additional ELK-specific layout options"
+                },
+                "respect_lanes": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Maintain lane boundaries during layout"
+                }
+            },
+            "description": "Auto-layout algorithm configuration"
+        },
+        "camera_settings_2d": {
+            "type": "object",
+            "properties": {
+                "center": {
+                    "$ref": "#/$defs/vector2d",
+                    "description": "Viewport center position"
+                },
+                "zoom": {
+                    "type": "number",
+                    "minimum": 0.1,
+                    "maximum": 10,
+                    "default": 1,
+                    "description": "Zoom level"
+                },
+                "min_zoom": {
+                    "type": "number",
+                    "minimum": 0.1,
+                    "default": 0.1
+                },
+                "max_zoom": {
+                    "type": "number",
+                    "maximum": 10,
+                    "default": 4
+                },
+                "fit_view": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Auto-fit view on load"
+                },
+                "fit_padding": {
+                    "type": "number",
+                    "default": 50
+                }
+            },
+            "description": "2D viewport configuration"
+        },
+        "camera_settings_3d": {
+            "type": "object",
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "arc_rotate",
+                        "free",
+                        "follow",
+                        "fly"
+                    ],
+                    "default": "arc_rotate",
+                    "description": "Camera type"
+                },
+                "position": {
+                    "$ref": "#/$defs/vector3d",
+                    "description": "Camera position"
+                },
+                "target": {
+                    "$ref": "#/$defs/vector3d",
+                    "description": "Camera look-at target"
+                },
+                "fov": {
+                    "type": "number",
+                    "minimum": 10,
+                    "maximum": 120,
+                    "default": 45,
+                    "description": "Field of view in degrees"
+                },
+                "near_clip": {
+                    "type": "number",
+                    "minimum": 0.01,
+                    "default": 0.1
+                },
+                "far_clip": {
+                    "type": "number",
+                    "default": 1000
+                },
+                "alpha": {
+                    "type": "number",
+                    "description": "Arc rotation alpha (radians)"
+                },
+                "beta": {
+                    "type": "number",
+                    "description": "Arc rotation beta (radians)"
+                },
+                "radius": {
+                    "type": "number",
+                    "description": "Arc rotation radius"
+                }
+            },
+            "description": "3D camera configuration for Babylon.js"
+        },
+        "animation_config": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "default": true
+                },
+                "transition_duration": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "default": 300,
+                    "description": "Transition duration in milliseconds"
+                },
+                "easing": {
+                    "type": "string",
+                    "enum": [
+                        "linear",
+                        "ease",
+                        "ease_in",
+                        "ease_out",
+                        "ease_in_out",
+                        "bounce",
+                        "elastic"
+                    ],
+                    "default": "ease_in_out"
+                },
+                "edge_flow_enabled": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Animate data flow along edges"
+                },
+                "edge_flow_speed": {
+                    "type": "number",
+                    "default": 1
+                },
+                "highlight_active_path": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Highlight currently executing path"
+                },
+                "playback_speed": {
+                    "type": "number",
+                    "minimum": 0.1,
+                    "maximum": 10,
+                    "default": 1,
+                    "description": "Animation playback speed multiplier"
+                }
+            },
+            "description": "Animation and transition configuration"
+        },
+        "visualization_config": {
+            "type": "object",
+            "required": [
+                "id",
+                "workflow_id",
+                "view_type"
+            ],
+            "properties": {
+                "id": {
+                    "$ref": "awa.schema.json#/$defs/uuid"
+                },
+                "workflow_id": {
+                    "$ref": "awa.schema.json#/$defs/uuid",
+                    "description": "Associated workflow"
+                },
+                "name": {
+                    "type": "string",
+                    "description": "Visualization name"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "is_default": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Default visualization for workflow"
+                },
+                "view_type": {
+                    "$ref": "#/$defs/view_type"
+                },
+                "engine": {
+                    "type": "string",
+                    "enum": [
+                        "reactflow",
+                        "babylonjs",
+                        "custom"
+                    ],
+                    "description": "Rendering engine"
+                },
+                "auto_layout": {
+                    "$ref": "#/$defs/auto_layout_config"
+                },
+                "node_positions_2d": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/node_position_2d"
+                    },
+                    "description": "2D node positions (for view_type: 2d)"
+                },
+                "node_positions_3d": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/node_position_3d"
+                    },
+                    "description": "3D node positions (for view_type: 3d)"
+                },
+                "edge_routings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/edge_routing"
+                    }
+                },
+                "lanes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/lane"
+                    }
+                },
+                "camera_2d": {
+                    "$ref": "#/$defs/camera_settings_2d"
+                },
+                "camera_3d": {
+                    "$ref": "#/$defs/camera_settings_3d"
+                },
+                "animation": {
+                    "$ref": "#/$defs/animation_config"
+                },
+                "theme": {
+                    "type": "object",
+                    "properties": {
+                        "background_color": {
+                            "$ref": "#/$defs/color"
+                        },
+                        "grid_enabled": {
+                            "type": "boolean",
+                            "default": true
+                        },
+                        "grid_size": {
+                            "type": "number",
+                            "default": 20
+                        },
+                        "grid_color": {
+                            "$ref": "#/$defs/color"
+                        },
+                        "minimap_enabled": {
+                            "type": "boolean",
+                            "default": true
+                        },
+                        "controls_enabled": {
+                            "type": "boolean",
+                            "default": true
+                        }
+                    },
+                    "additionalProperties": true,
+                    "description": "Visual theme configuration"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "created_at": {
+                    "$ref": "awa.schema.json#/$defs/datetime_tz"
+                },
+                "updated_at": {
+                    "$ref": "awa.schema.json#/$defs/datetime_tz"
+                }
+            },
+            "description": "Complete visualization configuration"
+        }
+    },
+    "properties": {
+        "visualization": {
+            "$ref": "#/$defs/visualization_config",
+            "description": "Single visualization configuration"
+        }
+    }
+}

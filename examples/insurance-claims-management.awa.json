@@ -1,0 +1,1050 @@
+{
+    "$schema": "https://awa.io/schema/awa.schema.json",
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "name": "Insurance Claim Management - Highly Automated End-to-End Process",
+    "version": "1.0.0",
+    "description": "AI-driven insurance claim processing workflow with 95% automation rate. Only high-value reimbursements and exceptions require human intervention (~5% of cases). Leverages AI agents for claim intake, document analysis, fraud detection, and automated approvals.",
+    "owner_id": "admin-insurance-001",
+    "organization_id": "org-insurance-corp",
+    "metadata": {
+        "domain": "insurance",
+        "sub_domain": "claims_management",
+        "automation_target": 0.95,
+        "human_intervention_target": 0.05,
+        "compliance_standards": [
+            "GDPR",
+            "HIPAA",
+            "PCI-DSS"
+        ],
+        "tags": [
+            "claims",
+            "automation",
+            "ai-agents",
+            "fraud-detection",
+            "document-processing"
+        ]
+    },
+    "contexts": [
+        {
+            "id": "ctx-claim-data",
+            "name": "Claim Master Data",
+            "description": "Central repository for all claim information, updated by all processing agents",
+            "type": "data",
+            "sync_pattern": "shared_state",
+            "visibility": "workflow",
+            "lifecycle": "persistent",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "claim_id": {
+                        "type": "string"
+                    },
+                    "policy_id": {
+                        "type": "string"
+                    },
+                    "claimant_id": {
+                        "type": "string"
+                    },
+                    "claim_type": {
+                        "type": "string",
+                        "enum": [
+                            "auto",
+                            "health",
+                            "property",
+                            "life",
+                            "liability"
+                        ]
+                    },
+                    "incident_date": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "submission_date": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "claim_amount": {
+                        "type": "number"
+                    },
+                    "approved_amount": {
+                        "type": "number"
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "priority": {
+                        "type": "string",
+                        "enum": [
+                            "low",
+                            "medium",
+                            "high",
+                            "urgent"
+                        ]
+                    },
+                    "fraud_score": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 100
+                    },
+                    "documents": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "notes": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "id": "ctx-agent-reasoning",
+            "name": "AI Agent Reasoning Log",
+            "description": "Blackboard for AI agents to share reasoning, analysis results, and decision rationale",
+            "type": "memory",
+            "sync_pattern": "blackboard",
+            "visibility": "workflow",
+            "lifecycle": "persistent"
+        },
+        {
+            "id": "ctx-document-analysis",
+            "name": "Document Analysis Results",
+            "description": "Extracted data from uploaded documents (photos, medical records, invoices)",
+            "type": "artifact",
+            "sync_pattern": "event_sourcing",
+            "visibility": "workflow",
+            "lifecycle": "persistent"
+        },
+        {
+            "id": "ctx-fraud-signals",
+            "name": "Fraud Detection Signals",
+            "description": "Aggregated fraud indicators and risk signals from multiple detection systems",
+            "type": "data",
+            "sync_pattern": "shared_state",
+            "visibility": "workflow"
+        },
+        {
+            "id": "ctx-policy-data",
+            "name": "Policy Information",
+            "description": "Cached policy details including coverage limits, deductibles, and exclusions",
+            "type": "config",
+            "sync_pattern": "shared_state",
+            "visibility": "workflow"
+        }
+    ],
+    "activities": [
+        {
+            "id": "act-claim-intake",
+            "name": "Claim Intake & Registration",
+            "description": "AI agent receives claim submission via multiple channels (mobile app, web portal, email, phone transcript). Extracts key information, validates completeness, assigns claim ID, and initiates processing. For phone/email claims, uses NLP to extract structured data from unstructured input.",
+            "role_id": "role-intake-agent",
+            "actor_type": "ai_agent",
+            "system_id": "sys-claims-platform",
+            "context_bindings": [
+                {
+                    "context_id": "ctx-claim-data",
+                    "access_mode": "write",
+                    "required": true
+                },
+                {
+                    "context_id": "ctx-agent-reasoning",
+                    "access_mode": "read_write",
+                    "required": false
+                }
+            ],
+            "access_rights": [
+                {
+                    "id": "ar-intake-customer-db",
+                    "name": "Customer Database Read",
+                    "direction": "requires",
+                    "resource_type": "database",
+                    "resource_id": "customers",
+                    "permission": "read"
+                },
+                {
+                    "id": "ar-intake-policy-api",
+                    "name": "Policy Lookup API",
+                    "direction": "requires",
+                    "resource_type": "api",
+                    "resource_id": "policy-service",
+                    "permission": "read"
+                }
+            ],
+            "programs": [
+                {
+                    "id": "prog-nlp-extraction",
+                    "name": "NLP Information Extraction",
+                    "language": "mcp_tool",
+                    "mcp_server": "gemini-tools",
+                    "parameters": [
+                        {
+                            "name": "raw_input",
+                            "type": "string",
+                            "required": true
+                        },
+                        {
+                            "name": "claim_type",
+                            "type": "string",
+                            "required": false
+                        }
+                    ]
+                }
+            ],
+            "sla": {
+                "target_time": "PT2M",
+                "max_time": "PT10M"
+            },
+            "analytics": {
+                "value_added": true,
+                "process_time": "PT90S"
+            }
+        },
+        {
+            "id": "act-document-upload",
+            "name": "Document Collection & OCR",
+            "description": "Application system receives uploaded documents (photos of damage, medical records, invoices, police reports). Performs OCR and document classification. Extracts structured data and stores in document analysis context.",
+            "role_id": "role-document-processor",
+            "actor_type": "application",
+            "system_id": "sys-document-intelligence",
+            "endpoint_id": "ep-document-ocr",
+            "context_bindings": [
+                {
+                    "context_id": "ctx-claim-data",
+                    "access_mode": "read",
+                    "required": true
+                },
+                {
+                    "context_id": "ctx-document-analysis",
+                    "access_mode": "write",
+                    "required": true
+                }
+            ],
+            "access_rights": [
+                {
+                    "id": "ar-doc-storage",
+                    "name": "Document Storage",
+                    "direction": "requires",
+                    "resource_type": "file",
+                    "resource_id": "claim-documents-bucket",
+                    "permission": "write"
+                }
+            ],
+            "sla": {
+                "target_time": "PT30S",
+                "max_time": "PT3M"
+            },
+            "analytics": {
+                "value_added": true,
+                "process_time": "PT20S"
+            }
+        },
+        {
+            "id": "act-ai-document-analysis",
+            "name": "AI Document Intelligence",
+            "description": "AI agent analyzes uploaded documents using vision models. Extracts damage estimates from photos, validates medical codes from health records, cross-references invoice amounts, detects document tampering or inconsistencies. Builds comprehensive understanding of claim evidence.",
+            "role_id": "role-document-analyst-agent",
+            "actor_type": "ai_agent",
+            "system_id": "sys-claims-platform",
+            "context_bindings": [
+                {
+                    "context_id": "ctx-claim-data",
+                    "access_mode": "read_write",
+                    "required": true
+                },
+                {
+                    "context_id": "ctx-document-analysis",
+                    "access_mode": "read_write",
+                    "required": true
+                },
+                {
+                    "context_id": "ctx-agent-reasoning",
+                    "access_mode": "read_write",
+                    "required": true
+                },
+                {
+                    "context_id": "ctx-fraud-signals",
+                    "access_mode": "write",
+                    "required": false
+                }
+            ],
+            "programs": [
+                {
+                    "id": "prog-vision-analysis",
+                    "name": "Gemini Vision Document Analysis",
+                    "language": "mcp_tool",
+                    "mcp_server": "gemini-vision-tools",
+                    "parameters": [
+                        {
+                            "name": "document_urls",
+                            "type": "array",
+                            "required": true
+                        },
+                        {
+                            "name": "analysis_type",
+                            "type": "string",
+                            "required": true
+                        }
+                    ]
+                }
+            ],
+            "sla": {
+                "target_time": "PT1M",
+                "max_time": "PT5M"
+            },
+            "analytics": {
+                "value_added": true,
+                "process_time": "PT45S"
+            }
+        },
+        {
+            "id": "act-policy-verification",
+            "name": "Automated Policy Verification",
+            "description": "Application system validates claim against policy terms. Checks coverage limits, deductibles, exclusions, policy active status, and premium payment status. Determines maximum payable amount based on policy terms.",
+            "role_id": "role-policy-engine",
+            "actor_type": "application",
+            "system_id": "sys-policy-admin",
+            "endpoint_id": "ep-policy-rules-engine",
+            "context_bindings": [
+                {
+                    "context_id": "ctx-claim-data",
+                    "access_mode": "read",
+                    "required": true
+                },
+                {
+                    "context_id": "ctx-policy-data",
+                    "access_mode": "write",
+                    "required": true
+                }
+            ],
+            "access_rights": [
+                {
+                    "id": "ar-policy-db",
+                    "name": "Policy Database",
+                    "direction": "requires",
+                    "resource_type": "database",
+                    "resource_id": "policies",
+                    "permission": "read"
+                }
+            ],
+            "sla": {
+                "target_time": "PT5S",
+                "max_time": "PT30S"
+            },
+            "analytics": {
+                "value_added": true,
+                "process_time": "PT3S"
+            }
+        },
+        {
+            "id": "act-fraud-detection",
+            "name": "AI Fraud Detection & Risk Scoring",
+            "description": "AI agent performs comprehensive fraud analysis. Checks claim patterns against known fraud indicators, analyzes claimant history, validates document authenticity signals, cross-references external databases, and calculates fraud risk score (0-100). Score > 70 triggers escalation.",
+            "role_id": "role-fraud-detection-agent",
+            "actor_type": "ai_agent",
+            "system_id": "sys-fraud-intelligence",
+            "context_bindings": [
+                {
+                    "context_id": "ctx-claim-data",
+                    "access_mode": "read_write",
+                    "required": true
+                },
+                {
+                    "context_id": "ctx-document-analysis",
+                    "access_mode": "read",
+                    "required": true
+                },
+                {
+                    "context_id": "ctx-fraud-signals",
+                    "access_mode": "read_write",
+                    "required": true
+                },
+                {
+                    "context_id": "ctx-agent-reasoning",
+                    "access_mode": "read_write",
+                    "required": true
+                }
+            ],
+            "access_rights": [
+                {
+                    "id": "ar-fraud-api",
+                    "name": "External Fraud Database",
+                    "direction": "requires",
+                    "resource_type": "api",
+                    "resource_id": "national-fraud-bureau",
+                    "permission": "read"
+                },
+                {
+                    "id": "ar-claim-history",
+                    "name": "Claim History Database",
+                    "direction": "requires",
+                    "resource_type": "database",
+                    "resource_id": "claims-history",
+                    "permission": "read"
+                }
+            ],
+            "controls": [
+                {
+                    "id": "ctrl-fraud-audit",
+                    "name": "Fraud Analysis Audit Trail",
+                    "description": "All fraud assessments must be logged for regulatory compliance",
+                    "type": "audit",
+                    "enforcement": "mandatory"
+                }
+            ],
+            "sla": {
+                "target_time": "PT30S",
+                "max_time": "PT2M"
+            },
+            "analytics": {
+                "value_added": true,
+                "process_time": "PT25S"
+            }
+        },
+        {
+            "id": "act-claim-assessment",
+            "name": "AI Claim Assessment & Valuation",
+            "description": "AI agent performs comprehensive claim assessment. Consolidates all gathered information, cross-validates evidence with claim amount, applies policy terms, calculates fair settlement amount. Produces detailed assessment report with confidence score.",
+            "role_id": "role-assessment-agent",
+            "actor_type": "ai_agent",
+            "system_id": "sys-claims-platform",
+            "context_bindings": [
+                {
+                    "context_id": "ctx-claim-data",
+                    "access_mode": "read_write",
+                    "required": true
+                },
+                {
+                    "context_id": "ctx-document-analysis",
+                    "access_mode": "read",
+                    "required": true
+                },
+                {
+                    "context_id": "ctx-policy-data",
+                    "access_mode": "read",
+                    "required": true
+                },
+                {
+                    "context_id": "ctx-fraud-signals",
+                    "access_mode": "read",
+                    "required": true
+                },
+                {
+                    "context_id": "ctx-agent-reasoning",
+                    "access_mode": "read_write",
+                    "required": true
+                }
+            ],
+            "programs": [
+                {
+                    "id": "prog-assessment-llm",
+                    "name": "Gemini Claim Assessment",
+                    "language": "mcp_tool",
+                    "mcp_server": "gemini-tools",
+                    "parameters": [
+                        {
+                            "name": "claim_context",
+                            "type": "object",
+                            "required": true
+                        },
+                        {
+                            "name": "policy_terms",
+                            "type": "object",
+                            "required": true
+                        }
+                    ]
+                }
+            ],
+            "sla": {
+                "target_time": "PT1M",
+                "max_time": "PT5M"
+            },
+            "analytics": {
+                "value_added": true,
+                "process_time": "PT50S"
+            }
+        },
+        {
+            "id": "act-automated-approval",
+            "name": "Automated Claim Approval",
+            "description": "Application system applies business rules for automated approval. Claims meeting all criteria (fraud_score < 30, amount < $10,000, confidence_score > 0.85, no exceptions) are automatically approved. Triggers payment processing.",
+            "role_id": "role-approval-engine",
+            "actor_type": "application",
+            "system_id": "sys-claims-platform",
+            "endpoint_id": "ep-approval-rules",
+            "context_bindings": [
+                {
+                    "context_id": "ctx-claim-data",
+                    "access_mode": "read_write",
+                    "required": true
+                },
+                {
+                    "context_id": "ctx-fraud-signals",
+                    "access_mode": "read",
+                    "required": true
+                }
+            ],
+            "controls": [
+                {
+                    "id": "ctrl-approval-audit",
+                    "name": "Approval Audit Trail",
+                    "description": "All approvals must be logged with decision rationale",
+                    "type": "audit",
+                    "enforcement": "mandatory"
+                },
+                {
+                    "id": "ctrl-approval-limit",
+                    "name": "Automated Approval Limit",
+                    "description": "Maximum amount for automated approval is $10,000",
+                    "type": "authorization",
+                    "expression": "claim_amount <= 10000",
+                    "enforcement": "mandatory"
+                }
+            ],
+            "sla": {
+                "target_time": "PT2S",
+                "max_time": "PT10S"
+            },
+            "analytics": {
+                "value_added": true,
+                "process_time": "PT1S"
+            }
+        },
+        {
+            "id": "act-human-review-highvalue",
+            "name": "Human Review - High Value Claims",
+            "description": "Claims exceeding $10,000 require human supervisor review. Reviewer examines AI assessment, validates settlement amount, can adjust or approve. This represents ~3% of total claims.",
+            "role_id": "role-senior-claims-adjuster",
+            "actor_type": "human",
+            "context_bindings": [
+                {
+                    "context_id": "ctx-claim-data",
+                    "access_mode": "read_write",
+                    "required": true
+                },
+                {
+                    "context_id": "ctx-document-analysis",
+                    "access_mode": "read",
+                    "required": true
+                },
+                {
+                    "context_id": "ctx-agent-reasoning",
+                    "access_mode": "read",
+                    "required": true
+                },
+                {
+                    "context_id": "ctx-policy-data",
+                    "access_mode": "read",
+                    "required": true
+                }
+            ],
+            "access_rights": [
+                {
+                    "id": "ar-approve-highvalue",
+                    "name": "High Value Approval Authority",
+                    "direction": "provisions",
+                    "resource_type": "service",
+                    "resource_id": "claims-approval",
+                    "permission": "execute",
+                    "conditions": {
+                        "max_amount": 100000
+                    }
+                }
+            ],
+            "sla": {
+                "target_time": "PT4H",
+                "max_time": "PT24H",
+                "escalation_policy": {
+                    "warning_threshold": "PT2H",
+                    "warning_action": "notify_team_lead",
+                    "breach_action": "escalate_to_manager"
+                }
+            },
+            "analytics": {
+                "value_added": false,
+                "waste_categories": [
+                    "waiting"
+                ],
+                "process_time": "PT30M"
+            }
+        },
+        {
+            "id": "act-human-review-exception",
+            "name": "Human Review - Exceptions & Fraud",
+            "description": "Claims with fraud_score > 70 or other exceptions (document discrepancies, coverage disputes) require specialized human investigation. May involve SIU (Special Investigations Unit). This represents ~2% of total claims.",
+            "role_id": "role-fraud-investigator",
+            "actor_type": "human",
+            "context_bindings": [
+                {
+                    "context_id": "ctx-claim-data",
+                    "access_mode": "read_write",
+                    "required": true
+                },
+                {
+                    "context_id": "ctx-document-analysis",
+                    "access_mode": "read",
+                    "required": true
+                },
+                {
+                    "context_id": "ctx-fraud-signals",
+                    "access_mode": "read_write",
+                    "required": true
+                },
+                {
+                    "context_id": "ctx-agent-reasoning",
+                    "access_mode": "read",
+                    "required": true
+                }
+            ],
+            "access_rights": [
+                {
+                    "id": "ar-siu-tools",
+                    "name": "SIU Investigation Tools",
+                    "direction": "requires",
+                    "resource_type": "system",
+                    "resource_id": "siu-toolkit",
+                    "permission": "execute"
+                },
+                {
+                    "id": "ar-deny-claim",
+                    "name": "Claim Denial Authority",
+                    "direction": "provisions",
+                    "resource_type": "service",
+                    "resource_id": "claims-denial",
+                    "permission": "execute"
+                }
+            ],
+            "sla": {
+                "target_time": "PT48H",
+                "max_time": "PT5D"
+            },
+            "analytics": {
+                "value_added": false,
+                "waste_categories": [
+                    "waiting",
+                    "extra_processing"
+                ],
+                "process_time": "PT2H"
+            }
+        },
+        {
+            "id": "act-payment-processing",
+            "name": "Automated Payment Processing",
+            "description": "Application system initiates payment to claimant. Integrates with banking systems, handles multiple payment methods (direct deposit, check, digital wallet). Generates payment confirmation.",
+            "role_id": "role-payment-system",
+            "actor_type": "application",
+            "system_id": "sys-finance",
+            "endpoint_id": "ep-payment-gateway",
+            "context_bindings": [
+                {
+                    "context_id": "ctx-claim-data",
+                    "access_mode": "read_write",
+                    "required": true
+                }
+            ],
+            "access_rights": [
+                {
+                    "id": "ar-bank-api",
+                    "name": "Banking API",
+                    "direction": "requires",
+                    "resource_type": "api",
+                    "resource_id": "banking-gateway",
+                    "permission": "execute"
+                },
+                {
+                    "id": "ar-finance-db",
+                    "name": "Finance Database",
+                    "direction": "requires",
+                    "resource_type": "database",
+                    "resource_id": "finance-ledger",
+                    "permission": "write"
+                }
+            ],
+            "controls": [
+                {
+                    "id": "ctrl-payment-compliance",
+                    "name": "Payment Compliance Check",
+                    "description": "AML/KYC verification before payment",
+                    "type": "compliance",
+                    "enforcement": "mandatory"
+                }
+            ],
+            "sla": {
+                "target_time": "PT30S",
+                "max_time": "PT5M"
+            },
+            "analytics": {
+                "value_added": true,
+                "process_time": "PT15S"
+            }
+        },
+        {
+            "id": "act-customer-notification",
+            "name": "AI Customer Communication",
+            "description": "AI agent generates personalized claim status communication. Creates empathetic, clear messaging explaining decision, next steps, and payment details. Supports multiple channels (email, SMS, app notification, letter generation).",
+            "role_id": "role-communication-agent",
+            "actor_type": "ai_agent",
+            "system_id": "sys-customer-engagement",
+            "context_bindings": [
+                {
+                    "context_id": "ctx-claim-data",
+                    "access_mode": "read",
+                    "required": true
+                }
+            ],
+            "access_rights": [
+                {
+                    "id": "ar-notification-service",
+                    "name": "Notification Service",
+                    "direction": "requires",
+                    "resource_type": "service",
+                    "resource_id": "multi-channel-notifications",
+                    "permission": "execute"
+                }
+            ],
+            "programs": [
+                {
+                    "id": "prog-tts-generation",
+                    "name": "Gemini TTS for Voice Messages",
+                    "language": "mcp_tool",
+                    "mcp_server": "gemini-tts",
+                    "parameters": [
+                        {
+                            "name": "message_text",
+                            "type": "string",
+                            "required": true
+                        },
+                        {
+                            "name": "voice_id",
+                            "type": "string",
+                            "required": false
+                        }
+                    ]
+                }
+            ],
+            "sla": {
+                "target_time": "PT30S",
+                "max_time": "PT2M"
+            },
+            "analytics": {
+                "value_added": true,
+                "process_time": "PT20S"
+            }
+        },
+        {
+            "id": "act-claim-closure",
+            "name": "Claim Closure & Archival",
+            "description": "Application system finalizes claim record. Archives all documents, generates compliance reports, updates analytics dashboards, and closes claim in system.",
+            "role_id": "role-archival-system",
+            "actor_type": "application",
+            "system_id": "sys-claims-platform",
+            "context_bindings": [
+                {
+                    "context_id": "ctx-claim-data",
+                    "access_mode": "read_write",
+                    "required": true
+                },
+                {
+                    "context_id": "ctx-document-analysis",
+                    "access_mode": "read",
+                    "required": true
+                }
+            ],
+            "access_rights": [
+                {
+                    "id": "ar-archive-storage",
+                    "name": "Archive Storage",
+                    "direction": "requires",
+                    "resource_type": "file",
+                    "resource_id": "claims-archive",
+                    "permission": "write"
+                }
+            ],
+            "sla": {
+                "target_time": "PT10S",
+                "max_time": "PT1M"
+            },
+            "analytics": {
+                "value_added": false,
+                "process_time": "PT5S"
+            }
+        }
+    ],
+    "edges": [
+        {
+            "id": "edge-1",
+            "source_id": "act-claim-intake",
+            "target_id": "act-document-upload",
+            "source_type": "activity",
+            "target_type": "activity"
+        },
+        {
+            "id": "edge-2",
+            "source_id": "act-document-upload",
+            "target_id": "act-ai-document-analysis",
+            "source_type": "activity",
+            "target_type": "activity"
+        },
+        {
+            "id": "edge-3",
+            "source_id": "act-ai-document-analysis",
+            "target_id": "act-policy-verification",
+            "source_type": "activity",
+            "target_type": "activity"
+        },
+        {
+            "id": "edge-4",
+            "source_id": "act-policy-verification",
+            "target_id": "act-fraud-detection",
+            "source_type": "activity",
+            "target_type": "activity"
+        },
+        {
+            "id": "edge-5",
+            "source_id": "act-fraud-detection",
+            "target_id": "act-claim-assessment",
+            "source_type": "activity",
+            "target_type": "activity"
+        },
+        {
+            "id": "edge-6",
+            "source_id": "act-claim-assessment",
+            "target_id": "decision-routing",
+            "source_type": "activity",
+            "target_type": "decision"
+        },
+        {
+            "id": "edge-7-auto",
+            "source_id": "decision-routing",
+            "target_id": "act-automated-approval",
+            "source_type": "decision",
+            "target_type": "activity",
+            "label": "Auto-Approve (95%)",
+            "is_default": true
+        },
+        {
+            "id": "edge-8-highvalue",
+            "source_id": "decision-routing",
+            "target_id": "act-human-review-highvalue",
+            "source_type": "decision",
+            "target_type": "activity",
+            "label": "High Value (~3%)"
+        },
+        {
+            "id": "edge-9-exception",
+            "source_id": "decision-routing",
+            "target_id": "act-human-review-exception",
+            "source_type": "decision",
+            "target_type": "activity",
+            "label": "Exception/Fraud (~2%)"
+        },
+        {
+            "id": "edge-10",
+            "source_id": "act-automated-approval",
+            "target_id": "act-payment-processing",
+            "source_type": "activity",
+            "target_type": "activity"
+        },
+        {
+            "id": "edge-11",
+            "source_id": "act-human-review-highvalue",
+            "target_id": "act-payment-processing",
+            "source_type": "activity",
+            "target_type": "activity",
+            "condition": "approved == true"
+        },
+        {
+            "id": "edge-12",
+            "source_id": "act-human-review-exception",
+            "target_id": "act-payment-processing",
+            "source_type": "activity",
+            "target_type": "activity",
+            "condition": "approved == true"
+        },
+        {
+            "id": "edge-13-denied",
+            "source_id": "act-human-review-exception",
+            "target_id": "act-customer-notification",
+            "source_type": "activity",
+            "target_type": "activity",
+            "condition": "approved == false",
+            "label": "Claim Denied"
+        },
+        {
+            "id": "edge-14",
+            "source_id": "act-payment-processing",
+            "target_id": "act-customer-notification",
+            "source_type": "activity",
+            "target_type": "activity"
+        },
+        {
+            "id": "edge-15",
+            "source_id": "act-customer-notification",
+            "target_id": "act-claim-closure",
+            "source_type": "activity",
+            "target_type": "activity"
+        }
+    ],
+    "decision_nodes": [
+        {
+            "id": "decision-routing",
+            "name": "Claim Routing Decision",
+            "description": "Routes claims based on amount, fraud score, and confidence. 95% of claims go through automated approval, 3% require high-value human review, 2% require exception/fraud investigation.",
+            "decision_table": {
+                "hit_policy": "first",
+                "inputs": [
+                    {
+                        "name": "claim_amount",
+                        "label": "Claim Amount ($)",
+                        "type": "number"
+                    },
+                    {
+                        "name": "fraud_score",
+                        "label": "Fraud Risk Score",
+                        "type": "number"
+                    },
+                    {
+                        "name": "confidence_score",
+                        "label": "AI Confidence",
+                        "type": "number"
+                    },
+                    {
+                        "name": "has_exception",
+                        "label": "Has Exception Flag",
+                        "type": "boolean"
+                    }
+                ],
+                "outputs": [
+                    {
+                        "name": "route",
+                        "label": "Routing Decision",
+                        "type": "string",
+                        "allowed_values": [
+                            "auto_approve",
+                            "human_highvalue",
+                            "human_exception"
+                        ]
+                    }
+                ],
+                "rules": [
+                    {
+                        "id": "rule-fraud",
+                        "description": "High fraud score or exception → Human exception review",
+                        "input_entries": [
+                            "-",
+                            "> 70",
+                            "-",
+                            "-"
+                        ],
+                        "output_entries": [
+                            "human_exception"
+                        ],
+                        "output_edge_id": "edge-9-exception"
+                    },
+                    {
+                        "id": "rule-exception",
+                        "description": "Exception flagged → Human exception review",
+                        "input_entries": [
+                            "-",
+                            "-",
+                            "-",
+                            "true"
+                        ],
+                        "output_entries": [
+                            "human_exception"
+                        ],
+                        "output_edge_id": "edge-9-exception"
+                    },
+                    {
+                        "id": "rule-lowconfidence",
+                        "description": "Low AI confidence → Human review",
+                        "input_entries": [
+                            "-",
+                            "-",
+                            "< 0.7",
+                            "-"
+                        ],
+                        "output_entries": [
+                            "human_highvalue"
+                        ],
+                        "output_edge_id": "edge-8-highvalue"
+                    },
+                    {
+                        "id": "rule-highvalue",
+                        "description": "High value claims → Human review",
+                        "input_entries": [
+                            "> 10000",
+                            "< 70",
+                            ">= 0.7",
+                            "false"
+                        ],
+                        "output_entries": [
+                            "human_highvalue"
+                        ],
+                        "output_edge_id": "edge-8-highvalue"
+                    },
+                    {
+                        "id": "rule-auto",
+                        "description": "Standard claims → Automated approval (95% of cases)",
+                        "input_entries": [
+                            "<= 10000",
+                            "< 30",
+                            ">= 0.85",
+                            "false"
+                        ],
+                        "output_entries": [
+                            "auto_approve"
+                        ],
+                        "output_edge_id": "edge-7-auto"
+                    }
+                ]
+            },
+            "default_output_edge_id": "edge-8-highvalue"
+        }
+    ],
+    "sla": {
+        "id": "sla-claim-process",
+        "name": "Claim Processing SLA",
+        "target_time": "PT4H",
+        "max_time": "PT72H",
+        "escalation_policy": {
+            "warning_threshold": "PT2H",
+            "warning_action": "notify_supervisor",
+            "breach_action": "escalate_to_claims_director"
+        },
+        "metrics": [
+            {
+                "name": "automation_rate",
+                "target": 0.95,
+                "unit": "percentage",
+                "comparison": ">="
+            },
+            {
+                "name": "straight_through_processing",
+                "target": 0.90,
+                "unit": "percentage",
+                "comparison": ">="
+            },
+            {
+                "name": "customer_satisfaction",
+                "target": 4.5,
+                "unit": "score",
+                "comparison": ">="
+            }
+        ]
+    },
+    "analytics": {
+        "lead_time": "PT24H",
+        "cycle_time": "PT4H",
+        "process_time": "PT10M",
+        "process_cycle_efficiency": 0.04,
+        "throughput": {
+            "value": 1000,
+            "unit": "claims",
+            "period": "day"
+        }
+    }
+}

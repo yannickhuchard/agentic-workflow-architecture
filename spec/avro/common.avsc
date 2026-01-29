@@ -1,0 +1,9 @@
+{
+  "namespace": "io.awa.schema",
+  "type": "record",
+  "name": "Common",
+  "doc": "Common types used across AWA schemas",
+  "fields": [
+    { "name": "_placeholder", "type": "null", "default": null }
+  ]
+}

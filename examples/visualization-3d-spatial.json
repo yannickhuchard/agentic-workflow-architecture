@@ -1,0 +1,464 @@
+{
+    "$schema": "https://awa.io/schema/visualization.schema.json",
+    "visualization": {
+        "id": "a1b2c3d4-0003-4000-8000-000000000003",
+        "workflow_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "name": "Insurance Claims - 3D Spatial View",
+        "description": "3D visualization with layered depth representing workflow stages, using Babylon.js",
+        "is_default": false,
+        "view_type": "3d",
+        "engine": "babylonjs",
+        "auto_layout": {
+            "algorithm": "manual",
+            "direction": "lr"
+        },
+        "lanes": [
+            {
+                "id": "layer-intake",
+                "name": "intake_layer",
+                "label": "Intake Layer",
+                "description": "Initial claim submission and triage activities",
+                "orientation": "horizontal",
+                "order_index": 0,
+                "color": "#4FC3F7"
+            },
+            {
+                "id": "layer-processing",
+                "name": "processing_layer",
+                "label": "Processing Layer",
+                "description": "AI analysis and fraud detection",
+                "orientation": "horizontal",
+                "order_index": 1,
+                "color": "#AED581"
+            },
+            {
+                "id": "layer-decision",
+                "name": "decision_layer",
+                "label": "Decision Layer",
+                "description": "Decision routing and approvals",
+                "orientation": "horizontal",
+                "order_index": 2,
+                "color": "#FFD54F"
+            },
+            {
+                "id": "layer-completion",
+                "name": "completion_layer",
+                "label": "Completion Layer",
+                "description": "Final processing and notification",
+                "orientation": "horizontal",
+                "order_index": 3,
+                "color": "#F48FB1"
+            }
+        ],
+        "node_positions_3d": [
+            {
+                "id": "pos3d-001",
+                "node_id": "evt-claim-received",
+                "node_type": "event",
+                "position": {
+                    "x": 0,
+                    "y": 3,
+                    "z": 0
+                },
+                "rotation": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 0,
+                    "w": 1
+                },
+                "scale": {
+                    "x": 0.8,
+                    "y": 0.8,
+                    "z": 0.8
+                },
+                "shape": "sphere",
+                "material": {
+                    "diffuse_color": "#4CAF50",
+                    "emissive_color": "#1B5E20",
+                    "alpha": 1.0,
+                    "metallic": 0.3,
+                    "roughness": 0.4
+                },
+                "visible": true
+            },
+            {
+                "id": "pos3d-002",
+                "node_id": "act-claim-submission",
+                "node_type": "activity",
+                "position": {
+                    "x": 4,
+                    "y": 3,
+                    "z": 0
+                },
+                "rotation": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 0,
+                    "w": 1
+                },
+                "scale": {
+                    "x": 2,
+                    "y": 0.8,
+                    "z": 1
+                },
+                "shape": "cube",
+                "material": {
+                    "diffuse_color": "#29B6F6",
+                    "emissive_color": "#0277BD",
+                    "alpha": 0.95,
+                    "metallic": 0.2,
+                    "roughness": 0.5
+                },
+                "visible": true
+            },
+            {
+                "id": "pos3d-003",
+                "node_id": "act-initial-triage",
+                "node_type": "activity",
+                "position": {
+                    "x": 8,
+                    "y": 3,
+                    "z": 0
+                },
+                "rotation": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 0,
+                    "w": 1
+                },
+                "scale": {
+                    "x": 2,
+                    "y": 0.8,
+                    "z": 1
+                },
+                "shape": "cube",
+                "material": {
+                    "diffuse_color": "#4FC3F7",
+                    "emissive_color": "#0288D1",
+                    "alpha": 0.95,
+                    "metallic": 0.2,
+                    "roughness": 0.5
+                },
+                "visible": true
+            },
+            {
+                "id": "pos3d-004",
+                "node_id": "act-document-extraction",
+                "node_type": "activity",
+                "position": {
+                    "x": 4,
+                    "y": 1.5,
+                    "z": 3
+                },
+                "rotation": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 0,
+                    "w": 1
+                },
+                "scale": {
+                    "x": 2,
+                    "y": 0.8,
+                    "z": 1
+                },
+                "shape": "cube",
+                "material": {
+                    "diffuse_color": "#81C784",
+                    "emissive_color": "#2E7D32",
+                    "alpha": 0.95,
+                    "metallic": 0.2,
+                    "roughness": 0.5
+                },
+                "visible": true
+            },
+            {
+                "id": "pos3d-005",
+                "node_id": "act-fraud-detection",
+                "node_type": "activity",
+                "position": {
+                    "x": 8,
+                    "y": 1.5,
+                    "z": 3
+                },
+                "rotation": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 0,
+                    "w": 1
+                },
+                "scale": {
+                    "x": 2,
+                    "y": 0.8,
+                    "z": 1
+                },
+                "shape": "cube",
+                "material": {
+                    "diffuse_color": "#AED581",
+                    "emissive_color": "#558B2F",
+                    "alpha": 0.95,
+                    "metallic": 0.2,
+                    "roughness": 0.5
+                },
+                "visible": true
+            },
+            {
+                "id": "pos3d-006",
+                "node_id": "dec-claim-routing",
+                "node_type": "decision",
+                "position": {
+                    "x": 6,
+                    "y": 0,
+                    "z": 6
+                },
+                "rotation": {
+                    "x": 0,
+                    "y": 0.7071,
+                    "z": 0,
+                    "w": 0.7071
+                },
+                "scale": {
+                    "x": 1.2,
+                    "y": 1.2,
+                    "z": 1.2
+                },
+                "shape": "diamond",
+                "material": {
+                    "diffuse_color": "#FFEB3B",
+                    "emissive_color": "#F9A825",
+                    "alpha": 1.0,
+                    "metallic": 0.5,
+                    "roughness": 0.3
+                },
+                "visible": true
+            },
+            {
+                "id": "pos3d-007",
+                "node_id": "act-auto-approval",
+                "node_type": "activity",
+                "position": {
+                    "x": 2,
+                    "y": -1.5,
+                    "z": 9
+                },
+                "rotation": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 0,
+                    "w": 1
+                },
+                "scale": {
+                    "x": 2,
+                    "y": 0.8,
+                    "z": 1
+                },
+                "shape": "cube",
+                "material": {
+                    "diffuse_color": "#66BB6A",
+                    "emissive_color": "#388E3C",
+                    "alpha": 0.95,
+                    "metallic": 0.2,
+                    "roughness": 0.5
+                },
+                "visible": true
+            },
+            {
+                "id": "pos3d-008",
+                "node_id": "act-human-review",
+                "node_type": "activity",
+                "position": {
+                    "x": 6,
+                    "y": -1.5,
+                    "z": 9
+                },
+                "rotation": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 0,
+                    "w": 1
+                },
+                "scale": {
+                    "x": 2,
+                    "y": 0.8,
+                    "z": 1
+                },
+                "shape": "cube",
+                "material": {
+                    "diffuse_color": "#FF8A65",
+                    "emissive_color": "#E64A19",
+                    "alpha": 0.95,
+                    "metallic": 0.2,
+                    "roughness": 0.5
+                },
+                "visible": true
+            },
+            {
+                "id": "pos3d-009",
+                "node_id": "act-escalation",
+                "node_type": "activity",
+                "position": {
+                    "x": 10,
+                    "y": -1.5,
+                    "z": 9
+                },
+                "rotation": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 0,
+                    "w": 1
+                },
+                "scale": {
+                    "x": 2,
+                    "y": 0.8,
+                    "z": 1
+                },
+                "shape": "cube",
+                "material": {
+                    "diffuse_color": "#EF5350",
+                    "emissive_color": "#C62828",
+                    "alpha": 0.95,
+                    "metallic": 0.3,
+                    "roughness": 0.4
+                },
+                "visible": true
+            },
+            {
+                "id": "pos3d-010",
+                "node_id": "evt-claim-processed",
+                "node_type": "event",
+                "position": {
+                    "x": 6,
+                    "y": -3,
+                    "z": 12
+                },
+                "rotation": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 0,
+                    "w": 1
+                },
+                "scale": {
+                    "x": 0.8,
+                    "y": 0.8,
+                    "z": 0.8
+                },
+                "shape": "sphere",
+                "material": {
+                    "diffuse_color": "#EF5350",
+                    "emissive_color": "#B71C1C",
+                    "alpha": 1.0,
+                    "metallic": 0.3,
+                    "roughness": 0.4
+                },
+                "visible": true
+            }
+        ],
+        "edge_routings": [
+            {
+                "id": "route3d-001",
+                "edge_id": "edge-start-to-submission",
+                "curve_type": "bezier",
+                "control_points_3d": [
+                    {
+                        "x": 1,
+                        "y": 3,
+                        "z": 0
+                    },
+                    {
+                        "x": 2.5,
+                        "y": 3,
+                        "z": 0
+                    }
+                ],
+                "animated": true,
+                "animation_speed": 2.0,
+                "style": {
+                    "stroke_color": "#4CAF50",
+                    "stroke_width": 3
+                }
+            },
+            {
+                "id": "route3d-002",
+                "edge_id": "edge-triage-to-analysis",
+                "curve_type": "bezier",
+                "control_points_3d": [
+                    {
+                        "x": 8,
+                        "y": 2.5,
+                        "z": 1
+                    },
+                    {
+                        "x": 6,
+                        "y": 2,
+                        "z": 2
+                    }
+                ],
+                "animated": true,
+                "animation_speed": 1.5,
+                "style": {
+                    "stroke_color": "#81C784",
+                    "stroke_width": 3
+                }
+            },
+            {
+                "id": "route3d-003",
+                "edge_id": "edge-decision-to-outcomes",
+                "curve_type": "straight",
+                "animated": true,
+                "animation_speed": 1.0,
+                "style": {
+                    "stroke_color": "#FFEB3B",
+                    "stroke_width": 3
+                }
+            }
+        ],
+        "camera_3d": {
+            "type": "arc_rotate",
+            "position": {
+                "x": 20,
+                "y": 15,
+                "z": -10
+            },
+            "target": {
+                "x": 6,
+                "y": 0,
+                "z": 5
+            },
+            "fov": 50,
+            "near_clip": 0.1,
+            "far_clip": 500,
+            "alpha": 1.2,
+            "beta": 1.1,
+            "radius": 25
+        },
+        "animation": {
+            "enabled": true,
+            "transition_duration": 500,
+            "easing": "ease_in_out",
+            "edge_flow_enabled": true,
+            "edge_flow_speed": 1.5,
+            "highlight_active_path": true,
+            "playback_speed": 1.0
+        },
+        "theme": {
+            "background_color": "#1A1A2E",
+            "grid_enabled": true,
+            "grid_size": 2,
+            "grid_color": "#2D2D44"
+        },
+        "metadata": {
+            "created_by": "3d-designer",
+            "purpose": "immersive-spatial-view",
+            "lighting": {
+                "ambient_intensity": 0.4,
+                "directional_intensity": 0.8,
+                "directional_direction": {
+                    "x": -1,
+                    "y": -2,
+                    "z": -1
+                }
+            }
+        },
+        "created_at": "2026-01-29T16:00:00Z",
+        "updated_at": "2026-01-29T16:00:00Z"
+    }
+}

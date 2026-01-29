@@ -1,0 +1,55 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://awa.io/schema/collection.schema.json",
+    "title": "Collection",
+    "description": "Groups related workflows for shared context and querying",
+    "type": "object",
+    "required": [
+        "id",
+        "name"
+    ],
+    "properties": {
+        "id": {
+            "$ref": "awa.schema.json#/$defs/uuid"
+        },
+        "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+        },
+        "description": {
+            "type": "string"
+        },
+        "workflow_ids": {
+            "type": "array",
+            "items": {
+                "$ref": "awa.schema.json#/$defs/uuid"
+            }
+        },
+        "shared_contexts": {
+            "type": "array",
+            "items": {
+                "$ref": "context.schema.json"
+            },
+            "description": "Contexts shared across all workflows in collection"
+        },
+        "owner_id": {
+            "$ref": "awa.schema.json#/$defs/uuid"
+        },
+        "organization_id": {
+            "$ref": "awa.schema.json#/$defs/uuid"
+        },
+        "tags": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "created_at": {
+            "$ref": "awa.schema.json#/$defs/datetime_tz"
+        },
+        "updated_at": {
+            "$ref": "awa.schema.json#/$defs/datetime_tz"
+        }
+    }
+}

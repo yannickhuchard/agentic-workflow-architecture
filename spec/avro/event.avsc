@@ -1,0 +1,46 @@
+{
+  "type": "record",
+  "name": "WorkflowEvent",
+  "namespace": "io.awa.events",
+  "doc": "Events for workflow execution streaming",
+  "fields": [
+    { "name": "event_id", "type": { "type": "string", "logicalType": "uuid" } },
+    { "name": "event_type", "type": { 
+      "type": "enum", 
+      "name": "WorkflowEventType", 
+      "symbols": [
+        "WORKFLOW_CREATED",
+        "WORKFLOW_STARTED",
+        "WORKFLOW_PAUSED",
+        "WORKFLOW_RESUMED",
+        "WORKFLOW_COMPLETED",
+        "WORKFLOW_FAILED",
+        "WORKFLOW_CANCELLED",
+        "ACTIVITY_STARTED",
+        "ACTIVITY_COMPLETED",
+        "ACTIVITY_FAILED",
+        "ACTIVITY_SKIPPED",
+        "CONTEXT_CREATED",
+        "CONTEXT_UPDATED",
+        "CONTEXT_DELETED",
+        "DECISION_EVALUATED",
+        "SLA_WARNING",
+        "SLA_BREACHED"
+      ]
+    }},
+    { "name": "workflow_id", "type": { "type": "string", "logicalType": "uuid" } },
+    { "name": "workflow_instance_id", "type": { "type": "string", "logicalType": "uuid" }, "doc": "Runtime instance ID" },
+    { "name": "activity_id", "type": ["null", { "type": "string", "logicalType": "uuid" }], "default": null },
+    { "name": "context_id", "type": ["null", { "type": "string", "logicalType": "uuid" }], "default": null },
+    { "name": "decision_node_id", "type": ["null", { "type": "string", "logicalType": "uuid" }], "default": null },
+    { "name": "actor_id", "type": ["null", "string"], "default": null, "doc": "Who triggered the event" },
+    { "name": "actor_type", "type": ["null", { "type": "enum", "name": "ActorType", "symbols": ["human", "ai_agent", "robot", "application"] }], "default": null },
+    { "name": "payload", "type": ["null", "string"], "default": null, "doc": "Event-specific data as JSON" },
+    { "name": "error_message", "type": ["null", "string"], "default": null },
+    { "name": "error_code", "type": ["null", "string"], "default": null },
+    { "name": "correlation_id", "type": ["null", "string"], "default": null },
+    { "name": "parent_event_id", "type": ["null", { "type": "string", "logicalType": "uuid" }], "default": null },
+    { "name": "timestamp", "type": { "type": "long", "logicalType": "timestamp-millis" } },
+    { "name": "metadata", "type": ["null", { "type": "map", "values": "string" }], "default": null }
+  ]
+}
