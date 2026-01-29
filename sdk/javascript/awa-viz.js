@@ -160,7 +160,13 @@
                     position: { x: pos.position.x, y: yPosition },
                     data: {
                         label: AWAViz.utils.nodeIdToLabel(pos.node_id),
-                        lane: pos.lane
+                        lane: pos.lane,
+                        // Include all other fields from position config
+                        ...Object.fromEntries(
+                            Object.entries(pos).filter(([key]) =>
+                                !['node_id', 'position', 'width', 'height', 'style', 'lane', 'node_type', 'id'].includes(key)
+                            )
+                        )
                     },
                     style: {
                         backgroundColor: pos.style?.background_color || '#ffffff',
@@ -248,35 +254,302 @@
             function App() {
                 const [nodesState, setNodes, onNodesChange] = RF.useNodesState(nodes);
                 const [edgesState, setEdges, onEdgesChange] = RF.useEdgesState(edges);
+                const [selectedItem, setSelectedItem] = React.useState(null);
+                const [activeTab, setActiveTab] = React.useState('details'); // 'details' or 'technical'
 
-                return h(RF.ReactFlow, {
-                    nodes: nodesState,
-                    edges: edgesState,
-                    onNodesChange,
-                    onEdgesChange,
-                    fitView: false,
-                    defaultViewport: { x: 0, y: 0, zoom: 1 },  // 1:1 scale with lane coordinates
-                    translateExtent: [[0, 0], [containerWidth, containerHeight]], // Lock bounds
-                    minZoom: 0.5,
-                    maxZoom: 2.0,
-                    panOnScroll: true,
-                    preventScrolling: true,
-                    style: {
-                        background: 'transparent',  // Transparent to show lanes behind
-                        width: '100%',
-                        height: '100%'
-                    }
-                },
-                    opts.showBackground && h(RF.Background, {
-                        color: config.theme?.grid_color || '#e0e0e0',
-                        gap: config.theme?.grid_size || 20
-                    }),
-                    opts.showControls && h(RF.Controls, {}),
-                    opts.showMinimap && h(RF.MiniMap, {
-                        nodeColor: '#667eea',
-                        maskColor: 'rgba(0,0,0,0.1)'
-                    })
-                );
+                // Handle node click
+                const onNodeClick = React.useCallback((event, node) => {
+                    console.log('[AWAViz] Node clicked:', node.id);
+                    setSelectedItem({
+                        type: 'node',
+                        id: node.id,
+                        label: node.data.label,
+                        lane: node.data.lane,
+                        position: node.position,
+                        style: node.style,
+                        data: node.data
+                    });
+                    setActiveTab('details'); // Reset to details tab
+                }, []);
+
+                // Handle edge click
+                const onEdgeClick = React.useCallback((event, edge) => {
+                    console.log('[AWAViz] Edge clicked:', edge.id);
+                    setSelectedItem({
+                        type: 'edge',
+                        id: edge.id,
+                        source: edge.source,
+                        target: edge.target,
+                        label: edge.label,
+                        animated: edge.animated,
+                        style: edge.style
+                    });
+                    setActiveTab('details'); // Reset to details tab
+                }, []);
+
+                // Close details panel
+                const closeDetails = React.useCallback(() => {
+                    setSelectedItem(null);
+                    setActiveTab('details');
+                }, []);
+
+                return h('div', { style: { width: '100%', height: '100%', position: 'relative' } }, [
+                    h(RF.ReactFlow, {
+                        nodes: nodesState,
+                        edges: edgesState,
+                        onNodesChange,
+                        onEdgesChange,
+                        onNodeClick,
+                        onEdgeClick,
+                        fitView: false,
+                        defaultViewport: { x: 0, y: 0, zoom: 1 },
+                        translateExtent: [[0, 0], [containerWidth, containerHeight]],
+                        minZoom: 0.5,
+                        maxZoom: 2.0,
+                        panOnScroll: true,
+                        preventScrolling: true,
+                        style: {
+                            background: 'transparent',
+                            width: '100%',
+                            height: '100%'
+                        }
+                    },
+                        opts.showBackground && h(RF.Background, {
+                            color: config.theme?.grid_color || '#e0e0e0',
+                            gap: config.theme?.grid_size || 20
+                        }),
+                        opts.showControls && h(RF.Controls, {}),
+                        opts.showMinimap && h(RF.MiniMap, {
+                            nodeColor: '#667eea',
+                            maskColor: 'rgba(0,0,0,0.1)'
+                        })
+                    ),
+                    // Details panel
+                    selectedItem && h('div', {
+                        style: {
+                            position: 'absolute',
+                            top: '20px',
+                            right: '20px',
+                            width: '320px',
+                            maxHeight: '80%',
+                            overflowY: 'auto',
+                            background: 'white',
+                            borderRadius: '12px',
+                            boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
+                            padding: '0',
+                            zIndex: 1000,
+                            fontFamily: "'Segoe UI', sans-serif"
+                        }
+                    }, [
+                        // Header
+                        h('div', {
+                            style: {
+                                background: selectedItem.type === 'node'
+                                    ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+                                    : 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
+                                color: 'white',
+                                padding: '16px 20px',
+                                borderRadius: '12px 12px 0 0',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center'
+                            }
+                        }, [
+                            h('h3', {
+                                style: { margin: 0, fontSize: '16px', fontWeight: '600' }
+                            }, selectedItem.type === 'node' ? 'Activity Details' : 'Edge Details'),
+                            h('button', {
+                                onClick: closeDetails,
+                                style: {
+                                    background: 'rgba(255,255,255,0.2)',
+                                    border: 'none',
+                                    color: 'white',
+                                    width: '28px',
+                                    height: '28px',
+                                    borderRadius: '50%',
+                                    cursor: 'pointer',
+                                    fontSize: '18px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    transition: 'background 0.2s'
+                                },
+                                onMouseEnter: (e) => e.target.style.background = 'rgba(255,255,255,0.3)',
+                                onMouseLeave: (e) => e.target.style.background = 'rgba(255,255,255,0.2)'
+                            }, '×')
+                        ]),
+                        // Tab Navigation
+                        h('div', {
+                            style: {
+                                display: 'flex',
+                                borderBottom: '1px solid #e5e5e5',
+                                background: '#f9fafb'
+                            }
+                        }, [
+                            h('button', {
+                                onClick: () => setActiveTab('details'),
+                                style: {
+                                    flex: 1,
+                                    padding: '12px 16px',
+                                    border: 'none',
+                                    background: activeTab === 'details' ? 'white' : 'transparent',
+                                    borderBottom: activeTab === 'details' ? '2px solid #667eea' : '2px solid transparent',
+                                    color: activeTab === 'details' ? '#667eea' : '#6b7280',
+                                    fontWeight: activeTab === 'details' ? '600' : '400',
+                                    fontSize: '13px',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s'
+                                }
+                            }, selectedItem.type === 'node' ? 'Activity Data' : 'Edge Data'),
+                            h('button', {
+                                onClick: () => setActiveTab('technical'),
+                                style: {
+                                    flex: 1,
+                                    padding: '12px 16px',
+                                    border: 'none',
+                                    background: activeTab === 'technical' ? 'white' : 'transparent',
+                                    borderBottom: activeTab === 'technical' ? '2px solid #667eea' : '2px solid transparent',
+                                    color: activeTab === 'technical' ? '#667eea' : '#6b7280',
+                                    fontWeight: activeTab === 'technical' ? '600' : '400',
+                                    fontSize: '13px',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s'
+                                }
+                            }, 'Visualization')
+                        ]),
+                        // Content
+                        h('div', { style: { padding: '20px' } }, [
+                            selectedItem.type === 'node' ? [
+                                h('div', { style: { marginBottom: '16px' } }, [
+                                    h('div', { style: { fontSize: '12px', color: '#666', marginBottom: '4px' } }, 'Name'),
+                                    h('div', { style: { fontSize: '15px', fontWeight: '600', color: '#333' } }, selectedItem.label)
+                                ]),
+                                h('div', { style: { marginBottom: '16px' } }, [
+                                    h('div', { style: { fontSize: '12px', color: '#666', marginBottom: '4px' } }, 'ID'),
+                                    h('code', {
+                                        style: {
+                                            fontSize: '13px',
+                                            background: '#f5f5f5',
+                                            color: '#1a1a1a',
+                                            padding: '4px 8px',
+                                            borderRadius: '4px',
+                                            display: 'inline-block',
+                                            fontFamily: 'monospace'
+                                        }
+                                    }, selectedItem.id)
+                                ]),
+                                selectedItem.lane && h('div', { style: { marginBottom: '16px' } }, [
+                                    h('div', { style: { fontSize: '12px', color: '#666', marginBottom: '4px' } }, 'Lane'),
+                                    h('div', {
+                                        style: {
+                                            fontSize: '14px',
+                                            background: selectedItem.style.backgroundColor || '#f0f0f0',
+                                            color: '#333',
+                                            padding: '6px 12px',
+                                            borderRadius: '6px',
+                                            display: 'inline-block',
+                                            border: `2px solid ${selectedItem.style.borderColor || '#ccc'}`
+                                        }
+                                    }, selectedItem.lane)
+                                ]),
+                                // Display ALL additional data fields
+                                Object.keys(selectedItem.data || {}).filter(key => !['label', 'lane'].includes(key)).length > 0 &&
+                                h('div', { style: { marginBottom: '16px', borderTop: '1px solid #e5e5e5', paddingTop: '12px', marginTop: '4px' } }, [
+                                    h('div', { style: { fontSize: '12px', color: '#666', marginBottom: '8px', fontWeight: '600' } }, 'Additional Properties'),
+                                    ...Object.entries(selectedItem.data || {})
+                                        .filter(([key]) => !['label', 'lane'].includes(key))
+                                        .map(([key, value]) =>
+                                            h('div', { style: { marginBottom: '8px' } }, [
+                                                h('div', { style: { fontSize: '11px', color: '#888', marginBottom: '2px', textTransform: 'capitalize' } }, key.replace(/_/g, ' ')),
+                                                h('div', { style: { fontSize: '13px', color: '#333', wordBreak: 'break-word' } },
+                                                    typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value))
+                                            ])
+                                        )
+                                ]),
+                                // Visualization Tab
+                                activeTab === 'technical' && [
+                                    h('div', { style: { marginBottom: '16px' } }, [
+                                        h('div', { style: { fontSize: '12px', color: '#666', marginBottom: '4px' } }, 'Position'),
+                                        h('div', { style: { fontSize: '13px', color: '#555' } },
+                                            `X: ${Math.round(selectedItem.position.x)}, Y: ${Math.round(selectedItem.position.y)}`)
+                                    ]),
+                                    h('div', { style: { marginBottom: '16px' } }, [
+                                        h('div', { style: { fontSize: '12px', color: '#666', marginBottom: '4px' } }, 'Dimensions'),
+                                        h('div', { style: { fontSize: '13px', color: '#555' } },
+                                            `${selectedItem.style.width}px × ${selectedItem.style.height}px`)
+                                    ]),
+                                    h('div', { style: { marginBottom: '0' } }, [
+                                        h('div', { style: { fontSize: '12px', color: '#666', marginBottom: '4px' } }, 'Styling'),
+                                        h('div', { style: { fontSize: '13px', color: '#555', lineHeight: '1.6' } }, [
+                                            h('div', {}, `Background: ${selectedItem.style.backgroundColor}`),
+                                            h('div', {}, `Border: ${selectedItem.style.borderWidth}px ${selectedItem.style.borderColor}`),
+                                            h('div', {}, `Radius: ${selectedItem.style.borderRadius}px`)
+                                        ])
+                                    ])
+                                ]
+                            ] : [
+                                // Edge Details Tab
+                                activeTab === 'details' && [
+                                    h('div', { style: { marginBottom: '16px' } }, [
+                                        h('div', { style: { fontSize: '12px', color: '#666', marginBottom: '4px' } }, 'ID'),
+                                        h('code', {
+                                            style: {
+                                                fontSize: '13px',
+                                                background: '#f5f5f5',
+                                                color: '#1a1a1a',
+                                                padding: '4px 8px',
+                                                borderRadius: '4px',
+                                                display: 'inline-block',
+                                                fontFamily: 'monospace'
+                                            }
+                                        }, selectedItem.id)
+                                    ]),
+                                    h('div', { style: { marginBottom: '16px' } }, [
+                                        h('div', { style: { fontSize: '12px', color: '#666', marginBottom: '4px' } }, 'Flow'),
+                                        h('div', {
+                                            style: {
+                                                fontSize: '14px',
+                                                background: '#f8f9fa',
+                                                padding: '10px 14px',
+                                                borderRadius: '6px',
+                                                color: '#333'
+                                            }
+                                        }, `${selectedItem.source} → ${selectedItem.target}`)
+                                    ]),
+                                    selectedItem.label && h('div', { style: { marginBottom: '0' } }, [
+                                        h('div', { style: { fontSize: '12px', color: '#666', marginBottom: '4px' } }, 'Label'),
+                                        h('div', { style: { fontSize: '14px', color: '#555', fontWeight: '500' } }, selectedItem.label)
+                                    ])
+                                ],
+                                // Edge Visualization Tab
+                                activeTab === 'technical' && [
+                                    h('div', { style: { marginBottom: '16px' } }, [
+                                        h('div', { style: { fontSize: '12px', color: '#666', marginBottom: '4px' } }, 'Animated'),
+                                        h('div', {
+                                            style: {
+                                                fontSize: '13px',
+                                                color: selectedItem.animated ? '#10b981' : '#6b7280',
+                                                fontWeight: '500'
+                                            }
+                                        }, selectedItem.animated ? '✓ Yes' : '✗ No')
+                                    ]),
+                                    h('div', { style: { marginBottom: '0' } }, [
+                                        h('div', { style: { fontSize: '12px', color: '#666', marginBottom: '4px' } }, 'Style'),
+                                        h('div', {
+                                            style: {
+                                                fontSize: '13px',
+                                                background: '#f5f5f5',
+                                                padding: '8px 12px',
+                                                borderRadius: '6px',
+                                                color: '#555'
+                                            }
+                                        }, `Color: ${selectedItem.style.stroke}, Width: ${selectedItem.style.strokeWidth}px`)
+                                    ])
+                                ]
+                            ]
+                        ])
+                    ])
+                ]);
             }
 
             console.log(`[AWAViz] ReactFlow viewport: ${containerWidth}x${containerHeight}px, zoom=1.0 (1:1 with lanes)`);

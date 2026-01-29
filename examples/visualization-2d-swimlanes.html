@@ -117,7 +117,8 @@
         <div id="lanes-background"></div>
         <div id="reactflow-layer"></div>
     </div>
-    <div class="info-panel"><strong>Controls:</strong> Drag to pan • Scroll to zoom • Click nodes for details</div>
+    <div class="info-panel"><strong>Interactive:</strong> Click on any activity node or edge to see details • Drag to
+        pan • Scroll to zoom</div>
 
     <script src="https://unpkg.com/react@17/umd/react.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js" crossorigin></script>
@@ -142,12 +143,12 @@
                     { "id": "lane-human-review", "name": "human_review", "label": "Claims Manager", "order_index": 3, "color": "#FCE4EC", "y_start": 300, "y_end": 400 }
                 ],
                 "node_positions_2d": [
-                    { "id": "pos-001", "node_id": "act-claim-submission", "lane": "customer", "node_type": "activity", "position": { "x": 50, "y": 35 }, "width": 180, "height": 60, "style": { "background_color": "#BBDEFB", "border_color": "#1976D2", "border_width": 2, "border_radius": 8 } },
-                    { "id": "pos-002", "node_id": "act-initial-triage", "lane": "ai_intake", "node_type": "activity", "position": { "x": 300, "y": 135 }, "width": 180, "height": 60, "style": { "background_color": "#C8E6C9", "border_color": "#388E3C", "border_width": 2, "border_radius": 8 } },
-                    { "id": "pos-003", "node_id": "act-document-analysis", "lane": "ai_analysis", "node_type": "activity", "position": { "x": 550, "y": 235 }, "width": 180, "height": 60, "style": { "background_color": "#FFE0B2", "border_color": "#F57C00", "border_width": 2, "border_radius": 8 } },
-                    { "id": "pos-004", "node_id": "dec-approval-routing", "lane": "ai_analysis", "node_type": "decision", "position": { "x": 800, "y": 225 }, "width": 80, "height": 80, "style": { "background_color": "#FFF9C4", "border_color": "#FBC02D", "border_width": 2 } },
-                    { "id": "pos-005", "node_id": "act-auto-approval", "lane": "ai_intake", "node_type": "activity", "position": { "x": 1050, "y": 135 }, "width": 180, "height": 60, "style": { "background_color": "#A5D6A7", "border_color": "#388E3C", "border_width": 2, "border_radius": 8 } },
-                    { "id": "pos-006", "node_id": "act-human-review", "lane": "human_review", "node_type": "activity", "position": { "x": 1050, "y": 335 }, "width": 180, "height": 60, "style": { "background_color": "#F8BBD9", "border_color": "#C2185B", "border_width": 2, "border_radius": 8 } }
+                    { "id": "pos-001", "node_id": "act-claim-submission", "lane": "customer", "node_type": "activity", "description": "Customer submits insurance claim with supporting documents", "actor_type": "human", "role": "Policy Holder", "position": { "x": 50, "y": 35 }, "width": 180, "height": 60, "style": { "background_color": "#BBDEFB", "border_color": "#1976D2", "border_width": 2, "border_radius": 8 } },
+                    { "id": "pos-002", "node_id": "act-initial-triage", "lane": "ai_intake", "node_type": "activity", "description": "AI agent performs initial claim validation and categorization", "actor_type": "ai_agent", "role": "Intake Agent", "position": { "x": 300, "y": 135 }, "width": 180, "height": 60, "style": { "background_color": "#C8E6C9", "border_color": "#388E3C", "border_width": 2, "border_radius": 8 } },
+                    { "id": "pos-003", "node_id": "act-document-analysis", "lane": "ai_analysis", "node_type": "activity", "description": "AI analyzes documents for fraud detection and claim validity", "actor_type": "ai_agent", "role": "Document Analyst", "position": { "x": 550, "y": 235 }, "width": 180, "height": 60, "style": { "background_color": "#FFE0B2", "border_color": "#F57C00", "border_width": 2, "border_radius": 8 } },
+                    { "id": "pos-004", "node_id": "dec-approval-routing", "lane": "ai_analysis", "node_type": "decision", "description": "Route to auto-approval or human review based on risk score", "actor_type": "ai_agent", "role": "Decision Engine", "position": { "x": 800, "y": 225 }, "width": 80, "height": 80, "style": { "background_color": "#FFF9C4", "border_color": "#FBC02D", "border_width": 2 } },
+                    { "id": "pos-005", "node_id": "act-auto-approval", "lane": "ai_intake", "node_type": "activity", "description": "Automatically approve low-risk claims and notify customer", "actor_type": "application", "role": "Approval System", "position": { "x": 1050, "y": 135 }, "width": 180, "height": 60, "style": { "background_color": "#A5D6A7", "border_color": "#388E3C", "border_width": 2, "border_radius": 8 } },
+                    { "id": "pos-006", "node_id": "act-human-review", "lane": "human_review", "node_type": "activity", "description": "Claims manager reviews high-risk or exception cases", "actor_type": "human", "role": "Claims Manager", "position": { "x": 1050, "y": 335 }, "width": 180, "height": 60, "style": { "background_color": "#F8BBD9", "border_color": "#C2185B", "border_width": 2, "border_radius": 8 } }
                 ],
                 "edge_routings": [
                     { "id": "route-001", "edge_id": "edge-claim-submission-to-triage", "source": "act-claim-submission", "target": "act-initial-triage", "curve_type": "smoothstep", "animated": true, "style": { "stroke_color": "#1976D2", "stroke_width": 2 } },
