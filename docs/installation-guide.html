@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Installation Guide | AWA Documentation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <button class="theme-toggle" title="Toggle Theme">☀️</button>
+
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo">
+                <div class="logo-icon"></div>
+                <span>AWA Specification</span>
+            </div>
+
+            <div class="search-container">
+                <span class="search-icon">🔍</span>
+                <input type="text" class="search-input" placeholder="Search guides...">
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Getting Started</div>
+                <ul class="nav-links">
+                    <li><a href="getting-started.html" class="nav-link">Introduction</a></li>
+                    <li><a href="installation-guide.html" class="nav-link active">Installation Guide</a></li>
+                </ul>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Developer Guides</div>
+                <ul class="nav-links">
+                    <li><a href="developer-guide.html" class="nav-link">Reference Material</a></li>
+                    <li><a href="data-model-guide.html" class="nav-link">Data Model & Concepts</a></li>
+                </ul>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Theory & Business</div>
+                <ul class="nav-links">
+                    <li><a href="abpm-guide.html" class="nav-link">Agentic BPM</a></li>
+                    <li><a href="architect-guide.html" class="nav-link">Architect Guide</a></li>
+                </ul>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Playground</div>
+                <ul class="nav-links">
+                    <li><a href="playground.html" class="nav-link">Interactive Sandbox</a></li>
+                </ul>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="content-header">
+                <span class="badge">Setup & Deployment</span>
+                <h1 class="hero-title">Installation & Environment Setup</h1>
+                <p class="hero-desc">Complete guide to installing AWA SDKs, visualization engines, and setting up the
+                    infrastructure for your agentic workflows.</p>
+            </header>
+
+            <section id="sdk-installation">
+                <h2>1. SDK Installation</h2>
+                <p>AWA provides native SDKs for the three most common enterprise environments. Choose your stack below
+                    to get started.</p>
+
+                <div class="code-tabs">
+                    <div class="tabs-header">
+                        <button class="tab-btn active" data-lang="ts">TypeScript / Node.js</button>
+                        <button class="tab-btn" data-lang="py">Python</button>
+                        <button class="tab-btn" data-lang="java">Java / Maven</button>
+                    </div>
+                    <div class="tab-content active" data-lang="ts">
+                        <pre><code class="language-bash"># Install the core AWA SDK
+npm install @awa/sdk
+
+# Optional: Install the visualization layer
+npm install @awa/viz</code></pre>
+                    </div>
+                    <div class="tab-content" data-lang="py">
+                        <pre><code class="language-bash"># Basic SDK
+pip install awa-sdk
+
+# With Google Cloud Datastore support
+pip install "awa-sdk[datastore]"</code></pre>
+                    </div>
+                    <div class="tab-content" data-lang="java">
+                        <pre><code class="language-xml">&lt;!-- Add to your pom.xml --&gt;
+&lt;dependency&gt;
+    &lt;groupId&gt;io.awa&lt;/groupId&gt;
+    &lt;artifactId&gt;awa-sdk&lt;/artifactId&gt;
+    &lt;version&gt;1.2.0&lt;/version&gt;
+&lt;/dependency&gt;</code></pre>
+                    </div>
+                </div>
+            </section>
+
+            <section id="visualization-setup">
+                <h2>2. Visualization Setup</h2>
+                <p>The <code>awa-viz.js</code> library allows you to render your workflows in any web-based environment.
+                    It supports both 2D (ReactFlow) and 3D (Babylon.js) views.</p>
+
+                <div class="card">
+                    <h4>Direct Inclusion (UMD)</h4>
+                    <p>For simple projects or documentation portals, include the dependencies via CDN:</p>
+                    <pre><code class="language-html">&lt;!-- React & ReactDOM --&gt;
+&lt;script src="https://unpkg.com/react@18/umd/react.production.min.js"&gt;&lt;/script&gt;
+&lt;script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"&gt;&lt;/script&gt;
+
+&lt;!-- ReactFlow (2D) --&gt;
+&lt;script src="https://cdn.jsdelivr.net/npm/reactflow@11/dist/umd/index.min.js"&gt;&lt;/script&gt;
+
+&lt;!-- Babylon.js (3D) --&gt;
+&lt;script src="https://cdn.babylonjs.com/babylon.js"&gt;&lt;/script&gt;
+
+&lt;!-- AWA Viz --&gt;
+&lt;script src="path/to/awa-viz.js"&gt;&lt;/script&gt;</code></pre>
+                </div>
+            </section>
+
+            <section id="infrastructure">
+                <h2>3. Infrastructure & Database</h2>
+                <p>AWA is database-agnostic but provides optimized connectors for high-performance systems.</p>
+
+                <div class="card-grid">
+                    <div class="card">
+                        <h3>Firebase / Datastore</h3>
+                        <p>Recommended for serverless architectures. Use the Google Cloud Datastore client for
+                            production scale.</p>
+                    </div>
+                    <div class="card">
+                        <h3>PostgreSQL</h3>
+                        <p>Standard relational backend. Use our provided DDL scripts to initialize your tables.</p>
+                    </div>
+                </div>
+
+                <h4>Backend Configuration:</h4>
+                <div class="card">
+                    <pre><code class="language-json">{
+  "AWA_DB_MODE": "datastore",
+  "AWA_PROJECT_ID": "your-project-id",
+  "AWA_METRICS_ENABLED": "true"
+}</code></pre>
+                </div>
+            </section>
+
+            <section id="schema-management">
+                <h2>4. Schema Management</h2>
+                <p>AWA is built on top of high-performance schema definition languages.</p>
+
+                <div class="card">
+                    <ul>
+                        <li><strong>Protobuf</strong>: Binary serialization for high-speed agent communication.</li>
+                        <li><strong>Avro</strong>: Schema-evolution friendly format for big data lakes.</li>
+                        <li><strong>OpenAPI</strong>: Industry standard for RESTful API documentation.</li>
+                    </ul>
+                </div>
+            </section>
+
+            <div class="footer">
+                &copy; 2026 Agentic Workflow Architecture Group. Released under Apache 2.0 License.
+            </div>
+        </main>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+    <script src="main.js"></script>
+    <script>hljs.highlightAll();</script>
+</body>
+
+</html>

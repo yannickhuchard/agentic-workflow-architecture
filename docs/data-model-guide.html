@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Model & Concepts | AWA Documentation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <button class="theme-toggle" title="Toggle Theme">☀️</button>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo">
+                <div class="logo-icon"></div>
+                <span>AWA Specification</span>
+            </div>
+
+            <div class="search-container">
+                <span class="search-icon">🔍</span>
+                <input type="text" class="search-input" placeholder="Search guides...">
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Getting Started</div>
+                <ul class="nav-links">
+                    <li><a href="getting-started.html" class="nav-link">Introduction</a></li>
+                    <li><a href="installation-guide.html" class="nav-link">Installation Guide</a></li>
+                </ul>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Developer Guides</div>
+                <ul class="nav-links">
+                    <li><a href="developer-guide.html" class="nav-link">Reference Material</a></li>
+                    <li><a href="data-model-guide.html" class="nav-link active">Data Model & Concepts</a></li>
+                </ul>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Theory & Business</div>
+                <ul class="nav-links">
+                    <li><a href="abpm-guide.html" class="nav-link">Agentic BPM</a></li>
+                    <li><a href="architect-guide.html" class="nav-link">Architect Guide</a></li>
+                </ul>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Playground</div>
+                <ul class="nav-links">
+                    <li><a href="playground.html" class="nav-link">Interactive Sandbox</a></li>
+                </ul>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="content-header">
+                <span class="badge">Architecture</span>
+                <h1 class="hero-title">Core Data Model & Concepts</h1>
+                <p class="hero-desc">A deep dive into the AWA ontology. Understand every entity, its purpose, and how to
+                    model high-performance agentic workflows.</p>
+            </header>
+
+            <section id="workflow">
+                <h2>1. The Workflow</h2>
+                <p>The <code>Workflow</code> is the root entity. It defines the boundaries of a specific business
+                    process, its versioning, and its high-level objectives.</p>
+                <div class="card">
+                    <h4>Best Usage:</h4>
+                    <p>Keep workflows focused on a single outcome (e.g., "Claims Settlement" rather than "Insurance
+                        Operations"). Use semantic versioning (e.g., <code>1.2.0</code>) to manage evolution.</p>
+                </div>
+            </section>
+
+            <section id="activities">
+                <h2>2. Activities & Units of Work</h2>
+                <p>An <code>Activity</code> represents a single logical step in the process. Unlike traditional BPM, AWA
+                    activities are strictly typed by their intended performer.</p>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Concept</th>
+                                <th>Description</th>
+                                <th>Best Practice</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Activity</strong></td>
+                                <td>A task performed by an actor.</td>
+                                <td>Atomic, idempotent where possible, with clear procedures.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Decision</strong></td>
+                                <td>A gateway for routing based on logic.</td>
+                                <td>Use for branching. Map logic to specific queryable context fields.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Event</strong></td>
+                                <td>Tiggers or milestones.</td>
+                                <td>Use <code>evt-start</code> and <code>evt-end</code> to demarcate boundaries.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="actors">
+                <h2>3. Actors & Roles</h2>
+                <p>The performant heart of AWA. We distinguish between <strong>Who</strong> (Role) and
+                    <strong>What</strong> (Actor Type).
+                </p>
+                <div class="card-grid">
+                    <div class="card">
+                        <h3>ai_agent</h3>
+                        <p>Autonomous LLM-driven entities. Best for cognition, triage, and extraction.</p>
+                    </div>
+                    <div class="card">
+                        <h3>human</h3>
+                        <p>Human collaborators. Best for oversight, exception handling, and high-value authorization.
+                        </p>
+                    </div>
+                    <div class="card">
+                        <h3>application</h3>
+                        <p>Traditional software systems. Best for integrations, batch jobs, and deterministic tasks.</p>
+                    </div>
+                </div>
+            </section>
+
+            <section id="contexts">
+                <h2>4. Contextual State</h2>
+                <p>The <code>Context</code> is how data flows. Instead of complex message payloads, actors interact with
+                    shared context variables.</p>
+                <div class="info-box">
+                    <strong>Sync Pattern: Shared State</strong> is the most common. It allows multiple agents to
+                    contribute to a single "source of truth" (like a claim record) as the workflow progresses.
+                </div>
+                <h4>Usage Best Practice:</h4>
+                <ul style="margin-left: 1.5rem; color: var(--text-muted)">
+                    <li><strong>Minimalism</strong>: Don't put everything in one context. Group by functional area
+                        (e.g., <code>customer_data</code>, <code>claim_data</code>).</li>
+                    <li><strong>Access Control</strong>: Always define <code>AccessRights</code> (read/write) per
+                        activity to prevent context corruption.</li>
+                </ul>
+            </section>
+
+            <section id="edges">
+                <h2>5. Edges & Transfer Types</h2>
+                <p>Edges connect activities. In AWA, edges also describe the <strong>Nature of Handoff</strong> via
+                    <code>transfer_type</code>.
+                </p>
+                <ul class="list-premium" style="list-style: none">
+                    <li
+                        style="margin-bottom: 1rem; padding: 1rem; background: rgba(255,255,255,0.03); border-radius: 8px;">
+                        <strong>integration_flow</strong>: System-to-system or AI-to-System. Automated and
+                        instantaneous.
+                    </li>
+                    <li
+                        style="margin-bottom: 1rem; padding: 1rem; background: rgba(255,255,255,0.03); border-radius: 8px;">
+                        <strong>manual_work</strong>: Human-to-Human or Human-to-AI. Higher latency, requires
+                        monitoring.
+                    </li>
+                    <li style="padding: 1rem; background: rgba(255,255,255,0.03); border-radius: 8px;">
+                        <strong>notification</strong>: Asynchronous inform-only handoffs.
+                    </li>
+                </ul>
+            </section>
+
+            <section id="metrics">
+                <h2>6. Execution Metrics (Performance)</h2>
+                <p>Data concepts for time and efficiency.</p>
+                <div class="card">
+                    <ul>
+                        <li><strong>duration_ms</strong>: The "Design-Time" expected duration.</li>
+                        <li><strong>bottleneck_threshold_ms</strong>: The "Tolerance" before a waste category is
+                            triggered.</li>
+                    </ul>
+                    <p style="margin-top: 1rem;"><strong>Tip:</strong> Always set thresholds. This fuels the 3D
+                        visualization's glowing bottleneck indicators.</p>
+                </div>
+            </section>
+
+            <section id="auxiliary">
+                <h2>7. Auxiliary Concepts</h2>
+                <div class="card-grid">
+                    <div class="card">
+                        <h3>Technology</h3>
+                        <p>Describes the underlying stack (e.g., <code>database</code>, <code>rest_api</code>) used by
+                            actors.</p>
+                    </div>
+                    <div class="card">
+                        <h3>Collection</h3>
+                        <p>A group of related workflows, providing a catalog-level view of processes.</p>
+                    </div>
+                    <div class="card">
+                        <h3>SLA</h3>
+                        <p>Service Level Agreements that define the bound for acceptable performance.</p>
+                    </div>
+                </div>
+            </section>
+
+            <div class="footer">
+                &copy; 2026 Agentic Workflow Architecture Group. Released under Apache 2.0 License.
+            </div>
+        </main>
+    </div>
+
+    <script src="main.js"></script>
+</body>
+
+</html>

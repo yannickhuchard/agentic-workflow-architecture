@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Getting Started | AWA Documentation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <button class="theme-toggle" title="Toggle Theme">☀️</button>
+
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo">
+                <div class="logo-icon"></div>
+                <span>AWA Specification</span>
+            </div>
+
+            <div class="search-container">
+                <span class="search-icon">🔍</span>
+                <input type="text" class="search-input" placeholder="Search guides...">
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Getting Started</div>
+                <ul class="nav-links">
+                    <li><a href="getting-started.html" class="nav-link active">Introduction</a></li>
+                    <li><a href="installation-guide.html" class="nav-link">Installation Guide</a></li>
+                    <li><a href="#quick-install" class="nav-link">Quick Installation</a></li>
+                    <li><a href="#hello-world" class="nav-link">Hello World</a></li>
+                    <li><a href="#personas" class="nav-link">Who is this for?</a></li>
+                </ul>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Developer Guides</div>
+                <ul class="nav-links">
+                    <li><a href="developer-guide.html" class="nav-link">Reference Material</a></li>
+                    <li><a href="data-model-guide.html" class="nav-link">Data Model & Concepts</a></li>
+                </ul>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Theory & Business</div>
+                <ul class="nav-links">
+                    <li><a href="abpm-guide.html" class="nav-link">Agentic BPM</a></li>
+                    <li><a href="architect-guide.html" class="nav-link">Architect Guide</a></li>
+                </ul>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Playground</div>
+                <ul class="nav-links">
+                    <li><a href="playground.html" class="nav-link">Interactive Sandbox</a></li>
+                </ul>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="content-header">
+                <span class="badge">Version 1.2.0</span>
+                <h1 class="hero-title">Step into the future of AI-Native Workflows.</h1>
+                <p class="hero-desc">Agentic Workflow Architecture (AWA) is the industry standard for designing,
+                    querying, and visualizing processes meant for AI Agents and human collaboration.</p>
+            </header>
+
+            <section id="introduction">
+                <h2>Why AWA?</h2>
+                <p>Traditional BPMN was built for humans and brittle software systems. In the era of LLMs and autonomous
+                    agents, we need a specification that is <strong>queryable</strong>, <strong>context-aware</strong>,
+                    and <strong>outcome-focused</strong>.</p>
+
+                <div class="card-grid">
+                    <div class="card">
+                        <div class="card-icon">🤖</div>
+                        <h3>Built for Agents</h3>
+                        <p>Native support for actor types including <code>ai_agent</code>, <code>robot</code>, and
+                            <code>application</code>.
+                        </p>
+                    </div>
+                    <div class="card">
+                        <div class="card-icon">🔍</div>
+                        <h3>Queryable Specs</h3>
+                        <p>Ask complex questions: "Which activities require write access to the order context?"</p>
+                    </div>
+                    <div class="card">
+                        <div class="card-icon">⚡</div>
+                        <h3>High Performance</h3>
+                        <p>Designed for event-streaming (Avro) and highly scalable databases (PostgreSQL/Datastore).</p>
+                    </div>
+                </div>
+            </section>
+
+            <section id="personas">
+                <h2>Designed for Collaborative Ecosystems</h2>
+                <p>AWA bridges the gap between different stakeholders in an AI-driven enterprise.</p>
+
+                <div class="card-grid">
+                    <div class="card">
+                        <h4>Architects</h4>
+                        <p>Define high-level <strong>Reference Architectures</strong> and governance models that scale
+                            with multi-agent systems.</p>
+                    </div>
+                    <div class="card">
+                        <h4>Developers</h4>
+                        <p>Use robust <strong>SDKs</strong> and typed <strong>Schemas</strong> to build workflows that
+                            are both human-readable and machine-executable.</p>
+                    </div>
+                    <div class="card">
+                        <h4>BPM Managers</h4>
+                        <p>Map <strong>Value Streams</strong> and identify <strong>DOWNTIME</strong> waste directly
+                            within the process visualization.</p>
+                    </div>
+                </div>
+            </section>
+
+            <section id="quick-install">
+                <h2>Quick Installation</h2>
+                <p>AWA provides lightweight SDKs for the most popular development environments.</p>
+
+                <div class="code-tabs">
+                    <div class="tabs-header">
+                        <button class="tab-btn active" data-lang="ts">TypeScript</button>
+                        <button class="tab-btn" data-lang="py">Python</button>
+                        <button class="tab-btn" data-lang="java">Java</button>
+                    </div>
+                    <div class="tab-content active" data-lang="ts">
+                        <pre><code class="language-bash">npm install @awa/sdk</code></pre>
+                    </div>
+                    <div class="tab-content" data-lang="py">
+                        <pre><code class="language-bash">pip install awa-sdk</code></pre>
+                    </div>
+                    <div class="tab-content" data-lang="java">
+                        <pre><code class="language-xml">&lt;dependency&gt;
+  &lt;groupId&gt;io.awa&lt;/groupId&gt;
+  &lt;artifactId&gt;awa-sdk&lt;/artifactId&gt;
+  &lt;version&gt;1.2.0&lt;/version&gt;
+&lt;/dependency&gt;</code></pre>
+                    </div>
+                </div>
+            </section>
+
+            <section id="hello-world">
+                <h2>Hello World</h2>
+                <p>Creating your first Agentic Workflow takes less than 20 lines of code.</p>
+
+                <div class="code-tabs">
+                    <div class="tabs-header">
+                        <button class="tab-btn active" data-lang="ts">TypeScript</button>
+                        <button class="tab-btn" data-lang="py">Python</button>
+                    </div>
+                    <div class="tab-content active" data-lang="ts">
+                        <pre><code class="language-typescript">import { workflow } from '@awa/sdk';
+
+const helloAWA = workflow('Greeting Process', '1.0.0')
+  .description('A simple AI greeting flow')
+  .activity('Generate Greeting', {
+    actor_type: 'ai_agent',
+    role_id: 'copywriter',
+    procedure: 'Greet the user in a friendly manner'
+  })
+  .edge('START', 'Generate Greeting')
+  .build();
+
+console.log(JSON.stringify(helloAWA, null, 2));</code></pre>
+                    </div>
+                    <div class="tab-content" data-lang="py">
+                        <pre><code class="language-python">from awa import workflow, ActorType
+
+hello_awa = (
+    workflow("Greeting Process", "1.0.0")
+    .description("A simple AI greeting flow")
+    .activity("Generate Greeting", 
+              actor_type=ActorType.AI_AGENT,
+              role_id="copywriter",
+              procedure="Greet the user in a friendly manner")
+    .edge("START", "Generate Greeting")
+    .build()
+)</code></pre>
+                    </div>
+                </div>
+
+                <div class="info-box">
+                    <strong>Pro Tip:</strong> Use the <code>awa-viz.js</code> library to instantly visualize this
+                    workflow in 2D or 3D.
+                </div>
+            </section>
+
+            <div class="footer">
+                &copy; 2026 Agentic Workflow Architecture Group. Released under Apache 2.0 License.
+            </div>
+        </main>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+    <script src="main.js"></script>
+    <script>hljs.highlightAll();</script>
+</body>
+
+</html>

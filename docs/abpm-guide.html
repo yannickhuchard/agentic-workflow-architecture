@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agentic BPM Guide | AWA Documentation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <button class="theme-toggle" title="Toggle Theme">☀️</button>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo">
+                <div class="logo-icon"></div>
+                <span>AWA Specification</span>
+            </div>
+
+            <div class="search-container">
+                <span class="search-icon">🔍</span>
+                <input type="text" class="search-input" placeholder="Search guides...">
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Getting Started</div>
+                <ul class="nav-links">
+                    <li><a href="getting-started.html" class="nav-link">Introduction</a></li>
+                    <li><a href="installation-guide.html" class="nav-link">Installation Guide</a></li>
+                </ul>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Developer Guides</div>
+                <ul class="nav-links">
+                    <li><a href="developer-guide.html" class="nav-link">Reference Material</a></li>
+                    <li><a href="data-model-guide.html" class="nav-link">Data Model & Concepts</a></li>
+                </ul>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Theory & Business</div>
+                <ul class="nav-links">
+                    <li><a href="abpm-guide.html" class="nav-link active">Agentic BPM</a></li>
+                    <li><a href="architect-guide.html" class="nav-link">Architect Guide</a></li>
+                    <li><a href="#vsm" class="nav-link">Value Streams (VSM)</a></li>
+                    <li><a href="#governance" class="nav-link">Security & Governance</a></li>
+                </ul>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Playground</div>
+                <ul class="nav-links">
+                    <li><a href="playground.html" class="nav-link">Interactive Sandbox</a></li>
+                </ul>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="content-header">
+                <span class="badge">Business Strategy</span>
+                <h1 class="hero-title">Agentic BPM Guide</h1>
+                <p class="hero-desc">Transforming business processes from human-centric to agent-orchestrated value
+                    streams.</p>
+            </header>
+
+            <section id="abpm">
+                <h2>The Shift to Agentic BPM</h2>
+                <p>Traditional Business Process Management (BPM) focuses on control flow. <strong>Agentic BPM</strong>
+                    focuses on outcome autonomy and shared context.</p>
+
+                <div class="card">
+                    <ul class="list-premium" style="list-style: none">
+                        <li style="margin-bottom: 1.5rem; padding: 1rem; border-bottom: 1px solid var(--border)">
+                            <strong style="color: var(--primary)">Contextual Awareness</strong>: Agents read and mutate
+                            a shared <code>context</code> to make informed decisions.
+                        </li>
+                        <li style="margin-bottom: 1.5rem; padding: 1rem; border-bottom: 1px solid var(--border)">
+                            <strong style="color: var(--primary)">Dynamic Routing</strong>: Gates are powered by AI
+                            logic and queryable state.
+                        </li>
+                        <li style="padding: 1rem">
+                            <strong style="color: var(--primary)">Hybrid Collaboration</strong>: Seamlessly model
+                            handovers between <code>human</code>, <code>ai_agent</code>, and <code>application</code>.
+                        </li>
+                    </ul>
+                </div>
+            </section>
+
+            <section id="vsm">
+                <h2>Value Stream Mapping (VSM)</h2>
+                <p>For **BPM Managers**, AWA provides a quantitative way to map process efficiency across AI and Human
+                    actors.</p>
+
+                <div class="card">
+                    <h3>The AWA VSM Methodology</h3>
+                    <ol style="margin-left: 2rem; color: var(--text-muted)">
+                        <li><strong>Identify Actors</strong>: Tag every activity with the correct
+                            <code>actor_type</code>.
+                        </li>
+                        <li><strong>Set Thresholds</strong>: Define <code>bottleneck_threshold_ms</code> based on SLA
+                            requirements.</li>
+                        <li><strong>Analyze Transfer</strong>: Use <code>transfer_type</code> to identify friction
+                            points between silos.</li>
+                        <li><strong>Waste Heatmap</strong>: Use the 3D visualization to see "Heat" where AI agents are
+                            over-processing context.</li>
+                    </ol>
+                </div>
+
+                <div class="waste-grid">
+                    <div class="waste-card">
+                        <h4>AI Defects</h4>
+                        <p>Identify hallucinations or retries in the event log.</p>
+                    </div>
+                    <div class="waste-card">
+                        <h4>Agent Waiting</h4>
+                        <p>High latency in LLM API calls or human approvals.</p>
+                    </div>
+                </div>
+            </section>
+
+            <section id="governance">
+                <h2>Security, Governance & Compliance</h2>
+                <p>For **GRC Officers**, AWA offers declarative safety controls.</p>
+                <div class="card-grid">
+                    <div class="card">
+                        <h3>Least Privilege Context</h3>
+                        <p>Explicitly define <code>read</code>, <code>write</code>, or <code>read_write</code> access on
+                            every workflow context.</p>
+                    </div>
+                    <div class="card">
+                        <h3>Audit-by-Design</h3>
+                        <p>AWA schemas map directly to immutable event logs (Avro), ensuring a perfect audit trail of
+                            agent decisions.</p>
+                    </div>
+                    <div class="card">
+                        <h3>Role-Based Boundaries</h3>
+                        <p>Link <code>role_id</code> to corporate IAM systems to enforce cross-actor permissions.</p>
+                    </div>
+                </div>
+            </section>
+
+            <div class="footer">
+                &copy; 2026 Agentic Workflow Architecture Group. Released under Apache 2.0 License.
+            </div>
+        </main>
+    </div>
+
+    <script src="main.js"></script>
+</body>
+
+</html>

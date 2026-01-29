@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Developer Guide | AWA Documentation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <button class="theme-toggle" title="Toggle Theme">☀️</button>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo">
+                <div class="logo-icon"></div>
+                <span>AWA Specification</span>
+            </div>
+
+            <div class="search-container">
+                <span class="search-icon">🔍</span>
+                <input type="text" class="search-input" placeholder="Search guides...">
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Getting Started</div>
+                <ul class="nav-links">
+                    <li><a href="getting-started.html" class="nav-link">Introduction</a></li>
+                    <li><a href="installation-guide.html" class="nav-link">Installation Guide</a></li>
+                </ul>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Developer Guides</div>
+                <ul class="nav-links">
+                    <li><a href="developer-guide.html" class="nav-link">Reference Material</a></li>
+                    <li><a href="data-model-guide.html" class="nav-link">Data Model & Concepts</a></li>
+                </ul>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Theory & Business</div>
+                <ul class="nav-links">
+                    <li><a href="abpm-guide.html" class="nav-link">Agentic BPM</a></li>
+                    <li><a href="architect-guide.html" class="nav-link">Architect Guide</a></li>
+                </ul>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Playground</div>
+                <ul class="nav-links">
+                    <li><a href="playground.html" class="nav-link">Interactive Sandbox</a></li>
+                </ul>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="content-header">
+                <span class="badge">Technical Reference</span>
+                <h1 class="hero-title">Developer Deep Dive</h1>
+                <p class="hero-desc">Everything you need to build, deploy, and scale Agentic Workflows across your
+                    ecosystem.</p>
+            </header>
+
+            <section id="reference-arch">
+                <h2>Reference Architecture</h2>
+                <p>For **Enterprise Architects**, AWA provides a blueprint for scalable multi-agent ecosystems.</p>
+                <div class="card">
+                    <h4>The Sovereign Actor Pattern</h4>
+                    <p>In AWA, every actor (AI or Human) is treated as a sovereign entity with explicit context
+                        boundaries. This prevents "context sprawl" and ensures that security permissions are
+                        declarative.</p>
+                    <ul style="margin-left: 1.5rem; margin-top: 1rem; color: var(--text-muted)">
+                        <li><strong>Ingress Layer</strong>: API Gateway mapping OpenAPI 3.1 specs to AWA workflows.</li>
+                        <li><strong>Orchestration Layer</strong>: Managed via AWA SDKs (TS/Python/Java).</li>
+                        <li><strong>Data Plane</strong>: Context stored in PostgreSQL or Datastore with shared-state
+                            visibility.</li>
+                    </ul>
+                </div>
+            </section>
+
+            <section id="sdks">
+                <h2>Language SDKs</h2>
+                <div class="code-tabs">
+                    <div class="tabs-header">
+                        <button class="tab-btn active" data-lang="ts">TypeScript</button>
+                        <button class="tab-btn" data-lang="py">Python</button>
+                        <button class="tab-btn" data-lang="java">Java</button>
+                    </div>
+                    <div class="tab-content active" data-lang="ts">
+                        <pre><code class="language-typescript">// TS Fluent API
+import { workflow } from '@awa/sdk';
+
+const process = workflow('Claims', '1.0.0')
+  .activity('Verification', { actor_type: 'ai_agent' })
+  .build();</code></pre>
+                    </div>
+                    <div class="tab-content" data-lang="py">
+                        <pre><code class="language-python"># Python Pydantic Models
+from awa import workflow
+
+process = workflow("Claims", "1.0.0")\
+    .activity("Verification", actor_type="ai_agent")\
+    .build()</code></pre>
+                    </div>
+                    <div class="tab-content" data-lang="java">
+                        <pre><code class="language-java">// Java Object Model
+Workflow process = WorkflowBuilder.workflow("Claims", "1.0.0")
+    .activity("Verification", ActorType.AI_AGENT)
+    .build();</code></pre>
+                    </div>
+                </div>
+            </section>
+
+            <section id="schemas">
+                <h2>The Specification Reference</h2>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Field</th>
+                                <th>Type</th>
+                                <th>Required</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>workflow_id</code></td>
+                                <td>string</td>
+                                <td>Yes</td>
+                                <td>Unique identifier for the process.</td>
+                            </tr>
+                            <tr>
+                                <td><code>actor_type</code></td>
+                                <td>enum</td>
+                                <td>Yes</td>
+                                <td>One of: <code>human</code>, <code>ai_agent</code>, <code>robot</code>,
+                                    <code>application</code>.
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><code>duration_ms</code></td>
+                                <td>integer</td>
+                                <td>No</td>
+                                <td>Expected or actual execution time.</td>
+                            </tr>
+                            <tr>
+                                <td><code>transfer_type</code></td>
+                                <td>enum</td>
+                                <td>No</td>
+                                <td><code>integration_flow</code>, <code>manual_work</code>, <code>notification</code>.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="ai-patterns">
+                <h2>AI Integration Patterns</h2>
+                <p>AWA is designed to work with modern AI orchestrators and MCP (Model Context Protocol).</p>
+                <div class="card-grid">
+                    <div class="card">
+                        <h3>Context to Prompt</h3>
+                        <p>Map AWA <code>context_id</code> directly to LLM prompt templates or RAG injections.</p>
+                    </div>
+                    <div class="card">
+                        <h3>Agentic Handoffs</h3>
+                        <p>Define <code>blackboard</code> sync patterns for multi-agent swarm collaboration.</p>
+                    </div>
+                    <div class="card">
+                        <h3>Tool/MCP Mapping</h3>
+                        <p>Map AWA <code>access_rights</code> to available tools in the AI agent's catalog.</p>
+                    </div>
+                </div>
+            </section>
+
+            <section id="visualization">
+                <h2>Advanced Visualization</h2>
+                <p>The <code>awa-viz.js</code> library handles rendering and analytics.</p>
+                <div class="info-box">
+                    <strong>Bottleneck Highlighting:</strong> If <code>duration_ms > bottleneck_threshold_ms</code>, the
+                    renderer automatically colors the node/edge in red (2D) or glowing red (3D).
+                </div>
+            </section>
+
+            <div class="footer">
+                &copy; 2026 Agentic Workflow Architecture Group. Released under Apache 2.0 License.
+            </div>
+        </main>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+    <script src="main.js"></script>
+    <script>hljs.highlightAll();</script>
+</body>
+
+</html>

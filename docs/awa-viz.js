@@ -127,63 +127,6 @@
                 bottleneckCount: bottlenecks,
                 efficiency: totalDuration > 0 ? Math.max(0, 100 - (bottlenecks * 15)) : 100
             };
-        },
-
-        /**
-         * Unified render function for React/ReactDOM compatibility (v17/v18)
-         */
-        reactRender: function (element, container) {
-            if (typeof ReactDOM.createRoot === 'function') {
-                if (!container._awaRoot) {
-                    container._awaRoot = ReactDOM.createRoot(container);
-                }
-                container._awaRoot.render(element);
-                return container._awaRoot;
-            } else {
-                ReactDOM.render(element, container);
-                return null;
-            }
-        },
-
-        /**
-         * Safely unmount any visualization from a container
-         */
-        unmount: function (container) {
-            if (!container) return;
-
-            // 1. Unmount React (v18 or v17)
-            if (container._awaRoot) {
-                container._awaRoot.unmount();
-                delete container._awaRoot;
-            } else if (typeof ReactDOM !== 'undefined' && typeof ReactDOM.unmountComponentAtNode === 'function') {
-                try {
-                    ReactDOM.unmountComponentAtNode(container);
-                } catch (e) {
-                    // Ignore if already unmounted or not a React root
-                }
-            }
-
-            // 2. Cleanup Babylon.js if present
-            if (container._awaEngine) {
-                container._awaEngine.dispose();
-                delete container._awaEngine;
-            }
-
-            // 3. Clear DOM
-            container.innerHTML = '';
-        },
-
-        /**
-         * Deep merge objects (helper)
-         */
-        deepMerge: function (target, source) {
-            for (const key in source) {
-                if (source[key] instanceof Object && key in target) {
-                    Object.assign(source[key], this.deepMerge(target[key], source[key]));
-                }
-            }
-            Object.assign(target || {}, source);
-            return target;
         }
     };
 
@@ -198,10 +141,9 @@
          * Check if ReactFlow is available
          */
         isAvailable: function () {
-            const RF = window.ReactFlow || window.xyflowReact;
             return typeof React !== 'undefined' &&
                 typeof ReactDOM !== 'undefined' &&
-                !!RF;
+                (typeof window.xyflowReact !== 'undefined' || typeof window.ReactFlow !== 'undefined');
         },
 
         /**
@@ -356,23 +298,16 @@
         render: function (container, visualization, options) {
             if (!this.isAvailable()) {
                 console.error('AWAViz: ReactFlow dependencies not loaded');
-                container.innerHTML = `<div style="padding: 20px; color: #ef4444; background: #fee2e2; border: 1px solid #f87171; border-radius: 8px;">
-                    <strong>AWAViz Error:</strong> ReactFlow dependencies not loaded.<br>
-                    Please ensure React, ReactDOM, and ReactFlow are included via script tags.
-                </div>`;
+                container.innerHTML = '<div style="padding: 20px; color: red;">Error: ReactFlow dependencies not loaded. Please include React, ReactDOM, and @xyflow/react.</div>';
                 return null;
             }
 
-            // Ensure container is unmounted before re-rendering
-            AWAViz.utils.unmount(container);
-
             const opts = AWAViz.utils.deepMerge({
-                fitView: true,
+                fitView: false,
                 showMinimap: true,
                 showControls: true,
                 showBackground: true,
-                containerHeight: null,
-                layoutAlgorithm: 'none' // 'none', 'dagre', 'elk'
+                containerHeight: null  // Can be passed explicitly
             }, options || {});
 
             // Get container dimensions - use provided height or measure
@@ -388,7 +323,6 @@
                 const [edgesState, setEdges, onEdgesChange] = RF.useEdgesState(edges);
                 const [selectedItem, setSelectedItem] = React.useState(null);
                 const [activeTab, setActiveTab] = React.useState('details');
-                const [showAnalytics, setShowAnalytics] = React.useState(false);
                 const [analytics] = React.useState(() => AWAViz.utils.calculateWorkflowAnalytics(visualization));
 
                 // Handle node click
@@ -435,51 +369,11 @@
                         onEdgesChange,
                         onNodeClick,
                         onEdgeClick,
-                        fitView: opts.fitView,
+                        fitView: false,
                         defaultViewport: { x: 0, y: 0, zoom: 1 },
                         translateExtent: [[0, 0], [containerWidth, containerHeight]],
-                        minZoom: 0.2,
+                        minZoom: 0.5,
                         maxZoom: 2.0,
-                        nodeTypes: {
-                            default: (props) => {
-                                const { data, style } = props;
-                                const slaPercent = data.duration_ms && data.bottleneck_threshold_ms
-                                    ? Math.min(100, (data.duration_ms / data.bottleneck_threshold_ms) * 100)
-                                    : 0;
-                                const slaColor = slaPercent > 90 ? '#ef4444' : slaPercent > 70 ? '#f59e0b' : '#10b981';
-
-                                return h('div', {
-                                    style: {
-                                        ...style,
-                                        position: 'relative',
-                                        overflow: 'hidden',
-                                        border: props.selected ? '2px solid #667eea' : style.border
-                                    }
-                                }, [
-                                    h('div', { style: { padding: '8px', textAlign: 'center', width: '100%' } }, data.label),
-                                    // SLA Bar
-                                    data.bottleneck_threshold_ms && h('div', {
-                                        style: {
-                                            position: 'absolute',
-                                            bottom: 0,
-                                            left: 0,
-                                            width: '100%',
-                                            height: '4px',
-                                            background: 'rgba(0,0,0,0.1)'
-                                        }
-                                    }, [
-                                        h('div', {
-                                            style: {
-                                                width: `${slaPercent}%`,
-                                                height: '100%',
-                                                background: slaColor,
-                                                transition: 'width 0.5s ease-in-out'
-                                            }
-                                        })
-                                    ])
-                                ]);
-                            }
-                        },
                         panOnScroll: true,
                         preventScrolling: true,
                         style: {
@@ -795,8 +689,7 @@
             console.log(`[AWAViz] ReactFlow viewport: ${containerWidth}x${containerHeight}px, zoom=1.0 (1:1 with lanes)`);
 
             // Use React 17 render API (not React 18's createRoot)
-            // Use the utility for compatibility
-            AWAViz.utils.reactRender(h(App), container);
+            ReactDOM.render(h(App), container);
 
             // Return with diagnostic data
             return {
@@ -1323,10 +1216,7 @@
                 targetParent.appendChild(uiDiv);
             }
 
-            // Store engine for unmounting
-            container._awaEngine = engine;
-
-            AWAViz.utils.reactRender(h(UIOverlay), uiDiv);
+            ReactDOM.render(h(UIOverlay), uiDiv);
 
             return { engine, scene, camera, meshes: scene.meshes, uiDiv };
         }

@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Playground | AWA Documentation</title>
+    <!-- Dependencies (same as examples) -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/reactflow@11/dist/umd/index.min.js"></script>
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+
+    <style>
+        .main-content {
+            max-width: none !important;
+            padding: 2rem 3rem !important;
+        }
+
+        .playground-container {
+            display: grid;
+            grid-template-columns: 400px 1fr;
+            height: calc(100vh - 15rem);
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+
+        .editor-pane {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.5rem;
+        }
+
+        .viz-pane {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #json-editor {
+            flex: 1;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: #10b981;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            padding: 1rem;
+            resize: none;
+            outline: none;
+            line-height: 1.4;
+        }
+
+        #viz-container {
+            flex: 1;
+            width: 100%;
+            height: 100%;
+        }
+
+        .pane-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .btn-render {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.5rem 1.5rem;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-render:hover {
+            background: #818cf8;
+            transform: scale(1.02);
+        }
+
+        #error-overlay {
+            color: #ef4444;
+            font-size: 0.8rem;
+            margin-top: 0.5rem;
+            display: none;
+        }
+
+        .viz-toolbar {
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            gap: 1rem;
+        }
+
+        .toggle-group {
+            display: flex;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 6px;
+            padding: 2px;
+        }
+
+        .toggle-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .toggle-btn.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        .dropdown-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 6px;
+            padding: 4px 12px;
+            border: 1px solid var(--border);
+        }
+
+        .dropdown-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .select-input {
+            background: transparent;
+            border: none;
+            color: var(--text);
+            font-size: 0.8rem;
+            font-weight: 500;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .select-input option {
+            background: var(--surface);
+            color: var(--text);
+        }
+
+        .viz-toolbar {
+            justify-content: space-between;
+        }
+    </style>
+</head>
+
+<body>
+    <button class="theme-toggle" title="Toggle Theme">☀️</button>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo">
+                <div class="logo-icon"></div>
+                <span>AWA Specification</span>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Getting Started</div>
+                <ul class="nav-links">
+                    <li><a href="getting-started.html" class="nav-link">Introduction</a></li>
+                    <li><a href="installation-guide.html" class="nav-link">Installation Guide</a></li>
+                </ul>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Developer Guides</div>
+                <ul class="nav-links">
+                    <li><a href="developer-guide.html" class="nav-link">Reference Material</a></li>
+                    <li><a href="data-model-guide.html" class="nav-link">Data Model & Concepts</a></li>
+                </ul>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Theory & Business</div>
+                <ul class="nav-links">
+                    <li><a href="abpm-guide.html" class="nav-link">Agentic BPM</a></li>
+                    <li><a href="architect-guide.html" class="nav-link">Architect Guide</a></li>
+                </ul>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Playground</div>
+                <ul class="nav-links">
+                    <li><a href="playground.html" class="nav-link active">Interactive Sandbox</a></li>
+                </ul>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content" style="padding-top: 2rem;">
+            <header class="content-header" style="margin-bottom: 1rem;">
+                <span class="badge">Interactive</span>
+                <h1 style="font-size: 2rem; margin-bottom: 0.5rem;">AWA Playground</h1>
+                <p class="hero-desc" style="font-size: 1rem;">Paste your Agentic Workflow JSON and visualize it
+                    instantly.</p>
+            </header>
+
+            <div class="playground-container">
+                <div class="editor-pane">
+                    <div class="pane-header">
+                        <div class="dropdown-group">
+                            <span class="dropdown-label">Template:</span>
+                            <select id="scenario-select" class="select-input" onchange="loadScenario(this.value)">
+                                <option value="triage">Intelligent Triage</option>
+                                <option value="insurance">Advanced Insurance Claim</option>
+                                <option value="swarm">Multi-Agent Swarm</option>
+                                <option value="ecosystem">Sovereign Ecosystem</option>
+                            </select>
+                        </div>
+                        <button class="btn-render" onclick="handleRender()">Update View</button>
+                    </div>
+                    <textarea id="json-editor" spellcheck="false">{
+  "id": "workflow-001",
+  "name": "Intelligent Triage",
+  "version": "1.2.0",
+  "visualization": {
+    "engine": "reactflow",
+    "view_type": "2d",
+    "node_positions": [
+      {
+        "id": "pos-start",
+        "node_id": "evt-start",
+        "position": { "x": 0, "y": 100 },
+        "node_type": "event"
+      },
+      {
+        "id": "pos-triage",
+        "node_id": "act-triage",
+        "position": { "x": 200, "y": 100 },
+        "node_type": "activity",
+        "duration_ms": 1500,
+        "bottleneck_threshold_ms": 1000
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1-2",
+        "source": "pos-start",
+        "target": "pos-triage",
+        "transfer_type": "integration_flow"
+      }
+    ]
+  }
+}</textarea>
+                    <div id="error-overlay">Invalid JSON format</div>
+                </div>
+
+                <div class="viz-pane">
+                    <div class="viz-toolbar">
+                        <div class="toggle-group">
+                            <button class="toggle-btn active" onclick="setView('2d')">2D View</button>
+                            <button class="toggle-btn" onclick="setView('3d')">3D View</button>
+                        </div>
+                        <div class="dropdown-group">
+                            <span class="dropdown-label">Layout:</span>
+                            <select id="layout-select" class="select-input" onchange="handleRender()">
+                                <option value="none">Manual / Fixed</option>
+                                <option value="dagre">Dagre (Layered)</option>
+                                <option value="elk">ELK (High Complexity)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="viz-container"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="awa-viz.js"></script>
+    <script src="main.js"></script>
+    <script>
+        const scenarios = {
+            triage: {
+                "id": "workflow-001",
+                "name": "Intelligent Triage",
+                "version": "1.2.0",
+                "visualization": {
+                    "engine": "reactflow",
+                    "view_type": "2d",
+                    "node_positions": [
+                        { "id": "pos-start", "node_id": "evt-start", "position": { "x": 0, "y": 100 }, "node_type": "event" },
+                        { "id": "pos-triage", "node_id": "act-triage", "position": { "x": 200, "y": 100 }, "node_type": "activity", "duration_ms": 1500, "bottleneck_threshold_ms": 1000 }
+                    ],
+                    "edges": [
+                        { "id": "e1-2", "source": "pos-start", "target": "pos-triage", "transfer_type": "integration_flow" }
+                    ]
+                }
+            },
+            insurance: {
+                "id": "wf-insurance-001",
+                "name": "Global Claims Processing",
+                "description": "Enterprise-scale workflow with automated fraud detection and multi-level approvals.",
+                "visualization": {
+                    "lanes": [
+                        { "name": "Intake", "label": "Customer Intake" },
+                        { "name": "AI", "label": "AI Engine" },
+                        { "name": "Human", "label": "Claims Adjuster" }
+                    ],
+                    "node_positions": [
+                        { "node_id": "evt-claim-received", "lane": "Intake", "position": { "x": 50, "y": 0 }, "node_type": "event" },
+                        { "node_id": "act-ocr", "lane": "AI", "position": { "x": 250, "y": 0 }, "node_type": "activity", "duration_ms": 1200, "bottleneck_threshold_ms": 1000 },
+                        { "node_id": "dec-valid", "lane": "AI", "position": { "x": 450, "y": 0 }, "node_type": "decision" },
+                        { "node_id": "act-manual-fix", "lane": "Human", "position": { "x": 450, "y": 200 }, "node_type": "activity", "duration_ms": 25000, "bottleneck_threshold_ms": 10000 },
+                        { "node_id": "evt-done", "lane": "Intake", "position": { "x": 700, "y": 0 }, "node_type": "event" }
+                    ],
+                    "edge_routings": [
+                        { "edge_id": "e1", "source": "evt-claim-received", "target": "act-ocr", "transfer_type": "request_reply" },
+                        { "edge_id": "e2", "source": "act-ocr", "target": "dec-valid", "transfer_type": "integration_flow" },
+                        { "edge_id": "e3", "source": "dec-valid", "target": "act-manual-fix", "transfer_type": "manual_work" },
+                        { "edge_id": "e4", "source": "dec-valid", "target": "evt-done", "transfer_type": "notification" },
+                        { "edge_id": "e5", "source": "act-manual-fix", "target": "evt-done", "transfer_type": "manual_work" }
+                    ]
+                }
+            },
+            swarm: {
+                "id": "wf-swarm-001",
+                "name": "Autonomous Agent Swarm",
+                "description": "Dynamic coordination of multiple specialized agents for multi-intent resolution.",
+                "visualization": {
+                    "view_type": "2d",
+                    "auto_layout": { "algorithm": "elk", "direction": "tb" },
+                    "node_positions": [
+                        { "node_id": "evt-msg", "node_type": "event", "position": { "x": 0, "y": 0 } },
+                        { "node_id": "act-router", "node_type": "activity", "position": { "x": 0, "y": 100 } },
+                        { "node_id": "act-agent-travel", "node_type": "activity", "position": { "x": -150, "y": 250 } },
+                        { "node_id": "act-agent-hotel", "node_type": "activity", "position": { "x": 0, "y": 250 } },
+                        { "node_id": "act-agent-car", "node_type": "activity", "position": { "x": 150, "y": 250 } },
+                        { "node_id": "act-aggregator", "node_type": "activity", "position": { "x": 0, "y": 400 } }
+                    ],
+                    "edge_routings": [
+                        { "edge_id": "r1", "source": "evt-msg", "target": "act-router" },
+                        { "edge_id": "r2", "source": "act-router", "target": "act-agent-travel" },
+                        { "edge_id": "r3", "source": "act-router", "target": "act-agent-hotel" },
+                        { "edge_id": "r4", "source": "act-router", "target": "act-agent-car" },
+                        { "edge_id": "r5", "source": "act-agent-travel", "target": "act-aggregator" },
+                        { "edge_id": "r6", "source": "act-agent-hotel", "target": "act-aggregator" },
+                        { "edge_id": "r7", "source": "act-agent-car", "target": "act-aggregator" }
+                    ]
+                }
+            },
+            ecosystem: {
+                "id": "wf-eco-001",
+                "name": "Sovereign Ecosystem Handoff",
+                "visualization": {
+                    "view_type": "3d",
+                    "node_positions": [
+                        { "node_id": "act-org-a", "position": { "x": -20, "y": 0, "z": 0 }, "node_type": "activity" },
+                        { "node_id": "act-org-b", "position": { "x": 20, "y": 0, "z": 0 }, "node_type": "activity" }
+                    ],
+                    "edge_routings": [
+                        { "edge_id": "h1", "source": "act-org-a", "target": "act-org-b", "transfer_type": "integration_flow", "label": "Secure Handoff" }
+                    ]
+                }
+            }
+        };
+
+        let currentView = '2d';
+
+        function loadScenario(id) {
+            const editor = document.getElementById('json-editor');
+            editor.value = JSON.stringify(scenarios[id], null, 2);
+            handleRender();
+        }
+
+        function setView(view) {
+            currentView = view;
+            document.querySelectorAll('.toggle-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.innerText.toLowerCase().includes(view));
+            });
+            handleRender();
+        }
+
+        function handleRender() {
+            const editor = document.getElementById('json-editor');
+            const errorOverlay = document.getElementById('error-overlay');
+            const container = document.getElementById('viz-container');
+            const layoutAlgo = document.getElementById('layout-select').value;
+
+            try {
+                const data = JSON.parse(editor.value);
+                errorOverlay.style.display = 'none';
+
+                // Robust unmount before rendering (fixes removeChild error)
+                if (window.AWAViz && AWAViz.utils && AWAViz.utils.unmount) {
+                    AWAViz.utils.unmount(container);
+                }
+
+                // Set the correct view type in the data
+                if (!data.visualization) data.visualization = {};
+                data.visualization.view_type = currentView;
+                data.visualization.engine = currentView === '2d' ? 'reactflow' : 'babylonjs';
+
+                AWAViz.render(container, data, {
+                    layoutAlgorithm: layoutAlgo,
+                    fitView: true
+                });
+            } catch (e) {
+                console.error(e);
+                errorOverlay.style.display = 'block';
+                errorOverlay.innerText = "Error: " + e.message;
+            }
+        }
+
+        // Initial render
+        window.onload = () => {
+            setTimeout(handleRender, 500);
+        };
+    </script>
+</body>
+
+</html>

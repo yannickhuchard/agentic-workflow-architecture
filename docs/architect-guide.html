@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Architect Guide | AWA Documentation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <button class="theme-toggle" title="Toggle Theme">☀️</button>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo">
+                <div class="logo-icon"></div>
+                <span>AWA Specification</span>
+            </div>
+
+            <div class="search-container">
+                <span class="search-icon">🔍</span>
+                <input type="text" class="search-input" placeholder="Search guides...">
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Getting Started</div>
+                <ul class="nav-links">
+                    <li><a href="getting-started.html" class="nav-link">Introduction</a></li>
+                    <li><a href="installation-guide.html" class="nav-link">Installation Guide</a></li>
+                </ul>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Developer Guides</div>
+                <ul class="nav-links">
+                    <li><a href="developer-guide.html" class="nav-link">Reference Material</a></li>
+                    <li><a href="data-model-guide.html" class="nav-link">Data Model & Concepts</a></li>
+                </ul>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Theory & Business</div>
+                <ul class="nav-links">
+                    <li><a href="abpm-guide.html" class="nav-link">Agentic BPM</a></li>
+                    <li><a href="architect-guide.html" class="nav-link active">Architect Guide</a></li>
+                </ul>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Playground</div>
+                <ul class="nav-links">
+                    <li><a href="playground.html" class="nav-link">Interactive Sandbox</a></li>
+                </ul>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="content-header">
+                <span class="badge">Enterprise Strategy</span>
+                <h1 class="hero-title">Architecting Agentic Ecosystems</h1>
+                <p class="hero-desc">Strategic patterns and frameworks for deploying Agentic Workflow Architecture at
+                    enterprise scale.</p>
+            </header>
+
+            <section id="sovereign-actor">
+                <h2>The Sovereign Actor Pattern</h2>
+                <p>The foundation of AWA architecture is the **Sovereign Actor**. Unlike traditional microservices that
+                    share databases, AWA actors are defined by their autonomy over specific context domains.</p>
+                <div class="card">
+                    <h4>Core Principles:</h4>
+                    <ul style="margin-left: 1.5rem; margin-top: 1rem; color: var(--text-muted)">
+                        <li><strong>Context Isolation</strong>: Actors only see what they need (Least Privilege).</li>
+                        <li><strong>Standardized Handoffs</strong>: Interactions are modeled via
+                            <code>transfer_type</code> to ensure interoperability between AI and Legacy systems.
+                        </li>
+                        <li><strong>Outcome Autonomy</strong>: The orchestrator defines *what* needs to be done; the
+                            Sovereign Actor decides *how* to achieve it.</li>
+                    </ul>
+                </div>
+            </section>
+
+            <section id="orchestration-patterns">
+                <h2>Multi-Agent Orchestration Patterns</h2>
+                <p>Choosing the right orchestration pattern is critical for system stability and AI performance.</p>
+                <div class="card-grid">
+                    <div class="card">
+                        <h3>The Hub & Spoke</h3>
+                        <p>A central orchestrator manages state and routes tasks to specialized agents. Best for
+                            deterministic business rules.</p>
+                    </div>
+                    <div class="card">
+                        <h3>Agent Swarms</h3>
+                        <p>Collaborative clusters of agents where context is shared on a "Blackboard". Best for creative
+                            or discovery-heavy tasks like fraud investigation.</p>
+                    </div>
+                    <div class="card">
+                        <h3>Human-in-the-Loop (HITL)</h3>
+                        <p>Formalized handovers from AI to Human actors via <code>manual_work</code> edges. Essential
+                            for high-stakes authorizations.</p>
+                    </div>
+                </div>
+            </section>
+
+            <section id="enterprise-integration">
+                <h2>Enterprise Integration Strategy</h2>
+                <p>AWA doesn't exist in a vacuum. It must integrate with the existing corporate fabric.</p>
+                <div class="info-box">
+                    <strong>Reference Topology:</strong> Ingress via API Gateway &rarr; Authentication via Corporate IAM
+                    (mapping to AWA Roles) &rarr; Execution via AWA SDK &rarr; Persistence in Encrypted Data Pools.
+                </div>
+                <h4>Architecture Blueprint:</h4>
+                <div class="card">
+                    <pre><code class="language-mermaid">graph TD
+    User([External User]) --> GW[API Gateway]
+    GW --> IAM{IAM Provider}
+    IAM -- "Map to Role_ID" --> AWA[AWA Orchestrator]
+    AWA --> AI[AI Agent Pool]
+    AWA --> Legacy[Application / SAP / ERP]
+    AI --> Context[(Shared Context)]
+    Legacy --> Context</code></pre>
+                </div>
+            </section>
+
+            <section id="security-governance">
+                <h2>Governance & Semantic Safety</h2>
+                <p>Architecting for safety in an agentic world requires moving beyond network security to **Semantic
+                    Security**.</p>
+                <div class="card-grid">
+                    <div class="card">
+                        <h4>Auditability</h4>
+                        <p>AWA's event-native structure ensures every agent decision is traceable back to the prompt,
+                            context, and actor role.</p>
+                    </div>
+                    <div class="card">
+                        <h4>Rate Limiting & Cost</h4>
+                        <p>Architects must implement "Budget Contexts" to track token usage and prevent agent runaway
+                            scenarios.</p>
+                    </div>
+                    <div class="card">
+                        <h4>Compliance (GDPR/EU AI Act)</h4>
+                        <p>AWA <code>AccessRights</code> allow for declarative data masking and "right to be forgotten"
+                            implementation at the workflow level.</p>
+                    </div>
+                </div>
+            </section>
+
+            <div class="footer">
+                &copy; 2026 Agentic Workflow Architecture Group. Released under Apache 2.0 License.
+            </div>
+        </main>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+    <script src="main.js"></script>
+    <script>hljs.highlightAll();</script>
+</body>
+
+</html>
