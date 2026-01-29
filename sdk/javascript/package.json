@@ -1,0 +1,53 @@
+{
+    "name": "@awa/visualization",
+    "version": "1.0.0",
+    "description": "AWA Visualization Library for rendering workflows in 2D (ReactFlow) and 3D (Babylon.js)",
+    "main": "awa-viz.js",
+    "types": "awa-viz.d.ts",
+    "files": [
+        "awa-viz.js",
+        "awa-viz.min.js",
+        "awa-viz.d.ts"
+    ],
+    "scripts": {
+        "build": "echo 'No build required - vanilla JS library'",
+        "minify": "terser awa-viz.js -o awa-viz.min.js --compress --mangle"
+    },
+    "keywords": [
+        "awa",
+        "workflow",
+        "visualization",
+        "reactflow",
+        "babylonjs",
+        "2d",
+        "3d",
+        "diagram",
+        "graph"
+    ],
+    "author": "AWA Team",
+    "license": "Apache-2.0",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/awa/ai-workflow-model"
+    },
+    "peerDependencies": {
+        "react": ">=18.0.0",
+        "react-dom": ">=18.0.0",
+        "@xyflow/react": ">=12.0.0",
+        "@babylonjs/core": ">=6.0.0"
+    },
+    "peerDependenciesMeta": {
+        "react": {
+            "optional": true
+        },
+        "react-dom": {
+            "optional": true
+        },
+        "@xyflow/react": {
+            "optional": true
+        },
+        "@babylonjs/core": {
+            "optional": true
+        }
+    }
+}

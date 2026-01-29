@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AWA Visualization - 3D Spatial View (Babylon.js)</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            height: 100%;
+            overflow: hidden;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a2e;
+            color: #fff;
+        }
+
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 12px 20px;
+            z-index: 100;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 8px;
+        }
+
+        .header-controls button {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            padding: 6px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: background 0.2s;
+        }
+
+        .header-controls button:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        #renderCanvas {
+            width: 100%;
+            height: 100vh;
+            display: block;
+        }
+
+        .info-panel {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            z-index: 100;
+        }
+
+        .info-panel h4 {
+            margin-bottom: 6px;
+            color: #667eea;
+            font-size: 0.85rem;
+        }
+
+        .layer-legend {
+            position: fixed;
+            right: 20px;
+            top: 70px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 12px;
+            border-radius: 8px;
+            z-index: 100;
+        }
+
+        .layer-legend h4 {
+            margin-bottom: 8px;
+            font-size: 0.85rem;
+        }
+
+        .layer-item {
+            display: flex;
+            align-items: center;
+            margin: 4px 0;
+            font-size: 0.75rem;
+        }
+
+        .layer-color {
+            width: 14px;
+            height: 14px;
+            border-radius: 3px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>AWA 3D Spatial View - Insurance Claims Workflow</h1>
+        <div class="header-controls">
+            <button onclick="resetCamera()">Reset Camera</button>
+            <button onclick="toggleAnimation()">Toggle Animation</button>
+        </div>
+    </div>
+    <canvas id="renderCanvas"></canvas>
+    <div class="info-panel">
+        <h4>Controls</h4>
+        <div>🖱️ Left-drag: Rotate</div>
+        <div>🖱️ Right-drag: Pan</div>
+        <div>🔲 Scroll: Zoom</div>
+    </div>
+    <div class="layer-legend">
+        <h4>Workflow Layers</h4>
+        <div class="layer-item">
+            <div class="layer-color" style="background: #4FC3F7;"></div><span>Intake</span>
+        </div>
+        <div class="layer-item">
+            <div class="layer-color" style="background: #AED581;"></div><span>Processing</span>
+        </div>
+        <div class="layer-item">
+            <div class="layer-color" style="background: #FFD54F;"></div><span>Decision</span>
+        </div>
+        <div class="layer-item">
+            <div class="layer-color" style="background: #F48FB1;"></div><span>Completion</span>
+        </div>
+    </div>
+
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/materialsLibrary/babylonjs.materials.min.js"></script>
+    <script src="../sdk/javascript/awa-viz.js"></script>
+
+    <script>
+        // Embedded 3D visualization data
+        const visualizationData = {
+            "visualization": {
+                "id": "a1b2c3d4-0003-4000-8000-000000000003",
+                "name": "Insurance Claims - 3D Spatial View",
+                "description": "3D visualization with layered depth representing workflow stages",
+                "view_type": "3d",
+                "engine": "babylonjs",
+                "node_positions_3d": [
+                    { "node_id": "evt-claim-received", "node_type": "event", "position": { "x": 0, "y": 3, "z": 0 }, "scale": { "x": 0.8, "y": 0.8, "z": 0.8 }, "shape": "sphere", "material": { "diffuse_color": "#4CAF50", "emissive_color": "#1B5E20", "metallic": 0.3, "roughness": 0.4 } },
+                    { "node_id": "act-claim-submission", "node_type": "activity", "position": { "x": 4, "y": 3, "z": 0 }, "scale": { "x": 2, "y": 0.8, "z": 1 }, "shape": "cube", "material": { "diffuse_color": "#29B6F6", "emissive_color": "#0277BD", "alpha": 0.95, "metallic": 0.2, "roughness": 0.5 } },
+                    { "node_id": "act-initial-triage", "node_type": "activity", "position": { "x": 8, "y": 3, "z": 0 }, "scale": { "x": 2, "y": 0.8, "z": 1 }, "shape": "cube", "material": { "diffuse_color": "#4FC3F7", "emissive_color": "#0288D1", "alpha": 0.95, "metallic": 0.2, "roughness": 0.5 } },
+                    { "node_id": "act-document-extraction", "node_type": "activity", "position": { "x": 4, "y": 1.5, "z": 3 }, "scale": { "x": 2, "y": 0.8, "z": 1 }, "shape": "cube", "material": { "diffuse_color": "#81C784", "emissive_color": "#2E7D32", "alpha": 0.95, "metallic": 0.2, "roughness": 0.5 } },
+                    { "node_id": "act-fraud-detection", "node_type": "activity", "position": { "x": 8, "y": 1.5, "z": 3 }, "scale": { "x": 2, "y": 0.8, "z": 1 }, "shape": "cube", "material": { "diffuse_color": "#AED581", "emissive_color": "#558B2F", "alpha": 0.95, "metallic": 0.2, "roughness": 0.5 } },
+                    { "node_id": "dec-claim-routing", "node_type": "decision", "position": { "x": 6, "y": 0, "z": 6 }, "rotation": { "x": 0, "y": 0.7071, "z": 0, "w": 0.7071 }, "scale": { "x": 1.2, "y": 1.2, "z": 1.2 }, "shape": "diamond", "material": { "diffuse_color": "#FFEB3B", "emissive_color": "#F9A825", "metallic": 0.5, "roughness": 0.3 } },
+                    { "node_id": "act-auto-approval", "node_type": "activity", "position": { "x": 2, "y": -1.5, "z": 9 }, "scale": { "x": 2, "y": 0.8, "z": 1 }, "shape": "cube", "material": { "diffuse_color": "#66BB6A", "emissive_color": "#388E3C", "alpha": 0.95, "metallic": 0.2, "roughness": 0.5 } },
+                    { "node_id": "act-human-review", "node_type": "activity", "position": { "x": 6, "y": -1.5, "z": 9 }, "scale": { "x": 2, "y": 0.8, "z": 1 }, "shape": "cube", "material": { "diffuse_color": "#FF8A65", "emissive_color": "#E64A19", "alpha": 0.95, "metallic": 0.2, "roughness": 0.5 } },
+                    { "node_id": "act-escalation", "node_type": "activity", "position": { "x": 10, "y": -1.5, "z": 9 }, "scale": { "x": 2, "y": 0.8, "z": 1 }, "shape": "cube", "material": { "diffuse_color": "#EF5350", "emissive_color": "#C62828", "alpha": 0.95, "metallic": 0.3, "roughness": 0.4 } },
+                    { "node_id": "evt-claim-processed", "node_type": "event", "position": { "x": 6, "y": -3, "z": 12 }, "scale": { "x": 0.8, "y": 0.8, "z": 0.8 }, "shape": "sphere", "material": { "diffuse_color": "#EF5350", "emissive_color": "#B71C1C", "metallic": 0.3, "roughness": 0.4 } }
+                ],
+                "camera_3d": { "type": "arc_rotate", "alpha": 1.2, "beta": 1.1, "radius": 25, "target": { "x": 6, "y": 0, "z": 5 }, "fov": 50 },
+                "animation": { "enabled": true, "transition_duration": 500 },
+                "theme": { "background_color": "#1A1A2E", "grid_enabled": true, "grid_size": 2, "grid_color": "#2D2D44" }
+            }
+        };
+
+        let sceneInstance = null;
+        let animationsEnabled = true;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            sceneInstance = AWAViz.render(
+                document.getElementById('renderCanvas'),
+                visualizationData,
+                { enableGlow: true, enableGrid: true, autoAnimate: true }
+            );
+        });
+
+        function resetCamera() {
+            if (sceneInstance?.camera) {
+                sceneInstance.camera.alpha = 1.2;
+                sceneInstance.camera.beta = 1.1;
+                sceneInstance.camera.radius = 25;
+                sceneInstance.camera.target = new BABYLON.Vector3(6, 0, 5);
+            }
+        }
+
+        function toggleAnimation() {
+            animationsEnabled = !animationsEnabled;
+            if (sceneInstance?.meshes) {
+                // Animation toggle handled by library
+            }
+        }
+    </script>
+</body>
+
+</html>

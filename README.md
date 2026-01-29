@@ -194,6 +194,7 @@ AWA includes an **optional visualization layer** for 2D and 3D workflow renderin
 
 ## SDKs
 
+- **JavaScript/Browser**: `sdk/javascript/` - AWA Visualization Library (ReactFlow + Babylon.js)
 - **TypeScript/Node.js**: `sdk/typescript/`
 - **Python**: `sdk/python/`
 - **Java**: `sdk/java/`
@@ -207,10 +208,12 @@ See the `examples/` directory for complete workflow examples:
 
 ### Visualization Examples
 
-- [2D Swimlanes](examples/visualization-2d-swimlanes.json) - ReactFlow with Dagre layout and horizontal lanes
-- [2D ELK Hierarchy](examples/visualization-2d-elk-hierarchy.json) - ELK algorithm for top-to-bottom hierarchical view
-- [3D Spatial](examples/visualization-3d-spatial.json) - Babylon.js layered depth with PBR materials
-- [3D Pipeline](examples/visualization-3d-pipeline.json) - Cylindrical pipeline stages with branching paths
+| Example | Type | JSON Config | HTML Demo |
+|---------|------|-------------|-----------|
+| 2D Swimlanes | ReactFlow + Dagre | [JSON](examples/visualization-2d-swimlanes.json) | [HTML](examples/visualization-2d-swimlanes.html) |
+| 2D ELK Hierarchy | ReactFlow + ELK | [JSON](examples/visualization-2d-elk-hierarchy.json) | [HTML](examples/visualization-2d-elk-hierarchy.html) |
+| 3D Spatial | Babylon.js | [JSON](examples/visualization-3d-spatial.json) | [HTML](examples/visualization-3d-spatial.html) |
+| 3D Pipeline | Babylon.js | [JSON](examples/visualization-3d-pipeline.json) | [HTML](examples/visualization-3d-pipeline.html) |
 
 ## License
 

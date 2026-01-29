@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AWA Visualization - 3D Pipeline View (Babylon.js)</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            height: 100%;
+            overflow: hidden;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0d1b2a;
+            color: #fff;
+        }
+
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            padding: 12px 20px;
+            z-index: 100;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 8px;
+        }
+
+        .header-controls button {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            padding: 6px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: background 0.2s;
+        }
+
+        .header-controls button:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        #renderCanvas {
+            width: 100%;
+            height: 100vh;
+            display: block;
+        }
+
+        .info-panel {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            z-index: 100;
+            border: 1px solid rgba(240, 147, 251, 0.3);
+        }
+
+        .info-panel h4 {
+            margin-bottom: 6px;
+            color: #f093fb;
+            font-size: 0.85rem;
+        }
+
+        .stage-legend {
+            position: fixed;
+            right: 20px;
+            top: 70px;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 12px;
+            border-radius: 8px;
+            z-index: 100;
+            border: 1px solid rgba(240, 147, 251, 0.3);
+        }
+
+        .stage-legend h4 {
+            margin-bottom: 8px;
+            font-size: 0.85rem;
+            color: #f5576c;
+        }
+
+        .stage-item {
+            display: flex;
+            align-items: center;
+            margin: 4px 0;
+            font-size: 0.75rem;
+        }
+
+        .stage-color {
+            width: 22px;
+            height: 10px;
+            border-radius: 5px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>AWA 3D Pipeline View - Insurance Claims Workflow</h1>
+        <div class="header-controls">
+            <button onclick="resetCamera()">Reset Camera</button>
+            <button onclick="toggleRotation()">Auto Rotate</button>
+        </div>
+    </div>
+    <canvas id="renderCanvas"></canvas>
+    <div class="info-panel">
+        <h4>Pipeline Controls</h4>
+        <div>🖱️ Left-drag: Rotate</div>
+        <div>🖱️ Right-drag: Pan</div>
+        <div>🔲 Scroll: Zoom</div>
+    </div>
+    <div class="stage-legend">
+        <h4>Pipeline Stages</h4>
+        <div class="stage-item">
+            <div class="stage-color" style="background: linear-gradient(90deg, #4CAF50, #42A5F5);"></div>
+            <span>Intake</span>
+        </div>
+        <div class="stage-item">
+            <div class="stage-color" style="background: linear-gradient(90deg, #26C6DA, #66BB6A);"></div>
+            <span>Processing</span>
+        </div>
+        <div class="stage-item">
+            <div class="stage-color" style="background: linear-gradient(90deg, #FFCA28, #FF7043);"></div>
+            <span>Decision</span>
+        </div>
+        <div class="stage-item">
+            <div class="stage-color" style="background: linear-gradient(90deg, #7E57C2, #EC407A);"></div>
+            <span>Completion</span>
+        </div>
+    </div>
+
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/materialsLibrary/babylonjs.materials.min.js"></script>
+    <script src="../sdk/javascript/awa-viz.js"></script>
+
+    <script>
+        // Embedded 3D pipeline visualization data
+        const visualizationData = {
+            "visualization": {
+                "id": "a1b2c3d4-0004-4000-8000-000000000004",
+                "name": "Insurance Claims - 3D Cylinder Pipeline",
+                "description": "3D visualization representing workflow as a cylindrical pipeline",
+                "view_type": "3d",
+                "engine": "babylonjs",
+                "node_positions_3d": [
+                    { "node_id": "evt-claim-received", "node_type": "event", "position": { "x": -12, "y": 0, "z": 0 }, "rotation": { "x": 0, "y": 0, "z": 1.5708, "w": 0 }, "scale": { "x": 1.5, "y": 0.3, "z": 1.5 }, "shape": "cylinder", "material": { "diffuse_color": "#4CAF50", "emissive_color": "#2E7D32", "metallic": 0.6, "roughness": 0.2 } },
+                    { "node_id": "act-claim-submission", "node_type": "activity", "position": { "x": -9, "y": 0, "z": 0 }, "rotation": { "x": 0, "y": 0, "z": 1.5708, "w": 0 }, "scale": { "x": 1.8, "y": 2, "z": 1.8 }, "shape": "cylinder", "material": { "diffuse_color": "#42A5F5", "emissive_color": "#1565C0", "alpha": 0.85, "metallic": 0.4, "roughness": 0.3 } },
+                    { "node_id": "act-initial-triage", "node_type": "activity", "position": { "x": -5, "y": 0, "z": 0 }, "rotation": { "x": 0, "y": 0, "z": 1.5708, "w": 0 }, "scale": { "x": 1.8, "y": 2, "z": 1.8 }, "shape": "cylinder", "material": { "diffuse_color": "#26C6DA", "emissive_color": "#00838F", "alpha": 0.85, "metallic": 0.4, "roughness": 0.3 } },
+                    { "node_id": "act-document-extraction", "node_type": "activity", "position": { "x": -1, "y": 0, "z": 0 }, "rotation": { "x": 0, "y": 0, "z": 1.5708, "w": 0 }, "scale": { "x": 1.8, "y": 2, "z": 1.8 }, "shape": "cylinder", "material": { "diffuse_color": "#66BB6A", "emissive_color": "#2E7D32", "alpha": 0.85, "metallic": 0.4, "roughness": 0.3 } },
+                    { "node_id": "act-fraud-detection", "node_type": "activity", "position": { "x": 3, "y": 0, "z": 0 }, "rotation": { "x": 0, "y": 0, "z": 1.5708, "w": 0 }, "scale": { "x": 1.8, "y": 2, "z": 1.8 }, "shape": "cylinder", "material": { "diffuse_color": "#FFCA28", "emissive_color": "#FF8F00", "alpha": 0.85, "metallic": 0.4, "roughness": 0.3 } },
+                    { "node_id": "dec-claim-routing", "node_type": "decision", "position": { "x": 7, "y": 0, "z": 0 }, "rotation": { "x": 0.7071, "y": 0, "z": 0, "w": 0.7071 }, "scale": { "x": 2.2, "y": 0.4, "z": 2.2 }, "shape": "hexagon", "material": { "diffuse_color": "#FF7043", "emissive_color": "#D84315", "metallic": 0.7, "roughness": 0.2 } },
+                    { "node_id": "act-auto-approval", "node_type": "activity", "position": { "x": 11, "y": 2.5, "z": 0 }, "rotation": { "x": 0, "y": 0, "z": 1.5708, "w": 0 }, "scale": { "x": 1.5, "y": 2, "z": 1.5 }, "shape": "cylinder", "material": { "diffuse_color": "#4CAF50", "emissive_color": "#1B5E20", "alpha": 0.9, "metallic": 0.4, "roughness": 0.3 } },
+                    { "node_id": "act-human-review", "node_type": "activity", "position": { "x": 11, "y": 0, "z": 0 }, "rotation": { "x": 0, "y": 0, "z": 1.5708, "w": 0 }, "scale": { "x": 1.5, "y": 2, "z": 1.5 }, "shape": "cylinder", "material": { "diffuse_color": "#FFA726", "emissive_color": "#E65100", "alpha": 0.9, "metallic": 0.4, "roughness": 0.3 } },
+                    { "node_id": "act-escalation", "node_type": "activity", "position": { "x": 11, "y": -2.5, "z": 0 }, "rotation": { "x": 0, "y": 0, "z": 1.5708, "w": 0 }, "scale": { "x": 1.5, "y": 2, "z": 1.5 }, "shape": "cylinder", "material": { "diffuse_color": "#EF5350", "emissive_color": "#B71C1C", "alpha": 0.9, "metallic": 0.4, "roughness": 0.3 } },
+                    { "node_id": "act-payment-processing", "node_type": "activity", "position": { "x": 15, "y": 0, "z": 0 }, "rotation": { "x": 0, "y": 0, "z": 1.5708, "w": 0 }, "scale": { "x": 1.8, "y": 2, "z": 1.8 }, "shape": "cylinder", "material": { "diffuse_color": "#7E57C2", "emissive_color": "#4527A0", "alpha": 0.85, "metallic": 0.4, "roughness": 0.3 } },
+                    { "node_id": "evt-claim-processed", "node_type": "event", "position": { "x": 19, "y": 0, "z": 0 }, "rotation": { "x": 0, "y": 0, "z": 1.5708, "w": 0 }, "scale": { "x": 1.5, "y": 0.3, "z": 1.5 }, "shape": "cylinder", "material": { "diffuse_color": "#EC407A", "emissive_color": "#AD1457", "metallic": 0.6, "roughness": 0.2 } }
+                ],
+                "camera_3d": { "type": "arc_rotate", "alpha": 0, "beta": 1.2, "radius": 28, "target": { "x": 3, "y": 0, "z": 0 }, "fov": 55 },
+                "animation": { "enabled": true },
+                "theme": { "background_color": "#0D1B2A", "grid_enabled": true, "grid_size": 1, "grid_color": "#1B263B" }
+            }
+        };
+
+        let sceneInstance = null;
+        let autoRotate = false;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            sceneInstance = AWAViz.render(
+                document.getElementById('renderCanvas'),
+                visualizationData,
+                { enableGlow: true, enableFog: true, enableGrid: true, autoAnimate: true }
+            );
+
+            // Add auto-rotate functionality
+            if (sceneInstance?.engine) {
+                sceneInstance.engine.runRenderLoop(() => {
+                    if (autoRotate && sceneInstance.camera) {
+                        sceneInstance.camera.alpha += 0.003;
+                    }
+                });
+            }
+        });
+
+        function resetCamera() {
+            if (sceneInstance?.camera) {
+                sceneInstance.camera.alpha = 0;
+                sceneInstance.camera.beta = 1.2;
+                sceneInstance.camera.radius = 28;
+                sceneInstance.camera.target = new BABYLON.Vector3(3, 0, 0);
+            }
+        }
+
+        function toggleRotation() {
+            autoRotate = !autoRotate;
+        }
+    </script>
+</body>
+
+</html>
