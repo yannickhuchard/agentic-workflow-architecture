@@ -1,0 +1,302 @@
+{
+    "$schema": "https://awa.io/schema/visualization.schema.json",
+    "visualization": {
+        "id": "viz-bank-account-opening-001",
+        "workflow_id": "wf-bank-account-opening-001",
+        "name": "Retail Bank Account Opening - Agentic View",
+        "description": "End-to-end workflow for retail account opening featuring AI risk assessment and upsell engines.",
+        "is_default": true,
+        "view_type": "2d",
+        "engine": "reactflow",
+        "auto_layout": {
+            "algorithm": "dagre",
+            "direction": "lr",
+            "node_spacing": 80,
+            "rank_spacing": 150,
+            "edge_spacing": 20,
+            "respect_lanes": true
+        },
+        "lanes": [
+            {
+                "id": "lane-applicant",
+                "name": "applicant",
+                "label": "Applicant",
+                "color": "#E3F2FD",
+                "order_index": 0
+            },
+            {
+                "id": "lane-onboarding-agent",
+                "name": "onboarding_agent",
+                "label": "Onboarding Agent (AI)",
+                "color": "#E8F5E9",
+                "order_index": 1
+            },
+            {
+                "id": "lane-risk-engine",
+                "name": "risk_engine",
+                "label": "Risk & Compliance Engine (AI)",
+                "color": "#FFF3E0",
+                "order_index": 2
+            },
+            {
+                "id": "lane-core-systems",
+                "name": "core_systems",
+                "label": "Core Systems",
+                "color": "#F3E5F5",
+                "order_index": 3
+            }
+        ],
+        "node_positions_2d": [
+            {
+                "id": "act-verification",
+                "node_id": "act-verification",
+                "lane": "onboarding_agent",
+                "node_type": "activity",
+                "description": "Identity Verification",
+                "position": {
+                    "x": 100,
+                    "y": 0
+                },
+                "style": {
+                    "background_color": "#C8E6C9",
+                    "border_color": "#388E3C"
+                }
+            },
+            {
+                "id": "act-data-capture",
+                "node_id": "act-data-capture",
+                "lane": "applicant",
+                "node_type": "activity",
+                "description": "Data Capture",
+                "position": {
+                    "x": 350,
+                    "y": 0
+                },
+                "style": {
+                    "background_color": "#BBDEFB",
+                    "border_color": "#1976D2"
+                }
+            },
+            {
+                "id": "act-aml",
+                "node_id": "act-aml",
+                "lane": "risk_engine",
+                "node_type": "activity",
+                "description": "AML Screening",
+                "position": {
+                    "x": 600,
+                    "y": 0
+                },
+                "style": {
+                    "background_color": "#FFE0B2",
+                    "border_color": "#F57C00"
+                }
+            },
+            {
+                "id": "act-credit",
+                "node_id": "act-credit",
+                "lane": "risk_engine",
+                "node_type": "activity",
+                "description": "Credit Check",
+                "position": {
+                    "x": 850,
+                    "y": 0
+                },
+                "style": {
+                    "background_color": "#FFE0B2",
+                    "border_color": "#F57C00"
+                }
+            },
+            {
+                "id": "act-risk-assessment",
+                "node_id": "act-risk-assessment",
+                "lane": "risk_engine",
+                "node_type": "activity",
+                "description": "Risk Assessment",
+                "position": {
+                    "x": 1100,
+                    "y": 0
+                },
+                "style": {
+                    "background_color": "#FFCC80",
+                    "border_color": "#EF6C00",
+                    "border_width": 3
+                }
+            },
+            {
+                "id": "act-upsell",
+                "node_id": "act-upsell",
+                "lane": "risk_engine",
+                "node_type": "activity",
+                "description": "Upsell Offering",
+                "position": {
+                    "x": 1350,
+                    "y": 0
+                },
+                "style": {
+                    "background_color": "#E1BEE7",
+                    "border_color": "#8E24AA"
+                }
+            },
+            {
+                "id": "act-selection",
+                "node_id": "act-selection",
+                "lane": "applicant",
+                "node_type": "activity",
+                "description": "Account Selection",
+                "position": {
+                    "x": 1600,
+                    "y": 0
+                },
+                "style": {
+                    "background_color": "#BBDEFB",
+                    "border_color": "#1976D2"
+                }
+            },
+            {
+                "id": "act-provisioning",
+                "node_id": "act-provisioning",
+                "lane": "core_systems",
+                "node_type": "activity",
+                "description": "Core Provisioning",
+                "position": {
+                    "x": 1850,
+                    "y": 0
+                },
+                "style": {
+                    "background_color": "#F3E5F5",
+                    "border_color": "#7B1FA2"
+                }
+            },
+            {
+                "id": "act-welcome",
+                "node_id": "act-welcome",
+                "lane": "onboarding_agent",
+                "node_type": "activity",
+                "description": "Welcome Package",
+                "position": {
+                    "x": 2100,
+                    "y": 0
+                },
+                "style": {
+                    "background_color": "#C8E6C9",
+                    "border_color": "#388E3C"
+                }
+            }
+        ],
+        "edge_routings": [
+            {
+                "id": "e1",
+                "source": "act-verification",
+                "target": "act-data-capture",
+                "edge_id": "edge-act-verification-to-act-data-capture",
+                "transfer_type": "request_reply",
+                "duration_ms": 200,
+                "curve_type": "smoothstep",
+                "animated": true,
+                "style": {
+                    "stroke_color": "#000000",
+                    "stroke_width": 2
+                }
+            },
+            {
+                "id": "e2",
+                "source": "act-data-capture",
+                "target": "act-aml",
+                "edge_id": "edge-act-data-capture-to-act-aml",
+                "transfer_type": "system_call",
+                "duration_ms": 150,
+                "curve_type": "smoothstep",
+                "animated": true,
+                "style": {
+                    "stroke_color": "#000000",
+                    "stroke_width": 2
+                }
+            },
+            {
+                "id": "e3",
+                "source": "act-aml",
+                "target": "act-credit",
+                "edge_id": "edge-act-aml-to-act-credit",
+                "transfer_type": "data_flow",
+                "duration_ms": 50,
+                "curve_type": "smoothstep",
+                "animated": true,
+                "style": {
+                    "stroke_color": "#000000",
+                    "stroke_width": 2
+                }
+            },
+            {
+                "id": "e4",
+                "source": "act-credit",
+                "target": "act-risk-assessment",
+                "edge_id": "edge-act-credit-to-act-risk-assessment",
+                "transfer_type": "data_flow",
+                "duration_ms": 50,
+                "curve_type": "smoothstep",
+                "animated": true,
+                "style": {
+                    "stroke_color": "#000000",
+                    "stroke_width": 2
+                }
+            },
+            {
+                "id": "e5",
+                "source": "act-risk-assessment",
+                "target": "act-upsell",
+                "edge_id": "edge-act-risk-assessment-to-act-upsell",
+                "transfer_type": "logic_flow",
+                "duration_ms": 100,
+                "curve_type": "smoothstep",
+                "animated": true,
+                "style": {
+                    "stroke_color": "#000000",
+                    "stroke_width": 2
+                }
+            },
+            {
+                "id": "e6",
+                "source": "act-upsell",
+                "target": "act-selection",
+                "edge_id": "edge-act-upsell-to-act-selection",
+                "transfer_type": "request_reply",
+                "duration_ms": 300,
+                "curve_type": "smoothstep",
+                "animated": true,
+                "style": {
+                    "stroke_color": "#000000",
+                    "stroke_width": 2
+                }
+            },
+            {
+                "id": "e7",
+                "source": "act-selection",
+                "target": "act-provisioning",
+                "edge_id": "edge-act-selection-to-act-provisioning",
+                "transfer_type": "system_call",
+                "duration_ms": 800,
+                "curve_type": "smoothstep",
+                "animated": true,
+                "style": {
+                    "stroke_color": "#000000",
+                    "stroke_width": 2
+                }
+            },
+            {
+                "id": "e8",
+                "source": "act-provisioning",
+                "target": "act-welcome",
+                "edge_id": "edge-act-provisioning-to-act-welcome",
+                "transfer_type": "notification",
+                "duration_ms": 100,
+                "curve_type": "smoothstep",
+                "animated": true,
+                "style": {
+                    "stroke_color": "#000000",
+                    "stroke_width": 2
+                }
+            }
+        ]
+    }
+}

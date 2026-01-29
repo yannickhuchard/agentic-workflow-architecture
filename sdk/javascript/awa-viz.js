@@ -2,7 +2,17 @@
  * AWA Visualization Library
  * A unified library for rendering AWA workflows in 2D (ReactFlow) and 3D (Babylon.js)
  * 
- * @version 1.0.0
+ * IMPORTANT: This library uses custom ReactFlow node types that include Handle components.
+ * Handles are REQUIRED for edge connectivity. Without them, edges cannot connect to nodes.
+ * 
+ * Key Features:
+ * - Automatic lane-based node positioning
+ * - Custom node types with source/target handles for edge connectivity
+ * - SLA progress bars and bottleneck visualization
+ * - Interactive details panel for nodes and edges
+ * - Workflow analytics (total duration, bottleneck count)
+ * 
+ * @version 1.1.0
  * @license Apache-2.0
  */
 
@@ -14,7 +24,7 @@
     // ============================================================================
 
     const AWAViz = {
-        version: '1.0.0',
+        version: '1.1.0',
         renderers: {},
         utils: {}
     };
@@ -114,7 +124,7 @@
 
             edgeRoutings.forEach(edge => {
                 if (edge.duration_ms) {
-                    totalDuration += edge.duration_ms;
+                    totalDuration += Number(edge.duration_ms);
                 }
                 if (edge.duration_ms && edge.bottleneck_threshold_ms && edge.duration_ms > edge.bottleneck_threshold_ms) {
                     bottlenecks++;
@@ -209,6 +219,7 @@
          */
         convertToReactFlow: function (visualization, containerHeight) {
             const viz = visualization.visualization || visualization;
+            console.log(`[AWAViz] Converting to ReactFlow. Nodes: ${viz.node_positions_2d?.length}, Edges: ${viz.edge_routings?.length}`);
 
             // Calculate lane positions if lanes are defined
             const laneMap = new Map();
@@ -257,7 +268,7 @@
 
                 return {
                     id: pos.node_id,
-                    type: 'default',
+                    type: 'awa-activity',
                     position: { x: pos.position.x, y: yPosition },
                     data: {
                         label: AWAViz.utils.nodeIdToLabel(pos.node_id),
@@ -306,6 +317,8 @@
                 const sourceNode = nodes.find(n => n.id === source || n.id.includes(source));
                 const targetNode = nodes.find(n => n.id === target || n.id.includes(target));
 
+                console.log(`[AWAViz] Edge "${route.edge_id}": source="${source}" (found: ${sourceNode?.id || 'NOT FOUND'}), target="${target}" (found: ${targetNode?.id || 'NOT FOUND'})`);
+
                 // Work Transfer Icons
                 const transferIcons = {
                     'request_reply': '🔁',
@@ -320,9 +333,11 @@
                 const strokeWidth = isBottleneck ? 4 : (route.style?.stroke_width || 2);
 
                 return {
-                    id: route.edge_id,
+                    id: route.edge_id || `edge-${source}-${target}`,
                     source: sourceNode?.id || source,
                     target: targetNode?.id || target,
+                    sourceHandle: 'source-right', // Force connect to right handle
+                    targetHandle: 'target-left',  // Force connect to left handle
                     type: route.curve_type === 'smoothstep' ? 'smoothstep' :
                         route.curve_type === 'step' ? 'step' : 'default',
                     animated: route.animated || isBottleneck || false,
@@ -343,10 +358,12 @@
                         stroke: strokeColor,
                         strokeWidth: strokeWidth
                     },
-                    labelStyle: { fill: isBottleneck ? '#ff4d4f' : '#333', fontWeight: isBottleneck ? '700' : '400' }
+                    labelStyle: { fill: isBottleneck ? '#ff4d4f' : '#333', fontWeight: isBottleneck ? '700' : '400' },
+                    zIndex: 1000
                 };
             });
 
+            console.log(`[AWAViz] ReactFlow ready: ${nodes.length} nodes, ${edges.length} edges`);
             return { nodes, edges, config: viz, laneMap };
         },
 
@@ -440,8 +457,13 @@
                         translateExtent: [[0, 0], [containerWidth, containerHeight]],
                         minZoom: 0.2,
                         maxZoom: 2.0,
+                        defaultEdgeOptions: {
+                            type: 'smoothstep',
+                            style: { stroke: '#333', strokeWidth: 2 },
+                            markerEnd: { type: 'arrowclosed', color: '#333' }
+                        },
                         nodeTypes: {
-                            default: (props) => {
+                            'awa-activity': (props) => {
                                 const { data, style } = props;
                                 const slaPercent = data.duration_ms && data.bottleneck_threshold_ms
                                     ? Math.min(100, (data.duration_ms / data.bottleneck_threshold_ms) * 100)
@@ -449,26 +471,48 @@
                                 const slaColor = slaPercent > 90 ? '#ef4444' : slaPercent > 70 ? '#f59e0b' : '#10b981';
 
                                 return h('div', {
+                                    className: 'awa-node',
+                                    onClick: (e) => {
+                                        // Fallback click handler
+                                        console.log('[AWAViz] Manual node click:', props.id);
+                                        onNodeClick(e, props);
+                                    },
                                     style: {
                                         ...style,
                                         position: 'relative',
-                                        overflow: 'hidden',
-                                        border: props.selected ? '2px solid #667eea' : style.border
+                                        overflow: 'visible',
+                                        border: props.selected ? '3px solid #667eea' : (style?.border || 'none'),
+                                        boxShadow: props.selected ? '0 0 10px rgba(102, 126, 234, 0.5)' : 'none',
+                                        cursor: 'pointer'
                                     }
                                 }, [
-                                    h('div', { style: { padding: '8px', textAlign: 'center', width: '100%' } }, data.label),
-                                    // SLA Bar
+                                    // TARGET HANDLE - Left side
+                                    h(RF.Handle, {
+                                        type: 'target',
+                                        position: 'left',
+                                        id: 'target-left',
+                                        style: { background: '#333', width: 10, height: 10, left: -5, borderRadius: '50%', border: '2px solid #fff' }
+                                    }),
+                                    // Node content
+                                    h('div', {
+                                        className: 'awa-node-label',
+                                        style: { padding: '8px', textAlign: 'center', width: '100%', pointerEvents: 'none' }
+                                    }, data.label),
+                                    // SLA Progress Bar
                                     data.bottleneck_threshold_ms && h('div', {
+                                        className: 'awa-sla-bar',
                                         style: {
                                             position: 'absolute',
                                             bottom: 0,
                                             left: 0,
                                             width: '100%',
                                             height: '4px',
-                                            background: 'rgba(0,0,0,0.1)'
+                                            background: 'rgba(0,0,0,0.1)',
+                                            pointerEvents: 'none'
                                         }
                                     }, [
                                         h('div', {
+                                            className: 'awa-sla-progress',
                                             style: {
                                                 width: `${slaPercent}%`,
                                                 height: '100%',
@@ -476,7 +520,14 @@
                                                 transition: 'width 0.5s ease-in-out'
                                             }
                                         })
-                                    ])
+                                    ]),
+                                    // SOURCE HANDLE - Right side
+                                    h(RF.Handle, {
+                                        type: 'source',
+                                        position: 'right',
+                                        id: 'source-right',
+                                        style: { background: '#333', width: 10, height: 10, right: -5, borderRadius: '50%', border: '2px solid #fff' }
+                                    })
                                 ]);
                             }
                         },
