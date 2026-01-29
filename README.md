@@ -218,3 +218,8 @@ See the `examples/` directory for complete workflow examples:
 ## License
 
 Apache 2.0
+
+
+## Authors
+
+- [Yannick HUCHARD](https://yannickhuchard.com)
