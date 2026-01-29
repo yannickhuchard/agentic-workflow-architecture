@@ -469,13 +469,13 @@
                                         }
                                     }, selectedItem.data.procedure)
                                 ]),
-                                // Display ALL additional data fields
                                 // Display other additional data fields
-                                Object.keys(selectedItem.data || {}).filter(key => !['label', 'lane', 'procedure'].includes(key)).length > 0 &&
+                                Object.keys(selectedItem.data || {}).some(key => !['label', 'lane', 'procedure'].includes(key)) &&
+                                h('div', { style: { marginBottom: '16px', borderTop: '1px solid #e5e5e5', paddingTop: '12px', marginTop: '4px' } }, [
                                     h('div', { style: { fontSize: '12px', color: '#666', marginBottom: '8px', fontWeight: '600' } }, 'Additional Properties'),
-                                    ...Object.entries(selectedItem.data || {})
-                                        .filter(([key]) => !['label', 'lane'].includes(key))
+                                    Object.entries(selectedItem.data || {})
                                         .filter(([key]) => !['label', 'lane', 'procedure'].includes(key))
+                                        .map(([key, value]) =>
                                             h('div', { style: { marginBottom: '8px' } }, [
                                                 h('div', { style: { fontSize: '11px', color: '#888', marginBottom: '2px', textTransform: 'capitalize' } }, key.replace(/_/g, ' ')),
                                                 h('div', { style: { fontSize: '13px', color: '#333', wordBreak: 'break-word' } },
@@ -610,7 +610,9 @@
          * Check if Babylon.js is available
          */
         isAvailable: function () {
-            return typeof BABYLON !== 'undefined';
+            return typeof BABYLON !== 'undefined' &&
+                typeof React !== 'undefined' &&
+                typeof ReactDOM !== 'undefined';
         },
 
         /**
@@ -619,6 +621,59 @@
         hexToColor3: function (hex) {
             const rgb = AWAViz.utils.hexToRgb(hex);
             return rgb ? new BABYLON.Color3(rgb.r, rgb.g, rgb.b) : new BABYLON.Color3(0.5, 0.5, 0.5);
+        },
+
+        /**
+         * Create a mesh for an edge
+         */
+        createEdgeMesh: function (sourcePos, targetPos, edgeData, scene) {
+            const start = new BABYLON.Vector3(sourcePos.x, sourcePos.y, sourcePos.z);
+            const end = new BABYLON.Vector3(targetPos.x, targetPos.y, targetPos.z);
+
+            // Create tube for the line
+            const path = [start, end];
+            const tube = BABYLON.MeshBuilder.CreateTube(edgeData.edge_id, {
+                path: path,
+                radius: 0.1,
+                tessellation: 8,
+                updatable: true
+            }, scene);
+
+            const mat = new BABYLON.PBRMaterial(edgeData.edge_id + '_mat', scene);
+            mat.albedoColor = this.hexToColor3(edgeData.style?.stroke_color || '#666666');
+            mat.emissiveColor = mat.albedoColor;
+            mat.emissiveIntensity = 0.2;
+            mat.metallic = 0.5;
+            mat.roughness = 0.2;
+            tube.material = mat;
+
+            // Create arrow head (cone)
+            const arrowHead = BABYLON.MeshBuilder.CreateCylinder(edgeData.edge_id + '_arrow', {
+                height: 0.5,
+                diameterTop: 0,
+                diameterBottom: 0.4,
+                tessellation: 12
+            }, scene);
+
+            arrowHead.material = mat;
+
+            // Position arrow head at end point
+            arrowHead.position = end;
+
+            // Point cone at start
+            arrowHead.lookAt(start);
+            arrowHead.rotate(BABYLON.Axis.X, Math.PI / 2, BABYLON.Space.LOCAL);
+
+            // Container for both
+            const container = new BABYLON.TransformNode(edgeData.edge_id + '_group', scene);
+            tube.parent = container;
+            arrowHead.parent = container;
+
+            // Add metadata for picking
+            tube.metadata = { type: 'edge', id: edgeData.edge_id, data: edgeData };
+            arrowHead.metadata = { type: 'edge', id: edgeData.edge_id, data: edgeData };
+
+            return { tube, arrowHead, mat, container };
         },
 
         /**
@@ -643,7 +698,7 @@
                     mesh = BABYLON.MeshBuilder.CreateCylinder(nodePos.node_id, { height: 1, diameter: 1, tessellation: 6 }, scene);
                     break;
                 default:
-                    mesh = BABYLON.MeshBuilder.CreateBox(nodePos.node_id, { size: 1 }, scene);
+                    mesh = BABYLON.MeshBuilder.CreateBox(nodePos.node_id, { size: 1.5, height: 0.8 }, scene);
             }
 
             mesh.position = new BABYLON.Vector3(pos.x, pos.y, pos.z);
@@ -671,8 +726,17 @@
                 mat.metallic = nodePos.material.metallic || 0.2;
                 mat.roughness = nodePos.material.roughness || 0.5;
                 mat.alpha = nodePos.material.alpha || 1.0;
+                mat.transparencyMode = mat.alpha < 1.0 ? BABYLON.PBRMaterial.PBRMETHOD_BLEND : BABYLON.PBRMaterial.PBRMETHOD_OPAQUE;
             }
             mesh.material = mat;
+
+            // Store metadata for picking
+            mesh.metadata = {
+                type: 'node',
+                id: nodePos.node_id,
+                data: nodePos,
+                label: AWAViz.utils.nodeIdToLabel(nodePos.node_id)
+            };
 
             // Add hover effects
             mesh.actionManager = new BABYLON.ActionManager(scene);
@@ -690,12 +754,10 @@
             return mesh;
         },
 
-        /**
-         * Render visualization to canvas
-         */
-        render: function (canvas, visualization, options) {
+        render: function (container, visualization, options) {
             if (!this.isAvailable()) {
-                console.error('AWAViz: Babylon.js not loaded');
+                console.error('AWAViz: Babylon.js, React or ReactDOM not loaded');
+                container.innerHTML = '<div style="padding: 20px; color: red;">Error: Babylon.js and React dependencies not loaded.</div>';
                 return null;
             }
 
@@ -707,8 +769,21 @@
                 autoAnimate: true
             }, options || {});
 
+            // Create Canvas if not provided
+            let canvas = container;
+            if (!(container instanceof HTMLCanvasElement)) {
+                canvas = document.createElement('canvas');
+                canvas.style.width = '100%';
+                canvas.style.height = '100%';
+                canvas.style.outline = 'none';
+                container.appendChild(canvas);
+            }
+
             const engine = new BABYLON.Engine(canvas, true);
             const scene = new BABYLON.Scene(engine);
+
+            // Interaction State
+            let onSelectionChanged = () => { };
 
             // Background
             scene.clearColor = this.hexToColor3(viz.theme?.background_color || '#1A1A2E');
@@ -742,23 +817,58 @@
                 scene
             );
             camera.attachControl(canvas, true);
-            camera.lowerRadiusLimit = 10;
-            camera.upperRadiusLimit = 60;
+            camera.lowerRadiusLimit = 5;
+            camera.upperRadiusLimit = 100;
 
             // Lighting
             const ambient = new BABYLON.HemisphericLight('ambient', new BABYLON.Vector3(0, 1, 0), scene);
-            ambient.intensity = 0.4;
+            ambient.intensity = 0.5;
 
             const directional = new BABYLON.DirectionalLight('directional', new BABYLON.Vector3(-1, -2, -1), scene);
             directional.intensity = 0.8;
 
+            // Maps for lookup
+            const nodeMeshMap = new Map();
+            const edgeMeshes = [];
+
             // Create nodes
-            const meshes = [];
             const nodePositions = viz.node_positions_3d || [];
             for (const nodePos of nodePositions) {
                 const mesh = this.createNodeMesh(nodePos, scene);
-                meshes.push(mesh);
+                nodeMeshMap.set(nodePos.node_id, nodePos.position);
             }
+
+            // Create edges
+            const edges = viz.edge_routings || [];
+            for (const edge of edges) {
+                const source = nodeMeshMap.get(edge.source);
+                const target = nodeMeshMap.get(edge.target);
+
+                if (source && target) {
+                    const edgeMesh = this.createEdgeMesh(source, target, edge, scene);
+                    edgeMeshes.push(edgeMesh);
+                }
+            }
+
+            // Selection / Interaction
+            scene.onPointerDown = (evt, pickResult) => {
+                if (pickResult.hit && pickResult.pickedMesh && pickResult.pickedMesh.metadata) {
+                    const meta = pickResult.pickedMesh.metadata;
+                    console.log(`[AWAViz] 3D Selected: ${meta.type} ${meta.id}`);
+
+                    // Trigger callback for React UI
+                    onSelectionChanged({
+                        type: meta.type,
+                        id: meta.id,
+                        label: meta.label || meta.id,
+                        data: meta.data,
+                        position: { x: 0, y: 0 },
+                        style: meta.data.style || {}
+                    });
+                } else if (!pickResult.hit) {
+                    onSelectionChanged(null);
+                }
+            };
 
             // Grid floor
             if (opts.enableGrid && typeof BABYLON.GridMaterial !== 'undefined') {
@@ -766,12 +876,13 @@
                 gridMat.majorUnitFrequency = 5;
                 gridMat.minorUnitVisibility = 0.3;
                 gridMat.gridRatio = viz.theme?.grid_size || 2;
-                gridMat.mainColor = new BABYLON.Color3(0.1, 0.1, 0.15);
+                gridMat.mainColor = new BABYLON.Color3(0.05, 0.05, 0.1);
                 gridMat.lineColor = this.hexToColor3(viz.theme?.grid_color || '#2D2D44');
 
-                const ground = BABYLON.MeshBuilder.CreateGround('ground', { width: 50, height: 50 }, scene);
+                const ground = BABYLON.MeshBuilder.CreateGround('ground', { width: 100, height: 100 }, scene);
                 ground.position.y = -5;
                 ground.material = gridMat;
+                ground.isPickable = false;
             }
 
             // Animation loop
@@ -779,8 +890,19 @@
             engine.runRenderLoop(() => {
                 time += 0.016;
                 if (opts.autoAnimate && viz.animation?.enabled) {
-                    meshes.forEach((mesh, i) => {
-                        mesh.position.y += Math.sin(time * 2 + i) * 0.001;
+                    // Animate nodes (subtle bobbing)
+                    scene.meshes.forEach((mesh) => {
+                        if (mesh.metadata?.type === 'node') {
+                            const offset = mesh.uniqueId % 10;
+                            mesh.position.y = mesh.metadata.data.position.y + Math.sin(time * 2 + offset) * 0.05;
+                        }
+                    });
+
+                    // Animate edges (pulsing intensity)
+                    edgeMeshes.forEach((em) => {
+                        if (em.mat) {
+                            em.mat.emissiveIntensity = 0.2 + Math.sin(time * 4) * 0.1;
+                        }
                     });
                 }
                 scene.render();
@@ -788,7 +910,143 @@
 
             window.addEventListener('resize', () => engine.resize());
 
-            return { engine, scene, camera, meshes };
+            // Render React UI Overlay
+            const { createElement: h } = React;
+
+            function UIOverlay() {
+                const [selectedItem, setSelectedItem] = React.useState(null);
+                const [activeTab, setActiveTab] = React.useState('details');
+
+                React.useEffect(() => {
+                    onSelectionChanged = (item) => {
+                        setSelectedItem(item);
+                        if (item) setActiveTab('details');
+                    };
+                }, []);
+
+                if (!selectedItem) return null;
+
+                const closeDetails = () => setSelectedItem(null);
+
+                return h('div', {
+                    style: {
+                        position: 'absolute',
+                        top: '20px',
+                        right: '20px',
+                        width: '320px',
+                        maxHeight: '80%',
+                        overflowY: 'auto',
+                        background: 'white',
+                        borderRadius: '12px',
+                        boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+                        zIndex: 1000,
+                        fontFamily: "'Segoe UI', sans-serif",
+                        pointerEvents: 'auto'
+                    }
+                }, [
+                    // Header
+                    h('div', {
+                        style: {
+                            background: selectedItem.type === 'node'
+                                ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+                                : 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
+                            color: 'white',
+                            padding: '16px 20px',
+                            borderRadius: '12px 12px 0 0',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                        }
+                    }, [
+                        h('h3', { style: { margin: 0, fontSize: '16px', fontWeight: '600' } },
+                            selectedItem.type === 'node' ? 'Activity Details' : 'Edge Details'),
+                        h('button', {
+                            onClick: closeDetails,
+                            style: { background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', width: '28px', height: '28px', borderRadius: '50%', cursor: 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center' }
+                        }, '×')
+                    ]),
+                    // Tabs
+                    h('div', { style: { display: 'flex', borderBottom: '1px solid #e5e5e5', background: '#f9fafb' } }, [
+                        h('button', {
+                            onClick: () => setActiveTab('details'),
+                            style: { flex: 1, padding: '12px', border: 'none', background: activeTab === 'details' ? 'white' : 'transparent', borderBottom: activeTab === 'details' ? '2px solid #667eea' : '2px solid transparent', color: activeTab === 'details' ? '#667eea' : '#64748b', cursor: 'pointer', fontWeight: activeTab === 'details' ? '600' : '400' }
+                        }, 'Activity Data'),
+                        h('button', {
+                            onClick: () => setActiveTab('technical'),
+                            style: { flex: 1, padding: '12px', border: 'none', background: activeTab === 'technical' ? 'white' : 'transparent', borderBottom: activeTab === 'technical' ? '2px solid #667eea' : '2px solid transparent', color: activeTab === 'technical' ? '#667eea' : '#64748b', cursor: 'pointer', fontWeight: activeTab === 'technical' ? '600' : '400' }
+                        }, 'Visualization')
+                    ]),
+                    // Content
+                    h('div', { style: { padding: '20px' } }, [
+                        activeTab === 'details' ? [
+                            h('div', { style: { marginBottom: '16px' } }, [
+                                h('div', { style: { fontSize: '12px', color: '#666', marginBottom: '4px' } }, 'Name'),
+                                h('div', { style: { fontSize: '15px', fontWeight: '600', color: '#333' } }, selectedItem.label)
+                            ]),
+                            selectedItem.data.description && h('div', { style: { marginBottom: '16px' } }, [
+                                h('div', { style: { fontSize: '12px', color: '#666', marginBottom: '4px' } }, 'Description'),
+                                h('div', { style: { fontSize: '13px', color: '#555', lineHeight: '1.5' } }, selectedItem.data.description)
+                            ]),
+                            selectedItem.data.procedure && h('div', { style: { marginBottom: '16px', borderTop: '1px solid #e5e5e5', paddingTop: '12px', marginTop: '4px' } }, [
+                                h('div', { style: { fontSize: '12px', color: '#666', marginBottom: '8px', fontWeight: '600' } }, '📋 Procedure'),
+                                h('div', {
+                                    style: { fontSize: '13px', color: '#1a1a1a', lineHeight: '1.6', background: '#f8f9fa', padding: '12px', borderRadius: '6px', border: '1px solid #e5e5e5', whiteSpace: 'pre-wrap', fontFamily: 'monospace' }
+                                }, selectedItem.data.procedure)
+                            ]),
+                            // Additional Properties logic
+                            Object.keys(selectedItem.data || {}).some(key => !['label', 'lane', 'procedure', 'description', 'position', 'scale', 'material', 'shape', 'node_id', 'node_type'].includes(key)) &&
+                            h('div', { style: { marginTop: '16px', borderTop: '1px solid #e5e5e5', paddingTop: '12px' } }, [
+                                h('div', { style: { fontSize: '12px', color: '#666', marginBottom: '8px', fontWeight: '600' } }, 'Additional Properties'),
+                                Object.entries(selectedItem.data)
+                                    .filter(([key]) => !['label', 'lane', 'procedure', 'description', 'position', 'scale', 'material', 'shape', 'node_id', 'node_type'].includes(key))
+                                    .map(([key, value]) => h('div', { style: { marginBottom: '8px' } }, [
+                                        h('div', { style: { fontSize: '11px', color: '#888', textTransform: 'capitalize' } }, key.replace(/_/g, ' ')),
+                                        h('div', { style: { fontSize: '13px', color: '#333', wordBreak: 'break-word' } }, typeof value === 'object' ? JSON.stringify(value) : String(value))
+                                    ]))
+                            ])
+                        ] : [
+                            h('div', { style: { marginBottom: '16px' } }, [
+                                h('div', { style: { fontSize: '12px', color: '#666', marginBottom: '4px' } }, '3D Position'),
+                                h('div', { style: { fontSize: '13px', color: '#333', fontFamily: 'monospace' } },
+                                    selectedItem.type === 'node'
+                                        ? `X: ${selectedItem.data.position?.x}, Y: ${selectedItem.data.position?.y}, Z: ${selectedItem.data.position?.z}`
+                                        : `Source: ${selectedItem.data.source} → Target: ${selectedItem.data.target}`)
+                            ]),
+                            h('div', { style: { marginBottom: '0' } }, [
+                                h('div', { style: { fontSize: '12px', color: '#666', marginBottom: '4px' } }, 'Geometry Attributes'),
+                                h('div', { style: { fontSize: '13px', color: '#333', lineHeight: '1.6' } }, [
+                                    h('div', {}, `Shape: ${selectedItem.data.shape || (selectedItem.type === 'edge' ? 'Tube' : 'Box')}`),
+                                    selectedItem.data.material && h('div', {}, `Color: ${selectedItem.data.material.diffuse_color || '#fff'}`)
+                                ])
+                            ])
+                        ]
+                    ])
+                ]);
+            }
+
+            // UI Overlay root
+            const uiDiv = document.createElement('div');
+            uiDiv.id = 'awa-viz-3d-ui-' + Math.random().toString(36).substr(2, 9);
+            uiDiv.style.position = 'absolute';
+            uiDiv.style.top = '0';
+            uiDiv.style.left = '0';
+            uiDiv.style.width = '100%';
+            uiDiv.style.height = '100%';
+            uiDiv.style.pointerEvents = 'none';
+            uiDiv.style.zIndex = '1000';
+
+            // If container is canvas, append to parent
+            const targetParent = (container instanceof HTMLCanvasElement) ? container.parentElement : container;
+            if (targetParent) {
+                if (getComputedStyle(targetParent).position === 'static') {
+                    targetParent.style.position = 'relative';
+                }
+                targetParent.appendChild(uiDiv);
+            }
+
+            ReactDOM.render(h(UIOverlay), uiDiv);
+
+            return { engine, scene, camera, meshes: scene.meshes, uiDiv };
         }
     };
 
