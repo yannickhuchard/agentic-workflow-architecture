@@ -23,7 +23,11 @@
         },
         "description": {
             "type": "string",
-            "description": "Natural language algorithm for AI elicitation"
+            "description": "High-level summary of what the activity does and why it is performed"
+        },
+        "procedure": {
+            "type": "string",
+            "description": "Step-by-step instructions for HOW to perform this activity. This is the natural language algorithm that serves as executable logic for AI agents, procedural documentation for humans, and API sequence specification for applications."
         },
         "role_id": {
             "$ref": "awa.schema.json#/$defs/uuid",

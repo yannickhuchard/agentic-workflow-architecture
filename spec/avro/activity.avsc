@@ -6,7 +6,8 @@
   "fields": [
     { "name": "id", "type": { "type": "string", "logicalType": "uuid" } },
     { "name": "name", "type": "string" },
-    { "name": "description", "type": ["null", "string"], "default": null },
+    { "name": "description", "type": ["null", "string"], "default": null, "doc": "High-level summary of what the activity does and why it is performed" },
+    { "name": "procedure", "type": ["null", "string"], "default": null, "doc": "Step-by-step instructions for HOW to perform this activity" },
     { "name": "role_id", "type": { "type": "string", "logicalType": "uuid" } },
     { "name": "actor_type", "type": { "type": "enum", "name": "ActorType", "symbols": ["human", "ai_agent", "robot", "application"] } },
     { "name": "system_id", "type": ["null", { "type": "string", "logicalType": "uuid" }], "default": null },

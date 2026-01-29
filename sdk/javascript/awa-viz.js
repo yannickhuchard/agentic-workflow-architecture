@@ -452,13 +452,30 @@
                                         }
                                     }, selectedItem.lane)
                                 ]),
+                                // Display procedure field prominently if present
+                                selectedItem.data.procedure && h('div', { style: { marginBottom: '16px', borderTop: '1px solid #e5e5e5', paddingTop: '12px', marginTop: '4px' } }, [
+                                    h('div', { style: { fontSize: '12px', color: '#666', marginBottom: '8px', fontWeight: '600' } }, '📋 Procedure'),
+                                    h('div', {
+                                        style: {
+                                            fontSize: '13px',
+                                            color: '#1a1a1a',
+                                            lineHeight: '1.6',
+                                            background: '#f8f9fa',
+                                            padding: '12px',
+                                            borderRadius: '6px',
+                                            border: '1px solid #e5e5e5',
+                                            whiteSpace: 'pre-wrap',
+                                            fontFamily: 'monospace'
+                                        }
+                                    }, selectedItem.data.procedure)
+                                ]),
                                 // Display ALL additional data fields
-                                Object.keys(selectedItem.data || {}).filter(key => !['label', 'lane'].includes(key)).length > 0 &&
-                                h('div', { style: { marginBottom: '16px', borderTop: '1px solid #e5e5e5', paddingTop: '12px', marginTop: '4px' } }, [
+                                // Display other additional data fields
+                                Object.keys(selectedItem.data || {}).filter(key => !['label', 'lane', 'procedure'].includes(key)).length > 0 &&
                                     h('div', { style: { fontSize: '12px', color: '#666', marginBottom: '8px', fontWeight: '600' } }, 'Additional Properties'),
                                     ...Object.entries(selectedItem.data || {})
                                         .filter(([key]) => !['label', 'lane'].includes(key))
-                                        .map(([key, value]) =>
+                                        .filter(([key]) => !['label', 'lane', 'procedure'].includes(key))
                                             h('div', { style: { marginBottom: '8px' } }, [
                                                 h('div', { style: { fontSize: '11px', color: '#888', marginBottom: '2px', textTransform: 'capitalize' } }, key.replace(/_/g, ' ')),
                                                 h('div', { style: { fontSize: '13px', color: '#333', wordBreak: 'break-word' } },

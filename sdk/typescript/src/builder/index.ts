@@ -24,6 +24,7 @@ import type {
 export interface ActivityConfig {
     name: string;
     description?: string;
+    procedure?: string;
     role_id: string;
     actor_type: ActorType;
     system_id?: string;
@@ -150,6 +151,7 @@ export class WorkflowBuilder {
             id: activityId,
             name,
             description: config.description,
+            procedure: config.procedure,
             role_id: config.role_id,
             actor_type: config.actor_type,
             system_id: config.system_id,
