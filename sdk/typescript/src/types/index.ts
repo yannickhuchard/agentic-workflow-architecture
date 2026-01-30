@@ -54,6 +54,12 @@ export type Enforcement = z.infer<typeof Enforcement>;
 export const Lifecycle = z.enum(['transient', 'persistent', 'cached']);
 export type Lifecycle = z.infer<typeof Lifecycle>;
 
+export const SkillType = z.enum(['ai_context', 'human_competency']);
+export type SkillType = z.infer<typeof SkillType>;
+
+export const ToolRequirementType = z.enum(['mcp', 'rest_api', 'graphql', 'grpc', 'software_package', 'hardware_interface']);
+export type ToolRequirementType = z.infer<typeof ToolRequirementType>;
+
 // ============================================================================
 // COMMON TYPES
 // ============================================================================
@@ -70,6 +76,26 @@ export type DateTimeTz = z.infer<typeof DateTimeTz>;
 // ============================================================================
 // ENTITY SCHEMAS
 // ============================================================================
+
+export const SkillBindingSchema = z.object({
+    id: UUID,
+    name: z.string(),
+    type: SkillType,
+    description: z.string().optional(),
+    min_level: z.string().optional(),
+    reference: z.string().url().optional(),
+});
+export type SkillBinding = z.infer<typeof SkillBindingSchema>;
+
+export const ToolRequirementSchema = z.object({
+    id: UUID,
+    name: z.string(),
+    type: ToolRequirementType,
+    description: z.string().optional(),
+    version: z.string().optional(),
+    reference: z.string().url().optional(),
+});
+export type ToolRequirement = z.infer<typeof ToolRequirementSchema>;
 
 export const DataObjectSchema = z.object({
     name: z.string(),
@@ -212,6 +238,8 @@ export const ActivitySchema = z.object({
     analytics: AnalyticsSchema.optional(),
     is_expandable: z.boolean().default(false),
     expansion_workflow_id: UUID.optional(),
+    skills: z.array(SkillBindingSchema).default([]),
+    tool_requirements: z.array(ToolRequirementSchema).default([]),
 });
 export type Activity = z.infer<typeof ActivitySchema>;
 
@@ -224,6 +252,8 @@ export const EdgeSchema = z.object({
     condition: z.string().optional(),
     label: z.string().optional(),
     is_default: z.boolean().default(false),
+    skills: z.array(SkillBindingSchema).default([]),
+    tool_requirements: z.array(ToolRequirementSchema).default([]),
 });
 export type Edge = z.infer<typeof EdgeSchema>;
 

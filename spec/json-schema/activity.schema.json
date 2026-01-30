@@ -110,6 +110,20 @@
         "expansion_workflow_id": {
             "$ref": "awa.schema.json#/$defs/uuid",
             "description": "Sub-workflow expanding this activity"
+        },
+        "skills": {
+            "type": "array",
+            "items": {
+                "$ref": "awa.schema.json#/$defs/skill_binding"
+            },
+            "description": "Skills (Cognitive/Expertise) required to perform this activity"
+        },
+        "tool_requirements": {
+            "type": "array",
+            "items": {
+                "$ref": "awa.schema.json#/$defs/tool_requirement"
+            },
+            "description": "Tools (Interfaces/Software) required to perform this activity"
         }
     },
     "$defs": {

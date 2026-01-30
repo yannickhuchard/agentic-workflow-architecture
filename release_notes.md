@@ -7,3 +7,4 @@
 | 2026-01-30 | 00:15 | Enhanced `awa-viz.js` with Execution Metrics, Bottleneck Detection, and Work Transfer Visualization. | No |
 | 2026-01-30 | 00:20 | Updated examples with realistic metrics and transfer data. Added rich detail panels and analytics dashboard. | No |
 | 2026-01-30 | 00:30 | SDK v1.1.0: Fixed missing arrows in custom nodes by adding Handle components. Enhanced logging. Added detailed Bank Account Opening workflow example. | No |
+| 2026-01-30 | 19:15 | Added Skills concept to Activities and Edges. Introduced `SkillType`, `SkillBinding`, and mandatory `id` for skills. Added demonstration example. | No |

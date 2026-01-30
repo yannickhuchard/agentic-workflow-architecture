@@ -1,0 +1,76 @@
+{
+    "workflow": {
+        "id": "00000000-0000-0000-0000-000000000001",
+        "name": "Loan Application Process with Skills & Tools",
+        "version": "1.1.0",
+        "description": "A demonstration of the semantic split between Cognitive Skills and Functional Tool Requirements.",
+        "activities": [
+            {
+                "id": "00000000-0000-0000-0000-000000000011",
+                "name": "Analyze Credit Risk",
+                "role_id": "00000000-0000-0000-0000-000000000021",
+                "actor_type": "ai_agent",
+                "description": "AI agent analyzes risk using domain context and specific API tools.",
+                "skills": [
+                    {
+                        "id": "4ae8f32a-5b1e-4c0a-9d21-f6a8e3b7c9d0",
+                        "name": "Financial Risk Assessment",
+                        "type": "ai_context",
+                        "description": "Knowledge of financial statement analysis and credit scoring models.",
+                        "reference": "https://skills.awa.io/ai/finance/risk-assessment"
+                    }
+                ],
+                "tool_requirements": [
+                    {
+                        "id": "b3c7d9a1-e0f2-4a8b-8c5d-6e7f8a9b0c1d",
+                        "name": "Credit Bureau API",
+                        "type": "rest_api",
+                        "description": "Interface for fetching live credit reports.",
+                        "reference": "https://api.awa.io/docs/credit-bureau"
+                    }
+                ]
+            },
+            {
+                "id": "00000000-0000-0000-0000-000000000012",
+                "name": "Approve Loan Limit",
+                "role_id": "00000000-0000-0000-0000-000000000022",
+                "actor_type": "human",
+                "description": "Senior manager reviews and approves the loan amount.",
+                "skills": [
+                    {
+                        "id": "d2a1c9b8-7e6f-5e4d-3c2b-1a0f9e8d7c6b",
+                        "name": "Loan Approval Authority Level 2",
+                        "type": "human_competency",
+                        "description": "Authorized to approve loans up to $500,000.",
+                        "min_level": "Level 2 Authority"
+                    }
+                ]
+            }
+        ],
+        "edges": [
+            {
+                "id": "00000000-0000-0000-0000-000000000031",
+                "source_id": "00000000-0000-0000-0000-000000000011",
+                "target_id": "00000000-0000-0000-0000-000000000012",
+                "label": "Risk Analysis Completed",
+                "condition": "risk_score < 50",
+                "skills": [
+                    {
+                        "id": "f1e0d9c8-b7a6-9584-7362-51403f2e1d0c",
+                        "name": "Secure Data Handoff",
+                        "type": "ai_context",
+                        "description": "Protocol for securely passing PII data between agents."
+                    }
+                ],
+                "tool_requirements": [
+                    {
+                        "id": "e4d3c2b1-0f9e-8d7c-6b5a-432109876543",
+                        "name": "Audit Logging Service",
+                        "type": "mcp",
+                        "description": "Connection to the enterprise audit log to record transition."
+                    }
+                ]
+            }
+        ]
+    }
+}

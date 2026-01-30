@@ -104,6 +104,14 @@ Workflow orderProcess = WorkflowBuilder.workflow("Order Processing", "1.0.0")
 | `robot` | Physical/industrial robot |
 | `application` | Software application/system |
 
+### Skills
+
+| Type | Description |
+|------|-------------|
+| `ai_context` | Context or system instruction required for an AI agent |
+| `tool_proficiency` | Capability to use a specific tool (MCP, API) |
+| `human_competency` | Qualification, authority level, or certification required for a human |
+
 ### Context Sync Patterns
 
 | Pattern | Use Case |

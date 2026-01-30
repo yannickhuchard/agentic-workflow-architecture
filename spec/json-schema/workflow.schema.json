@@ -151,6 +151,20 @@
                     "type": "boolean",
                     "default": false,
                     "description": "Is this the default path"
+                },
+                "skills": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "awa.schema.json#/$defs/skill_binding"
+                    },
+                    "description": "Skills (Cognitive/Expertise) required to traverse this edge"
+                },
+                "tool_requirements": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "awa.schema.json#/$defs/tool_requirement"
+                    },
+                    "description": "Tools (Interfaces/Software) required to traverse this edge"
                 }
             }
         },

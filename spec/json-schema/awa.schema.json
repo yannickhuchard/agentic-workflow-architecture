@@ -194,6 +194,91 @@
         "decision"
       ],
       "description": "Type of node in the workflow graph"
+    },
+    "skill_type": {
+      "type": "string",
+      "enum": [
+        "ai_context",
+        "human_competency"
+      ],
+      "description": "Classification of the skill (Cognitive/Knowledge requirement)"
+    },
+    "skill_binding": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "type"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the skill"
+        },
+        "type": {
+          "$ref": "#/$defs/skill_type"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the skill requirement"
+        },
+        "min_level": {
+          "type": "string",
+          "description": "Minimum expertise level required"
+        },
+        "reference": {
+          "type": "string",
+          "format": "uri",
+          "description": "External reference URI"
+        }
+      }
+    },
+    "tool_requirement_type": {
+      "type": "string",
+      "enum": [
+        "mcp",
+        "rest_api",
+        "graphql",
+        "grpc",
+        "software_package",
+        "hardware_interface"
+      ],
+      "description": "Type of tool or interface required (Functional requirement)"
+    },
+    "tool_requirement": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "type"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the required tool"
+        },
+        "type": {
+          "$ref": "#/$defs/tool_requirement_type"
+        },
+        "description": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string",
+          "description": "Optional specific version or range required"
+        },
+        "reference": {
+          "type": "string",
+          "format": "uri",
+          "description": "Reference to the tool interface (e.g., OpenAPI spec, MCP config)"
+        }
+      }
     }
   },
   "properties": {
