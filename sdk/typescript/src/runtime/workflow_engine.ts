@@ -1,9 +1,17 @@
-import { UUID, Workflow, Activity, Edge } from '../types';
+import { UUID, Workflow, Activity, Edge, Role } from '../types';
 import { Token } from './token';
 import { ContextManager } from './context_manager';
 import { validate_workflow_integrity } from '../validator';
+import { Actor } from './actors/actor';
+import { SoftwareAgent } from './actors/software_agent';
+import { AIAgent } from './actors/ai_agent';
 
 export type EngineStatus = 'running' | 'paused' | 'completed' | 'failed' | 'idle';
+
+export interface WorkflowEngineOptions {
+    geminiApiKey?: string;
+    roles?: Role[];
+}
 
 export class WorkflowEngine {
     private workflow: Workflow;
@@ -12,8 +20,10 @@ export class WorkflowEngine {
     private status: EngineStatus;
     private activityMap: Map<UUID, Activity>;
     private edgeMap: Map<UUID, Edge[]>; // Source ID -> Edges
+    private options: WorkflowEngineOptions;
+    private roleMap: Map<UUID, Role>;
 
-    constructor(workflowDef: Workflow) {
+    constructor(workflowDef: Workflow, options: WorkflowEngineOptions = {}) {
         // Validate workflow integrity
         const validation = validate_workflow_integrity(workflowDef);
         if (!validation.valid) {
@@ -21,11 +31,13 @@ export class WorkflowEngine {
         }
 
         this.workflow = workflowDef;
+        this.options = options;
         this.tokens = [];
         this.contextManager = new ContextManager();
         this.status = 'idle';
         this.activityMap = new Map();
         this.edgeMap = new Map();
+        this.roleMap = new Map();
 
         this.initializeMaps();
         this.initializeContexts();
@@ -41,6 +53,12 @@ export class WorkflowEngine {
                 this.edgeMap.set(edge.source_id, []);
             }
             this.edgeMap.get(edge.source_id)?.push(edge);
+        }
+
+        if (this.options.roles) {
+            for (const role of this.options.roles) {
+                this.roleMap.set(role.id, role);
+            }
         }
     }
 
@@ -111,23 +129,65 @@ export class WorkflowEngine {
             return;
         }
 
-        // TODO: Execute Activity Logic (Context binding, Scripts, etc.)
-        // This is where we would invoke the agent, tool, or script.
-        // For Phase 1, we assume instant execution or just moving forward.
+        try {
+            // Determine Actor
+            let actor: Actor | undefined;
 
-        // Move to next
-        const outgoingEdges = this.edgeMap.get(currentActivityId) || [];
+            switch (activity.actor_type) {
+                case 'application':
+                    actor = new SoftwareAgent();
+                    break;
+                case 'ai_agent':
+                    if (!this.options.geminiApiKey) {
+                        console.warn('Skipping AI Agent execution: No Gemini API Key provided.');
+                        // Fallback or fail? For now fail or strict mock check.
+                        // Assuming environment might provide it if option is missing?
+                        // But best to require it.
+                        throw new Error("Gemini API Key required for AI Agent");
+                    }
+                    const role = this.roleMap.get(activity.role_id);
+                    actor = new AIAgent(this.options.geminiApiKey, role);
+                    break;
+                case 'human':
+                    // TODO: Implement Human Task Queuing
+                    console.log('Human actor not yet implemented - pausing token');
+                    // For now, we might auto-complete or pause. 
+                    // Let's just log and auto-complete for loop testing unless we want to block.
+                    break;
+            }
 
-        if (outgoingEdges.length === 0) {
-            token.updateStatus('completed');
-            return;
+            if (actor) {
+                // Prepare Inputs
+                // Filter token.data based on activity.inputs definitions?
+                // For now pass all data as context.
+                const inputs = token.contextData;
+                const output = await actor.execute(activity, inputs);
+
+                // Merge output back to token data
+                // In AWA, outputs should map to Context or Token Data. 
+                // We'll merge top-level keys.
+                token.mergeData(output);
+            }
+
+            // Move to next
+            const outgoingEdges = this.edgeMap.get(currentActivityId) || [];
+
+            if (outgoingEdges.length === 0) {
+                token.updateStatus('completed');
+                return;
+            }
+
+            // Simple sequential flow for now - take first edge
+            // TODO: Evaluate conditions for branching
+
+            const nextEdge = outgoingEdges[0];
+            token.move(nextEdge.target_id);
+
+        } catch (error: any) {
+            console.error(`Error processing activity ${activity.name}:`, error);
+            token.updateStatus('failed');
+            token.mergeData({ _error: error.message, _stack: error.stack });
         }
-
-        // Simple sequential flow for now - take first edge
-        // TODO: Evaluate conditions for branching
-
-        const nextEdge = outgoingEdges[0];
-        token.move(nextEdge.target_id);
     }
 
     public getStatus(): EngineStatus {
