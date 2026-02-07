@@ -284,9 +284,25 @@ awa serve --port 8080
 | Command | Description | Options |
 |---------|-------------|---------|
 | `awa run <file>` | Execute a workflow file | `-v, --verbose`, `-k, --key <key>` |
-| `awa serve` | Start REST API server | `-p, --port <port>` |
+| `awa serve` | Start REST API server | `-p, --port <port>`, `--jwt-secret <secret>`, `--api-key <key:role>`, `--rate-limit <max>`, `--no-auth` |
 | `awa --version` | Display version | - |
 | `awa --help` | Display help | - |
+
+**Serve Command Examples:**
+```bash
+# Basic (no auth)
+awa serve --port 8080
+
+# With JWT authentication
+awa serve --jwt-secret my-secret-key
+
+# With API keys
+awa serve --api-key abc123:admin --api-key xyz789:user
+
+# With rate limiting (100 req/min)
+awa serve --rate-limit 100
+```
+
 
 ## Runtime Execution
 
@@ -374,6 +390,174 @@ curl -X POST http://localhost:3000/api/v1/workflows/run \
   "message": "Workflow started"
 }
 ```
+
+### Human Tasks API
+
+Manage human-in-the-loop tasks via REST:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/tasks` | GET | List all tasks (filter by `role_id`, `assignee`) |
+| `/api/v1/tasks/pending` | GET | Pending tasks (filter by `role_id`) |
+| `/api/v1/tasks/:id` | GET | Get specific task |
+| `/api/v1/tasks/:id/assign` | POST | Assign task to user (`user_id` in body) |
+| `/api/v1/tasks/:id/complete` | POST | Complete task (`result` in body) |
+| `/api/v1/tasks/:id/reject` | POST | Reject task (`reason` in body) |
+| `/api/v1/tasks/queue/stats` | GET | Queue statistics |
+
+**Example - Complete Human Task:**
+```bash
+curl -X POST http://localhost:3000/api/v1/tasks/task-uuid/complete \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your-jwt-token" \
+  -d '{ "result": { "approved": true, "notes": "Looks good" } }'
+```
+
+## Production Infrastructure
+
+### Structured Logging
+
+AWA provides JSON-structured logging with correlation IDs for distributed tracing:
+
+```typescript
+import { get_logger, Logger } from '@awa/sdk';
+
+// Get global logger
+const logger = get_logger();
+
+// Set correlation ID for request tracing
+logger.set_correlation_id('req-123');
+
+// Create child logger with additional context
+const child = logger.child({ workflow_id: 'wf-1', activity: 'Process Order' });
+child.info('Processing started', { step: 1 });
+
+// Output (JSON format):
+// {"level":"info","message":"Processing started","step":1,"workflow_id":"wf-1","correlation_id":"req-123","timestamp":"..."}
+```
+
+**Environment Variables:**
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LOG_LEVEL` | `info` | Minimum level: debug, info, warn, error |
+| `LOG_FORMAT` | `json` | Output: `json` or `text` |
+| `LOG_TIMESTAMPS` | `true` | Include ISO timestamps |
+
+### API Authentication
+
+AWA supports JWT tokens and API keys with RBAC:
+
+```typescript
+import { createServer, create_jwt } from '@awa/sdk';
+
+const app = createServer({
+  auth: {
+    enabled: true,
+    jwt_secret: process.env.JWT_SECRET,
+    api_keys: {
+      'api-key-123': { id: 'user-1', role: 'admin', permissions: ['*'] },
+      'readonly-key': { id: 'user-2', role: 'viewer', permissions: ['workflows:read'] }
+    },
+    public_paths: ['/health']
+  },
+  rate_limit: {
+    window_ms: 60000,   // 1 minute
+    max_requests: 100
+  }
+});
+
+// Create JWT token
+const token = create_jwt({ sub: 'user-id', role: 'admin', permissions: ['*'] }, secret);
+```
+
+**Using Authentication in Requests:**
+```bash
+# JWT Bearer Token
+curl -H "Authorization: Bearer eyJhbGciOiJI..." http://localhost:3000/api/v1/workflows
+
+# API Key
+curl -H "X-API-Key: api-key-123" http://localhost:3000/api/v1/workflows
+```
+
+**RBAC Middleware:**
+```typescript
+import { require_role, require_permission } from '@awa/sdk';
+
+// Require specific role
+app.use('/admin', require_role('admin'));
+
+// Require specific permissions
+app.use('/workflows', require_permission('workflows:read', 'workflows:write'));
+```
+
+### Error Recovery with Retry
+
+Automatic retry with exponential backoff for transient failures:
+
+```typescript
+import { with_retry, DeadLetterQueue } from '@awa/sdk';
+
+// Wrap risky operations
+const result = await with_retry(
+  () => callExternalAPI(),
+  {
+    max_retries: 3,
+    initial_delay_ms: 1000,
+    max_delay_ms: 30000,
+    backoff_multiplier: 2,
+    jitter: true  // Prevents thundering herd
+  }
+);
+
+// Non-retryable errors (automatically detected):
+// - Validation errors
+// - Authentication failures
+// - Invalid input/configuration
+```
+
+**Dead Letter Queue for Failed Tokens:**
+```typescript
+const dlq = new DeadLetterQueue();
+
+// Add failed token
+dlq.add(token, workflowId, activityId, error, { attempt: 3, started_at: Date.now() });
+
+// Query failed tokens
+const failedTokens = dlq.list_by_workflow('wf-123');
+const stats = dlq.stats();  // { total, by_workflow, by_activity }
+```
+
+### State Persistence
+
+Checkpoint workflow state for resume after failures:
+
+```typescript
+import { CheckpointManager, FilePersistenceAdapter, InMemoryPersistenceAdapter } from '@awa/sdk';
+
+// Create checkpoint manager (file-based for production)
+const manager = new CheckpointManager(
+  new FilePersistenceAdapter('./checkpoints')
+);
+
+// Create checkpoint
+await manager.checkpoint(workflow, 'running', tokens, contexts);
+
+// Resume from checkpoint
+const state = await manager.load('workflow-id');
+const restoredTokens = manager.restore_tokens(state);
+
+// Auto-checkpoint every 30 seconds
+manager.enable_auto_checkpoint(30000, async () => ({
+  workflow, engine_status, tokens, contexts
+}));
+```
+
+**Persistence Adapters:**
+| Adapter | Use Case |
+|---------|----------|
+| `InMemoryPersistenceAdapter` | Development, testing |
+| `FilePersistenceAdapter` | Single-server production |
+| Custom adapter | Cloud storage (implement `PersistenceAdapter` interface) |
 
 ## Creating Workflow JSON Files
 
