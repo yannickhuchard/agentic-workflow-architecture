@@ -1,6 +1,7 @@
 ---
 name: agentic-workflow-architecture
-description: Expert guide for working with the Agentic Workflow Architecture (AWA) framework. Use this skill when users need to create, edit, validate, execute, or visualize AI-native workflow processes using AWA's SDK, CLI, API, or visualization tools. This skill covers workflow building with the fluent TypeScript API, running workflows via CLI, triggering workflows via REST API, creating workflow JSON files, understanding AWA concepts (actors, contexts, skills, access rights, decision nodes), and rendering workflow diagrams.
+description: Expert guide for working with the Agentic Workflow Architecture (AWA) framework. Use this skill when users need to create, edit, validate, execute, or visualize AI-native workflow processes using AWA's SDK (TypeScript & Python), CLI, API, or visualization tools. This skill covers workflow building with the fluent API, running workflows via CLI, triggering workflows via REST API, creating workflow JSON files, understanding AWA concepts (actors, contexts, skills, access rights, decision nodes), and rendering workflow diagrams.
+Sync: Updated for Phase 3 (Python SDK Parity)
 ---
 
 # Agentic Workflow Architecture (AWA) Skill
@@ -132,7 +133,7 @@ The AI should respond with detailed, AWA-specific guidance.
 
 Use this skill when working with:
 - Creating or modifying agentic workflows
-- Building workflows programmatically with the TypeScript SDK
+- Building workflows programmatically with the TypeScript or Python SDK
 - Running workflows via the CLI or REST API
 - Validating workflow definitions
 - Visualizing workflows in 2D or 3D
@@ -241,14 +242,49 @@ const orderProcess = workflow('Order Processing', '1.0.0')
 
 ### Key Builder Methods
 
-- `.description(text)` - Set workflow description
-- `.context(name, config)` - Add shared context for collaboration
-- `.activity(name, config)` - Add activity with actor type and role
-- `.edge(source, target, options?)` - Connect activities
-- `.sla(config)` - Set service level agreement
-- `.analytics(config)` - Add value stream metrics
-- `.metadata(key, value)` - Add extensible metadata
 - `.build()` - Return the complete workflow object
+
+## Using the Python SDK
+
+### Installation
+
+```bash
+# Project installation
+pip install awa
+
+# With optional dependencies
+pip install "awa[ai,web,dev]"
+```
+
+### Building Workflows Programmatically
+
+```python
+from awa import workflow, ActorType, SyncPattern
+
+result = (
+    workflow("Order Processing", "1.0.0")
+    .description("AI-assisted order fulfillment")
+    .context("order_data", 
+        type="data", 
+        sync_pattern=SyncPattern.shared_state
+    )
+    .activity("Receive Order",
+        role_id="customer-service-agent",
+        actor_type=ActorType.ai_agent
+    )
+    .edge("Receive Order", "Process Order")
+    .build()
+)
+```
+
+### Key Builder Methods
+
+The Python SDK follows the same fluent API pattern as the TypeScript SDK:
+- `.description(text)`
+- `.context(name, **kwargs)`
+- `.activity(name, **kwargs)`
+- `.edge(source, target, **kwargs)`
+- `.build()`
 
 ## Using the CLI
 

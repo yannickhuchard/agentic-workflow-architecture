@@ -7,7 +7,7 @@ from enum import Enum
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ============================================================================
@@ -115,8 +115,7 @@ class NodeStyle2D(BaseModel):
     border_radius: float | None = None
     opacity: float | None = Field(default=None, ge=0, le=1)
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 class NodeMaterial3D(BaseModel):
@@ -126,8 +125,7 @@ class NodeMaterial3D(BaseModel):
     metallic: float | None = Field(default=None, ge=0, le=1)
     roughness: float | None = Field(default=None, ge=0, le=1)
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 class NodePosition2D(BaseModel):
@@ -167,8 +165,7 @@ class EdgeStyle(BaseModel):
     marker_start: str | None = None
     marker_end: str | None = None
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 class EdgeRouting(BaseModel):
@@ -271,8 +268,7 @@ class ThemeConfig(BaseModel):
     minimap_enabled: bool = True
     controls_enabled: bool = True
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 # ============================================================================
