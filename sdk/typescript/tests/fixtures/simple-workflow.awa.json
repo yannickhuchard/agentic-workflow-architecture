@@ -1,0 +1,52 @@
+{
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "name": "Simple Test Workflow",
+    "description": "A simple workflow for testing the CLI",
+    "version": "1.0.0",
+    "activities": [
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440001",
+            "name": "Start Activity",
+            "description": "The starting point",
+            "actor_type": "application",
+            "role_id": "550e8400-e29b-41d4-a716-446655440003",
+            "inputs": [],
+            "outputs": [
+                {
+                    "name": "message",
+                    "schema": {
+                        "type": "string"
+                    }
+                }
+            ]
+        },
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440002",
+            "name": "End Activity",
+            "description": "The ending point",
+            "actor_type": "application",
+            "role_id": "550e8400-e29b-41d4-a716-446655440003",
+            "inputs": [],
+            "outputs": []
+        }
+    ],
+    "edges": [
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440004",
+            "source_id": "550e8400-e29b-41d4-a716-446655440001",
+            "target_id": "550e8400-e29b-41d4-a716-446655440002",
+            "type": "sequence"
+        }
+    ],
+    "roles": [
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440003",
+            "name": "System",
+            "description": "System Actor",
+            "capabilities": [],
+            "actor_type": "application"
+        }
+    ],
+    "contexts": [],
+    "metadata": {}
+}

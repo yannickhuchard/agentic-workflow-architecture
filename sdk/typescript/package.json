@@ -12,9 +12,12 @@
             "types": "./dist/index.d.ts"
         }
     },
+    "bin": {
+        "awa": "./dist/cli/index.js"
+    },
     "scripts": {
-        "build": "tsup src/index.ts --format cjs,esm --dts",
-        "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+        "build": "tsup src/index.ts src/cli/index.ts --format cjs,esm --dts",
+        "dev": "tsup src/index.ts src/cli/index.ts --format cjs,esm --dts --watch",
         "lint": "eslint src/",
         "test": "vitest",
         "typecheck": "tsc --noEmit"
@@ -35,10 +38,16 @@
     },
     "dependencies": {
         "@google/generative-ai": "^0.24.1",
+        "commander": "^14.0.3",
+        "cors": "^2.8.6",
+        "dotenv": "^17.2.4",
+        "express": "^5.2.1",
         "uuid": "^9.0.0",
         "zod": "^3.23.0"
     },
     "devDependencies": {
+        "@types/cors": "^2.8.19",
+        "@types/express": "^5.0.6",
         "@types/node": "^20.0.0",
         "@types/uuid": "^9.0.0",
         "@typescript-eslint/eslint-plugin": "^7.0.0",
