@@ -1,16 +1,36 @@
-import { UUID, Workflow, Activity, Edge, Role } from '../types';
+/**
+ * AWA Workflow Engine
+ * Executes AWA workflow definitions with full actor and decision support
+ */
+
+import { UUID, Workflow, Activity, Edge, Role, DecisionNode } from '../types';
 import { Token } from './token';
 import { ContextManager } from './context_manager';
 import { validate_workflow_integrity } from '../validator';
 import { Actor } from './actors/actor';
 import { SoftwareAgent } from './actors/software_agent';
 import { AIAgent } from './actors/ai_agent';
+import { RobotAgent, RobotConfig } from './actors/robot_agent';
+import { HumanAgent, HumanTaskQueue, get_task_queue } from './actors/human_agent';
+import { DecisionEvaluator, evaluate_decision } from './decision_evaluator';
 
-export type EngineStatus = 'running' | 'paused' | 'completed' | 'failed' | 'idle';
+export type EngineStatus = 'running' | 'paused' | 'completed' | 'failed' | 'idle' | 'waiting_human';
 
 export interface WorkflowEngineOptions {
+    /** Gemini API key for AI agents */
+    gemini_api_key?: string;
+    /** @deprecated Use gemini_api_key instead */
     geminiApiKey?: string;
+    /** Role definitions */
     roles?: Role[];
+    /** Robot configuration */
+    robot_config?: RobotConfig;
+    /** Human task queue (uses global if not provided) */
+    human_task_queue?: HumanTaskQueue;
+    /** Wait for human tasks to complete before proceeding */
+    wait_for_human_tasks?: boolean;
+    /** Enable verbose logging */
+    verbose?: boolean;
 }
 
 export class WorkflowEngine {
@@ -20,8 +40,11 @@ export class WorkflowEngine {
     private status: EngineStatus;
     private activityMap: Map<UUID, Activity>;
     private edgeMap: Map<UUID, Edge[]>; // Source ID -> Edges
+    private decisionNodeMap: Map<UUID, DecisionNode>;
     private options: WorkflowEngineOptions;
     private roleMap: Map<UUID, Role>;
+    private decisionEvaluator: DecisionEvaluator;
+    private humanTaskQueue: HumanTaskQueue;
 
     constructor(workflowDef: Workflow, options: WorkflowEngineOptions = {}) {
         // Validate workflow integrity
@@ -31,13 +54,20 @@ export class WorkflowEngine {
         }
 
         this.workflow = workflowDef;
-        this.options = options;
+        this.options = {
+            ...options,
+            // Support legacy option name
+            gemini_api_key: options.gemini_api_key || options.geminiApiKey
+        };
         this.tokens = [];
         this.contextManager = new ContextManager();
         this.status = 'idle';
         this.activityMap = new Map();
         this.edgeMap = new Map();
+        this.decisionNodeMap = new Map();
         this.roleMap = new Map();
+        this.decisionEvaluator = new DecisionEvaluator(workflowDef.decision_nodes);
+        this.humanTaskQueue = options.human_task_queue || get_task_queue();
 
         this.initializeMaps();
         this.initializeContexts();
@@ -55,6 +85,11 @@ export class WorkflowEngine {
             this.edgeMap.get(edge.source_id)?.push(edge);
         }
 
+        for (const decisionNode of this.workflow.decision_nodes) {
+            this.decisionNodeMap.set(decisionNode.id, decisionNode);
+        }
+
+        // Load roles from options and workflow
         if (this.options.roles) {
             for (const role of this.options.roles) {
                 this.roleMap.set(role.id, role);
@@ -68,7 +103,13 @@ export class WorkflowEngine {
         }
     }
 
-    public async start(initialData: Record<string, any> = {}): Promise<UUID> {
+    private log(message: string): void {
+        if (this.options.verbose) {
+            console.log(`[WorkflowEngine] ${message}`);
+        }
+    }
+
+    public async start(initialData: Record<string, unknown> = {}): Promise<UUID> {
         if (this.status === 'running') {
             throw new Error('Workflow is already running');
         }
@@ -77,10 +118,7 @@ export class WorkflowEngine {
             throw new Error('Workflow has no activities');
         }
 
-        // Strategy: Find node with no incoming edges from Activities (ignoring events for now unless they start)
-        // Or if explicit start event exists, follow it.
-        // For Phase 1: Simple entry point detection.
-
+        // Strategy: Find node with no incoming edges from Activities
         let startNodeId: UUID | undefined;
 
         const targetIds = new Set(this.workflow.edges.map(e => e.target_id));
@@ -93,19 +131,35 @@ export class WorkflowEngine {
             startNodeId = this.workflow.activities[0].id;
         }
 
-        const token = new Token(startNodeId, initialData, undefined, this.workflow.id);
+        // Add workflow metadata to initial data
+        const tokenData = {
+            ...initialData,
+            _workflow_id: this.workflow.id,
+            _workflow_name: this.workflow.name,
+            _started_at: new Date().toISOString()
+        };
+
+        const token = new Token(startNodeId, tokenData, undefined, this.workflow.id);
         this.tokens.push(token);
         this.status = 'running';
+
+        this.log(`Started workflow "${this.workflow.name}" with token ${token.id}`);
 
         return token.id;
     }
 
     public async runStep(): Promise<void> {
-        if (this.status !== 'running') return;
+        if (this.status !== 'running' && this.status !== 'waiting_human') return;
 
         const activeTokens = this.tokens.filter(t => t.status === 'active');
 
         if (activeTokens.length === 0) {
+            // Check if any tokens are waiting for human input
+            const waitingTokens = this.tokens.filter(t => t.status === 'waiting');
+            if (waitingTokens.length > 0) {
+                this.status = 'waiting_human';
+                return;
+            }
             this.status = 'completed';
             return;
         }
@@ -115,90 +169,295 @@ export class WorkflowEngine {
         }
 
         // Re-check status
-        if (this.tokens.every(t => t.status === 'completed' || t.status === 'failed' || t.status === 'cancelled')) {
+        const allDone = this.tokens.every(t =>
+            t.status === 'completed' || t.status === 'failed' || t.status === 'cancelled'
+        );
+        if (allDone) {
             this.status = 'completed';
         }
     }
 
-    private async processToken(token: Token): Promise<void> {
-        const currentActivityId = token.activityId;
-        const activity = this.activityMap.get(currentActivityId);
+    /**
+     * Run workflow to completion (or until paused/failed)
+     */
+    public async run(maxSteps: number = 1000): Promise<EngineStatus> {
+        let steps = 0;
+        while (this.status === 'running' && steps < maxSteps) {
+            await this.runStep();
+            steps++;
+        }
+        this.log(`Workflow completed after ${steps} steps with status: ${this.status}`);
+        return this.status;
+    }
 
+    private async processToken(token: Token): Promise<void> {
+        const currentNodeId = token.activityId;
+
+        // Check if this is a decision node
+        const decisionNode = this.decisionNodeMap.get(currentNodeId);
+        if (decisionNode) {
+            await this.processDecisionNode(token, decisionNode);
+            return;
+        }
+
+        // Process as activity
+        const activity = this.activityMap.get(currentNodeId);
         if (!activity) {
+            this.log(`Activity not found: ${currentNodeId}`);
             token.updateStatus('failed');
             return;
         }
 
         try {
-            // Determine Actor
-            let actor: Actor | undefined;
-
-            switch (activity.actor_type) {
-                case 'application':
-                    actor = new SoftwareAgent();
-                    break;
-                case 'ai_agent':
-                    if (!this.options.geminiApiKey) {
-                        console.warn('Skipping AI Agent execution: No Gemini API Key provided.');
-                        // Fallback or fail? For now fail or strict mock check.
-                        // Assuming environment might provide it if option is missing?
-                        // But best to require it.
-                        throw new Error("Gemini API Key required for AI Agent");
-                    }
-                    const role = this.roleMap.get(activity.role_id);
-                    actor = new AIAgent(this.options.geminiApiKey, role);
-                    break;
-                case 'human':
-                    // TODO: Implement Human Task Queuing
-                    console.log('Human actor not yet implemented - pausing token');
-                    // For now, we might auto-complete or pause. 
-                    // Let's just log and auto-complete for loop testing unless we want to block.
-                    break;
-            }
+            // Create appropriate actor
+            const actor = this.createActor(activity);
 
             if (actor) {
-                // Prepare Inputs
-                // Filter token.data based on activity.inputs definitions?
-                // For now pass all data as context.
-                const inputs = token.contextData;
+                // Add token metadata to inputs
+                const inputs = {
+                    ...token.contextData,
+                    _token_id: token.id,
+                    _workflow_id: this.workflow.id,
+                    _activity_id: activity.id,
+                    _activity_name: activity.name
+                };
+
+                this.log(`Executing activity "${activity.name}" with ${activity.actor_type} actor`);
+
                 const output = await actor.execute(activity, inputs);
 
+                // Check if human task requires waiting
+                if (output._requires_human_action && this.options.wait_for_human_tasks) {
+                    token.updateStatus('waiting');
+                    token.mergeData(output);
+                    this.log(`Token paused waiting for human task ${output._human_task_id}`);
+                    return;
+                }
+
                 // Merge output back to token data
-                // In AWA, outputs should map to Context or Token Data. 
-                // We'll merge top-level keys.
                 token.mergeData(output);
             }
 
-            // Move to next
-            const outgoingEdges = this.edgeMap.get(currentActivityId) || [];
+            // Determine next node(s)
+            await this.advanceToken(token, currentNodeId);
 
-            if (outgoingEdges.length === 0) {
-                token.updateStatus('completed');
-                return;
-            }
-
-            // Simple sequential flow for now - take first edge
-            // TODO: Evaluate conditions for branching
-
-            const nextEdge = outgoingEdges[0];
-            token.move(nextEdge.target_id);
-
-        } catch (error: any) {
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            const errorStack = error instanceof Error ? error.stack : undefined;
             console.error(`Error processing activity ${activity.name}:`, error);
             token.updateStatus('failed');
-            token.mergeData({ _error: error.message, _stack: error.stack });
+            token.mergeData({ _error: errorMessage, _stack: errorStack });
         }
+    }
+
+    /**
+     * Process a decision node
+     */
+    private async processDecisionNode(token: Token, decision: DecisionNode): Promise<void> {
+        this.log(`Evaluating decision node "${decision.name}"`);
+
+        const result = evaluate_decision(decision, token.contextData);
+
+        this.log(`Decision result: matched=${result.matched}, outputs=${JSON.stringify(result.outputs)}`);
+
+        // Merge decision outputs into token
+        token.mergeData({
+            _decision_node_id: decision.id,
+            _decision_matched: result.matched,
+            _decision_outputs: result.outputs
+        });
+
+        if (result.output_edge_id) {
+            // Follow the specific edge from decision
+            token.move(this.getEdgeTarget(result.output_edge_id) || result.output_edge_id);
+        } else {
+            // No matching edge - use default or fail
+            if (decision.default_output_edge_id) {
+                token.move(this.getEdgeTarget(decision.default_output_edge_id) || decision.default_output_edge_id);
+            } else {
+                this.log(`No matching rule and no default edge for decision "${decision.name}"`);
+                token.updateStatus('failed');
+                token.mergeData({ _error: 'No matching decision rule and no default path' });
+            }
+        }
+    }
+
+    /**
+     * Get the target node ID for an edge ID
+     */
+    private getEdgeTarget(edgeId: UUID): UUID | undefined {
+        for (const edge of this.workflow.edges) {
+            if (edge.id === edgeId) {
+                return edge.target_id;
+            }
+        }
+        return undefined;
+    }
+
+    /**
+     * Advance token to next node(s) based on outgoing edges
+     */
+    private async advanceToken(token: Token, currentNodeId: UUID): Promise<void> {
+        const outgoingEdges = this.edgeMap.get(currentNodeId) || [];
+
+        if (outgoingEdges.length === 0) {
+            token.updateStatus('completed');
+            this.log(`Token ${token.id} completed (no outgoing edges)`);
+            return;
+        }
+
+        // Evaluate edge conditions to find the next edge
+        const nextEdge = this.selectNextEdge(outgoingEdges, token.contextData);
+
+        if (nextEdge) {
+            token.move(nextEdge.target_id);
+            this.log(`Token ${token.id} moved to ${nextEdge.target_id}`);
+        } else {
+            // No valid edge found
+            token.updateStatus('failed');
+            token.mergeData({ _error: 'No valid outgoing edge found' });
+        }
+    }
+
+    /**
+     * Select the next edge based on conditions
+     */
+    private selectNextEdge(edges: Edge[], context: Record<string, unknown>): Edge | undefined {
+        // First, check for conditional edges
+        for (const edge of edges) {
+            if (edge.condition) {
+                if (this.evaluateEdgeCondition(edge.condition, context)) {
+                    return edge;
+                }
+            }
+        }
+
+        // Then, check for default edge
+        const defaultEdge = edges.find(e => e.is_default);
+        if (defaultEdge) {
+            return defaultEdge;
+        }
+
+        // Finally, take first edge if no conditions match
+        return edges[0];
+    }
+
+    /**
+     * Evaluate a simple edge condition
+     * Supports: property == value, property != value, property (truthy check)
+     */
+    private evaluateEdgeCondition(condition: string, context: Record<string, unknown>): boolean {
+        try {
+            // Handle equality check: property == value
+            const eqMatch = condition.match(/^(\w+)\s*==\s*(.+)$/);
+            if (eqMatch) {
+                const [, prop, val] = eqMatch;
+                const contextVal = context[prop];
+                const compareVal = val.trim().replace(/^["']|["']$/g, '');
+                return String(contextVal) === compareVal || contextVal === JSON.parse(val);
+            }
+
+            // Handle inequality check: property != value
+            const neqMatch = condition.match(/^(\w+)\s*!=\s*(.+)$/);
+            if (neqMatch) {
+                const [, prop, val] = neqMatch;
+                const contextVal = context[prop];
+                const compareVal = val.trim().replace(/^["']|["']$/g, '');
+                return String(contextVal) !== compareVal && contextVal !== JSON.parse(val);
+            }
+
+            // Handle greater than: property > value
+            const gtMatch = condition.match(/^(\w+)\s*>\s*(\d+(?:\.\d+)?)$/);
+            if (gtMatch) {
+                const [, prop, val] = gtMatch;
+                return Number(context[prop]) > Number(val);
+            }
+
+            // Handle less than: property < value
+            const ltMatch = condition.match(/^(\w+)\s*<\s*(\d+(?:\.\d+)?)$/);
+            if (ltMatch) {
+                const [, prop, val] = ltMatch;
+                return Number(context[prop]) < Number(val);
+            }
+
+            // Handle truthy check: just property name
+            if (/^\w+$/.test(condition)) {
+                return Boolean(context[condition]);
+            }
+
+            // Default: evaluate as-is (unsafe, but matches original TODO behavior)
+            return Boolean(context[condition]);
+        } catch {
+            return false;
+        }
+    }
+
+    /**
+     * Create the appropriate actor for an activity
+     */
+    private createActor(activity: Activity): Actor | undefined {
+        switch (activity.actor_type) {
+            case 'application':
+                return new SoftwareAgent();
+
+            case 'ai_agent':
+                if (!this.options.gemini_api_key) {
+                    throw new Error('Gemini API Key required for AI Agent. Set gemini_api_key in options.');
+                }
+                const role = this.roleMap.get(activity.role_id);
+                return new AIAgent(this.options.gemini_api_key, role);
+
+            case 'robot':
+                return new RobotAgent(this.options.robot_config);
+
+            case 'human':
+                return new HumanAgent({
+                    task_queue: this.humanTaskQueue,
+                    wait_for_completion: this.options.wait_for_human_tasks
+                });
+
+            default:
+                this.log(`Unknown actor type: ${activity.actor_type}`);
+                return undefined;
+        }
+    }
+
+    /**
+     * Resume a token that was waiting for human input
+     */
+    public resumeToken(tokenId: UUID, output: Record<string, unknown>): boolean {
+        const token = this.tokens.find(t => t.id === tokenId);
+        if (!token || token.status !== 'waiting') {
+            return false;
+        }
+
+        token.mergeData(output);
+        token.updateStatus('active');
+
+        if (this.status === 'waiting_human') {
+            this.status = 'running';
+        }
+
+        return true;
     }
 
     public getStatus(): EngineStatus {
         return this.status;
     }
 
-    public getContext(contextId: UUID): any {
+    public getContext(contextId: UUID): unknown {
         return this.contextManager.get(contextId);
     }
 
     public getTokens(): Token[] {
         return this.tokens;
+    }
+
+    public getHumanTaskQueue(): HumanTaskQueue {
+        return this.humanTaskQueue;
+    }
+
+    public getWorkflow(): Workflow {
+        return this.workflow;
     }
 }
