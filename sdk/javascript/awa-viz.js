@@ -336,8 +336,6 @@
                     id: route.edge_id || `edge-${source}-${target}`,
                     source: sourceNode?.id || source,
                     target: targetNode?.id || target,
-                    sourceHandle: 'source-right', // Force connect to right handle
-                    targetHandle: 'target-left',  // Force connect to left handle
                     type: route.curve_type === 'smoothstep' ? 'smoothstep' :
                         route.curve_type === 'step' ? 'step' : 'default',
                     animated: route.animated || isBottleneck || false,
@@ -433,7 +431,8 @@
                         target: edge.target,
                         label: edge.label,
                         animated: edge.animated,
-                        style: edge.style
+                        style: edge.style,
+                        data: edge.data
                     });
                     setActiveTab('details'); // Reset to details tab
                 }, []);
@@ -473,8 +472,7 @@
                                 return h('div', {
                                     className: 'awa-node',
                                     onClick: (e) => {
-                                        // Fallback click handler
-                                        console.log('[AWAViz] Manual node click:', props.id);
+                                        // Ensure click propagates to ReactFlow but also trigger our detail panel
                                         onNodeClick(e, props);
                                     },
                                     style: {
@@ -490,7 +488,6 @@
                                     h(RF.Handle, {
                                         type: 'target',
                                         position: 'left',
-                                        id: 'target-left',
                                         style: { background: '#333', width: 10, height: 10, left: -5, borderRadius: '50%', border: '2px solid #fff' }
                                     }),
                                     // Node content
@@ -525,7 +522,6 @@
                                     h(RF.Handle, {
                                         type: 'source',
                                         position: 'right',
-                                        id: 'source-right',
                                         style: { background: '#333', width: 10, height: 10, right: -5, borderRadius: '50%', border: '2px solid #fff' }
                                     })
                                 ]);
@@ -693,14 +689,14 @@
                                             }, selectedItem.lane)
                                         ]),
                                         // Metrics Section
-                                        (selectedItem.data.duration_ms || selectedItem.data.is_bottleneck) && h('div', { style: { marginBottom: '16px', background: selectedItem.data.is_bottleneck ? '#fff1f0' : '#f0f7ff', padding: '12px', borderRadius: '8px', border: `1px solid ${selectedItem.data.is_bottleneck ? '#ffa39e' : '#bae7ff'}` } }, [
-                                            h('div', { style: { fontSize: '12px', color: selectedItem.data.is_bottleneck ? '#cf1322' : '#0050b3', fontWeight: '600', marginBottom: '8px' } }, '⏱️ Execution Metrics'),
+                                        (selectedItem.data?.duration_ms || selectedItem.data?.is_bottleneck) && h('div', { style: { marginBottom: '16px', background: selectedItem.data?.is_bottleneck ? '#fff1f0' : '#f0f7ff', padding: '12px', borderRadius: '8px', border: `1px solid ${selectedItem.data?.is_bottleneck ? '#ffa39e' : '#bae7ff'}` } }, [
+                                            h('div', { style: { fontSize: '12px', color: selectedItem.data?.is_bottleneck ? '#cf1322' : '#0050b3', fontWeight: '600', marginBottom: '8px' } }, '⏱️ Execution Metrics'),
                                             h('div', { style: { display: 'flex', justifyContent: 'space-between' } }, [
                                                 h('div', {}, [
                                                     h('div', { style: { fontSize: '10px', color: '#888' } }, 'Duration'),
-                                                    h('div', { style: { fontSize: '14px', fontWeight: '700' } }, selectedItem.data.duration_ms + 'ms')
+                                                    h('div', { style: { fontSize: '14px', fontWeight: '700' } }, selectedItem.data?.duration_ms + 'ms')
                                                 ]),
-                                                selectedItem.data.is_bottleneck && h('div', { style: { textAlign: 'right' } }, [
+                                                selectedItem.data?.is_bottleneck && h('div', { style: { textAlign: 'right' } }, [
                                                     h('div', { style: { fontSize: '10px', color: '#cf1322' } }, 'Status'),
                                                     h('div', { style: { fontSize: '12px', fontWeight: '700', color: '#cf1322' } }, '⚠️ BOTTLENECK')
                                                 ])
@@ -744,7 +740,7 @@
                                         h('div', { style: { marginBottom: '16px' } }, [
                                             h('div', { style: { fontSize: '12px', color: '#666', marginBottom: '4px' } }, 'Position'),
                                             h('div', { style: { fontSize: '13px', color: '#555' } },
-                                                `X: ${Math.round(selectedItem.position.x)}, Y: ${Math.round(selectedItem.position.y)}`)
+                                                `X: ${selectedItem.position ? Math.round(selectedItem.position.x) : 'N/A'}, Y: ${selectedItem.position ? Math.round(selectedItem.position.y) : 'N/A'}`)
                                         ]),
                                         h('div', { style: { marginBottom: '16px' } }, [
                                             h('div', { style: { fontSize: '12px', color: '#666', marginBottom: '4px' } }, 'Dimensions'),
@@ -790,18 +786,18 @@
                                             }, `${selectedItem.source} → ${selectedItem.target}`)
                                         ]),
                                         // Edge Metrics & Transfer
-                                        h('div', { style: { marginBottom: '16px', background: selectedItem.data.is_bottleneck ? '#fff1f0' : '#f6ffed', padding: '12px', borderRadius: '8px', border: `1px solid ${selectedItem.data.is_bottleneck ? '#ffa39e' : '#b7eb8f'}` } }, [
-                                            h('div', { style: { fontSize: '12px', color: selectedItem.data.is_bottleneck ? '#cf1322' : '#389e0d', fontWeight: '600', marginBottom: '8px' } }, '🔄 Transfer & Flow'),
-                                            selectedItem.data.transfer_type && h('div', { style: { marginBottom: '8px' } }, [
+                                        h('div', { style: { marginBottom: '16px', background: selectedItem.data?.is_bottleneck ? '#fff1f0' : '#f6ffed', padding: '12px', borderRadius: '8px', border: `1px solid ${selectedItem.data?.is_bottleneck ? '#ffa39e' : '#b7eb8f'}` } }, [
+                                            h('div', { style: { fontSize: '12px', color: selectedItem.data?.is_bottleneck ? '#cf1322' : '#389e0d', fontWeight: '600', marginBottom: '8px' } }, '🔄 Transfer & Flow'),
+                                            selectedItem.data?.transfer_type && h('div', { style: { marginBottom: '8px' } }, [
                                                 h('div', { style: { fontSize: '10px', color: '#888' } }, 'Transfer Mode'),
-                                                h('div', { style: { fontSize: '13px', fontWeight: '600', textTransform: 'capitalize' } }, selectedItem.data.transfer_type.replace(/_/g, ' '))
+                                                h('div', { style: { fontSize: '13px', fontWeight: '600', textTransform: 'capitalize' } }, selectedItem.data?.transfer_type.replace(/_/g, ' '))
                                             ]),
                                             h('div', { style: { display: 'flex', justifyContent: 'space-between' } }, [
                                                 h('div', {}, [
                                                     h('div', { style: { fontSize: '10px', color: '#888' } }, 'Transition Time'),
-                                                    h('div', { style: { fontSize: '14px', fontWeight: '700' } }, (selectedItem.data.duration_ms || 0) + 'ms')
+                                                    h('div', { style: { fontSize: '14px', fontWeight: '700' } }, (selectedItem.data?.duration_ms || 0) + 'ms')
                                                 ]),
-                                                selectedItem.data.is_bottleneck && h('div', { style: { textAlign: 'right' } }, [
+                                                selectedItem.data?.is_bottleneck && h('div', { style: { textAlign: 'right' } }, [
                                                     h('div', { style: { fontSize: '10px', color: '#cf1322' } }, 'Status'),
                                                     h('div', { style: { fontSize: '12px', fontWeight: '700', color: '#cf1322' } }, '⚠️ SLOW FLOW')
                                                 ])

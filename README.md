@@ -211,17 +211,17 @@ AWA includes an **optional visualization layer** for 2D and 3D workflow renderin
 
 See the `examples/` directory for complete workflow examples:
 
-- [Order Processing](examples/order-processing.awa.json) - AI-assisted order fulfillment
-- [Insurance Claims Management](examples/insurance-claims-management.awa.json) - 95% automated claims workflow
+- [Order Processing](examples/order-processing/order-processing.awa.json) - AI-assisted order fulfillment
+- [Insurance Claims Management](examples/insurance-claims-management/insurance-claims-management.awa.json) - 95% automated claims workflow
 
 ### Visualization Examples
 
 | Example | Type | JSON Config | HTML Demo |
 |---------|------|-------------|-----------|
-| 2D Swimlanes | ReactFlow + Dagre | [JSON](examples/visualization-2d-swimlanes.json) | [HTML](examples/visualization-2d-swimlanes.html) |
-| 2D ELK Hierarchy | ReactFlow + ELK | [JSON](examples/visualization-2d-elk-hierarchy.json) | [HTML](examples/visualization-2d-elk-hierarchy.html) |
-| 3D Spatial | Babylon.js | [JSON](examples/visualization-3d-spatial.json) | [HTML](examples/visualization-3d-spatial.html) |
-| 3D Pipeline | Babylon.js | [JSON](examples/visualization-3d-pipeline.json) | [HTML](examples/visualization-3d-pipeline.html) |
+| 2D Swimlanes | ReactFlow + Dagre | [JSON](examples/visualization-swimlanes/visualization-2d-swimlanes.json) | [HTML](examples/visualization-swimlanes/visualization-2d-swimlanes.html) |
+| 2D ELK Hierarchy | ReactFlow + ELK | [JSON](examples/visualization-elk-hierarchy/visualization-2d-elk-hierarchy.json) | [HTML](examples/visualization-elk-hierarchy/visualization-2d-elk-hierarchy.html) |
+| 3D Spatial | Babylon.js | [JSON](examples/visualization-3d-spatial/visualization-3d-spatial.json) | [HTML](examples/visualization-3d-spatial/visualization-3d-spatial.html) |
+| 3D Pipeline | Babylon.js | [JSON](examples/visualization-3d-pipeline/visualization-3d-pipeline.json) | [HTML](examples/visualization-3d-pipeline/visualization-3d-pipeline.html) |
 
 ## License
 

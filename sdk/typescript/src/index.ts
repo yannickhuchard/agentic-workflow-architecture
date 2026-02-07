@@ -6,6 +6,9 @@
 // Types
 export * from './types';
 
+// Runtime
+export * from './runtime';
+
 // Builder
 export { WorkflowBuilder, workflow, type ActivityConfig, type ContextConfig } from './builder';
 

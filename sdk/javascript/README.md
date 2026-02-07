@@ -125,10 +125,10 @@ Direct access to 3D renderer for advanced usage.
 
 See the `examples/` directory for complete working examples:
 
-- `visualization-2d-swimlanes.html` - Horizontal swim lanes with Dagre
-- `visualization-2d-elk-hierarchy.html` - Top-to-bottom ELK layout
-- `visualization-3d-spatial.html` - Layered 3D with PBR materials
-- `visualization-3d-pipeline.html` - Cylinder pipeline with glow/fog
+- `examples/visualization-swimlanes/visualization-2d-swimlanes.html` - Horizontal swim lanes with Dagre
+- `examples/visualization-elk-hierarchy/visualization-2d-elk-hierarchy.html` - Top-to-bottom ELK layout
+- `examples/visualization-3d-spatial/visualization-3d-spatial.html` - Layered 3D with PBR materials
+- `examples/visualization-3d-pipeline/visualization-3d-pipeline.html` - Cylinder pipeline with glow/fog
 
 ## License
 

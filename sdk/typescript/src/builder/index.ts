@@ -24,7 +24,6 @@ import type {
 export interface ActivityConfig {
     name: string;
     description?: string;
-    procedure?: string;
     role_id: string;
     actor_type: ActorType;
     system_id?: string;
@@ -151,7 +150,6 @@ export class WorkflowBuilder {
             id: activityId,
             name,
             description: config.description,
-            procedure: config.procedure,
             role_id: config.role_id,
             actor_type: config.actor_type,
             system_id: config.system_id,
@@ -167,6 +165,8 @@ export class WorkflowBuilder {
             sla: config.sla,
             analytics: config.analytics,
             is_expandable: false,
+            skills: [],
+            tool_requirements: [],
         };
 
         this.activityMap.set(name, activity);
@@ -197,6 +197,8 @@ export class WorkflowBuilder {
             condition: options?.condition,
             label: options?.label,
             is_default: false,
+            skills: [],
+            tool_requirements: [],
         };
 
         this.workflow.edges!.push(edge);
