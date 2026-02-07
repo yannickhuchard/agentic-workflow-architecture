@@ -143,14 +143,33 @@ Use this skill when working with:
 
 ### Actor Types
 
-AWA supports four actor types for activities:
+AWA supports four actor types for activities, each with runtime implementation:
 
-| Actor Type | Description | Use Case |
-|------------|-------------|----------|
-| `human` | Human user | Manual tasks, approvals, quality inspection |
-| `ai_agent` | AI/LLM-based agent | Credit analysis, route optimization, content generation |
-| `robot` | Physical/industrial robot | Warehouse picking, assembly, physical automation |
-| `application` | Software application/system | API calls, database operations, system integration |
+| Actor Type | Description | Runtime Implementation |
+|------------|-------------|------------------------|
+| `human` | Human user | `HumanAgent` - Creates tasks in queue, supports pause/resume |
+| `ai_agent` | AI/LLM-based agent | `AIAgent` - Uses Gemini API for intelligent processing |
+| `robot` | Physical/industrial robot | `RobotAgent` - Simulation mode with action inference |
+| `application` | Software application/system | `SoftwareAgent` - Executes programs and API calls |
+
+#### Human Actor (HumanAgent)
+
+Human activities create tasks in the `HumanTaskQueue` with:
+- **Priority levels**: `critical`, `high`, `normal`, `low`
+- **Lifecycle**: pending → assigned → in_progress → completed/rejected
+- **Async waiting**: Engine can pause token until human completes task
+
+#### Robot Actor (RobotAgent)
+
+Robot activities run in **simulation mode** by default. The agent infers action types from activity names:
+
+| Keywords | Action | Simulated Output |
+|----------|--------|------------------|
+| pick, grab, grasp | `pick` | gripper_state: closed |
+| place, drop, release | `place` | gripper_state: open |
+| move, transport | `move` | current_position: {x,y,z} |
+| scan, read, identify | `scan` | barcode: SIM-... |
+| assemble, attach | `assemble` | quality_check: passed |
 
 ### Skills
 
@@ -269,6 +288,71 @@ awa serve --port 8080
 | `awa --version` | Display version | - |
 | `awa --help` | Display help | - |
 
+## Runtime Execution
+
+The `WorkflowEngine` executes workflow definitions with full actor and decision support.
+
+### Basic Usage
+
+```typescript
+import { WorkflowEngine } from '@awa/sdk';
+
+const engine = new WorkflowEngine(workflow, {
+  gemini_api_key: 'your-api-key',  // Required for AI agents
+  verbose: true,                    // Enable execution logging
+  wait_for_human_tasks: false       // Don't block on human tasks
+});
+
+// Start workflow with initial data
+const tokenId = await engine.start({ orderId: 'ORD-123' });
+
+// Run to completion
+const status = await engine.run();
+console.log('Final status:', status);
+
+// Get token data
+const tokens = engine.getTokens();
+console.log('Results:', tokens[0].contextData);
+```
+
+### Engine Options
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `gemini_api_key` | string | API key for AI agent execution |
+| `roles` | Role[] | Role definitions with AI model configs |
+| `robot_config` | RobotConfig | Robot connection settings |
+| `human_task_queue` | HumanTaskQueue | Custom task queue instance |
+| `wait_for_human_tasks` | boolean | Block until human tasks complete |
+| `verbose` | boolean | Enable detailed logging |
+
+### Engine Statuses
+
+| Status | Description |
+|--------|-------------|
+| `idle` | Engine created, not started |
+| `running` | Actively processing tokens |
+| `waiting_human` | Paused, waiting for human task |
+| `completed` | All tokens finished |
+| `failed` | Token encountered error |
+| `paused` | Manually paused |
+
+### Human Task Management
+
+```typescript
+// Get the task queue
+const queue = engine.getHumanTaskQueue();
+
+// List pending tasks for a role
+const tasks = queue.get_pending_by_role(roleId);
+
+// Complete a task
+queue.complete(taskId, { approved: true, notes: 'Looks good' });
+
+// Resume paused token after human action
+engine.resumeToken(tokenId, { approved: true });
+```
+
 ## Using the REST API
 
 ### Trigger Workflow Execution
@@ -361,7 +445,39 @@ curl -X POST http://localhost:3000/api/v1/workflows/run \
 
 ### Decision Nodes
 
-Decision nodes enable conditional routing:
+Decision nodes enable conditional routing using DMN-inspired decision tables with **FEEL expression support**.
+
+#### FEEL Expression Syntax
+
+The runtime `DecisionEvaluator` supports:
+
+| Expression | Example | Description |
+|------------|---------|-------------|
+| Wildcard | `-`, `*` | Matches anything |
+| Comparison | `>=80`, `<100`, `!=0` | Numeric comparisons |
+| Range (inclusive) | `[50..70]` | Value between 50 and 70 |
+| Range (exclusive) | `(0..100)` | Value between 0 and 100 (exclusive) |
+| List membership | `in("a","b","c")` | Value in list |
+| Not in list | `not in("x","y")` | Value not in list |
+| String literal | `"approved"` | Exact string match |
+| Boolean | `true`, `false` | Boolean literals |
+| Null check | `null`, `not null` | Null/undefined check |
+| Contains | `contains("substr")` | String contains |
+
+#### Hit Policies
+
+All 6 DMN hit policies are implemented:
+
+| Policy | Behavior |
+|--------|----------|
+| `unique` | Only one rule can match |
+| `first` | Return first matching rule |
+| `priority` | Rules sorted by priority |
+| `any` | All matches must have same output |
+| `collect` | Collect all matching outputs |
+| `rule_order` | Return in rule definition order |
+
+#### Decision Table Example
 
 ```json
 {
@@ -369,27 +485,34 @@ Decision nodes enable conditional routing:
     {
       "id": "uuid-decision",
       "name": "Credit Approval Decision",
-      "decision_logic": {
+      "decision_table": {
         "hit_policy": "first",
+        "inputs": [
+          { "name": "credit_score", "type": "number" },
+          { "name": "income", "type": "number" }
+        ],
+        "outputs": [
+          { "name": "decision", "type": "string" }
+        ],
         "rules": [
           {
-            "id": "uuid-rule-1",
-            "conditions": [
-              {
-                "input_expression": "credit_approved",
-                "operator": "equals",
-                "value": true
-              },
-              {
-                "input_expression": "risk_score",
-                "operator": "less_than",
-                "value": 30
-              }
-            ],
-            "output": "approved"
+            "input_entries": [">=700", ">=50000"],
+            "output_entries": ["approved"],
+            "output_edge_id": "uuid-edge-approved"
+          },
+          {
+            "input_entries": [">=600", ">=75000"],
+            "output_entries": ["approved"],
+            "output_edge_id": "uuid-edge-approved"
+          },
+          {
+            "input_entries": ["-", "-"],
+            "output_entries": ["manual_review"],
+            "output_edge_id": "uuid-edge-review"
           }
         ]
-      }
+      },
+      "default_output_edge_id": "uuid-edge-rejected"
     }
   ]
 }
