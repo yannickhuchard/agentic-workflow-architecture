@@ -4,11 +4,36 @@ Executes AWA workflow definitions
 """
 
 import os
+from datetime import datetime
 from enum import Enum
 from typing import Any
 from uuid import uuid4
 
-from awa.types import Workflow, Activity, ActorType, DecisionNode
+def format_iso_duration(seconds: float) -> str:
+    """Format seconds as ISO 8601 duration string (PTnHnMnS)"""
+    if seconds < 0:
+        seconds = 0
+    
+    days = int(seconds // 86400)
+    hours = int((seconds % 86400) // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = seconds % 60
+    
+    result = "P"
+    if days > 0:
+        result += f"{days}D"
+    
+    result += "T"
+    if hours > 0:
+        result += f"{hours}H"
+    if minutes > 0:
+        result += f"{minutes}M"
+    if secs > 0 or result == "PT":
+        result += f"{secs:.1f}S"
+    
+    return result
+
+from awa.types import Workflow, Activity, ActorType, DecisionNode, WasteCategory
 from awa.runtime.token import Token, TokenStatus
 from awa.runtime.context_manager import ContextManager
 from awa.runtime.actors import SoftwareAgent, AIAgent, HumanAgent, RobotAgent
@@ -144,6 +169,7 @@ class WorkflowEngine:
         
         for token in active_tokens:
             node_id = str(token.activity_id)
+            start_time = datetime.now()
             
             # Check if it's an activity
             activity = self._activities_by_id.get(node_id)
@@ -151,14 +177,46 @@ class WorkflowEngine:
                 if self.verbose:
                     print(f"[Engine] Executing Activity: {activity.name}")
                 
-                result = self._execute_activity(activity, token)
-                token.merge_data(result)
+                try:
+                    result = self._execute_activity(activity, token)
+                    token.merge_data(result)
+                    
+                    end_time = datetime.now()
+                    duration_secs = (end_time - start_time).total_seconds()
+                    process_time = format_iso_duration(duration_secs)
+                    
+                    analytics = {
+                        "process_time": process_time,
+                        "cycle_time": process_time,
+                        "lead_time": process_time,
+                        "value_added": getattr(activity.analytics, "value_added", True) if activity.analytics else True,
+                        "waste_categories": []
+                    }
+
+                    # Check for waiting (Human tasks)
+                    if result.get("_requires_human_action"):
+                        analytics["waste_categories"].append(WasteCategory.waiting.value)
+                        token.update_status(TokenStatus.WAITING, analytics=analytics)
+                        token.set_data("_waiting_since", end_time.isoformat())
+                        continue
+
+                    next_node = self._find_next_node(str(activity.id))
+                    if next_node:
+                        token.move(str(next_node), analytics=analytics)
+                    else:
+                        token.update_status(TokenStatus.COMPLETED, analytics=analytics)
                 
-                next_node = self._find_next_node(str(activity.id))
-                if next_node:
-                    token.move(str(next_node))
-                else:
-                    token.update_status(TokenStatus.COMPLETED)
+                except Exception as e:
+                    end_time = datetime.now()
+                    duration_secs = (end_time - start_time).total_seconds()
+                    analytics = {
+                        "process_time": format_iso_duration(duration_secs),
+                        "waste_categories": [WasteCategory.defects.value],
+                        "error_rate": 1.0
+                    }
+                    token.update_status(TokenStatus.FAILED, analytics=analytics)
+                    if self.verbose:
+                        print(f"[Engine] Activity Failed: {activity.name} - {str(e)}")
                 continue
                 
             # Check if it's a decision node
@@ -212,3 +270,28 @@ class WorkflowEngine:
             if str(edge.id) == str(edge_id):
                 return str(edge.target_id)
         return None
+
+    def resume_token(self, token_id: str, output: dict[str, Any]) -> bool:
+        """Resume a token that was waiting for human input"""
+        token = self._tokens.get(token_id)
+        if not token or token.status != TokenStatus.WAITING:
+            return False
+
+        waiting_since = token.get_data("_waiting_since")
+        analytics = None
+
+        if waiting_since:
+            wait_start = datetime.fromisoformat(waiting_since)
+            wait_duration = (datetime.now() - wait_start).total_seconds()
+            analytics = {
+                "wait_time": format_iso_duration(wait_duration),
+                "waste_categories": [WasteCategory.waiting.value]
+            }
+
+        token.merge_data(output)
+        token.update_status(TokenStatus.ACTIVE, analytics=analytics)
+
+        if self._status == EngineStatus.WAITING_HUMAN:
+            self._status = EngineStatus.RUNNING
+
+        return True

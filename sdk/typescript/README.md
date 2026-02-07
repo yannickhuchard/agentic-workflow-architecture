@@ -101,6 +101,7 @@ console.log('Workflow completed!');
 - **🔍 Validation**: Validate workflow schemas against the AWA specification
 - **⚡ CLI Tool**: Command-line interface for running workflows
 - **🌐 REST API**: HTTP server for triggering workflows remotely
+- **📊 VSM & Analytics**: Real-time tracking of DOWNTIME waste and process metrics
 
 ## 🛠️ CLI Commands
 

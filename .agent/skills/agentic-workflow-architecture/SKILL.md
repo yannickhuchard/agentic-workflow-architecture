@@ -595,6 +595,37 @@ manager.enable_auto_checkpoint(30000, async () => ({
 | `FilePersistenceAdapter` | Single-server production |
 | Custom adapter | Cloud storage (implement `PersistenceAdapter` interface) |
 
+### Value Stream Mapping (VSM) & Analytics
+
+AWA provides built-in tracking for Lean optimization and Value Stream Mapping:
+
+| Metric | Description | Automatic Tracking |
+|--------|-------------|--------------------|
+| `process_time` | Time spent executing the activity | Yes (all actors) |
+| `wait_time` | Time spent waiting for human/external action | Yes (Human task pause/resume) |
+| `lead_time` | Total elapsed time for the step (process + wait) | Yes |
+| `value_added` | Whether the step adds value for the customer | From activity definition |
+| `waste_categories` | Identified DOWNTIME waste (Waiting, Defects) | Yes (Automatic detection) |
+
+#### Waste Category Detection (DOWNTIME)
+
+The engine automatically tags waste in the token history:
+- **`waiting`**: Added when a token enters `waiting` status (e.g., human-in-the-loop).
+- **`defects`**: Added when an activity fails or throws an exception.
+
+#### Accessing Analytics
+
+Analytics are stored in the token's history for each step transition:
+
+```typescript
+const tokens = engine.getTokens();
+const history = tokens[0].history;
+const lastStep = history.find(h => h.action === 'exited');
+console.log('Waste detected:', lastStep.analytics.waste_categories);
+```
+
+---
+
 ## Creating Workflow JSON Files
 
 ### Minimal Workflow Structure

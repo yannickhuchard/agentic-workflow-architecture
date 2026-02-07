@@ -43,19 +43,19 @@ class Token:
         
         self._add_to_history(activity_id, "created")
     
-    def move(self, next_activity_id: str) -> None:
+    def move(self, next_activity_id: str, analytics: dict[str, Any] | None = None) -> None:
         """Move token to next activity"""
-        self._add_to_history(self.activity_id, "exited")
+        self._add_to_history(self.activity_id, "exited", analytics=analytics)
         self.activity_id = next_activity_id
         self.status = TokenStatus.ACTIVE
         self.updated_at = datetime.now()
         self._add_to_history(next_activity_id, "entered")
     
-    def update_status(self, status: TokenStatus) -> None:
+    def update_status(self, status: TokenStatus, analytics: dict[str, Any] | None = None) -> None:
         """Update token status"""
         self.status = status
         self.updated_at = datetime.now()
-        self._add_to_history(self.activity_id, f"status_change:{status.value}")
+        self._add_to_history(self.activity_id, f"status_change:{status.value}", analytics=analytics)
     
     def set_data(self, key: str, value: Any) -> None:
         """Set context data"""
@@ -75,14 +75,16 @@ class Token:
         self,
         node_id: str,
         action: str,
-        metrics: dict[str, float] | None = None
+        metrics: dict[str, float] | None = None,
+        analytics: dict[str, Any] | None = None
     ) -> None:
         """Add entry to history"""
         self.history.append({
             "node_id": node_id,
             "timestamp": datetime.now().isoformat(),
             "action": action,
-            "metrics": metrics
+            "metrics": metrics,
+            "analytics": analytics
         })
     
     def to_dict(self) -> dict[str, Any]:

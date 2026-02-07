@@ -13,6 +13,8 @@ import { AIAgent } from './actors/ai_agent';
 import { RobotAgent, RobotConfig } from './actors/robot_agent';
 import { HumanAgent, HumanTaskQueue, get_task_queue } from './actors/human_agent';
 import { DecisionEvaluator, evaluate_decision } from './decision_evaluator';
+import { calculate_duration } from './duration_utils';
+import { WasteCategory, Analytics } from '../types';
 
 export type EngineStatus = 'running' | 'paused' | 'completed' | 'failed' | 'idle' | 'waiting_human';
 
@@ -208,6 +210,8 @@ export class WorkflowEngine {
             return;
         }
 
+        const startTime = new Date();
+
         try {
             // Create appropriate actor
             const actor = this.createActor(activity);
@@ -226,26 +230,52 @@ export class WorkflowEngine {
 
                 const output = await actor.execute(activity, inputs);
 
+                const endTime = new Date();
+                const processTime = calculate_duration(startTime, endTime);
+                const analytics: Analytics = {
+                    process_time: processTime,
+                    cycle_time: processTime,
+                    lead_time: processTime,
+                    value_added: activity.analytics?.value_added ?? true,
+                    waste_categories: []
+                };
+
                 // Check if human task requires waiting
                 if (output._requires_human_action && this.options.wait_for_human_tasks) {
-                    token.updateStatus('waiting');
-                    token.mergeData(output);
+                    analytics.waste_categories?.push('waiting' as WasteCategory);
+                    token.updateStatus('waiting', analytics);
+                    token.mergeData({
+                        ...output,
+                        _waiting_since: endTime.toISOString()
+                    });
                     this.log(`Token paused waiting for human task ${output._human_task_id}`);
                     return;
                 }
 
                 // Merge output back to token data
                 token.mergeData(output);
+
+                // Determine next node(s)
+                await this.advanceToken(token, currentNodeId, analytics);
+
+            } else {
+                // No actor - just advance
+                await this.advanceToken(token, currentNodeId);
             }
 
-            // Determine next node(s)
-            await this.advanceToken(token, currentNodeId);
-
         } catch (error: unknown) {
+            const endTime = new Date();
             const errorMessage = error instanceof Error ? error.message : String(error);
             const errorStack = error instanceof Error ? error.stack : undefined;
             console.error(`Error processing activity ${activity.name}:`, error);
-            token.updateStatus('failed');
+
+            const analytics: Analytics = {
+                process_time: calculate_duration(startTime, endTime),
+                waste_categories: ['defects' as WasteCategory],
+                error_rate: 1
+            };
+
+            token.updateStatus('failed', analytics);
             token.mergeData({ _error: errorMessage, _stack: errorStack });
         }
     }
@@ -297,11 +327,11 @@ export class WorkflowEngine {
     /**
      * Advance token to next node(s) based on outgoing edges
      */
-    private async advanceToken(token: Token, currentNodeId: UUID): Promise<void> {
+    private async advanceToken(token: Token, currentNodeId: UUID, analytics?: Analytics): Promise<void> {
         const outgoingEdges = this.edgeMap.get(currentNodeId) || [];
 
         if (outgoingEdges.length === 0) {
-            token.updateStatus('completed');
+            token.updateStatus('completed', analytics);
             this.log(`Token ${token.id} completed (no outgoing edges)`);
             return;
         }
@@ -310,11 +340,11 @@ export class WorkflowEngine {
         const nextEdge = this.selectNextEdge(outgoingEdges, token.contextData);
 
         if (nextEdge) {
-            token.move(nextEdge.target_id);
+            token.move(nextEdge.target_id, analytics);
             this.log(`Token ${token.id} moved to ${nextEdge.target_id}`);
         } else {
             // No valid edge found
-            token.updateStatus('failed');
+            token.updateStatus('failed', analytics);
             token.mergeData({ _error: 'No valid outgoing edge found' });
         }
     }
@@ -413,7 +443,7 @@ export class WorkflowEngine {
             case 'human':
                 return new HumanAgent({
                     task_queue: this.humanTaskQueue,
-                    wait_for_completion: this.options.wait_for_human_tasks
+                    wait_for_completion: false // Engine will handle waiting state
                 });
 
             default:
@@ -431,8 +461,19 @@ export class WorkflowEngine {
             return false;
         }
 
+        const waitingSince = token.getData('_waiting_since');
+        let analytics: Analytics | undefined;
+
+        if (waitingSince) {
+            const waitTime = calculate_duration(new Date(waitingSince), new Date());
+            analytics = {
+                wait_time: waitTime,
+                waste_categories: ['waiting' as WasteCategory]
+            };
+        }
+
         token.mergeData(output);
-        token.updateStatus('active');
+        token.updateStatus('active', analytics);
 
         if (this.status === 'waiting_human') {
             this.status = 'running';

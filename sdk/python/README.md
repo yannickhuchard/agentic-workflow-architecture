@@ -28,3 +28,10 @@ engine = WorkflowEngine(my_workflow)
 result = engine.run()
 print(result)
 ```
+
+## Features
+
+- **Built-in VSM & Analytics**: Real-time tracking of DOWNTIME waste (Waiting, Defects) and process metrics.
+- **Fluent Builder API**: Construct complex workflows with a clean Pythonic interface.
+- **Gemini AI Integration**: First-class support for AI agents.
+- **REST API Support**: Optional server mode via FastAPI.
