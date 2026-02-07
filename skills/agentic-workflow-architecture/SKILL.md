@@ -20,9 +20,9 @@ This skill can be installed in various AI-powered development environments:
    - Toggle on **Skills** (Team/Enterprise plans require admin enablement)
 
 2. **Package the Skill:**
-   - Compress the `skills` folder into a ZIP file
-   - Ensure the skill folder is at the root of the ZIP (not in a subfolder)
-   - The ZIP should contain `SKILL.md` at the root level
+   - Compress the `skills/agentic-workflow-architecture` folder into a ZIP file
+   - Ensure the `agentic-workflow-architecture` folder is at the root of the ZIP
+   - The ZIP structure should be: `agentic-workflow-architecture/SKILL.md`
 
 3. **Upload the Skill:**
    - Return to **Settings** > **Capabilities**
