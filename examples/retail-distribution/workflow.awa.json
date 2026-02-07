@@ -1,0 +1,738 @@
+{
+    "id": "f1e2d3c4-b5a6-4978-8c9d-0e1f2a3b4c5d",
+    "name": "Retail Distribution Order Fulfillment",
+    "version": "1.0.0",
+    "description": "End-to-end order fulfillment workflow for retail distribution with inventory checks, routing decisions, and quality control",
+    "activities": [
+        {
+            "id": "a1b2c3d4-e5f6-4a78-b9c0-d1e2f3a4b5c6",
+            "name": "Receive Customer Order",
+            "description": "Capture and validate incoming customer order",
+            "actor_type": "application",
+            "role_id": "a1a2b3c4-d5e6-47f8-a9b0-c1d2e3f4a5b6",
+            "inputs": [],
+            "outputs": [
+                {
+                    "name": "order_id",
+                    "description": "Unique order identifier",
+                    "schema": {
+                        "type": "string"
+                    }
+                },
+                {
+                    "name": "customer_id",
+                    "schema": {
+                        "type": "string"
+                    }
+                },
+                {
+                    "name": "items",
+                    "schema": {
+                        "type": "array"
+                    }
+                },
+                {
+                    "name": "total_value",
+                    "schema": {
+                        "type": "number"
+                    }
+                },
+                {
+                    "name": "delivery_address",
+                    "schema": {
+                        "type": "object"
+                    }
+                }
+            ]
+        },
+        {
+            "id": "b2c3d4e5-f6a7-4b89-c0d1-e2f3a4b5c6d7",
+            "name": "Validate Customer Credit",
+            "description": "Check customer credit status and payment method",
+            "actor_type": "ai_agent",
+            "role_id": "b2b3c4d5-e6f7-48a9-b0c1-d2e3f4a5b6c7",
+            "inputs": [
+                {
+                    "name": "customer_id",
+                    "schema": {
+                        "type": "string"
+                    }
+                },
+                {
+                    "name": "total_value",
+                    "schema": {
+                        "type": "number"
+                    }
+                }
+            ],
+            "outputs": [
+                {
+                    "name": "credit_approved",
+                    "schema": {
+                        "type": "boolean"
+                    }
+                },
+                {
+                    "name": "credit_limit",
+                    "schema": {
+                        "type": "number"
+                    }
+                },
+                {
+                    "name": "risk_score",
+                    "schema": {
+                        "type": "number"
+                    }
+                }
+            ],
+            "skills": [
+                {
+                    "id": "f1a2b3c4-d5e6-47f8-a9b0-c1d2e3f4a5b6",
+                    "name": "Credit Risk Assessment",
+                    "type": "ai_context",
+                    "description": "Evaluate customer creditworthiness and payment history"
+                }
+            ]
+        },
+        {
+            "id": "c3d4e5f6-a7b8-4c90-d1e2-f3a4b5c6d7e8",
+            "name": "Check Inventory Availability",
+            "description": "Verify stock levels across warehouses",
+            "actor_type": "application",
+            "role_id": "a1a2b3c4-d5e6-47f8-a9b0-c1d2e3f4a5b6",
+            "inputs": [
+                {
+                    "name": "items",
+                    "schema": {
+                        "type": "array"
+                    }
+                }
+            ],
+            "outputs": [
+                {
+                    "name": "stock_available",
+                    "schema": {
+                        "type": "boolean"
+                    }
+                },
+                {
+                    "name": "warehouse_locations",
+                    "schema": {
+                        "type": "array"
+                    }
+                },
+                {
+                    "name": "partial_fulfillment",
+                    "schema": {
+                        "type": "boolean"
+                    }
+                }
+            ]
+        },
+        {
+            "id": "d4e5f6a7-b8c9-4d01-e2f3-a4b5c6d7e8f9",
+            "name": "Reserve Inventory",
+            "description": "Lock inventory items for this order",
+            "actor_type": "application",
+            "role_id": "a1a2b3c4-d5e6-47f8-a9b0-c1d2e3f4a5b6",
+            "inputs": [
+                {
+                    "name": "items",
+                    "schema": {
+                        "type": "array"
+                    }
+                },
+                {
+                    "name": "warehouse_locations",
+                    "schema": {
+                        "type": "array"
+                    }
+                }
+            ],
+            "outputs": [
+                {
+                    "name": "reservation_id",
+                    "schema": {
+                        "type": "string"
+                    }
+                }
+            ]
+        },
+        {
+            "id": "e5f6a7b8-c9d0-4e12-f3a4-b5c6d7e8f9a0",
+            "name": "Optimize Delivery Route",
+            "description": "AI-powered route optimization for delivery",
+            "actor_type": "ai_agent",
+            "role_id": "c3c4d5e6-f7a8-49b0-c1d2-e3f4a5b6c7d8",
+            "inputs": [
+                {
+                    "name": "delivery_address",
+                    "schema": {
+                        "type": "object"
+                    }
+                },
+                {
+                    "name": "warehouse_locations",
+                    "schema": {
+                        "type": "array"
+                    }
+                }
+            ],
+            "outputs": [
+                {
+                    "name": "optimal_warehouse",
+                    "schema": {
+                        "type": "string"
+                    }
+                },
+                {
+                    "name": "estimated_delivery_time",
+                    "schema": {
+                        "type": "string"
+                    }
+                },
+                {
+                    "name": "delivery_cost",
+                    "schema": {
+                        "type": "number"
+                    }
+                }
+            ],
+            "skills": [
+                {
+                    "id": "f2b3c4d5-e6f7-48a9-b0c1-d2e3f4a5b6c7",
+                    "name": "Logistics Optimization",
+                    "type": "ai_context",
+                    "description": "Route planning and delivery optimization expertise"
+                }
+            ],
+            "tool_requirements": [
+                {
+                    "id": "f1a2b3c4-d5e6-47f8-a9b0-c1d2e3f4a5b7",
+                    "name": "Maps and Routing API",
+                    "type": "rest_api",
+                    "description": "Geographic routing and distance calculation"
+                }
+            ]
+        },
+        {
+            "id": "f6a7b8c9-d0e1-4f23-a4b5-c6d7e8f9a0b1",
+            "name": "Pick Items from Warehouse",
+            "description": "Physical picking of items by warehouse staff or robot",
+            "actor_type": "robot",
+            "role_id": "d4d5e6f7-a8b9-4c01-d2e3-f4a5b6c7d8e9",
+            "inputs": [
+                {
+                    "name": "items",
+                    "schema": {
+                        "type": "array"
+                    }
+                },
+                {
+                    "name": "optimal_warehouse",
+                    "schema": {
+                        "type": "string"
+                    }
+                }
+            ],
+            "outputs": [
+                {
+                    "name": "picked_items",
+                    "schema": {
+                        "type": "array"
+                    }
+                },
+                {
+                    "name": "pick_time",
+                    "schema": {
+                        "type": "string"
+                    }
+                }
+            ]
+        },
+        {
+            "id": "a7b8c9d0-e1f2-4a34-b5c6-d7e8f9a0b1c2",
+            "name": "Quality Control Inspection",
+            "description": "Inspect picked items for quality and accuracy",
+            "actor_type": "human",
+            "role_id": "e5e6f7a8-b9c0-4d12-e3f4-a5b6c7d8e9f0",
+            "inputs": [
+                {
+                    "name": "picked_items",
+                    "schema": {
+                        "type": "array"
+                    }
+                }
+            ],
+            "outputs": [
+                {
+                    "name": "quality_passed",
+                    "schema": {
+                        "type": "boolean"
+                    }
+                },
+                {
+                    "name": "defect_count",
+                    "schema": {
+                        "type": "number"
+                    }
+                }
+            ],
+            "skills": [
+                {
+                    "id": "f3c4d5e6-f7a8-49b0-c1d2-e3f4a5b6c7d8",
+                    "name": "Quality Inspection Certification",
+                    "type": "human_competency",
+                    "description": "Certified quality control inspector",
+                    "min_level": "Level 2"
+                }
+            ]
+        },
+        {
+            "id": "b8c9d0e1-f2a3-4b45-c6d7-e8f9a0b1c2d3",
+            "name": "Package Order",
+            "description": "Package items with appropriate materials",
+            "actor_type": "application",
+            "role_id": "a1a2b3c4-d5e6-47f8-a9b0-c1d2e3f4a5b6",
+            "inputs": [
+                {
+                    "name": "picked_items",
+                    "schema": {
+                        "type": "array"
+                    }
+                }
+            ],
+            "outputs": [
+                {
+                    "name": "package_id",
+                    "schema": {
+                        "type": "string"
+                    }
+                },
+                {
+                    "name": "package_weight",
+                    "schema": {
+                        "type": "number"
+                    }
+                },
+                {
+                    "name": "package_dimensions",
+                    "schema": {
+                        "type": "object"
+                    }
+                }
+            ]
+        },
+        {
+            "id": "c9d0e1f2-a3b4-4c56-d7e8-f9a0b1c2d3e4",
+            "name": "Generate Shipping Label",
+            "description": "Create shipping label and tracking number",
+            "actor_type": "application",
+            "role_id": "a1a2b3c4-d5e6-47f8-a9b0-c1d2e3f4a5b6",
+            "inputs": [
+                {
+                    "name": "package_id",
+                    "schema": {
+                        "type": "string"
+                    }
+                },
+                {
+                    "name": "delivery_address",
+                    "schema": {
+                        "type": "object"
+                    }
+                },
+                {
+                    "name": "package_weight",
+                    "schema": {
+                        "type": "number"
+                    }
+                }
+            ],
+            "outputs": [
+                {
+                    "name": "tracking_number",
+                    "schema": {
+                        "type": "string"
+                    }
+                },
+                {
+                    "name": "shipping_carrier",
+                    "schema": {
+                        "type": "string"
+                    }
+                }
+            ]
+        },
+        {
+            "id": "d0e1f2a3-b4c5-4d67-e8f9-a0b1c2d3e4f5",
+            "name": "Dispatch to Carrier",
+            "description": "Hand off package to shipping carrier",
+            "actor_type": "application",
+            "role_id": "a1a2b3c4-d5e6-47f8-a9b0-c1d2e3f4a5b6",
+            "inputs": [
+                {
+                    "name": "package_id",
+                    "schema": {
+                        "type": "string"
+                    }
+                },
+                {
+                    "name": "tracking_number",
+                    "schema": {
+                        "type": "string"
+                    }
+                },
+                {
+                    "name": "shipping_carrier",
+                    "schema": {
+                        "type": "string"
+                    }
+                }
+            ],
+            "outputs": [
+                {
+                    "name": "dispatch_time",
+                    "schema": {
+                        "type": "string"
+                    }
+                }
+            ]
+        },
+        {
+            "id": "e1f2a3b4-c5d6-4e78-f9a0-b1c2d3e4f5a6",
+            "name": "Send Customer Notification",
+            "description": "Notify customer of shipment",
+            "actor_type": "application",
+            "role_id": "a1a2b3c4-d5e6-47f8-a9b0-c1d2e3f4a5b6",
+            "inputs": [
+                {
+                    "name": "customer_id",
+                    "schema": {
+                        "type": "string"
+                    }
+                },
+                {
+                    "name": "tracking_number",
+                    "schema": {
+                        "type": "string"
+                    }
+                },
+                {
+                    "name": "estimated_delivery_time",
+                    "schema": {
+                        "type": "string"
+                    }
+                }
+            ],
+            "outputs": [
+                {
+                    "name": "notification_sent",
+                    "schema": {
+                        "type": "boolean"
+                    }
+                }
+            ]
+        },
+        {
+            "id": "f2a3b4c5-d6e7-4f89-a0b1-c2d3e4f5a6b7",
+            "name": "Update Order Status",
+            "description": "Mark order as shipped in system",
+            "actor_type": "application",
+            "role_id": "a1a2b3c4-d5e6-47f8-a9b0-c1d2e3f4a5b6",
+            "inputs": [
+                {
+                    "name": "order_id",
+                    "schema": {
+                        "type": "string"
+                    }
+                },
+                {
+                    "name": "tracking_number",
+                    "schema": {
+                        "type": "string"
+                    }
+                }
+            ],
+            "outputs": [
+                {
+                    "name": "status_updated",
+                    "schema": {
+                        "type": "boolean"
+                    }
+                }
+            ]
+        }
+    ],
+    "decision_nodes": [
+        {
+            "id": "d1d2d3d4-e5f6-47a8-b9c0-d1e2f3a4b5c6",
+            "name": "Credit Approval Decision",
+            "description": "Determine if order can proceed based on credit check",
+            "decision_table": {
+                "hit_policy": "first",
+                "inputs": [
+                    {
+                        "name": "credit_approved",
+                        "type": "boolean"
+                    },
+                    {
+                        "name": "risk_score",
+                        "type": "number"
+                    }
+                ],
+                "outputs": [
+                    {
+                        "name": "decision",
+                        "type": "string"
+                    }
+                ],
+                "rules": [
+                    {
+                        "id": "r1r2r3r4-e5f6-47a8-b9c0-d1e2f3a4b5c6",
+                        "description": "Credit approved and low risk",
+                        "input_entries": [
+                            "true",
+                            "< 30"
+                        ],
+                        "output_entries": [
+                            "proceed"
+                        ],
+                        "output_edge_id": "e3e4e5e6-f7a8-49c0-d1e2-f3a4b5c6d7e8"
+                    },
+                    {
+                        "id": "r2r3r4r5-e6f7-48a9-b0c1-d2e3f4a5b6c7",
+                        "description": "Credit not approved or high risk",
+                        "input_entries": [
+                            "false",
+                            "> 30"
+                        ],
+                        "output_entries": [
+                            "reject"
+                        ],
+                        "output_edge_id": "e4e5e6e7-f8a9-40d1-e2f3-a4b5c6d7e8f9"
+                    }
+                ]
+            }
+        },
+        {
+            "id": "d2d3d4d5-e6f7-48a9-b0c1-d2e3f4a5b6c7",
+            "name": "Inventory Availability Decision",
+            "description": "Route based on stock availability",
+            "decision_table": {
+                "hit_policy": "first",
+                "inputs": [
+                    {
+                        "name": "stock_available",
+                        "type": "boolean"
+                    },
+                    {
+                        "name": "partial_fulfillment",
+                        "type": "boolean"
+                    }
+                ],
+                "outputs": [
+                    {
+                        "name": "decision",
+                        "type": "string"
+                    }
+                ],
+                "rules": [
+                    {
+                        "id": "r3r4r5r6-f7a8-49b0-c1d2-e3f4a5b6c7d8",
+                        "description": "Full stock available",
+                        "input_entries": [
+                            "true",
+                            "false"
+                        ],
+                        "output_entries": [
+                            "fulfill"
+                        ],
+                        "output_edge_id": "e6e7e8e9-f0a1-42f3-a4b5-c6d7e8f9a0b1"
+                    },
+                    {
+                        "id": "r4r5r6r7-a8b9-40c1-d2e3-f4a5b6c7d8e9",
+                        "description": "No stock or partial only",
+                        "input_entries": [
+                            "false",
+                            "true"
+                        ],
+                        "output_entries": [
+                            "backorder"
+                        ],
+                        "output_edge_id": "e7e8e9e0-f1a2-43a4-b5c6-d7e8f9a0b1c2"
+                    }
+                ]
+            }
+        }
+    ],
+    "edges": [
+        {
+            "id": "e1e2e3e4-f5a6-47b8-c9d0-e1f2a3b4c5d6",
+            "source_id": "a1b2c3d4-e5f6-4a78-b9c0-d1e2f3a4b5c6",
+            "target_id": "b2c3d4e5-f6a7-4b89-c0d1-e2f3a4b5c6d7",
+            "label": "Order received"
+        },
+        {
+            "id": "e2e3e4e5-f6a7-48b9-c0d1-e2f3a4b5c6d7",
+            "source_id": "b2c3d4e5-f6a7-4b89-c0d1-e2f3a4b5c6d7",
+            "target_id": "d1d2d3d4-e5f6-47a8-b9c0-d1e2f3a4b5c6",
+            "label": "Credit validated"
+        },
+        {
+            "id": "e3e4e5e6-f7a8-49c0-d1e2-f3a4b5c6d7e8",
+            "source_id": "d1d2d3d4-e5f6-47a8-b9c0-d1e2f3a4b5c6",
+            "target_id": "c3d4e5f6-a7b8-4c90-d1e2-f3a4b5c6d7e8",
+            "label": "Credit approved"
+        },
+        {
+            "id": "e4e5e6e7-f8a9-40d1-e2f3-a4b5c6d7e8f9",
+            "source_id": "d1d2d3d4-e5f6-47a8-b9c0-d1e2f3a4b5c6",
+            "target_id": "f2a3b4c5-d6e7-4f89-a0b1-c2d3e4f5a6b7",
+            "label": "Credit rejected - cancel order"
+        },
+        {
+            "id": "e5e6e7e8-f9a0-41e2-f3a4-b5c6d7e8f9a0",
+            "source_id": "c3d4e5f6-a7b8-4c90-d1e2-f3a4b5c6d7e8",
+            "target_id": "d2d3d4d5-e6f7-48a9-b0c1-d2e3f4a5b6c7",
+            "label": "Inventory checked"
+        },
+        {
+            "id": "e6e7e8e9-f0a1-42f3-a4b5-c6d7e8f9a0b1",
+            "source_id": "d2d3d4d5-e6f7-48a9-b0c1-d2e3f4a5b6c7",
+            "target_id": "d4e5f6a7-b8c9-4d01-e2f3-a4b5c6d7e8f9",
+            "label": "Stock available"
+        },
+        {
+            "id": "e7e8e9e0-f1a2-43a4-b5c6-d7e8f9a0b1c2",
+            "source_id": "d2d3d4d5-e6f7-48a9-b0c1-d2e3f4a5b6c7",
+            "target_id": "f2a3b4c5-d6e7-4f89-a0b1-c2d3e4f5a6b7",
+            "label": "Out of stock - notify customer"
+        },
+        {
+            "id": "e8e9e0e1-f2a3-44b5-c6d7-e8f9a0b1c2d3",
+            "source_id": "d4e5f6a7-b8c9-4d01-e2f3-a4b5c6d7e8f9",
+            "target_id": "e5f6a7b8-c9d0-4e12-f3a4-b5c6d7e8f9a0",
+            "label": "Inventory reserved"
+        },
+        {
+            "id": "e9e0e1e2-f3a4-45c6-d7e8-f9a0b1c2d3e4",
+            "source_id": "e5f6a7b8-c9d0-4e12-f3a4-b5c6d7e8f9a0",
+            "target_id": "f6a7b8c9-d0e1-4f23-a4b5-c6d7e8f9a0b1",
+            "label": "Route optimized"
+        },
+        {
+            "id": "e0e1e2e3-f4a5-46d7-e8f9-a0b1c2d3e4f5",
+            "source_id": "f6a7b8c9-d0e1-4f23-a4b5-c6d7e8f9a0b1",
+            "target_id": "a7b8c9d0-e1f2-4a34-b5c6-d7e8f9a0b1c2",
+            "label": "Items picked"
+        },
+        {
+            "id": "e1e2e3e4-f5a6-47e8-f9a0-b1c2d3e4f5a6",
+            "source_id": "a7b8c9d0-e1f2-4a34-b5c6-d7e8f9a0b1c2",
+            "target_id": "b8c9d0e1-f2a3-4b45-c6d7-e8f9a0b1c2d3",
+            "label": "Quality approved"
+        },
+        {
+            "id": "e2e3e4e5-f6a7-48f9-a0b1-c2d3e4f5a6b7",
+            "source_id": "b8c9d0e1-f2a3-4b45-c6d7-e8f9a0b1c2d3",
+            "target_id": "c9d0e1f2-a3b4-4c56-d7e8-f9a0b1c2d3e4",
+            "label": "Items packaged"
+        },
+        {
+            "id": "e3e4e5e6-f7a8-49a0-b1c2-d3e4f5a6b7c8",
+            "source_id": "c9d0e1f2-a3b4-4c56-d7e8-f9a0b1c2d3e4",
+            "target_id": "d0e1f2a3-b4c5-4d67-e8f9-a0b1c2d3e4f5",
+            "label": "Label generated"
+        },
+        {
+            "id": "e4e5e6e7-f8a9-40b1-c2d3-e4f5a6b7c8d9",
+            "source_id": "d0e1f2a3-b4c5-4d67-e8f9-a0b1c2d3e4f5",
+            "target_id": "e1f2a3b4-c5d6-4e78-f9a0-b1c2d3e4f5a6",
+            "label": "Dispatched to carrier"
+        },
+        {
+            "id": "e5e6e7e8-f9a0-41c2-d3e4-f5a6b7c8d9e0",
+            "source_id": "e1f2a3b4-c5d6-4e78-f9a0-b1c2d3e4f5a6",
+            "target_id": "f2a3b4c5-d6e7-4f89-a0b1-c2d3e4f5a6b7",
+            "label": "Customer notified"
+        }
+    ],
+    "roles": [
+        {
+            "id": "a1a2b3c4-d5e6-47f8-a9b0-c1d2e3f4a5b6",
+            "name": "Order Management System",
+            "description": "Automated order processing system",
+            "actor_type": "application",
+            "capabilities": [
+                "order_processing",
+                "inventory_management",
+                "shipping"
+            ]
+        },
+        {
+            "id": "b2b3c4d5-e6f7-48a9-b0c1-d2e3f4a5b6c7",
+            "name": "Credit Analysis AI",
+            "description": "AI agent for credit risk assessment",
+            "actor_type": "ai_agent",
+            "capabilities": [
+                "credit_analysis",
+                "risk_assessment"
+            ],
+            "ai_model_config": {
+                "model_id": "gemini-2.5-flash",
+                "temperature": 0.3,
+                "max_tokens": 300,
+                "system_prompt": "You are a credit analyst. Evaluate customer creditworthiness based on payment history and order value. Return JSON with credit_approved (boolean), credit_limit (number), and risk_score (0-100)."
+            }
+        },
+        {
+            "id": "c3c4d5e6-f7a8-49b0-c1d2-e3f4a5b6c7d8",
+            "name": "Logistics Optimizer AI",
+            "description": "AI agent for route and delivery optimization",
+            "actor_type": "ai_agent",
+            "capabilities": [
+                "route_optimization",
+                "delivery_planning"
+            ],
+            "ai_model_config": {
+                "model_id": "gemini-2.5-flash",
+                "temperature": 0.5,
+                "max_tokens": 400,
+                "system_prompt": "You are a logistics optimizer. Analyze delivery addresses and warehouse locations to determine optimal routing. Return JSON with optimal_warehouse (string), estimated_delivery_time (ISO date), and delivery_cost (number)."
+            }
+        },
+        {
+            "id": "d4d5e6f7-a8b9-4c01-d2e3-f4a5b6c7d8e9",
+            "name": "Warehouse Robot",
+            "description": "Automated picking robot",
+            "actor_type": "robot",
+            "capabilities": [
+                "item_picking",
+                "barcode_scanning"
+            ]
+        },
+        {
+            "id": "e5e6f7a8-b9c0-4d12-e3f4-a5b6c7d8e9f0",
+            "name": "Quality Inspector",
+            "description": "Human quality control inspector",
+            "actor_type": "human",
+            "capabilities": [
+                "quality_inspection",
+                "defect_detection"
+            ]
+        }
+    ],
+    "contexts": [
+        {
+            "id": "c1d2e3f4-a5b6-4c78-d9e0-f1a2b3c4d5e6",
+            "name": "Order Data Context",
+            "description": "Shared order information across workflow",
+            "type": "state",
+            "sync_pattern": "shared_state",
+            "visibility": "workflow",
+            "lifecycle": "persistent",
+            "initial_value": {}
+        }
+    ]
+}
