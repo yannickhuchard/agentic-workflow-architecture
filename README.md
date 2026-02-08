@@ -26,7 +26,7 @@ It solves the "Black Box" problem of AI agents by providing a **structured, obse
 - **🧠 Context-Aware Memory**: Shared state, message passing, and blackboard patterns for multi-agent collaboration.
 - **📊 Value Stream Intelligence**: Built-in Lean/Six Sigma analytics that automatically detect waste (DOWNTIME) and track value-added time.
 - **🛑 Human-in-the-Loop**: Seamless handoffs to humans for approvals, reviews, and complex decision-making via a dedicated Kanban interface.
-- **🔍 Queryable Architecture**: The entire workflow is a queryable graph. Ask "Which steps involve high-risk financial data?" or "Show me all activities performed by Gemini 1.5 Pro".
+- **🔍 Queryable Architecture**: The entire workflow is a queryable graph. Ask "Which steps involve high-risk financial data?" or "Show me all activities performed by Gemini 3.0 Pro".
 
 ---
 
@@ -104,24 +104,24 @@ AWA is built on a modular architecture designed for scalability and observabilit
 
 ```mermaid
 graph TD
-    User[User / Client] --> API[Operational API]
-    API --> Engine[Workflow Engine]
+    User["User / Client"] --> API["Operational API"]
+    API --> Engine["Workflow Engine"]
     
     subgraph "Execution Layer"
-        Engine --> Human[Human Task Queue]
-        Engine --> AI[AI Agent Runner]
-        Engine --> Robot[Robot Simulator]
-        Engine --> App[App/System Runner]
+        Engine --> Human["Human Task Queue"]
+        Engine --> AI["AI Agent Runner"]
+        Engine --> Robot["Robot Simulator"]
+        Engine --> App["App/System Runner"]
     end
     
     subgraph "Intelligence"
-        AI --> LLM[LLM Models (Gemini/Claude)]
-        AI --> Tools[MCP Tools]
+        AI --> LLM["LLM Models (Gemini/Claude)"]
+        AI --> Tools["MCP Tools"]
     end
     
     subgraph "Persistence & Analytics"
-        Engine --> DB[(State Store)]
-        Engine --> VSM[VSM Analytics]
+        Engine --> DB[("State Store")]
+        Engine --> VSM["VSM Analytics"]
     end
 ```
 
@@ -167,10 +167,6 @@ npm run dev
 - **[Examples](examples/)**: Explore real-world use cases like Insurance Claims and Retail Distribution.
 
 ---
-
-## 🤝 Contributing
-
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ## 📄 License
 
