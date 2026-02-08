@@ -1,0 +1,29 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./awa.db"
+}
+
+model HumanTask {
+  id            String    @id @default(uuid())
+  activity_id   String
+  activity_name String
+  token_id      String
+  workflow_id   String
+  status        String    @default("pending") // pending, assigned, in_progress, completed, rejected, expired
+  priority      String    @default("normal")  // low, normal, high, critical
+  assignee_id   String?
+  role_id       String
+  inputs        String    // JSON string
+  outputs       String?   // JSON string
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+  due_at        DateTime?
+  completed_at  DateTime?
+  description   String?
+  form_schema   String?   // JSON string
+  tags          String?   // JSON string array
+}

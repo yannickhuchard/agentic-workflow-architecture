@@ -11,7 +11,7 @@ import { Actor } from './actors/actor';
 import { SoftwareAgent } from './actors/software_agent';
 import { AIAgent } from './actors/ai_agent';
 import { RobotAgent, RobotConfig } from './actors/robot_agent';
-import { HumanAgent, HumanTaskQueue, get_task_queue } from './actors/human_agent';
+import { HumanAgent } from './actors/human_agent';
 import { DecisionEvaluator, evaluate_decision } from './decision_evaluator';
 import { calculate_duration } from './duration_utils';
 import { WasteCategory, Analytics } from '../types';
@@ -27,8 +27,6 @@ export interface WorkflowEngineOptions {
     roles?: Role[];
     /** Robot configuration */
     robot_config?: RobotConfig;
-    /** Human task queue (uses global if not provided) */
-    human_task_queue?: HumanTaskQueue;
     /** Wait for human tasks to complete before proceeding */
     wait_for_human_tasks?: boolean;
     /** Enable verbose logging */
@@ -46,7 +44,6 @@ export class WorkflowEngine {
     private options: WorkflowEngineOptions;
     private roleMap: Map<UUID, Role>;
     private decisionEvaluator: DecisionEvaluator;
-    private humanTaskQueue: HumanTaskQueue;
 
     constructor(workflowDef: Workflow, options: WorkflowEngineOptions = {}) {
         // Validate workflow integrity
@@ -69,7 +66,6 @@ export class WorkflowEngine {
         this.decisionNodeMap = new Map();
         this.roleMap = new Map();
         this.decisionEvaluator = new DecisionEvaluator(workflowDef.decision_nodes);
-        this.humanTaskQueue = options.human_task_queue || get_task_queue();
 
         this.initializeMaps();
         this.initializeContexts();
@@ -442,7 +438,6 @@ export class WorkflowEngine {
 
             case 'human':
                 return new HumanAgent({
-                    task_queue: this.humanTaskQueue,
                     wait_for_completion: false // Engine will handle waiting state
                 });
 
@@ -492,10 +487,6 @@ export class WorkflowEngine {
 
     public getTokens(): Token[] {
         return this.tokens;
-    }
-
-    public getHumanTaskQueue(): HumanTaskQueue {
-        return this.humanTaskQueue;
     }
 
     public getWorkflow(): Workflow {

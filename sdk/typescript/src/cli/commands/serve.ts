@@ -14,6 +14,12 @@ export const serveCommand = new Command('serve')
             const jwtSecret = options.jwtSecret || process.env.JWT_SECRET;
             const rateLimit = parseInt(options.rateLimit, 10);
 
+            // Import DB to ensure connection (lazy init, but we can log)
+            // In a real scenario we might want to run migrations here or check connection
+            console.log('Initializing database connection...');
+            // The db instance is imported in the routes/services, so it will be initialized when needed.
+            // For now, we trust the lazy connection.
+
             // Build auth config
             const authConfig: Partial<AuthConfig> = {
                 enabled: options.auth !== false && (!!jwtSecret || Object.keys(options.apiKey).length > 0),

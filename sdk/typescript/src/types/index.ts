@@ -400,3 +400,35 @@ export type Endpoint = z.infer<typeof EndpointSchema>;
 
 export * from './visualization';
 
+// ============================================================================
+// HUMAN TASK TYPES
+// ============================================================================
+
+export const HumanTaskStatus = z.enum(['pending', 'assigned', 'in_progress', 'completed', 'rejected', 'expired']);
+export type HumanTaskStatus = z.infer<typeof HumanTaskStatus>;
+
+export const HumanTaskPriority = z.enum(['low', 'normal', 'high', 'critical']);
+export type HumanTaskPriority = z.infer<typeof HumanTaskPriority>;
+
+export const HumanTaskSchema = z.object({
+    id: UUID,
+    activity_id: UUID,
+    activity_name: z.string(),
+    token_id: UUID,
+    workflow_id: UUID,
+    status: HumanTaskStatus,
+    priority: HumanTaskPriority,
+    assignee_id: z.string().optional(),
+    role_id: UUID,
+    inputs: z.record(z.unknown()),
+    outputs: z.record(z.unknown()).optional(),
+    created_at: DateTimeTz,
+    updated_at: DateTimeTz,
+    due_at: DateTimeTz.optional(),
+    completed_at: DateTimeTz.optional(),
+    description: z.string().optional(),
+    form_schema: z.record(z.unknown()).optional(),
+    tags: z.array(z.string()).optional(),
+});
+export type HumanTask = z.infer<typeof HumanTaskSchema>;
+

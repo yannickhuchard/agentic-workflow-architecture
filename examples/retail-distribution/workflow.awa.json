@@ -489,7 +489,7 @@
                 ],
                 "rules": [
                     {
-                        "id": "r1r2r3r4-e5f6-47a8-b9c0-d1e2f3a4b5c6",
+                        "id": "f1f2f3f4-e5f6-47a8-b9c0-d1e2f3a4b5c6",
                         "description": "Credit approved and low risk",
                         "input_entries": [
                             "true",
@@ -501,7 +501,7 @@
                         "output_edge_id": "e3e4e5e6-f7a8-49c0-d1e2-f3a4b5c6d7e8"
                     },
                     {
-                        "id": "r2r3r4r5-e6f7-48a9-b0c1-d2e3f4a5b6c7",
+                        "id": "f2f3f4f5-e6f7-48a9-b0c1-d2e3f4a5b6c7",
                         "description": "Credit not approved or high risk",
                         "input_entries": [
                             "false",
@@ -539,7 +539,7 @@
                 ],
                 "rules": [
                     {
-                        "id": "r3r4r5r6-f7a8-49b0-c1d2-e3f4a5b6c7d8",
+                        "id": "f3f4f5f6-f7a8-49b0-c1d2-e3f4a5b6c7d8",
                         "description": "Full stock available",
                         "input_entries": [
                             "true",
@@ -551,7 +551,7 @@
                         "output_edge_id": "e6e7e8e9-f0a1-42f3-a4b5-c6d7e8f9a0b1"
                     },
                     {
-                        "id": "r4r5r6r7-a8b9-40c1-d2e3-f4a5b6c7d8e9",
+                        "id": "f4f5f6f7-a8b9-40c1-d2e3-f4a5b6c7d8e9",
                         "description": "No stock or partial only",
                         "input_entries": [
                             "false",
