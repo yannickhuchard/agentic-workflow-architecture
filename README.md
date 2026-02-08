@@ -1,233 +1,181 @@
 # Agentic Workflow Architecture (AWA)
 
-**The specification standard for AI-native, queryable workflow architecture.**
+> **A system for a new way to automate enterprise workflow in the agentic era, natively made to work with AI.**
 
-AWA is a next-generation business process specification designed for the age of AI agents. It builds upon BPMN, BPEL, and DMN concepts while being natively designed for:
+AWA is a next-generation specification and framework designed to build, run, and visualize **AI-native business processes**. It moves beyond traditional BPMN by treating **AI Agents** as first-class citizens alongside humans, robots, and software systems.
 
-- 🤖 **AI Agents** - First-class support for AI agent actors with MCP tools
-- 🔍 **Queryability** - Rich querying across workflows, activities, and access rights  
-- 📊 **Value Stream Mapping** - Built-in analytics with DOWNTIME waste categories
-- 🔗 **Context Sharing** - Explicit shared state patterns for multi-agent collaboration
-- 🔐 **Access Rights** - Declarative permissions with requires/provisions semantics
+---
 
-## Quick Start
+## 🚀 What is AWA?
 
-### TypeScript
+In the age of Generative AI, traditional workflows are too rigid. Agents need **autonomy**, **context**, and **tools**.
 
+**AWA (Agentic Workflow Architecture)** provides the standard for defining queryable, maintainable, and intelligent workflows where:
+- **AI Agents** reason and use tools (MCP) to complete tasks.
+- **Humans** are loop-in for critical decisions and approvals.
+- **Robots** execute physical world actions.
+- **Systems** handle high-speed deterministic processing.
+
+It solves the "Black Box" problem of AI agents by providing a **structured, observable, and queryable** backbone for agent orchestration.
+
+---
+
+## ⚡ Superpowers
+
+- **🤖 First-Class AI Agents**: Native support for LLM-backed actors with specific personas, tool proficiencies (MCP), and context awareness.
+- **🧠 Context-Aware Memory**: Shared state, message passing, and blackboard patterns for multi-agent collaboration.
+- **📊 Value Stream Intelligence**: Built-in Lean/Six Sigma analytics that automatically detect waste (DOWNTIME) and track value-added time.
+- **🛑 Human-in-the-Loop**: Seamless handoffs to humans for approvals, reviews, and complex decision-making via a dedicated Kanban interface.
+- **🔍 Queryable Architecture**: The entire workflow is a queryable graph. Ask "Which steps involve high-risk financial data?" or "Show me all activities performed by Gemini 1.5 Pro".
+
+---
+
+## 📦 Features
+
+- **Multi-Actor Support**: Orchestrate Humans, AI Agents, Robots, and Applications in a single flow.
+- **Smart Decision Nodes**: DMN-inspired decision tables with FEEL expression support for complex business logic.
+- **Visualizations**:
+    - **2D/3D Diagrams**: ReactFlow and Babylon.js rendering.
+    - **Kanban Board**: Real-time task management for human actors.
+- **Production Ready**:
+    - **Resilience**: Automatic retries and Dead Letter Queues (DLQ).
+    - **Security**: RBAC (Role-Based Access Control) with JWT and API Keys.
+    - **Persistence**: Checkpointing and state restoration (PostgreSQL/File).
+- **Polyglot SDKs**: Full support for **TypeScript** and **Python**.
+
+---
+
+## 🏁 Quick Start
+
+### 1. Install
+
+```bash
+# TypeScript SDK
+npm install @awa/sdk
+
+# Python SDK
+pip install awa
+```
+
+### 2. Build a Workflow
+
+Create a workflow where an AI agent analyzes an order, and a human approves it.
+
+**TypeScript:**
 ```typescript
-import { workflow, query } from '@awa/sdk';
+import { workflow } from '@awa/sdk';
 
-// Build a workflow
-const orderProcess = workflow('Order Processing', '1.0.0')
-  .description('AI-assisted order fulfillment')
+const orderProcess = workflow('Order Fulfillment', '1.0.0')
   .context('order_data', { type: 'data', sync_pattern: 'shared_state' })
-  .activity('Receive Order', {
-    role_id: 'customer-service-agent',
+  
+  // 1. AI Analyzes Order
+  .activity('Analyze Order', {
+    role_id: 'ai-analyst',
     actor_type: 'ai_agent',
-    contexts: [{ id: 'order_data', access_mode: 'write' }]
+    inputs: ['order_id'],
+    tools: ['inventory-check-tool'] // MCP Tool
   })
-  .activity('Validate Order', {
-    role_id: 'validation-agent', 
-    actor_type: 'ai_agent',
-    contexts: [{ id: 'order_data', access_mode: 'read' }]
+  
+  // 2. Human Approves (if risk detected)
+  .activity('Approve High Value', {
+    role_id: 'manager',
+    actor_type: 'human',
+    description: 'Review high-value order for fraud risk'
   })
-  .edge('Receive Order', 'Validate Order')
+  
+  .edge('Analyze Order', 'Approve High Value')
   .build();
-
-// Query the workflow
-const aiActivities = query(orderProcess)
-  .activities()
-  .by_actor_type('ai_agent')
-  .list();
 ```
 
-### Python
+### 3. Run It
 
-```python
-from awa import workflow, ActorType, ContextType, SyncPattern, AccessMode
+Run the workflow using the CLI engine.
 
-# Build a workflow
-order_process = (
-    workflow("Order Processing", "1.0.0")
-    .description("AI-assisted order fulfillment")
-    .context("order_data", type=ContextType.DATA, sync_pattern=SyncPattern.SHARED_STATE)
-    .activity(
-        "Receive Order",
-        role_id="customer-service-agent",
-        actor_type=ActorType.AI_AGENT,
-        contexts=[("order_data", AccessMode.WRITE)]
-    )
-    .activity(
-        "Validate Order",
-        role_id="validation-agent",
-        actor_type=ActorType.AI_AGENT,
-        contexts=[("order_data", AccessMode.READ)]
-    )
-    .edge("Receive Order", "Validate Order")
-    .build()
-)
+```bash
+# Run with verbose logging
+awa run workflow.awa.json --verbose --key YOUR_GEMINI_API_KEY
 ```
 
-### Java
+---
 
-```java
-import io.awa.builder.WorkflowBuilder;
-import io.awa.model.*;
+## 🏗️ Architecture
 
-Workflow orderProcess = WorkflowBuilder.workflow("Order Processing", "1.0.0")
-    .description("AI-assisted order fulfillment")
-    .context("order_data", ContextType.DATA, SyncPattern.SHARED_STATE)
-    .activity("Receive Order", agentRoleId, ActorType.AI_AGENT)
-    .activity("Validate Order", validatorRoleId, ActorType.AI_AGENT)
-    .edge("Receive Order", "Validate Order")
-    .build();
+AWA is built on a modular architecture designed for scalability and observability.
+
+```mermaid
+graph TD
+    User[User / Client] --> API[Operational API]
+    API --> Engine[Workflow Engine]
+    
+    subgraph "Execution Layer"
+        Engine --> Human[Human Task Queue]
+        Engine --> AI[AI Agent Runner]
+        Engine --> Robot[Robot Simulator]
+        Engine --> App[App/System Runner]
+    end
+    
+    subgraph "Intelligence"
+        AI --> LLM[LLM Models (Gemini/Claude)]
+        AI --> Tools[MCP Tools]
+    end
+    
+    subgraph "Persistence & Analytics"
+        Engine --> DB[(State Store)]
+        Engine --> VSM[VSM Analytics]
+    end
 ```
 
-## Specification Files
+---
 
-| Format | Location | Description |
-|--------|----------|-------------|
-| JSON Schema | `spec/json-schema/` | Full schema definitions |
-| Avro | `spec/avro/` | Event streaming schemas |
-| OpenAPI 3.1 | `spec/openapi/` | REST API specification |
-| GraphQL | `spec/graphql/` | Graph query API |
-| PostgreSQL | `spec/ddl/` | Database persistence |
+## 🛠️ Project Structure
 
-## Core Concepts
+The repository is organized into SDKs, Specifications, and Applications.
 
-### Actor Types
+| Directory | Description |
+|-----------|-------------|
+| `sdk/typescript` | Core **TypeScript SDK** and CLI tools. |
+| `sdk/python` | **Python SDK** for data science and AI engineers. |
+| `apps/kanban-web` | **Kanban Web App** (Next.js) for human task management. |
+| `spec/` | Official specifications (JSON Schema, OpenAPI, Avro, DDL). |
+| `examples/` | End-to-end examples (Insurance, Retail, Banking). |
 
-| Type | Description |
-|------|-------------|
-| `human` | Human user actor |
-| `ai_agent` | AI/LLM-based agent |
-| `robot` | Physical/industrial robot |
-| `application` | Software application/system |
+---
 
-### Skills
+## 🖥️ Kanban Web Application
 
-| Type | Description |
-|------|-------------|
-| `ai_context` | Context or system instruction required for an AI agent |
-| `tool_proficiency` | Capability to use a specific tool (MCP, API) |
-| `human_competency` | Qualification, authority level, or certification required for a human |
+AWA includes a modern **Kanban Web Application** for managing human tasks.
 
-### Context Sync Patterns
+- **Real-time Updates**: Tasks appear instantly as agents assign them.
+- **Rich Task Details**: View full context, actor metadata, and input/output data in a responsive modal.
+- **Visual Cues**: Distinct visual styles for tasks created by AI Agents, Robots, or Systems.
 
-| Pattern | Use Case |
-|---------|----------|
-| `shared_state` | Agents read/write shared mutable state |
-| `message_passing` | Agents send messages through context |
-| `blackboard` | Classic AI blackboard architecture |
-| `event_sourcing` | Immutable event log pattern |
+To run the Kanban app locally:
 
-### Access Modes
-
-| Mode | Description |
-|------|-------------|
-| `read` | Read-only access |
-| `write` | Write-only access |
-| `read_write` | Full access |
-| `subscribe` | Event subscription |
-| `publish` | Event publishing |
-
-### Permissions
-
-| Permission | Description |
-|------------|-------------|
-| `read` | Read access |
-| `write` | Write/update access |
-| `execute` | Execute access |
-| `admin` | Administrative access |
-| `delete` | Delete access |
-| `create` | Create access |
-
-## Visualization Layer (Optional)
-
-AWA includes an **optional visualization layer** for 2D and 3D workflow rendering, supporting static diagrams and animated flow execution.
-
-### Key Features
-
-- **2D Visualization** - ReactFlow compatible with auto-layout (Dagre, ELK)
-- **3D Visualization** - Babylon.js compatible for immersive workflow views
-- **Swim Lanes** - Organize activities by role or organization
-- **Auto-Layout** - Automatic graph layout with configurable algorithms
-- **Alternate Views** - Multiple visualization configurations per workflow
-- **Animation** - Animated edge flow and execution path highlighting
-
-### Technology Recommendations
-
-| Dimension | Engine | Layout Algorithms |
-|-----------|--------|-------------------|
-| 2D | ReactFlow | Dagre, ELK, D3 Hierarchy |
-| 3D | Babylon.js | Manual positioning |
-
-### Schema Files
-
-- `spec/json-schema/visualization.schema.json` - Complete visualization configuration
-- `spec/avro/visualization_event.avsc` - Event streaming for real-time updates
-- `spec/ddl/awa.postgresql.sql` - Database tables for persistence
-
-### Usage Example
-
-```json
-{
-  "visualization": {
-    "id": "viz-001",
-    "workflow_id": "workflow-001",
-    "view_type": "2d",
-    "engine": "reactflow",
-    "auto_layout": {
-      "algorithm": "dagre",
-      "direction": "lr",
-      "node_spacing": 50,
-      "rank_spacing": 100
-    },
-    "lanes": [
-      {
-        "id": "lane-customer",
-        "name": "Customer",
-        "role_id": "role-customer",
-        "orientation": "horizontal"
-      }
-    ],
-    "animation": {
-      "enabled": true,
-      "edge_flow_enabled": true,
-      "highlight_active_path": true
-    }
-  }
-}
+```bash
+cd apps/kanban-web
+npm run dev
+# Open http://localhost:3000
 ```
 
-## SDKs
+---
 
-- **JavaScript/Browser**: `sdk/javascript/` - AWA Visualization Library (ReactFlow + Babylon.js)
-- **TypeScript/Node.js**: `sdk/typescript/`
-- **Python**: `sdk/python/`
-- **Java**: `sdk/java/`
+## 📚 Documentation & Resources
 
-## Examples
+- **[Skill Definition](SKILL.md)**: Comprehensive guide for AI assistants.
+- **[CLI Guide](sdk/typescript/docs/cli-guide.md)**: Command-line reference.
+- **[API Reference](sdk/typescript/docs/operational-api.md)**: REST API documentation.
+- **[Examples](examples/)**: Explore real-world use cases like Insurance Claims and Retail Distribution.
 
-See the `examples/` directory for complete workflow examples:
+---
 
-- [Order Processing](examples/order-processing/order-processing.awa.json) - AI-assisted order fulfillment
-- [Insurance Claims Management](examples/insurance-claims-management/insurance-claims-management.awa.json) - 95% automated claims workflow
+## 🤝 Contributing
 
-### Visualization Examples
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
-| Example | Type | JSON Config | HTML Demo |
-|---------|------|-------------|-----------|
-| 2D Swimlanes | ReactFlow + Dagre | [JSON](examples/visualization-swimlanes/visualization-2d-swimlanes.json) | [HTML](examples/visualization-swimlanes/visualization-2d-swimlanes.html) |
-| 2D ELK Hierarchy | ReactFlow + ELK | [JSON](examples/visualization-elk-hierarchy/visualization-2d-elk-hierarchy.json) | [HTML](examples/visualization-elk-hierarchy/visualization-2d-elk-hierarchy.html) |
-| 3D Spatial | Babylon.js | [JSON](examples/visualization-3d-spatial/visualization-3d-spatial.json) | [HTML](examples/visualization-3d-spatial/visualization-3d-spatial.html) |
-| 3D Pipeline | Babylon.js | [JSON](examples/visualization-3d-pipeline/visualization-3d-pipeline.json) | [HTML](examples/visualization-3d-pipeline/visualization-3d-pipeline.html) |
-
-## License
+## 📄 License
 
 Apache 2.0
 
-
-## Authors
+## ✍️ Authors
 
 - [Yannick HUCHARD](https://yannickhuchard.com)
