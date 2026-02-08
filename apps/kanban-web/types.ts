@@ -12,6 +12,10 @@ export interface HumanTask {
     priority: HumanTaskPriority;
     assignee_id?: string;
     role_id: string;
+    creator_id?: string;
+    creator_type?: string;
+    assigner_id?: string;
+    assigner_type?: string;
     inputs: Record<string, any>;
     outputs?: Record<string, any>;
     created_at: string;

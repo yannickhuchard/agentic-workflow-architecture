@@ -84,13 +84,13 @@ humanTaskRouter.get('/:id', async (req, res) => {
  */
 humanTaskRouter.post('/:id/assign', async (req, res) => {
     try {
-        const { user_id } = req.body;
+        const { user_id, assigner_id, assigner_type } = req.body;
 
         if (!user_id) {
             return res.status(400).json({ error: 'user_id is required' });
         }
 
-        const task = await TaskService.assign(req.params.id, user_id);
+        const task = await TaskService.assign(req.params.id, user_id, assigner_id, assigner_type);
         res.json({
             message: 'Task assigned',
             task

@@ -249,7 +249,11 @@ export class WorkflowEngine {
                 }
 
                 // Merge output back to token data
-                token.mergeData(output);
+                token.mergeData({
+                    ...output,
+                    _last_actor_id: activity.id,
+                    _last_actor_type: activity.actor_type
+                });
 
                 // Determine next node(s)
                 await this.advanceToken(token, currentNodeId, analytics);

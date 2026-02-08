@@ -17,6 +17,10 @@ model HumanTask {
   priority      String    @default("normal")  // low, normal, high, critical
   assignee_id   String?
   role_id       String
+  creator_id    String?
+  creator_type  String?     // human, ai_agent, robot, application
+  assigner_id   String?
+  assigner_type String?     // human, ai_agent, robot, application
   inputs        String    // JSON string
   outputs       String?   // JSON string
   created_at    DateTime  @default(now())

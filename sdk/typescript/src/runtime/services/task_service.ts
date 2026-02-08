@@ -12,6 +12,10 @@ export class TaskService {
             status: task.status as any, // Cast to enum
             priority: task.priority as any, // Cast to enum
             assignee_id: task.assignee_id || undefined,
+            creator_id: task.creator_id || undefined,
+            creator_type: task.creator_type as any || undefined,
+            assigner_id: task.assigner_id || undefined,
+            assigner_type: task.assigner_type as any || undefined,
             description: task.description || undefined,
             inputs: JSON.parse(task.inputs),
             outputs: task.outputs ? JSON.parse(task.outputs) : undefined,
@@ -82,11 +86,13 @@ export class TaskService {
     /**
      * Assign a task
      */
-    static async assign(id: string, assignee_id: string): Promise<HumanTask> {
+    static async assign(id: string, assignee_id: string, assigner_id?: string, assigner_type?: string): Promise<HumanTask> {
         const task = await db.humanTask.update({
             where: { id },
             data: {
                 assignee_id,
+                assigner_id,
+                assigner_type,
                 status: 'assigned',
                 updated_at: new Date()
             }

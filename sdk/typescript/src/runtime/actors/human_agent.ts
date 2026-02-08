@@ -45,6 +45,8 @@ export class HumanAgent implements Actor {
             workflow_id,
             priority,
             role_id: activity.role_id || 'user', // Ensure role_id exists
+            creator_id: (inputs._last_actor_id as string) || 'system',
+            creator_type: (inputs._last_actor_type as any) || 'application',
             inputs,
             description: activity.description,
             due_at: this.calculate_due_date(activity) ? new Date(this.calculate_due_date(activity)!) : undefined,
