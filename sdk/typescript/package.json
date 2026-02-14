@@ -1,5 +1,5 @@
 {
-    "name": "@awa/sdk",
+    "name": "@awa-spec/sdk",
     "version": "1.0.0",
     "description": "TypeScript SDK for Agentic Workflow Architecture (AWA)",
     "main": "dist/index.js",
@@ -7,9 +7,9 @@
     "types": "dist/index.d.ts",
     "exports": {
         ".": {
+            "types": "./dist/index.d.ts",
             "import": "./dist/index.mjs",
-            "require": "./dist/index.js",
-            "types": "./dist/index.d.ts"
+            "require": "./dist/index.js"
         }
     },
     "bin": {
@@ -23,7 +23,17 @@
         "db:studio": "prisma studio",
         "lint": "eslint src/",
         "test": "vitest",
-        "typecheck": "tsc --noEmit"
+        "typecheck": "tsc --noEmit",
+        "prepublishOnly": "npm run build"
+    },
+    "files": [
+        "dist",
+        "README.md",
+        "LICENSE"
+    ],
+    "publishConfig": {
+        "registry": "https://registry.npmjs.org/",
+        "access": "public"
     },
     "keywords": [
         "awa",

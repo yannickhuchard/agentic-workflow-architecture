@@ -2,12 +2,12 @@
 
 The official TypeScript SDK for the Agentic Workflow Architecture (AWA).
 
-## 📦 Installation
+## Installation
 
 ### Global Installation (Recommended for CLI)
 
 ```bash
-npm install -g @awa/sdk
+npm install -g @awa-spec/sdk
 ```
 
 After installation, the `awa` command will be available globally:
@@ -19,7 +19,7 @@ awa --version
 ### Project Installation
 
 ```bash
-npm install @awa/sdk
+npm install @awa-spec/sdk
 ```
 
 ### Development from Source
@@ -31,7 +31,7 @@ npm run build
 npm link
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Using the CLI
 
@@ -73,7 +73,7 @@ awa run hello.awa.json
 ### Using Programmatically
 
 ```typescript
-import { WorkflowEngine, parse_workflow } from '@awa/sdk';
+import { WorkflowEngine, parse_workflow } from '@awa-spec/sdk';
 import fs from 'fs/promises';
 
 // Load and parse workflow
@@ -94,16 +94,16 @@ while (engine.getStatus() === 'running') {
 console.log('Workflow completed!');
 ```
 
-## 📖 Features
+## Features
 
-- **✅ Workflow Runtime**: Execute AWA workflows with a robust engine
-- **🔨 Workflow Builder**: Fluent API to construct workflows programmatically
-- **🔍 Validation**: Validate workflow schemas against the AWA specification
-- **⚡ CLI Tool**: Command-line interface for running workflows
-- **🌐 REST API**: HTTP server for triggering workflows remotely
-- **📊 VSM & Analytics**: Real-time tracking of DOWNTIME waste and process metrics
+- **Workflow Runtime**: Execute AWA workflows with a robust engine
+- **Workflow Builder**: Fluent API to construct workflows programmatically
+- **Validation**: Validate workflow schemas against the AWA specification
+- **CLI Tool**: Command-line interface for running workflows
+- **REST API**: HTTP server for triggering workflows remotely
+- **VSM & Analytics**: Real-time tracking of DOWNTIME waste and process metrics
 
-## 🛠️ CLI Commands
+## CLI Commands
 
 ### Run a Workflow
 
@@ -136,13 +136,13 @@ curl -X POST http://localhost:3000/api/v1/workflows/run \
   -d '{"filePath": "./workflow.awa.json"}'
 ```
 
-## 📚 Documentation
+## Documentation
 
 - **[CLI Guide](./docs/cli-guide.md)** - Complete installation and usage guide with examples
 - **[Operational API](./docs/operational-api.md)** - REST API documentation
 - **[AWA Specification](../../spec)** - Full schema definitions
 
-## 🎯 Examples
+## Examples
 
 Check out the `examples` folder for sample workflows:
 
@@ -154,11 +154,10 @@ awa run ../../examples/bank-account-opening/workflow.awa.json
 awa run ../../examples/skills-demonstration/scenario.awa.json --verbose
 ```
 
-## 🔑 Environment Variables
+## Environment Variables
 
 - `GEMINI_API_KEY` - Required for workflows using AI agents
 
-## 📄 License
+## License
 
 Apache-2.0
-

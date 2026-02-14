@@ -9,21 +9,18 @@ The Operational API consists of two main components:
 
 ## 1. Installation
 
-To use the Operational API, you need to have the `@awa/sdk` package built and installed.
+To use the Operational API, install the `@awa-spec/sdk` package globally.
 
 ### Prerequisites
 - Node.js (v18 or higher)
 - npm
 
 ### Setup
-If you are working within the AWA repository:
 ```bash
-cd sdk/typescript
-npm install
-npm run build
+npm install -g @awa-spec/sdk
 ```
 
-This will compile the TypeScript code into the `dist` directory, making the `awa` command available.
+This will make the `awa` command available in your terminal.
 
 ---
 
@@ -35,7 +32,7 @@ The CLI is the primary tool for testing and running workflows manually.
 To run a workflow defined in a `.awa.json` file:
 
 ```bash
-node dist/cli/index.js run <path-to-workflow-file>
+awa run <path-to-workflow-file>
 ```
 
 ### Options
@@ -69,7 +66,7 @@ Let's run a simple test workflow.
 
 2.  **Run the workflow**:
     ```bash
-    node dist/cli/index.js run my-workflow.awa.json --verbose
+    awa run my-workflow.awa.json --verbose
     ```
 
 3.  **Expected Output**:
@@ -91,7 +88,7 @@ The REST API allows external systems to trigger AWA workflows.
 To start the API server:
 
 ```bash
-node dist/cli/index.js serve --port 3000
+awa serve --port 3000
 ```
 *Output: `AWA Operational API running on http://localhost:3000`*
 
