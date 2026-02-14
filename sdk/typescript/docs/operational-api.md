@@ -9,7 +9,7 @@ The Operational API consists of two main components:
 
 ## 1. Installation
 
-To use the Operational API, install the `@awa-spec/sdk` package globally.
+To use the Operational API, install the `agentic-workflow-architecture` package globally.
 
 ### Prerequisites
 - Node.js (v18 or higher)
@@ -17,7 +17,7 @@ To use the Operational API, install the `@awa-spec/sdk` package globally.
 
 ### Setup
 ```bash
-npm install -g @awa-spec/sdk
+npm install -g agentic-workflow-architecture
 ```
 
 This will make the `awa` command available in your terminal.

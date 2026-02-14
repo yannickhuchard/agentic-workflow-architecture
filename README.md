@@ -54,7 +54,7 @@ To start using AWA, install the SDK for your preferred language using the standa
 **TypeScript:**
 
 ```bash
-npm install @awa-spec/sdk
+npm install -g agentic-workflow-architectureflow-architecture
 ```
 
 **Python:**
@@ -70,7 +70,7 @@ Create a workflow where an AI agent analyzes an order, and a human approves it.
 **TypeScript Example:**
 
 ```typescript
-import { workflow } from '@awa-spec/sdk';
+import { workflow } from 'agentic-workflow-architecture';
 
 const orderProcess = workflow('Order Fulfillment', '1.0.0')
   .context('order_data', { type: 'data', sync_pattern: 'shared_state' })

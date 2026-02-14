@@ -23,7 +23,7 @@ A comprehensive guide to installing and using the AWA (Agentic Workflow Architec
 Install the AWA CLI globally to use it anywhere on your system:
 
 ```bash
-npm install -g @awa-spec/sdk
+npm install -g agentic-workflow-architecture
 ```
 
 After installation, verify it's working:
@@ -37,7 +37,7 @@ awa --version
 Install in a project:
 
 ```bash
-npm install @awa-spec/sdk
+npm install agentic-workflow-architecture
 ```
 
 Then run using npx:

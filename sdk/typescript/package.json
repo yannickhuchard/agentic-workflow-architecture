@@ -1,5 +1,5 @@
 {
-    "name": "@awa-spec/sdk",
+    "name": "agentic-workflow-architecture",
     "version": "1.0.0",
     "description": "TypeScript SDK for Agentic Workflow Architecture (AWA)",
     "main": "dist/index.js",
@@ -13,7 +13,7 @@
         }
     },
     "bin": {
-        "awa": "./dist/cli/index.js"
+        "awa": "dist/cli/index.js"
     },
     "scripts": {
         "build": "tsup src/index.ts src/cli/index.ts --format cjs,esm --dts",
@@ -47,7 +47,7 @@
     "license": "Apache-2.0",
     "repository": {
         "type": "git",
-        "url": "https://github.com/awa-spec/awa-sdk-typescript"
+        "url": "git+https://github.com/yannickhuchard/agentic-workflow-architecture.git"
     },
     "dependencies": {
         "@google/generative-ai": "^0.24.1",

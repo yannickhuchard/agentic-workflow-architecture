@@ -7,7 +7,7 @@ The official TypeScript SDK for the Agentic Workflow Architecture (AWA).
 ### Global Installation (Recommended for CLI)
 
 ```bash
-npm install -g @awa-spec/sdk
+npm install -g agentic-workflow-architecture
 ```
 
 After installation, the `awa` command will be available globally:
@@ -19,7 +19,7 @@ awa --version
 ### Project Installation
 
 ```bash
-npm install @awa-spec/sdk
+npm install agentic-workflow-architecture
 ```
 
 ### Development from Source
@@ -73,7 +73,7 @@ awa run hello.awa.json
 ### Using Programmatically
 
 ```typescript
-import { WorkflowEngine, parse_workflow } from '@awa-spec/sdk';
+import { WorkflowEngine, parse_workflow } from 'agentic-workflow-architecture';
 import fs from 'fs/promises';
 
 // Load and parse workflow

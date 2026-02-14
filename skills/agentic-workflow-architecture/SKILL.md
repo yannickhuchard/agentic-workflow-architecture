@@ -208,16 +208,16 @@ Contexts enable multi-agent collaboration:
 
 ```bash
 # Global installation (recommended for CLI)
-npm install -g @awa-spec/sdk
+npm install -g agentic-workflow-architecture
 
 # Project installation
-npm install @awa-spec/sdk
+npm install agentic-workflow-architecture
 ```
 
 ### Building Workflows Programmatically
 
 ```typescript
-import { workflow } from '@awa-spec/sdk';
+import { workflow } from 'agentic-workflow-architecture';
 
 const orderProcess = workflow('Order Processing', '1.0.0')
   .description('AI-assisted order fulfillment')
@@ -311,7 +311,7 @@ The `WorkflowEngine` executes workflow definitions with full actor and decision 
 ### Basic Usage
 
 ```typescript
-import { WorkflowEngine } from '@awa-spec/sdk';
+import { WorkflowEngine } from 'agentic-workflow-architecture';
 
 const engine = new WorkflowEngine(workflow, {
   gemini_api_key: 'your-api-key',  // Required for AI agents
@@ -420,7 +420,7 @@ curl -X POST http://localhost:3000/api/v1/tasks/task-uuid/complete \
 AWA provides JSON-structured logging with correlation IDs for distributed tracing:
 
 ```typescript
-import { get_logger, Logger } from '@awa-spec/sdk';
+import { get_logger, Logger } from 'agentic-workflow-architecture';
 
 // Get global logger
 const logger = get_logger();
@@ -448,7 +448,7 @@ child.info('Processing started', { step: 1 });
 AWA supports JWT tokens and API keys with RBAC:
 
 ```typescript
-import { createServer, create_jwt } from '@awa-spec/sdk';
+import { createServer, create_jwt } from 'agentic-workflow-architecture';
 
 const app = createServer({
   auth: {
@@ -481,7 +481,7 @@ curl -H "X-API-Key: api-key-123" http://localhost:3000/api/v1/workflows
 
 **RBAC Middleware:**
 ```typescript
-import { require_role, require_permission } from '@awa-spec/sdk';
+import { require_role, require_permission } from 'agentic-workflow-architecture';
 
 // Require specific role
 app.use('/admin', require_role('admin'));
@@ -495,7 +495,7 @@ app.use('/workflows', require_permission('workflows:read', 'workflows:write'));
 Automatic retry with exponential backoff for transient failures:
 
 ```typescript
-import { with_retry, DeadLetterQueue } from '@awa-spec/sdk';
+import { with_retry, DeadLetterQueue } from 'agentic-workflow-architecture';
 
 // Wrap risky operations
 const result = await with_retry(
@@ -532,7 +532,7 @@ const stats = dlq.stats();  // { total, by_workflow, by_activity }
 Checkpoint workflow state for resume after failures:
 
 ```typescript
-import { CheckpointManager, FilePersistenceAdapter, InMemoryPersistenceAdapter } from '@awa-spec/sdk';
+import { CheckpointManager, FilePersistenceAdapter, InMemoryPersistenceAdapter } from 'agentic-workflow-architecture';
 
 // Create checkpoint manager (file-based for production)
 const manager = new CheckpointManager(
