@@ -31,3 +31,21 @@ model HumanTask {
   form_schema   String?   // JSON string
   tags          String?   // JSON string array
 }
+
+model WorkflowExecution {
+  id              String   @id @default(uuid())
+  workflow_id     String
+  workflow_name   String
+  status          String   // completed, failed
+  started_at      DateTime
+  completed_at    DateTime @default(now())
+  duration_ms     Int
+  input_tokens    Int      @default(0)
+  output_tokens   Int      @default(0)
+  total_tokens    Int      @default(0)
+  execution_cost  Float    @default(0)
+  currency        String   @default("USD")
+  steps_count     Int      @default(0)
+  user_id         String?
+  metadata        String?  // JSON string
+}

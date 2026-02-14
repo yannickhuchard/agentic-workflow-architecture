@@ -6,6 +6,7 @@
 import { UUID, Workflow, Activity, Edge, Role, DecisionNode } from '../types';
 import { Token } from './token';
 import { ContextManager } from './context_manager';
+import { ExecutionLogger, ExecutionMetrics, get_execution_logger } from './execution_logger';
 import { validate_workflow_integrity } from '../validator';
 import { Actor } from './actors/actor';
 import { SoftwareAgent } from './actors/software_agent';
@@ -31,6 +32,19 @@ export interface WorkflowEngineOptions {
     wait_for_human_tasks?: boolean;
     /** Enable verbose logging */
     verbose?: boolean;
+    /** Execution logger instance */
+    execution_logger?: ExecutionLogger;
+    /** Pricing configuration for cost calculation */
+    pricing_config?: {
+        input_token_cost_per_1k?: number;
+        output_token_cost_per_1k?: number;
+        currency: string;
+        human_cost_per_hour?: number;
+        robot_cost_per_hour?: number;
+        software_cost_per_execution?: number;
+    };
+    /** User ID triggering the execution */
+    user_id?: string;
 }
 
 export class WorkflowEngine {
@@ -44,6 +58,14 @@ export class WorkflowEngine {
     private options: WorkflowEngineOptions;
     private roleMap: Map<UUID, Role>;
     private decisionEvaluator: DecisionEvaluator;
+    private executionLogger: ExecutionLogger;
+    private executionStats: {
+        startTime: Date;
+        stepsCount: number;
+        inputTokens: number;
+        outputTokens: number;
+        cost: number;
+    };
 
     constructor(workflowDef: Workflow, options: WorkflowEngineOptions = {}) {
         // Validate workflow integrity
@@ -66,6 +88,15 @@ export class WorkflowEngine {
         this.decisionNodeMap = new Map();
         this.roleMap = new Map();
         this.decisionEvaluator = new DecisionEvaluator(workflowDef.decision_nodes);
+        this.executionLogger = options.execution_logger || get_execution_logger();
+
+        this.executionStats = {
+            startTime: new Date(),
+            stepsCount: 0,
+            inputTokens: 0,
+            outputTokens: 0,
+            cost: 0
+        };
 
         this.initializeMaps();
         this.initializeContexts();
@@ -143,6 +174,9 @@ export class WorkflowEngine {
 
         this.log(`Started workflow "${this.workflow.name}" with token ${token.id}`);
 
+        this.log(`Started workflow "${this.workflow.name}" with token ${token.id}`);
+
+        this.executionStats.startTime = new Date(); // Reset start time on actual start
         return token.id;
     }
 
@@ -172,6 +206,7 @@ export class WorkflowEngine {
         );
         if (allDone) {
             this.status = 'completed';
+            await this.finalizeExecution();
         }
     }
 
@@ -248,12 +283,17 @@ export class WorkflowEngine {
                     return;
                 }
 
-                // Merge output back to token data
                 token.mergeData({
                     ...output,
                     _last_actor_id: activity.id,
                     _last_actor_type: activity.actor_type
                 });
+
+                // Track usage and cost
+                const durationMs = endTime.getTime() - startTime.getTime();
+                this.trackCost(activity, output, durationMs);
+
+                this.executionStats.stepsCount++;
 
                 // Determine next node(s)
                 await this.advanceToken(token, currentNodeId, analytics);
@@ -495,5 +535,65 @@ export class WorkflowEngine {
 
     public getWorkflow(): Workflow {
         return this.workflow;
+    }
+
+    private trackCost(activity: Activity, output: Record<string, any>, durationMs?: number) {
+        if (!this.options.pricing_config) return;
+
+        let cost = 0;
+
+        // 1. AI Costs (Token based)
+        if (activity.actor_type === 'ai_agent' && output.usage) {
+            this.executionStats.inputTokens += output.usage.input_tokens || 0;
+            this.executionStats.outputTokens += output.usage.output_tokens || 0;
+
+            const inputCost = ((output.usage.input_tokens || 0) / 1000) * (this.options.pricing_config.input_token_cost_per_1k || 0);
+            const outputCost = ((output.usage.output_tokens || 0) / 1000) * (this.options.pricing_config.output_token_cost_per_1k || 0);
+            cost += inputCost + outputCost;
+        }
+
+        // 2. Human Costs (Time based)
+        if (activity.actor_type === 'human' && this.options.pricing_config.human_cost_per_hour && durationMs) {
+            const hours = durationMs / (1000 * 60 * 60);
+            cost += hours * this.options.pricing_config.human_cost_per_hour;
+        }
+
+        // 3. Robot Costs (Time based)
+        if (activity.actor_type === 'robot' && this.options.pricing_config.robot_cost_per_hour && durationMs) {
+            const hours = durationMs / (1000 * 60 * 60);
+            cost += hours * this.options.pricing_config.robot_cost_per_hour;
+        }
+
+        // 4. Software/App Costs (Per execution)
+        if (activity.actor_type === 'application' && this.options.pricing_config.software_cost_per_execution) {
+            cost += this.options.pricing_config.software_cost_per_execution;
+        }
+
+        this.executionStats.cost += cost;
+    }
+
+    private async finalizeExecution() {
+        if (this.status === 'completed' || this.status === 'failed') {
+            const endTime = new Date();
+            const durationMs = endTime.getTime() - this.executionStats.startTime.getTime();
+
+            const metrics: ExecutionMetrics = {
+                workflow_id: this.workflow.id,
+                workflow_name: this.workflow.name,
+                status: this.status,
+                started_at: this.executionStats.startTime,
+                completed_at: endTime,
+                duration_ms: durationMs,
+                input_tokens: this.executionStats.inputTokens,
+                output_tokens: this.executionStats.outputTokens,
+                total_tokens: this.executionStats.inputTokens + this.executionStats.outputTokens,
+                execution_cost: this.executionStats.cost,
+                currency: this.options.pricing_config?.currency || 'USD',
+                steps_count: this.executionStats.stepsCount,
+                user_id: this.options.user_id
+            };
+
+            await this.executionLogger.log_execution(metrics);
+        }
     }
 }

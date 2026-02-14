@@ -102,6 +102,7 @@ console.log('Workflow completed!');
 - **CLI Tool**: Command-line interface for running workflows
 - **REST API**: HTTP server for triggering workflows remotely
 - **VSM & Analytics**: Real-time tracking of DOWNTIME waste and process metrics
+- **Cost Tracking**: Track execution costs for AI tokens, human time, and robot operations
 
 ## CLI Commands
 

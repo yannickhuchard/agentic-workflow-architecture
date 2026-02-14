@@ -149,7 +149,7 @@ describe('Actors Integration', () => {
         expect(mockGenerateContent).toHaveBeenCalled();
 
         // Verify output merge
-        expect(completedToken?.contextData.summary).toBe('This is a summary.');
+        expect(completedToken?.contextData.output.summary).toBe('This is a summary.');
     });
 
     // 1. SoftwareAgent: Handle empty programs list
@@ -246,7 +246,7 @@ describe('Actors Integration', () => {
 
         const token = engine.getTokens().find(t => t.id === tokenId);
         expect(token?.status).toBe('completed');
-        expect(token?.contextData.plan).toBe('execute');
+        expect(token?.contextData.output.plan).toBe('execute');
     });
 
     // 7. AIAgent: Inject Context into Prompt

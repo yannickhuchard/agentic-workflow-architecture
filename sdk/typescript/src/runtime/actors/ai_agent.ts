@@ -40,19 +40,25 @@ export class AIAgent implements Actor {
             const responseText = result.response.text();
 
             // Attempt to parse JSON if the response looks like JSON
-            try {
-                const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-                if (jsonMatch) {
-                    return JSON.parse(jsonMatch[0]);
+            const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+            let output = responseText;
+            if (jsonMatch) {
+                try {
+                    output = JSON.parse(jsonMatch[0]);
+                } catch (e) {
+                    // ignore
                 }
-            } catch (e) {
-                // Ignore parse error, return text
             }
 
             return {
-                output: responseText,
-                status: 'complex_completed'
+                output,
+                status: 'complex_completed',
+                usage: {
+                    input_tokens: result.response.usageMetadata?.promptTokenCount || 0,
+                    output_tokens: result.response.usageMetadata?.candidatesTokenCount || 0,
+                }
             };
+
 
         } catch (error: any) {
             console.error('[AIAgent] Execution failed:', error);

@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import fs from 'fs/promises';
 import path from 'path';
 import { WorkflowEngine } from '../../runtime/workflow_engine';
+import { PrismaExecutionLogger, ConsoleExecutionLogger } from '../../runtime/execution_logger';
 import { parse_workflow } from '../../validator';
 import { Workflow, Context } from '../../types';
 
@@ -10,6 +11,7 @@ export const runCommand = new Command('run')
     .argument('<file>', 'Path to the .awa.json file')
     .option('-v, --verbose', 'Enable verbose output')
     .option('-k, --key <key>', 'Gemini API Key')
+    .option('--db', 'Log execution to database')
     .action(async (file, options) => {
         try {
             const filePath = path.resolve(process.cwd(), file);
@@ -29,8 +31,19 @@ export const runCommand = new Command('run')
 
             const apiKey = options.key || process.env.GEMINI_API_KEY;
 
+            // Initialize logger based on options
+            const executionLogger = options.db
+                ? new PrismaExecutionLogger()
+                : new ConsoleExecutionLogger();
+
             const engine = new WorkflowEngine(workflow, {
-                geminiApiKey: apiKey
+                geminiApiKey: apiKey,
+                execution_logger: executionLogger,
+                pricing_config: {
+                    input_token_cost_per_1k: 0.0001, // Example rate
+                    output_token_cost_per_1k: 0.0004, // Example rate
+                    currency: 'USD'
+                }
             });
 
             const execute = async () => {

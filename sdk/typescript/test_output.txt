@@ -1,0 +1,146 @@
+
+[7m[1m[36m RUN [39m[22m[27m [36mv1.6.1[39m [90mD:/development/agentic-workflow-architecture/sdk/typescript[39m
+
+ [33mÔØ»[39m tests/actors.test.ts [2m ([22m[2m12 tests[22m [2m|[22m [31m2 failed[39m[2m)[22m[90m 68[2mms[22m[39m
+[31m   [33mÔØ»[31m tests/actors.test.ts[2m > [22mActors Integration[2m > [22mshould execute AIAgent for ai_agent actor type[39m
+[31m     ÔåÆ expected undefined to be 'This is a summary.' // Object.is equality[39m
+[31m   [33mÔØ»[31m tests/actors.test.ts[2m > [22mActors Integration[2m > [22mshould parse AIAgent JSON response[39m
+[31m     ÔåÆ expected undefined to be 'execute' // Object.is equality[39m
+[90mstdout[2m | tests/actors.test.ts[2m > [22m[2mActors Integration[2m > [22m[2mshould execute SoftwareAgent for application actor type[22m[39m
+[SoftwareAgent] Executing activity: Test Software Activity (8527d464-6cb1-449c-82b7-08bffa1a9a93)
+[SoftwareAgent] Executing REST API: Test API
+--- Workflow Execution Metrics ---
+Workflow: Software Agent Test (52944fd0-1dad-4ec1-90b6-077de32c4dd9)
+Status: completed
+Duration: 5ms
+Steps: 1
+Tokens: 0 (In: 0, Out: 0)
+Cost: USD 0.000000
+----------------------------------
+
+[90mstdout[2m | tests/actors.test.ts[2m > [22m[2mActors Integration[2m > [22m[2mshould execute AIAgent for ai_agent actor type[22m[39m
+[AIAgent] Executing activity: AI Task (cbd79f01-8e81-414d-b2c6-36ff8e448104)
+--- Workflow Execution Metrics ---
+Workflow: AI Agent Test (35cfe290-a5ee-441c-bf10-d2dfd91bdae6)
+Status: completed
+Duration: 2ms
+Steps: 1
+Tokens: 0 (In: 0, Out: 0)
+Cost: USD 0.000000
+----------------------------------
+
+[90mstdout[2m | tests/actors.test.ts[2m > [22m[2mActors Integration[2m > [22m[2mshould handle SoftwareAgent with no programs[22m[39m
+[SoftwareAgent] Executing activity: Test Activity (4c65a75b-0ef7-4fe0-9636-d9ed266e6f8d)
+--- Workflow Execution Metrics ---
+Workflow: Test Workflow (646388e2-1276-47a9-a33e-2a69340353a4)
+Status: completed
+Duration: 0ms
+Steps: 1
+Tokens: 0 (In: 0, Out: 0)
+Cost: USD 0.000000
+----------------------------------
+
+[90mstdout[2m | tests/actors.test.ts[2m > [22m[2mActors Integration[2m > [22m[2mshould handle SoftwareAgent with unsupported program language[22m[39m
+[SoftwareAgent] Executing activity: Test Activity (332c9a1c-b386-4bb4-8301-a62ea2618b45)
+--- Workflow Execution Metrics ---
+Workflow: Test Workflow (cce85437-0b52-4da8-8e68-7b12f28147e9)
+Status: completed
+Duration: 0ms
+Steps: 1
+Tokens: 0 (In: 0, Out: 0)
+Cost: USD 0.000000
+----------------------------------
+
+[90mstdout[2m | tests/actors.test.ts[2m > [22m[2mActors Integration[2m > [22m[2mshould fail AIAgent execution if API Key is missing[22m[39m
+--- Workflow Execution Metrics ---
+Workflow: Test Workflow (ca2bd890-9412-4c2d-8e5d-4eafa0abbad5)
+Status: completed
+Duration: 3ms
+Steps: 0
+Tokens: 0 (In: 0, Out: 0)
+Cost: USD 0.000000
+----------------------------------
+
+[90mstdout[2m | tests/actors.test.ts[2m > [22m[2mActors Integration[2m > [22m[2mshould fail AIAgent execution if Role is not found[22m[39m
+[AIAgent] Executing activity: Test Activity (8bbf4991-e141-46c5-bdb2-1c4688e7c8dc)
+--- Workflow Execution Metrics ---
+Workflow: Test Workflow (9669dd81-24f8-410e-9bd3-d4d9c8f5f5a2)
+Status: completed
+Duration: 0ms
+Steps: 1
+Tokens: 0 (In: 0, Out: 0)
+Cost: USD 0.000000
+----------------------------------
+
+[90mstdout[2m | tests/actors.test.ts[2m > [22m[2mActors Integration[2m > [22m[2mshould handle AIAgent plain text response[22m[39m
+[AIAgent] Executing activity: Test Activity (304fc41e-4e9b-471d-b50f-b4dcc4208ec4)
+--- Workflow Execution Metrics ---
+Workflow: Test Workflow (d0434992-a7e3-4e59-b709-76ebc988c950)
+Status: completed
+Duration: 0ms
+Steps: 1
+Tokens: 0 (In: 0, Out: 0)
+Cost: USD 0.000000
+----------------------------------
+
+[90mstdout[2m | tests/actors.test.ts[2m > [22m[2mActors Integration[2m > [22m[2mshould parse AIAgent JSON response[22m[39m
+[AIAgent] Executing activity: Test Activity (f469321a-8d80-4b6a-b8c2-25dc87e4e57e)
+--- Workflow Execution Metrics ---
+Workflow: Test Workflow (fedb3eeb-ddb0-4633-9216-8cddf0c5a523)
+Status: completed
+Duration: 0ms
+Steps: 1
+Tokens: 0 (In: 0, Out: 0)
+Cost: USD 0.000000
+----------------------------------
+
+[90mstdout[2m | tests/actors.test.ts[2m > [22m[2mActors Integration[2m > [22m[2mshould inject context data into AI prompt[22m[39m
+[AIAgent] Executing activity: Test Activity (ce011bed-6522-4094-913f-41a75d5093ad)
+--- Workflow Execution Metrics ---
+Workflow: Test Workflow (40695107-bd73-446d-9c19-01fdd63d1e0f)
+Status: completed
+Duration: 0ms
+Steps: 1
+Tokens: 0 (In: 0, Out: 0)
+Cost: USD 0.000000
+----------------------------------
+
+[90mstdout[2m | tests/actors.test.ts[2m > [22m[2mActors Integration[2m > [22m[2mshould inject role capabilities into system prompt[22m[39m
+[AIAgent] Executing activity: Test Activity (7180efff-c69e-4625-b182-aa813d92186d)
+--- Workflow Execution Metrics ---
+Workflow: Test Workflow (73ad6343-8f2c-41a3-9f69-921199679939)
+Status: completed
+Duration: 0ms
+Steps: 1
+Tokens: 0 (In: 0, Out: 0)
+Cost: USD 0.000000
+----------------------------------
+
+[90mstdout[2m | tests/actors.test.ts[2m > [22m[2mActors Integration[2m > [22m[2mshould inject activity controls into prompt[22m[39m
+[AIAgent] Executing activity: Test Activity (850c0368-2958-4129-9ae2-6b71ed0c342a)
+--- Workflow Execution Metrics ---
+Workflow: Test Workflow (5d64488d-c1e3-49d1-9cc9-022fea1ac150)
+Status: completed
+Duration: 0ms
+Steps: 1
+Tokens: 0 (In: 0, Out: 0)
+Cost: USD 0.000000
+----------------------------------
+
+[90mstdout[2m | tests/actors.test.ts[2m > [22m[2mActors Integration[2m > [22m[2mshould handle Gemini API errors[22m[39m
+[AIAgent] Executing activity: Test Activity (ffaff177-647d-4db0-bf9c-3dcb00d2c301)
+--- Workflow Execution Metrics ---
+Workflow: Test Workflow (56d95e7d-cace-42de-ba93-f96cfdfea7ee)
+Status: completed
+Duration: 3ms
+Steps: 0
+Tokens: 0 (In: 0, Out: 0)
+Cost: USD 0.000000
+----------------------------------
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m2 failed[39m[22m[2m | [22m[1m[32m10 passed[39m[22m[90m (12)[39m
+[2m   Start at [22m 19:57:00
+[2m   Duration [22m 1.73s[2m (transform 379ms, setup 0ms, collect 653ms, tests 68ms, environment 1ms, prepare 252ms)[22m
+

@@ -3,6 +3,22 @@ import { WorkflowEngine } from '../src/runtime/workflow_engine';
 import { Token } from '../src/runtime/token';
 import { Workflow, Activity } from '../src/types';
 import { v4 as uuidv4 } from 'uuid';
+import { vi } from 'vitest';
+
+// Mock HumanAgent to avoid DB calls
+vi.mock('../src/runtime/actors/human_agent', () => {
+    return {
+        HumanAgent: vi.fn().mockImplementation((options) => ({
+            execute: vi.fn().mockResolvedValue({
+                output: 'Human Output',
+                status: 'completed',
+                _human_task_id: 'mock-task-id',
+                _human_task_status: 'pending',
+                _requires_human_action: true // Always return this for non-blocking simulation
+            })
+        }))
+    };
+});
 
 describe('VSM & Analytics Tracking', () => {
     let workflow: Workflow;
