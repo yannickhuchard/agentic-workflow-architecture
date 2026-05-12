@@ -10,7 +10,7 @@ readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.10"
 authors = [
-    { name = "AWA Specification", email = "spec@awa.io" }
+    { name = "Yannick HUCHARD" }
 ]
 keywords = ["awa", "agentic", "workflow", "process", "bpmn", "ai-agent"]
 classifiers = [
@@ -47,9 +47,9 @@ web = [
 awa = "awa.cli:main"
 
 [project.urls]
-Homepage = "https://awa.io"
-Repository = "https://github.com/awa-spec/awa-sdk-python"
-Documentation = "https://docs.awa.io/sdk/python"
+Homepage = "https://github.com/yannickhuchard/agentic-workflow-architecture"
+Repository = "https://github.com/yannickhuchard/agentic-workflow-architecture"
+Documentation = "https://github.com/yannickhuchard/agentic-workflow-architecture"
 
 [tool.hatch.build.targets.wheel]
 packages = ["awa"]

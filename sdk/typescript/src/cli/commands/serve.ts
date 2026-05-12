@@ -43,14 +43,15 @@ export const serveCommand = new Command('serve')
                     console.log(`  Rate limit: ${rateLimit} requests/minute`);
                 }
             });
-        } catch (error: any) {
-            console.error('Failed to start server:', error.message);
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            console.error('Failed to start server:', message);
             process.exit(1);
         }
     });
 
 // Helper to collect multiple --api-key options
-function collectApiKeys(value: string, previous: Record<string, any>): Record<string, any> {
+function collectApiKeys(value: string, previous: Record<string, unknown>): Record<string, unknown> {
     const [key, roleStr] = value.split(':');
     const role = roleStr || 'user';
     return {

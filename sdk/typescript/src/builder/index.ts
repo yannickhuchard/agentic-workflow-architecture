@@ -19,6 +19,8 @@ import type {
     AccessDirection,
     SLA,
     Analytics,
+    VerificationPolicy,
+    VerificationCriterionType,
 } from '../types';
 
 export interface ActivityConfig {
@@ -41,6 +43,19 @@ export interface ActivityConfig {
     }>;
     sla?: SLA;
     analytics?: Analytics;
+    verification?: {
+        criteria: Array<{
+            name: string;
+            description: string;
+            type?: VerificationCriterionType;
+            required?: boolean;
+            weight?: number;
+        }>;
+        max_retries?: number;
+        mode?: 'ai_judge' | 'schema_only' | 'custom';
+        pass_threshold?: number;
+        output_schema?: Record<string, unknown>;
+    };
 }
 
 export interface ContextConfig {
@@ -167,6 +182,24 @@ export class WorkflowBuilder {
             is_expandable: false,
             skills: [],
             tool_requirements: [],
+            verification: config.verification ? {
+                enabled: true,
+                mode: config.verification.mode || 'ai_judge',
+                criteria: config.verification.criteria.map(c => ({
+                    id: uuidv4(),
+                    name: c.name,
+                    description: c.description,
+                    type: c.type || 'completeness',
+                    weight: c.weight ?? 1,
+                    required: c.required ?? true,
+                })),
+                max_retries: config.verification.max_retries ?? 3,
+                retry_with_feedback: true,
+                output_schema: config.verification.output_schema,
+                judge_model_id: 'gemini-2.5-flash',
+                judge_temperature: 0.1,
+                pass_threshold: config.verification.pass_threshold ?? 0.9,
+            } : undefined,
         };
 
         this.activityMap.set(name, activity);

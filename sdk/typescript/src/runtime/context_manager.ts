@@ -2,7 +2,7 @@ import { UUID, Context } from '../types';
 
 export class ContextManager {
     private contexts: Map<UUID, Context>;
-    private values: Map<UUID, any>;
+    private values: Map<UUID, unknown>;
 
     constructor() {
         this.contexts = new Map();
@@ -16,14 +16,14 @@ export class ContextManager {
         }
     }
 
-    public get(contextId: UUID): any {
+    public get(contextId: UUID): unknown {
         if (!this.contexts.has(contextId)) {
             throw new Error(`Context with ID ${contextId} not found`);
         }
         return this.values.get(contextId);
     }
 
-    public set(contextId: UUID, value: any): void {
+    public set(contextId: UUID, value: unknown): void {
         if (!this.contexts.has(contextId)) {
             throw new Error(`Context with ID ${contextId} not found`);
         }
@@ -31,14 +31,15 @@ export class ContextManager {
         this.values.set(contextId, value);
     }
 
-    public update(contextId: UUID, partialValue: any): void {
+    public update(contextId: UUID, partialValue: unknown): void {
         if (!this.contexts.has(contextId)) {
             throw new Error(`Context with ID ${contextId} not found`);
         }
         const currentValue = this.values.get(contextId) || {};
 
         if (typeof currentValue === 'object' && currentValue !== null && !Array.isArray(currentValue)) {
-            this.values.set(contextId, { ...currentValue, ...partialValue });
+            const partial = (typeof partialValue === 'object' && partialValue !== null) ? partialValue : {};
+            this.values.set(contextId, { ...currentValue, ...partial as any });
         } else {
             this.values.set(contextId, partialValue);
         }

@@ -50,9 +50,10 @@ workflowRouter.post('/run', async (req, res) => {
             message: 'Workflow started'
         });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('Error running workflow:', error);
-        res.status(500).json({ error: error.message });
+        const message = error instanceof Error ? error.message : String(error);
+        res.status(500).json({ error: message });
     }
 });
 

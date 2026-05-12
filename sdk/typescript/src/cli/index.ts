@@ -3,6 +3,8 @@ import { Command } from 'commander';
 import { runCommand } from './commands/run';
 import { serveCommand } from './commands/serve';
 import { taskCommand } from './commands/task';
+import { initCommand } from './commands/init';
+import { generateCommand } from './commands/generate';
 
 // @ts-ignore
 import { version } from '../../package.json';
@@ -17,5 +19,7 @@ program
 program.addCommand(runCommand);
 program.addCommand(serveCommand);
 program.addCommand(taskCommand);
+program.addCommand(initCommand);
+program.addCommand(generateCommand);
 
 program.parse(process.argv);

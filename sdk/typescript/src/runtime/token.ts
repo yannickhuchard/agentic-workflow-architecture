@@ -16,7 +16,7 @@ export class Token {
     public id: UUID;
     public activityId: UUID;
     public status: TokenStatus;
-    public contextData: Record<string, any>;
+    public contextData: Record<string, unknown>;
     public history: TokenHistoryEntry[];
     public parentTokenId?: UUID;
     public workflowId?: UUID;
@@ -25,7 +25,7 @@ export class Token {
 
     constructor(
         activityId: UUID,
-        initialData: Record<string, any> = {},
+        initialData: Record<string, unknown> = {},
         parentTokenId?: UUID,
         workflowId?: UUID
     ) {
@@ -56,16 +56,16 @@ export class Token {
         this.addToHistory(this.activityId, `status_change:${status}`, undefined, analytics);
     }
 
-    public setData(key: string, value: any): void {
+    public setData(key: string, value: unknown): void {
         this.contextData[key] = value;
         this.updatedAt = new Date();
     }
 
-    public getData(key: string): any {
+    public getData(key: string): unknown {
         return this.contextData[key];
     }
 
-    public mergeData(data: Record<string, any>): void {
+    public mergeData(data: Record<string, unknown>): void {
         this.contextData = { ...this.contextData, ...data };
         this.updatedAt = new Date();
     }
@@ -80,7 +80,7 @@ export class Token {
         });
     }
 
-    public toJSON(): Record<string, any> {
+    public toJSON(): Record<string, unknown> {
         return {
             id: this.id,
             activityId: this.activityId,

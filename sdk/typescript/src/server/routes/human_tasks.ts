@@ -31,8 +31,9 @@ humanTaskRouter.get('/', async (req, res) => {
             tasks,
             total: tasks.length
         });
-    } catch (error: any) {
-        res.status(500).json({ error: error.message });
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        res.status(500).json({ error: message });
     }
 });
 
@@ -55,8 +56,9 @@ humanTaskRouter.get('/pending', async (req, res) => {
             tasks,
             total: tasks.length
         });
-    } catch (error: any) {
-        res.status(500).json({ error: error.message });
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        res.status(500).json({ error: message });
     }
 });
 
@@ -73,8 +75,9 @@ humanTaskRouter.get('/:id', async (req, res) => {
         }
 
         res.json(task);
-    } catch (error: any) {
-        res.status(500).json({ error: error.message });
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        res.status(500).json({ error: message });
     }
 });
 
@@ -95,9 +98,10 @@ humanTaskRouter.post('/:id/assign', async (req, res) => {
             message: 'Task assigned',
             task
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         // Prisma error handling could be better (e.g. record not found)
-        res.status(400).json({ error: error.message });
+        const message = error instanceof Error ? error.message : String(error);
+        res.status(400).json({ error: message });
     }
 });
 
@@ -114,8 +118,9 @@ humanTaskRouter.post('/:id/complete', async (req, res) => {
             message: 'Task completed',
             task
         });
-    } catch (error: any) {
-        res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        res.status(400).json({ error: message });
     }
 });
 
@@ -132,8 +137,9 @@ humanTaskRouter.post('/:id/reject', async (req, res) => {
             message: 'Task rejected',
             task
         });
-    } catch (error: any) {
-        res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        res.status(400).json({ error: message });
     }
 });
 
@@ -163,7 +169,8 @@ humanTaskRouter.get('/queue/stats', async (req, res) => {
         };
 
         res.json(stats);
-    } catch (error: any) {
-        res.status(500).json({ error: error.message });
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        res.status(500).json({ error: message });
     }
 });

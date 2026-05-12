@@ -3,6 +3,7 @@
  * Executes AWA workflow definitions with full actor and decision support
  */
 
+import { randomUUID } from 'crypto';
 import { UUID, Workflow, Activity, Edge, Role, DecisionNode } from '../types';
 import { Token } from './token';
 import { ContextManager } from './context_manager';
@@ -15,7 +16,8 @@ import { RobotAgent, RobotConfig } from './actors/robot_agent';
 import { HumanAgent } from './actors/human_agent';
 import { DecisionEvaluator, evaluate_decision } from './decision_evaluator';
 import { calculate_duration } from './duration_utils';
-import { WasteCategory, Analytics } from '../types';
+import { WasteCategory, Analytics, VerificationRecord } from '../types';
+import { VerificationEngine } from './verification_engine';
 
 export type EngineStatus = 'running' | 'paused' | 'completed' | 'failed' | 'idle' | 'waiting_human';
 
@@ -24,6 +26,8 @@ export interface WorkflowEngineOptions {
     gemini_api_key?: string;
     /** @deprecated Use gemini_api_key instead */
     geminiApiKey?: string;
+    /** Default model ID for AI agents */
+    default_ai_model_id?: string;
     /** Role definitions */
     roles?: Role[];
     /** Robot configuration */
@@ -45,6 +49,12 @@ export interface WorkflowEngineOptions {
     };
     /** User ID triggering the execution */
     user_id?: string;
+    /** Enable verification globally (can be overridden per activity) */
+    verification_enabled?: boolean;
+    /** Override verification judge model ID */
+    verification_model_id?: string;
+    /** Run in simulation mode (mocks AI and Human interactions) */
+    simulate?: boolean;
 }
 
 export class WorkflowEngine {
@@ -59,12 +69,16 @@ export class WorkflowEngine {
     private roleMap: Map<UUID, Role>;
     private decisionEvaluator: DecisionEvaluator;
     private executionLogger: ExecutionLogger;
+    private verificationEngine: VerificationEngine;
+    private defaultAIModelId: string;
+    private simulate: boolean;
     private executionStats: {
         startTime: Date;
         stepsCount: number;
         inputTokens: number;
         outputTokens: number;
         cost: number;
+        verificationTokens: number;
     };
 
     constructor(workflowDef: Workflow, options: WorkflowEngineOptions = {}) {
@@ -80,6 +94,8 @@ export class WorkflowEngine {
             // Support legacy option name
             gemini_api_key: options.gemini_api_key || options.geminiApiKey
         };
+        this.defaultAIModelId = options.default_ai_model_id || 'gemini-3-flash-preview';
+        this.simulate = options.simulate || false;
         this.tokens = [];
         this.contextManager = new ContextManager();
         this.status = 'idle';
@@ -89,13 +105,20 @@ export class WorkflowEngine {
         this.roleMap = new Map();
         this.decisionEvaluator = new DecisionEvaluator(workflowDef.decision_nodes);
         this.executionLogger = options.execution_logger || get_execution_logger();
+        this.verificationEngine = new VerificationEngine({
+            gemini_api_key: this.options.gemini_api_key,
+            default_model_id: this.options.verification_model_id || this.defaultAIModelId,
+            verbose: this.options.verbose,
+            simulate: this.simulate,
+        });
 
         this.executionStats = {
             startTime: new Date(),
             stepsCount: 0,
             inputTokens: 0,
             outputTokens: 0,
-            cost: 0
+            cost: 0,
+            verificationTokens: 0
         };
 
         this.initializeMaps();
@@ -171,8 +194,6 @@ export class WorkflowEngine {
         const token = new Token(startNodeId, tokenData, undefined, this.workflow.id);
         this.tokens.push(token);
         this.status = 'running';
-
-        this.log(`Started workflow "${this.workflow.name}" with token ${token.id}`);
 
         this.log(`Started workflow "${this.workflow.name}" with token ${token.id}`);
 
@@ -259,7 +280,10 @@ export class WorkflowEngine {
 
                 this.log(`Executing activity "${activity.name}" with ${activity.actor_type} actor`);
 
-                const output = await actor.execute(activity, inputs);
+                // Execute with verification loop
+                const { output, verificationRecords } = await this.executeWithVerification(
+                    actor, activity, inputs
+                );
 
                 const endTime = new Date();
                 const processTime = calculate_duration(startTime, endTime);
@@ -270,6 +294,23 @@ export class WorkflowEngine {
                     value_added: activity.analytics?.value_added ?? true,
                     waste_categories: []
                 };
+
+                // Check if verification ultimately failed
+                if (verificationRecords.length > 0) {
+                    const lastRecord = verificationRecords[verificationRecords.length - 1];
+                    if (lastRecord.verdict === 'fail') {
+                        this.log(`Activity "${activity.name}" failed verification after ${verificationRecords.length} attempt(s)`);
+                        analytics.waste_categories?.push('defects' as WasteCategory);
+                        analytics.error_rate = 1;
+                        token.updateStatus('failed', analytics);
+                        token.mergeData({
+                            ...output,
+                            _error: `Verification failed: ${lastRecord.feedback}`,
+                            _verification_records: verificationRecords,
+                        });
+                        return;
+                    }
+                }
 
                 // Check if human task requires waiting
                 if (output._requires_human_action && this.options.wait_for_human_tasks) {
@@ -286,7 +327,8 @@ export class WorkflowEngine {
                 token.mergeData({
                     ...output,
                     _last_actor_id: activity.id,
-                    _last_actor_type: activity.actor_type
+                    _last_actor_type: activity.actor_type,
+                    ...(verificationRecords.length > 0 ? { _verification_records: verificationRecords } : {})
                 });
 
                 // Track usage and cost
@@ -471,24 +513,124 @@ export class WorkflowEngine {
                 return new SoftwareAgent();
 
             case 'ai_agent':
-                if (!this.options.gemini_api_key) {
+                if (!this.options.gemini_api_key && !this.simulate) {
                     throw new Error('Gemini API Key required for AI Agent. Set gemini_api_key in options.');
                 }
                 const role = this.roleMap.get(activity.role_id);
-                return new AIAgent(this.options.gemini_api_key, role);
+                return new AIAgent(this.options.gemini_api_key || '', role, this.defaultAIModelId, this.simulate);
 
             case 'robot':
                 return new RobotAgent(this.options.robot_config);
 
             case 'human':
                 return new HumanAgent({
-                    wait_for_completion: false // Engine will handle waiting state
+                    wait_for_completion: false, // Engine will handle waiting state
+                    simulate: this.simulate
                 });
 
             default:
                 this.log(`Unknown actor type: ${activity.actor_type}`);
                 return undefined;
         }
+    }
+
+    /**
+     * Execute an activity with optional verification-and-retry loop.
+     * If the activity has a verification policy, the output is verified
+     * after each execution. On failure, AI agents are retried with
+     * corrective feedback. Non-AI actors are verified but not retried.
+     */
+    private async executeWithVerification(
+        actor: Actor,
+        activity: Activity,
+        inputs: Record<string, unknown>
+    ): Promise<{ output: Record<string, unknown>; verificationRecords: VerificationRecord[] }> {
+        const policy = activity.verification;
+        const globalEnabled = this.options.verification_enabled !== false;
+        const hasVerification = policy && policy.enabled && globalEnabled;
+
+        if (!hasVerification) {
+            // No verification — execute once and return
+            const output = await actor.execute(activity, inputs);
+            return { output, verificationRecords: [] };
+        }
+
+        const maxAttempts = policy.max_retries + 1; // +1 for the initial attempt
+        const verificationRecords: VerificationRecord[] = [];
+        let currentInputs = { ...inputs };
+        let lastOutput: Record<string, unknown> = {};
+
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            this.log(`Verification attempt ${attempt}/${maxAttempts} for "${activity.name}"`);
+
+            // Execute the activity
+            lastOutput = await actor.execute(activity, currentInputs);
+
+            // Verify the output
+            try {
+                const record = await this.verificationEngine.verify(
+                    activity, currentInputs, lastOutput, attempt
+                );
+                verificationRecords.push(record);
+
+                // Track verification token usage
+                if (record.judge_tokens) {
+                    this.executionStats.verificationTokens +=
+                        record.judge_tokens.input + record.judge_tokens.output;
+                    this.executionStats.inputTokens += record.judge_tokens.input;
+                    this.executionStats.outputTokens += record.judge_tokens.output;
+                }
+
+                if (record.verdict === 'pass') {
+                    this.log(`Activity "${activity.name}" passed verification (attempt ${attempt}, score: ${(record.overall_score * 100).toFixed(0)}%)`);
+                    return { output: lastOutput, verificationRecords };
+                }
+
+                // Verification failed — decide whether to retry
+                this.log(`Activity "${activity.name}" failed verification (attempt ${attempt}, score: ${(record.overall_score * 100).toFixed(0)}%)`);
+
+                // Only AI agents support automatic retry with feedback
+                if (activity.actor_type !== 'ai_agent' || !policy.retry_with_feedback) {
+                    this.log(`No retry for actor_type="${activity.actor_type}" — recording failure`);
+                    return { output: lastOutput, verificationRecords };
+                }
+
+                // Inject corrective feedback for the next attempt
+                if (attempt < maxAttempts) {
+                    const feedback = this.verificationEngine.generate_corrective_feedback(record);
+                    currentInputs = {
+                        ...inputs,
+                        _verification_feedback: feedback,
+                        _verification_attempt: attempt + 1,
+                    };
+                    this.log(`Injecting corrective feedback for retry attempt ${attempt + 1}`);
+                }
+
+            } catch (verificationError: unknown) {
+                const message = verificationError instanceof Error
+                    ? verificationError.message : String(verificationError);
+                this.log(`Verification error: ${message}`);
+
+                // If verification itself errors, record it and continue without blocking
+                verificationRecords.push({
+                    id: randomUUID(),
+                    activity_id: activity.id,
+                    attempt,
+                    verdict: 'error',
+                    criteria_results: [],
+                    overall_score: 0,
+                    feedback: `Verification engine error: ${message}`,
+                    verified_at: new Date().toISOString(),
+                    duration_ms: 0,
+                    output_hash: this.verificationEngine.compute_output_hash(lastOutput),
+                });
+                // On verification error, return the output as-is (don't block the workflow)
+                return { output: lastOutput, verificationRecords };
+            }
+        }
+
+        // All retries exhausted — return with the last failed records
+        return { output: lastOutput, verificationRecords };
     }
 
     /**
@@ -504,7 +646,7 @@ export class WorkflowEngine {
         let analytics: Analytics | undefined;
 
         if (waitingSince) {
-            const waitTime = calculate_duration(new Date(waitingSince), new Date());
+            const waitTime = calculate_duration(new Date(waitingSince as string), new Date());
             analytics = {
                 wait_time: waitTime,
                 waste_categories: ['waiting' as WasteCategory]
@@ -537,18 +679,19 @@ export class WorkflowEngine {
         return this.workflow;
     }
 
-    private trackCost(activity: Activity, output: Record<string, any>, durationMs?: number) {
+    private trackCost(activity: Activity, output: Record<string, unknown>, durationMs?: number) {
         if (!this.options.pricing_config) return;
 
         let cost = 0;
 
         // 1. AI Costs (Token based)
-        if (activity.actor_type === 'ai_agent' && output.usage) {
-            this.executionStats.inputTokens += output.usage.input_tokens || 0;
-            this.executionStats.outputTokens += output.usage.output_tokens || 0;
+        const usage = output.usage as any;
+        if (activity.actor_type === 'ai_agent' && usage) {
+            this.executionStats.inputTokens += usage.input_tokens || 0;
+            this.executionStats.outputTokens += usage.output_tokens || 0;
 
-            const inputCost = ((output.usage.input_tokens || 0) / 1000) * (this.options.pricing_config.input_token_cost_per_1k || 0);
-            const outputCost = ((output.usage.output_tokens || 0) / 1000) * (this.options.pricing_config.output_token_cost_per_1k || 0);
+            const inputCost = ((usage.input_tokens || 0) / 1000) * (this.options.pricing_config.input_token_cost_per_1k || 0);
+            const outputCost = ((usage.output_tokens || 0) / 1000) * (this.options.pricing_config.output_token_cost_per_1k || 0);
             cost += inputCost + outputCost;
         }
 

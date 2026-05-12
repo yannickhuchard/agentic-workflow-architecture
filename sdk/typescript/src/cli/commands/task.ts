@@ -29,8 +29,9 @@ taskCommand.command('list')
                 Priority: t.priority,
                 Created: new Date(t.created_at).toLocaleString()
             })));
-        } catch (error: any) {
-            console.error('Error listing tasks:', error.message);
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            console.error('Error listing tasks:', message);
         }
     });
 
@@ -62,8 +63,9 @@ taskCommand.command('show <id>')
                 console.log('Outputs:');
                 console.log(JSON.stringify(task.outputs, null, 2));
             }
-        } catch (error: any) {
-            console.error('Error fetching task:', error.message);
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            console.error('Error fetching task:', message);
         }
     });
 
@@ -74,8 +76,9 @@ taskCommand.command('assign <id> <user_id>')
             const task = await TaskService.assign(id, user_id);
             console.log(`Task ${id} assigned to ${user_id}`);
             console.log(`New Status: ${task.status}`);
-        } catch (error: any) {
-            console.error('Error assigning task:', error.message);
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            console.error('Error assigning task:', message);
         }
     });
 
@@ -95,8 +98,9 @@ taskCommand.command('complete <id> [json_outputs]')
 
             const task = await TaskService.complete(id, outputs);
             console.log(`Task ${id} completed.`);
-        } catch (error: any) {
-            console.error('Error completing task:', error.message);
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            console.error('Error completing task:', message);
         }
     });
 
@@ -106,7 +110,8 @@ taskCommand.command('reject <id> [reason]')
         try {
             const task = await TaskService.reject(id, reason);
             console.log(`Task ${id} rejected.`);
-        } catch (error: any) {
-            console.error('Error rejecting task:', error.message);
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            console.error('Error rejecting task:', message);
         }
     });

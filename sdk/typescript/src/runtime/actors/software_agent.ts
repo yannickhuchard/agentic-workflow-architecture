@@ -2,7 +2,7 @@ import { Activity } from '../../types';
 import { Actor } from './actor';
 
 export class SoftwareAgent implements Actor {
-    async execute(activity: Activity, inputs: Record<string, any>): Promise<Record<string, any>> {
+    async execute(activity: Activity, inputs: Record<string, unknown>): Promise<Record<string, unknown>> {
         console.log(`[SoftwareAgent] Executing activity: ${activity.name} (${activity.id})`);
 
         // Check for programs to execute
@@ -25,7 +25,7 @@ export class SoftwareAgent implements Actor {
         };
     }
 
-    private async executeRestApi(program: any, inputs: Record<string, any>): Promise<Record<string, any>> {
+    private async executeRestApi(program: Record<string, unknown>, inputs: Record<string, unknown>): Promise<Record<string, unknown>> {
         console.log(`[SoftwareAgent] Executing REST API: ${program.name}`);
 
         // This is a placeholder for actual REST API execution logic

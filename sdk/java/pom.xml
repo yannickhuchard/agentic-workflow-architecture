@@ -11,7 +11,7 @@
 
     <name>AWA SDK</name>
     <description>Java SDK for Agentic Workflow Architecture (AWA)</description>
-    <url>https://awa.io</url>
+    <url>https://github.com/yannickhuchard/agentic-workflow-architecture</url>
 
     <licenses>
         <license>

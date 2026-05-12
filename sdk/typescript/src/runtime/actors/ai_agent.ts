@@ -4,18 +4,32 @@ import { Actor } from './actor';
 
 export class AIAgent implements Actor {
     private genAI: GoogleGenerativeAI;
-    private model: any;
     private role?: Role;
+    private defaultModelId: string;
+    private simulate: boolean;
 
-    constructor(apiKey: string, role?: Role) {
+    constructor(apiKey: string, role?: Role, defaultModelId: string = 'gemini-3.1-flash', simulate: boolean = false) {
         this.genAI = new GoogleGenerativeAI(apiKey);
-        // Using Gemini 2.5 Flash as requested
-        this.model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
         this.role = role;
+        this.defaultModelId = defaultModelId;
+        this.simulate = simulate;
     }
 
-    async execute(activity: Activity, inputs: Record<string, any>): Promise<Record<string, any>> {
+    async execute(activity: Activity, inputs: Record<string, unknown>): Promise<Record<string, unknown>> {
         console.log(`[AIAgent] Executing activity: ${activity.name} (${activity.id})`);
+
+        if (this.simulate) {
+            console.log(`[AIAgent] SIMULATION: Mocking AI response for "${activity.name}"`);
+            return {
+                output: { _mocked: true, status: "simulated" },
+                status: 'complex_completed',
+                usage: { input_tokens: 0, output_tokens: 0 }
+            };
+        }
+
+        // Resolve model ID: Role config > constructor default > fallback
+        const modelId = this.role?.ai_model_config?.model_id || this.defaultModelId;
+        const model = this.genAI.getGenerativeModel({ model: modelId });
 
         const systemPrompt = this.generateSystemPrompt(activity);
         const userMessage = this.generateUserMessage(activity, inputs);
@@ -27,14 +41,11 @@ export class AIAgent implements Actor {
                 maxOutputTokens: this.role?.ai_model_config?.max_tokens ?? 1024,
             };
 
-            const result = await this.model.generateContent({
+            const result = await model.generateContent({
                 contents: [
                     { role: 'user', parts: [{ text: systemPrompt + "\n\n" + userMessage }] }
                 ],
-                // Note: System instructions are supported in newer API versions, 
-                // but combining into prompt is a safe fallback for all client versions.
-                // If the client supports systemInstruction, we could use that.
-                // generationConfig: generationConfig
+                generationConfig
             });
 
             const responseText = result.response.text();
@@ -60,9 +71,9 @@ export class AIAgent implements Actor {
             };
 
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('[AIAgent] Execution failed:', error);
-            throw new Error(`AIAgent execution failed: ${error.message}`);
+            throw new Error(`AIAgent execution failed: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
 
@@ -94,12 +105,29 @@ export class AIAgent implements Actor {
         return lines.join('\n');
     }
 
-    private generateUserMessage(activity: Activity, inputs: Record<string, any>): string {
+    private generateUserMessage(activity: Activity, inputs: Record<string, unknown>): string {
         const lines: string[] = [];
 
+        // Inject verification corrective feedback from previous failed attempt
+        if (inputs._verification_feedback) {
+            lines.push('## ⚠️ IMPORTANT: Previous Attempt Failed Verification');
+            lines.push('Your previous output did NOT pass quality verification.');
+            lines.push('You MUST correct your output based on the following feedback:\n');
+            lines.push(String(inputs._verification_feedback));
+            lines.push(`\nThis is attempt #${inputs._verification_attempt || 'unknown'}. Please ensure your output fully satisfies ALL criteria.\n`);
+        }
+
+        // Filter out internal AWA fields from displayed context
+        const displayInputs: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(inputs)) {
+            if (!key.startsWith('_')) {
+                displayInputs[key] = value;
+            }
+        }
+
         lines.push('## Input Context');
-        if (Object.keys(inputs).length > 0) {
-            lines.push(JSON.stringify(inputs, null, 2));
+        if (Object.keys(displayInputs).length > 0) {
+            lines.push(JSON.stringify(displayInputs, null, 2));
         } else {
             lines.push('No specific input data provided.');
         }
@@ -108,6 +136,15 @@ export class AIAgent implements Actor {
             lines.push('\n## Controls & Constraints');
             activity.controls.forEach(c => {
                 lines.push(`- ${c.name}: ${c.description || ''} (${c.enforcement})`);
+            });
+        }
+
+        // Inject verification criteria as explicit instructions
+        if (activity.verification && activity.verification.enabled && activity.verification.criteria.length > 0) {
+            lines.push('\n## Acceptance Criteria (Your output will be verified against these)');
+            activity.verification.criteria.forEach((c, i) => {
+                const reqLabel = c.required ? '[REQUIRED]' : '[OPTIONAL]';
+                lines.push(`${i + 1}. ${c.name} ${reqLabel}: ${c.description}`);
             });
         }
 

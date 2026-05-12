@@ -12,6 +12,7 @@ export const runCommand = new Command('run')
     .option('-v, --verbose', 'Enable verbose output')
     .option('-k, --key <key>', 'Gemini API Key')
     .option('--db', 'Log execution to database')
+    .option('-s, --simulate', 'Run in simulation mode (no real API calls)')
     .action(async (file, options) => {
         try {
             const filePath = path.resolve(process.cwd(), file);
@@ -28,6 +29,9 @@ export const runCommand = new Command('run')
             }
 
             console.log(`Starting workflow: ${workflow.name} (${workflow.id})`);
+            if (options.simulate) {
+                console.log('🧪 Running in SIMULATION MODE. No real API calls will be made.');
+            }
 
             const apiKey = options.key || process.env.GEMINI_API_KEY;
 
@@ -37,7 +41,8 @@ export const runCommand = new Command('run')
                 : new ConsoleExecutionLogger();
 
             const engine = new WorkflowEngine(workflow, {
-                geminiApiKey: apiKey,
+                gemini_api_key: apiKey,
+                simulate: options.simulate,
                 execution_logger: executionLogger,
                 pricing_config: {
                     input_token_cost_per_1k: 0.0001, // Example rate
@@ -76,10 +81,12 @@ export const runCommand = new Command('run')
                 process.exit(1);
             }
 
-        } catch (error: any) {
-            console.error('Error running workflow:', error.message);
-            if (options.verbose && error.stack) {
-                console.error(error.stack);
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            const stack = error instanceof Error ? error.stack : undefined;
+            console.error('Error running workflow:', message);
+            if (options.verbose && stack) {
+                console.error(stack);
             }
             process.exit(1);
         }

@@ -198,6 +198,22 @@ AWA specifications can be serialized to multiple formats:
 | GraphQL | Graph queries |
 | PostgreSQL DDL | Relational persistence |
 
+## AI Model Configuration
+
+AWA supports hierarchical model resolution to balance cost, latency, and intelligence across the workflow.
+
+### Model Resolution Priority
+1. **Activity/Policy Override**: Explicitly set in `VerificationPolicy.judge_model_id` or `Role.ai_model_config.model_id`.
+2. **Global Engine Default**: Set via `WorkflowEngineOptions.default_ai_model_id`.
+3. **System Fallback**: Defaults to `gemini-3-flash-preview`.
+
+### Supported Gemini 3.x Models
+| Model Family | Model ID (Verified) | Use Case |
+| :--- | :--- | :--- |
+| **Gemini 3.1 Pro** | `gemini-3.1-pro-preview` | Complex reasoning, planning, and multi-step agentic logic. |
+| **Gemini 3 Flash** | `gemini-3-flash-preview` | Default workhorse; high-speed multimodal understanding. |
+| **Gemini 3.1 Flash-Lite** | `gemini-3.1-flash-lite` | Cost-optimized for high-volume verification and classification. |
+
 ## SDKs
 
 Official SDKs are available for:

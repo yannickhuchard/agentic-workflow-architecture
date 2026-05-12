@@ -6,15 +6,15 @@ info:
     for AI-native, queryable workflow architecture.
   version: 1.0.0
   contact:
-    name: AWA Specification
-    url: https://awa.io
+    name: Yannick HUCHARD
+    url: https://github.com/yannickhuchard/agentic-workflow-architecture
   license:
     name: Apache 2.0
     url: https://www.apache.org/licenses/LICENSE-2.0
 
 servers:
-  - url: https://api.awa.io/v1
-    description: Production server
+  - url: https://github.com/yannickhuchard/agentic-workflow-architecture
+    description: Project repository
   - url: http://localhost:8080/v1
     description: Local development
 

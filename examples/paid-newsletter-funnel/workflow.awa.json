@@ -1,0 +1,634 @@
+{
+    "id": "f1a2b3c4-d5e6-4f7a-8b9c-0d1e2f3a4b5c",
+    "name": "Paid Newsletter Sales Funnel",
+    "version": "1.0.0",
+    "description": "End-to-end automated sales funnel for paid newsletter registration. All activities are executed by Gemini-based AI agents with native verification to guarantee output quality and compliance at every step.",
+    "metadata": {
+        "author": "Yannick HUCHARD",
+        "use_case": "paid_newsletter_registration",
+        "automation_level": "fully_automated",
+        "industry": "digital_media"
+    },
+    "activities": [
+        {
+            "id": "a1000001-0001-4000-a001-000000000001",
+            "name": "Qualify Lead",
+            "description": "Analyze the incoming prospect data (name, email, interests, referral source) and produce a structured lead qualification score with segmentation tags. Determine if the lead is a good fit for the premium newsletter.",
+            "actor_type": "ai_agent",
+            "role_id": "b1000001-0001-4000-a001-000000000001",
+            "inputs": [
+                { "name": "prospect_name", "description": "Full name of the prospect", "schema": { "type": "string" } },
+                { "name": "prospect_email", "description": "Email address", "schema": { "type": "string", "format": "email" } },
+                { "name": "interests", "description": "List of stated interests", "schema": { "type": "array", "items": { "type": "string" } } },
+                { "name": "referral_source", "description": "How the prospect found the newsletter", "schema": { "type": "string" } }
+            ],
+            "outputs": [
+                { "name": "lead_score", "description": "Numeric score 0-100", "schema": { "type": "number" } },
+                { "name": "segment", "description": "Lead segment category", "schema": { "type": "string" } },
+                { "name": "qualified", "description": "Whether the lead is qualified", "schema": { "type": "boolean" } }
+            ],
+            "context_bindings": [],
+            "access_rights": [],
+            "programs": [],
+            "controls": [
+                {
+                    "id": "c1000001-0001-4000-a001-000000000001",
+                    "name": "GDPR Email Consent",
+                    "description": "Ensure the prospect email is only used after implied consent from the registration form",
+                    "type": "compliance",
+                    "enforcement": "mandatory"
+                }
+            ],
+            "skills": [
+                {
+                    "id": "d1000001-0001-4000-a001-000000000001",
+                    "name": "Lead Scoring",
+                    "type": "ai_context",
+                    "description": "Ability to evaluate prospect fit based on interests, demographics, and referral quality"
+                }
+            ],
+            "tool_requirements": [],
+            "is_expandable": false,
+            "verification": {
+                "enabled": true,
+                "mode": "ai_judge",
+                "criteria": [
+                    {
+                        "id": "e1000001-0001-4000-a001-000000000001",
+                        "name": "Structured Output",
+                        "description": "Output must be a JSON object with lead_score (number 0-100), segment (string), and qualified (boolean) fields",
+                        "type": "format",
+                        "weight": 1.0,
+                        "required": true
+                    },
+                    {
+                        "id": "e1000001-0001-4000-a001-000000000002",
+                        "name": "Score Justification",
+                        "description": "The lead_score must be justified by the interests and referral source provided in the input. A prospect with multiple relevant interests should score higher.",
+                        "type": "accuracy",
+                        "weight": 0.8,
+                        "required": true
+                    },
+                    {
+                        "id": "e1000001-0001-4000-a001-000000000003",
+                        "name": "Segment Validity",
+                        "description": "The segment must be one of: high_value, engaged, casual, or low_fit",
+                        "type": "compliance",
+                        "weight": 0.9,
+                        "required": true
+                    }
+                ],
+                "max_retries": 3,
+                "retry_with_feedback": true,
+                "judge_model_id": "gemini-2.5-flash",
+                "judge_temperature": 0.1,
+                "pass_threshold": 0.9
+            }
+        },
+        {
+            "id": "a1000001-0001-4000-a001-000000000002",
+            "name": "Generate Personalized Welcome Email",
+            "description": "Using the lead qualification data and the prospect interests, compose a personalized welcome email that introduces the newsletter value proposition, highlights relevant content topics, and includes a clear CTA for the paid subscription.",
+            "actor_type": "ai_agent",
+            "role_id": "b1000001-0001-4000-a001-000000000002",
+            "inputs": [
+                { "name": "prospect_name", "description": "Prospect name for personalization", "schema": { "type": "string" } },
+                { "name": "segment", "description": "Lead segment from qualification", "schema": { "type": "string" } },
+                { "name": "interests", "description": "Prospect interests for content matching", "schema": { "type": "array" } }
+            ],
+            "outputs": [
+                { "name": "email_subject", "description": "Email subject line", "schema": { "type": "string" } },
+                { "name": "email_body_html", "description": "Full HTML email body", "schema": { "type": "string" } },
+                { "name": "cta_url", "description": "Call-to-action URL for subscription", "schema": { "type": "string" } }
+            ],
+            "context_bindings": [],
+            "access_rights": [],
+            "programs": [],
+            "controls": [
+                {
+                    "id": "c1000001-0001-4000-a001-000000000002",
+                    "name": "CAN-SPAM Compliance",
+                    "description": "Email must include unsubscribe link, physical address, and honest subject line",
+                    "type": "compliance",
+                    "enforcement": "mandatory"
+                }
+            ],
+            "skills": [
+                {
+                    "id": "d1000001-0001-4000-a001-000000000002",
+                    "name": "Email Copywriting",
+                    "type": "ai_context",
+                    "description": "Expert-level direct response email copywriting with conversion optimization"
+                }
+            ],
+            "tool_requirements": [],
+            "is_expandable": false,
+            "verification": {
+                "enabled": true,
+                "mode": "ai_judge",
+                "criteria": [
+                    {
+                        "id": "e1000001-0001-4000-a001-000000000004",
+                        "name": "Personalization",
+                        "description": "The email must address the prospect by name and reference at least one of their stated interests",
+                        "type": "completeness",
+                        "weight": 1.0,
+                        "required": true
+                    },
+                    {
+                        "id": "e1000001-0001-4000-a001-000000000005",
+                        "name": "CTA Presence",
+                        "description": "The email must include a clear, compelling call-to-action with a subscription URL. The CTA must be visually distinct.",
+                        "type": "completeness",
+                        "weight": 1.0,
+                        "required": true
+                    },
+                    {
+                        "id": "e1000001-0001-4000-a001-000000000006",
+                        "name": "CAN-SPAM Elements",
+                        "description": "The email body must include an unsubscribe link placeholder and a physical mailing address placeholder",
+                        "type": "compliance",
+                        "weight": 1.0,
+                        "required": true
+                    },
+                    {
+                        "id": "e1000001-0001-4000-a001-000000000007",
+                        "name": "Tone and Length",
+                        "description": "The email tone must be professional yet warm. Body length must be between 150-500 words. No spam-like language.",
+                        "type": "accuracy",
+                        "weight": 0.7,
+                        "required": false
+                    }
+                ],
+                "max_retries": 3,
+                "retry_with_feedback": true,
+                "judge_model_id": "gemini-2.5-flash",
+                "judge_temperature": 0.1,
+                "pass_threshold": 0.9
+            }
+        },
+        {
+            "id": "a1000001-0001-4000-a001-000000000003",
+            "name": "Generate Trial Content Preview",
+            "description": "Create a sample preview of the premium newsletter content tailored to the prospect interests. This acts as a taste of what the paid subscription delivers, increasing conversion likelihood.",
+            "actor_type": "ai_agent",
+            "role_id": "b1000001-0001-4000-a001-000000000003",
+            "inputs": [
+                { "name": "interests", "description": "Prospect interest areas", "schema": { "type": "array" } },
+                { "name": "segment", "description": "Lead segment for content depth calibration", "schema": { "type": "string" } }
+            ],
+            "outputs": [
+                { "name": "preview_title", "description": "Preview article title", "schema": { "type": "string" } },
+                { "name": "preview_content", "description": "Preview article body in Markdown", "schema": { "type": "string" } },
+                { "name": "teaser_line", "description": "One-line teaser for the content behind the paywall", "schema": { "type": "string" } }
+            ],
+            "context_bindings": [],
+            "access_rights": [],
+            "programs": [],
+            "controls": [],
+            "skills": [
+                {
+                    "id": "d1000001-0001-4000-a001-000000000003",
+                    "name": "Content Strategy",
+                    "type": "ai_context",
+                    "description": "Ability to create engaging, high-value content previews that drive subscription intent"
+                }
+            ],
+            "tool_requirements": [],
+            "is_expandable": false,
+            "verification": {
+                "enabled": true,
+                "mode": "ai_judge",
+                "criteria": [
+                    {
+                        "id": "e1000001-0001-4000-a001-000000000008",
+                        "name": "Interest Alignment",
+                        "description": "The preview content must directly relate to at least one of the prospect stated interests",
+                        "type": "accuracy",
+                        "weight": 1.0,
+                        "required": true
+                    },
+                    {
+                        "id": "e1000001-0001-4000-a001-000000000009",
+                        "name": "Teaser Effectiveness",
+                        "description": "The teaser_line must create curiosity without revealing the full value, encouraging the reader to subscribe for more",
+                        "type": "accuracy",
+                        "weight": 0.9,
+                        "required": true
+                    },
+                    {
+                        "id": "e1000001-0001-4000-a001-00000000000a",
+                        "name": "Content Quality",
+                        "description": "The preview_content must be at least 200 words, well-structured with headers, and demonstrate genuine expertise",
+                        "type": "completeness",
+                        "weight": 0.8,
+                        "required": false
+                    }
+                ],
+                "max_retries": 2,
+                "retry_with_feedback": true,
+                "judge_model_id": "gemini-2.5-flash",
+                "judge_temperature": 0.1,
+                "pass_threshold": 0.9
+            }
+        },
+        {
+            "id": "a1000001-0001-4000-a001-000000000004",
+            "name": "Build Subscription Landing Page",
+            "description": "Generate the complete HTML/CSS for a conversion-optimized subscription landing page. The page features a pricing section, benefits list, testimonial placeholder, FAQ section, and a Stripe checkout button.",
+            "actor_type": "ai_agent",
+            "role_id": "b1000001-0001-4000-a001-000000000004",
+            "inputs": [
+                { "name": "prospect_name", "description": "For personalized greeting on the page", "schema": { "type": "string" } },
+                { "name": "segment", "description": "Segment for pricing tier selection", "schema": { "type": "string" } },
+                { "name": "preview_title", "description": "Title of the preview content to reference", "schema": { "type": "string" } },
+                { "name": "teaser_line", "description": "Teaser to display on the page", "schema": { "type": "string" } }
+            ],
+            "outputs": [
+                { "name": "landing_page_html", "description": "Full HTML landing page code", "schema": { "type": "string" } },
+                { "name": "pricing_tier", "description": "Selected pricing tier for this segment", "schema": { "type": "string" } },
+                { "name": "monthly_price", "description": "Monthly subscription price in USD", "schema": { "type": "number" } }
+            ],
+            "context_bindings": [],
+            "access_rights": [],
+            "programs": [],
+            "controls": [
+                {
+                    "id": "c1000001-0001-4000-a001-000000000003",
+                    "name": "Accessibility Standards",
+                    "description": "The landing page must meet WCAG 2.1 AA minimum contrast ratios and include alt text for images",
+                    "type": "compliance",
+                    "enforcement": "advisory"
+                }
+            ],
+            "skills": [
+                {
+                    "id": "d1000001-0001-4000-a001-000000000004",
+                    "name": "Conversion Optimization",
+                    "type": "ai_context",
+                    "description": "Expertise in landing page design patterns that maximize subscription conversion rates"
+                }
+            ],
+            "tool_requirements": [],
+            "is_expandable": false,
+            "verification": {
+                "enabled": true,
+                "mode": "ai_judge",
+                "criteria": [
+                    {
+                        "id": "e1000001-0001-4000-a001-00000000000b",
+                        "name": "HTML Validity",
+                        "description": "The landing_page_html must be valid HTML with proper doctype, head, and body sections",
+                        "type": "format",
+                        "weight": 1.0,
+                        "required": true
+                    },
+                    {
+                        "id": "e1000001-0001-4000-a001-00000000000c",
+                        "name": "Pricing Section",
+                        "description": "The page must display a clear pricing section with the monthly_price and a checkout or subscribe button",
+                        "type": "completeness",
+                        "weight": 1.0,
+                        "required": true
+                    },
+                    {
+                        "id": "e1000001-0001-4000-a001-00000000000d",
+                        "name": "Conversion Elements",
+                        "description": "The page must include: headline, benefits list with at least 3 items, social proof or testimonial placeholder, and a FAQ section with at least 2 questions and answers",
+                        "type": "completeness",
+                        "weight": 0.9,
+                        "required": true
+                    }
+                ],
+                "max_retries": 3,
+                "retry_with_feedback": true,
+                "judge_model_id": "gemini-2.5-flash",
+                "judge_temperature": 0.1,
+                "pass_threshold": 0.9
+            }
+        },
+        {
+            "id": "a1000001-0001-4000-a001-000000000005",
+            "name": "Process Payment and Activate Subscription",
+            "description": "Simulate the payment processing flow: validate the subscriber details, generate a Stripe-compatible payment intent payload, create the subscription record, and produce a confirmation receipt with subscription details.",
+            "actor_type": "ai_agent",
+            "role_id": "b1000001-0001-4000-a001-000000000005",
+            "inputs": [
+                { "name": "prospect_name", "description": "Subscriber name", "schema": { "type": "string" } },
+                { "name": "prospect_email", "description": "Subscriber email", "schema": { "type": "string" } },
+                { "name": "pricing_tier", "description": "Selected tier", "schema": { "type": "string" } },
+                { "name": "monthly_price", "description": "Price to charge", "schema": { "type": "number" } }
+            ],
+            "outputs": [
+                { "name": "subscription_id", "description": "Unique subscription identifier", "schema": { "type": "string" } },
+                { "name": "payment_status", "description": "Payment processing result", "schema": { "type": "string" } },
+                { "name": "subscription_start_date", "description": "Subscription activation date", "schema": { "type": "string", "format": "date" } },
+                { "name": "receipt", "description": "Payment receipt object", "schema": { "type": "object" } }
+            ],
+            "context_bindings": [],
+            "access_rights": [
+                {
+                    "id": "f1000001-0001-4000-a001-000000000001",
+                    "name": "Stripe API Access",
+                    "activity_id": "a1000001-0001-4000-a001-000000000005",
+                    "direction": "requires",
+                    "resource_type": "api",
+                    "permission": "execute",
+                    "scope": "payment_intents:create,subscriptions:create"
+                }
+            ],
+            "programs": [],
+            "controls": [
+                {
+                    "id": "c1000001-0001-4000-a001-000000000004",
+                    "name": "PCI-DSS Compliance",
+                    "description": "Never store or log raw credit card numbers. Use tokenized payment references only.",
+                    "type": "security",
+                    "enforcement": "mandatory"
+                }
+            ],
+            "skills": [
+                {
+                    "id": "d1000001-0001-4000-a001-000000000005",
+                    "name": "Payment Processing",
+                    "type": "ai_context",
+                    "description": "Knowledge of subscription billing workflows, Stripe API patterns, and payment compliance requirements"
+                }
+            ],
+            "tool_requirements": [
+                {
+                    "id": "f1000001-0001-4000-a001-000000000002",
+                    "name": "Stripe API",
+                    "type": "rest_api",
+                    "description": "Stripe payment processing API for subscription creation",
+                    "version": "2024-04-10"
+                }
+            ],
+            "is_expandable": false,
+            "verification": {
+                "enabled": true,
+                "mode": "ai_judge",
+                "criteria": [
+                    {
+                        "id": "e1000001-0001-4000-a001-00000000000e",
+                        "name": "Subscription Record",
+                        "description": "Output must include a subscription_id in UUID format, payment_status of succeeded, and subscription_start_date in ISO date format",
+                        "type": "format",
+                        "weight": 1.0,
+                        "required": true
+                    },
+                    {
+                        "id": "e1000001-0001-4000-a001-00000000000f",
+                        "name": "Receipt Completeness",
+                        "description": "The receipt object must include: subscriber_name, subscriber_email, amount, currency, tier, and transaction_id fields",
+                        "type": "completeness",
+                        "weight": 1.0,
+                        "required": true
+                    },
+                    {
+                        "id": "e1000001-0001-4000-a001-000000000010",
+                        "name": "No Raw Card Data",
+                        "description": "The entire output must NOT contain any raw credit card numbers consisting of 16-digit patterns, CVV, or expiration dates. Only tokenized references are allowed.",
+                        "type": "compliance",
+                        "weight": 1.0,
+                        "required": true
+                    }
+                ],
+                "max_retries": 2,
+                "retry_with_feedback": true,
+                "judge_model_id": "gemini-2.5-flash",
+                "judge_temperature": 0.1,
+                "pass_threshold": 0.9
+            }
+        },
+        {
+            "id": "a1000001-0001-4000-a001-000000000006",
+            "name": "Send Onboarding Sequence",
+            "description": "Generate a 3-email onboarding drip sequence for the new subscriber. Email 1: Welcome plus first exclusive content. Email 2: How to get the most from the newsletter. Email 3: Community invitation plus referral program introduction.",
+            "actor_type": "ai_agent",
+            "role_id": "b1000001-0001-4000-a001-000000000002",
+            "inputs": [
+                { "name": "prospect_name", "description": "Subscriber name", "schema": { "type": "string" } },
+                { "name": "subscription_id", "description": "For reference in emails", "schema": { "type": "string" } },
+                { "name": "pricing_tier", "description": "For tier-specific content", "schema": { "type": "string" } },
+                { "name": "interests", "description": "For content personalization", "schema": { "type": "array" } }
+            ],
+            "outputs": [
+                { "name": "onboarding_emails", "description": "Array of 3 email objects with subject, body, and send_delay_hours", "schema": { "type": "array" } }
+            ],
+            "context_bindings": [],
+            "access_rights": [],
+            "programs": [],
+            "controls": [
+                {
+                    "id": "c1000001-0001-4000-a001-000000000005",
+                    "name": "CAN-SPAM Compliance",
+                    "description": "All emails must include unsubscribe link and physical address",
+                    "type": "compliance",
+                    "enforcement": "mandatory"
+                }
+            ],
+            "skills": [
+                {
+                    "id": "d1000001-0001-4000-a001-000000000006",
+                    "name": "Drip Campaign Design",
+                    "type": "ai_context",
+                    "description": "Expertise in onboarding email sequences that maximize engagement and reduce churn"
+                }
+            ],
+            "tool_requirements": [],
+            "is_expandable": false,
+            "verification": {
+                "enabled": true,
+                "mode": "ai_judge",
+                "criteria": [
+                    {
+                        "id": "e1000001-0001-4000-a001-000000000011",
+                        "name": "Three Emails",
+                        "description": "The onboarding_emails array must contain exactly 3 email objects, each with subject as string, body as string, and send_delay_hours as number fields",
+                        "type": "format",
+                        "weight": 1.0,
+                        "required": true
+                    },
+                    {
+                        "id": "e1000001-0001-4000-a001-000000000012",
+                        "name": "Progressive Timing",
+                        "description": "The send_delay_hours must be progressive: Email 1 at 0 hours, Email 2 between 24-72 hours, Email 3 between 72-168 hours",
+                        "type": "accuracy",
+                        "weight": 0.9,
+                        "required": true
+                    },
+                    {
+                        "id": "e1000001-0001-4000-a001-000000000013",
+                        "name": "Content Progression",
+                        "description": "Email 1 must welcome and deliver value. Email 2 must educate on newsletter features. Email 3 must introduce community and referral program. Each email must reference the subscriber by name.",
+                        "type": "completeness",
+                        "weight": 0.8,
+                        "required": false
+                    }
+                ],
+                "max_retries": 2,
+                "retry_with_feedback": true,
+                "judge_model_id": "gemini-2.5-flash",
+                "judge_temperature": 0.1,
+                "pass_threshold": 0.9
+            }
+        }
+    ],
+    "edges": [
+        {
+            "id": "e2000001-0001-4000-a001-000000000001",
+            "source_id": "a1000001-0001-4000-a001-000000000001",
+            "target_id": "a1000001-0001-4000-a001-000000000002",
+            "source_type": "activity",
+            "target_type": "activity",
+            "label": "Lead qualified",
+            "is_default": false,
+            "skills": [],
+            "tool_requirements": []
+        },
+        {
+            "id": "e2000001-0001-4000-a001-000000000002",
+            "source_id": "a1000001-0001-4000-a001-000000000002",
+            "target_id": "a1000001-0001-4000-a001-000000000003",
+            "source_type": "activity",
+            "target_type": "activity",
+            "label": "Welcome email composed",
+            "is_default": false,
+            "skills": [],
+            "tool_requirements": []
+        },
+        {
+            "id": "e2000001-0001-4000-a001-000000000003",
+            "source_id": "a1000001-0001-4000-a001-000000000003",
+            "target_id": "a1000001-0001-4000-a001-000000000004",
+            "source_type": "activity",
+            "target_type": "activity",
+            "label": "Trial content generated",
+            "is_default": false,
+            "skills": [],
+            "tool_requirements": []
+        },
+        {
+            "id": "e2000001-0001-4000-a001-000000000004",
+            "source_id": "a1000001-0001-4000-a001-000000000004",
+            "target_id": "a1000001-0001-4000-a001-000000000005",
+            "source_type": "activity",
+            "target_type": "activity",
+            "label": "Landing page built",
+            "is_default": false,
+            "skills": [],
+            "tool_requirements": []
+        },
+        {
+            "id": "e2000001-0001-4000-a001-000000000005",
+            "source_id": "a1000001-0001-4000-a001-000000000005",
+            "target_id": "a1000001-0001-4000-a001-000000000006",
+            "source_type": "activity",
+            "target_type": "activity",
+            "label": "Payment processed",
+            "is_default": false,
+            "skills": [],
+            "tool_requirements": []
+        }
+    ],
+    "roles": [
+        {
+            "id": "b1000001-0001-4000-a001-000000000001",
+            "name": "Lead Qualification Agent",
+            "description": "AI agent specialized in evaluating prospect fit and scoring leads for newsletter subscriptions",
+            "actor_type": "ai_agent",
+            "capabilities": ["lead_scoring", "segmentation", "data_analysis"],
+            "ai_model_config": {
+                "model_id": "gemini-2.5-flash",
+                "temperature": 0.3,
+                "max_tokens": 1024,
+                "system_prompt": "You are a lead qualification specialist for a premium industry newsletter. Analyze prospect data and produce structured qualification scores. Be data-driven and objective."
+            },
+            "mcp_tools": [],
+            "is_embedded": false
+        },
+        {
+            "id": "b1000001-0001-4000-a001-000000000002",
+            "name": "Email Copywriter Agent",
+            "description": "AI agent specialized in direct response email copywriting with high conversion rates",
+            "actor_type": "ai_agent",
+            "capabilities": ["email_copywriting", "personalization", "conversion_optimization", "drip_campaigns"],
+            "ai_model_config": {
+                "model_id": "gemini-2.5-flash",
+                "temperature": 0.7,
+                "max_tokens": 2048,
+                "system_prompt": "You are an expert email copywriter. Write compelling, personalized emails that drive newsletter subscriptions. Always comply with CAN-SPAM: include unsubscribe link and physical address placeholders."
+            },
+            "mcp_tools": [],
+            "is_embedded": false
+        },
+        {
+            "id": "b1000001-0001-4000-a001-000000000003",
+            "name": "Content Strategy Agent",
+            "description": "AI agent that creates high-value content previews designed to convert free readers into paid subscribers",
+            "actor_type": "ai_agent",
+            "capabilities": ["content_creation", "thought_leadership", "audience_engagement"],
+            "ai_model_config": {
+                "model_id": "gemini-2.5-flash",
+                "temperature": 0.8,
+                "max_tokens": 3000,
+                "system_prompt": "You are a content strategist for a premium newsletter. Create insightful, expert-level preview content that demonstrates the value behind the paywall. Write with authority and depth."
+            },
+            "mcp_tools": [],
+            "is_embedded": false
+        },
+        {
+            "id": "b1000001-0001-4000-a001-000000000004",
+            "name": "Landing Page Builder Agent",
+            "description": "AI agent specialized in conversion-optimized landing page generation",
+            "actor_type": "ai_agent",
+            "capabilities": ["html_generation", "ui_design", "conversion_rate_optimization"],
+            "ai_model_config": {
+                "model_id": "gemini-2.5-flash",
+                "temperature": 0.5,
+                "max_tokens": 4096,
+                "system_prompt": "You are a landing page specialist. Generate clean, conversion-optimized HTML/CSS landing pages for newsletter subscriptions. Include pricing, benefits, testimonials, and FAQ sections. Use modern, professional design."
+            },
+            "mcp_tools": [],
+            "is_embedded": false
+        },
+        {
+            "id": "b1000001-0001-4000-a001-000000000005",
+            "name": "Payment Processing Agent",
+            "description": "AI agent that handles subscription payment flow simulation and receipt generation",
+            "actor_type": "ai_agent",
+            "capabilities": ["payment_processing", "subscription_management", "receipt_generation"],
+            "ai_model_config": {
+                "model_id": "gemini-2.5-flash",
+                "temperature": 0.2,
+                "max_tokens": 1024,
+                "system_prompt": "You are a payment processing agent. Generate realistic subscription records, payment intents, and receipts. NEVER include raw credit card numbers. Use only tokenized references. Follow PCI-DSS principles."
+            },
+            "mcp_tools": [],
+            "is_embedded": false
+        }
+    ],
+    "events": [],
+    "decision_nodes": [],
+    "contexts": [
+        {
+            "id": "c2000001-0001-4000-a001-000000000001",
+            "name": "funnel_state",
+            "description": "Shared state tracking the prospect journey through the sales funnel",
+            "type": "state",
+            "sync_pattern": "shared_state",
+            "visibility": "workflow",
+            "lifecycle": "persistent",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "current_stage": { "type": "string" },
+                    "prospect_data": { "type": "object" },
+                    "qualification": { "type": "object" },
+                    "subscription": { "type": "object" }
+                }
+            }
+        }
+    ]
+}

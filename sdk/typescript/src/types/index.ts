@@ -218,6 +218,74 @@ export const AnalyticsSchema = z.object({
 });
 export type Analytics = z.infer<typeof AnalyticsSchema>;
 
+// ============================================================================
+// VERIFICATION TYPES
+// ============================================================================
+
+export const VerificationMode = z.enum(['ai_judge', 'schema_only', 'custom']);
+export type VerificationMode = z.infer<typeof VerificationMode>;
+
+export const VerificationCriterionType = z.enum(['completeness', 'accuracy', 'format', 'compliance', 'custom']);
+export type VerificationCriterionType = z.infer<typeof VerificationCriterionType>;
+
+export const VerificationVerdict = z.enum(['pass', 'fail', 'error']);
+export type VerificationVerdict = z.infer<typeof VerificationVerdict>;
+
+export const VerificationCriterionSchema = z.object({
+    id: UUID,
+    name: z.string(),
+    description: z.string(),
+    type: VerificationCriterionType,
+    expression: z.string().optional(),
+    weight: z.number().min(0).max(1).default(1),
+    required: z.boolean().default(true),
+});
+export type VerificationCriterion = z.infer<typeof VerificationCriterionSchema>;
+
+export const VerificationPolicySchema = z.object({
+    enabled: z.boolean().default(true),
+    mode: VerificationMode.default('ai_judge'),
+    criteria: z.array(VerificationCriterionSchema).min(1),
+    max_retries: z.number().int().min(0).max(10).default(3),
+    retry_with_feedback: z.boolean().default(true),
+    output_schema: z.record(z.unknown()).optional(),
+    judge_model_id: z.string().default('gemini-3-flash-preview'),
+    judge_temperature: z.number().min(0).max(1).default(0.1),
+    pass_threshold: z.number().min(0).max(1).default(0.9),
+});
+export type VerificationPolicy = z.infer<typeof VerificationPolicySchema>;
+
+export const VerificationCriterionResultSchema = z.object({
+    criterion_id: UUID,
+    criterion_name: z.string(),
+    passed: z.boolean(),
+    evidence: z.string(),
+    confidence: z.number().min(0).max(1).optional(),
+});
+export type VerificationCriterionResult = z.infer<typeof VerificationCriterionResultSchema>;
+
+export const VerificationRecordSchema = z.object({
+    id: UUID,
+    activity_id: UUID,
+    attempt: z.number().int(),
+    verdict: VerificationVerdict,
+    criteria_results: z.array(VerificationCriterionResultSchema),
+    overall_score: z.number().min(0).max(1),
+    feedback: z.string().optional(),
+    verified_at: DateTimeTz,
+    duration_ms: z.number().int(),
+    judge_tokens: z.object({
+        input: z.number().int(),
+        output: z.number().int(),
+    }).optional(),
+    output_hash: z.string(),
+});
+export type VerificationRecord = z.infer<typeof VerificationRecordSchema>;
+
+// ============================================================================
+// ACTIVITY SCHEMA
+// ============================================================================
+
 export const ActivitySchema = z.object({
     id: UUID,
     name: z.string(),
@@ -240,6 +308,7 @@ export const ActivitySchema = z.object({
     expansion_workflow_id: UUID.optional(),
     skills: z.array(SkillBindingSchema).default([]),
     tool_requirements: z.array(ToolRequirementSchema).default([]),
+    verification: VerificationPolicySchema.optional(),
 });
 export type Activity = z.infer<typeof ActivitySchema>;
 

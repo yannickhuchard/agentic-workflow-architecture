@@ -15,16 +15,31 @@ import { TaskService } from '../services/task_service';
 export class HumanAgent implements Actor {
     private wait_for_completion: boolean;
     private default_priority: HumanTaskPriority;
+    private simulate: boolean;
 
     constructor(options: {
         wait_for_completion?: boolean;
         default_priority?: HumanTaskPriority;
+        simulate?: boolean;
     } = {}) {
         this.wait_for_completion = options.wait_for_completion ?? false;
         this.default_priority = options.default_priority ?? 'normal';
+        this.simulate = options.simulate || false;
     }
 
     async execute(activity: Activity, inputs: Record<string, unknown>): Promise<Record<string, unknown>> {
+        console.log(`[HumanAgent] Executing activity: ${activity.name} (${activity.id})`);
+
+        if (this.simulate) {
+            console.log(`[HumanAgent] SIMULATION: Auto-completing task "${activity.name}"`);
+            return {
+                ...inputs,
+                _human_task_status: 'completed',
+                _simulated: true,
+                output: "Simulated human response"
+            };
+        }
+
         console.log(`[HumanAgent] Creating persistent task for activity: ${activity.name} (${activity.id})`);
 
         // Extract token and workflow IDs from inputs if available
@@ -46,7 +61,7 @@ export class HumanAgent implements Actor {
             priority,
             role_id: activity.role_id || 'user', // Ensure role_id exists
             creator_id: (inputs._last_actor_id as string) || 'system',
-            creator_type: (inputs._last_actor_type as any) || 'application',
+            creator_type: (inputs._last_actor_type as string) || 'application',
             inputs,
             description: activity.description,
             due_at: this.calculate_due_date(activity) ? new Date(this.calculate_due_date(activity)!) : undefined,
@@ -62,11 +77,11 @@ export class HumanAgent implements Actor {
             const completed_task = await this.wait_for_task_completion(task.id);
 
             if (completed_task.status === 'rejected') {
-                const outputs = completed_task.outputs ? JSON.parse(completed_task.outputs) : {};
+                const outputs = completed_task.outputs ? JSON.parse(completed_task.outputs as any) : {};
                 throw new Error(`Human task rejected: ${outputs.rejection_reason || 'No reason provided'}`);
             }
 
-            const outputs = completed_task.outputs ? JSON.parse(completed_task.outputs) : {};
+            const outputs = completed_task.outputs ? JSON.parse(completed_task.outputs as any) : {};
             return {
                 ...inputs,
                 ...outputs,
@@ -87,7 +102,7 @@ export class HumanAgent implements Actor {
     /**
      * Poll for task completion
      */
-    private async wait_for_task_completion(task_id: string): Promise<any> {
+    private async wait_for_task_completion(task_id: string): Promise<Record<string, unknown>> {
         return new Promise((resolve) => {
             const check = async () => {
                 const task = await TaskService.get(task_id);

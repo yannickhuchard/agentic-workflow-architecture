@@ -32,6 +32,7 @@ It solves the "Black Box" problem of AI agents by providing a **structured, obse
 
 ## Features
 
+- **AI-Native Runtime**: Built-in support for the latest **Gemini 3 series** (3.1 Pro, 3 Flash, 3.1 Flash-Lite) with hierarchical model configuration.
 - **Multi-Actor Support**: Orchestrate Humans, AI Agents, Robots, and Applications in a single flow.
 - **Smart Decision Nodes**: DMN-inspired decision tables with FEEL expression support for complex business logic.
 - **Visualizations**:
@@ -45,58 +46,34 @@ It solves the "Black Box" problem of AI agents by providing a **structured, obse
 
 ---
 
-## Quick Start
+## Quick Start (TypeScript)
 
 ### 1. Install
 
-To start using AWA, install the SDK for your preferred language using the standard package manager.
-
-**TypeScript:**
-
 ```bash
-npm install -g agentic-workflow-architectureflow-architecture
+npm install -g agentic-workflow-architecture
 ```
 
-**Python:**
-
-```bash
-pip install awa
-```
-
-### 2. Build a Workflow
-
-Create a workflow where an AI agent analyzes an order, and a human approves it.
-
-**TypeScript Example:**
+### 2. Define and Run
 
 ```typescript
-import { workflow } from 'agentic-workflow-architecture';
+import { WorkflowEngine, workflow } from 'agentic-workflow-architecture';
 
 const orderProcess = workflow('Order Fulfillment', '1.0.0')
-  .context('order_data', { type: 'data', sync_pattern: 'shared_state' })
-  
-  // 1. AI Analyzes Order
-  .activity('Analyze Order', {
+  .addActivity({
+    name: 'Analyze Data',
     role_id: 'ai-analyst',
-    actor_type: 'ai_agent',
-    inputs: ['order_id'],
-    tools: ['inventory-check-tool'] // MCP Tool
+    actor_type: 'ai_agent'
   })
-  
-  // 2. Human Approves (if risk detected)
-  .activity('Approve High Value', {
-    role_id: 'manager',
-    actor_type: 'human',
-    description: 'Review high-value order for fraud risk'
-  })
-  
-  .edge('Analyze Order', 'Approve High Value')
   .build();
+
+const engine = new WorkflowEngine(orderProcess, {
+  gemini_api_key: process.env.GEMINI_API_KEY,
+  default_ai_model_id: 'gemini-3-flash-preview' // Documentation-verified default
+});
+
+await engine.run();
 ```
-
-### 3. Run It
-
-Run the workflow using the CLI engine.
 
 ```bash
 # Run with verbose logging
@@ -159,7 +136,7 @@ AWA includes a modern **Kanban Web Application** for managing human tasks. It pr
 To use the Kanban app, clone the repository and run it locally:
 
 ```bash
-git clone https://github.com/awa-spec/agentic-workflow-architecture.git
+git clone https://github.com/yannickhuchard/agentic-workflow-architecture.git
 cd agentic-workflow-architecture/apps/kanban-web
 npm install
 npm run dev

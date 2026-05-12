@@ -1,0 +1,26 @@
+{
+  "default_ai_model_id": "gemini-3-flash-preview",
+  "available_models": {
+    "gemini-3.1-pro": "gemini-3.1-pro-preview",
+    "gemini-3-flash": "gemini-3-flash-preview",
+    "gemini-3.1-flash-lite": "gemini-3.1-flash-lite"
+  },
+  "roles": [
+    {
+      "id": "ai-analyst",
+      "name": "AI Analyst",
+      "ai_model_config": {
+        "model_id": "gemini-3.1-pro-preview",
+        "temperature": 0.1
+      }
+    },
+    {
+      "id": "quick-checker",
+      "name": "Quick Checker",
+      "ai_model_config": {
+        "model_id": "gemini-3.1-flash-lite",
+        "temperature": 0.5
+      }
+    }
+  ]
+}

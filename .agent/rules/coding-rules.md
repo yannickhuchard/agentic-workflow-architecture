@@ -2,7 +2,6 @@
 trigger: always_on
 ---
 
-CODING-01: always use snake case for all data attributes, function names and variable names for consistency (where applicable and do not mix with camelCase).
 CODING-02: Use a configuration file to store the global variables and the elements that must/should be configurable, and reuse configuration variable at all occasions.
 CODING-03: Use explicit and non-ambiguous configuration variable names.
 CODING-04: Avoid to use "Any" type in Typescript where possible
