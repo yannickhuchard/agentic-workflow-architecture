@@ -33,6 +33,8 @@ from awa.types import (
     Control,
     DataObject,
     Collection,
+    HumanTask,
+    WorkflowExecution,
 )
 from awa.builder import WorkflowBuilder, workflow
 from awa.validator import (
@@ -49,6 +51,8 @@ from awa.runtime import (
     ContextManager,
     WorkflowEngine,
     EngineStatus,
+    TaskService,
+    ExecutionService,
 )
 
 __version__ = "1.0.0"
@@ -85,6 +89,8 @@ __all__ = [
     "Control",
     "DataObject",
     "Collection",
+    "HumanTask",
+    "WorkflowExecution",
     # Builder
     "WorkflowBuilder",
     "workflow",
@@ -101,5 +107,7 @@ __all__ = [
     "ContextManager",
     "WorkflowEngine",
     "EngineStatus",
+    "TaskService",
+    "ExecutionService",
 ]
 

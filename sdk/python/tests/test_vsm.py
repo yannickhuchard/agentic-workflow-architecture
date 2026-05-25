@@ -40,7 +40,7 @@ class TestVSMAnalytics(unittest.TestCase):
         )
 
     def test_tracking_process_time(self):
-        engine = WorkflowEngine(self.workflow)
+        engine = WorkflowEngine(self.workflow, options={"simulate": True})
         # Mocking or just running as is (SoftwareAgent is mock-like)
         engine.run() # This will run until it needs human input or completes
         
@@ -56,7 +56,7 @@ class TestVSMAnalytics(unittest.TestCase):
         from awa.types import Analytics
         self.workflow.activities[1].analytics = Analytics(value_added=False)
         
-        engine = WorkflowEngine(self.workflow)
+        engine = WorkflowEngine(self.workflow, options={"simulate": True})
         engine.run()
         
         token = engine.tokens[0]

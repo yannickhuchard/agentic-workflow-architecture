@@ -1,0 +1,51 @@
+{
+  "id": "df7ef146-1b71-4fc2-9016-c07f92f3ed46",
+  "name": "Customer Feedback Analysis",
+  "version": "1.0.0",
+  "description": "AI analyzes sentiment and a Human reviews high-priority items.",
+  "activities": [
+    {
+      "id": "1cd043f4-a71e-4dc4-84d7-6a1a9cc1fb3e",
+      "name": "Analyze Sentiment",
+      "role_id": "9daf0848-5192-4683-842b-1b655bb07281",
+      "actor_type": "ai_agent",
+      "description": "Determine sentiment score (0-1) and extract key topics.",
+      "verification": {
+        "enabled": true,
+        "mode": "ai_judge",
+        "criteria": [
+          {
+            "id": "6d1582df-3f0d-457f-a704-e1505013e4ff",
+            "name": "Sentiment Score Present",
+            "description": "Output must contain a 'sentiment_score' numeric field.",
+            "type": "completeness",
+            "required": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "ce16d752-7a09-402c-9551-566c104d61bc",
+      "name": "Human Review",
+      "role_id": "f8456dca-272e-455d-bc66-d6cc10fe65dc",
+      "actor_type": "human",
+      "description": "Review negative feedback and assign to a team."
+    }
+  ],
+  "edges": [
+    {
+      "id": "75421720-9eea-409e-bb12-c064608a0391",
+      "source_id": "1cd043f4-a71e-4dc4-84d7-6a1a9cc1fb3e",
+      "target_id": "ce16d752-7a09-402c-9551-566c104d61bc",
+      "condition": "sentiment_score < 0.3"
+    }
+  ],
+  "contexts": [
+    {
+      "id": "cab410e9-037c-4f67-a94c-1735efee29dc",
+      "name": "Customer Data",
+      "type": "data",
+      "sync_pattern": "shared_state"
+    }
+  ]
+}

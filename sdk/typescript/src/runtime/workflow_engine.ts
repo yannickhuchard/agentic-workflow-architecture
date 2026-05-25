@@ -303,7 +303,7 @@ export class WorkflowEngine {
                         analytics.waste_categories?.push('defects' as WasteCategory);
                         analytics.error_rate = 1;
                         token.updateStatus('failed', analytics);
-                        token.mergeData({
+                        token.mergeActivityOutput(activity.id, {
                             ...output,
                             _error: `Verification failed: ${lastRecord.feedback}`,
                             _verification_records: verificationRecords,
@@ -316,7 +316,7 @@ export class WorkflowEngine {
                 if (output._requires_human_action && this.options.wait_for_human_tasks) {
                     analytics.waste_categories?.push('waiting' as WasteCategory);
                     token.updateStatus('waiting', analytics);
-                    token.mergeData({
+                    token.mergeActivityOutput(activity.id, {
                         ...output,
                         _waiting_since: endTime.toISOString()
                     });
@@ -324,7 +324,7 @@ export class WorkflowEngine {
                     return;
                 }
 
-                token.mergeData({
+                token.mergeActivityOutput(activity.id, {
                     ...output,
                     _last_actor_id: activity.id,
                     _last_actor_type: activity.actor_type,
@@ -525,7 +525,7 @@ export class WorkflowEngine {
             case 'human':
                 return new HumanAgent({
                     wait_for_completion: false, // Engine will handle waiting state
-                    simulate: this.simulate
+                    simulate: this.simulate && !this.options.wait_for_human_tasks
                 });
 
             default:
@@ -633,10 +633,7 @@ export class WorkflowEngine {
         return { output: lastOutput, verificationRecords };
     }
 
-    /**
-     * Resume a token that was waiting for human input
-     */
-    public resumeToken(tokenId: UUID, output: Record<string, unknown>): boolean {
+    public async resumeToken(tokenId: UUID, output: Record<string, unknown>): Promise<boolean> {
         const token = this.tokens.find(t => t.id === tokenId);
         if (!token || token.status !== 'waiting') {
             return false;
@@ -653,14 +650,23 @@ export class WorkflowEngine {
             };
         }
 
-        token.mergeData(output);
+        token.mergeActivityOutput(token.activityId, output);
+        token.mergeData({ _human_task_status: 'completed', _requires_human_action: false });
         token.updateStatus('active', analytics);
 
         if (this.status === 'waiting_human') {
             this.status = 'running';
         }
 
-        return true;
+        // Advance the token to the next node in the graph
+        try {
+            await this.advanceToken(token, token.activityId);
+            return true;
+        } catch (err) {
+            this.log(`Failed to advance token on resume: ${err instanceof Error ? err.message : String(err)}`);
+            token.updateStatus('failed');
+            return false;
+        }
     }
 
     public getStatus(): EngineStatus {

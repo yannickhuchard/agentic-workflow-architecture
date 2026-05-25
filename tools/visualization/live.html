@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AWA Real-Time Tracker - Flying Cars Insurance</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            height: 100%;
+            overflow: hidden;
+        }
+
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+            background: #0b0f19;
+            color: #f3f4f6;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1e1b4b 0%, #311042 100%);
+            padding: 15px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            z-index: 10;
+        }
+
+        .header h1 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            background: linear-gradient(to right, #a5b4fc, #ec4899);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header p {
+            font-size: 0.85rem;
+            color: #9ca3af;
+            margin-top: 4px;
+        }
+
+        .status-badge {
+            padding: 6px 14px;
+            border-radius: 9999px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status-running {
+            background: rgba(16, 185, 129, 0.2);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.4);
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+        }
+
+        .status-waiting {
+            background: rgba(245, 158, 11, 0.2);
+            color: #fbbf24;
+            border: 1px solid rgba(245, 158, 11, 0.4);
+            box-shadow: 0 0 10px rgba(245, 158, 11, 0.2);
+        }
+
+        .status-completed {
+            background: rgba(59, 130, 246, 0.2);
+            color: #60a5fa;
+            border: 1px solid rgba(59, 130, 246, 0.4);
+        }
+
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+        }
+
+        #visualization-container {
+            flex: 1;
+            height: 100%;
+            background: #0f172a;
+            position: relative;
+        }
+
+        #lanes-background {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        #reactflow-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        .sidebar {
+            width: 400px;
+            background: #111827;
+            border-left: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            z-index: 5;
+            box-shadow: -4px 0 20px rgba(0, 0, 0, 0.25);
+        }
+
+        .panel-section {
+            padding: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .panel-section h2 {
+            font-size: 0.95rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #9ca3af;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .metric-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .metric-card {
+            background: #1f2937;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .metric-card.wide {
+            grid-column: span 2;
+        }
+
+        .metric-value {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #f3f4f6;
+            margin-top: 4px;
+        }
+
+        .metric-label {
+            font-size: 0.75rem;
+            color: #9ca3af;
+        }
+
+        .action-btn {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.2s;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+
+        .action-btn:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        .action-btn:active {
+            transform: translateY(1px);
+        }
+
+        .lane-bg {
+            position: absolute;
+            left: 0;
+            right: 0;
+            display: flex;
+            align-items: center;
+            border-bottom: 1px dashed rgba(255, 255, 255, 0.08);
+        }
+
+        .lane-label {
+            position: absolute;
+            left: 15px;
+            top: 15px;
+            background: rgba(17, 24, 39, 0.85);
+            color: #e5e7eb;
+            padding: 5px 12px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 2;
+        }
+
+        .log-list {
+            list-style: none;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.8rem;
+            max-height: 200px;
+            overflow-y: auto;
+            background: #030712;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .log-item {
+            margin-bottom: 6px;
+            line-height: 1.3;
+        }
+
+        .log-info { color: #9ca3af; }
+        .log-exec { color: #fbbf24; }
+        .log-success { color: #34d399; }
+        .log-err { color: #f87171; }
+
+        .details-box {
+            font-size: 0.85rem;
+            line-height: 1.4;
+            background: #1f2937;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            max-height: 250px;
+            overflow-y: auto;
+        }
+
+        .react-flow__node.selected,
+        .react-flow__node.selected:hover {
+            box-shadow: none !important;
+            border: none !important;
+            outline: none !important;
+        }
+    </style>
+    <link href="https://cdn.jsdelivr.net/npm/reactflow@11/dist/style.css" rel="stylesheet" />
+</head>
+
+<body>
+    <div class="header">
+        <div>
+            <h1>AWA Real-Time Process Monitor</h1>
+            <p>Designing eVTOL (Flying Cars) Insurance Product - Live Step Telemetry</p>
+        </div>
+        <div id="status-container">
+            <div class="status-badge status-running" id="status-badge">
+                <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#10b981; animation:pulse 1.5s infinite;"></span>
+                Running
+            </div>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <div id="visualization-container">
+            <div id="lanes-background"></div>
+            <div id="reactflow-layer"></div>
+        </div>
+
+        <div class="sidebar">
+            <div class="panel-section">
+                <h2>📈 Telemetry & VSM</h2>
+                <div class="metric-grid">
+                    <div class="metric-card">
+                        <div class="metric-value" id="process-time">0.0s</div>
+                        <div class="metric-label">Process Time</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="wait-time">0.0s</div>
+                        <div class="metric-label">Wait Time</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="lead-time">0.0s</div>
+                        <div class="metric-label">Lead Time</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="pce">100%</div>
+                        <div class="metric-label">Efficiency (PCE)</div>
+                    </div>
+                    <div class="metric-card wide">
+                        <div class="metric-value" id="verification-loops">0 / 0</div>
+                        <div class="metric-label">AI Judge Attempts (Passed / Total)</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-section" id="human-signoff-section" style="display: none;">
+                <h2 style="color: #fbbf24;">✍️ Chief Underwriter Sign-off</h2>
+                <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); padding: 12px; border-radius: 8px; margin-bottom: 12px; font-size: 0.85rem;">
+                    <p style="margin-bottom: 8px;"><strong>Awaiting human review of deliverables:</strong></p>
+                    <ul style="margin-left: 15px; margin-bottom: 8px;">
+                        <li>eVTOL Risk Coverages designed</li>
+                        <li>Pilot Hour standards established</li>
+                        <li>Showcase Premium Quote compiled</li>
+                    </ul>
+                    <button class="action-btn" id="approve-btn">Approve & Sign Off</button>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <h2>🔍 Node Inspection</h2>
+                <div class="details-box" id="node-details">
+                    Click on an activity node to inspect output and verification records.
+                </div>
+            </div>
+
+            <div class="panel-section" style="flex: 1; border-bottom: none;">
+                <h2>📋 Engine Execution Log</h2>
+                <ul class="log-list" id="log-list">
+                    <li class="log-item log-info">System initialized. Awaiting engine start...</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- React and ReactFlow imports -->
+    <script src="https://unpkg.com/react@17/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://cdn.jsdelivr.net/npm/reactflow@11/dist/umd/index.min.js"></script>
+    <script src="./sdk/javascript/awa-viz.js"></script>
+
+    <script>
+        let currentData = null;
+        let selectedNodeId = null;
+
+        // Custom style definitions
+        const styles = {
+            active: {
+                background_color: '#3b0764', // Deep purple
+                border_color: '#c084fc',     // Glowing purple
+                border_width: 3
+            },
+            completed: {
+                background_color: '#064e3b', // Deep green
+                border_color: '#34d399',     // Soft emerald
+                border_width: 2
+            },
+            waiting: {
+                background_color: '#78350f', // Warm amber
+                border_color: '#fbbf24',     // Bright yellow
+                border_width: 3
+            },
+            idle: {
+                background_color: '#1f2937', // Charcoal
+                border_color: '#4b5563',     // Slate
+                border_width: 1
+            }
+        };
+
+        function renderLanes(lanes, containerHeight) {
+            const container = document.getElementById('lanes-background');
+            container.innerHTML = '';
+            if (!lanes) return;
+
+            const laneHeight = containerHeight / lanes.length;
+            lanes.forEach((lane, i) => {
+                const div = document.createElement('div');
+                div.className = 'lane-bg';
+                div.style.top = `${i * laneHeight}px`;
+                div.style.height = `${laneHeight}px`;
+                div.style.backgroundColor = 'rgba(15, 23, 42, 0.6)';
+                div.innerHTML = `<span class="lane-label">${lane.label || lane.name}</span>`;
+                container.appendChild(div);
+            });
+        }
+
+        async function updateStatus() {
+            try {
+                const res = await fetch('/api/status');
+                const state = await res.json();
+                
+                // Keep record of selected node details
+                currentData = state;
+
+                // 1. Update general stats
+                document.getElementById('process-time').innerText = (state.telemetry.processTime / 1000).toFixed(1) + 's';
+                document.getElementById('wait-time').innerText = (state.telemetry.waitTime / 1000).toFixed(1) + 's';
+                document.getElementById('lead-time').innerText = (state.telemetry.leadTime / 1000).toFixed(1) + 's';
+                document.getElementById('pce').innerText = state.telemetry.pce.toFixed(1) + '%';
+                document.getElementById('verification-loops').innerText = `${state.telemetry.passedVerifications} / ${state.telemetry.verificationAttempts}`;
+
+                // 2. Update status badge
+                const badge = document.getElementById('status-badge');
+                badge.className = `status-badge status-${state.status.toLowerCase().replace('_', '')}`;
+                if (state.status === 'running') {
+                    badge.innerHTML = `<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#10b981; animation:pulse 1.5s infinite;"></span>Running`;
+                } else if (state.status === 'waiting_human') {
+                    badge.innerHTML = `<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#fbbf24; animation:pulse 1.5s infinite;"></span>Awaiting Underwriter`;
+                    document.getElementById('human-signoff-section').style.display = 'block';
+                } else {
+                    badge.innerHTML = `Completed`;
+                    document.getElementById('human-signoff-section').style.display = 'none';
+                }
+
+                // 3. Update Logs
+                const logList = document.getElementById('log-list');
+                logList.innerHTML = '';
+                state.logs.forEach(log => {
+                    const li = document.createElement('li');
+                    li.className = 'log-item';
+                    if (log.includes('[ENGINE]')) li.className += ' log-exec';
+                    else if (log.includes('PASSED') || log.includes('resumed')) li.className += ' log-success';
+                    else if (log.includes('failed') || log.includes('error')) li.className += ' log-err';
+                    else li.className += ' log-info';
+                    li.innerText = log;
+                    logList.appendChild(li);
+                });
+                logList.scrollTop = logList.scrollHeight;
+
+                // 4. Transform nodes with dynamic execution states for visualization
+                const viz = JSON.parse(JSON.stringify(state.visualization));
+                viz.activities = state.workflow.activities || [];
+                viz.decision_nodes = state.workflow.decision_nodes || [];
+                
+                viz.node_positions_2d.forEach(node => {
+                    // Check token status for this node
+                    const activeToken = state.tokens.find(t => t.activityId === node.node_id && t.status === 'active');
+                    const waitingToken = state.tokens.find(t => t.activityId === node.node_id && t.status === 'waiting');
+                    
+                    let nodeState = 'idle';
+                    if (activeToken) nodeState = 'active';
+                    else if (waitingToken) nodeState = 'waiting';
+                    else if (state.completedNodeIds.includes(node.node_id)) nodeState = 'completed';
+
+                    const currentStyle = styles[nodeState];
+                    node.style = {
+                        ...node.style,
+                        ...currentStyle
+                    };
+                    node.duration_ms = state.nodeDurations[node.node_id] || 0;
+                    node.status = nodeState;
+                });
+
+                // Match edge animations
+                viz.edge_routings.forEach(edge => {
+                    const srcIndex = state.completedNodeIds.indexOf(edge.source);
+                    const tgtIndex = state.completedNodeIds.indexOf(edge.target);
+                    const isTraversed = srcIndex !== -1 && (tgtIndex !== -1 || state.tokens.some(t => t.activityId === edge.target));
+                    
+                    edge.animated = isTraversed;
+                    if (isTraversed) {
+                        edge.style = { stroke: '#10b981', strokeWidth: 3 };
+                    } else {
+                        edge.style = { stroke: '#4b5563', strokeWidth: 1.5 };
+                    }
+                });
+
+                // Clear & re-render ReactFlow diagram
+                const layer = document.getElementById('reactflow-layer');
+                const containerHeight = document.getElementById('visualization-container').clientHeight;
+                renderLanes(viz.lanes, containerHeight);
+                
+                if (window.AWAViz) {
+                    AWAViz.render(layer, viz, { 
+                        containerHeight, 
+                        fitView: true,
+                        showDetailsPanel: false,
+                        selectedNodeId: selectedNodeId,
+                        onNodeClick: (nodeId) => {
+                            showNodeDetails(nodeId);
+                        }
+                    });
+                }
+
+                // 5. Update inspection panel
+                if (selectedNodeId) {
+                    showNodeDetails(selectedNodeId);
+                }
+
+            } catch (err) {
+                console.error("Polling error:", err);
+            }
+        }
+
+        function showNodeDetails(nodeId) {
+            selectedNodeId = nodeId;
+            const detailsBox = document.getElementById('node-details');
+            if (!currentData) return;
+
+            const activity = currentData.workflow.activities.find(a => a.id === nodeId);
+            if (!activity) {
+                detailsBox.innerHTML = `Activity not found: ${nodeId}`;
+                return;
+            }
+
+            const stateOutput = currentData.activitiesState[nodeId] || null;
+
+            let html = `<div style="font-weight: 700; color: #a5b4fc; font-size: 1rem; margin-bottom: 8px;">${activity.name}</div>`;
+            html += `<div style="font-size: 0.8rem; color: #9ca3af; margin-bottom: 12px;">Actor: <strong>${activity.actor_type.toUpperCase()}</strong></div>`;
+
+            if (stateOutput && stateOutput.output) {
+                const out = stateOutput.output;
+                html += `<div style="margin-top: 10px; font-weight: 600; color: #34d399; margin-bottom: 6px;">Output Data:</div>`;
+                html += `<pre style="font-family: monospace; font-size: 0.75rem; background: #0b0f19; padding: 8px; border-radius: 4px; overflow-x: auto; max-height: 120px;">${JSON.stringify(out, (k, v) => k === '_verification_records' ? undefined : v, 2)}</pre>`;
+                
+                if (out._verification_records) {
+                    html += `<div style="margin-top: 10px; font-weight: 600; color: #fbbf24; margin-bottom: 6px;">AI-as-Judge Records:</div>`;
+                    out._verification_records.forEach((rec, idx) => {
+                        const isPass = rec.verdict === 'pass';
+                        html += `<div style="border-left: 3px solid ${isPass ? '#10b981' : '#ef4444'}; padding-left: 8px; margin-bottom: 8px; font-size: 0.75rem;">`;
+                        html += `<div>Verdict: <strong style="color: ${isPass ? '#10b981' : '#ef4444'};">${rec.verdict.toUpperCase()}</strong> (Score: ${(rec.score*100).toFixed(0)}%)</div>`;
+                        html += `<div style="color: #9ca3af; font-style: italic;">"${rec.feedback}"</div>`;
+                        html += `</div>`;
+                    });
+                }
+            } else {
+                html += `<div style="color: #9ca3af; font-style: italic; margin-top: 10px;">No output generated yet.</div>`;
+            }
+
+            detailsBox.innerHTML = html;
+        }
+
+        // Catch clicks on reactflow nodes to display detail inspect panel
+        document.addEventListener('click', (e) => {
+            const nodeEl = e.target.closest('.awa-node');
+            if (nodeEl) {
+                // The parent or react element has the node ID or can extract from data label
+                // Let's find matches by label
+                const labelText = nodeEl.querySelector('.awa-node-label')?.textContent;
+                if (labelText && currentData) {
+                    const activity = currentData.workflow.activities.find(a => 
+                        a.name.toLowerCase().replace(/[^a-z]/g, '') === labelText.toLowerCase().replace(/[^a-z]/g, '')
+                    );
+                    if (activity) {
+                        showNodeDetails(activity.id);
+                    }
+                }
+            }
+        });
+
+        // Approve human sign-off button click
+        document.getElementById('approve-btn').addEventListener('click', async () => {
+            document.getElementById('approve-btn').disabled = true;
+            document.getElementById('approve-btn').innerText = "Signing off...";
+            try {
+                const res = await fetch('/api/approve', { method: 'POST' });
+                if (res.ok) {
+                    console.log("Human sign-off approved successfully");
+                }
+            } catch (err) {
+                console.error("Failed to approve:", err);
+            }
+        });
+
+        // Initialize polling
+        setInterval(updateStatus, 800);
+        window.addEventListener('load', updateStatus);
+
+        // Auto-resize window handler
+        window.addEventListener('resize', () => {
+            if (currentData) updateStatus();
+        });
+    </script>
+</body>
+
+</html>

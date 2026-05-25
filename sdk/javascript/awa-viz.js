@@ -217,7 +217,7 @@
         /**
          * Convert AWA visualization config to ReactFlow format
          */
-        convertToReactFlow: function (visualization, containerHeight) {
+        convertToReactFlow: function (visualization, containerHeight, opts) {
             const viz = visualization.visualization || visualization;
             console.log(`[AWAViz] Converting to ReactFlow. Nodes: ${viz.node_positions_2d?.length}, Edges: ${viz.edge_routings?.length}`);
 
@@ -249,8 +249,9 @@
             }
 
             const nodes = (viz.node_positions_2d || []).map(pos => {
+                const nodeHeight = pos.height || 85;
+                const nodeWidth = pos.width || 210;
                 let yPosition = pos.position.y;
-                const nodeHeight = pos.height || 60;
 
                 // If node has a lane assignment, center it in that lane
                 if (pos.lane && laneMap.has(pos.lane)) {
@@ -261,21 +262,43 @@
                     console.warn(`[AWAViz] Node "${pos.node_id}": lane "${pos.lane}" NOT FOUND!`);
                 }
 
+                // Look up actual name and actor type from workflow definition
+                let workflowLabel = null;
+                let actorType = null;
+                let isDecision = pos.node_type === 'decision';
+
+                if (visualization.activities) {
+                    const act = visualization.activities.find(a => a.id === pos.node_id);
+                    if (act) {
+                        workflowLabel = act.name;
+                        actorType = act.actor_type;
+                    }
+                }
+                if (!workflowLabel && visualization.decision_nodes) {
+                    const dec = visualization.decision_nodes.find(d => d.id === pos.node_id);
+                    if (dec) {
+                        workflowLabel = dec.name;
+                        isDecision = true;
+                    }
+                }
+
+                const label = workflowLabel || AWAViz.utils.nodeIdToLabel(pos.node_id);
                 const isBottleneck = pos.duration_ms && pos.bottleneck_threshold_ms && pos.duration_ms > pos.bottleneck_threshold_ms;
-                const borderColor = isBottleneck ? '#ff4d4f' : (pos.style?.border_color || '#333333');
-                const backgroundColor = isBottleneck ? '#fff1f0' : (pos.style?.background_color || '#ffffff');
-                const borderWidth = isBottleneck ? 3 : (pos.style?.border_width || 1);
 
                 return {
                     id: pos.node_id,
                     type: 'awa-activity',
                     position: { x: pos.position.x, y: yPosition },
+                    selected: !!(opts && opts.selectedNodeId === pos.node_id),
                     data: {
-                        label: AWAViz.utils.nodeIdToLabel(pos.node_id),
+                        label: label,
                         lane: pos.lane,
+                        actor_type: actorType,
+                        is_decision: isDecision,
                         duration_ms: pos.duration_ms,
                         bottleneck_threshold_ms: pos.bottleneck_threshold_ms,
                         is_bottleneck: !!isBottleneck,
+                        status: pos.status || 'idle',
                         // Include all other fields from position config
                         ...Object.fromEntries(
                             Object.entries(pos).filter(([key]) =>
@@ -284,20 +307,13 @@
                         )
                     },
                     style: {
-                        backgroundColor: backgroundColor,
-                        borderColor: borderColor,
-                        borderWidth: borderWidth,
-                        borderRadius: pos.node_type === 'decision' ? 0 : (pos.style?.border_radius || 8),
-                        borderStyle: 'solid',
-                        width: pos.width || 150,
+                        backgroundColor: 'transparent',
+                        borderColor: 'transparent',
+                        borderWidth: 0,
+                        width: nodeWidth,
                         height: nodeHeight,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '11px',
-                        fontWeight: '500',
-                        padding: '8px',
-                        boxShadow: isBottleneck ? '0 0 10px rgba(255, 77, 79, 0.5)' : 'none'
+                        padding: 0,
+                        boxShadow: 'none'
                     }
                 };
             });
@@ -386,6 +402,7 @@
                 showMinimap: true,
                 showControls: true,
                 showBackground: true,
+                showDetailsPanel: true,
                 containerHeight: null,
                 layoutAlgorithm: 'none' // 'none', 'dagre', 'elk'
             }, options || {});
@@ -394,16 +411,31 @@
             const containerHeight = opts.containerHeight || container.clientHeight || 600;
             const containerWidth = container.clientWidth || 1400;
 
-            const { nodes, edges, config, laneMap } = this.convertToReactFlow(visualization, containerHeight);
+            const { nodes, edges, config, laneMap } = this.convertToReactFlow(visualization, containerHeight, opts);
             const RF = window.xyflowReact || window.ReactFlow;
             const { createElement: h } = React;
 
             function App() {
                 const [nodesState, setNodes, onNodesChange] = RF.useNodesState(nodes);
                 const [edgesState, setEdges, onEdgesChange] = RF.useEdgesState(edges);
-                const [selectedItem, setSelectedItem] = React.useState(null);
+                 const [selectedItem, setSelectedItem] = React.useState(() => {
+                    if (opts && opts.selectedNodeId) {
+                        const selNode = nodes.find(n => n.id === opts.selectedNodeId);
+                        if (selNode) {
+                            return {
+                                type: 'node',
+                                id: selNode.id,
+                                label: selNode.data?.label || AWAViz.utils.nodeIdToLabel(selNode.id),
+                                lane: selNode.data?.lane,
+                                position: selNode.position,
+                                style: selNode.style || {},
+                                data: selNode.data || {}
+                            };
+                        }
+                    }
+                    return null;
+                });
                 const [activeTab, setActiveTab] = React.useState('details');
-                const [showAnalytics, setShowAnalytics] = React.useState(false);
                 const [analytics] = React.useState(() => AWAViz.utils.calculateWorkflowAnalytics(visualization));
 
                 // Handle node click
@@ -412,13 +444,16 @@
                     setSelectedItem({
                         type: 'node',
                         id: node.id,
-                        label: node.data.label,
-                        lane: node.data.lane,
-                        position: node.position,
-                        style: node.style,
-                        data: node.data
+                        label: node.data?.label || AWAViz.utils.nodeIdToLabel(node.id),
+                        lane: node.data?.lane,
+                        position: node.position || { x: node.xPos, y: node.yPos },
+                        style: node.style || {},
+                        data: node.data || {}
                     });
                     setActiveTab('details'); // Reset to details tab
+                    if (opts.onNodeClick) {
+                        opts.onNodeClick(node.id, node);
+                    }
                 }, []);
 
                 // Handle edge click
@@ -431,10 +466,13 @@
                         target: edge.target,
                         label: edge.label,
                         animated: edge.animated,
-                        style: edge.style,
-                        data: edge.data
+                        style: edge.style || {},
+                        data: edge.data || {}
                     });
                     setActiveTab('details'); // Reset to details tab
+                    if (opts.onEdgeClick) {
+                        opts.onEdgeClick(edge.id, edge);
+                    }
                 }, []);
 
                 // Close details panel
@@ -463,53 +501,123 @@
                         },
                         nodeTypes: {
                             'awa-activity': (props) => {
-                                const { data, style } = props;
+                                const { data, style = {} } = props;
+
                                 const slaPercent = data.duration_ms && data.bottleneck_threshold_ms
                                     ? Math.min(100, (data.duration_ms / data.bottleneck_threshold_ms) * 100)
                                     : 0;
                                 const slaColor = slaPercent > 90 ? '#ef4444' : slaPercent > 70 ? '#f59e0b' : '#10b981';
 
+                                const actorIcons = {
+                                    'ai_agent': '🤖 AI Agent',
+                                    'human': '👤 Human',
+                                    'application': '💻 System',
+                                    'robot': '🦾 Robot'
+                                };
+                                const actorLabel = actorIcons[data.actor_type] || (data.is_decision ? '🔀 Decision' : '⚙️ Task');
+
+                                const statusLabel = {
+                                    'active': '⚡ RUNNING',
+                                    'waiting': '⏳ WAITING',
+                                    'completed': '✅ DONE',
+                                    'idle': '⏸️ QUEUE'
+                                }[data.status] || '⏸️ QUEUE';
+
+                                const statusColors = {
+                                    'active': '#a855f7',      // Glowing purple
+                                    'waiting': '#fbbf24',     // Amber
+                                    'completed': '#10b981',   // Emerald green
+                                    'idle': '#6b7280'         // Slate gray
+                                }[data.status] || '#4b5563';
+
                                 return h('div', {
                                     className: 'awa-node',
                                     onClick: (e) => {
-                                        // Ensure click propagates to ReactFlow but also trigger our detail panel
                                         onNodeClick(e, props);
                                     },
                                     style: {
-                                        ...style,
+                                        background: '#1e293b',
+                                        color: '#f3f4f6',
+                                        border: props.selected ? '2px solid #818cf8' : '1px solid rgba(255, 255, 255, 0.08)',
+                                        borderLeft: `4px solid ${statusColors}`,
+                                        borderRadius: '8px',
+                                        width: '100%',
+                                        height: '100%',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        justifyContent: 'space-between',
+                                        padding: '8px 10px',
+                                        fontFamily: "'Segoe UI', Roboto, sans-serif",
+                                        boxShadow: data.status === 'active' ? '0 0 15px rgba(168, 85, 247, 0.4)' : '0 4px 12px rgba(0, 0, 0, 0.15)',
                                         position: 'relative',
-                                        overflow: 'visible',
-                                        border: props.selected ? '3px solid #667eea' : (style?.border || 'none'),
-                                        boxShadow: props.selected ? '0 0 10px rgba(102, 126, 234, 0.5)' : 'none',
+                                        overflow: 'hidden',
                                         cursor: 'pointer'
                                     }
                                 }, [
-                                    // TARGET HANDLE - Left side
                                     h(RF.Handle, {
                                         type: 'target',
                                         position: 'left',
-                                        style: { background: '#333', width: 10, height: 10, left: -5, borderRadius: '50%', border: '2px solid #fff' }
+                                        style: { background: statusColors, width: 8, height: 8, left: -4, borderRadius: '50%', border: '1.5px solid #fff' }
                                     }),
-                                    // Node content
+                                    h('div', {
+                                        style: {
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center',
+                                            fontSize: '9px',
+                                            fontWeight: '600',
+                                            color: '#9ca3af',
+                                            borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                                            paddingBottom: '4px',
+                                            width: '100%'
+                                        }
+                                    }, [
+                                        h('span', {}, actorLabel),
+                                        h('span', { style: { color: statusColors } }, statusLabel)
+                                    ]),
                                     h('div', {
                                         className: 'awa-node-label',
-                                        style: { padding: '8px', textAlign: 'center', width: '100%', pointerEvents: 'none' }
+                                        style: {
+                                            fontSize: '11px',
+                                            fontWeight: '700',
+                                            color: '#ffffff',
+                                            textAlign: 'left',
+                                            padding: '4px 0',
+                                            lineHeight: '1.3',
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                            display: '-webkit-box',
+                                            WebkitLineClamp: 2,
+                                            WebkitBoxOrient: 'vertical',
+                                            pointerEvents: 'none'
+                                        }
                                     }, data.label),
-                                    // SLA Progress Bar
+                                    h('div', {
+                                        style: {
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center',
+                                            fontSize: '9px',
+                                            color: '#6b7280',
+                                            width: '100%',
+                                            paddingTop: '2px'
+                                        }
+                                    }, [
+                                        h('span', {}, data.duration_ms ? `⏱️ ${(data.duration_ms/1000).toFixed(2)}s` : 'Queue'),
+                                        data.bottleneck_threshold_ms ? h('span', {}, `SLA: ${(data.bottleneck_threshold_ms/1000).toFixed(0)}s`) : null
+                                    ]),
                                     data.bottleneck_threshold_ms && h('div', {
-                                        className: 'awa-sla-bar',
                                         style: {
                                             position: 'absolute',
                                             bottom: 0,
                                             left: 0,
                                             width: '100%',
-                                            height: '4px',
-                                            background: 'rgba(0,0,0,0.1)',
+                                            height: '3px',
+                                            background: 'rgba(255,255,255,0.05)',
                                             pointerEvents: 'none'
                                         }
                                     }, [
                                         h('div', {
-                                            className: 'awa-sla-progress',
                                             style: {
                                                 width: `${slaPercent}%`,
                                                 height: '100%',
@@ -518,11 +626,10 @@
                                             }
                                         })
                                     ]),
-                                    // SOURCE HANDLE - Right side
                                     h(RF.Handle, {
                                         type: 'source',
                                         position: 'right',
-                                        style: { background: '#333', width: 10, height: 10, right: -5, borderRadius: '50%', border: '2px solid #fff' }
+                                        style: { background: statusColors, width: 8, height: 8, right: -4, borderRadius: '50%', border: '1.5px solid #fff' }
                                     })
                                 ]);
                             }
@@ -546,7 +653,7 @@
                         })
                     ]),
                     // Details/Analytics panel container
-                    h('div', {
+                    opts.showDetailsPanel !== false ? h('div', {
                         style: {
                             position: 'absolute',
                             top: '20px',
@@ -554,25 +661,27 @@
                             width: '320px',
                             maxHeight: '80%',
                             overflowY: 'auto',
-                            background: 'white',
+                            background: '#111827',
+                            color: '#f3f4f6',
                             borderRadius: '12px',
-                            boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
+                            boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
+                            border: '1px solid rgba(255, 255, 255, 0.08)',
                             padding: '0',
                             zIndex: 1000,
-                            fontFamily: "'Segoe UI', sans-serif"
+                            fontFamily: "'Segoe UI', Roboto, sans-serif"
                         }
                     }, [
                         // Workflow Summary (if nothing selected)
-                        !selectedItem ? h('div', { style: { padding: '20px', background: '#f8f9fa', borderRadius: '12px' } }, [
-                            h('div', { style: { fontSize: '14px', fontWeight: '700', color: '#333', marginBottom: '12px', display: 'flex', alignItems: 'center' } }, '📊 Workflow Analytics'),
+                        !selectedItem ? h('div', { style: { padding: '20px', background: '#1f2937', borderRadius: '12px' } }, [
+                            h('div', { style: { fontSize: '14px', fontWeight: '700', color: '#a5b4fc', marginBottom: '12px', display: 'flex', alignItems: 'center' } }, '📊 Workflow Analytics'),
                             h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' } }, [
-                                h('div', { style: { background: 'white', padding: '10px', borderRadius: '8px', border: '1px solid #eee' } }, [
-                                    h('div', { style: { fontSize: '10px', color: '#888', textTransform: 'uppercase' } }, 'Total Duration'),
-                                    h('div', { style: { fontSize: '18px', fontWeight: '700', color: '#667eea' } }, analytics.totalDurationFormatted)
+                                h('div', { style: { background: '#111827', padding: '10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' } }, [
+                                    h('div', { style: { fontSize: '10px', color: '#9ca3af', textTransform: 'uppercase' } }, 'Total Duration'),
+                                    h('div', { style: { fontSize: '18px', fontWeight: '700', color: '#818cf8' } }, analytics.totalDurationFormatted)
                                 ]),
-                                h('div', { style: { background: 'white', padding: '10px', borderRadius: '8px', border: '1px solid #eee' } }, [
-                                    h('div', { style: { fontSize: '10px', color: '#888', textTransform: 'uppercase' } }, 'Bottlenecks'),
-                                    h('div', { style: { fontSize: '18px', fontWeight: '700', color: analytics.bottleneckCount > 0 ? '#ff4d4f' : '#52c41a' } }, analytics.bottleneckCount)
+                                h('div', { style: { background: '#111827', padding: '10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' } }, [
+                                    h('div', { style: { fontSize: '10px', color: '#9ca3af', textTransform: 'uppercase' } }, 'Bottlenecks'),
+                                    h('div', { style: { fontSize: '18px', fontWeight: '700', color: analytics.bottleneckCount > 0 ? '#f87171' : '#34d399' } }, analytics.bottleneckCount)
                                 ])
                             ])
                         ]) : [
@@ -580,8 +689,8 @@
                             h('div', {
                                 style: {
                                     background: selectedItem.type === 'node'
-                                        ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-                                        : 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
+                                        ? 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)'
+                                        : 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
                                     color: 'white',
                                     padding: '16px 20px',
                                     borderRadius: '12px 12px 0 0',
@@ -590,13 +699,11 @@
                                     alignItems: 'center'
                                 }
                             }, [
-                                h('h3', {
-                                    style: { margin: 0, fontSize: '16px', fontWeight: '600' }
-                                }, selectedItem.type === 'node' ? 'Activity Details' : 'Edge Details'),
+                                h('h3', { style: { margin: 0, fontSize: '16px', fontWeight: '600' } }, selectedItem.type === 'node' ? 'Activity Details' : 'Edge Details'),
                                 h('button', {
                                     onClick: closeDetails,
                                     style: {
-                                        background: 'rgba(255,255,255,0.2)',
+                                        background: 'rgba(255,255,255,0.15)',
                                         border: 'none',
                                         color: 'white',
                                         width: '28px',
@@ -609,27 +716,21 @@
                                         justifyContent: 'center',
                                         transition: 'background 0.2s'
                                     },
-                                    onMouseEnter: (e) => e.target.style.background = 'rgba(255,255,255,0.3)',
-                                    onMouseLeave: (e) => e.target.style.background = 'rgba(255,255,255,0.2)'
+                                    onMouseEnter: (e) => e.target.style.background = 'rgba(255,255,255,0.25)',
+                                    onMouseLeave: (e) => e.target.style.background = 'rgba(255,255,255,0.15)'
                                 }, '×')
                             ]),
-                            // Tab Navigation
-                            h('div', {
-                                style: {
-                                    display: 'flex',
-                                    borderBottom: '1px solid #e5e5e5',
-                                    background: '#f9fafb'
-                                }
-                            }, [
+                            // Tabs
+                            h('div', { style: { display: 'flex', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', background: '#0f172a' } }, [
                                 h('button', {
                                     onClick: () => setActiveTab('details'),
                                     style: {
                                         flex: 1,
                                         padding: '12px 16px',
                                         border: 'none',
-                                        background: activeTab === 'details' ? 'white' : 'transparent',
-                                        borderBottom: activeTab === 'details' ? '2px solid #667eea' : '2px solid transparent',
-                                        color: activeTab === 'details' ? '#667eea' : '#6b7280',
+                                        background: activeTab === 'details' ? '#111827' : 'transparent',
+                                        borderBottom: activeTab === 'details' ? '2px solid #818cf8' : '2px solid transparent',
+                                        color: activeTab === 'details' ? '#818cf8' : '#9ca3af',
                                         fontWeight: activeTab === 'details' ? '600' : '400',
                                         fontSize: '13px',
                                         cursor: 'pointer',
@@ -642,9 +743,9 @@
                                         flex: 1,
                                         padding: '12px 16px',
                                         border: 'none',
-                                        background: activeTab === 'technical' ? 'white' : 'transparent',
-                                        borderBottom: activeTab === 'technical' ? '2px solid #667eea' : '2px solid transparent',
-                                        color: activeTab === 'technical' ? '#667eea' : '#6b7280',
+                                        background: activeTab === 'technical' ? '#111827' : 'transparent',
+                                        borderBottom: activeTab === 'technical' ? '2px solid #818cf8' : '2px solid transparent',
+                                        color: activeTab === 'technical' ? '#818cf8' : '#9ca3af',
                                         fontWeight: activeTab === 'technical' ? '600' : '400',
                                         fontSize: '13px',
                                         cursor: 'pointer',
@@ -653,67 +754,69 @@
                                 }, 'Visualization')
                             ]),
                             // Content
-                            h('div', { style: { padding: '20px' } }, [
+                            h('div', { style: { padding: '20px', background: '#111827' } }, [
                                 selectedItem.type === 'node' ? [
                                     activeTab === 'details' ? [
                                         h('div', { style: { marginBottom: '16px' } }, [
-                                            h('div', { style: { fontSize: '12px', color: '#666', marginBottom: '4px' } }, 'Name'),
-                                            h('div', { style: { fontSize: '15px', fontWeight: '600', color: '#333' } }, selectedItem.label)
+                                            h('div', { style: { fontSize: '11px', color: '#9ca3af', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' } }, 'Name'),
+                                            h('div', { style: { fontSize: '15px', fontWeight: '600', color: '#ffffff' } }, selectedItem.label)
                                         ]),
                                         h('div', { style: { marginBottom: '16px' } }, [
-                                            h('div', { style: { fontSize: '12px', color: '#666', marginBottom: '4px' } }, 'ID'),
+                                            h('div', { style: { fontSize: '11px', color: '#9ca3af', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' } }, 'ID'),
                                             h('code', {
                                                 style: {
-                                                    fontSize: '13px',
-                                                    background: '#f5f5f5',
-                                                    color: '#1a1a1a',
+                                                    fontSize: '12px',
+                                                    background: '#0b0f19',
+                                                    color: '#a5b4fc',
                                                     padding: '4px 8px',
                                                     borderRadius: '4px',
                                                     display: 'inline-block',
-                                                    fontFamily: 'monospace'
+                                                    fontFamily: 'monospace',
+                                                    border: '1px solid rgba(255,255,255,0.05)'
                                                 }
                                             }, selectedItem.id)
                                         ]),
                                         selectedItem.lane && h('div', { style: { marginBottom: '16px' } }, [
-                                            h('div', { style: { fontSize: '12px', color: '#666', marginBottom: '4px' } }, 'Lane'),
+                                            h('div', { style: { fontSize: '11px', color: '#9ca3af', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' } }, 'Lane'),
                                             h('div', {
                                                 style: {
-                                                    fontSize: '14px',
-                                                    background: selectedItem.style.backgroundColor || '#f0f0f0',
-                                                    color: '#333',
+                                                    fontSize: '13px',
+                                                    fontWeight: '600',
+                                                    background: 'rgba(255, 255, 255, 0.05)',
+                                                    color: '#ffffff',
                                                     padding: '6px 12px',
                                                     borderRadius: '6px',
                                                     display: 'inline-block',
-                                                    border: `2px solid ${selectedItem.style.borderColor || '#ccc'}`
+                                                    border: '1px solid rgba(255, 255, 255, 0.1)'
                                                 }
                                             }, selectedItem.lane)
                                         ]),
                                         // Metrics Section
-                                        (selectedItem.data?.duration_ms || selectedItem.data?.is_bottleneck) && h('div', { style: { marginBottom: '16px', background: selectedItem.data?.is_bottleneck ? '#fff1f0' : '#f0f7ff', padding: '12px', borderRadius: '8px', border: `1px solid ${selectedItem.data?.is_bottleneck ? '#ffa39e' : '#bae7ff'}` } }, [
-                                            h('div', { style: { fontSize: '12px', color: selectedItem.data?.is_bottleneck ? '#cf1322' : '#0050b3', fontWeight: '600', marginBottom: '8px' } }, '⏱️ Execution Metrics'),
+                                        (selectedItem.data?.duration_ms || selectedItem.data?.is_bottleneck) && h('div', { style: { marginBottom: '16px', background: selectedItem.data?.is_bottleneck ? 'rgba(239, 68, 68, 0.1)' : 'rgba(59, 130, 246, 0.1)', padding: '12px', borderRadius: '8px', border: `1px solid ${selectedItem.data?.is_bottleneck ? '#f87171' : '#60a5fa'}` } }, [
+                                            h('div', { style: { fontSize: '12px', color: selectedItem.data?.is_bottleneck ? '#ef4444' : '#60a5fa', fontWeight: '600', marginBottom: '8px' } }, '⏱️ Execution Metrics'),
                                             h('div', { style: { display: 'flex', justifyContent: 'space-between' } }, [
                                                 h('div', {}, [
-                                                    h('div', { style: { fontSize: '10px', color: '#888' } }, 'Duration'),
-                                                    h('div', { style: { fontSize: '14px', fontWeight: '700' } }, selectedItem.data?.duration_ms + 'ms')
+                                                    h('div', { style: { fontSize: '10px', color: '#9ca3af' } }, 'Duration'),
+                                                    h('div', { style: { fontSize: '14px', fontWeight: '700', color: '#ffffff' } }, selectedItem.data?.duration_ms + 'ms')
                                                 ]),
                                                 selectedItem.data?.is_bottleneck && h('div', { style: { textAlign: 'right' } }, [
-                                                    h('div', { style: { fontSize: '10px', color: '#cf1322' } }, 'Status'),
-                                                    h('div', { style: { fontSize: '12px', fontWeight: '700', color: '#cf1322' } }, '⚠️ BOTTLENECK')
+                                                    h('div', { style: { fontSize: '10px', color: '#f87171' } }, 'Status'),
+                                                    h('div', { style: { fontSize: '12px', fontWeight: '700', color: '#ef4444' } }, '⚠️ BOTTLENECK')
                                                 ])
                                             ])
                                         ]),
                                         // Display procedure field prominently if present
-                                        selectedItem.data.procedure && h('div', { style: { marginBottom: '16px', borderTop: '1px solid #e5e5e5', paddingTop: '12px', marginTop: '4px' } }, [
-                                            h('div', { style: { fontSize: '12px', color: '#666', marginBottom: '8px', fontWeight: '600' } }, '📋 Procedure'),
+                                        selectedItem.data.procedure && h('div', { style: { marginBottom: '16px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '12px', marginTop: '4px' } }, [
+                                            h('div', { style: { fontSize: '11px', color: '#9ca3af', marginBottom: '8px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' } }, '📋 Procedure'),
                                             h('div', {
                                                 style: {
-                                                    fontSize: '13px',
-                                                    color: '#1a1a1a',
+                                                    fontSize: '12px',
+                                                    color: '#e5e7eb',
                                                     lineHeight: '1.6',
-                                                    background: '#f8f9fa',
+                                                    background: '#0b0f19',
                                                     padding: '12px',
                                                     borderRadius: '6px',
-                                                    border: '1px solid #e5e5e5',
+                                                    border: '1px solid rgba(255, 255, 255, 0.08)',
                                                     whiteSpace: 'pre-wrap',
                                                     fontFamily: 'monospace'
                                                 }
@@ -722,14 +825,14 @@
                                         // Additional Properties logic
                                         (() => {
                                             const entries = Object.entries(selectedItem.data || {})
-                                                .filter(([key]) => !['label', 'lane', 'procedure', 'duration_ms', 'bottleneck_threshold_ms', 'is_bottleneck'].includes(key));
+                                                .filter(([key]) => !['label', 'lane', 'procedure', 'duration_ms', 'bottleneck_threshold_ms', 'is_bottleneck', 'actor_type', 'is_decision', 'status'].includes(key));
                                             if (entries.length === 0) return null;
-                                            return h('div', { style: { marginBottom: '16px', borderTop: '1px solid #e5e5e5', paddingTop: '12px', marginTop: '4px' } }, [
-                                                h('div', { style: { fontSize: '12px', color: '#666', marginBottom: '8px', fontWeight: '600' } }, 'Additional Properties'),
+                                            return h('div', { style: { marginBottom: '16px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '12px', marginTop: '4px' } }, [
+                                                h('div', { style: { fontSize: '11px', color: '#9ca3af', marginBottom: '8px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' } }, 'Additional Properties'),
                                                 ...entries.map(([key, value]) =>
                                                     h('div', { style: { marginBottom: '8px' } }, [
-                                                        h('div', { style: { fontSize: '11px', color: '#888', marginBottom: '2px', textTransform: 'capitalize' } }, key.replace(/_/g, ' ')),
-                                                        h('div', { style: { fontSize: '13px', color: '#333', wordBreak: 'break-word' } },
+                                                        h('div', { style: { fontSize: '11px', color: '#9ca3af', marginBottom: '2px', textTransform: 'capitalize' } }, key.replace(/_/g, ' ')),
+                                                        h('div', { style: { fontSize: '13px', color: '#ffffff', wordBreak: 'break-word', fontFamily: 'monospace' } },
                                                             typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value))
                                                     ])
                                                 )
@@ -738,18 +841,18 @@
                                     ] : [
                                         // Node Visualization Tab
                                         h('div', { style: { marginBottom: '16px' } }, [
-                                            h('div', { style: { fontSize: '12px', color: '#666', marginBottom: '4px' } }, 'Position'),
-                                            h('div', { style: { fontSize: '13px', color: '#555' } },
+                                            h('div', { style: { fontSize: '11px', color: '#9ca3af', marginBottom: '4px', textTransform: 'uppercase' } }, 'Position'),
+                                            h('div', { style: { fontSize: '13px', color: '#e5e7eb' } },
                                                 `X: ${selectedItem.position ? Math.round(selectedItem.position.x) : 'N/A'}, Y: ${selectedItem.position ? Math.round(selectedItem.position.y) : 'N/A'}`)
                                         ]),
                                         h('div', { style: { marginBottom: '16px' } }, [
-                                            h('div', { style: { fontSize: '12px', color: '#666', marginBottom: '4px' } }, 'Dimensions'),
-                                            h('div', { style: { fontSize: '13px', color: '#555' } },
+                                            h('div', { style: { fontSize: '11px', color: '#9ca3af', marginBottom: '4px', textTransform: 'uppercase' } }, 'Dimensions'),
+                                            h('div', { style: { fontSize: '13px', color: '#e5e7eb' } },
                                                 `${selectedItem.style.width}px × ${selectedItem.style.height}px`)
                                         ]),
                                         h('div', { style: { marginBottom: '0' } }, [
-                                            h('div', { style: { fontSize: '12px', color: '#666', marginBottom: '4px' } }, 'Styling'),
-                                            h('div', { style: { fontSize: '13px', color: '#555', lineHeight: '1.6' } }, [
+                                            h('div', { style: { fontSize: '11px', color: '#9ca3af', marginBottom: '4px', textTransform: 'uppercase' } }, 'Styling'),
+                                            h('div', { style: { fontSize: '13px', color: '#e5e7eb', lineHeight: '1.6' } }, [
                                                 h('div', {}, `Background: ${selectedItem.style.backgroundColor}`),
                                                 h('div', {}, `Border: ${selectedItem.style.borderWidth}px ${selectedItem.style.borderColor}`),
                                                 h('div', {}, `Radius: ${selectedItem.style.borderRadius}px`)
@@ -760,74 +863,78 @@
                                     // Edge View
                                     activeTab === 'details' ? [
                                         h('div', { style: { marginBottom: '16px' } }, [
-                                            h('div', { style: { fontSize: '12px', color: '#666', marginBottom: '4px' } }, 'ID'),
+                                            h('div', { style: { fontSize: '11px', color: '#9ca3af', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' } }, 'ID'),
                                             h('code', {
                                                 style: {
-                                                    fontSize: '13px',
-                                                    background: '#f5f5f5',
-                                                    color: '#1a1a1a',
+                                                    fontSize: '12px',
+                                                    background: '#0b0f19',
+                                                    color: '#a5b4fc',
                                                     padding: '4px 8px',
                                                     borderRadius: '4px',
                                                     display: 'inline-block',
-                                                    fontFamily: 'monospace'
+                                                    fontFamily: 'monospace',
+                                                    border: '1px solid rgba(255,255,255,0.05)'
                                                 }
                                             }, selectedItem.id)
                                         ]),
                                         h('div', { style: { marginBottom: '16px' } }, [
-                                            h('div', { style: { fontSize: '12px', color: '#666', marginBottom: '4px' } }, 'Flow'),
+                                            h('div', { style: { fontSize: '11px', color: '#9ca3af', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' } }, 'Flow'),
                                             h('div', {
                                                 style: {
-                                                    fontSize: '14px',
-                                                    background: '#f8f9fa',
+                                                    fontSize: '13px',
+                                                    background: '#111827',
                                                     padding: '10px 14px',
                                                     borderRadius: '6px',
-                                                    color: '#333'
+                                                    color: '#e5e7eb',
+                                                    border: '1px solid rgba(255, 255, 255, 0.08)'
                                                 }
                                             }, `${selectedItem.source} → ${selectedItem.target}`)
                                         ]),
                                         // Edge Metrics & Transfer
-                                        h('div', { style: { marginBottom: '16px', background: selectedItem.data?.is_bottleneck ? '#fff1f0' : '#f6ffed', padding: '12px', borderRadius: '8px', border: `1px solid ${selectedItem.data?.is_bottleneck ? '#ffa39e' : '#b7eb8f'}` } }, [
-                                            h('div', { style: { fontSize: '12px', color: selectedItem.data?.is_bottleneck ? '#cf1322' : '#389e0d', fontWeight: '600', marginBottom: '8px' } }, '🔄 Transfer & Flow'),
+                                        h('div', { style: { marginBottom: '16px', background: selectedItem.data?.is_bottleneck ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)', padding: '12px', borderRadius: '8px', border: `1px solid ${selectedItem.data?.is_bottleneck ? '#f87171' : '#34d399'}` } }, [
+                                            h('div', { style: { fontSize: '12px', color: selectedItem.data?.is_bottleneck ? '#ef4444' : '#34d399', fontWeight: '600', marginBottom: '8px' } }, '🔄 Transfer & Flow'),
                                             selectedItem.data?.transfer_type && h('div', { style: { marginBottom: '8px' } }, [
-                                                h('div', { style: { fontSize: '10px', color: '#888' } }, 'Transfer Mode'),
-                                                h('div', { style: { fontSize: '13px', fontWeight: '600', textTransform: 'capitalize' } }, selectedItem.data?.transfer_type.replace(/_/g, ' '))
+                                                h('div', { style: { fontSize: '10px', color: '#9ca3af' } }, 'Transfer Mode'),
+                                                h('div', { style: { fontSize: '13px', fontWeight: '600', textTransform: 'capitalize', color: '#ffffff' } }, selectedItem.data?.transfer_type.replace(/_/g, ' '))
                                             ]),
-                                            h('div', { style: { display: 'flex', justifyContent: 'space-between' } }, [
+                                            h('div', { style: { display: 'flex', justifycontent: 'space-between' } }, [
                                                 h('div', {}, [
-                                                    h('div', { style: { fontSize: '10px', color: '#888' } }, 'Transition Time'),
-                                                    h('div', { style: { fontSize: '14px', fontWeight: '700' } }, (selectedItem.data?.duration_ms || 0) + 'ms')
+                                                    h('div', { style: { fontSize: '10px', color: '#9ca3af' } }, 'Transition Time'),
+                                                    h('div', { style: { fontSize: '14px', fontWeight: '700', color: '#ffffff' } }, (selectedItem.data?.duration_ms || 0) + 'ms')
                                                 ]),
                                                 selectedItem.data?.is_bottleneck && h('div', { style: { textAlign: 'right' } }, [
-                                                    h('div', { style: { fontSize: '10px', color: '#cf1322' } }, 'Status'),
-                                                    h('div', { style: { fontSize: '12px', fontWeight: '700', color: '#cf1322' } }, '⚠️ SLOW FLOW')
+                                                    h('div', { style: { fontSize: '10px', color: '#f87171' } }, 'Status'),
+                                                    h('div', { style: { fontSize: '12px', fontWeight: '700', color: '#ef4444' } }, '⚠️ SLOW FLOW')
                                                 ])
                                             ])
                                         ]),
                                         selectedItem.label && h('div', { style: { marginBottom: '0' } }, [
-                                            h('div', { style: { fontSize: '12px', color: '#666', marginBottom: '4px' } }, 'Label'),
-                                            h('div', { style: { fontSize: '14px', color: '#555', fontWeight: '500' } }, selectedItem.label)
+                                            h('div', { style: { fontSize: '11px', color: '#9ca3af', marginBottom: '4px', textTransform: 'uppercase' } }, 'Label'),
+                                            h('div', { style: { fontSize: '14px', color: '#ffffff', fontWeight: '500' } }, selectedItem.label)
                                         ])
                                     ] : [
                                         // Edge Visualization Tab
                                         h('div', { style: { marginBottom: '16px' } }, [
-                                            h('div', { style: { fontSize: '12px', color: '#666', marginBottom: '4px' } }, 'Animated'),
+                                            h('div', { style: { fontSize: '11px', color: '#9ca3af', marginBottom: '4px', textTransform: 'uppercase' } }, 'Animated'),
                                             h('div', {
                                                 style: {
                                                     fontSize: '13px',
-                                                    color: selectedItem.animated ? '#10b981' : '#6b7280',
+                                                    color: selectedItem.animated ? '#34d399' : '#9ca3af',
                                                     fontWeight: '500'
                                                 }
                                             }, selectedItem.animated ? '✓ Yes' : '✗ No')
                                         ]),
                                         h('div', { style: { marginBottom: '0' } }, [
-                                            h('div', { style: { fontSize: '12px', color: '#666', marginBottom: '4px' } }, 'Style'),
+                                            h('div', { style: { fontSize: '11px', color: '#9ca3af', marginBottom: '4px', textTransform: 'uppercase' } }, 'Style'),
                                             h('div', {
                                                 style: {
-                                                    fontSize: '13px',
-                                                    background: '#f5f5f5',
+                                                    fontSize: '12px',
+                                                    background: '#111827',
                                                     padding: '8px 12px',
                                                     borderRadius: '6px',
-                                                    color: '#555'
+                                                    color: '#e5e7eb',
+                                                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                                                    fontFamily: 'monospace'
                                                 }
                                             }, `Color: ${selectedItem.style.stroke}, Width: ${selectedItem.style.strokeWidth}px`)
                                         ])
@@ -835,8 +942,8 @@
                                 ]
                             ])
                         ]
-                    ])
-                ]);
+                    ]) : null
+                ].filter(Boolean));
             }
 
             console.log(`[AWAViz] ReactFlow viewport: ${containerWidth}x${containerHeight}px, zoom=1.0 (1:1 with lanes)`);

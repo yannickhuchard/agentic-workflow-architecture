@@ -1,0 +1,355 @@
+{
+    "id": "788a8d11-ca90-48e0-88df-b4a165380d00",
+    "name": "Flying Cars Insurance Product Design Workflow",
+    "version": "1.0.0",
+    "description": "Multi-agent workflow to design, underwrite, and sign-off on a flying cars (eVTOL) insurance product",
+    "activities": [
+        {
+            "id": "e0c7df6c-11cc-4b6f-85ff-a700142bc3c0",
+            "name": "Research & Market Analysis",
+            "description": "Gathers details and conducts risk analysis on eVTOL safety statistics, battery hazard issues (thermal runaway), operational boundaries, FAA regulatory status, and cyber risks.",
+            "actor_type": "ai_agent",
+            "role_id": "e77bb28b-b8c7-4eb9-bf55-cb09a1de8852",
+            "inputs": [],
+            "outputs": [
+                {
+                    "name": "research_findings",
+                    "description": "Key research findings on eVTOL risks and operations",
+                    "required": true
+                },
+                {
+                    "name": "safety_concerns",
+                    "description": "Identified safety concerns (battery, mechanical, environmental)",
+                    "required": true
+                },
+                {
+                    "name": "regulatory_requirements",
+                    "description": "Summary of FAA/EASA airworthiness and operational requirements",
+                    "required": true
+                }
+            ],
+            "verification": {
+                "enabled": true,
+                "mode": "ai_judge",
+                "criteria": [
+                    {
+                        "id": "1f7e3b2b-7bb3-4eef-bdfe-3e0e7a1de880",
+                        "name": "eVTOL Specificity",
+                        "description": "The findings must specifically cover electric vertical takeoff and landing (eVTOL) technology, not generic road vehicles.",
+                        "type": "completeness",
+                        "weight": 1.0,
+                        "required": true
+                    },
+                    {
+                        "id": "2f7e3b2b-7bb3-4eef-bdfe-3e0e7a1de881",
+                        "name": "Safety Hazards Mentioned",
+                        "description": "Must explicitly list battery safety hazards, specifically thermal runaway, and FAA/EASA regulations.",
+                        "type": "completeness",
+                        "weight": 1.0,
+                        "required": true
+                    }
+                ],
+                "max_retries": 2,
+                "retry_with_feedback": true,
+                "judge_model_id": "gemini-3-flash-preview",
+                "pass_threshold": 0.9
+            }
+        },
+        {
+            "id": "e0c7df6c-11cc-4b6f-85ff-a700142bc3c1",
+            "name": "Design Coverage & Guarantees",
+            "description": "Formulates the specific insurance coverages, liability limits, and exclusions for flying cars based on the market research findings.",
+            "actor_type": "ai_agent",
+            "role_id": "d20e7df6-c11c-4b6f-85ff-a700142bc3c5",
+            "inputs": [
+                {
+                    "name": "research_findings",
+                    "required": true
+                },
+                {
+                    "name": "safety_concerns",
+                    "required": true
+                }
+            ],
+            "outputs": [
+                {
+                    "name": "coverages",
+                    "description": "Bespoke insurance coverages (e.g. Hull damage, Aviation liability, Cyber, Vertiport premises)",
+                    "required": true
+                },
+                {
+                    "name": "exclusions",
+                    "description": "Specific exclusions (e.g. uncertified modifications, extreme weather breaches)",
+                    "required": true
+                },
+                {
+                    "name": "liability_limits",
+                    "description": "Recommended monetary limits for third-party and passenger liability",
+                    "required": true
+                }
+            ],
+            "verification": {
+                "enabled": true,
+                "mode": "ai_judge",
+                "criteria": [
+                    {
+                        "id": "3f7e3b2b-7bb3-4eef-bdfe-3e0e7a1de882",
+                        "name": "Multi-Layer Coverages",
+                        "description": "Must design coverage covering Hull Damage, Aviation Third-Party Liability, Passenger Liability, and Cyber Risk.",
+                        "type": "completeness",
+                        "weight": 1.0,
+                        "required": true
+                    }
+                ],
+                "max_retries": 2,
+                "retry_with_feedback": true,
+                "judge_model_id": "gemini-3-flash-preview",
+                "pass_threshold": 0.9
+            }
+        },
+        {
+            "id": "e0c7df6c-11cc-4b6f-85ff-a700142bc3c2",
+            "name": "Establish Underwriting Rules",
+            "description": "Establishes underwriting rules, pilot qualification guidelines, minimum training hours, geographic/geofencing flight bounds, battery health tracking guidelines, and risk scores.",
+            "actor_type": "ai_agent",
+            "role_id": "a911e3b2-9d3b-489d-bdff-c081e289e685",
+            "inputs": [
+                {
+                    "name": "safety_concerns",
+                    "required": true
+                },
+                {
+                    "name": "coverages",
+                    "required": true
+                }
+            ],
+            "outputs": [
+                {
+                    "name": "underwriting_guidelines",
+                    "description": "Detailed risk assessment rules and restrictions",
+                    "required": true
+                },
+                {
+                    "name": "pilot_requirements",
+                    "description": "Pilot licensing, rating, and minimum flight hour standards",
+                    "required": true
+                },
+                {
+                    "name": "risk_grading_criteria",
+                    "description": "Framework to grade risks from low to critical",
+                    "required": true
+                }
+            ],
+            "verification": {
+                "enabled": true,
+                "mode": "ai_judge",
+                "criteria": [
+                    {
+                        "id": "4f7e3b2b-7bb3-4eef-bdfe-3e0e7a1de883",
+                        "name": "Pilot Licensing & Flight Hours",
+                        "description": "Must specify pilot requirements such as commercial pilot or specialized eVTOL certificate and minimum flight hours.",
+                        "type": "completeness",
+                        "weight": 1.0,
+                        "required": true
+                    }
+                ],
+                "max_retries": 2,
+                "retry_with_feedback": true,
+                "judge_model_id": "gemini-3-flash-preview",
+                "pass_threshold": 0.9
+            }
+        },
+        {
+            "id": "e0c7df6c-11cc-4b6f-85ff-a700142bc3c3",
+            "name": "Draft Offering Proposal",
+            "description": "Drafts the commercial insurance proposal for a showcase client 'SkyTaxi UAM Corp', laying out coverages, underwriting terms, and computing a projected annual premium.",
+            "actor_type": "ai_agent",
+            "role_id": "92e1e3b2-7bb3-4eef-bdfe-3e0e7a1de999",
+            "inputs": [
+                {
+                    "name": "coverages",
+                    "required": true
+                },
+                {
+                    "name": "underwriting_guidelines",
+                    "required": true
+                }
+            ],
+            "outputs": [
+                {
+                    "name": "proposal_document",
+                    "description": "A draft proposal outlining the product terms for SkyTaxi UAM Corp",
+                    "required": true
+                },
+                {
+                    "name": "quoted_premium",
+                    "description": "Calculated annual premium price (e.g. in USD)",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "id": "e0c7df6c-11cc-4b6f-85ff-a700142bc3c4",
+            "name": "Generate IPID Document",
+            "description": "Generates the standard Insurance Product Information Document (IPID) that summarizes the core benefits, restrictions, start/end dates, and cancelation terms in a customer-friendly format.",
+            "actor_type": "ai_agent",
+            "role_id": "92e1e3b2-7bb3-4eef-bdfe-3e0e7a1de999",
+            "inputs": [
+                {
+                    "name": "coverages",
+                    "required": true
+                },
+                {
+                    "name": "exclusions",
+                    "required": true
+                }
+            ],
+            "outputs": [
+                {
+                    "name": "ipid_document",
+                    "description": "Completed Insurance Product Information Document markdown structured content",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "id": "e0c7df6c-11cc-4b6f-85ff-a700142bc3c5",
+            "name": "Final Underwriter Sign-Off",
+            "description": "Human underwriter review to inspect the compiled proposal, the IPID summary, and the calculated premium, and provide a binding approval/rejection signature.",
+            "actor_type": "human",
+            "role_id": "c4d9e3b1-9bb4-4ddf-bdde-3e0e7a1de000",
+            "inputs": [
+                {
+                    "name": "proposal_document",
+                    "required": true
+                },
+                {
+                    "name": "ipid_document",
+                    "required": true
+                },
+                {
+                    "name": "quoted_premium",
+                    "required": true
+                }
+            ],
+            "outputs": [
+                {
+                    "name": "sign_off_status",
+                    "description": "Sign-off status: approved or rejected",
+                    "required": true
+                },
+                {
+                    "name": "sign_off_date",
+                    "description": "ISO timestamp of sign-off",
+                    "required": true
+                },
+                {
+                    "name": "chief_underwriter_comments",
+                    "description": "Signature feedback and notes",
+                    "required": true
+                }
+            ]
+        }
+    ],
+    "edges": [
+        {
+            "id": "e1f7df6c-11cc-4b6f-85ff-a700142bc3a1",
+            "source_id": "e0c7df6c-11cc-4b6f-85ff-a700142bc3c0",
+            "target_id": "e0c7df6c-11cc-4b6f-85ff-a700142bc3c1",
+            "label": "Research complete"
+        },
+        {
+            "id": "e1f7df6c-11cc-4b6f-85ff-a700142bc3a2",
+            "source_id": "e0c7df6c-11cc-4b6f-85ff-a700142bc3c1",
+            "target_id": "e0c7df6c-11cc-4b6f-85ff-a700142bc3c2",
+            "label": "Coverages designed"
+        },
+        {
+            "id": "e1f7df6c-11cc-4b6f-85ff-a700142bc3a3",
+            "source_id": "e0c7df6c-11cc-4b6f-85ff-a700142bc3c2",
+            "target_id": "e0c7df6c-11cc-4b6f-85ff-a700142bc3c3",
+            "label": "Underwriting rules established"
+        },
+        {
+            "id": "e1f7df6c-11cc-4b6f-85ff-a700142bc3a4",
+            "source_id": "e0c7df6c-11cc-4b6f-85ff-a700142bc3c3",
+            "target_id": "e0c7df6c-11cc-4b6f-85ff-a700142bc3c4",
+            "label": "Proposal drafted"
+        },
+        {
+            "id": "e1f7df6c-11cc-4b6f-85ff-a700142bc3a5",
+            "source_id": "e0c7df6c-11cc-4b6f-85ff-a700142bc3c4",
+            "target_id": "e0c7df6c-11cc-4b6f-85ff-a700142bc3c5",
+            "label": "IPID generated"
+        }
+    ],
+    "roles": [
+        {
+            "id": "e77bb28b-b8c7-4eb9-bf55-cb09a1de8852",
+            "name": "Flying Cars Market Analyst",
+            "description": "Researches risks and regulatory landscapes of the UAM and eVTOL vehicle industry.",
+            "actor_type": "ai_agent",
+            "capabilities": ["aviation_research", "risk_identification"],
+            "ai_model_config": {
+                "model_id": "gemini-3-flash-preview",
+                "temperature": 0.5,
+                "max_tokens": 1000
+            }
+        },
+        {
+            "id": "d20e7df6-c11c-4b6f-85ff-a700142bc3c5",
+            "name": "eVTOL Product Designer",
+            "description": "Formulates specific coverage components, exclusions, and limits.",
+            "actor_type": "ai_agent",
+            "capabilities": ["insurance_product_design", "policy_structure"],
+            "ai_model_config": {
+                "model_id": "gemini-3-flash-preview",
+                "temperature": 0.5,
+                "max_tokens": 1000
+            }
+        },
+        {
+            "id": "a911e3b2-9d3b-489d-bdff-c081e289e685",
+            "name": "eVTOL Risk Underwriter",
+            "description": "Establishes risks guidelines, pilot standards, and constraints.",
+            "actor_type": "ai_agent",
+            "capabilities": ["risk_underwriting", "operational_rules"],
+            "ai_model_config": {
+                "model_id": "gemini-3-flash-preview",
+                "temperature": 0.5,
+                "max_tokens": 1000
+            }
+        },
+        {
+            "id": "92e1e3b2-7bb3-4eef-bdfe-3e0e7a1de999",
+            "name": "Commercial Offering Officer",
+            "description": "Drafts insurance proposals, pricing quotes, and standard IPID documents.",
+            "actor_type": "ai_agent",
+            "capabilities": ["proposal_generation", "ipid_structuring"],
+            "ai_model_config": {
+                "model_id": "gemini-3-flash-preview",
+                "temperature": 0.5,
+                "max_tokens": 1000
+            }
+        },
+        {
+            "id": "c4d9e3b1-9bb4-4ddf-bdde-3e0e7a1de000",
+            "name": "Chief Aviation Underwriter",
+            "description": "Reviews the finalized offering proposal, pricing, and IPID for sign-off.",
+            "actor_type": "human",
+            "capabilities": ["final_signoff", "policy_approval"]
+        }
+    ],
+    "contexts": [
+        {
+            "id": "f17bb28b-b8c7-4eb9-bf55-cb09a1de8850",
+            "name": "flying_cars_insurance_context",
+            "description": "Blackboard pattern context mapping intermediate products",
+            "type": "data",
+            "sync_pattern": "shared_state",
+            "visibility": "workflow",
+            "lifecycle": "persistent",
+            "initial_value": {}
+        }
+    ]
+}

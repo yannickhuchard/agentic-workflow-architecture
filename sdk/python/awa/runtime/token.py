@@ -70,6 +70,34 @@ class Token:
         """Merge data into context"""
         self.context_data.update(data)
         self.updated_at = datetime.now()
+        
+    def merge_activity_output(self, activity_id: str, output: dict[str, Any]) -> None:
+        """Merge activity output and save namespaced under activities[activity_id].output"""
+        self.merge_data(output)
+        
+        activities = self.get_data("activities") or {}
+        if not isinstance(activities, dict):
+            activities = {}
+            
+        activity_data = activities.get(activity_id) or {}
+        if not isinstance(activity_data, dict):
+            activity_data = {}
+            
+        activity_output = activity_data.get("output") or {}
+        if not isinstance(activity_output, dict):
+            activity_output = {}
+            
+        # Clean output to prevent circular references and strip metadata
+        clean_output = {
+            k: v for k, v in output.items()
+            if k != "activities"
+        }
+            
+        activity_output.update(clean_output)
+        activity_data["output"] = activity_output
+        activities[activity_id] = activity_data
+        
+        self.set_data("activities", activities)
     
     def _add_to_history(
         self,

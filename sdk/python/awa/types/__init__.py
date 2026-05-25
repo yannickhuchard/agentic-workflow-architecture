@@ -413,6 +413,49 @@ class Collection(BaseModel):
     updated_at: datetime | None = None
 
 
+class HumanTask(BaseModel):
+    id: UUID
+    activity_id: UUID
+    activity_name: str
+    token_id: UUID
+    workflow_id: UUID
+    status: str = "pending"
+    priority: str = "normal"
+    assignee_id: str | None = None
+    role_id: UUID
+    creator_id: str | None = None
+    creator_type: ActorType | None = None
+    assigner_id: str | None = None
+    assigner_type: ActorType | None = None
+    inputs: dict[str, Any]
+    outputs: dict[str, Any] | None = None
+    created_at: datetime
+    updated_at: datetime
+    due_at: datetime | None = None
+    completed_at: datetime | None = None
+    description: str | None = None
+    form_schema: dict[str, Any] | None = None
+    tags: list[str] | None = None
+
+
+class WorkflowExecution(BaseModel):
+    id: UUID
+    workflow_id: UUID
+    workflow_name: str
+    status: str
+    started_at: datetime
+    completed_at: datetime
+    duration_ms: int
+    input_tokens: int = 0
+    output_tokens: int = 0
+    total_tokens: int = 0
+    execution_cost: float = 0.0
+    currency: str = "USD"
+    steps_count: int = 0
+    user_id: str | None = None
+    metadata: dict[str, Any] | None = None
+
+
 # ============================================================================
 # VISUALIZATION TYPES (RE-EXPORT)
 # ============================================================================

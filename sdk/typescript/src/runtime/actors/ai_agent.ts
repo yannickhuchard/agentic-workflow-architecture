@@ -20,6 +20,8 @@ export class AIAgent implements Actor {
 
         if (this.simulate) {
             console.log(`[AIAgent] SIMULATION: Mocking AI response for "${activity.name}"`);
+            // Add simulated delay (1.5s) to represent agent latency for telemetry and visualization polling
+            await new Promise(resolve => setTimeout(resolve, 1500));
             return {
                 output: { _mocked: true, status: "simulated" },
                 status: 'complex_completed',

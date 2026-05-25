@@ -114,13 +114,20 @@ describe('VSM & Analytics Tracking', () => {
         expect(waitingEntry?.analytics?.waste_categories).toContain('waiting');
 
         // Now resume the token
-        engine.resumeToken(token.id, { approved: true });
+        await engine.resumeToken(token.id, { approved: true });
 
         // Now runStep should finish
         await stepPromise;
 
         token = engine.getTokens()[0];
         expect(token.status).toBe('active');
+
+        // Verify namespaced state merging
+        expect(token.contextData.activities).toBeDefined();
+        const activityData = (token.contextData.activities as any)[activity1Id];
+        expect(activityData).toBeDefined();
+        expect(activityData.output).toBeDefined();
+        expect(activityData.output.approved).toBe(true);
 
         const resumedEntry = token.history.find(h => h.action === 'status_change:active');
         expect(resumedEntry?.analytics?.wait_time).toMatch(/^PT/);
@@ -201,8 +208,15 @@ describe('VSM & Analytics Tracking', () => {
         await new Promise(r => setTimeout(r, 200)); // Wait 200ms
 
         const token = engine.getTokens()[0];
-        engine.resumeToken(token.id, { ok: true });
+        await engine.resumeToken(token.id, { ok: true });
         await stepPromise;
+
+        // Verify namespaced state merging
+        expect(token.contextData.activities).toBeDefined();
+        const activityData = (token.contextData.activities as any)[activity1Id];
+        expect(activityData).toBeDefined();
+        expect(activityData.output).toBeDefined();
+        expect(activityData.output.ok).toBe(true);
 
         const resumedEntry = token.history.find(h => h.action === 'status_change:active');
         // It's hard to be exact but it should be > PT0S and likely PT0.2S

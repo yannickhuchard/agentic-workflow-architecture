@@ -70,6 +70,30 @@ export class Token {
         this.updatedAt = new Date();
     }
 
+    public mergeActivityOutput(activityId: UUID, output: Record<string, unknown>): void {
+        this.mergeData(output);
+
+        const activities = (this.getData('activities') || {}) as Record<string, unknown>;
+        const activityData = (activities[activityId] || {}) as Record<string, unknown>;
+        const activityOutput = (activityData.output || {}) as Record<string, unknown>;
+
+        const cleanOutput: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(output)) {
+            if (key !== 'activities') {
+                cleanOutput[key] = value;
+            }
+        }
+
+        activities[activityId] = {
+            ...activityData,
+            output: {
+                ...activityOutput,
+                ...cleanOutput
+            }
+        };
+        this.setData('activities', activities);
+    }
+
     private addToHistory(nodeId: UUID, action: string, metrics?: Record<string, number>, analytics?: Analytics): void {
         this.history.push({
             nodeId,

@@ -60,11 +60,17 @@ class WorkflowEngine:
         self,
         workflow: Workflow,
         gemini_api_key: str | None = None,
-        verbose: bool = False
+        verbose: bool = False,
+        options: dict[str, Any] | None = None
     ):
         self.workflow = workflow
-        self.gemini_api_key = gemini_api_key or os.environ.get("GEMINI_API_KEY")
-        self.verbose = verbose
+        opts = options or {}
+        self.gemini_api_key = gemini_api_key or opts.get("gemini_api_key") or os.environ.get("GEMINI_API_KEY")
+        self.verbose = verbose or opts.get("verbose", False)
+        self.simulate = opts.get("simulate", False)
+        self.wait_for_human_tasks = opts.get("wait_for_human_tasks", True)
+        self.pricing_config = opts.get("pricing_config")
+        self.user_id = opts.get("user_id")
         
         self._context_manager = ContextManager(workflow.contexts)
         self._tokens: dict[str, Token] = {}
@@ -80,7 +86,7 @@ class WorkflowEngine:
         self._actors = {
             ActorType.application: SoftwareAgent(),
             ActorType.ai_agent: AIAgent(self.gemini_api_key),
-            ActorType.human: HumanAgent(),
+            ActorType.human: HumanAgent({"simulate": self.simulate, "wait_for_completion": not self.wait_for_human_tasks}),
             ActorType.robot: RobotAgent(),
         }
         self._decision_evaluator = DecisionEvaluator()
@@ -103,11 +109,44 @@ class WorkflowEngine:
         """Get all tokens"""
         return list(self._tokens.values())
     
+    def _finalize_execution(self, start_time: datetime) -> None:
+        if self._status in [EngineStatus.COMPLETED, EngineStatus.FAILED]:
+            completed_time = datetime.now()
+            duration_ms = int((completed_time - start_time).total_seconds() * 1000)
+            
+            cost = 0.0
+            currency = "USD"
+            if self.pricing_config:
+                currency = self.pricing_config.get("currency", "USD")
+            
+            from awa.types import WorkflowExecution
+            metrics = WorkflowExecution(
+                id=uuid4(),
+                workflow_id=self.workflow.id,
+                workflow_name=self.workflow.name,
+                status=self._status.value,
+                started_at=start_time,
+                completed_at=completed_time,
+                duration_ms=duration_ms,
+                input_tokens=0,
+                output_tokens=0,
+                total_tokens=0,
+                execution_cost=cost,
+                currency=currency,
+                steps_count=0,
+                user_id=str(self.user_id) if self.user_id else None,
+                metadata={}
+            )
+            
+            from awa.runtime.services.task_service import ExecutionService
+            ExecutionService.log_execution(metrics)
+
     def run(self, initial_data: dict[str, Any] | None = None) -> dict[str, Any]:
         """
         Execute the workflow from start to end.
         """
         self._status = EngineStatus.RUNNING
+        start_time = datetime.now()
         
         # Find start activity
         if not self._start_activity:
@@ -132,6 +171,7 @@ class WorkflowEngine:
                 self._execute_step()
             
             self._status = EngineStatus.COMPLETED
+            self._finalize_execution(start_time)
             
             return {
                 "status": "completed",
@@ -141,6 +181,7 @@ class WorkflowEngine:
             
         except Exception as e:
             self._status = EngineStatus.FAILED
+            self._finalize_execution(start_time)
             raise
     
     def _find_start_activity(self) -> Activity | None:
@@ -179,7 +220,7 @@ class WorkflowEngine:
                 
                 try:
                     result = self._execute_activity(activity, token)
-                    token.merge_data(result)
+                    token.merge_activity_output(str(activity.id), result)
                     
                     end_time = datetime.now()
                     duration_secs = (end_time - start_time).total_seconds()
@@ -288,7 +329,7 @@ class WorkflowEngine:
                 "waste_categories": [WasteCategory.waiting.value]
             }
 
-        token.merge_data(output)
+        token.merge_activity_output(token.activity_id, output)
         token.update_status(TokenStatus.ACTIVE, analytics=analytics)
 
         if self._status == EngineStatus.WAITING_HUMAN:
