@@ -52,6 +52,13 @@
             "$ref": "awa.schema.json#/$defs/uuid",
             "description": "Activity being expanded by this workflow"
         },
+        "roles": {
+            "type": "array",
+            "items": {
+                "$ref": "role.schema.json"
+            },
+            "description": "Roles referenced by activities. A deployment may supply or override roles when it runs the workflow."
+        },
         "activities": {
             "type": "array",
             "items": {

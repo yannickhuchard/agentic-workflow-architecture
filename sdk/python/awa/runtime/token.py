@@ -74,6 +74,11 @@ class Token:
     def merge_activity_output(self, activity_id: str, output: dict[str, Any]) -> None:
         """Merge activity output and save namespaced under activities[activity_id].output"""
         self.merge_data(output)
+        # The fields of an object-valued "output" are merged as well, so an
+        # outcome's properties are addressable directly by conditions (spec 5.2).
+        outcome = output.get("output")
+        if isinstance(outcome, dict):
+            self.merge_data({k: v for k, v in outcome.items() if not k.startswith("_") and k != "activities"})
         
         activities = self.get_data("activities") or {}
         if not isinstance(activities, dict):

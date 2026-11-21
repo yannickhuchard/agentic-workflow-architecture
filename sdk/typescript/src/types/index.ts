@@ -412,6 +412,28 @@ export const DecisionNodeSchema = z.object({
 });
 export type DecisionNode = z.infer<typeof DecisionNodeSchema>;
 
+export const RoleSchema = z.object({
+    id: UUID,
+    name: z.string(),
+    description: z.string().optional(),
+    actor_type: ActorType,
+    organization_id: UUID.optional(),
+    capabilities: z.array(z.string()).default([]),
+    is_embedded: z.boolean().default(false),
+    ai_model_config: z.object({
+        /** Model reference: "tier:<name>", "<provider>:<model>" or "<model>" */
+        model_id: z.string().optional(),
+        temperature: z.number().min(0).max(2).optional(),
+        max_tokens: z.number().optional(),
+        system_prompt: z.string().optional(),
+    }).optional(),
+    mcp_tools: z.array(z.object({
+        server_name: z.string(),
+        tool_name: z.string(),
+    })).default([]),
+});
+export type Role = z.infer<typeof RoleSchema>;
+
 export const WorkflowSchema = z.object({
     id: UUID,
     name: z.string(),
@@ -422,6 +444,7 @@ export const WorkflowSchema = z.object({
     organization_id: UUID.optional(),
     parent_workflow_id: UUID.optional(),
     expansion_activity_id: UUID.optional(),
+    roles: z.array(RoleSchema).default([]),
     activities: z.array(ActivitySchema),
     edges: z.array(EdgeSchema),
     events: z.array(EventSchema).default([]),
@@ -449,27 +472,6 @@ export const CollectionSchema = z.object({
 });
 export type Collection = z.infer<typeof CollectionSchema>;
 
-export const RoleSchema = z.object({
-    id: UUID,
-    name: z.string(),
-    description: z.string().optional(),
-    actor_type: ActorType,
-    organization_id: UUID.optional(),
-    capabilities: z.array(z.string()).default([]),
-    is_embedded: z.boolean().default(false),
-    ai_model_config: z.object({
-        /** Model reference: "tier:<name>", "<provider>:<model>" or "<model>" */
-        model_id: z.string().optional(),
-        temperature: z.number().min(0).max(2).optional(),
-        max_tokens: z.number().optional(),
-        system_prompt: z.string().optional(),
-    }).optional(),
-    mcp_tools: z.array(z.object({
-        server_name: z.string(),
-        tool_name: z.string(),
-    })).default([]),
-});
-export type Role = z.infer<typeof RoleSchema>;
 
 export const SystemSchema = z.object({
     id: UUID,

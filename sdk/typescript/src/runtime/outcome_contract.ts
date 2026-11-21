@@ -6,7 +6,7 @@
  * outcome always gets the same result.
  */
 
-import Ajv2020 from 'ajv/dist/2020';
+import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 import { OutcomeContract } from '../types';
 import { evaluate_expression } from './expression';

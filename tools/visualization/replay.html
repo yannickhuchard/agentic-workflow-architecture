@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AWA Replay</title>
+<!--
+  AWA Replay: an animated, interactive view of one run, driven entirely by its
+  execution journal (specification section 9).
+
+  It needs two things: the workflow definition (.awa.json) and the journal
+  (.journal.jsonl). Open this file directly and drop them on the page, or pass
+    ?workflow=<url>&journal=<url>          to load both from URLs
+    ?run=<server>/api/v1/workflows/runs/<id>   to follow a live run over SSE
+  No build step and no network dependencies.
+-->
+<style>
+  :root {
+    --canvas: #0b0f19; --panel: #111827; --card: #1e293b; --line: rgba(255,255,255,.08);
+    --text: #ffffff; --muted: #9ca3af; --faint: #6b7280;
+    --running: #a855f7; --waiting: #fbbf24; --done: #10b981; --queue: #6b7280;
+    --failed: #ff4d4f; --select: #818cf8; --reasoning: #38bdf8; --meta: #f59e0b;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--canvas); color: var(--text); font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; display: flex; flex-direction: column; }
+  button, select, input { font: inherit; color: inherit; }
+  header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
+  header h1 { font-size: 14px; margin: 0; font-weight: 700; letter-spacing: .02em; }
+  header .title { color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 200px; }
+  .pill { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; text-transform: uppercase; letter-spacing: .04em; }
+  .btn { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+  .btn:hover { border-color: var(--select); }
+  .btn:focus-visible, select:focus-visible, input:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--select); outline-offset: 2px; }
+  select { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; }
+  main { flex: 1; display: flex; min-height: 0; }
+  #stage { flex: 1; position: relative; min-width: 0; overflow: hidden; }
+  #stage svg { width: 100%; height: 100%; display: block; cursor: grab; }
+  #stage svg.dragging { cursor: grabbing; }
+  aside { width: 380px; max-width: 45vw; border-left: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; min-height: 0; }
+  .tabs { display: flex; border-bottom: 1px solid var(--line); }
+  .tabs button { flex: 1; background: none; border: 0; border-bottom: 2px solid transparent; padding: 9px 4px; cursor: pointer; color: var(--muted); font-weight: 600; }
+  .tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--select); }
+  .pane { flex: 1; overflow: auto; padding: 14px; display: none; }
+  .pane.active { display: block; }
+  h2 { font-size: 13px; margin: 0 0 6px; }
+  h3 { font-size: 11px; margin: 14px 0 4px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  p { margin: 0 0 8px; }
+  .muted { color: var(--muted); }
+  pre { background: #0b1220; border: 1px solid var(--line); border-radius: 6px; padding: 8px; margin: 6px 0 0; overflow: auto; max-height: 260px; font: 11px/1.4 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; margin: 0; }
+  dt { color: var(--muted); } dd { margin: 0; word-break: break-word; }
+  ul { margin: 4px 0 8px; padding-left: 18px; } li { margin: 2px 0; }
+  .attempt { border: 1px solid var(--line); border-left: 3px solid var(--queue); border-radius: 6px; padding: 8px 10px; margin: 8px 0; background: rgba(255,255,255,.02); }
+  .attempt.ok { border-left-color: var(--done); } .attempt.bad { border-left-color: var(--failed); } .attempt.live { border-left-color: var(--running); }
+  .attempt .head { display: flex; justify-content: space-between; gap: 8px; font-weight: 700; }
+  .tag { display: inline-block; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; margin-right: 4px; text-transform: uppercase; letter-spacing: .04em; }
+  .tag.execution { background: rgba(107,114,128,.25); color: #d1d5db; }
+  .tag.reasoning { background: rgba(56,189,248,.18); color: var(--reasoning); }
+  .tag.meta { background: rgba(245,158,11,.18); color: var(--meta); }
+  .log { list-style: none; margin: 0; padding: 0; }
+  .log li { display: grid; grid-template-columns: 34px 1fr; gap: 8px; padding: 5px 6px; border-radius: 5px; cursor: pointer; border-left: 2px solid transparent; }
+  .log li:hover { background: rgba(255,255,255,.04); }
+  .log li.current { background: rgba(129,140,248,.14); border-left-color: var(--select); }
+  .log li.future { opacity: .4; }
+  .log .seq { color: var(--faint); text-align: right; font-variant-numeric: tabular-nums; }
+  .filters { display: flex; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+  .filters label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+  footer { border-top: 1px solid var(--line); background: var(--panel); padding: 8px 16px 10px; }
+  .controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .controls .now { flex: 1 1 260px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .controls .count { color: var(--muted); font-variant-numeric: tabular-nums; }
+  #track { position: relative; height: 26px; margin-top: 6px; }
+  #track input { position: absolute; inset: 0; width: 100%; margin: 0; accent-color: var(--select); }
+  #marks { position: absolute; left: 8px; right: 8px; top: 0; height: 5px; pointer-events: none; }
+  #marks i { position: absolute; top: 0; width: 2px; height: 5px; border-radius: 1px; }
+  #drop { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  #drop .box { max-width: 520px; text-align: center; border: 1px dashed rgba(255,255,255,.25); border-radius: 12px; padding: 28px; background: rgba(17,24,39,.7); }
+  #drop.over .box { border-color: var(--select); background: rgba(129,140,248,.1); }
+  #drop .row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
+  #legend { position: absolute; left: 12px; bottom: 10px; display: flex; gap: 12px; flex-wrap: wrap; font-size: 11px; color: var(--muted); background: rgba(11,15,25,.8); padding: 5px 9px; border-radius: 6px; border: 1px solid var(--line); }
+  #legend span::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; background: var(--c); vertical-align: -1px; }
+  #error { color: #fecaca; margin-top: 10px; min-height: 1em; }
+  /* graph */
+  .node rect.body { fill: var(--card); stroke: rgba(255,255,255,.1); stroke-width: 1; }
+  .node rect.accent { fill: var(--queue); }
+  .node text { fill: var(--text); pointer-events: none; }
+  .node .kind { font-size: 9px; font-weight: 600; fill: var(--muted); letter-spacing: .05em; }
+  .node .state { font-size: 9px; font-weight: 700; fill: var(--queue); }
+  .node .name { font-size: 11px; font-weight: 800; }
+  .node .foot { font-size: 9px; fill: var(--muted); }
+  .node { cursor: pointer; }
+  .node.selected rect.body { stroke: var(--select); stroke-width: 2; }
+  .node.s-running rect.accent, .node.s-running .state { fill: var(--running); }
+  .node.s-running rect.body { filter: drop-shadow(0 0 9px rgba(168,85,247,.55)); }
+  .node.s-waiting rect.accent, .node.s-waiting .state { fill: var(--waiting); }
+  .node.s-done rect.accent, .node.s-done .state { fill: var(--done); }
+  .node.s-failed rect.accent, .node.s-failed .state { fill: var(--failed); }
+  .node.s-failed rect.body { stroke: rgba(255,77,79,.6); }
+  .node.s-retrying rect.accent, .node.s-retrying .state { fill: var(--waiting); }
+  .node.s-compensated rect.accent, .node.s-compensated .state { fill: var(--meta); }
+  .edge path.wire { fill: none; stroke: #4b5563; stroke-width: 1.5; }
+  .edge.taken path.wire { stroke: var(--done); stroke-width: 3; stroke-dasharray: 7 5; animation: flow 1s linear infinite; }
+  .edge.comp path.wire { stroke-dasharray: 2 5; stroke: #6b7280; }
+  .edge text { font-size: 10px; fill: var(--muted); paint-order: stroke; stroke: var(--canvas); stroke-width: 4px; }
+  .edge.taken text { fill: #a7f3d0; }
+  .token { fill: #fff; stroke: var(--running); stroke-width: 3; filter: drop-shadow(0 0 6px rgba(168,85,247,.9)); }
+  .token.joining { stroke: var(--waiting); filter: drop-shadow(0 0 6px rgba(251,191,36,.9)); }
+  @keyframes flow { to { stroke-dashoffset: -24; } }
+  @keyframes pulse { 50% { opacity: .45; } }
+  .node.s-running rect.accent { animation: pulse 1.1s ease-in-out infinite; }
+  @media (prefers-reduced-motion: reduce) { .edge.taken path.wire, .node.s-running rect.accent { animation: none; } }
+  @media (max-width: 760px) { main { flex-direction: column; } aside { width: auto; max-width: none; border-left: 0; border-top: 1px solid var(--line); height: 45%; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>AWA Replay</h1>
+  <span class="title" id="title">No run loaded</span>
+  <span class="pill" id="status" hidden></span>
+  <select id="samples" aria-label="Sample runs" hidden></select>
+  <button class="btn" id="open">Open files…</button>
+  <input type="file" id="files" multiple accept=".json,.jsonl,application/json" hidden>
+</header>
+
+<main>
+  <section id="stage" aria-label="Workflow diagram">
+    <svg id="svg" role="img" aria-label="Workflow graph">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#4b5563"/></marker>
+        <marker id="arrow-on" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#10b981"/></marker>
+      </defs>
+      <g id="view"><g id="edges"></g><g id="nodes"></g><g id="tokens"></g></g>
+    </svg>
+    <div id="legend" hidden>
+      <span style="--c:var(--queue)">not reached</span><span style="--c:var(--running)">running</span>
+      <span style="--c:var(--waiting)">waiting or retrying</span><span style="--c:var(--done)">done</span>
+      <span style="--c:var(--failed)">failed</span><span style="--c:var(--meta)">compensated</span>
+    </div>
+    <div id="drop">
+      <div class="box">
+        <h2>Replay a run</h2>
+        <p class="muted">Drop a workflow definition (<code>.awa.json</code>) and the journal of one of its runs (<code>.journal.jsonl</code>) here.</p>
+        <div class="row">
+          <button class="btn" id="open2">Choose files…</button>
+          <button class="btn" id="sample" hidden>Load the sample run</button>
+        </div>
+        <p id="error" role="alert"></p>
+      </div>
+    </div>
+  </section>
+
+  <aside aria-label="Details">
+    <div class="tabs" role="tablist">
+      <button role="tab" id="tab-step" aria-selected="true" aria-controls="pane-step">This step</button>
+      <button role="tab" id="tab-node" aria-selected="false" aria-controls="pane-node">Node</button>
+      <button role="tab" id="tab-log" aria-selected="false" aria-controls="pane-log">Journal</button>
+    </div>
+    <div class="pane active" id="pane-step" role="tabpanel" aria-labelledby="tab-step"><p class="muted">Load a run to begin.</p></div>
+    <div class="pane" id="pane-node" role="tabpanel" aria-labelledby="tab-node"><p class="muted">Select a node in the diagram.</p></div>
+    <div class="pane" id="pane-log" role="tabpanel" aria-labelledby="tab-log">
+      <div class="filters">
+        <label><input type="checkbox" data-level="execution" checked> <span class="tag execution">execution</span></label>
+        <label><input type="checkbox" data-level="reasoning" checked> <span class="tag reasoning">reasoning</span></label>
+        <label><input type="checkbox" data-level="meta" checked> <span class="tag meta">meta</span></label>
+      </div>
+      <ol class="log" id="log"></ol>
+    </div>
+  </aside>
+</main>
+
+<footer>
+  <div class="controls">
+    <button class="btn" id="first" title="Go to start (Home)" aria-label="Go to start">⏮</button>
+    <button class="btn" id="prev" title="Step back (←)" aria-label="Step back">◀</button>
+    <button class="btn" id="play" title="Play or pause (Space)" aria-label="Play">▶ Play</button>
+    <button class="btn" id="next" title="Step forward (→)" aria-label="Step forward">▶|</button>
+    <button class="btn" id="last" title="Go to end (End)" aria-label="Go to end">⏭</button>
+    <select id="speed" aria-label="Playback speed">
+      <option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option><option value="8">8×</option>
+    </select>
+    <span class="now" id="now" aria-live="polite"></span>
+    <span class="count" id="count"></span>
+  </div>
+  <div id="track"><div id="marks"></div><input type="range" id="scrub" min="0" max="0" value="0" step="1" aria-label="Position in the journal"></div>
+</footer>
+
+<script src="replay-sample.js"></script>
+<script>
+(function () {
+  'use strict';
+  const NS = 'http://www.w3.org/2000/svg';
+  const $ = id => document.getElementById(id);
+  const el = (tag, attrs = {}, text) => {
+    const node = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+    if (text !== undefined) node.textContent = text;
+    return node;
+  };
+  const html = (strings, ...values) => strings.reduce((out, s, i) => out + s + (i < values.length ? values[i] : ''), '');
+  const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const json = v => esc(JSON.stringify(v, null, 2));
+  const dur = ms => ms == null || isNaN(ms) ? '' : ms < 1000 ? Math.round(ms) + ' ms' : ms < 60000 ? (ms / 1000).toFixed(1) + ' s' : Math.floor(ms / 60000) + ' min ' + Math.round(ms % 60000 / 1000) + ' s';
+
+  const W = 210, H = 85, GAP_X = 90, GAP_Y = 34;
+  const ICON = { human: '👤 HUMAN', ai_agent: '🤖 AI AGENT', robot: '🦾 ROBOT', application: '💻 SYSTEM', decision: '◆ DECISION', event: '● EVENT' };
+  const STATE = { queue: 'QUEUED', running: '⚡ RUNNING', waiting: '⏸ WAITING', retrying: '↻ RETRYING', done: '✅ DONE', failed: '✖ FAILED', compensated: '↩ UNDONE', joining: '⏳ JOINING' };
+
+  let workflow = null, events = [], nodes = new Map(), edges = [], pos = 0, timer = null, selected = null, live = null;
+  let view = { x: 0, y: 0, k: 1 };
+  const levels = { execution: true, reasoning: true, meta: true };
+
+  // ------------------------------------------------------------------ loading
+  function parseJournal(text) {
+    return text.split('\n').filter(line => line.trim()).map(line => JSON.parse(line));
+  }
+
+  function load(definition, journal, name) {
+    const wf = definition && definition.workflow && !definition.activities ? definition.workflow : definition;
+    if (!wf || !Array.isArray(wf.activities) || !Array.isArray(wf.edges)) throw new Error('That is not an AWA workflow definition.');
+    const runs = [...new Set(journal.filter(e => e.workflow_id === wf.id).map(e => e.run_id))];
+    if (journal.length && !runs.length) throw new Error('The journal holds no run of this workflow (the workflow ids differ).');
+    workflow = wf;
+    events = journal.filter(e => e.run_id === runs[runs.length - 1]).sort((a, b) => a.seq - b.seq);
+    stop();
+    selected = null;
+    buildGraph();
+    drawGraph();
+    fit();
+    $('drop').hidden = true;
+    $('legend').hidden = false;
+    $('title').textContent = (name ? name + ' · ' : '') + wf.name + ' v' + wf.version + (events[0] ? ' · run ' + events[0].run_id.slice(0, 8) : '');
+    $('scrub').max = events.length;
+    drawMarks();
+    seek(live ? events.length : 0);
+  }
+
+  async function loadFiles(list) {
+    try {
+      let definition = null, journal = null;
+      for (const file of list) {
+        const text = await file.text();
+        if (/\.jsonl$/i.test(file.name)) journal = parseJournal(text);
+        else {
+          try { definition = JSON.parse(text); }
+          catch { journal = parseJournal(text); }
+        }
+      }
+      if (!definition && workflow) definition = workflow;
+      if (!definition) throw new Error('Add the workflow definition (.awa.json) as well.');
+      if (!journal) journal = [];
+      $('error').textContent = '';
+      closeLive();
+      load(definition, journal);
+    } catch (error) { fail(error); }
+  }
+
+  function fail(error) {
+    $('drop').hidden = false;
+    $('error').textContent = error.message || String(error);
+  }
+
+  function closeLive() { if (live) { live.close(); live = null; } }
+
+  async function loadFromQuery() {
+    const query = new URLSearchParams(location.search);
+    try {
+      if (query.get('run')) {
+        const base = query.get('run').replace(/\/+$/, '');
+        const definition = await (await fetch(base + '/workflow')).json();
+        load(definition, []);
+        live = new EventSource(base + '/events/stream');
+        live.onmessage = () => { };
+        const onEvent = message => {
+          const event = JSON.parse(message.data);
+          if (events.some(e => e.seq === event.seq)) return;
+          const following = pos === events.length;
+          events.push(event);
+          $('scrub').max = events.length;
+          drawMarks();
+          if (following) seek(events.length); else render();
+          if (event.type === 'run.completed' || event.type === 'run.failed') closeLive();
+        };
+        for (const type of EVENT_TYPES) live.addEventListener(type, onEvent);
+        return true;
+      }
+      if (query.get('workflow')) {
+        const definition = await (await fetch(query.get('workflow'))).json();
+        const journal = query.get('journal') ? parseJournal(await (await fetch(query.get('journal'))).text()) : [];
+        load(definition, journal);
+        return true;
+      }
+    } catch (error) { fail(error); return true; }
+    return false;
+  }
+
+  const EVENT_TYPES = ['run.started', 'run.completed', 'run.failed', 'run.waiting', 'run.resumed', 'token.created', 'token.moved', 'token.completed', 'token.failed', 'token.waiting', 'token.resumed', 'token.joined', 'token.cancelled', 'activity.started', 'activity.completed', 'activity.failed', 'activity.retry_scheduled', 'activity.dead_lettered', 'activity.compensated', 'activity.compensation_failed', 'decision.evaluated', 'verification.completed', 'contract.checked', 'contract.escalated', 'timer.started', 'timer.fired', 'reasoning.recorded', 'meta.recorded', 'knowledge.retrieved', 'checkpoint.saved'];
+
+  // ------------------------------------------------------------------- layout
+  function buildGraph() {
+    nodes = new Map();
+    const add = (item, kind) => nodes.set(item.id, { id: item.id, name: item.name, kind, def: item, x: 0, y: 0, w: W, h: H });
+    (workflow.events || []).forEach(e => add(e, 'event'));
+    workflow.activities.forEach(a => add(a, 'activity'));
+    (workflow.decision_nodes || []).forEach(d => add(d, 'decision'));
+    edges = workflow.edges.filter(e => nodes.has(e.source_id) && nodes.has(e.target_id)).map(e => ({ ...e }));
+    for (const a of workflow.activities) {
+      if (a.compensation && nodes.has(a.compensation.activity_id)) {
+        edges.push({ id: 'comp:' + a.id, source_id: a.id, target_id: a.compensation.activity_id, comp: true, label: 'undone by' });
+      }
+    }
+
+    // Use positions saved with the workflow if it has them for every node
+    const saved = workflow.visualization && workflow.visualization.node_positions_2d;
+    if (Array.isArray(saved) && [...nodes.keys()].every(id => saved.some(p => p.node_id === id && p.position))) {
+      for (const p of saved) { const n = nodes.get(p.node_id); if (n) { n.x = p.position.x; n.y = p.position.y; } }
+      return;
+    }
+
+    // Layered layout, left to right: a node sits one column after its furthest predecessor.
+    // Back edges (loops) are ignored for layering so cycles cannot stall it.
+    const out = new Map([...nodes.keys()].map(id => [id, []]));
+    const flow = edges.filter(e => !e.comp);
+    for (const e of flow) out.get(e.source_id).push(e.target_id);
+    const layer = new Map(), visiting = new Set(), back = new Set();
+    const order = [];
+    const visit = id => {
+      if (layer.has(id)) return;
+      visiting.add(id);
+      layer.set(id, 0);
+      for (const next of out.get(id)) {
+        if (visiting.has(next)) { back.add(id + '>' + next); continue; }
+        visit(next);
+      }
+      visiting.delete(id);
+      order.unshift(id);
+    };
+    const targets = new Set(flow.map(e => e.target_id));
+    const handlers = new Set(edges.filter(e => e.comp).map(e => e.target_id));
+    [...nodes.keys()].filter(id => !targets.has(id) && !handlers.has(id)).forEach(visit);
+    [...nodes.keys()].filter(id => !handlers.has(id)).forEach(visit);
+    for (const id of order) {
+      for (const next of out.get(id)) {
+        if (!back.has(id + '>' + next)) layer.set(next, Math.max(layer.get(next), layer.get(id) + 1));
+      }
+    }
+    // Compensation handlers sit under the activity they undo
+    for (const e of edges.filter(e => e.comp)) layer.set(e.target_id, layer.get(e.source_id) ?? 0);
+
+    const columns = [];
+    for (const id of [...order, ...handlers]) {
+      const column = layer.get(id) || 0;
+      (columns[column] = columns[column] || []).includes(id) || columns[column].push(id);
+    }
+    // Order each column by the average row of its predecessors to reduce crossings
+    const row = new Map();
+    columns.forEach((ids, c) => {
+      if (c > 0) {
+        const score = id => {
+          const preds = edges.filter(e => e.target_id === id && row.has(e.source_id)).map(e => row.get(e.source_id) + (e.comp ? 0.5 : 0));
+          return preds.length ? preds.reduce((a, b) => a + b, 0) / preds.length : 1e6;
+        };
+        ids.sort((a, b) => score(a) - score(b));
+      }
+      ids.forEach((id, r) => row.set(id, r));
+    });
+    // Wrap long flows into bands, so the whole run is readable without panning:
+    // as many columns per band as fit the stage at a comfortable size.
+    const stage = $('stage').getBoundingClientRect().width || 1100;
+    const perBand = Math.max(3, Math.floor((stage + GAP_X) / ((W + GAP_X) * 0.82)));
+    let top = 0;
+    for (let start = 0; start < columns.length; start += perBand) {
+      const band = columns.slice(start, start + perBand);
+      const tallest = Math.max(...band.map(ids => ids ? ids.length : 0));
+      band.forEach((ids, c) => {
+        const offset = (tallest - ids.length) * (H + GAP_Y) / 2;
+        ids.forEach((id, r) => {
+          const n = nodes.get(id);
+          n.x = c * (W + GAP_X); n.y = top + offset + r * (H + GAP_Y); n.band = start / perBand; n.col = c;
+        });
+      });
+      top += tallest * (H + GAP_Y) + 56;
+    }
+  }
+
+  function edgePath(e) {
+    const a = nodes.get(e.source_id), b = nodes.get(e.target_id);
+    if (e.comp || (Math.abs(a.x - b.x) < 1 && a.band === b.band)) {
+      const down = b.y >= a.y;
+      const x = a.x + W / 2, y1 = down ? a.y + H : a.y, y2 = down ? b.y : b.y + H;
+      return `M${x} ${y1} L${x} ${y2}`;
+    }
+    if ((b.band || 0) > (a.band || 0)) {
+      // continues on a later band: leave from the bottom, arrive at the top
+      const x1 = a.x + W / 2, y1 = a.y + H, x2 = b.x + W / 2, y2 = b.y;
+      const mid = (y1 + y2) / 2;
+      return `M${x1} ${y1} C${x1} ${mid + 20} ${x2} ${mid - 20} ${x2} ${y2}`;
+    }
+    if (b.x > a.x && a.band === b.band) {
+      const x1 = a.x + W, x2 = b.x, y1 = a.y + H / 2, y2 = b.y + H / 2, mid = (x1 + x2) / 2;
+      // An edge that skips columns would run behind the cards in between: go round them
+      const between = [...nodes.values()].filter(n => n.band === a.band && n.col > a.col && n.col < b.col
+        && n.y < Math.max(y1, y2) + 4 && n.y + H > Math.min(y1, y2) - 4);
+      if (between.length) {
+        const top = Math.min(...between.map(n => n.y)), bottom = Math.max(...between.map(n => n.y + H));
+        const lane = (y1 + y2) / 2 - top <= bottom - (y1 + y2) / 2 ? top - 16 : bottom + 16;
+        const bend = Math.min(GAP_X / 2, 40);
+        return `M${x1} ${y1} C${x1 + bend} ${y1} ${x1 + bend} ${lane} ${x1 + bend * 2} ${lane} L${x2 - bend * 2} ${lane} C${x2 - bend} ${lane} ${x2 - bend} ${y2} ${x2} ${y2}`;
+      }
+      return `M${x1} ${y1} C${mid} ${y1} ${mid} ${y2} ${x2} ${y2}`;
+    }
+    // loop back to an earlier node: arc underneath
+    const dip = Math.max(a.y, b.y) + H + 40;
+    return `M${a.x + W / 2} ${a.y + H} C${a.x + W / 2} ${dip} ${b.x + W / 2} ${dip} ${b.x + W / 2} ${b.y + H}`;
+  }
+
+  // ------------------------------------------------------------------ drawing
+  function wrap(text, max) {
+    const words = String(text).split(/\s+/), lines = [''];
+    for (const word of words) {
+      const line = lines[lines.length - 1];
+      if ((line + ' ' + word).trim().length <= max) lines[lines.length - 1] = (line + ' ' + word).trim();
+      else lines.push(word);
+    }
+    if (lines.length > 2) { lines.length = 2; lines[1] = lines[1].slice(0, max - 1) + '…'; }
+    return lines;
+  }
+
+  function drawGraph() {
+    const gEdges = $('edges'), gNodes = $('nodes');
+    gEdges.replaceChildren(); gNodes.replaceChildren(); $('tokens').replaceChildren();
+
+    for (const e of edges) {
+      const g = el('g', { class: 'edge' + (e.comp ? ' comp' : ''), 'data-id': e.id });
+      const path = el('path', { class: 'wire', d: edgePath(e), 'marker-end': 'url(#arrow)' });
+      g.append(path);
+      const label = e.condition || e.label || (e.is_default ? 'default' : '');
+      if (label) {
+        const mid = path.getPointAtLength(path.getTotalLength() / 2);
+        g.append(el('text', { x: mid.x, y: mid.y - 6, 'text-anchor': 'middle' }, label.length > 30 ? label.slice(0, 29) + '…' : label));
+      }
+      e.el = g; e.path = path;
+      gEdges.append(g);
+    }
+
+    for (const n of nodes.values()) {
+      const g = el('g', { class: 'node s-queue', transform: `translate(${n.x} ${n.y})`, tabindex: 0, role: 'button', 'data-id': n.id });
+      const kind = n.kind === 'activity' ? ICON[n.def.actor_type] || n.def.actor_type : n.kind === 'event' ? '● ' + String(n.def.event_type).toUpperCase() + ' EVENT' : ICON.decision;
+      g.append(el('rect', { class: 'body', width: W, height: H, rx: 8 }));
+      g.append(el('rect', { class: 'accent', width: 4, height: H - 16, x: 0, y: 8, rx: 2 }));
+      g.append(el('text', { class: 'kind', x: 14, y: 19 }, kind));
+      n.stateEl = el('text', { class: 'state', x: W - 10, y: 19, 'text-anchor': 'end' }, STATE.queue);
+      g.append(n.stateEl);
+      wrap(n.name, 30).forEach((line, i) => g.append(el('text', { class: 'name', x: 14, y: 40 + i * 14 }, line)));
+      n.footEl = el('text', { class: 'foot', x: 14, y: H - 10 }, '');
+      g.append(n.footEl);
+      const title = el('title'); n.titleEl = title; g.append(title);
+      g.addEventListener('click', () => select(n.id));
+      g.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); select(n.id); } });
+      n.el = g;
+      gNodes.append(g);
+    }
+  }
+
+  function fit() {
+    const stage = $('stage').getBoundingClientRect();
+    const xs = [...nodes.values()].map(n => n.x), ys = [...nodes.values()].map(n => n.y);
+    if (!xs.length || !stage.width) return;
+    const minX = Math.min(...xs) - 40, minY = Math.min(...ys) - 40;
+    const width = Math.max(...xs) + W + 40 - minX, height = Math.max(...ys) + H + 70 - minY;
+    const k = Math.min(1.1, stage.width / width, stage.height / height);
+    view = { k, x: (stage.width - width * k) / 2 - minX * k, y: (stage.height - height * k) / 2 - minY * k };
+    applyView();
+  }
+  function applyView() { $('view').setAttribute('transform', `translate(${view.x} ${view.y}) scale(${view.k})`); }
+
+  function drawMarks() {
+    const marks = $('marks');
+    marks.replaceChildren();
+    if (!events.length) return;
+    events.forEach((e, i) => {
+      const color = e.type === 'activity.failed' || e.type === 'token.failed' || e.type === 'run.failed' || e.type === 'activity.compensation_failed' ? 'var(--failed)'
+        : e.level === 'reasoning' ? 'var(--reasoning)' : e.level === 'meta' ? 'var(--meta)' : null;
+      if (!color) return;
+      const mark = document.createElement('i');
+      mark.style.left = ((i + 1) / events.length * 100) + '%';
+      mark.style.background = color;
+      marks.append(mark);
+    });
+  }
+
+  // ------------------------------------------------------- state from journal
+  // The picture at position p is a pure function of events[0..p): scrubbing
+  // backwards recomputes from the start, so replay can never drift.
+  function reduce(upTo) {
+    const state = {
+      nodes: new Map([...nodes.keys()].map(id => [id, { status: 'queue', attempts: 0, visits: 0, ms: 0, note: '' }])),
+      taken: new Map(), tokens: new Map(), run: 'not started',
+    };
+    const at = id => state.nodes.get(id);
+    for (let i = 0; i < upTo; i++) {
+      const e = events[i], n = e.node_id && at(e.node_id), d = e.data || {};
+      switch (e.type) {
+        case 'run.started': state.run = 'running'; break;
+        case 'run.completed': state.run = 'completed'; break;
+        case 'run.failed': state.run = 'failed'; break;
+        case 'run.waiting': state.run = 'waiting'; break;
+        case 'run.resumed': state.run = 'running'; break;
+        case 'token.created': state.tokens.set(e.token_id, { node: e.node_id, status: 'active' }); if (n && n.status === 'queue') n.status = 'running'; break;
+        case 'token.moved':
+          state.taken.set(d.edge_id, (state.taken.get(d.edge_id) || 0) + 1);
+          state.tokens.set(e.token_id, { node: d.to_node_id, status: 'active', edge: d.edge_id });
+          { const target = at(d.to_node_id); if (target && target.status === 'queue') target.status = 'running'; }
+          { const source = at(d.from_node_id); if (source && (source.status === 'running' || source.status === 'queue')) source.status = 'done'; }
+          break;
+        case 'token.completed': { const t = state.tokens.get(e.token_id); if (t) t.status = 'completed'; if (n && n.status !== 'failed') n.status = 'done'; break; }
+        case 'token.failed': { const t = state.tokens.get(e.token_id); if (t) t.status = 'failed'; if (n) { n.status = 'failed'; n.note = d.error && d.error.message; } break; }
+        case 'token.cancelled': { const t = state.tokens.get(e.token_id); if (t) t.status = 'cancelled'; if (n && (n.status === 'running' || n.status === 'waiting')) n.status = 'queue'; break; }
+        case 'token.waiting': { const t = state.tokens.get(e.token_id); if (t) t.status = 'waiting'; if (n) n.status = 'waiting'; break; }
+        case 'token.resumed': { const t = state.tokens.get(e.token_id); if (t) t.status = 'active'; if (n) n.status = 'running'; break; }
+        case 'token.joined':
+          for (const id of d.merged_token_ids || []) { const t = state.tokens.get(id); if (t) t.status = 'joined'; }
+          if (n) n.status = 'running';
+          break;
+        case 'activity.started': if (n) { n.status = 'running'; n.attempts = e.attempt || n.attempts + 1; if ((e.attempt || 1) === 1) n.visits++; } break;
+        case 'activity.completed': if (n) { n.status = 'done'; n.ms = d.duration_ms ?? n.ms; n.note = ''; } break;
+        case 'activity.failed': if (n) { n.status = d.retryable ? 'retrying' : 'failed'; n.note = d.error && d.error.message; } break;
+        case 'decision.evaluated': if (n) n.status = 'done'; break;
+        case 'timer.started': if (n) n.status = 'waiting'; break;
+        case 'timer.fired': if (n) n.status = 'done'; break;
+        case 'contract.escalated': if (n) n.status = 'waiting'; break;
+        case 'activity.compensated': {
+          if (n) n.status = 'done';
+          const undone = at(d.compensates_activity_id); if (undone) undone.status = 'compensated';
+          state.taken.set('comp:' + d.compensates_activity_id, 1);
+          break;
+        }
+        case 'activity.compensation_failed': if (n) { n.status = 'failed'; n.note = d.error && d.error.message; } break;
+      }
+    }
+    // Tokens parked at a join 'all' node show as joining
+    for (const t of state.tokens.values()) {
+      const node = nodes.get(t.node);
+      if (t.status === 'active' && node && node.def.join === 'all' && at(t.node).status === 'queue') t.status = 'joining';
+    }
+    return state;
+  }
+
+  function sentence(e) {
+    const d = e.data || {}, name = e.node_name || (e.node_id && nodes.get(e.node_id) && nodes.get(e.node_id).name) || '';
+    const nameOf = id => (nodes.get(id) || {}).name || id;
+    switch (e.type) {
+      case 'run.started': return `Run started: ${d.workflow_name || workflow.name}`;
+      case 'run.completed': return `Run completed in ${dur(d.duration_ms)}`;
+      case 'run.failed': return `Run failed after ${dur(d.duration_ms)}` + (d.compensation && d.compensation.attempted ? `; ${d.compensation.succeeded} of ${d.compensation.attempted} compensations succeeded` : '');
+      case 'run.waiting': return 'Run is waiting for a human';
+      case 'run.resumed': return 'Run resumed from a checkpoint';
+      case 'token.created': return d.parent_token_id ? `Parallel split at ${name}: a new token was created` : `Token created at ${name}`;
+      case 'token.moved': return `Token moved ${nameOf(d.from_node_id)} → ${nameOf(d.to_node_id)} (${d.reason === 'condition' ? 'condition ' + d.condition : String(d.reason).replace('_', ' ')})`;
+      case 'token.completed': return `Token completed at ${name}`;
+      case 'token.failed': return `Token failed at ${name}: ${d.error && d.error.message}`;
+      case 'token.cancelled': return `Token at ${name} cancelled because the run failed`;
+      case 'token.waiting': return `Token is waiting at ${name}`;
+      case 'token.resumed': return `Token resumed at ${name}` + (d.waited_ms != null ? ` after ${dur(d.waited_ms)}` : '');
+      case 'token.joined': return `Branches joined at ${name}: ${(d.merged_token_ids || []).length + 1} tokens merged into one`;
+      case 'activity.started': return `${name}: attempt ${e.attempt || 1} started` + (d.feedback ? ' with corrective feedback' : '');
+      case 'activity.completed': return `${name}: outcome accepted` + (d.duration_ms != null ? ` (${dur(d.duration_ms)})` : '');
+      case 'activity.failed': return `${name}: attempt ${e.attempt || ''} ${d.retryable ? 'rejected, will retry' : 'failed'}: ${d.error && d.error.message}`;
+      case 'activity.retry_scheduled': return `${name}: retry in ${dur(d.delay_ms)}`;
+      case 'activity.dead_lettered': return `${name}: retries exhausted, sent to the dead-letter queue`;
+      case 'activity.compensated': return `${d.compensates_activity_name} undone by ${name}`;
+      case 'activity.compensation_failed': return `${d.compensates_activity_name} could NOT be undone: ${name} failed`;
+      case 'decision.evaluated': return `${name}: ${d.matched ? 'rule ' + (d.matched_rules || []).map(r => r.index + 1).join(', ') + ' matched' : 'no rule matched'}${d.used_default ? ', default route' : ''}`;
+      case 'verification.completed': return `${name}: verification ${d.verdict} (${Math.round((d.score || 0) * 100)}%)`;
+      case 'contract.checked': return `${name}: outcome contract ${d.passed ? 'holds' : 'violated'}` + (d.decided_by ? ` (${d.decided_by} decision)` : '');
+      case 'contract.escalated': return `${name}: escalated to a human`;
+      case 'timer.started': return `${name}: timer started (${d.duration})`;
+      case 'timer.fired': return `${name}: timer fired`;
+      case 'reasoning.recorded': return `${name}: the actor explained its reasoning`;
+      case 'meta.recorded': return `${name}: engine decision (${String(d.subject).replace('_', ' ')}): ${d.decision}`;
+      case 'knowledge.retrieved': return `${name}: ${(d.entries || []).length} knowledge entr${(d.entries || []).length === 1 ? 'y' : 'ies'} supplied`;
+      default: return e.type;
+    }
+  }
+
+  // ---------------------------------------------------------------- rendering
+  function render(animateFrom) {
+    if (!workflow) return;
+    const state = reduce(pos);
+
+    for (const n of nodes.values()) {
+      const s = state.nodes.get(n.id);
+      const parked = [...state.tokens.values()].some(t => t.node === n.id && t.status === 'joining');
+      const status = parked && s.status === 'queue' ? 'joining' : s.status;
+      n.el.setAttribute('class', `node s-${status === 'joining' ? 'waiting' : status}${selected === n.id ? ' selected' : ''}`);
+      n.stateEl.textContent = STATE[status];
+      const bits = [];
+      if (s.ms) bits.push('⏱ ' + dur(s.ms));
+      if (s.attempts > 1) bits.push(s.attempts + ' attempts');
+      if (s.visits > 1) bits.push(s.visits + ' visits');
+      if (n.kind === 'event' && n.def.event_type === 'timer') bits.push('⏲ ' + (n.def.event_definition || {}).duration);
+      if (n.def.join === 'all') bits.push('join all');
+      n.footEl.textContent = bits.join(' · ');
+      n.titleEl.textContent = `${n.name}: ${STATE[status]}${s.note ? '. ' + s.note : ''}`;
+    }
+
+    for (const e of edges) {
+      const on = state.taken.has(e.id);
+      e.el.setAttribute('class', 'edge' + (e.comp ? ' comp' : '') + (on ? ' taken' : ''));
+      e.path.setAttribute('marker-end', on ? 'url(#arrow-on)' : 'url(#arrow)');
+    }
+
+    drawTokens(state, animateFrom);
+
+    const current = events[pos - 1];
+    $('status').hidden = false;
+    $('status').textContent = live && state.run === 'running' ? 'live' : state.run;
+    $('status').style.color = { completed: 'var(--done)', failed: 'var(--failed)', running: 'var(--running)', waiting: 'var(--waiting)' }[state.run] || 'var(--muted)';
+    $('now').textContent = current ? sentence(current) : (events.length ? 'Before the run started' : 'No journal loaded: showing the definition only');
+    $('count').textContent = `${pos} / ${events.length}`;
+    $('scrub').value = pos;
+    $('scrub').setAttribute('aria-valuetext', current ? `Event ${pos} of ${events.length}: ${sentence(current)}` : 'Start');
+    $('play').textContent = timer ? '⏸ Pause' : '▶ Play';
+    $('play').setAttribute('aria-label', timer ? 'Pause' : 'Play');
+
+    renderStep(current);
+    renderNode(state);
+    renderLog();
+  }
+
+  function drawTokens(state, animateFrom) {
+    const layer = $('tokens');
+    layer.replaceChildren();
+    const here = new Map();
+    for (const [id, t] of state.tokens) {
+      if (!['active', 'waiting', 'joining'].includes(t.status)) continue;
+      const n = nodes.get(t.node);
+      if (!n) continue;
+      const index = here.get(t.node) || 0;
+      here.set(t.node, index + 1);
+      const rest = { x: n.x + W - 16 - index * 16, y: n.y + H - 14 };
+      const dot = el('circle', { class: 'token' + (t.status === 'joining' ? ' joining' : ''), r: 6, cx: rest.x, cy: rest.y });
+      dot.append(el('title', {}, `Token ${id.slice(0, 8)} (${t.status})`));
+      layer.append(dot);
+
+      // Animate the token along the edge it has just taken
+      const moved = animateFrom && animateFrom.type === 'token.moved' && animateFrom.token_id === id;
+      const edge = moved && edges.find(e => e.id === animateFrom.data.edge_id);
+      if (edge && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        const length = edge.path.getTotalLength(), started = performance.now();
+        const travel = Math.min(650, stepDelay(pos - 1) * 0.9);
+        const frame = now => {
+          const p = Math.min(1, (now - started) / travel);
+          const eased = p < .5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+          const point = p < 1 ? edge.path.getPointAtLength(length * eased) : rest;
+          dot.setAttribute('cx', point.x); dot.setAttribute('cy', point.y);
+          if (p < 1 && dot.isConnected) requestAnimationFrame(frame);
+        };
+        const begin = edge.path.getPointAtLength(0);
+        dot.setAttribute('cx', begin.x); dot.setAttribute('cy', begin.y);
+        requestAnimationFrame(frame);
+      }
+    }
+  }
+
+  function facts(pairs) {
+    return '<dl>' + pairs.filter(p => p[1] !== undefined && p[1] !== null && p[1] !== '' && p[1] !== false).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join('') + '</dl>';
+  }
+
+  function eventBody(e) {
+    const d = e.data || {};
+    let body = '';
+    if (e.type === 'reasoning.recorded') {
+      if (Array.isArray(d.plan) && d.plan.length) body += '<h3>Plan</h3><ol>' + d.plan.map(p => `<li>${esc(p)}</li>`).join('') + '</ol>';
+      if (d.rationale) body += `<h3>Rationale</h3><p>${esc(d.rationale)}</p>`;
+      if (Array.isArray(d.alternatives_considered) && d.alternatives_considered.length) body += '<h3>Alternatives rejected</h3><ul>' + d.alternatives_considered.map(p => `<li>${esc(p)}</li>`).join('') + '</ul>';
+      if (d.confidence !== undefined) body += `<h3>Confidence reported</h3><p>${esc(d.confidence)}</p>`;
+      body += '<p class="muted">This is the actor\'s own account of its work, recorded alongside its output.</p>';
+    } else if (e.type === 'meta.recorded') {
+      body += `<h3>Decision</h3><p>${esc(d.decision)}</p><h3>Why</h3><p>${esc(d.rationale)}</p>`;
+    } else if (e.type === 'verification.completed') {
+      body += facts([['Mode', esc(d.mode)], ['Verdict', esc(d.verdict)], ['Score', Math.round((d.score || 0) * 100) + '% (pass at ' + Math.round((d.pass_threshold || 0) * 100) + '%)']]);
+      body += '<h3>Criteria</h3><ul>' + (d.criteria || []).map(c => `<li>${c.passed ? '✅' : '❌'} <b>${esc(c.criterion_name)}</b>: ${esc(c.evidence)}</li>`).join('') + '</ul>';
+    } else if (e.type === 'contract.checked') {
+      body += d.passed ? '<p>Every term of the outcome contract holds.</p>' : '<h3>Violations</h3><ul>' + (d.violations || []).map(v => `<li><b>${esc(v.kind)}</b>: ${esc(v.message)}</li>`).join('') + '</ul>';
+    } else if (e.type === 'decision.evaluated') {
+      body += facts([['Inputs', `<code>${esc(JSON.stringify(d.inputs))}</code>`], ['Matched', d.matched ? 'rule ' + (d.matched_rules || []).map(r => r.index + 1).join(', ') : 'no rule'], ['Outputs', `<code>${esc(JSON.stringify(d.outputs))}</code>`], ['Default used', d.used_default ? 'yes' : 'no']]);
+    } else if (d.error) {
+      body += facts([['Error', esc(d.error.message)], ['Code', esc(d.error.code)], ['Will retry', d.retryable === undefined ? undefined : d.retryable ? 'yes' : 'no']]);
+    }
+    if (d.feedback && e.type === 'activity.started') body += `<h3>Feedback given to the actor</h3><pre>${esc(d.feedback)}</pre>`;
+    if (d.input !== undefined) body += `<h3>Input</h3><pre>${json(d.input)}</pre>`;
+    if (d.output !== undefined) body += `<h3>Output</h3><pre>${json(d.output)}</pre>`;
+    return body;
+  }
+
+  function renderStep(e) {
+    const pane = $('pane-step');
+    if (!e) { pane.innerHTML = '<p class="muted">Press play, or step forward, to walk through the run one journal event at a time.</p>'; return; }
+    pane.innerHTML = html`<h2>${esc(sentence(e))}</h2>
+      <p><span class="tag ${esc(e.level)}">${esc(e.level)}</span><span class="muted">${esc(e.type)} · #${e.seq} · ${esc(new Date(e.time).toLocaleTimeString())}</span></p>
+      ${eventBody(e)}
+      <h3>Raw event</h3><pre>${json(e)}</pre>`;
+  }
+
+  function renderNode(state) {
+    const pane = $('pane-node');
+    const n = selected && nodes.get(selected);
+    if (!n) { pane.innerHTML = '<p class="muted">Select a node in the diagram to see what it is and what happened there.</p>'; return; }
+    const def = n.def, s = state.nodes.get(n.id);
+    let out = `<h2>${esc(n.name)}</h2>`;
+    out += facts([
+      ['Kind', n.kind === 'activity' ? esc(def.actor_type) + ' activity' : n.kind === 'event' ? esc(def.event_type) + ' event' : 'decision table'],
+      ['Status', STATE[s.status]],
+      ['Purpose', def.description && esc(def.description)],
+      ['Procedure', def.procedure && esc(def.procedure)],
+      ['Join', def.join === 'all' ? 'waits for every incoming branch' : undefined],
+      ['Retry', def.retry && esc(`up to ${def.retry.max_attempts || 1} attempts`)],
+      ['Undone by', def.compensation && esc((nodes.get(def.compensation.activity_id) || {}).name)],
+      ['Timer', n.kind === 'event' && def.event_definition && esc(def.event_definition.duration)],
+    ]);
+    const contract = def.outcome_contract;
+    if (contract) {
+      out += '<h3>Outcome contract</h3><ul>';
+      if (contract.output_schema) out += `<li>Matches a schema requiring ${(contract.output_schema.required || []).map(r => `<code>${esc(r)}</code>`).join(', ') || 'no fields'}</li>`;
+      for (const c of contract.postconditions || []) out += `<li>${esc(c.name)}: <code>${esc(c.expression)}</code></li>`;
+      const b = contract.budgets || {};
+      const limits = [b.max_attempts && `${b.max_attempts} attempts`, b.max_duration && `${b.max_duration} per attempt`, b.max_tokens && `${b.max_tokens} tokens`].filter(Boolean);
+      if (limits.length) out += `<li>Budget: ${esc(limits.join(', '))}</li>`;
+      out += `<li>If still rejected: ${contract.on_violation === 'escalate_human' ? 'escalate to a human' : 'fail'}</li></ul>`;
+    }
+    if (def.verification && def.verification.enabled !== false) {
+      out += '<h3>Acceptance criteria</h3><ul>' + (def.verification.criteria || []).map(c => `<li>${esc(c.name)}: ${esc(c.description)}</li>`).join('') + '</ul>';
+    }
+    if (n.kind === 'decision') {
+      const t = def.decision_table;
+      out += '<h3>Rules (' + esc(t.hit_policy) + ')</h3><ol>' + t.rules.map(r => `<li>${t.inputs.map((c, i) => `${esc(c.name)} <code>${esc(r.input_entries[i] || '-')}</code>`).join(' and ')} → ${esc(JSON.stringify(r.output_entries))}</li>`).join('') + '</ol>';
+    }
+
+    // What happened here, up to the current position
+    const here = events.slice(0, pos).filter(e => e.node_id === n.id);
+    const attempts = [];
+    for (const e of here) {
+      if (e.type === 'activity.started') attempts.push({ n: e.attempt || attempts.length + 1, events: [e] });
+      else if (e.attempt && attempts.length) attempts[attempts.length - 1].events.push(e);
+    }
+    if (attempts.length) {
+      out += '<h3>Attempts so far</h3>';
+      for (const a of attempts) {
+        const end = a.events.find(e => e.type === 'activity.completed' || e.type === 'activity.failed');
+        const cls = !end ? 'live' : end.type === 'activity.completed' ? 'ok' : 'bad';
+        out += `<div class="attempt ${cls}"><div class="head"><span>Attempt ${a.n}</span><span>${!end ? 'in progress' : end.type === 'activity.completed' ? 'accepted' : 'rejected'}</span></div>`;
+        for (const e of a.events) {
+          if (e.type === 'activity.started') continue;
+          out += `<p style="margin:6px 0 0"><span class="tag ${esc(e.level)}">${esc(e.level)}</span><a href="#" data-seq="${e.seq}" style="color:inherit">${esc(sentence(e).replace(n.name + ': ', ''))}</a></p>`;
+        }
+        out += '</div>';
+      }
+    }
+    const other = here.filter(e => !e.attempt);
+    if (other.length) {
+      out += '<h3>Other events here</h3><ul>' + other.map(e => `<li><a href="#" data-seq="${e.seq}" style="color:inherit">${esc(sentence(e))}</a></li>`).join('') + '</ul>';
+    }
+    if (!here.length) out += '<p class="muted" style="margin-top:10px">Nothing has happened here yet at this point in the run.</p>';
+    pane.innerHTML = out;
+  }
+
+  function renderLog() {
+    const list = $('log');
+    const items = events.map((e, i) => levels[e.level] === false ? '' :
+      `<li data-seq="${e.seq}" class="${i + 1 === pos ? 'current' : i + 1 > pos ? 'future' : ''}"><span class="seq">${e.seq}</span><span><span class="tag ${esc(e.level)}">${esc(e.level)}</span>${esc(sentence(e))}</span></li>`);
+    list.innerHTML = items.join('') || '<li class="muted" style="cursor:default">No journal loaded.</li>';
+    if ($('pane-log').classList.contains('active')) {
+      const current = list.querySelector('.current');
+      if (current) current.scrollIntoView({ block: 'nearest' });
+    }
+  }
+
+  // ----------------------------------------------------------------- playback
+  function stepDelay(index) {
+    // Pace playback by the real gaps between events, clamped so that nothing
+    // flashes past and long waits do not stall the replay.
+    const a = events[index], b = events[index + 1];
+    const gap = a && b ? new Date(b.time) - new Date(a.time) : 400;
+    return Math.max(160, Math.min(1100, gap)) / Number($('speed').value);
+  }
+
+  function seek(next, animate) {
+    const before = pos;
+    pos = Math.max(0, Math.min(events.length, next));
+    render(animate && pos === before + 1 ? events[pos - 1] : null);
+  }
+
+  function play() {
+    if (!events.length) return;
+    if (pos >= events.length) pos = 0;
+    const tick = () => {
+      if (pos >= events.length) { stop(); render(); return; }
+      seek(pos + 1, true);
+      timer = setTimeout(tick, stepDelay(pos - 1));
+    };
+    timer = setTimeout(tick, 0);
+    render();
+  }
+  function stop() { clearTimeout(timer); timer = null; }
+  function toggle() { if (timer) { stop(); render(); } else play(); }
+
+  function select(id) {
+    selected = id;
+    showTab('node');
+    render();
+  }
+
+  function showTab(name) {
+    for (const tab of ['step', 'node', 'log']) {
+      $('tab-' + tab).setAttribute('aria-selected', String(tab === name));
+      $('pane-' + tab).classList.toggle('active', tab === name);
+    }
+    if (name === 'log') renderLog();
+  }
+
+  // ------------------------------------------------------------------- wiring
+  $('play').onclick = toggle;
+  $('prev').onclick = () => { stop(); seek(pos - 1); };
+  $('next').onclick = () => { stop(); seek(pos + 1, true); };
+  $('first').onclick = () => { stop(); seek(0); };
+  $('last').onclick = () => { stop(); seek(events.length); };
+  $('scrub').oninput = ev => { stop(); seek(Number(ev.target.value)); };
+  for (const tab of ['step', 'node', 'log']) $('tab-' + tab).onclick = () => showTab(tab);
+  $('open').onclick = $('open2').onclick = () => $('files').click();
+  $('files').onchange = ev => loadFiles([...ev.target.files]);
+  document.querySelectorAll('.filters input').forEach(box => box.onchange = () => { levels[box.dataset.level] = box.checked; renderLog(); });
+
+  const jump = ev => {
+    const target = ev.target.closest('[data-seq]');
+    if (!target) return;
+    ev.preventDefault();
+    stop();
+    seek(events.findIndex(e => e.seq === Number(target.dataset.seq)) + 1);
+    if (target.tagName === 'A') showTab('step');
+  };
+  $('log').addEventListener('click', jump);
+  $('pane-node').addEventListener('click', jump);
+
+  document.addEventListener('keydown', ev => {
+    if (/INPUT|SELECT|TEXTAREA|BUTTON/.test(ev.target.tagName) && ev.key !== 'ArrowLeft' && ev.key !== 'ArrowRight') return;
+    if (ev.target.id === 'scrub') return;
+    if (ev.key === ' ') { ev.preventDefault(); toggle(); }
+    else if (ev.key === 'ArrowRight') { stop(); seek(pos + 1, true); }
+    else if (ev.key === 'ArrowLeft') { stop(); seek(pos - 1); }
+    else if (ev.key === 'Home') { stop(); seek(0); }
+    else if (ev.key === 'End') { stop(); seek(events.length); }
+  });
+
+  const stage = $('stage'), drop = $('drop');
+  ['dragenter', 'dragover'].forEach(type => stage.addEventListener(type, ev => { ev.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(type => stage.addEventListener(type, ev => { ev.preventDefault(); drop.classList.remove('over'); }));
+  stage.addEventListener('drop', ev => loadFiles([...ev.dataTransfer.files]));
+
+  // pan and zoom
+  const svg = $('svg');
+  let drag = null;
+  svg.addEventListener('pointerdown', ev => { if (ev.target.closest('.node')) return; drag = { x: ev.clientX - view.x, y: ev.clientY - view.y }; svg.classList.add('dragging'); svg.setPointerCapture(ev.pointerId); });
+  svg.addEventListener('pointermove', ev => { if (!drag) return; view.x = ev.clientX - drag.x; view.y = ev.clientY - drag.y; applyView(); });
+  svg.addEventListener('pointerup', () => { drag = null; svg.classList.remove('dragging'); });
+  svg.addEventListener('wheel', ev => {
+    ev.preventDefault();
+    const box = svg.getBoundingClientRect(), mx = ev.clientX - box.left, my = ev.clientY - box.top;
+    const k = Math.max(0.25, Math.min(2.5, view.k * (ev.deltaY < 0 ? 1.1 : 1 / 1.1)));
+    view.x = mx - (mx - view.x) * (k / view.k); view.y = my - (my - view.y) * (k / view.k); view.k = k;
+    applyView();
+  }, { passive: false });
+  svg.addEventListener('dblclick', fit);
+  let resizing;
+  addEventListener('resize', () => {
+    clearTimeout(resizing);
+    resizing = setTimeout(() => { if (workflow) { buildGraph(); drawGraph(); fit(); render(); } }, 120);
+  });
+
+  // samples
+  const samples = window.AWA_SAMPLES || [];
+  const loadSample = index => { closeLive(); const s = samples[index]; load(s.workflow, s.events, s.name); };
+  if (samples.length) {
+    $('sample').hidden = false;
+    $('sample').onclick = () => { loadSample(0); $('samples').value = '0'; };
+    const picker = $('samples');
+    picker.hidden = false;
+    picker.innerHTML = '<option value="">Sample runs…</option>' + samples.map((s, i) => `<option value="${i}">${esc(s.name)}</option>`).join('');
+    picker.onchange = () => { if (picker.value !== '') loadSample(Number(picker.value)); };
+  }
+
+  loadFromQuery();
+
+  // For tests and for embedding
+  window.AWAReplay = { load, seek: n => { stop(); seek(n); }, play, stop, get position() { return pos; }, get length() { return events.length; }, state: () => reduce(pos) };
+})();
+</script>
+</body>
+</html>

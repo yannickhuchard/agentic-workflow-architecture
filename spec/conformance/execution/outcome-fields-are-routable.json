@@ -1,0 +1,69 @@
+{
+  "id": "outcome-fields-are-routable",
+  "level": "core",
+  "spec": "5.2",
+  "description": "When a result has an object-valued 'output', that object's fields are merged into the token's data and can be used by conditions.",
+  "workflow": {
+    "id": "a20fb31f-522c-5185-9348-373e0ff2c9fc",
+    "name": "outcome-fields-are-routable",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "ce961e36-7c19-56ae-bd01-a0986b6246a9",
+        "name": "A",
+        "role_id": "07f9fe96-5599-531e-ba06-d5e207870d80",
+        "actor_type": "application"
+      },
+      {
+        "id": "88ac5443-52a6-5eec-ac4d-4f7dfd205374",
+        "name": "B",
+        "role_id": "07f9fe96-5599-531e-ba06-d5e207870d80",
+        "actor_type": "application"
+      },
+      {
+        "id": "e163d8f5-682f-51c6-b2d8-eb88b6bc8085",
+        "name": "C",
+        "role_id": "07f9fe96-5599-531e-ba06-d5e207870d80",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "4b056cee-32cc-5e04-b300-4eca903ae450",
+        "source_id": "ce961e36-7c19-56ae-bd01-a0986b6246a9",
+        "target_id": "88ac5443-52a6-5eec-ac4d-4f7dfd205374",
+        "condition": "score > 5"
+      },
+      {
+        "id": "80923e60-814e-5d86-b672-1c536190d151",
+        "source_id": "ce961e36-7c19-56ae-bd01-a0986b6246a9",
+        "target_id": "e163d8f5-682f-51c6-b2d8-eb88b6bc8085",
+        "is_default": true
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "output": {
+        "output": {
+          "score": 9
+        },
+        "status": "done"
+      }
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "A",
+      "B"
+    ],
+    "data": {
+      "score": 9,
+      "output": {
+        "score": 9
+      }
+    }
+  }
+}

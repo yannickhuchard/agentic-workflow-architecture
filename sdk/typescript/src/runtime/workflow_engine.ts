@@ -99,6 +99,16 @@ class ActivityError extends Error {
     }
 }
 
+/**
+ * The fields of an object-valued `output`, so that an outcome's properties are
+ * addressable directly by conditions and decision tables (spec 5.2).
+ */
+function outcome_fields(result: Record<string, unknown>): Record<string, unknown> {
+    const output = result.output;
+    if (output === null || typeof output !== 'object' || Array.isArray(output)) return {};
+    return Object.fromEntries(Object.entries(output).filter(([key]) => !key.startsWith('_') && key !== 'activities'));
+}
+
 function error_info(error: unknown): { message: string; code?: string; stack?: string } {
     if (error instanceof Error) {
         const code = (error as { code?: unknown }).code;
@@ -222,7 +232,10 @@ export class WorkflowEngine {
             this.decisionNodeMap.set(decisionNode.id, decisionNode);
         }
 
-        // Load roles from options and workflow
+        // Roles defined in the document, then roles supplied by the deployment (which win)
+        for (const role of this.workflow.roles || []) {
+            this.roleMap.set(role.id, role);
+        }
         if (this.options.roles) {
             for (const role of this.options.roles) {
                 this.roleMap.set(role.id, role);
@@ -599,6 +612,7 @@ export class WorkflowEngine {
 
             token.mergeActivityOutput(activity.id, {
                 ...output,
+                ...outcome_fields(output),
                 _last_actor_id: activity.id,
                 _last_actor_type: activity.actor_type,
                 ...(verificationRecords.length > 0 ? { _verification_records: verificationRecords } : {}),

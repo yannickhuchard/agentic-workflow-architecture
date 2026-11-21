@@ -21,6 +21,7 @@ This document is normative. Where it and an SDK disagree, this document is right
 11. [Outcome contracts](#11-outcome-contracts)
 12. [Model binding](#12-model-binding)
 13. [Flow control](#13-flow-control)
+14. [Explaining a run](#14-explaining-a-run)
 
 ## 1. Scope
 
@@ -138,6 +139,7 @@ A token carries a JSON object, its data.
 
 - The data starts as the input supplied when the run starts.
 - When an activity finishes, its result object is merged into the token's data, property by property. Later values replace earlier values of the same property.
+- If the result has an `output` property that is a JSON object, that object's properties are merged as well. An AI agent's outcome fields are therefore addressable directly: after an agent returns `{ "output": { "score": 9 } }`, the condition `score > 5` is true.
 - The engine also records each activity's result under `activities.<activity id>.output`, so a result is not lost when a later activity reuses a property name.
 - Properties whose names begin with `_` are reserved for the engine.
 
@@ -291,6 +293,7 @@ The JSON Schemas are authoritative for field names and types. This section summa
 | `version` | string | Semantic version of this workflow, e.g. `1.0.0` |
 | `awa_version` | string | Specification version targeted, e.g. `1.1` |
 | `description` | string | Optional description |
+| `roles` | Role[] | Roles the activities refer to, with their model references |
 | `activities` | Activity[] | Units of work |
 | `edges` | Edge[] | Connections between nodes |
 | `events` | Event[] | Events |
@@ -654,6 +657,45 @@ When a run fails, before recording `run.failed`, the engine MUST compensate ever
 
 Compensation does not change the run status. A compensated run is still `failed`.
 
+## 14. Explaining a run
+
+Two artefacts are derived from a workflow definition and the journal of one run. Both are pure functions of those two inputs: an implementation MUST NOT consult anything else, and the same inputs MUST give the same result.
+
+### 14.1 Recipe
+
+A **recipe** is a document that explains how to build the workflow from scratch and what one run of it did. It is the runbook of the run, condensed. A recipe MUST contain, in this order:
+
+| Section | Content |
+|---|---|
+| 1. What this workflow achieves | The workflow's purpose, and for the run its outcome, duration, attempts, tokens and cost |
+| 2. What you need before you start | Roles and actor types; each model reference and what it resolved to; tools, programs and skills; shared contexts; access rights; the conformance levels the engine must claim |
+| 3. Build it, step by step | Every node. Nodes the run reached come first, in the order reached; the rest follow, marked as not reached. For each activity: its purpose and procedure, its outcome contract, acceptance criteria, retry policy, compensation and outgoing routes. Then what the run did there: each attempt with its result, the actor's reported plan, rationale and rejected alternatives, contract and verification results, and each engine decision with its rationale |
+| 4. Wire the flow | Every edge with the condition under which it is taken, and whether the run took it |
+| 5. What this run taught | Every rejected or failed attempt and how it was resolved; compensations; cancellations; the cause of failure, if the run failed |
+| 6. Check your build | How to validate, run and compare a rebuild against this run |
+| Appendix | The complete workflow definition |
+
+With the appendix, a recipe alone is sufficient to reconstruct the workflow. An implementation MAY let the appendix and the payload samples be omitted, for recipes that must not carry data.
+
+The recipe states what the actor **reported** as its reasoning (9.2). It MUST NOT present that report as a verified account of how a model computed its answer.
+
+The reference implementation writes recipes as Markdown: `awa recipe <workflow> <journal>`.
+
+### 14.2 Replay
+
+A **replay** presents a run visually and lets a person move through it. An implementation of replay MUST:
+
+- derive what it shows at position *p* solely from the journal events 1 to *p*, so that moving backwards, forwards or directly to any position shows the same picture for the same position;
+- show, for every node, whether it has not been reached, is running, is waiting or retrying, is done, has failed, or has been compensated;
+- show which edges tokens have taken, and where each live token is;
+- let the person step one event at a time in both directions, move directly to any event, and play the run continuously;
+- let the person inspect any node: its definition, and every attempt made there with its reasoning, checks and engine decisions up to the current position;
+- distinguish the three trace levels (9.2).
+
+A replay that follows a run in progress SHOULD read the journal as Server-Sent Events (9.5).
+
+The reference implementation is `tools/visualization/replay.html`.
+
 ## Appendix A. Conformance suite
 
 `spec/conformance/` holds language-neutral cases.
@@ -697,3 +739,5 @@ Runners: `sdk/typescript/tests/conformance.test.ts`, `sdk/python/tests/test_conf
 - Vendor-neutral model references with capability tiers (section 12).
 - Parallel split, synchronising join, start, end and timer events, fail-fast cancellation and compensation (section 13).
 - Several unconditional edges from one node are now a parallel split; 1.0 engines followed only the first.
+- `roles` are part of the workflow document; the fields of an object-valued `output` are merged into token data (5.2).
+- Recipe and replay defined as artefacts derived from the journal (section 14).

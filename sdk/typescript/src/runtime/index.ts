@@ -10,3 +10,4 @@ export * from './expression';
 export * from './journal';
 export * from './models';
 export * from './outcome_contract';
+export * from './recipe';

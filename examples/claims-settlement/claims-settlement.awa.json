@@ -1,0 +1,414 @@
+{
+  "$schema": "https://awa.io/schema/awa.schema.json",
+  "id": "42ddec2f-18d0-5b06-837b-bf1e9c8cecdb",
+  "name": "Motor Claim Settlement",
+  "version": "1.0.0",
+  "awa_version": "1.1",
+  "description": "Settles a motor insurance claim: registers it, has an AI agent assess the damage under an outcome contract, checks fraud signals and policy cover in parallel, routes by risk, and pays the claimant. Funds reserved for a payment that later fails are released.",
+  "roles": [
+    {
+      "id": "bef76de6-107e-5861-ab56-75b55251635f",
+      "name": "Claims system",
+      "actor_type": "application",
+      "description": "The system of record for claims"
+    },
+    {
+      "id": "8011abaf-e650-566d-ac8e-678431596e76",
+      "name": "Damage assessor",
+      "actor_type": "ai_agent",
+      "description": "Estimates repair costs from descriptions and photos",
+      "capabilities": [
+        "damage assessment",
+        "repair pricing"
+      ],
+      "ai_model_config": {
+        "model_id": "tier:reasoning",
+        "temperature": 0.2
+      }
+    },
+    {
+      "id": "ff16f081-a3ff-5fb0-8746-e5d48bb078f4",
+      "name": "Fraud analyst",
+      "actor_type": "ai_agent",
+      "description": "Scores claims for fraud indicators",
+      "capabilities": [
+        "fraud scoring"
+      ],
+      "ai_model_config": {
+        "model_id": "tier:fast",
+        "temperature": 0.2
+      }
+    },
+    {
+      "id": "f8419355-d1ec-5d10-8152-eaebec2b4e95",
+      "name": "Policy system",
+      "actor_type": "application",
+      "description": "Holds policies and their cover"
+    },
+    {
+      "id": "ade889d2-949e-5e5f-a9eb-fea819123c1a",
+      "name": "Claims adjuster",
+      "actor_type": "human",
+      "description": "Decides claims above the automatic limit"
+    },
+    {
+      "id": "79a3e971-8693-5081-90e1-5eac16377183",
+      "name": "Fraud investigator",
+      "actor_type": "human",
+      "description": "Investigates suspected fraud"
+    },
+    {
+      "id": "a993c962-08c5-5acf-861b-23fe0b25f7f1",
+      "name": "Finance system",
+      "actor_type": "application",
+      "description": "Reserves and pays funds"
+    },
+    {
+      "id": "c6ac3504-e302-5345-aac4-cca6b4c5d392",
+      "name": "Customer communications",
+      "actor_type": "ai_agent",
+      "description": "Writes to claimants",
+      "capabilities": [
+        "customer writing"
+      ],
+      "ai_model_config": {
+        "model_id": "tier:balanced",
+        "temperature": 0.2
+      }
+    }
+  ],
+  "events": [
+    {
+      "id": "83526199-9953-5a91-8378-0a156d0d51d0",
+      "name": "Claim received",
+      "event_type": "start",
+      "description": "A claimant submits a claim."
+    },
+    {
+      "id": "4cc5871f-999a-5c10-89c8-54b0183ad76c",
+      "name": "Bank cut-off",
+      "event_type": "timer",
+      "description": "Payments are released after the bank's cut-off.",
+      "event_definition": {
+        "duration": "PT1S"
+      }
+    },
+    {
+      "id": "63279687-fdc7-5fa7-9813-0942361eef53",
+      "name": "Claim closed",
+      "event_type": "end"
+    }
+  ],
+  "activities": [
+    {
+      "id": "ce586efb-eb64-5fe5-8baa-aa2a9979ae7f",
+      "name": "Register claim",
+      "role_id": "bef76de6-107e-5861-ab56-75b55251635f",
+      "actor_type": "application",
+      "description": "Create the claim record and attach the policy number.",
+      "retry": {
+        "max_attempts": 3,
+        "initial_delay": "PT0.2S"
+      }
+    },
+    {
+      "id": "47a33422-41f7-57f0-b94a-503dcca1edc5",
+      "name": "Assess damage",
+      "role_id": "8011abaf-e650-566d-ac8e-678431596e76",
+      "actor_type": "ai_agent",
+      "description": "Estimate the repair cost and severity from the claim description and photos.",
+      "procedure": "Read the claim description. Identify each damaged part. Price parts and labour from the repair catalogue. State the severity.",
+      "outcome_contract": {
+        "output_schema": {
+          "type": "object",
+          "required": [
+            "estimated_cost",
+            "severity",
+            "summary"
+          ],
+          "properties": {
+            "estimated_cost": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Repair cost in EUR"
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "minor",
+                "moderate",
+                "severe",
+                "total_loss"
+              ]
+            },
+            "summary": {
+              "type": "string",
+              "minLength": 20
+            }
+          }
+        },
+        "postconditions": [
+          {
+            "name": "Within authority",
+            "expression": "estimated_cost <= 50000"
+          }
+        ],
+        "budgets": {
+          "max_attempts": 3,
+          "max_duration": "PT30S",
+          "max_tokens": 20000
+        },
+        "on_violation": "escalate_human"
+      },
+      "verification": {
+        "mode": "schema_only",
+        "max_retries": 1,
+        "criteria": [
+          {
+            "id": "90e3046a-6693-5037-9a6c-ae26ea9cb3f0",
+            "name": "Parts itemised",
+            "description": "The assessment lists the damaged parts.",
+            "type": "completeness",
+            "expression": "parts exists"
+          }
+        ]
+      }
+    },
+    {
+      "id": "51b0afff-918b-534d-a81e-df9e9d91ad6c",
+      "name": "Check fraud signals",
+      "role_id": "ff16f081-a3ff-5fb0-8746-e5d48bb078f4",
+      "actor_type": "ai_agent",
+      "description": "Score the claim for fraud indicators.",
+      "retry": {
+        "max_attempts": 3,
+        "initial_delay": "PT0.3S"
+      },
+      "outcome_contract": {
+        "postconditions": [
+          {
+            "name": "Score is a probability",
+            "expression": "fraud_score >= 0 && fraud_score <= 1"
+          }
+        ]
+      }
+    },
+    {
+      "id": "656363b2-21bb-5fce-9d6d-9e7ff8fd91c2",
+      "name": "Verify policy cover",
+      "role_id": "f8419355-d1ec-5d10-8152-eaebec2b4e95",
+      "actor_type": "application",
+      "description": "Confirm the policy was in force and covers this kind of damage."
+    },
+    {
+      "id": "8eac4bf0-c46a-584b-b95b-b6f9e274706f",
+      "name": "Consolidate findings",
+      "role_id": "bef76de6-107e-5861-ab56-75b55251635f",
+      "actor_type": "application",
+      "description": "Combine the assessment, the fraud score and the cover check into one case file.",
+      "join": "all"
+    },
+    {
+      "id": "c622ddbc-7f31-50a1-adbd-410ff7c96c3e",
+      "name": "Adjuster review",
+      "role_id": "ade889d2-949e-5e5f-a9eb-fea819123c1a",
+      "actor_type": "human",
+      "description": "A claims adjuster reviews claims that are too large to settle automatically."
+    },
+    {
+      "id": "e33c27e8-26f1-50bf-84e4-970831581990",
+      "name": "Investigate",
+      "role_id": "79a3e971-8693-5081-90e1-5eac16377183",
+      "actor_type": "human",
+      "description": "A fraud investigator takes over claims with strong fraud signals."
+    },
+    {
+      "id": "44ce5a86-3be7-53f4-a733-da8b58d89544",
+      "name": "Reserve funds",
+      "role_id": "a993c962-08c5-5acf-861b-23fe0b25f7f1",
+      "actor_type": "application",
+      "description": "Reserve the settlement amount.",
+      "compensation": {
+        "activity_id": "0c8380a9-784a-53ff-993d-11df7484c35f"
+      }
+    },
+    {
+      "id": "ec20a080-3057-5f9c-a694-7040111b09e7",
+      "name": "Pay claimant",
+      "role_id": "a993c962-08c5-5acf-861b-23fe0b25f7f1",
+      "actor_type": "application",
+      "description": "Transfer the settlement to the claimant's account.",
+      "retry": {
+        "max_attempts": 2,
+        "initial_delay": "PT0.2S"
+      }
+    },
+    {
+      "id": "f7054c16-d7aa-58a0-9873-376d4f409b43",
+      "name": "Notify claimant",
+      "role_id": "c6ac3504-e302-5345-aac4-cca6b4c5d392",
+      "actor_type": "ai_agent",
+      "description": "Write to the claimant confirming the settlement.",
+      "outcome_contract": {
+        "postconditions": [
+          {
+            "name": "Has a message",
+            "expression": "message exists"
+          }
+        ]
+      }
+    },
+    {
+      "id": "0c8380a9-784a-53ff-993d-11df7484c35f",
+      "name": "Release funds",
+      "role_id": "a993c962-08c5-5acf-861b-23fe0b25f7f1",
+      "actor_type": "application",
+      "description": "Release funds that were reserved for a payment that did not go through."
+    }
+  ],
+  "decision_nodes": [
+    {
+      "id": "1a533839-b043-5ff9-86e4-1bfe726fa52f",
+      "name": "Settlement route",
+      "description": "Choose how the claim is settled from its fraud score and cost.",
+      "decision_table": {
+        "hit_policy": "first",
+        "inputs": [
+          {
+            "name": "fraud_score",
+            "label": "Fraud score",
+            "type": "number"
+          },
+          {
+            "name": "estimated_cost",
+            "label": "Estimated cost",
+            "type": "number"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "route",
+            "type": "string"
+          }
+        ],
+        "rules": [
+          {
+            "description": "Strong fraud signals",
+            "input_entries": [
+              ">= 0.7",
+              "-"
+            ],
+            "output_entries": [
+              "investigate"
+            ],
+            "output_edge_id": "3923e5db-d37a-58d5-afcf-099509ffac44"
+          },
+          {
+            "description": "Small and clean",
+            "input_entries": [
+              "< 0.3",
+              "< 5000"
+            ],
+            "output_entries": [
+              "auto"
+            ],
+            "output_edge_id": "ad7a3485-d9af-5029-9eae-6cd135694524"
+          }
+        ]
+      },
+      "default_output_edge_id": "925e230b-20b3-509e-bfce-4f343e2947a4"
+    }
+  ],
+  "edges": [
+    {
+      "id": "efa57516-c7a9-54f1-9eea-ef42324169f3",
+      "source_id": "83526199-9953-5a91-8378-0a156d0d51d0",
+      "target_id": "ce586efb-eb64-5fe5-8baa-aa2a9979ae7f"
+    },
+    {
+      "id": "3a06004c-f55e-5004-9a88-37b0f3a03e58",
+      "source_id": "ce586efb-eb64-5fe5-8baa-aa2a9979ae7f",
+      "target_id": "47a33422-41f7-57f0-b94a-503dcca1edc5"
+    },
+    {
+      "id": "bb2b1cd8-b056-5f1f-9dd8-58a137b2ef83",
+      "source_id": "47a33422-41f7-57f0-b94a-503dcca1edc5",
+      "target_id": "51b0afff-918b-534d-a81e-df9e9d91ad6c"
+    },
+    {
+      "id": "b1b4c5b5-52c6-517b-9951-1b2d4453a953",
+      "source_id": "47a33422-41f7-57f0-b94a-503dcca1edc5",
+      "target_id": "656363b2-21bb-5fce-9d6d-9e7ff8fd91c2"
+    },
+    {
+      "id": "dbeab570-632e-51a2-96d3-72d6b92d815a",
+      "source_id": "51b0afff-918b-534d-a81e-df9e9d91ad6c",
+      "target_id": "8eac4bf0-c46a-584b-b95b-b6f9e274706f"
+    },
+    {
+      "id": "0dd72b85-38b6-51e7-ab98-2ee932a43f76",
+      "source_id": "656363b2-21bb-5fce-9d6d-9e7ff8fd91c2",
+      "target_id": "8eac4bf0-c46a-584b-b95b-b6f9e274706f"
+    },
+    {
+      "id": "ebeb7e2c-d9bb-5e23-9a06-a9685dd04279",
+      "source_id": "8eac4bf0-c46a-584b-b95b-b6f9e274706f",
+      "target_id": "1a533839-b043-5ff9-86e4-1bfe726fa52f"
+    },
+    {
+      "id": "ad7a3485-d9af-5029-9eae-6cd135694524",
+      "source_id": "1a533839-b043-5ff9-86e4-1bfe726fa52f",
+      "target_id": "44ce5a86-3be7-53f4-a733-da8b58d89544",
+      "label": "auto-approve"
+    },
+    {
+      "id": "925e230b-20b3-509e-bfce-4f343e2947a4",
+      "source_id": "1a533839-b043-5ff9-86e4-1bfe726fa52f",
+      "target_id": "c622ddbc-7f31-50a1-adbd-410ff7c96c3e",
+      "label": "review"
+    },
+    {
+      "id": "3923e5db-d37a-58d5-afcf-099509ffac44",
+      "source_id": "1a533839-b043-5ff9-86e4-1bfe726fa52f",
+      "target_id": "e33c27e8-26f1-50bf-84e4-970831581990",
+      "label": "investigate"
+    },
+    {
+      "id": "05bc7595-d6bf-5c4a-9f5f-217800653ed6",
+      "source_id": "c622ddbc-7f31-50a1-adbd-410ff7c96c3e",
+      "target_id": "44ce5a86-3be7-53f4-a733-da8b58d89544",
+      "condition": "approved == true"
+    },
+    {
+      "id": "e021a259-7c95-5246-8a78-b36b9171b4c6",
+      "source_id": "c622ddbc-7f31-50a1-adbd-410ff7c96c3e",
+      "target_id": "63279687-fdc7-5fa7-9813-0942361eef53",
+      "is_default": true
+    },
+    {
+      "id": "fe19f1c6-0da5-50df-ae53-fbee0fae4d61",
+      "source_id": "e33c27e8-26f1-50bf-84e4-970831581990",
+      "target_id": "63279687-fdc7-5fa7-9813-0942361eef53"
+    },
+    {
+      "id": "af497e04-f54f-588f-9c11-89032bb90a5b",
+      "source_id": "44ce5a86-3be7-53f4-a733-da8b58d89544",
+      "target_id": "4cc5871f-999a-5c10-89c8-54b0183ad76c"
+    },
+    {
+      "id": "deccf7fe-90df-5c4a-8482-44a42ac5b4e5",
+      "source_id": "4cc5871f-999a-5c10-89c8-54b0183ad76c",
+      "target_id": "ec20a080-3057-5f9c-a694-7040111b09e7"
+    },
+    {
+      "id": "6f07e821-2883-515c-a58a-eb118ed0d5cd",
+      "source_id": "ec20a080-3057-5f9c-a694-7040111b09e7",
+      "target_id": "f7054c16-d7aa-58a0-9873-376d4f409b43"
+    },
+    {
+      "id": "90d3e408-c936-55f9-a474-2f02d7c3312c",
+      "source_id": "f7054c16-d7aa-58a0-9873-376d4f409b43",
+      "target_id": "63279687-fdc7-5fa7-9813-0942361eef53"
+    }
+  ]
+}

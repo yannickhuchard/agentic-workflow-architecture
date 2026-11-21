@@ -40,6 +40,7 @@ export function workflow(activities: Activity[], edges: Edge[], overrides: Parti
         version: '1.0.0',
         activities,
         edges,
+        roles: [],
         events: [],
         decision_nodes: [],
         contexts: [],

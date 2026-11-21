@@ -104,6 +104,12 @@ def execution_cases() -> list[Case]:
     c.expect = {"status": "completed", "visited": ["A", "B"], "data": {"order": {"total": 150}}}
     cases.append(c)
 
+    c = Case("outcome-fields-are-routable", "core", "5.2", "When a result has an object-valued 'output', that object's fields are merged into the token's data and can be used by conditions.")
+    c.act("A").act("B").act("C").edge("A", "B", condition="score > 5").edge("A", "C", is_default=True)
+    c.actors = {"A": {"output": {"output": {"score": 9}, "status": "done"}}}
+    c.expect = {"status": "completed", "visited": ["A", "B"], "data": {"score": 9, "output": {"score": 9}}}
+    cases.append(c)
+
     c = Case("routing-first-true-condition", "core", "5.4", "Conditional edges are evaluated in document order; the first true one is taken.")
     c.act("A").act("B").act("C").edge("A", "B", condition="score > 10").edge("A", "C", condition="score > 5")
     c.actors = {"A": {"output": {"score": 50}}}
