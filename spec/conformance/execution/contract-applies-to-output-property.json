@@ -1,0 +1,58 @@
+{
+  "id": "contract-applies-to-output-property",
+  "level": "contract",
+  "spec": "11.1",
+  "description": "When the result has an object-valued 'output' property, the contract applies to that object.",
+  "workflow": {
+    "id": "f727c75b-735f-5335-b8a3-cd12e2e5b491",
+    "name": "contract-applies-to-output-property",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "8b89174d-f4ea-5cd8-9d7f-2663bb547430",
+        "name": "A",
+        "role_id": "f8f226a7-7371-511a-b488-b551d52a966a",
+        "actor_type": "application",
+        "outcome_contract": {
+          "postconditions": [
+            {
+              "name": "decided",
+              "expression": "decision exists"
+            }
+          ]
+        }
+      },
+      {
+        "id": "76ea5e89-6b3d-5628-814e-d08b1d0088ed",
+        "name": "B",
+        "role_id": "f8f226a7-7371-511a-b488-b551d52a966a",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "428b6e83-7a1b-58dd-a777-df887467cb5a",
+        "source_id": "8b89174d-f4ea-5cd8-9d7f-2663bb547430",
+        "target_id": "76ea5e89-6b3d-5628-814e-d08b1d0088ed"
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "output": {
+        "output": {
+          "decision": "approve"
+        },
+        "status": "done"
+      }
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "A",
+      "B"
+    ]
+  }
+}

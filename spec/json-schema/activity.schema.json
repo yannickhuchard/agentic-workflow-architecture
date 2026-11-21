@@ -132,6 +132,10 @@
         "retry": {
             "$ref": "#/$defs/retry_policy",
             "description": "What the engine does when the actor raises an error"
+        },
+        "outcome_contract": {
+            "$ref": "#/$defs/outcome_contract",
+            "description": "What must be true of the activity's outcome, whatever strategy the actor used"
         }
     },
     "$defs": {
@@ -395,6 +399,69 @@
                         "type": "string"
                     },
                     "description": "Error codes that end the activity immediately"
+                }
+            }
+        },
+        "outcome_contract": {
+            "type": "object",
+            "properties": {
+                "output_schema": {
+                    "type": "object",
+                    "description": "JSON Schema (2020-12) the outcome must validate against"
+                },
+                "postconditions": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": [
+                            "name",
+                            "expression"
+                        ],
+                        "properties": {
+                            "id": {
+                                "$ref": "awa.schema.json#/$defs/uuid"
+                            },
+                            "name": {
+                                "type": "string"
+                            },
+                            "description": {
+                                "type": "string"
+                            },
+                            "expression": {
+                                "type": "string",
+                                "description": "Condition expression that must be true of the outcome"
+                            }
+                        }
+                    }
+                },
+                "budgets": {
+                    "type": "object",
+                    "properties": {
+                        "max_attempts": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 50,
+                            "description": "Most executions of the actor allowed for one visit, for any reason"
+                        },
+                        "max_duration": {
+                            "$ref": "awa.schema.json#/$defs/duration",
+                            "description": "Longest a single attempt may take"
+                        },
+                        "max_tokens": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "description": "Most model tokens, input plus output, the visit may consume, including judge tokens"
+                        }
+                    }
+                },
+                "on_violation": {
+                    "type": "string",
+                    "enum": [
+                        "fail",
+                        "escalate_human"
+                    ],
+                    "default": "fail",
+                    "description": "What happens when the outcome is rejected and no automatic attempt remains"
                 }
             }
         }

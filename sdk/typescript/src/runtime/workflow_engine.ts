@@ -21,11 +21,13 @@ import { VerificationEngine } from './verification_engine';
 import { evaluate_expression } from './expression';
 import {
     InMemoryJournalStore, JournalEvent, JournalEventInput, JournalListener,
-    JournalStore, JournalWriter, PayloadMode, public_payload,
+    JournalStore, JournalWriter, PayloadMode, public_payload, hash_payload,
 } from './journal';
+import { check_contract, contract_feedback, outcome_of } from './outcome_contract';
 import { PersistenceAdapter, WorkflowState, serialize_token, deserialize_token } from './persistence';
 import { RetryConfig, DEFAULT_RETRY_CONFIG, calculate_retry_delay, DeadLetterQueue } from './retry';
 import { Logger } from '../server/logger';
+import { ModelProvider, ModelRegistry, GoogleModelProvider } from './models';
 
 export type EngineStatus = 'running' | 'paused' | 'completed' | 'failed' | 'idle' | 'waiting_human';
 
@@ -77,6 +79,12 @@ export interface WorkflowEngineOptions {
     retry?: Partial<RetryConfig>;
     /** Receives activities whose retries are exhausted. */
     dead_letter_queue?: DeadLetterQueue;
+    /** Model providers available to AI agents and judges, in addition to Google when gemini_api_key is set. */
+    model_providers?: ModelProvider[];
+    /** Provider used for model references that name none. Default: the first registered. */
+    default_model_provider?: string;
+    /** Capability tiers mapped to model references, e.g. { fast: 'google:gemini-3.1-flash-lite' } */
+    model_tiers?: Record<string, string>;
     /** Replaces the delay between retries. Tests use this to avoid real waiting. */
     sleep?: (ms: number) => Promise<void>;
 }
@@ -119,6 +127,7 @@ export class WorkflowEngine {
     private journalStore: JournalStore;
     private deadLetterQueue: DeadLetterQueue;
     private sleep: (ms: number) => Promise<void>;
+    private models: ModelRegistry;
     private executionStats: {
         startTime: Date;
         stepsCount: number;
@@ -157,7 +166,14 @@ export class WorkflowEngine {
         this.roleMap = new Map();
         this.decisionEvaluator = new DecisionEvaluator(workflowDef.decision_nodes);
         this.executionLogger = options.execution_logger || get_execution_logger();
+        this.models = new ModelRegistry();
+        if (this.options.gemini_api_key) this.models.register(new GoogleModelProvider(this.options.gemini_api_key));
+        for (const provider of options.model_providers || []) this.models.register(provider);
+        if (options.default_model_provider) this.models.set_default_provider(options.default_model_provider);
+        for (const [tier, ref] of Object.entries(options.model_tiers || {})) this.models.set_tier(tier, ref);
+
         this.verificationEngine = new VerificationEngine({
+            models: this.models,
             gemini_api_key: this.options.gemini_api_key,
             default_model_id: this.options.verification_model_id || this.defaultAIModelId,
             verbose: this.options.verbose,
@@ -557,9 +573,11 @@ export class WorkflowEngine {
      * Execute an activity until an attempt is accepted or no further attempt
      * is allowed (spec: "Attempts"). Every execution of the actor is one
      * attempt. An attempt ends in one of three ways:
-     *  - accepted: the actor returned and verification, if any, passed
-     *  - rejected: verification did not pass; retried with feedback if the policy allows
-     *  - errored:  the actor raised; retried with backoff if the retry policy allows
+     *  - accepted: the actor returned, the outcome contract holds and verification, if any, passed
+     *  - rejected: the contract or verification did not pass; an ai_agent is re-executed with feedback if allowed
+     *  - errored:  the actor raised or timed out; retried with backoff if the retry policy allows
+     * Checks run cheapest first: contract (deterministic), then verification (may call a model),
+     * then, if the contract says so, escalation to a human.
      */
     private async executeActivity(
         token: Token,
@@ -570,6 +588,11 @@ export class WorkflowEngine {
         const policy = activity.verification;
         const verify = !!policy && policy.enabled && this.options.verification_enabled !== false;
         const maxVerifications = verify ? policy!.max_retries + 1 : 1;
+        const contract = activity.outcome_contract;
+        const budgets = contract?.budgets;
+        const hardCap = budgets?.max_attempts ?? Infinity;
+        const violationCap = budgets?.max_attempts ?? 3;
+        const timeoutMs = budgets?.max_duration ? parse_iso_duration(budgets.max_duration) : undefined;
         const retry = this.retryPolicy(activity);
         const ref = { token_id: token.id, ...this.nodeRef(activity.id) };
 
@@ -578,6 +601,7 @@ export class WorkflowEngine {
         let attempt = 0;
         let errors = 0;
         let rejections = 0;
+        let tokensUsed = 0;
 
         for (;;) {
             attempt++;
@@ -595,11 +619,14 @@ export class WorkflowEngine {
             // --- execute -------------------------------------------------
             let output: Record<string, unknown>;
             try {
-                output = this.extractTraces(await actor.execute(activity, { ...currentInputs, _attempt: attempt }), ref, attempt);
+                const raw = await this.withTimeout(
+                    actor.execute(activity, { ...currentInputs, _attempt: attempt }), timeoutMs, activity.name);
+                output = this.extractTraces(raw, ref, attempt);
             } catch (error: unknown) {
                 errors++;
                 const info = error_info(error);
                 const retryable = errors <= retry.max_retries
+                    && attempt < hardCap
                     && !NEVER_RETRIED.has(info.code || '')
                     && !(info.code && retry.non_retryable_errors?.includes(info.code));
                 this.record({
@@ -632,14 +659,56 @@ export class WorkflowEngine {
                 continue;
             }
 
+            const usage = output.usage as { input_tokens?: number; output_tokens?: number } | undefined;
+            tokensUsed += (usage?.input_tokens || 0) + (usage?.output_tokens || 0);
+            const outcome = outcome_of(output);
+            const reject = (code: string, message: string, details: Record<string, unknown>) =>
+                this.rejectOutcome(token, activity, inputs, output, code, message, details, verificationRecords, attempt);
+
+            // --- outcome contract (deterministic) ------------------------
+            if (contract) {
+                const violations = check_contract(contract, outcome);
+                if (budgets?.max_tokens !== undefined && tokensUsed > budgets.max_tokens) {
+                    violations.push({ kind: 'budget', name: 'max_tokens', message: `max_tokens: ${tokensUsed} tokens used, the budget is ${budgets.max_tokens}` });
+                }
+                this.record({
+                    type: 'contract.checked', ...ref, attempt,
+                    data: { passed: violations.length === 0, violations, tokens_used: tokensUsed, output_hash: hash_payload(outcome) },
+                });
+
+                if (violations.length > 0) {
+                    const message = `Outcome contract violated: ${violations.map(v => v.message).join('; ')}`;
+                    const overBudget = violations.some(v => v.kind === 'budget');
+                    const canRetry = !overBudget && activity.actor_type === 'ai_agent' && attempt < violationCap;
+                    this.record({
+                        type: 'activity.failed', ...ref, attempt,
+                        data: { error: { message, code: 'CONTRACT_VIOLATION' }, retryable: canRetry, duration_ms: Date.now() - attemptStart },
+                    });
+                    if (!canRetry) {
+                        return reject('CONTRACT_VIOLATION', message, { _contract_violations: violations });
+                    }
+                    currentInputs = { ...inputs, _verification_feedback: contract_feedback(violations), _verification_attempt: attempt + 1 };
+                    this.record({
+                        type: 'meta.recorded', level: 'meta', ...ref, attempt,
+                        data: {
+                            subject: 'contract_retry',
+                            decision: 'Re-execute with the violated contract terms as feedback',
+                            rationale: `${violations.length} contract term(s) did not hold and ${violationCap - attempt} of ${violationCap} attempts remained.`,
+                            violations: violations.map(v => v.name),
+                        },
+                    });
+                    continue;
+                }
+            }
+
             if (!verify) {
                 return { output, verificationRecords, attempts: attempt };
             }
 
-            // --- verify --------------------------------------------------
+            // --- verification (may call a model) -------------------------
             let verification: VerificationRecord;
             try {
-                verification = await this.verificationEngine.verify(activity, currentInputs, output, rejections + 1);
+                verification = await this.verificationEngine.verify(activity, currentInputs, outcome, rejections + 1);
             } catch (verificationError: unknown) {
                 // Fail closed: an output that could not be verified is not accepted
                 verification = {
@@ -652,13 +721,15 @@ export class WorkflowEngine {
                     feedback: `Verification engine error: ${error_info(verificationError).message}`,
                     verified_at: new Date().toISOString(),
                     duration_ms: 0,
-                    output_hash: this.verificationEngine.compute_output_hash(output),
+                    output_hash: this.verificationEngine.compute_output_hash(outcome),
                 };
             }
             verificationRecords.push(verification);
 
             if (verification.judge_tokens) {
-                this.executionStats.verificationTokens += verification.judge_tokens.input + verification.judge_tokens.output;
+                const judged = verification.judge_tokens.input + verification.judge_tokens.output;
+                tokensUsed += judged;
+                this.executionStats.verificationTokens += judged;
                 this.executionStats.inputTokens += verification.judge_tokens.input;
                 this.executionStats.outputTokens += verification.judge_tokens.output;
             }
@@ -673,7 +744,7 @@ export class WorkflowEngine {
                     criteria: verification.criteria_results,
                     feedback: verification.feedback,
                     output_hash: verification.output_hash,
-                    output: this.journal.payload(public_payload(output)),
+                    output: this.journal.payload(outcome),
                 },
             });
 
@@ -686,22 +757,17 @@ export class WorkflowEngine {
             const canRetry = verification.verdict === 'fail'
                 && activity.actor_type === 'ai_agent'
                 && policy!.retry_with_feedback
-                && rejections < maxVerifications;
+                && rejections < maxVerifications
+                && attempt < hardCap;
+            const message = `Verification ${verification.verdict}: ${verification.feedback || 'criteria not met'}`;
 
             this.record({
                 type: 'activity.failed', ...ref, attempt,
-                data: {
-                    error: { message: `Verification ${verification.verdict}: ${verification.feedback || 'criteria not met'}`, code: 'VERIFICATION_FAILED' },
-                    retryable: canRetry,
-                    duration_ms: Date.now() - attemptStart,
-                },
+                data: { error: { message, code: 'VERIFICATION_FAILED' }, retryable: canRetry, duration_ms: Date.now() - attemptStart },
             });
 
             if (!canRetry) {
-                throw new ActivityError(
-                    `Verification failed: ${verification.feedback || verification.verdict}`,
-                    'VERIFICATION_FAILED',
-                    { ...output, _verification_records: verificationRecords });
+                return reject('VERIFICATION_FAILED', `Verification failed: ${verification.feedback || verification.verdict}`, {});
             }
 
             const feedback = this.verificationEngine.generate_corrective_feedback(verification);
@@ -719,6 +785,90 @@ export class WorkflowEngine {
         }
     }
 
+    /** Fail an attempt that takes longer than the contract's duration budget */
+    private async withTimeout<T>(work: Promise<T>, timeoutMs: number | undefined, name: string): Promise<T> {
+        if (timeoutMs === undefined) return work;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const timeout = new Promise<never>((_, reject) => {
+            timer = setTimeout(
+                () => reject(new ActivityError(`Activity "${name}" exceeded its duration budget of ${timeoutMs} ms`, 'TIMEOUT')),
+                timeoutMs);
+        });
+        try {
+            return await Promise.race([work, timeout]);
+        } finally {
+            clearTimeout(timer);
+        }
+    }
+
+    /**
+     * An outcome was rejected and no further automatic attempt is allowed.
+     * Either the activity fails, or, if the contract says so, a human decides.
+     */
+    private async rejectOutcome(
+        token: Token,
+        activity: Activity,
+        inputs: Record<string, unknown>,
+        rejected: Record<string, unknown>,
+        code: string,
+        message: string,
+        details: Record<string, unknown>,
+        verificationRecords: VerificationRecord[],
+        attempts: number
+    ): Promise<{ output: Record<string, unknown>; verificationRecords: VerificationRecord[]; attempts: number }> {
+        const contract = activity.outcome_contract;
+        const failure = () => new ActivityError(message, code, {
+            ...rejected, ...details,
+            ...(verificationRecords.length > 0 ? { _verification_records: verificationRecords } : {}),
+        });
+
+        if (contract?.on_violation !== 'escalate_human' || activity.actor_type === 'human') {
+            throw failure();
+        }
+
+        const ref = { token_id: token.id, ...this.nodeRef(activity.id) };
+        this.record({
+            type: 'contract.escalated', ...ref, attempt: attempts,
+            data: { code, message, rejected_output: this.journal.payload(outcome_of(rejected)), ...details },
+        });
+        this.record({
+            type: 'meta.recorded', level: 'meta', ...ref, attempt: attempts,
+            data: {
+                subject: 'escalation',
+                decision: 'Hand the activity to a human',
+                rationale: `After ${attempts} attempt(s) the outcome was still rejected (${code}) and the contract's on_violation is "escalate_human".`,
+            },
+        });
+
+        const human = this.options.actors?.human
+            || new HumanAgent({ wait_for_completion: false, simulate: this.simulate && !this.options.wait_for_human_tasks });
+        const result = this.extractTraces(await human.execute(activity, {
+            ...inputs,
+            _escalation: { code, message, rejected_outcome: outcome_of(rejected), ...details },
+        }), ref, attempts);
+
+        if (result._requires_human_action) {
+            if (!this.options.wait_for_human_tasks) {
+                // Fail closed: a pending task is not an answer
+                throw new ActivityError(`${message}. Escalated to a human, but the engine is not configured to wait for human tasks.`, code, details);
+            }
+            return { output: { ...result, _escalated: true }, verificationRecords, attempts };
+        }
+
+        // A human answered at once. The deterministic terms still bind.
+        const violations = check_contract(contract, outcome_of(result));
+        this.record({
+            type: 'contract.checked', ...ref, attempt: attempts,
+            data: { passed: violations.length === 0, violations, decided_by: 'human', output_hash: hash_payload(outcome_of(result)) },
+        });
+        if (violations.length > 0) {
+            throw new ActivityError(
+                `Outcome contract violated by the human decision: ${violations.map(v => v.message).join('; ')}`,
+                'CONTRACT_VIOLATION', { _contract_violations: violations });
+        }
+        return { output: { ...result, _escalated: true }, verificationRecords, attempts };
+    }
+
     /**
      * Move an actor's self-reported traces out of its result and into the
      * journal. `_reasoning` is the actor's account of how it worked;
@@ -732,15 +882,16 @@ export class WorkflowEngine {
         const { _reasoning, _model, ...output } = result;
 
         if (_model && typeof _model === 'object') {
-            const model = _model as { id?: string; provider?: string; source?: string; temperature?: number };
+            const model = _model as { id?: string; provider?: string; source?: string; temperature?: number; tier?: string };
             this.record({
                 type: 'meta.recorded', level: 'meta', ...ref, attempt,
                 data: {
                     subject: 'model_selection',
                     decision: `Use model ${model.provider ? `${model.provider}:` : ''}${model.id}`,
-                    rationale: model.source === 'role'
+                    rationale: (model.source === 'role'
                         ? 'The role assigned to this activity names this model.'
-                        : 'The role names no model, so the engine default applies.',
+                        : 'The role names no model, so the engine default applies.')
+                        + (model.tier ? ` The reference is the capability tier "${model.tier}", which this deployment maps to that model.` : ''),
                     model,
                 },
             });
@@ -876,11 +1027,11 @@ export class WorkflowEngine {
                 return new SoftwareAgent();
 
             case 'ai_agent':
-                if (!this.options.gemini_api_key && !this.simulate) {
-                    throw new Error('Gemini API Key required for AI Agent. Set gemini_api_key in options.');
+                if (!this.models.has_providers() && !this.simulate) {
+                    throw new Error('Gemini API Key required for AI Agent. Set gemini_api_key in options, or register a model provider.');
                 }
                 const role = this.roleMap.get(activity.role_id);
-                return new AIAgent(this.options.gemini_api_key || '', role, this.defaultAIModelId, this.simulate);
+                return new AIAgent(this.options.gemini_api_key || '', role, this.defaultAIModelId, this.simulate, this.models);
 
             case 'robot':
                 return new RobotAgent(this.options.robot_config);
@@ -919,6 +1070,24 @@ export class WorkflowEngine {
 
         const ref = { token_id: token.id, ...this.nodeRef(token.activityId) };
         this.record({ type: 'token.resumed', ...ref, data: { waited_ms: waitedMs } });
+
+        // The deterministic terms of an outcome contract bind human decisions too
+        const contract = this.activityMap.get(token.activityId)?.outcome_contract;
+        if (contract) {
+            const violations = check_contract(contract, outcome_of(output));
+            this.record({
+                type: 'contract.checked', ...ref,
+                data: { passed: violations.length === 0, violations, decided_by: 'human', output_hash: hash_payload(outcome_of(output)) },
+            });
+            if (violations.length > 0) {
+                this.failToken(token, new ActivityError(
+                    `Outcome contract violated by the human decision: ${violations.map(v => v.message).join('; ')}`,
+                    'CONTRACT_VIOLATION', { _contract_violations: violations }));
+                await this.settle();
+                await this.saveCheckpoint();
+                return false;
+            }
+        }
         this.record({
             type: 'activity.completed', ...ref,
             data: {

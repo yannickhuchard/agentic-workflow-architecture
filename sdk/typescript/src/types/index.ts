@@ -296,6 +296,26 @@ export const ActivityRetrySchema = z.object({
 });
 export type ActivityRetry = z.infer<typeof ActivityRetrySchema>;
 
+export const PostconditionSchema = z.object({
+    id: UUID.optional(),
+    name: z.string(),
+    description: z.string().optional(),
+    expression: z.string(),
+});
+export type Postcondition = z.infer<typeof PostconditionSchema>;
+
+export const OutcomeContractSchema = z.object({
+    output_schema: z.record(z.unknown()).optional(),
+    postconditions: z.array(PostconditionSchema).default([]),
+    budgets: z.object({
+        max_attempts: z.number().int().min(1).max(50).optional(),
+        max_duration: Duration.optional(),
+        max_tokens: z.number().int().min(1).optional(),
+    }).optional(),
+    on_violation: z.enum(['fail', 'escalate_human']).default('fail'),
+});
+export type OutcomeContract = z.infer<typeof OutcomeContractSchema>;
+
 // ============================================================================
 // ACTIVITY SCHEMA
 // ============================================================================
@@ -325,6 +345,7 @@ export const ActivitySchema = z.object({
     tool_requirements: z.array(ToolRequirementSchema).default([]),
     verification: VerificationPolicySchema.optional(),
     retry: ActivityRetrySchema.optional(),
+    outcome_contract: OutcomeContractSchema.optional(),
 });
 export type Activity = z.infer<typeof ActivitySchema>;
 
@@ -431,6 +452,7 @@ export const RoleSchema = z.object({
     capabilities: z.array(z.string()).default([]),
     is_embedded: z.boolean().default(false),
     ai_model_config: z.object({
+        /** Model reference: "tier:<name>", "<provider>:<model>" or "<model>" */
         model_id: z.string().optional(),
         temperature: z.number().min(0).max(2).optional(),
         max_tokens: z.number().optional(),

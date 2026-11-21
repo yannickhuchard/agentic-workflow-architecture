@@ -243,6 +243,64 @@ def execution_cases() -> list[Case]:
                              {"type": "verification.completed", "data": {"verdict": "pass"}}]}
     cases.append(c)
 
+    amount_schema = {"type": "object", "required": ["amount", "currency"],
+                     "properties": {"amount": {"type": "number", "minimum": 0}, "currency": {"type": "string", "minLength": 3, "maxLength": 3}}}
+
+    c = Case("contract-holds", "contract", "11.2", "An outcome that satisfies the schema and every postcondition is accepted.")
+    c.act("A", outcome_contract={"output_schema": amount_schema, "postconditions": [{"name": "capped", "expression": "amount <= 1000"}]})
+    c.act("B").edge("A", "B")
+    c.actors = {"A": {"output": {"amount": 250, "currency": "EUR"}}}
+    c.expect = {"status": "completed", "visited": ["A", "B"],
+                "journal_contains": [{"type": "contract.checked", "data": {"passed": True}}]}
+    cases.append(c)
+
+    c = Case("contract-schema-violation-fails", "contract", "11.2", "An outcome that does not validate against output_schema is rejected.")
+    c.act("A", outcome_contract={"output_schema": amount_schema}).act("B").edge("A", "B")
+    c.actors = {"A": {"output": {"amount": "a lot"}}}
+    c.expect = {"status": "failed", "visited": ["A"], "error_matches": "Outcome contract violated",
+                "journal_contains": [{"type": "contract.checked", "data": {"passed": False}}]}
+    cases.append(c)
+
+    c = Case("contract-postcondition-violation-fails", "contract", "11.2", "An outcome for which a postcondition is false is rejected.")
+    c.act("A", outcome_contract={"postconditions": [{"name": "capped", "expression": "amount <= 1000"}]}).act("B").edge("A", "B")
+    c.actors = {"A": {"output": {"amount": 5000}}}
+    c.expect = {"status": "failed", "visited": ["A"], "error_matches": "capped"}
+    cases.append(c)
+
+    c = Case("contract-applies-to-output-property", "contract", "11.1", "When the result has an object-valued 'output' property, the contract applies to that object.")
+    c.act("A", outcome_contract={"postconditions": [{"name": "decided", "expression": "decision exists"}]}).act("B").edge("A", "B")
+    c.actors = {"A": {"output": {"output": {"decision": "approve"}, "status": "done"}}}
+    c.expect = {"status": "completed", "visited": ["A", "B"]}
+    cases.append(c)
+
+    c = Case("contract-agent-retried-with-feedback", "contract", "11.3", "An ai_agent whose outcome violates the contract is executed again, up to budgets.max_attempts.")
+    c.act("A", "ai_agent", outcome_contract={"postconditions": [{"name": "has-summary", "expression": "summary exists"}], "budgets": {"max_attempts": 3}})
+    c.act("B").edge("A", "B")
+    c.actors = {"A": {"attempts": [{"output": {}}, {"output": {}}, {"output": {"summary": "s"}}]}}
+    c.expect = {"status": "completed", "visited": ["A", "A", "A", "B"]}
+    cases.append(c)
+
+    c = Case("contract-attempt-budget-is-a-hard-cap", "contract", "11.4", "budgets.max_attempts bounds executions for every cause, including error retries.")
+    c.act("A", retry={"max_attempts": 10, "initial_delay": "PT0S", "jitter": False}, outcome_contract={"budgets": {"max_attempts": 2}})
+    c.actors = {"A": {"error": "timeout"}}
+    c.expect = {"status": "failed", "visited": ["A", "A"]}
+    cases.append(c)
+
+    c = Case("contract-non-agent-not-retried", "contract", "11.3", "Actors other than ai_agent are not re-executed on a contract violation.")
+    c.act("A", outcome_contract={"postconditions": [{"name": "has-summary", "expression": "summary exists"}], "budgets": {"max_attempts": 3}})
+    c.actors = {"A": {"attempts": [{"output": {}}, {"output": {"summary": "s"}}]}}
+    c.expect = {"status": "failed", "visited": ["A"]}
+    cases.append(c)
+
+    c = Case("contract-escalates-to-human", "contract", "11.5", "With on_violation 'escalate_human', a rejected outcome is handed to a human, whose decision is accepted if it satisfies the contract.")
+    c.act("Assess", "ai_agent", outcome_contract={"postconditions": [{"name": "decided", "expression": "decision exists"}],
+                                                 "budgets": {"max_attempts": 1}, "on_violation": "escalate_human"})
+    c.act("B").edge("Assess", "B")
+    c.actors = {"Assess": {"attempts": [{"output": {"note": "unsure"}}, {"output": {"decision": "approve"}}]}}
+    c.expect = {"status": "completed", "visited": ["Assess", "Assess", "B"], "data": {"decision": "approve"},
+                "journal": ["contract.checked", "contract.escalated", "contract.checked", "activity.completed"]}
+    cases.append(c)
+
     return cases
 
 

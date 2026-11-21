@@ -4,8 +4,8 @@
  * Supports AI-as-judge, schema-only validation, and custom verification modes.
  */
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { createHash } from 'crypto';
+import { ModelRegistry, GoogleModelProvider } from './models';
+import { hash_payload } from './journal';
 import { v4 as uuidv4 } from 'uuid';
 import { evaluate_expression } from './expression';
 import {
@@ -27,6 +27,8 @@ export interface VerificationEngineConfig {
     verbose?: boolean;
     /** Run in simulation mode (mocks all verifications as pass) */
     simulate?: boolean;
+    /** Registry of model providers. If absent, the Google provider is used with gemini_api_key. */
+    models?: ModelRegistry;
 }
 
 /** Internal result from judging a single attempt */
@@ -130,33 +132,32 @@ export class VerificationEngine {
         inputs: Record<string, unknown>,
         output: Record<string, unknown>
     ): Promise<JudgeResult> {
-        if (!this.config.gemini_api_key) {
+        const models = this.config.models?.has_providers()
+            ? this.config.models
+            : this.config.gemini_api_key
+                ? new ModelRegistry().register(new GoogleModelProvider(this.config.gemini_api_key))
+                : undefined;
+        if (!models) {
             throw new Error('Gemini API key required for AI judge verification mode');
         }
 
-        // Resolve judge model: policy override > global default > hardcoded fallback
-        const modelId = policy.judge_model_id || this.config.default_model_id || 'gemini-3-flash-preview';
-
-        const genAI = new GoogleGenerativeAI(this.config.gemini_api_key);
-        const model = genAI.getGenerativeModel({ model: modelId });
+        // Resolve the judge model reference: policy > engine default
+        const modelRef = policy.judge_model_id || this.config.default_model_id || 'gemini-3-flash-preview';
+        const resolved = models.resolve(modelRef);
 
         const prompt = this.generate_judge_prompt(policy.criteria, activity, inputs, output);
 
-        this.log(`Calling AI judge (model: ${modelId}, criteria: ${policy.criteria.length})`);
+        this.log(`Calling AI judge (model: ${resolved.ref}, criteria: ${policy.criteria.length})`);
 
-        const result = await model.generateContent({
-            contents: [{ role: 'user', parts: [{ text: prompt }] }],
-            generationConfig: {
-                temperature: policy.judge_temperature,
-                maxOutputTokens: 2048,
-            },
+        const response = await resolved.provider.generate({
+            model: resolved.model,
+            prompt,
+            temperature: policy.judge_temperature,
+            max_output_tokens: 2048,
         });
 
-        const responseText = result.response.text();
-        const judgeTokens = {
-            input: result.response.usageMetadata?.promptTokenCount || 0,
-            output: result.response.usageMetadata?.candidatesTokenCount || 0,
-        };
+        const responseText = response.text;
+        const judgeTokens = { input: response.usage.input_tokens, output: response.usage.output_tokens };
 
         // Parse the judge's structured response
         const criteriaResults = this.parse_judge_response(responseText, policy.criteria);
@@ -376,8 +377,7 @@ Respond ONLY with a valid JSON object, no markdown formatting.`;
      * Compute SHA-256 hash of the output for tamper-proof verification records
      */
     public compute_output_hash(output: Record<string, unknown>): string {
-        const canonical = JSON.stringify(output, Object.keys(output).sort());
-        return createHash('sha256').update(canonical).digest('hex');
+        return hash_payload(output);
     }
 
     /**

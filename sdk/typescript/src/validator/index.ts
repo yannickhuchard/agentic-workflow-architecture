@@ -168,6 +168,16 @@ export function validate_workflow_integrity(workflow: Workflow): ValidationResul
         }
     }
 
+    // Postconditions must be valid expressions
+    for (const activity of workflow.activities) {
+        for (const condition of activity.outcome_contract?.postconditions || []) {
+            const check = validate_expression(condition.expression);
+            if (!check.valid) {
+                errors.push({ path: `activities[${activity.id}].outcome_contract.postconditions[${condition.name}]`, message: check.error || 'Invalid postcondition', code: 'invalid_expression' });
+            }
+        }
+    }
+
     // Decision rules must route to edges that leave the decision node
     const edge_by_id = new Map(workflow.edges.map(e => [e.id, e]));
     for (const decision of workflow.decision_nodes) {

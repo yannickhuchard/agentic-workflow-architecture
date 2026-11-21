@@ -18,6 +18,8 @@ This document is normative. Where it and an SDK disagree, this document is right
 8. [Data model reference](#8-data-model-reference)
 9. [Execution journal](#9-execution-journal)
 10. [Resilience](#10-resilience)
+11. [Outcome contracts](#11-outcome-contracts)
+12. [Model binding](#12-model-binding)
 
 ## 1. Scope
 
@@ -46,6 +48,7 @@ An implementation claims one or more levels. Each level has cases in `spec/confo
 | `verified` | Applies verification policies, failing closed | 7 |
 | `recorded` | Writes the execution journal | 9 |
 | `resilient` | Retries, dead-letters and recovers runs | 10 |
+| `contract` | Enforces outcome contracts, budgets and escalation | 11 |
 
 An implementation MUST NOT claim a level unless it passes every case tagged with that level. It MUST report the cases it skips; it MUST NOT silently omit them.
 
@@ -53,7 +56,7 @@ An implementation MUST NOT claim a level unless it passes every case tagged with
 
 | SDK | Levels claimed |
 |---|---|
-| TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient` |
+| TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract` |
 | Python | `core`, and `document` except four integrity rules (see its conformance run) |
 | Java | none (data model only) |
 
@@ -304,6 +307,7 @@ The JSON Schemas are authoritative for field names and types. This section summa
 | `tool_requirements` | ToolRequirement[] | Tools or interfaces required |
 | `verification` | VerificationPolicy | Acceptance criteria (section 7) |
 | `retry` | RetryPolicy | What to do when the actor raises an error (section 10) |
+| `outcome_contract` | OutcomeContract | What must be true of the outcome (section 11) |
 | `sla` | SLA | Activity-level SLA |
 | `analytics` | Analytics | Activity-level metrics |
 
@@ -398,7 +402,9 @@ An engine MUST NOT alter or remove an event once written.
 |---|---|
 | `model_selection` | A model is chosen for an attempt |
 | `retry` | An attempt raised and will be retried |
-| `verification_retry` | An output was rejected and the activity will be re-executed with feedback |
+| `verification_retry` | An output was rejected by verification and the activity will be re-executed with feedback |
+| `contract_retry` | An outcome violated its contract and the activity will be re-executed with feedback |
+| `escalation` | A rejected outcome is handed to a human |
 
 ### 9.3 Event types
 
@@ -419,6 +425,8 @@ An engine MUST NOT alter or remove an event once written.
 | `activity.dead_lettered` | execution | Retries are exhausted | `error`, `attempts` |
 | `decision.evaluated` | execution | A decision node is evaluated | `inputs`, `matched_rules`, `outputs`, `edge_id`, `used_default` |
 | `verification.completed` | execution | An output has been verified | `mode`, `verdict`, `score`, `criteria`, `feedback`, `output_hash` |
+| `contract.checked` | execution | An outcome has been checked against its contract | `passed`, `violations`, `tokens_used`, `output_hash`, `decided_by` |
+| `contract.escalated` | execution | A rejected outcome is handed to a human | `code`, `message`, `rejected_output` |
 | `reasoning.recorded` | reasoning | An actor reports its reasoning | `plan`, `rationale`, `alternatives_considered`, `confidence` |
 | `meta.recorded` | meta | The engine makes a decision listed in 9.2 | `subject`, `decision`, `rationale` |
 
@@ -477,6 +485,97 @@ A token that was `active` when the checkpoint was taken executes its current act
 
 To make at-least-once execution safe, the engine MUST pass each execution an idempotency key that is the same for every attempt of the same visit of a token to an activity, including attempts made after recovery, and different for every other visit. Actors with side effects SHOULD use it to deduplicate. The reference engine passes it as `_idempotency_key`, with the attempt number as `_attempt`.
 
+## 11. Outcome contracts
+
+An AI agent may take a different route to its result every time it runs. An outcome contract states what must be true of the result regardless of the route. This is how AWA makes outcomes predictable without constraining strategy.
+
+### 11.1 The outcome
+
+The **outcome** of an activity is the value of its result's `output` property when that is a JSON object; otherwise it is the result itself, without properties reserved to the engine. Contracts and verification both apply to the outcome.
+
+### 11.2 Terms
+
+An activity MAY carry an `outcome_contract`:
+
+| Term | Meaning |
+|---|---|
+| `output_schema` | A JSON Schema (2020-12) the outcome must validate against |
+| `postconditions` | Named condition expressions (section 6), each of which must be true of the outcome |
+| `budgets` | Limits on what the activity may consume (11.4) |
+| `on_violation` | `fail` (default) or `escalate_human` (11.5) |
+
+Checking `output_schema` and `postconditions` MUST be deterministic: the same outcome always yields the same result. A postcondition that is not a valid expression is rejected at validation (4.3).
+
+### 11.3 Order of checks
+
+For each attempt that returns, an engine MUST check in this order and stop at the first rejection:
+
+1. **Contract**: `output_schema`, then `postconditions`, then `budgets.max_tokens`. Deterministic and free.
+2. **Verification** (section 7), if the activity has a policy. May call a model.
+
+An outcome is accepted only if every check that applies passes. When the contract rejects an outcome, the actor is `ai_agent`, and attempts remain within `budgets.max_attempts` (default 3), the engine re-executes the activity with the violated terms as feedback. Other actor types are not re-executed.
+
+### 11.4 Budgets
+
+| Budget | Meaning | When exceeded |
+|---|---|---|
+| `max_attempts` | Most executions of the actor in one visit, **for any cause**: errors, contract violations and verification failures together | No further attempt is made |
+| `max_duration` | Longest a single attempt may take | The attempt fails with error code `TIMEOUT`, which is retryable under the retry policy |
+| `max_tokens` | Most model tokens, input plus output, the visit may consume, counting judge tokens | The outcome is rejected and not retried |
+
+`max_attempts` overrides any higher limit in `retry` or `verification`. An engine cannot always cancel work that has timed out; it MUST ignore a result that arrives after the timeout.
+
+### 11.5 Escalation
+
+When an outcome is rejected, by the contract or by verification, and no automatic attempt remains:
+
+- With `on_violation: "fail"`, the activity fails with error code `CONTRACT_VIOLATION` or `VERIFICATION_FAILED`.
+- With `on_violation: "escalate_human"`, the engine hands the activity to a human, together with the rejected outcome and the reasons, and records `contract.escalated`. The token waits (5.6) until the human decides.
+
+A human decision is not re-verified by a model, but `output_schema` and `postconditions` still bind it: a human outcome that violates them fails the activity. The same holds for any activity performed by a `human` actor that carries a contract.
+
+An engine that cannot wait for a human MUST fail the activity. A pending task is not an answer.
+
+## 12. Model binding
+
+A workflow document names models by **reference** and never depends on a vendor's API. The engine resolves each reference to a provider when the run executes.
+
+### 12.1 Model references
+
+A model reference appears wherever a document names a model (`role.ai_model_config.model_id`, `verification.judge_model_id`). It takes one of three forms, tried in this order:
+
+| Form | Meaning |
+|---|---|
+| `tier:<name>` | A capability tier that the deployment maps to a model |
+| `<provider>:<model>` | A specific model of a provider registered with the engine |
+| `<model>` | A model of the engine's default provider |
+
+The part before the first colon is treated as a provider only if a provider is registered under that name; otherwise the whole string is a model name.
+
+### 12.2 Tiers
+
+Portable documents SHOULD use tiers rather than vendor model names. Every deployment SHOULD map these three:
+
+| Tier | Intended for |
+|---|---|
+| `tier:reasoning` | Planning and multi-step work where quality matters most |
+| `tier:balanced` | General work |
+| `tier:fast` | High-volume, simple work such as classification and judging |
+
+A deployment MAY define further tiers. A tier MUST map to a model, not to another tier.
+
+### 12.3 Resolution
+
+When an AI agent executes an activity the model reference is, in order: the one named by the activity's role; otherwise the engine default. For a judge it is the policy's `judge_model_id`; otherwise the engine default.
+
+A reference that cannot be resolved (an unmapped tier, or no provider) is an error with code `VALIDATION_ERROR`. An engine MUST NOT substitute another model silently.
+
+The engine MUST journal each resolution as a `meta.recorded` event with subject `model_selection`, giving the provider, the model, the tier if one was used, and why that reference applied.
+
+### 12.4 Providers
+
+A provider is an adapter with one operation: given a model name, optional standing instructions, a prompt and sampling settings, it returns text and the input and output token counts. The reference SDK ships adapters for Google Gemini and for any service exposing an OpenAI-style `chat/completions` endpoint, and accepts others through `model_providers`.
+
 ## Appendix A. Conformance suite
 
 `spec/conformance/` holds language-neutral cases.
@@ -514,3 +613,5 @@ Runners: `sdk/typescript/tests/conformance.test.ts`, `sdk/python/tests/test_conf
 - Conformance levels and a conformance suite introduced.
 - Execution journal with three trace levels (section 9).
 - Activity `retry` policy, dead letters, checkpoints, recovery and idempotency keys (section 10).
+- Outcome contracts: output schema, postconditions, budgets and human escalation (section 11).
+- Vendor-neutral model references with capability tiers (section 12).

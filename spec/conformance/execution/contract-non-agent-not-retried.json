@@ -1,0 +1,52 @@
+{
+  "id": "contract-non-agent-not-retried",
+  "level": "contract",
+  "spec": "11.3",
+  "description": "Actors other than ai_agent are not re-executed on a contract violation.",
+  "workflow": {
+    "id": "641a5312-5572-5b4d-8f6b-0ea22d5ea800",
+    "name": "contract-non-agent-not-retried",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "2d5ed0e4-218d-591c-9771-1c1c191dadad",
+        "name": "A",
+        "role_id": "97e49bd2-a5e7-57c4-8b76-1ccf130d73e7",
+        "actor_type": "application",
+        "outcome_contract": {
+          "postconditions": [
+            {
+              "name": "has-summary",
+              "expression": "summary exists"
+            }
+          ],
+          "budgets": {
+            "max_attempts": 3
+          }
+        }
+      }
+    ],
+    "edges": []
+  },
+  "actors": {
+    "A": {
+      "attempts": [
+        {
+          "output": {}
+        },
+        {
+          "output": {
+            "summary": "s"
+          }
+        }
+      ]
+    }
+  },
+  "expect": {
+    "status": "failed",
+    "visited": [
+      "A"
+    ]
+  }
+}

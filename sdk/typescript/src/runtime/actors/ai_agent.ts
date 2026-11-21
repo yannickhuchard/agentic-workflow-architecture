@@ -1,15 +1,20 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { ModelRegistry, GoogleModelProvider } from '../models';
 import { Activity, Role } from '../../types';
 import { Actor } from './actor';
 
 export class AIAgent implements Actor {
-    private genAI: GoogleGenerativeAI;
+    private models: ModelRegistry;
     private role?: Role;
     private defaultModelId: string;
     private simulate: boolean;
 
-    constructor(apiKey: string, role?: Role, defaultModelId: string = 'gemini-3.1-flash', simulate: boolean = false) {
-        this.genAI = new GoogleGenerativeAI(apiKey);
+    /**
+     * @param apiKey Gemini API key. Used only when no model registry is given.
+     * @param models Registry of model providers. If absent, a registry holding
+     *               the Google provider is created from `apiKey`.
+     */
+    constructor(apiKey: string, role?: Role, defaultModelId: string = 'gemini-3.1-flash', simulate: boolean = false, models?: ModelRegistry) {
+        this.models = models || new ModelRegistry().register(new GoogleModelProvider(apiKey));
         this.role = role;
         this.defaultModelId = defaultModelId;
         this.simulate = simulate;
@@ -29,28 +34,24 @@ export class AIAgent implements Actor {
             };
         }
 
-        // Resolve model ID: Role config > constructor default > fallback
-        const modelId = this.role?.ai_model_config?.model_id || this.defaultModelId;
-        const model = this.genAI.getGenerativeModel({ model: modelId });
+        // Resolve the model reference: role > engine default
+        const modelRef = this.role?.ai_model_config?.model_id || this.defaultModelId;
+        const resolved = this.models.resolve(modelRef);
 
         const systemPrompt = this.generateSystemPrompt(activity);
         const userMessage = this.generateUserMessage(activity, inputs);
+        const temperature = this.role?.ai_model_config?.temperature ?? 0.2;
 
         try {
-            // Retrieve config from role if available, otherwise default
-            const generationConfig = {
-                temperature: this.role?.ai_model_config?.temperature ?? 0.7,
-                maxOutputTokens: this.role?.ai_model_config?.max_tokens ?? 1024,
-            };
-
-            const result = await model.generateContent({
-                contents: [
-                    { role: 'user', parts: [{ text: systemPrompt + "\n\n" + userMessage }] }
-                ],
-                generationConfig
+            const response = await resolved.provider.generate({
+                model: resolved.model,
+                system: systemPrompt,
+                prompt: userMessage,
+                temperature,
+                max_output_tokens: this.role?.ai_model_config?.max_tokens ?? 1024,
             });
 
-            const responseText = result.response.text();
+            const responseText = response.text;
 
             // Attempt to parse JSON if the response looks like JSON
             const jsonMatch = responseText.match(/\{[\s\S]*\}/);
@@ -75,22 +76,24 @@ export class AIAgent implements Actor {
                 output,
                 ...(reasoning && typeof reasoning === 'object' ? { _reasoning: reasoning } : {}),
                 _model: {
-                    id: modelId,
-                    provider: 'google',
+                    id: resolved.model,
+                    provider: resolved.provider.id,
+                    requested: modelRef,
+                    ...(resolved.tier ? { tier: resolved.tier } : {}),
                     source: this.role?.ai_model_config?.model_id ? 'role' : 'engine_default',
-                    temperature: generationConfig.temperature,
+                    temperature,
                 },
                 status: 'complex_completed',
-                usage: {
-                    input_tokens: result.response.usageMetadata?.promptTokenCount || 0,
-                    output_tokens: result.response.usageMetadata?.candidatesTokenCount || 0,
-                }
+                usage: response.usage
             };
 
 
         } catch (error: unknown) {
             console.error('[AIAgent] Execution failed:', error);
-            throw new Error(`AIAgent execution failed: ${error instanceof Error ? error.message : String(error)}`);
+            const code = (error as { code?: unknown })?.code;
+            throw Object.assign(
+                new Error(`AIAgent execution failed: ${error instanceof Error ? error.message : String(error)}`),
+                typeof code === 'string' ? { code } : {});
         }
     }
 
