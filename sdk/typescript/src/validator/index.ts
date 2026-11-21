@@ -202,12 +202,27 @@ export function validate_workflow_integrity(workflow: Workflow): ValidationResul
         }
     }
 
+    // Tool names are unique within an activity; decision options are unique within a decision
+    for (const activity of workflow.activities) {
+        const names = (activity.tools || []).map(t => t.name);
+        for (const name of new Set(names.filter((n, i) => names.indexOf(n) !== i))) {
+            errors.push({ path: `activities[${activity.id}].tools`, message: `Duplicate tool name '${name}'`, code: 'duplicate_id' });
+        }
+    }
+    for (const decision of workflow.decision_nodes) {
+        const ids = (decision.decision_model?.options || []).map(o => o.id);
+        for (const id of new Set(ids.filter((n, i) => ids.indexOf(n) !== i))) {
+            errors.push({ path: `decision_nodes[${decision.id}].decision_model.options`, message: `Duplicate option '${id}'`, code: 'duplicate_id' });
+        }
+    }
+
     // Decision rules must route to edges that leave the decision node
     const edge_by_id = new Map(workflow.edges.map(e => [e.id, e]));
     for (const decision of workflow.decision_nodes) {
         const refs = [
             decision.default_output_edge_id,
-            ...decision.decision_table.rules.map(r => r.output_edge_id),
+            ...(decision.decision_table?.rules || []).map(r => r.output_edge_id),
+            ...(decision.decision_model?.options || []).map(o => o.output_edge_id),
         ].filter((id): id is string => !!id);
         for (const ref of refs) {
             const target = edge_by_id.get(ref);

@@ -12,3 +12,4 @@ export * from './models';
 export * from './outcome_contract';
 export * from './recipe';
 export * from './knowledge';
+export * from './tools';

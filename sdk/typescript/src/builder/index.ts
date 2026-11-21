@@ -182,6 +182,7 @@ export class WorkflowBuilder {
             is_expandable: false,
             skills: [],
             tool_requirements: [],
+            tools: [],
             verification: config.verification ? {
                 enabled: true,
                 mode: config.verification.mode || 'ai_judge',

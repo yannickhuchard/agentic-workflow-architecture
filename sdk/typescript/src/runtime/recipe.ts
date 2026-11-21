@@ -28,6 +28,7 @@ interface Attempt {
     contract?: JournalEvent;
     reasoning?: JournalEvent;
     meta: JournalEvent[];
+    tools: JournalEvent[];
 }
 
 interface NodeTrace {
@@ -77,7 +78,7 @@ function trace_nodes(events: JournalEvent[]): Map<string, NodeTrace> {
         if (!event.attempt) continue;
         let attempt = [...trace.attempts].reverse().find(a => a.attempt === event.attempt);
         if (!attempt || event.type === 'activity.started') {
-            attempt = { attempt: event.attempt, meta: [] };
+            attempt = { attempt: event.attempt, meta: [], tools: [] };
             trace.attempts.push(attempt);
         }
         switch (event.type) {
@@ -88,6 +89,9 @@ function trace_nodes(events: JournalEvent[]): Map<string, NodeTrace> {
             case 'contract.checked': attempt.contract = attempt.contract || event; break;
             case 'reasoning.recorded': attempt.reasoning = event; break;
             case 'meta.recorded': attempt.meta.push(event); break;
+            case 'tool.invoked':
+            case 'tool.completed':
+            case 'tool.failed': attempt.tools.push(event); break;
         }
     }
 
@@ -117,6 +121,8 @@ export function required_levels(workflow: Workflow): string[] {
         if (!edge.condition && !edge.is_default) fan_out.set(edge.source_id, (fan_out.get(edge.source_id) || 0) + 1);
     }
     if (workflow.decision_nodes.length > 0) levels.add('decision');
+    if (workflow.decision_nodes.some(d => d.decision_model)) levels.add('model-decision');
+    if (workflow.activities.some(a => (a.tools || []).length > 0)) levels.add('tools');
     if (workflow.activities.some(a => a.verification?.enabled)) levels.add('verified');
     if (workflow.activities.some(a => a.retry)) levels.add('resilient');
     if (workflow.activities.some(a => a.outcome_contract)) levels.add('contract');
@@ -230,6 +236,17 @@ export function compile_recipe(workflow: Workflow, events: JournalEvent[], optio
         push('');
     }
 
+    const callable = workflow.activities.flatMap(a => (a.tools || []).map(t => ({ activity: a.name, tool: t })));
+    if (callable.length > 0) {
+        push('### Callable tools', '');
+        push('Each tool an actor may call, and what it runs. Provide every target before running the workflow.', '');
+        push('| Activity | Tool | Runs | What it does |', '|---|---|---|---|');
+        for (const { activity, tool } of callable) {
+            push(`| ${cell(activity)} | ${code(tool.name)} | ${cell(binding_text(tool.binding))} | ${cell(tool.description || '')}${tool.documentation ? ` ([docs](${tool.documentation}))` : ''} |`);
+        }
+        push('');
+    }
+
     if (workflow.contexts.length > 0) {
         push('### Shared contexts', '');
         push('| Context | Type | Sync pattern | Used by |', '|---|---|---|---|');
@@ -297,6 +314,9 @@ export function compile_recipe(workflow: Workflow, events: JournalEvent[], optio
             }
             if (activity.outputs.length > 0) {
                 push(`- **Declared outputs**: ${activity.outputs.map(o => code(o.name)).join(', ')}`);
+            }
+            if ((activity.tools || []).length > 0) {
+                push(`- **Tools it may call**: ${(activity.tools || []).map(t => `${code(t.name)} (${binding_text(t.binding)})`).join('; ')}`);
             }
             if (activity.join === 'all') push('- **Join**: waits for a token on every incoming edge, then runs once with their merged data');
 
@@ -368,6 +388,18 @@ export function compile_recipe(workflow: Workflow, events: JournalEvent[], optio
                         if (reasoning.confidence !== undefined) push(`  - Confidence it reported: ${reasoning.confidence}`);
                     }
 
+                    for (const invoked of attempt.tools.filter(e => e.type === 'tool.invoked')) {
+                        const end = attempt.tools.find(e => e.type !== 'tool.invoked' && e.data.call_id === invoked.data.call_id);
+                        const outcome = !end ? 'no result recorded'
+                            : end.type === 'tool.completed' ? `returned${end.data.status !== undefined ? ` ${end.data.status}` : ''} in ${ms(end.data.duration_ms)}`
+                                : `failed: ${one_line((end.data.error as { message?: string })?.message)}`;
+                        push(`  - Tool call at ${invoked.time}: ${code(invoked.data.tool)} → ${one_line(invoked.data.link)} `
+                            + `(${one_line((invoked.data.binding as { kind?: string })?.kind)}), ${outcome}`
+                            + `${include_payloads && invoked.data.arguments !== undefined ? `. Arguments: ${code(JSON.stringify(invoked.data.arguments))}` : ''}`);
+                    }
+                    for (const refused of attempt.tools.filter(e => e.type === 'tool.failed' && e.data.invoked === false)) {
+                        push(`  - Tool call at ${refused.time}: ${code(refused.data.tool)} was not run: ${one_line((refused.data.error as { message?: string })?.message)}`);
+                    }
                     if (attempt.contract) {
                         const violations = (attempt.contract.data.violations as { message: string }[]) || [];
                         push(`  - Contract: ${attempt.contract.data.passed ? 'held' : `violated (${violations.map(v => one_line(v.message)).join('; ')})`}`);
@@ -400,17 +432,37 @@ export function compile_recipe(workflow: Workflow, events: JournalEvent[], optio
 
         if (decision) {
             push(`### Step ${step}: ${decision.name}${not_reached}`, '');
-            push(`- **Kind**: decision table, hit policy ${code(decision.decision_table.hit_policy)}`);
+const table = decision.decision_table, model = decision.decision_model;
+            const strategy = model ? (model.strategy || (table ? 'table_first' : 'model')) : 'table';
+            push(`- **Kind**: decision, decided by ${strategy === 'table' ? `a decision table (hit policy ${code(table!.hit_policy)})`
+                : strategy === 'model' ? 'a model' : 'a decision table first, and by a model when no rule matches'}`);
             if (decision.description) push(`- **Purpose**: ${one_line(decision.description)}`);
-            push('', ...decision_table(decision, name_of, workflow), '');
+            if (table) push('', ...decision_table(decision, name_of, workflow), '');
+            if (model) {
+                push(`- **Model**: ${code(model.model || 'engine default')}${model.votes > 1 ? `, ${model.votes} votes, majority decides` : ''}`
+                    + `${model.min_confidence > 0 ? `, confidence of at least ${model.min_confidence} required` : ''}`);
+                push(`- **Instructions to the model**: ${one_line(model.instructions)}`);
+                push('- **Options the model must choose from**:');
+                for (const option of model.options) {
+                    const edge = workflow.edges.find(e => e.id === option.output_edge_id);
+                    push(`  - ${code(option.id)}: ${one_line(option.description)}${edge ? ` Goes to **${name_of(edge.target_id)}**.` : ''}`);
+                }
+                const fallback = workflow.edges.find(e => e.id === decision.default_output_edge_id);
+                push(`- **If the model gives no valid decision**: ${fallback ? `go to **${name_of(fallback.target_id)}**` : 'the token fails'}`, '');
+            }
             const evaluated = trace?.events.filter(e => e.type === 'decision.evaluated') || [];
             if (evaluated.length) {
                 push('**In this run**', '');
                 for (const e of evaluated) {
                     const rules = (e.data.matched_rules as { index: number }[]) || [];
                     const target = workflow.edges.find(edge => edge.id === e.data.edge_id);
-                    push(`- Inputs ${code(JSON.stringify(e.data.inputs))}: `
-                        + `${rules.length ? `rule ${rules.map(r => r.index + 1).join(', ')} matched` : 'no rule matched'}`
+                    const m = e.data.model as { option?: string; confidence?: number; no_decision_reason?: string; votes?: unknown[] } | undefined;
+                    const how = e.data.method === 'model'
+                        ? `the model chose ${code(m?.option)}${m?.confidence !== undefined ? ` with confidence ${Number(m.confidence).toFixed(2)}` : ''}${(m?.votes?.length || 0) > 1 ? ` (${m!.votes!.length} votes)` : ''}`
+                        : rules.length ? `rule ${rules.map(r => r.index + 1).join(', ')} matched`
+                            : m?.no_decision_reason ? `no rule matched and the model gave no decision (${one_line(m.no_decision_reason)})` : 'no rule matched';
+                    const why = trace?.events.find(x => x.type === 'reasoning.recorded' && x.seq < e.seq && x.seq > e.seq - 4);
+                    push(`- Inputs ${code(JSON.stringify(e.data.inputs))}: ${how}${why && e.data.method === 'model' ? `. Its stated reason: ${one_line(why.data.rationale)}` : ''}`
                         + `${e.data.used_default ? ', default edge used' : ''}`
                         + `${target ? `, routed to **${name_of(target.target_id)}**` : ', no route'}`);
                 }
@@ -513,8 +565,19 @@ export function compile_recipe(workflow: Workflow, events: JournalEvent[], optio
     return out.join('\n');
 }
 
+function binding_text(binding: { kind: string } & Record<string, unknown>): string {
+    switch (binding.kind) {
+        case 'http': return `HTTP ${binding.method || 'GET'} ${binding.url}`;
+        case 'command': return `command \`${[binding.command, ...((binding.args as string[]) || [])].join(' ')}\``;
+        case 'jsonrpc': return `JSON-RPC ${binding.method} at ${binding.endpoint}`;
+        case 'grpc': return `gRPC ${binding.service}/${binding.method} at ${binding.endpoint}`;
+        case 'mcp': return `MCP tool ${binding.tool} on server ${binding.server}`;
+        default: return `function ${binding.name}`;
+    }
+}
+
 function decision_table(decision: DecisionNode, name_of: (id: string) => string, workflow: Workflow): string[] {
-    const table = decision.decision_table;
+    const table = decision.decision_table!;
     const target = (edge_id?: string) => {
         const edge = workflow.edges.find(e => e.id === edge_id);
         return edge ? name_of(edge.target_id) : '';

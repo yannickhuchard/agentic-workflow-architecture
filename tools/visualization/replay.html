@@ -295,7 +295,7 @@
     return false;
   }
 
-  const EVENT_TYPES = ['run.started', 'run.completed', 'run.failed', 'run.waiting', 'run.resumed', 'token.created', 'token.moved', 'token.completed', 'token.failed', 'token.waiting', 'token.resumed', 'token.joined', 'token.cancelled', 'activity.started', 'activity.completed', 'activity.failed', 'activity.retry_scheduled', 'activity.dead_lettered', 'activity.compensated', 'activity.compensation_failed', 'decision.evaluated', 'verification.completed', 'contract.checked', 'contract.escalated', 'timer.started', 'timer.fired', 'reasoning.recorded', 'meta.recorded', 'knowledge.retrieved', 'checkpoint.saved'];
+  const EVENT_TYPES = ['run.started', 'run.completed', 'run.failed', 'run.waiting', 'run.resumed', 'token.created', 'token.moved', 'token.completed', 'token.failed', 'token.waiting', 'token.resumed', 'token.joined', 'token.cancelled', 'activity.started', 'activity.completed', 'activity.failed', 'activity.retry_scheduled', 'activity.dead_lettered', 'activity.compensated', 'activity.compensation_failed', 'decision.evaluated', 'tool.invoked', 'tool.completed', 'tool.failed', 'verification.completed', 'contract.checked', 'contract.escalated', 'timer.started', 'timer.fired', 'reasoning.recorded', 'meta.recorded', 'knowledge.retrieved', 'checkpoint.saved'];
 
   // ------------------------------------------------------------------- layout
   function buildGraph() {
@@ -481,7 +481,7 @@
     if (!events.length) return;
     events.forEach((e, i) => {
       const color = e.type === 'activity.failed' || e.type === 'token.failed' || e.type === 'run.failed' || e.type === 'activity.compensation_failed' ? 'var(--failed)'
-        : e.level === 'reasoning' ? 'var(--reasoning)' : e.level === 'meta' ? 'var(--meta)' : null;
+        : e.type === 'tool.invoked' ? 'var(--done)' : e.level === 'reasoning' ? 'var(--reasoning)' : e.level === 'meta' ? 'var(--meta)' : null;
       if (!color) return;
       const mark = document.createElement('i');
       mark.style.left = ((i + 1) / events.length * 100) + '%';
@@ -495,7 +495,7 @@
   // backwards recomputes from the start, so replay can never drift.
   function reduce(upTo) {
     const state = {
-      nodes: new Map([...nodes.keys()].map(id => [id, { status: 'queue', attempts: 0, visits: 0, ms: 0, note: '' }])),
+      nodes: new Map([...nodes.keys()].map(id => [id, { status: 'queue', attempts: 0, visits: 0, ms: 0, note: '', tools: 0 }])),
       taken: new Map(), tokens: new Map(), run: 'not started',
     };
     const at = id => state.nodes.get(id);
@@ -527,6 +527,7 @@
         case 'activity.completed': if (n) { n.status = 'done'; n.ms = d.duration_ms ?? n.ms; n.note = ''; } break;
         case 'activity.failed': if (n) { n.status = d.retryable ? 'retrying' : 'failed'; n.note = d.error && d.error.message; } break;
         case 'decision.evaluated': if (n) n.status = 'done'; break;
+        case 'tool.invoked': if (n) n.tools++; break;
         case 'timer.started': if (n) n.status = 'waiting'; break;
         case 'timer.fired': if (n) n.status = 'done'; break;
         case 'contract.escalated': if (n) n.status = 'waiting'; break;
@@ -571,7 +572,12 @@
       case 'activity.dead_lettered': return `${name}: retries exhausted, sent to the dead-letter queue`;
       case 'activity.compensated': return `${d.compensates_activity_name} undone by ${name}`;
       case 'activity.compensation_failed': return `${d.compensates_activity_name} could NOT be undone: ${name} failed`;
-      case 'decision.evaluated': return `${name}: ${d.matched ? 'rule ' + (d.matched_rules || []).map(r => r.index + 1).join(', ') + ' matched' : 'no rule matched'}${d.used_default ? ', default route' : ''}`;
+      case 'decision.evaluated': return d.method === 'model'
+        ? `${name}: the model chose "${d.model && d.model.option}"` + (d.model && d.model.confidence != null ? ` (confidence ${Number(d.model.confidence).toFixed(2)})` : '')
+        : `${name}: ${d.matched ? 'rule ' + (d.matched_rules || []).map(r => r.index + 1).join(', ') + ' matched' : 'no rule matched'}${d.model && d.model.no_decision_reason ? ', the model gave no decision' : ''}${d.used_default ? ', default route' : ''}`;
+      case 'tool.invoked': return `${name}: called tool ${d.tool} → ${d.link}` + (d.simulated ? ' (simulated)' : '');
+      case 'tool.completed': return `${name}: tool ${d.tool} returned` + (d.status != null ? ` ${d.status}` : '') + ` in ${dur(d.duration_ms)}`;
+      case 'tool.failed': return `${name}: tool ${d.tool} ${d.invoked === false ? 'was not run' : 'failed'}: ${d.error && d.error.message}`;
       case 'verification.completed': return `${name}: verification ${d.verdict} (${Math.round((d.score || 0) * 100)}%)`;
       case 'contract.checked': return `${name}: outcome contract ${d.passed ? 'holds' : 'violated'}` + (d.decided_by ? ` (${d.decided_by} decision)` : '');
       case 'contract.escalated': return `${name}: escalated to a human`;
@@ -598,6 +604,7 @@
       const bits = [];
       if (s.ms) bits.push('⏱ ' + dur(s.ms));
       if (s.attempts > 1) bits.push(s.attempts + ' attempts');
+      if (s.tools) bits.push('🔧 ' + s.tools);
       if (s.visits > 1) bits.push(s.visits + ' visits');
       if (n.kind === 'event' && n.def.event_type === 'timer') bits.push('⏲ ' + (n.def.event_definition || {}).duration);
       if (n.def.join === 'all') bits.push('join all');
@@ -684,8 +691,26 @@
       body += '<h3>Criteria</h3><ul>' + (d.criteria || []).map(c => `<li>${c.passed ? '✅' : '❌'} <b>${esc(c.criterion_name)}</b>: ${esc(c.evidence)}</li>`).join('') + '</ul>';
     } else if (e.type === 'contract.checked') {
       body += d.passed ? '<p>Every term of the outcome contract holds.</p>' : '<h3>Violations</h3><ul>' + (d.violations || []).map(v => `<li><b>${esc(v.kind)}</b>: ${esc(v.message)}</li>`).join('') + '</ul>';
+    } else if (e.type === 'tool.invoked' || e.type === 'tool.completed' || e.type === 'tool.failed') {
+      const b = d.binding || {};
+      const isUrl = /^https?:/.test(d.link || '');
+      body += facts([
+        ['Tool', `<code>${esc(d.tool)}</code>`],
+        ['Runs', d.link && (isUrl ? `<a href="${esc(d.link)}" target="_blank" rel="noopener noreferrer" style="color:var(--reasoning)">${esc(d.link)}</a>` : `<code>${esc(d.link)}</code>`)],
+        ['Kind', b.kind && esc(b.kind + (b.method ? ' ' + b.method : ''))],
+        ['Command line', b.kind === 'command' && `<code>${esc([b.command].concat(b.args || []).join(' '))}</code>`],
+        ['Documentation', d.documentation && `<a href="${esc(d.documentation)}" target="_blank" rel="noopener noreferrer" style="color:var(--reasoning)">${esc(d.documentation)}</a>`],
+        ['When', esc(new Date(e.time).toISOString())],
+        ['Status', d.status != null && esc(d.status)],
+        ['Took', d.duration_ms != null && dur(d.duration_ms)],
+        ['Call id', d.call_id && `<code>${esc(d.call_id)}</code>`],
+        ['Error', d.error && esc(d.error.message + (d.error.code ? ' (' + d.error.code + ')' : ''))],
+      ]);
+      if (d.arguments !== undefined) body += `<h3>Arguments</h3><pre>${json(d.arguments)}</pre>`;
+      if (d.result !== undefined) body += `<h3>Result</h3><pre>${json(d.result)}</pre>`;
     } else if (e.type === 'decision.evaluated') {
-      body += facts([['Inputs', `<code>${esc(JSON.stringify(d.inputs))}</code>`], ['Matched', d.matched ? 'rule ' + (d.matched_rules || []).map(r => r.index + 1).join(', ') : 'no rule'], ['Outputs', `<code>${esc(JSON.stringify(d.outputs))}</code>`], ['Default used', d.used_default ? 'yes' : 'no']]);
+      if (d.model) body += facts([['Decided by', esc(d.method)], ['Model chose', d.model.option && `<code>${esc(d.model.option)}</code>`], ['Confidence', d.model.confidence != null && esc(Number(d.model.confidence).toFixed(2)) + (d.model.min_confidence ? ' (needs ' + esc(d.model.min_confidence) + ')' : '')], ['Votes', (d.model.votes || []).length > 1 && esc(d.model.votes.map(v => v.option || 'invalid').join(', '))], ['No decision because', d.model.no_decision_reason && esc(d.model.no_decision_reason)]]);
+      body += facts([['Inputs', `<code>${esc(JSON.stringify(d.inputs))}</code>`], ['Matched', (d.matched_rules || []).length ? 'rule ' + d.matched_rules.map(r => r.index + 1).join(', ') : 'no rule'], ['Outputs', `<code>${esc(JSON.stringify(d.outputs))}</code>`], ['Default used', d.used_default ? 'yes' : 'no']]);
     } else if (d.error) {
       body += facts([['Error', esc(d.error.message)], ['Code', esc(d.error.code)], ['Will retry', d.retryable === undefined ? undefined : d.retryable ? 'yes' : 'no']]);
     }
@@ -733,7 +758,15 @@
     if (def.verification && def.verification.enabled !== false) {
       out += '<h3>Acceptance criteria</h3><ul>' + (def.verification.criteria || []).map(c => `<li>${esc(c.name)}: ${esc(c.description)}</li>`).join('') + '</ul>';
     }
-    if (n.kind === 'decision') {
+    if (def.tools && def.tools.length) {
+      out += '<h3>Tools it may call</h3><ul>' + def.tools.map(t => { const b = t.binding; const runs = b.kind === 'http' ? (b.method || 'GET') + ' ' + b.url : b.kind === 'command' ? 'command ' + b.command : b.kind === 'jsonrpc' ? b.endpoint + '#' + b.method : b.kind === 'grpc' ? 'gRPC ' + b.service + '/' + b.method : b.kind === 'mcp' ? 'MCP ' + b.server + '/' + b.tool : 'function ' + b.name; return `<li><code>${esc(t.name)}</code>: ${esc(t.description || '')} <span class="muted">(${esc(runs)})</span></li>`; }).join('') + '</ul>';
+    }
+    if (n.kind === 'decision' && def.decision_model) {
+      const m = def.decision_model;
+      out += '<h3>Decided by a model' + (def.decision_table ? ' when no rule matches' : '') + '</h3>' + facts([['Model', esc(m.model || 'engine default')], ['Instructions', esc(m.instructions)], ['Votes', m.votes > 1 && esc(m.votes)], ['Min. confidence', m.min_confidence > 0 && esc(m.min_confidence)]]);
+      out += '<ul>' + m.options.map(o => `<li><code>${esc(o.id)}</code>: ${esc(o.description)}</li>`).join('') + '</ul>';
+    }
+    if (n.kind === 'decision' && def.decision_table) {
       const t = def.decision_table;
       out += '<h3>Rules (' + esc(t.hit_policy) + ')</h3><ol>' + t.rules.map(r => `<li>${t.inputs.map((c, i) => `${esc(c.name)} <code>${esc(r.input_entries[i] || '-')}</code>`).join(' and ')} → ${esc(JSON.stringify(r.output_entries))}</li>`).join('') + '</ol>';
     }

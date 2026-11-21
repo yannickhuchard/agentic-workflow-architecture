@@ -11,7 +11,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { WorkflowEngine, parse_document, FileJournalStore, parse_journal, compile_recipe, KnowledgeBase } from '../../sdk/typescript/dist/index.mjs';
+import { WorkflowEngine, parse_document, FileJournalStore, parse_journal, compile_recipe, KnowledgeBase, FunctionModelProvider } from '../../sdk/typescript/dist/index.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const workflow = parse_document(JSON.parse(fs.readFileSync(path.join(here, 'claims-settlement.awa.json'), 'utf-8')));
@@ -22,8 +22,11 @@ function actors(scenario) {
     const script = {
         'Register claim': async () => { await wait(250); return { claim_id: 'CLM-2041', policy_number: 'POL-77310' }; },
 
-        'Assess damage': async (inputs) => {
-            await wait(900);
+        'Assess damage': async (inputs, context) => {
+            await wait(500);
+            // The agent prices each part with the catalogue tool; every call is journalled
+            const priced = inputs._attempt === 1 ? [] : await Promise.all(['rear bumper', 'tailgate'].map(part => context.tools.call('price_part', { part, vehicle: inputs.vehicle })));
+            await wait(400);
             if (inputs._attempt === 1) {
                 return {
                     output: { estimated_cost: 'about 3,200 EUR', severity: 'moderate', summary: 'Rear bumper and tailgate damaged.' },
@@ -37,9 +40,9 @@ function actors(scenario) {
             }
             return {
                 output: {
-                    estimated_cost: 3200, severity: 'moderate',
+                    estimated_cost: scenario.cost || 3200, severity: scenario.cost ? 'severe' : 'moderate',
                     summary: 'Low-speed rear-end collision. Rear bumper and tailgate need replacing; no structural damage.',
-                    parts: [{ part: 'rear bumper', cost: 1150 }, { part: 'tailgate', cost: 1400 }, { part: 'labour and paint', cost: 650 }],
+                    parts: [{ part: 'rear bumper', cost: priced[0].result.price }, { part: 'tailgate', cost: priced[1].result.price }, { part: 'labour and paint', cost: 650 }],
                 },
                 usage: { input_tokens: 2010, output_tokens: 340 }, _model: model('assessor-large', 'reasoning'),
                 _reasoning: {
@@ -64,16 +67,21 @@ function actors(scenario) {
             };
         },
 
-        'Verify policy cover': async () => { await wait(400); return { cover_confirmed: true, excess: 250 }; },
+        'Verify policy cover': async (inputs, context) => {
+            await wait(200);
+            const policy = (await context.tools.call('get_policy', { policy_number: inputs.policy_number })).result;
+            return { cover_confirmed: policy.status === 'active', excess: policy.excess };
+        },
         'Consolidate findings': async (inputs) => {
             await wait(200);
-            return { settlement_amount: inputs.estimated_cost - inputs.excess };
+            return { settlement_amount: inputs.estimated_cost - inputs.excess, estimated_cost: inputs.estimated_cost };
         },
         'Reserve funds': async (inputs) => { await wait(300); return { reservation_id: 'RSV-90112', reserved: inputs.settlement_amount }; },
-        'Pay claimant': async (inputs) => {
-            await wait(500);
-            if (scenario.payment_fails) throw Object.assign(new Error('Bank rejected the transfer: account closed'), { code: 'VALIDATION_ERROR' });
-            return { payment_id: 'PAY-55018', paid: inputs.reserved };
+        'Pay claimant': async (inputs, context) => {
+            await wait(300);
+            const transfer = await context.tools.call('transfer', { amount: inputs.reserved, reference: inputs.claim_id });
+            if (!transfer.ok) throw Object.assign(new Error(`Bank rejected the transfer: ${transfer.result.error}`), { code: 'VALIDATION_ERROR' });
+            return { payment_id: transfer.result.payment_id, paid: inputs.reserved };
         },
         'Notify claimant': async () => {
             await wait(700);
@@ -87,7 +95,7 @@ function actors(scenario) {
         'Adjuster review': async () => ({ approved: true }),
         'Investigate': async () => ({ investigation_opened: true }),
     };
-    const actor = { execute: (activity, inputs) => script[activity.name](inputs) };
+    const actor = { execute: (activity, inputs, context) => script[activity.name](inputs, context) };
     return { application: actor, ai_agent: actor, human: actor, robot: actor };
 }
 
@@ -96,6 +104,29 @@ async function run(name, scenario) {
     fs.rmSync(file, { force: true });
     const engine = new WorkflowEngine(workflow, {
         actors: actors(scenario),
+        // The systems behind the tools are stood in for here. The journal still
+        // records each call exactly as it would be made: tool, arguments, link, time.
+        tools: {
+            secrets: { CATALOGUE_KEY: 'demo-key' },
+            executors: {
+                http: async (binding, args) => {
+                    await wait(150);
+                    if (binding.url.includes('repair-catalogue')) return { status: 200, result: { part: args.part, price: args.part === 'tailgate' ? 1400 : 1150, currency: 'EUR' } };
+                    return { status: 200, result: { policy_number: args.policy_number, status: 'active', excess: 250, cover: 'comprehensive' } };
+                },
+                jsonrpc: async () => {
+                    await wait(200);
+                    if (scenario.payment_fails) throw Object.assign(new Error('RPC error -32010: account closed'), { code: 'TOOL_ERROR', status: -32010 });
+                    return { status: 200, result: { payment_id: 'PAY-55018', state: 'settled' } };
+                },
+            },
+        },
+        // The model behind tier:fast, which decides the cases the table does not
+        model_providers: [new FunctionModelProvider('acme', async () => {
+            await wait(350);
+            return JSON.stringify({ option: 'review', confidence: 0.84, rationale: 'The repair is costly and the fraud score is neither low nor high, so an adjuster should confirm before payment.' });
+        })],
+        model_tiers: { fast: 'acme:classifier-small', reasoning: 'acme:assessor-large', balanced: 'acme:writer-medium' },
         journal: new FileJournalStore(file),
         execution_logger: { log_execution: async () => { } },
         pricing_config: { input_token_cost_per_1k: 0.003, output_token_cost_per_1k: 0.015, currency: 'EUR', software_cost_per_execution: 0.001 },
@@ -109,6 +140,7 @@ async function run(name, scenario) {
 
 const completed = await run('completed', { fraud_score: 0.12 });
 const failed = await run('failed-and-compensated', { fraud_score: 0.12, payment_fails: true });
+const reviewed = await run('model-decision', { fraud_score: 0.45, cost: 8200 });
 
 fs.writeFileSync(path.join(here, 'RECIPE.md'), compile_recipe(workflow, completed.events) + '\n');
 fs.writeFileSync(path.join(here, 'runs', 'failed-and-compensated.recipe.md'),
@@ -119,6 +151,7 @@ fs.writeFileSync(path.join(here, 'runs', 'failed-and-compensated.recipe.md'),
 const knowledge = new KnowledgeBase();
 knowledge.ingest(workflow, completed.events);
 knowledge.ingest(workflow, failed.events);
+knowledge.ingest(workflow, reviewed.events);
 for (const entry of knowledge.list()) {
     if (entry.scope.node_name === 'Assess damage') knowledge.review(entry.id, 'claims-lead');
 }
@@ -129,6 +162,7 @@ console.log(`knowledge: ${knowledge.list().length} entries, ${written} files`);
 const samples = [
     { name: 'Motor claim: settled', workflow, events: completed.events },
     { name: 'Motor claim: payment failed, funds released', workflow, events: failed.events },
+    { name: 'Motor claim: a model routes it to an adjuster', workflow, events: reviewed.events },
 ];
 fs.writeFileSync(path.join(here, '../../tools/visualization/replay-sample.js'),
     '// Generated by examples/claims-settlement/make-runs.mjs. Do not edit.\n'

@@ -1,9 +1,11 @@
-import { ModelRegistry, GoogleModelProvider } from '../models';
+import { ChatMessage, ModelRegistry, ModelRouter, GoogleModelProvider, RouteAttempt } from '../models';
+import { ActorContext } from './actor';
 import { Activity, Role } from '../../types';
 import { Actor } from './actor';
 
 export class AIAgent implements Actor {
     private models: ModelRegistry;
+    private router: ModelRouter;
     private role?: Role;
     private defaultModelId: string;
     private simulate: boolean;
@@ -15,12 +17,13 @@ export class AIAgent implements Actor {
      */
     constructor(apiKey: string, role?: Role, defaultModelId: string = 'gemini-3.1-flash', simulate: boolean = false, models?: ModelRegistry) {
         this.models = models || new ModelRegistry().register(new GoogleModelProvider(apiKey));
+        this.router = new ModelRouter(this.models);
         this.role = role;
         this.defaultModelId = defaultModelId;
         this.simulate = simulate;
     }
 
-    async execute(activity: Activity, inputs: Record<string, unknown>): Promise<Record<string, unknown>> {
+    async execute(activity: Activity, inputs: Record<string, unknown>, context?: ActorContext): Promise<Record<string, unknown>> {
         console.log(`[AIAgent] Executing activity: ${activity.name} (${activity.id})`);
 
         if (this.simulate) {
@@ -36,21 +39,48 @@ export class AIAgent implements Actor {
 
         // Resolve the model reference: role > engine default
         const modelRef = this.role?.ai_model_config?.model_id || this.defaultModelId;
-        const resolved = this.models.resolve(modelRef);
 
-        const systemPrompt = this.generateSystemPrompt(activity);
+        const systemPrompt = this.generateSystemPrompt(activity, !!context?.tools?.specs.length);
         const userMessage = this.generateUserMessage(activity, inputs);
         const temperature = this.role?.ai_model_config?.temperature ?? 0.2;
+        const tools = context?.tools;
 
         try {
-            const response = await resolved.provider.generate({
-                model: resolved.model,
-                system: systemPrompt,
-                prompt: userMessage,
-                temperature,
-                max_output_tokens: this.role?.ai_model_config?.max_tokens ?? 1024,
-            });
+            // The conversation: the model may ask for tools any number of times
+            // before it answers. Every tool call goes through the engine's runner.
+            const messages: ChatMessage[] = [{ role: 'system', content: systemPrompt }, { role: 'user', content: userMessage }];
+            const usage = { input_tokens: 0, output_tokens: 0 };
+            let route: RouteAttempt[] = [];
+            let routed;
 
+            for (;;) {
+                routed = await this.router.generate(modelRef, {
+                    // A single turn is sent as system + prompt, the simplest form a
+                    // provider can receive; the message list is used once there are tool results.
+                    ...(messages.length === 2 ? { system: systemPrompt, prompt: userMessage } : { messages }),
+                    ...(tools?.specs.length ? { tools: tools.specs } : {}),
+                    temperature,
+                    max_output_tokens: this.role?.ai_model_config?.max_tokens ?? 1024,
+                });
+                usage.input_tokens += routed.response.usage.input_tokens;
+                usage.output_tokens += routed.response.usage.output_tokens;
+                route = routed.route;
+
+                const calls = routed.response.tool_calls || [];
+                if (!tools || calls.length === 0) break;
+
+                messages.push({ role: 'assistant', content: routed.response.text, tool_calls: calls, provider_state: routed.response.provider_state });
+                for (const call of calls) {
+                    const result = await tools.call(call.name, call.arguments, call.id);
+                    messages.push({ role: 'tool', tool_call_id: call.id, name: call.name, content: result.content });
+                    if (!result.ok && (result.result as { code?: string })?.code === 'TOOL_BUDGET_EXCEEDED') {
+                        throw Object.assign(new Error((result.result as { error: string }).error), { code: 'TOOL_BUDGET_EXCEEDED' });
+                    }
+                }
+            }
+
+            const resolved = routed.model;
+            const response = { text: routed.response.text, usage };
             const responseText = response.text;
 
             // Attempt to parse JSON if the response looks like JSON
@@ -82,6 +112,7 @@ export class AIAgent implements Actor {
                     ...(resolved.tier ? { tier: resolved.tier } : {}),
                     source: this.role?.ai_model_config?.model_id ? 'role' : 'engine_default',
                     temperature,
+                    route,
                 },
                 status: 'complex_completed',
                 usage: response.usage
@@ -97,7 +128,7 @@ export class AIAgent implements Actor {
         }
     }
 
-    private generateSystemPrompt(activity: Activity): string {
+    private generateSystemPrompt(activity: Activity, hasTools = false): string {
         const lines: string[] = [];
 
         // 1. Role Identity
@@ -121,6 +152,11 @@ export class AIAgent implements Actor {
 
         if (activity.procedure) {
             lines.push(`Procedure: ${activity.procedure}`);
+        }
+
+        if (hasTools) {
+            lines.push('\nYou have tools. Call them when you need facts or need something done; do not guess what a tool could tell you.');
+            lines.push('When you have what you need, give your final answer in the format below.');
         }
 
         // 3. Output Format Instruction

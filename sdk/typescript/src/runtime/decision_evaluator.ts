@@ -203,6 +203,11 @@ export function evaluate_decision(
     const table = node.decision_table;
     const matched_rules: DecisionRule[] = [];
 
+    // A node decided by a model alone has no table: nothing matches
+    if (!table) {
+        return { matched: false, output_edge_id: node.default_output_edge_id, outputs: {}, matched_rules: [] };
+    }
+
     // Collect all matching rules
     for (const rule of table.rules) {
         if (evaluate_rule(rule, table, context)) {

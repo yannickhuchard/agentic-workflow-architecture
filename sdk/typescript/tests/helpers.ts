@@ -17,6 +17,7 @@ export function activity(name: string, overrides: Partial<Activity> = {}): Activ
         controls: [],
         skills: [],
         tool_requirements: [],
+        tools: [],
         ...overrides,
     } as Activity;
 }

@@ -296,6 +296,31 @@ export const ActivityRetrySchema = z.object({
 });
 export type ActivityRetry = z.infer<typeof ActivityRetrySchema>;
 
+export const ToolBindingSchema = z.discriminatedUnion('kind', [
+    z.object({
+        kind: z.literal('http'),
+        method: z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD']).default('GET'),
+        url: z.string(),
+        headers: z.record(z.string()).optional(),
+    }),
+    z.object({ kind: z.literal('command'), command: z.string(), args: z.array(z.string()).optional() }),
+    z.object({ kind: z.literal('jsonrpc'), endpoint: z.string().url(), method: z.string() }),
+    z.object({ kind: z.literal('grpc'), endpoint: z.string(), service: z.string(), method: z.string() }),
+    z.object({ kind: z.literal('mcp'), server: z.string(), tool: z.string() }),
+    z.object({ kind: z.literal('function'), name: z.string() }),
+]);
+export type ToolBinding = z.infer<typeof ToolBindingSchema>;
+
+export const ToolDefinitionSchema = z.object({
+    name: z.string().regex(/^[A-Za-z_][A-Za-z0-9_-]{0,63}$/),
+    description: z.string().optional(),
+    parameters: z.record(z.unknown()).optional(),
+    binding: ToolBindingSchema,
+    documentation: z.string().url().optional(),
+    timeout: Duration.optional(),
+});
+export type ToolDefinition = z.infer<typeof ToolDefinitionSchema>;
+
 export const JoinMode = z.enum(['any', 'all']);
 export type JoinMode = z.infer<typeof JoinMode>;
 
@@ -314,6 +339,7 @@ export const OutcomeContractSchema = z.object({
         max_attempts: z.number().int().min(1).max(50).optional(),
         max_duration: Duration.optional(),
         max_tokens: z.number().int().min(1).optional(),
+        max_tool_calls: z.number().int().min(0).optional(),
     }).optional(),
     on_violation: z.enum(['fail', 'escalate_human']).default('fail'),
 });
@@ -351,6 +377,7 @@ export const ActivitySchema = z.object({
     outcome_contract: OutcomeContractSchema.optional(),
     join: JoinMode.optional(),
     compensation: z.object({ activity_id: UUID }).optional(),
+    tools: z.array(ToolDefinitionSchema).default([]),
     knowledge: z.object({
         types: z.array(z.enum(['strategy', 'failure_pattern', 'decision_precedent', 'lesson'])).optional(),
         tags: z.array(z.string()).optional(),
@@ -409,13 +436,37 @@ export const DecisionTableSchema = z.object({
 });
 export type DecisionTable = z.infer<typeof DecisionTableSchema>;
 
+export const DecisionOptionSchema = z.object({
+    id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/),
+    description: z.string(),
+    output_edge_id: UUID,
+});
+export type DecisionOption = z.infer<typeof DecisionOptionSchema>;
+
+export const DecisionModelSchema = z.object({
+    /** Model reference. Default: the engine default. */
+    model: z.string().optional(),
+    instructions: z.string(),
+    options: z.array(DecisionOptionSchema).min(2),
+    /** Token data properties the model is shown. Default: all. */
+    inputs: z.array(z.string()).optional(),
+    /** table_first: ask the model only when no rule of the table matches. model: always ask the model. */
+    strategy: z.enum(['table_first', 'model']).optional(),
+    min_confidence: z.number().min(0).max(1).default(0),
+    /** Independent samples; the option chosen by a strict majority is taken */
+    votes: z.number().int().min(1).max(9).default(1),
+    temperature: z.number().min(0).max(2).optional(),
+});
+export type DecisionModel = z.infer<typeof DecisionModelSchema>;
+
 export const DecisionNodeSchema = z.object({
     id: UUID,
     name: z.string(),
     description: z.string().optional(),
-    decision_table: DecisionTableSchema,
+    decision_table: DecisionTableSchema.optional(),
+    decision_model: DecisionModelSchema.optional(),
     default_output_edge_id: UUID.optional(),
-});
+}).refine(node => !!node.decision_table || !!node.decision_model, { message: 'A decision node needs a decision_table, a decision_model, or both' });
 export type DecisionNode = z.infer<typeof DecisionNodeSchema>;
 
 export const RoleSchema = z.object({

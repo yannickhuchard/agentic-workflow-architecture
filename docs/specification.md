@@ -23,6 +23,8 @@ This document is normative. Where it and an SDK disagree, this document is right
 13. [Flow control](#13-flow-control)
 14. [Explaining a run](#14-explaining-a-run)
 15. [Knowledge](#15-knowledge)
+16. [Model decisions](#16-model-decisions)
+17. [Tools](#17-tools)
 
 ## 1. Scope
 
@@ -170,7 +172,7 @@ An engine MUST NOT select an edge whose condition evaluated to false. In particu
 
 ### 5.5 Decision nodes
 
-A decision node routes a token using a decision table. It performs no work.
+A decision node routes a token. It performs no work. It decides with a decision table, described here, with a language model (section 16), or with a table first and a model for the cases no rule covers.
 
 Each rule has one input entry per input column. An entry is a **unary test** applied to the token data property named by the column:
 
@@ -323,6 +325,7 @@ The JSON Schemas are authoritative for field names and types. This section summa
 | `join` | enum | `any` (default) or `all` (13.2) |
 | `compensation` | object | The activity that undoes this one (13.6) |
 | `knowledge` | object | Which knowledge from earlier runs the actor is given (15.4) |
+| `tools` | Tool[] | Functions the actor may call, each bound to what it runs (section 17) |
 | `verification` | VerificationPolicy | Acceptance criteria (section 7) |
 | `retry` | RetryPolicy | What to do when the actor raises an error (section 10) |
 | `outcome_contract` | OutcomeContract | What must be true of the outcome (section 11) |
@@ -418,7 +421,8 @@ An engine MUST NOT alter or remove an event once written.
 
 | Subject | Recorded when |
 |---|---|
-| `model_selection` | A model is chosen for an attempt |
+| `model_selection` | A model is chosen for an attempt or a decision |
+| `model_route` | The router skipped a candidate model or fell back from one that failed (12.5) |
 | `retry` | An attempt raised and will be retried |
 | `verification_retry` | An output was rejected by verification and the activity will be re-executed with feedback |
 | `contract_retry` | An outcome violated its contract and the activity will be re-executed with feedback |
@@ -445,7 +449,10 @@ An engine MUST NOT alter or remove an event once written.
 | `activity.failed` | execution | An attempt raised, or its output was rejected | `error.message`, `error.code`, `retryable` |
 | `activity.retry_scheduled` | execution | A further attempt will follow an error | `delay_ms`, `next_attempt` |
 | `activity.dead_lettered` | execution | Retries are exhausted | `error`, `attempts` |
-| `decision.evaluated` | execution | A decision node is evaluated | `inputs`, `matched_rules`, `outputs`, `edge_id`, `used_default` |
+| `decision.evaluated` | execution | A decision node is evaluated | `method` (`table`, `model`, `default`, `none`), `inputs`, `matched_rules`, `outputs`, `edge_id`, `used_default`, and for a model decision `model` (16.4) |
+| `tool.invoked` | execution | A tool call is about to run | `call_id`, `tool`, `link`, `binding`, `arguments`, `documentation` |
+| `tool.completed` | execution | A tool call returned | `call_id`, `tool`, `link`, `status`, `duration_ms`, `result` |
+| `tool.failed` | execution | A tool call failed, or was refused before running | `call_id`, `tool`, `link`, `invoked`, `error`, `status`, `duration_ms` |
 | `verification.completed` | execution | An output has been verified | `mode`, `verdict`, `score`, `criteria`, `feedback`, `output_hash` |
 | `contract.checked` | execution | An outcome has been checked against its contract | `passed`, `violations`, `tokens_used`, `output_hash`, `decided_by` |
 | `contract.escalated` | execution | A rejected outcome is handed to a human | `code`, `message`, `rejected_output` |
@@ -457,7 +464,7 @@ Every attempt of an activity is bracketed: one `activity.started`, then exactly 
 
 ### 9.4 Payloads
 
-Activity inputs and outputs may be sensitive. An engine MUST support three payload modes and MUST apply the chosen one to every `input` and `output` it journals:
+Activity inputs and outputs may be sensitive. An engine MUST support three payload modes and MUST apply the chosen one to every `input`, `output`, tool `arguments` and tool `result` it journals:
 
 | Mode | The journal holds |
 |---|---|
@@ -545,6 +552,7 @@ An outcome is accepted only if every check that applies passes. When the contrac
 | `max_attempts` | Most executions of the actor in one visit, **for any cause**: errors, contract violations and verification failures together | No further attempt is made |
 | `max_duration` | Longest a single attempt may take | The attempt fails with error code `TIMEOUT`, which is retryable under the retry policy |
 | `max_tokens` | Most model tokens, input plus output, the visit may consume, counting judge tokens | The outcome is rejected and not retried |
+| `max_tool_calls` | Most tool calls in one attempt (default 16) | Further calls are refused; an agent that cannot finish without them fails the attempt with `TOOL_BUDGET_EXCEEDED` |
 
 `max_attempts` overrides any higher limit in `retry` or `verification`. An engine cannot always cancel work that has timed out; it MUST ignore a result that arrives after the timeout.
 
@@ -597,7 +605,40 @@ The engine MUST journal each resolution as a `meta.recorded` event with subject 
 
 ### 12.4 Providers
 
-A provider is an adapter with one operation: given a model name, optional standing instructions, a prompt and sampling settings, it returns text and the input and output token counts. The reference SDK ships adapters for Google Gemini and for any service exposing an OpenAI-style `chat/completions` endpoint, and accepts others through `model_providers`.
+A provider is an adapter between the engine's unified request and one vendor's or runtime's interface. The unified request carries a model name, a conversation (system, user, assistant and tool turns), optionally the tools the model may call, whether a JSON reply is wanted, and sampling settings. The unified response carries text, any tool calls the model asks for, and input and output token counts.
+
+An adapter MAY return opaque continuation data with a response. The caller MUST give it back, unchanged, on the assistant turn when it continues the conversation. This is how vendor-specific data that a model needs returned (for example signatures attached to its tool calls) survives without the engine knowing about it.
+
+A provider declares whether it can call tools.
+
+The reference SDK ships these adapters, and accepts others through `model_providers`:
+
+| Provider | Reaches | Tools |
+|---|---|---|
+| `google` | Google Gemini | yes |
+| `openai` | OpenAI, through the Responses API | yes |
+| OpenAI-compatible | Any server exposing `chat/completions`: hosted gateways and the usual ways of serving open-source models (Ollama, llama.cpp, vLLM, LM Studio, LocalAI) | yes, if the served model supports them |
+| `ollama` | Open-source models on a local Ollama | as above |
+| `embedded` | A small open-source model running inside the engine's own process | no |
+
+### 12.5 Routing
+
+All model calls go through one router. Given a model reference and a request, the router:
+
+1. Lists the candidates. A tier MAY map to an ordered list of model references; a direct reference has one candidate. Candidates whose provider is not registered in this deployment are left out, so the same tier map serves deployments with different providers.
+2. Skips a candidate whose provider cannot serve the request: in particular one that cannot call tools, when the request carries tools.
+3. Calls the first remaining candidate. If the provider fails, it tries the next. It does not try further candidates after a provider rejects the request as invalid, since the request would be invalid for them too.
+4. Fails, with the whole route, if no candidate served the request.
+
+Whenever the route was anything other than "first candidate used", the engine MUST journal it as a `meta.recorded` event with subject `model_route`, naming each candidate skipped or failed and why.
+
+A deployment that must keep working without its cloud provider maps each tier to a list ending in a local model, for example `fast: [google:…, ollama:…, embedded:default]`.
+
+### 12.6 Open-source and embedded models
+
+An engine MUST be usable with open-source models only, with no proprietary provider registered.
+
+The `embedded` provider runs a small model in the engine's process: no server, no key, and no data leaves the machine. The reference SDK uses ONNX models through Transformers.js (an optional dependency), by default a model of a few hundred million parameters with 4-bit weights, and can load weights from a local directory for use without network access. An embedded model suits the simple, high-volume calls of a workflow: classification, routing decisions (section 16) and judging. It does not call tools, so the router never selects it for a request that carries them.
 
 ## 13. Flow control
 
@@ -784,6 +825,126 @@ An import MUST restore AWA-written concepts exactly, including which runs were a
 
 The knowledge layer is not yet covered by the language-neutral conformance suite. The reference implementation's behaviour is fixed by `sdk/typescript/tests/knowledge.test.ts`.
 
+## 16. Model decisions
+
+A decision table needs every case anticipated as a rule. Some routing depends on judgement that cannot be written that way. A decision node MAY therefore carry a `decision_model`, which lets a language model decide. To keep the outcome predictable, the model's freedom is bounded on every side: it picks from options the workflow enumerates, its reply is validated, and anything else is no decision.
+
+### 16.1 Definition
+
+| Field | Default | Meaning |
+|---|---|---|
+| `model` | engine default | Model reference (12.1). Decisions are a natural use of `tier:fast` and of embedded models |
+| `instructions` | required | How to decide, in natural language |
+| `options` | required, at least 2 | The only possible decisions. Each has an `id`, a `description` of when it applies, and the `output_edge_id` it takes |
+| `inputs` | all token data | The token data properties the model is shown |
+| `strategy` | `table_first` if the node has a table, else `model` | See 16.2 |
+| `min_confidence` | 0 | A decision with lower, or unstated, confidence is no decision |
+| `votes` | 1 | Number of independent samples (16.3) |
+| `temperature` | 0 for one vote, 0.7 for several | Sampling temperature |
+
+A decision node has a `decision_table`, a `decision_model`, or both. Every option's edge MUST leave the node, and option ids MUST be unique (4.3).
+
+### 16.2 Strategy
+
+| Strategy | Behaviour |
+|---|---|
+| `table_first` | The table is evaluated (5.5). If a rule matches, it decides and **no model is called**. Otherwise the model decides. |
+| `model` | The model decides. Any table on the node is ignored. |
+
+`table_first` keeps every anticipated case deterministic and free, and spends a model call only on the remainder.
+
+### 16.3 Deciding
+
+The engine asks the model to reply with a JSON object holding `option`, `confidence` (0 to 1) and `rationale`. The model is shown the node's name and description, the instructions, the options with their descriptions, and the selected inputs. Nothing else.
+
+A reply is a **valid vote** if it names exactly one option id. A reply that is not valid JSON still counts if exactly one option id appears in it, which is how small models often answer; such a vote has no confidence. A reply naming an id that was not offered, more than one id, or none, is an invalid vote. A model that cannot be reached casts an invalid vote.
+
+With `votes` greater than 1 the engine takes that many independent samples. The decision is the option with a **strict majority of all votes cast**, valid or not. Its confidence is the mean of the confidences its votes stated.
+
+There is **no decision** when no option has a strict majority, or when `min_confidence` is above 0 and the confidence is lower or was not stated.
+
+### 16.4 Outcome and record
+
+On a decision the token moves along the option's edge. On no decision it moves along `default_output_edge_id`; if the node has none, the token fails with `NO_ROUTE`. An engine MUST NOT pick an option the model did not validly choose.
+
+`decision.evaluated` records `method`: `table`, `model`, `default` or `none`. For a node with a model it also records under `model` the chosen `option`, the `confidence`, `min_confidence`, every vote (its option, confidence, or why it was invalid), the token usage, and `no_decision_reason` when there was no decision. The model's rationale is journalled as a `reasoning.recorded` event, and the model that served as a `meta.recorded` event with subject `model_selection`.
+
+## 17. Tools
+
+A tool is a function an actor may call while performing an activity: look something up, compute something, make something happen. AWA records every call: which tool, when, with what arguments, what came back, and a link to the API, command or remote procedure that actually ran.
+
+### 17.1 Definition
+
+An activity lists its tools in `tools`. Tool names MUST be unique within the activity.
+
+| Field | Meaning |
+|---|---|
+| `name` | The name the actor calls |
+| `description` | What it does and when to use it. Given to the model |
+| `parameters` | JSON Schema of the arguments object |
+| `binding` | What runs (17.2) |
+| `documentation` | Where the underlying interface is documented, for example an OpenAPI document |
+| `timeout` | Longest a call may take (default `PT30S`) |
+
+### 17.2 Bindings
+
+| `kind` | Fields | Runs | Link journalled |
+|---|---|---|---|
+| `http` | `method`, `url`, `headers` | An HTTP request | The resolved URL, without its query string |
+| `command` | `command`, `args` | A program on the engine's host | `command:<program>` |
+| `jsonrpc` | `endpoint`, `method` | A JSON-RPC 2.0 call over HTTP | `<endpoint>#<method>` |
+| `grpc` | `endpoint`, `service`, `method` | A gRPC call | `grpc://<endpoint>/<service>/<method>` |
+| `mcp` | `server`, `tool` | A tool on a Model Context Protocol server | `mcp://<server>/<tool>` |
+| `function` | `name` | A handler registered with the engine | `function:<name>` |
+
+In `url` and in each element of `args`, `{name}` is replaced by the argument of that name. For `http`, arguments not used in the URL are sent as query parameters for `GET`, `DELETE` and `HEAD`, and as a JSON body otherwise. For `command`, each element of `args` is passed as exactly one argument and no shell is involved, so an argument's content cannot add commands; if no element uses an argument, the arguments are given as JSON on standard input.
+
+In `headers`, `{{secret:NAME}}` is replaced by a secret the deployment supplies. Headers and secrets MUST NOT be journalled.
+
+An engine MUST implement `http`, `jsonrpc`, `command` and `function`. It MAY implement `grpc` and `mcp` through executors the deployment registers; a call to a kind with no executor fails with `VALIDATION_ERROR`.
+
+### 17.3 Calling
+
+For each call, in this order, the engine MUST:
+
+1. Refuse an unknown tool (`UNKNOWN_TOOL`) and a call beyond `budgets.max_tool_calls` (`TOOL_BUDGET_EXCEEDED`).
+2. Validate the arguments against `parameters`, and refuse invalid ones (`VALIDATION_ERROR`). Nothing runs.
+3. Apply the deployment's permissions (17.4), and refuse what they forbid (`PERMISSION_DENIED`).
+4. Record `tool.invoked`.
+5. Run the binding, bounded by `timeout`.
+6. Record `tool.completed` with the result, or `tool.failed` with the error.
+
+A failed or refused call does not fail the activity by itself. The failure is returned to the actor as the result of the call, so that an agent can read it and act on it. It is journalled either way: `tool.failed` with `invoked: false` for a call refused before it ran.
+
+When the actor is an AI agent, the engine gives the model the tools' names, descriptions and parameters; runs each call the model asks for through the steps above; returns the results to the model; and repeats until the model gives its answer. Other actors call tools through the same runner, so their calls are recorded the same way.
+
+### 17.4 Permissions
+
+A workflow document can name any URL or program. What may actually run is for the deployment to decide:
+
+- `command` bindings MUST NOT run unless the deployment allows commands, either all or a named list. The default is to allow none.
+- A deployment MAY restrict `http` and `jsonrpc` bindings to a list of hosts.
+
+### 17.5 Record
+
+| Event | `data` |
+|---|---|
+| `tool.invoked` | `call_id`, `tool`, `link`, `binding` (kind and what will run: method and URL, or command line, or endpoint and method), `arguments`, `documentation`, `simulated` |
+| `tool.completed` | `call_id`, `tool`, `link`, `status` (HTTP status, exit code), `duration_ms`, `result` |
+| `tool.failed` | `call_id`, `tool`, `link`, `invoked`, `error.message`, `error.code`, `status`, `duration_ms` |
+
+Each event carries the `time` it was recorded, the `node_id` of the activity and the `attempt` it belongs to, so every call can be placed exactly in the run. `call_id` ties the events of one call together. Tool events fall between the `activity.started` of their attempt and the event that ends it.
+
+Arguments and results follow the payload mode (9.4). The `link` is never hashed or omitted: which interface was called is always on record, even when what was sent is not.
+
+In simulation an engine MUST NOT run bindings. It records the call with `simulated: true` and returns a result the deployment scripted.
+
+A recipe (14.1) lists every tool with its binding among the prerequisites, and under each attempt the calls it made with their time, link and outcome. A replay (14.2) shows each call as a step, with its link.
+
+### 17.6 Conformance
+
+Sections 16 and 17 are not yet covered by the language-neutral conformance suite. The reference implementation's behaviour is fixed by `sdk/typescript/tests/router_tools_decisions.test.ts`.
+
 ## Appendix A. Conformance suite
 
 `spec/conformance/` holds language-neutral cases.
@@ -830,3 +991,6 @@ Runners: `sdk/typescript/tests/conformance.test.ts`, `sdk/python/tests/test_conf
 - `roles` are part of the workflow document; the fields of an object-valued `output` are merged into token data (5.2).
 - Recipe and replay defined as artefacts derived from the journal (section 14).
 - Knowledge layer with Open Knowledge Format exchange (section 15).
+- Model router with ordered fallbacks per tier; OpenAI, open-source and embedded providers (12.4 to 12.6).
+- Decision nodes may be decided by a model within enumerated options (section 16).
+- Executable tools with bindings, permissions and a journalled record of every call (section 17).

@@ -1,7 +1,7 @@
 ---
 type: Failure Pattern
 title: "Pay claimant: validation error"
-description: '"Pay claimant" was rejected or raised: Bank rejected the transfer: account closed'
+description: '"Pay claimant" was rejected or raised: Bank rejected the transfer: RPC error -32010: account closed'
 resource: urn:awa:workflow:42ddec2f-18d0-5b06-837b-bf1e9c8cecdb:node:ec20a080-3057-5f9c-a694-7040111b09e7
 tags:
   - application
@@ -10,14 +10,14 @@ tags:
 status: draft
 generated:
   by: agent:awa-distiller
-  at: "2026-11-21T22:45:56.672Z"
+  at: "2026-11-21T23:07:17.510Z"
 sources:
-  - id: run-ac863140
-    resource: urn:awa:run:ac863140-d3ec-4a67-b34b-aaaafca20cd5
-    title: Run ac863140-d3ec-4a67-b34b-aaaafca20cd5, journal events 48
-    last_modified: "2026-11-21T22:45:56.672Z"
+  - id: run-a49c556e
+    resource: urn:awa:run:a49c556e-fd4b-4da5-9fcb-569a922e0859
+    title: Run a49c556e-fd4b-4da5-9fcb-569a922e0859, journal events 56
+    last_modified: "2026-11-21T23:07:17.510Z"
     x-awa-event-seqs:
-      - 48
+      - 56
 x-awa-entry-type: failure_pattern
 x-awa-observations: 1
 x-awa-scope:
@@ -31,9 +31,9 @@ x-awa-counts:
 x-awa-latest:
   code: VALIDATION_ERROR
   terms: []
-  message: "Bank rejected the transfer: account closed"
+  message: "Bank rejected the transfer: RPC error -32010: account closed"
   resolution: unresolved
-x-awa-created-at: "2026-11-21T22:45:56.672Z"
+x-awa-created-at: "2026-11-21T23:07:17.510Z"
 ---
 
 # Pay claimant: validation error
@@ -42,7 +42,7 @@ Seen 1 time(s) across 1 run(s) at **Pay claimant**.
 
 ## What goes wrong
 
-Bank rejected the transfer: account closed
+Bank rejected the transfer: RPC error -32010: account closed
 
 ## How it was resolved
 

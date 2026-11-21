@@ -1,7 +1,7 @@
 # Recipe: Motor Claim Settlement
 
 Workflow version 1.0.0, AWA specification 1.1.
-Compiled from run `7c4e3471-2665-4706-b489-1dd3610ddb14`, which completed in 6.3 s. The journal holds 57 events.
+Compiled from run `5bdc86c3-9735-40a4-865b-6a71c26fecc2`, which completed in 6.5 s. The journal holds 65 events.
 
 This document explains how to build this workflow from scratch and what one real run of it did. Sections 2 to 4 are the build instructions. Section 5 is what the run taught. Section 6 is how to check your build.
 
@@ -12,7 +12,7 @@ Settles a motor insurance claim: registers it, has an AI agent assess the damage
 | In this run | |
 |---|---|
 | Outcome | completed |
-| Duration | 6.3 s |
+| Duration | 6.5 s |
 | Activities accepted | 8 |
 | Attempts made | 10 (2 rejected or errored) |
 | Model tokens | 3580 in, 515 out |
@@ -43,9 +43,19 @@ Map each reference to a model of similar capability in your deployment.
 | Check fraud signals | `tier:fast` | `acme:classifier-small`, temperature 0.2 |
 | Notify claimant | `tier:balanced` | `acme:writer-medium`, temperature 0.2 |
 
+### Callable tools
+
+Each tool an actor may call, and what it runs. Provide every target before running the workflow.
+
+| Activity | Tool | Runs | What it does |
+|---|---|---|---|
+| Assess damage | `price_part` | HTTP GET https://repair-catalogue.example/v2/parts/{part}/price | Price of a replacement part, with fitting, from the repair catalogue. ([docs](https://repair-catalogue.example/openapi.json)) |
+| Verify policy cover | `get_policy` | HTTP GET https://policies.example/api/policies/{policy_number} | The policy's status, cover and excess. |
+| Pay claimant | `transfer` | JSON-RPC payments.transfer at https://payments.example/rpc | Transfer money to the claimant's account. |
+
 ### Engine
 
-An AWA engine that claims these conformance levels: `document`, `core`, `decision`, `verified`, `resilient`, `contract`, `flow`.
+An AWA engine that claims these conformance levels: `document`, `core`, `decision`, `model-decision`, `tools`, `verified`, `resilient`, `contract`, `flow`.
 
 ## 3. Build it, step by step
 
@@ -61,7 +71,7 @@ Steps are in the order this run reached them. Steps the run did not reach follow
 
 **In this run**
 
-- Attempt 1: accepted (the activity took 251 ms in all)
+- Attempt 1: accepted (the activity took 252 ms in all)
 
 Accepted outcome:
 
@@ -77,6 +87,7 @@ Accepted outcome:
 - **Kind**: activity, performed by `ai_agent`, role Damage assessor
 - **Purpose**: Estimate the repair cost and severity from the claim description and photos.
 - **Procedure**: Read the claim description. Identify each damaged part. Price parts and labour from the repair catalogue. State the severity.
+- **Tools it may call**: `price_part` (HTTP GET https://repair-catalogue.example/v2/parts/{part}/price)
 - **Must produce** (outcome contract):
   - an outcome matching this schema:
     - `estimated_cost`: number, required, minimum 0. Repair cost in EUR
@@ -101,12 +112,14 @@ Accepted outcome:
   - Confidence it reported: 0.6
   - Contract: violated (/estimated_cost must be number; Within authority: "estimated_cost <= 50000" does not hold)
   - Engine decision (contract_retry): Re-execute with the violated contract terms as feedback. 2 contract term(s) did not hold and 2 of 3 attempts remained.
-- Attempt 2: accepted (the activity took 1.9 s in all)
+- Attempt 2: accepted (the activity took 2.0 s in all)
   - Model: Use model acme:assessor-large. The role assigned to this activity names this model. The reference is the capability tier "reasoning", which this deployment maps to that model.
   - Plan the actor reported: Re-read the contract feedback → Price each part from the repair catalogue → Sum parts and labour → Return the cost as a number
   - Rationale: The first answer gave the cost as text. Itemising the parts gives a numeric total of 3,200 EUR and satisfies the schema.
   - Alternatives it rejected: Repair rather than replace the tailgate: rejected, the crease runs through the lock housing
   - Confidence it reported: 0.86
+  - Tool call at 2026-11-21T23:07:06.648Z: `price_part` → https://repair-catalogue.example/v2/parts/rear%20bumper/price (http), returned 200 in 176 ms. Arguments: `{"part":"rear bumper","vehicle":"2021 hatchback"}`
+  - Tool call at 2026-11-21T23:07:06.649Z: `price_part` → https://repair-catalogue.example/v2/parts/tailgate/price (http), returned 200 in 152 ms. Arguments: `{"part":"tailgate","vehicle":"2021 hatchback"}`
   - Contract: held
   - Verification: pass, score 100%
     - met: Parts itemised. Expression "parts exists" evaluated to true
@@ -149,7 +162,7 @@ Accepted outcome:
 **In this run**
 
 - Attempt 1: errored: Fraud scoring service timed out
-  - Engine decision (retry): Retry after 318 ms. Attempt 1 raised "Fraud scoring service timed out" (TIMEOUT). The error is retryable and 2 of 2 retries remained.
+  - Engine decision (retry): Retry after 343 ms. Attempt 1 raised "Fraud scoring service timed out" (TIMEOUT). The error is retryable and 2 of 2 retries remained.
 - Attempt 2: accepted (the activity took 1.5 s in all)
   - Model: Use model acme:classifier-small. The role assigned to this activity names this model. The reference is the capability tier "fast", which this deployment maps to that model.
   - Plan the actor reported: Compare claim date with policy start → Check prior claims → Check repairer against watchlist
@@ -170,12 +183,14 @@ Accepted outcome:
 
 - **Kind**: activity, performed by `application`, role Policy system
 - **Purpose**: Confirm the policy was in force and covers this kind of damage.
+- **Tools it may call**: `get_policy` (HTTP GET https://policies.example/api/policies/{policy_number})
 - **Then**:
   - always: go to **Consolidate findings** (taken in this run)
 
 **In this run**
 
-- Attempt 1: accepted (the activity took 401 ms in all)
+- Attempt 1: accepted (the activity took 353 ms in all)
+  - Tool call at 2026-11-21T23:07:07.406Z: `get_policy` → https://policies.example/api/policies/POL-77310 (http), returned 200 in 152 ms. Arguments: `{"policy_number":"POL-77310"}`
 
 Accepted outcome:
 
@@ -202,20 +217,29 @@ Accepted outcome:
 
 ```json
 {
-  "settlement_amount": 2950
+  "settlement_amount": 2950,
+  "estimated_cost": 3200
 }
 ```
 
 ### Step 6: Settlement route
 
-- **Kind**: decision table, hit policy `first`
-- **Purpose**: Choose how the claim is settled from its fraud score and cost.
+- **Kind**: decision, decided by a decision table first, and by a model when no rule matches
+- **Purpose**: Choose how the claim is settled. Clear cases are decided by the table; the rest by a model, within three options.
 
 | # | Fraud score | Estimated cost | route | Go to |
 |---|---|---|---|---|
 | 1 | `>= 0.7` | `-` | "investigate" | Investigate |
 | 2 | `< 0.3` | `< 5000` | "auto" | Reserve funds |
 | default | anything else | anything else |  | Adjuster review |
+
+- **Model**: `tier:fast`, confidence of at least 0.6 required
+- **Instructions to the model**: Decide how to settle a motor claim that the rules did not settle. Prefer review when the cost is high or the fraud score is middling. Choose investigate only for concrete fraud indicators.
+- **Options the model must choose from**:
+  - `auto`: Routine claim that can be paid without a person looking at it Goes to **Reserve funds**.
+  - `review`: A claims adjuster should look at it before payment Goes to **Adjuster review**.
+  - `investigate`: There are concrete signs of fraud Goes to **Investigate**.
+- **If the model gives no valid decision**: go to **Adjuster review**
 
 **In this run**
 
@@ -253,13 +277,15 @@ Accepted outcome:
 
 - **Kind**: activity, performed by `application`, role Finance system
 - **Purpose**: Transfer the settlement to the claimant's account.
+- **Tools it may call**: `transfer` (JSON-RPC payments.transfer at https://payments.example/rpc)
 - **On error**: up to 2 attempts, first delay PT0.2S
 - **Then**:
   - always: go to **Notify claimant** (taken in this run)
 
 **In this run**
 
-- Attempt 1: accepted (the activity took 502 ms in all)
+- Attempt 1: accepted (the activity took 504 ms in all)
+  - Tool call at 2026-11-21T23:07:10.558Z: `transfer` → https://payments.example/rpc#payments.transfer (jsonrpc), returned 200 in 202 ms. Arguments: `{"amount":2950,"reference":"CLM-2041"}`
 
 Accepted outcome:
 
@@ -282,7 +308,7 @@ Accepted outcome:
 
 **In this run**
 
-- Attempt 1: accepted (the activity took 702 ms in all)
+- Attempt 1: accepted (the activity took 701 ms in all)
   - Model: Use model acme:writer-medium. The role assigned to this activity names this model. The reference is the capability tier "balanced", which this deployment maps to that model.
   - Plan the actor reported: State the outcome → State the amount → Keep it short
   - Rationale: A settlement notice should lead with the result.
@@ -397,7 +423,7 @@ flowchart LR
 ## 6. Check your build
 
 1. Save the definition in the appendix as a `.awa.json` file and validate it: schema validation, then integrity validation (specification 4.3).
-2. Run it on an engine claiming `document`, `core`, `decision`, `verified`, `resilient`, `contract`, `flow`, with a journal:
+2. Run it on an engine claiming `document`, `core`, `decision`, `model-decision`, `tools`, `verified`, `resilient`, `contract`, `flow`, with a journal:
 
    ```bash
    awa run workflow.awa.json --journal run.journal.jsonl
@@ -538,7 +564,8 @@ The run was started with this input:
       "retry": {
         "max_attempts": 3,
         "initial_delay": "PT0.2S"
-      }
+      },
+      "tools": []
     },
     {
       "id": "47a33422-41f7-57f0-b94a-503dcca1edc5",
@@ -613,10 +640,41 @@ The run was started with this input:
         "budgets": {
           "max_attempts": 3,
           "max_duration": "PT30S",
-          "max_tokens": 20000
+          "max_tokens": 20000,
+          "max_tool_calls": 8
         },
         "on_violation": "escalate_human"
-      }
+      },
+      "tools": [
+        {
+          "name": "price_part",
+          "description": "Price of a replacement part, with fitting, from the repair catalogue.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "part"
+            ],
+            "properties": {
+              "part": {
+                "type": "string",
+                "description": "Part name, e.g. rear bumper"
+              },
+              "vehicle": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "GET",
+            "url": "https://repair-catalogue.example/v2/parts/{part}/price",
+            "headers": {
+              "authorization": "Bearer {{secret:CATALOGUE_KEY}}"
+            }
+          },
+          "documentation": "https://repair-catalogue.example/openapi.json"
+        }
+      ]
     },
     {
       "id": "51b0afff-918b-534d-a81e-df9e9d91ad6c",
@@ -645,7 +703,8 @@ The run was started with this input:
           }
         ],
         "on_violation": "fail"
-      }
+      },
+      "tools": []
     },
     {
       "id": "656363b2-21bb-5fce-9d6d-9e7ff8fd91c2",
@@ -661,7 +720,29 @@ The run was started with this input:
       "controls": [],
       "is_expandable": false,
       "skills": [],
-      "tool_requirements": []
+      "tool_requirements": [],
+      "tools": [
+        {
+          "name": "get_policy",
+          "description": "The policy's status, cover and excess.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "policy_number"
+            ],
+            "properties": {
+              "policy_number": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "GET",
+            "url": "https://policies.example/api/policies/{policy_number}"
+          }
+        }
+      ]
     },
     {
       "id": "8eac4bf0-c46a-584b-b95b-b6f9e274706f",
@@ -678,7 +759,8 @@ The run was started with this input:
       "is_expandable": false,
       "skills": [],
       "tool_requirements": [],
-      "join": "all"
+      "join": "all",
+      "tools": []
     },
     {
       "id": "c622ddbc-7f31-50a1-adbd-410ff7c96c3e",
@@ -694,7 +776,8 @@ The run was started with this input:
       "controls": [],
       "is_expandable": false,
       "skills": [],
-      "tool_requirements": []
+      "tool_requirements": [],
+      "tools": []
     },
     {
       "id": "e33c27e8-26f1-50bf-84e4-970831581990",
@@ -710,7 +793,8 @@ The run was started with this input:
       "controls": [],
       "is_expandable": false,
       "skills": [],
-      "tool_requirements": []
+      "tool_requirements": [],
+      "tools": []
     },
     {
       "id": "44ce5a86-3be7-53f4-a733-da8b58d89544",
@@ -729,7 +813,8 @@ The run was started with this input:
       "tool_requirements": [],
       "compensation": {
         "activity_id": "0c8380a9-784a-53ff-993d-11df7484c35f"
-      }
+      },
+      "tools": []
     },
     {
       "id": "ec20a080-3057-5f9c-a694-7040111b09e7",
@@ -749,7 +834,34 @@ The run was started with this input:
       "retry": {
         "max_attempts": 2,
         "initial_delay": "PT0.2S"
-      }
+      },
+      "tools": [
+        {
+          "name": "transfer",
+          "description": "Transfer money to the claimant's account.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "amount",
+              "reference"
+            ],
+            "properties": {
+              "amount": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "reference": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "jsonrpc",
+            "endpoint": "https://payments.example/rpc",
+            "method": "payments.transfer"
+          }
+        }
+      ]
     },
     {
       "id": "f7054c16-d7aa-58a0-9873-376d4f409b43",
@@ -774,7 +886,8 @@ The run was started with this input:
           }
         ],
         "on_violation": "fail"
-      }
+      },
+      "tools": []
     },
     {
       "id": "0c8380a9-784a-53ff-993d-11df7484c35f",
@@ -790,7 +903,8 @@ The run was started with this input:
       "controls": [],
       "is_expandable": false,
       "skills": [],
-      "tool_requirements": []
+      "tool_requirements": [],
+      "tools": []
     }
   ],
   "edges": [
@@ -961,7 +1075,7 @@ The run was started with this input:
     {
       "id": "1a533839-b043-5ff9-86e4-1bfe726fa52f",
       "name": "Settlement route",
-      "description": "Choose how the claim is settled from its fraud score and cost.",
+      "description": "Choose how the claim is settled. Clear cases are decided by the table; the rest by a model, within three options.",
       "decision_table": {
         "hit_policy": "first",
         "inputs": [
@@ -1006,6 +1120,35 @@ The run was started with this input:
             "output_edge_id": "ad7a3485-d9af-5029-9eae-6cd135694524"
           }
         ]
+      },
+      "decision_model": {
+        "model": "tier:fast",
+        "instructions": "Decide how to settle a motor claim that the rules did not settle. Prefer review when the cost is high or the fraud score is middling. Choose investigate only for concrete fraud indicators.",
+        "options": [
+          {
+            "id": "auto",
+            "description": "Routine claim that can be paid without a person looking at it",
+            "output_edge_id": "ad7a3485-d9af-5029-9eae-6cd135694524"
+          },
+          {
+            "id": "review",
+            "description": "A claims adjuster should look at it before payment",
+            "output_edge_id": "925e230b-20b3-509e-bfce-4f343e2947a4"
+          },
+          {
+            "id": "investigate",
+            "description": "There are concrete signs of fraud",
+            "output_edge_id": "3923e5db-d37a-58d5-afcf-099509ffac44"
+          }
+        ],
+        "inputs": [
+          "fraud_score",
+          "estimated_cost",
+          "severity",
+          "signals"
+        ],
+        "min_confidence": 0.6,
+        "votes": 1
       },
       "default_output_edge_id": "925e230b-20b3-509e-bfce-4f343e2947a4"
     }

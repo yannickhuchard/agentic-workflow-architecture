@@ -202,6 +202,13 @@
                     "description": "reviewed: only entries a person has reviewed. draft: unreviewed entries as well."
                 }
             }
+        },
+        "tools": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/tool"
+            },
+            "description": "Functions the actor may call while performing the activity. Every call is journalled with a link to what it ran."
         }
     },
     "$defs": {
@@ -517,6 +524,12 @@
                             "type": "integer",
                             "minimum": 1,
                             "description": "Most model tokens, input plus output, the visit may consume, including judge tokens"
+                        },
+                        "max_tool_calls": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "default": 16,
+                            "description": "Most tool calls allowed in one attempt"
                         }
                     }
                 },
@@ -530,6 +543,181 @@
                     "description": "What happens when the outcome is rejected and no automatic attempt remains"
                 }
             }
+        },
+        "tool": {
+            "type": "object",
+            "required": [
+                "name",
+                "binding"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_-]{0,63}$",
+                    "description": "Name the actor calls the tool by. Unique within the activity."
+                },
+                "description": {
+                    "type": "string",
+                    "description": "What the tool does and when to use it. Shown to the model."
+                },
+                "parameters": {
+                    "type": "object",
+                    "description": "JSON Schema of the arguments object. Arguments are validated against it before the tool runs."
+                },
+                "binding": {
+                    "$ref": "#/$defs/tool_binding"
+                },
+                "documentation": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "Where the underlying interface is documented, e.g. an OpenAPI document"
+                },
+                "timeout": {
+                    "$ref": "awa.schema.json#/$defs/duration",
+                    "default": "PT30S"
+                }
+            }
+        },
+        "tool_binding": {
+            "description": "What actually runs when the tool is called",
+            "oneOf": [
+                {
+                    "type": "object",
+                    "required": [
+                        "kind",
+                        "url"
+                    ],
+                    "properties": {
+                        "kind": {
+                            "const": "http"
+                        },
+                        "method": {
+                            "type": "string",
+                            "enum": [
+                                "GET",
+                                "POST",
+                                "PUT",
+                                "PATCH",
+                                "DELETE",
+                                "HEAD"
+                            ],
+                            "default": "GET"
+                        },
+                        "url": {
+                            "type": "string",
+                            "description": "URL. {name} is replaced by the argument of that name."
+                        },
+                        "headers": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            },
+                            "description": "Request headers. {{secret:NAME}} is replaced by a secret the deployment supplies. Never journalled."
+                        }
+                    }
+                },
+                {
+                    "type": "object",
+                    "required": [
+                        "kind",
+                        "command"
+                    ],
+                    "properties": {
+                        "kind": {
+                            "const": "command"
+                        },
+                        "command": {
+                            "type": "string",
+                            "description": "Program to run. Runs only if the deployment allows it."
+                        },
+                        "args": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "Arguments. {name} is replaced by the argument of that name. No shell is involved."
+                        }
+                    }
+                },
+                {
+                    "type": "object",
+                    "required": [
+                        "kind",
+                        "endpoint",
+                        "method"
+                    ],
+                    "properties": {
+                        "kind": {
+                            "const": "jsonrpc"
+                        },
+                        "endpoint": {
+                            "type": "string",
+                            "format": "uri"
+                        },
+                        "method": {
+                            "type": "string"
+                        }
+                    }
+                },
+                {
+                    "type": "object",
+                    "required": [
+                        "kind",
+                        "endpoint",
+                        "service",
+                        "method"
+                    ],
+                    "properties": {
+                        "kind": {
+                            "const": "grpc"
+                        },
+                        "endpoint": {
+                            "type": "string"
+                        },
+                        "service": {
+                            "type": "string"
+                        },
+                        "method": {
+                            "type": "string"
+                        }
+                    }
+                },
+                {
+                    "type": "object",
+                    "required": [
+                        "kind",
+                        "server",
+                        "tool"
+                    ],
+                    "properties": {
+                        "kind": {
+                            "const": "mcp"
+                        },
+                        "server": {
+                            "type": "string"
+                        },
+                        "tool": {
+                            "type": "string"
+                        }
+                    }
+                },
+                {
+                    "type": "object",
+                    "required": [
+                        "kind",
+                        "name"
+                    ],
+                    "properties": {
+                        "kind": {
+                            "const": "function"
+                        },
+                        "name": {
+                            "type": "string",
+                            "description": "A handler registered with the engine"
+                        }
+                    }
+                }
+            ]
         }
     }
 }

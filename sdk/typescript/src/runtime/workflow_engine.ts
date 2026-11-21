@@ -27,7 +27,10 @@ import { check_contract, contract_feedback, outcome_of } from './outcome_contrac
 import { PersistenceAdapter, WorkflowState, serialize_token, deserialize_token } from './persistence';
 import { RetryConfig, DEFAULT_RETRY_CONFIG, calculate_retry_delay, DeadLetterQueue } from './retry';
 import { Logger } from '../server/logger';
-import { ModelProvider, ModelRegistry, GoogleModelProvider } from './models';
+import { ModelProvider, ModelRegistry, ModelRouter, GoogleModelProvider, RouteAttempt } from './models';
+import { ToolOptions, ToolRunner } from './tools';
+import { decide_with_model } from './decision_model';
+import { ActorContext } from './actors/actor';
 import { KnowledgeBase, guidance } from './knowledge';
 
 export type EngineStatus = 'running' | 'paused' | 'completed' | 'failed' | 'idle' | 'waiting_human';
@@ -92,7 +95,9 @@ export interface WorkflowEngineOptions {
     /** Provider used for model references that name none. Default: the first registered. */
     default_model_provider?: string;
     /** Capability tiers mapped to model references, e.g. { fast: 'google:gemini-3.1-flash-lite' } */
-    model_tiers?: Record<string, string>;
+    model_tiers?: Record<string, string | string[]>;
+    /** How the tools declared on activities are executed, and what they are allowed to do */
+    tools?: ToolOptions;
     /** Knowledge base that activities with a `knowledge` binding draw on. */
     knowledge?: KnowledgeBase;
     /** If true, the run's journal is distilled into the knowledge base when the run ends. */
@@ -161,6 +166,7 @@ export class WorkflowEngine {
     private deadLetterQueue: DeadLetterQueue;
     private sleep: (ms: number) => Promise<void>;
     private models: ModelRegistry;
+    private router: ModelRouter;
     private executionStats: {
         startTime: Date;
         stepsCount: number;
@@ -204,6 +210,8 @@ export class WorkflowEngine {
         for (const provider of options.model_providers || []) this.models.register(provider);
         if (options.default_model_provider) this.models.set_default_provider(options.default_model_provider);
         for (const [tier, ref] of Object.entries(options.model_tiers || {})) this.models.set_tier(tier, ref);
+
+        this.router = new ModelRouter(this.models);
 
         this.verificationEngine = new VerificationEngine({
             models: this.models,
@@ -820,8 +828,18 @@ export class WorkflowEngine {
             // --- execute -------------------------------------------------
             let output: Record<string, unknown>;
             try {
+                const context: ActorContext = {};
+                if ((activity.tools || []).length > 0) {
+                    context.tools = new ToolRunner(
+                        activity.tools,
+                        this.options.tools || {},
+                        event => this.record({ ...event, ...ref, attempt }),
+                        value => this.journal.payload(value),
+                        { max_calls: budgets?.max_tool_calls ?? 16, simulate: this.simulate },
+                    );
+                }
                 const raw = await this.withTimeout(
-                    actor.execute(activity, { ...currentInputs, _attempt: attempt }), timeoutMs, activity.name);
+                    actor.execute(activity, { ...currentInputs, _attempt: attempt }, context), timeoutMs, activity.name);
                 output = this.extractTraces(raw, ref, attempt);
             } catch (error: unknown) {
                 errors++;
@@ -1083,7 +1101,7 @@ export class WorkflowEngine {
         const { _reasoning, _model, ...output } = result;
 
         if (_model && typeof _model === 'object') {
-            const model = _model as { id?: string; provider?: string; source?: string; temperature?: number; tier?: string };
+            const model = _model as { id?: string; provider?: string; source?: string; temperature?: number; tier?: string; route?: RouteAttempt[] };
             this.record({
                 type: 'meta.recorded', level: 'meta', ...ref, attempt,
                 data: {
@@ -1096,6 +1114,7 @@ export class WorkflowEngine {
                     model,
                 },
             });
+            this.recordRoute(model.route, ref, attempt);
         }
 
         if (_reasoning && typeof _reasoning === 'object') {
@@ -1105,43 +1124,134 @@ export class WorkflowEngine {
         return output;
     }
 
+    /** Journal a model route that was not simply "first candidate used": a skip or a fallback happened */
+    private recordRoute(route: RouteAttempt[] | undefined, ref: { token_id: UUID; node_id: UUID; node_name?: string }, attempt?: number): void {
+        if (!route || route.length < 2) return;
+        const used = route.find(r => r.outcome === 'used');
+        this.record({
+            type: 'meta.recorded', level: 'meta', ...ref, ...(attempt ? { attempt } : {}),
+            data: {
+                subject: 'model_route',
+                decision: used ? `Route to ${used.ref}` : 'No model could serve the request',
+                rationale: route.filter(r => r.outcome !== 'used')
+                    .map(r => `${r.ref} was ${r.outcome === 'skipped' ? 'skipped' : 'tried and failed'}${r.reason ? `: ${r.reason}` : ''}`).join('. ') + '.',
+                route,
+            },
+        });
+    }
+
     /**
      * Process a decision node
      */
     private async processDecisionNode(token: Token, decision: DecisionNode): Promise<void> {
         this.log(`Evaluating decision node "${decision.name}"`);
 
-        const result = evaluate_decision(decision, token.contextData);
-        const edgeId = result.output_edge_id || decision.default_output_edge_id;
-        const inputs = Object.fromEntries(
-            decision.decision_table.inputs.map(column => [column.name, token.contextData[column.name]]));
+        const ref = { token_id: token.id, ...this.nodeRef(decision.id) };
+        const table = decision.decision_table;
+        const model = decision.decision_model;
+        const strategy = model ? (model.strategy || (table ? 'table_first' : 'model')) : 'table';
+
+        // --- decision table (deterministic) ------------------------------
+        const result = table && strategy !== 'model' ? evaluate_decision(decision, token.contextData) : undefined;
+        let edgeId = result?.matched ? result.output_edge_id : undefined;
+        let method: 'table' | 'model' | 'default' | 'none' = edgeId ? 'table' : 'none';
+        let outputs: Record<string, unknown> = result?.matched ? result.outputs : {};
+        let modelData: Record<string, unknown> = {};
+
+        // --- decision model ----------------------------------------------
+        if (!edgeId && model) {
+            const scripted = this.simulate ? this.options.simulated_outputs?.[decision.name]?.output : undefined;
+            const decided = scripted
+                ? {
+                    option: model.options.find(o => o.id === scripted.option)?.id,
+                    edge_id: model.options.find(o => o.id === scripted.option)?.output_edge_id,
+                    confidence: scripted.confidence as number | undefined,
+                    rationale: 'Simulated decision',
+                    reason: model.options.some(o => o.id === scripted.option) ? undefined : `"${scripted.option}" is not one of the options`,
+                    votes: [], route: [] as RouteAttempt[], usage: { input_tokens: 0, output_tokens: 0 }, model: undefined,
+                }
+                : this.simulate
+                    ? { reason: 'simulation mode supplies no model decision', votes: [], route: [] as RouteAttempt[], usage: { input_tokens: 0, output_tokens: 0 }, option: undefined, edge_id: undefined, confidence: undefined, rationale: undefined, model: undefined }
+                    : await decide_with_model(decision, token.contextData, this.router, this.defaultAIModelId);
+
+            this.executionStats.inputTokens += decided.usage.input_tokens;
+            this.executionStats.outputTokens += decided.usage.output_tokens;
+
+            if (decided.model) {
+                this.record({
+                    type: 'meta.recorded', level: 'meta', ...ref,
+                    data: {
+                        subject: 'model_selection',
+                        decision: `Use model ${decided.model.provider}:${decided.model.id}`,
+                        rationale: (model.model ? 'The decision names this model.' : 'The decision names no model, so the engine default applies.')
+                            + (decided.model.tier ? ` The reference is the capability tier "${decided.model.tier}", which this deployment maps to that model.` : ''),
+                        model: decided.model,
+                    },
+                });
+            }
+            this.recordRoute(decided.route, ref);
+            if (decided.rationale) {
+                this.record({
+                    type: 'reasoning.recorded', level: 'reasoning', ...ref,
+                    data: { source: 'decision_model', rationale: decided.rationale, confidence: decided.confidence, plan: [], option: decided.option },
+                });
+            }
+
+            modelData = {
+                option: decided.option,
+                confidence: decided.confidence,
+                min_confidence: model.min_confidence,
+                votes: decided.votes.map(v => ({ option: v.option, confidence: v.confidence, invalid: v.invalid })),
+                ...(decided.reason ? { no_decision_reason: decided.reason } : {}),
+                usage: decided.usage,
+            };
+            if (decided.edge_id) {
+                edgeId = decided.edge_id;
+                method = 'model';
+                outputs = { option: decided.option, confidence: decided.confidence };
+            }
+        }
+
+        if (!edgeId && decision.default_output_edge_id) {
+            edgeId = decision.default_output_edge_id;
+            method = 'default';
+        }
+
+        const inputs = table
+            ? Object.fromEntries(table.inputs.map(column => [column.name, token.contextData[column.name]]))
+            : Object.fromEntries((model?.inputs || []).map(name => [name, token.contextData[name]]));
 
         token.mergeData({
             _decision_node_id: decision.id,
-            _decision_matched: result.matched,
-            _decision_outputs: result.outputs,
+            _decision_matched: method === 'table' || method === 'model',
+            _decision_method: method,
+            _decision_outputs: outputs,
         });
 
         this.record({
-            type: 'decision.evaluated', token_id: token.id, ...this.nodeRef(decision.id),
+            type: 'decision.evaluated', ...ref,
             data: {
-                hit_policy: decision.decision_table.hit_policy,
+                method,
+                strategy,
+                ...(table ? { hit_policy: table.hit_policy } : {}),
                 inputs: this.journal.payload(inputs),
-                matched: result.matched,
-                matched_rules: result.matched_rules.map(rule => ({
-                    index: decision.decision_table.rules.indexOf(rule),
+                matched: method === 'table' || method === 'model',
+                matched_rules: (result?.matched_rules || []).map(rule => ({
+                    index: table!.rules.indexOf(rule),
                     input_entries: rule.input_entries,
                     description: rule.description,
                 })),
-                outputs: result.outputs,
+                outputs,
                 edge_id: edgeId,
-                used_default: !result.matched || !result.output_edge_id,
+                used_default: method === 'default',
+                ...(model ? { model: modelData } : {}),
             },
         });
 
         const target = edgeId ? this.getEdgeTarget(edgeId) : undefined;
         if (!edgeId || !target) {
-            this.failToken(token, new ActivityError('No matching decision rule and no default path', 'NO_ROUTE'));
+            this.failToken(token, new ActivityError(
+                `No matching decision rule and no default path${modelData.no_decision_reason ? ` (model: ${modelData.no_decision_reason})` : ''}`, 'NO_ROUTE'));
             return;
         }
 

@@ -30,7 +30,9 @@ AWA 1.1 is a specification with a reference implementation and a conformance sui
 | **Flow** | Sequence, conditional routing, parallel split and join, timers, compensation | Sections 5, 13 |
 | **Outcome contracts** | Per activity: output schema, postconditions, budgets, escalation to a human. Checked deterministically, failing closed | Sections 7, 11 |
 | **Resilience** | Retry with backoff, dead letters, checkpoints, recovery in another process, idempotency keys | Section 10 |
-| **Model binding** | Models named by capability tier (`tier:reasoning`, `tier:fast`), resolved to any provider at run time | Section 12 |
+| **Model routing** | Models named by capability tier (`tier:reasoning`, `tier:fast`). One router resolves a tier to Google, OpenAI, any open-source model server, or a small model embedded in the engine, and falls back down the list when a provider fails | Section 12 |
+| **Model decisions** | A decision node can be decided by a model, within options the workflow enumerates; a table can decide the anticipated cases first | Section 16 |
+| **Tools** | Agents call HTTP APIs, commands, JSON-RPC, gRPC and MCP tools. Every call is journalled: which tool, when, arguments, result, and a link to what ran | Section 17 |
 | **Journal** | An append-only record of every run at three levels: execution, the actor's reasoning, and the engine's own decisions | Section 9 |
 | **Explanation** | A replay you can scrub through, and a recipe that explains how to rebuild the workflow from scratch | Section 14 |
 | **Knowledge** | Strategies, failure patterns and lessons distilled from runs, compounding over time, reviewed by people, exported as an Open Knowledge Format bundle | Section 15 |
@@ -41,7 +43,7 @@ The full text is in [`docs/specification.md`](docs/specification.md). What it me
 
 | SDK | Conformance levels |
 |---|---|
-| TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `flow`, plus recipe, replay and knowledge |
+| TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `flow`, plus recipe, replay, knowledge, model routing, model decisions and tools |
 | Python | `core`, and most of `document` |
 | Java | Data model only |
 
@@ -95,6 +97,19 @@ Run from the command line, keeping the journal:
 ```bash
 npx awa run workflow.awa.json --journal run.journal.jsonl --key YOUR_GEMINI_API_KEY
 ```
+
+Choose model providers, in order of preference. Each tier falls back down the list, so this run keeps working on a local model if the cloud one fails:
+
+```bash
+npx awa run workflow.awa.json --providers google,ollama,embedded --journal run.journal.jsonl
+```
+
+| Provider | Needs |
+|---|---|
+| `google` | `GEMINI_API_KEY` |
+| `openai` | `OPENAI_API_KEY` |
+| `ollama` | A running [Ollama](https://ollama.com); `OLLAMA_BASE_URL` if not on localhost |
+| `embedded` | `npm install @huggingface/transformers`. Runs a small open-source model in-process: no server, no key |
 
 Turn the journal into a recipe, and into knowledge:
 

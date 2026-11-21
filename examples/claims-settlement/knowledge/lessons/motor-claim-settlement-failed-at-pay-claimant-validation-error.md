@@ -1,7 +1,7 @@
 ---
 type: Lesson
 title: Motor Claim Settlement fails at Pay claimant (VALIDATION_ERROR)
-description: 'The run failed at "Pay claimant": Bank rejected the transfer: account closed'
+description: 'The run failed at "Pay claimant": Bank rejected the transfer: RPC error -32010: account closed'
 resource: urn:awa:workflow:42ddec2f-18d0-5b06-837b-bf1e9c8cecdb:node:ec20a080-3057-5f9c-a694-7040111b09e7
 tags:
   - run-failure
@@ -9,15 +9,15 @@ tags:
 status: draft
 generated:
   by: agent:awa-distiller
-  at: "2026-11-21T22:45:56.672Z"
+  at: "2026-11-21T23:07:17.510Z"
 sources:
-  - id: run-ac863140
-    resource: urn:awa:run:ac863140-d3ec-4a67-b34b-aaaafca20cd5
-    title: Run ac863140-d3ec-4a67-b34b-aaaafca20cd5, journal events 50, 52
-    last_modified: "2026-11-21T22:45:56.672Z"
+  - id: run-a49c556e
+    resource: urn:awa:run:a49c556e-fd4b-4da5-9fcb-569a922e0859
+    title: Run a49c556e-fd4b-4da5-9fcb-569a922e0859, journal events 58, 60
+    last_modified: "2026-11-21T23:07:17.510Z"
     x-awa-event-seqs:
-      - 50
-      - 52
+      - 58
+      - 60
 x-awa-entry-type: lesson
 x-awa-observations: 1
 x-awa-scope:
@@ -31,8 +31,8 @@ x-awa-counts:
   compensations_succeeded: 1
 x-awa-latest:
   code: VALIDATION_ERROR
-  message: "Bank rejected the transfer: account closed"
-x-awa-created-at: "2026-11-21T22:45:56.672Z"
+  message: "Bank rejected the transfer: RPC error -32010: account closed"
+x-awa-created-at: "2026-11-21T23:07:17.510Z"
 ---
 
 # Motor Claim Settlement fails at Pay claimant (VALIDATION_ERROR)
@@ -41,7 +41,7 @@ Seen 1 time(s).
 
 ## Cause
 
-Bank rejected the transfer: account closed
+Bank rejected the transfer: RPC error -32010: account closed
 
 ## Effects undone
 
@@ -49,4 +49,4 @@ Bank rejected the transfer: account closed
 
 ## Related
 
-- [Pay claimant: validation error](/failure-patterns/motor-claim-settlement-pay-claimant-validation-error-bank-rejected-the-transfer-account-closed.md)
+- [Pay claimant: validation error](/failure-patterns/motor-claim-settlement-pay-claimant-validation-error-bank-rejected-the-transfer-rpc-error-n-account-closed.md)

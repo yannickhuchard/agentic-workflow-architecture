@@ -156,7 +156,8 @@
         "budgets": {
           "max_attempts": 3,
           "max_duration": "PT30S",
-          "max_tokens": 20000
+          "max_tokens": 20000,
+          "max_tool_calls": 8
         },
         "on_violation": "escalate_human"
       },
@@ -172,7 +173,37 @@
             "expression": "parts exists"
           }
         ]
-      }
+      },
+      "tools": [
+        {
+          "name": "price_part",
+          "description": "Price of a replacement part, with fitting, from the repair catalogue.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "part"
+            ],
+            "properties": {
+              "part": {
+                "type": "string",
+                "description": "Part name, e.g. rear bumper"
+              },
+              "vehicle": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "GET",
+            "url": "https://repair-catalogue.example/v2/parts/{part}/price",
+            "headers": {
+              "authorization": "Bearer {{secret:CATALOGUE_KEY}}"
+            }
+          },
+          "documentation": "https://repair-catalogue.example/openapi.json"
+        }
+      ]
     },
     {
       "id": "51b0afff-918b-534d-a81e-df9e9d91ad6c",
@@ -198,7 +229,29 @@
       "name": "Verify policy cover",
       "role_id": "f8419355-d1ec-5d10-8152-eaebec2b4e95",
       "actor_type": "application",
-      "description": "Confirm the policy was in force and covers this kind of damage."
+      "description": "Confirm the policy was in force and covers this kind of damage.",
+      "tools": [
+        {
+          "name": "get_policy",
+          "description": "The policy's status, cover and excess.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "policy_number"
+            ],
+            "properties": {
+              "policy_number": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "GET",
+            "url": "https://policies.example/api/policies/{policy_number}"
+          }
+        }
+      ]
     },
     {
       "id": "8eac4bf0-c46a-584b-b95b-b6f9e274706f",
@@ -241,7 +294,34 @@
       "retry": {
         "max_attempts": 2,
         "initial_delay": "PT0.2S"
-      }
+      },
+      "tools": [
+        {
+          "name": "transfer",
+          "description": "Transfer money to the claimant's account.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "amount",
+              "reference"
+            ],
+            "properties": {
+              "amount": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "reference": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "jsonrpc",
+            "endpoint": "https://payments.example/rpc",
+            "method": "payments.transfer"
+          }
+        }
+      ]
     },
     {
       "id": "f7054c16-d7aa-58a0-9873-376d4f409b43",
@@ -270,7 +350,7 @@
     {
       "id": "1a533839-b043-5ff9-86e4-1bfe726fa52f",
       "name": "Settlement route",
-      "description": "Choose how the claim is settled from its fraud score and cost.",
+      "description": "Choose how the claim is settled. Clear cases are decided by the table; the rest by a model, within three options.",
       "decision_table": {
         "hit_policy": "first",
         "inputs": [
@@ -316,7 +396,35 @@
           }
         ]
       },
-      "default_output_edge_id": "925e230b-20b3-509e-bfce-4f343e2947a4"
+      "default_output_edge_id": "925e230b-20b3-509e-bfce-4f343e2947a4",
+      "decision_model": {
+        "model": "tier:fast",
+        "instructions": "Decide how to settle a motor claim that the rules did not settle. Prefer review when the cost is high or the fraud score is middling. Choose investigate only for concrete fraud indicators.",
+        "options": [
+          {
+            "id": "auto",
+            "description": "Routine claim that can be paid without a person looking at it",
+            "output_edge_id": "ad7a3485-d9af-5029-9eae-6cd135694524"
+          },
+          {
+            "id": "review",
+            "description": "A claims adjuster should look at it before payment",
+            "output_edge_id": "925e230b-20b3-509e-bfce-4f343e2947a4"
+          },
+          {
+            "id": "investigate",
+            "description": "There are concrete signs of fraud",
+            "output_edge_id": "3923e5db-d37a-58d5-afcf-099509ffac44"
+          }
+        ],
+        "inputs": [
+          "fraud_score",
+          "estimated_cost",
+          "severity",
+          "signals"
+        ],
+        "min_confidence": 0.6
+      }
     }
   ],
   "edges": [

@@ -28,6 +28,7 @@ export type JournalEventType =
     | 'activity.retry_scheduled' | 'activity.dead_lettered'
     | 'activity.compensated' | 'activity.compensation_failed'
     | 'decision.evaluated'
+    | 'tool.invoked' | 'tool.completed' | 'tool.failed'
     | 'verification.completed'
     | 'contract.checked' | 'contract.escalated'
     | 'timer.started' | 'timer.fired'

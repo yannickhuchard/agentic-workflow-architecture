@@ -7,6 +7,7 @@ One workflow that exercises most of AWA 1.1, with two recorded runs, the documen
 | `claims-settlement.awa.json` | The workflow definition |
 | `runs/completed.journal.jsonl` | Journal of a run that settles the claim |
 | `runs/failed-and-compensated.journal.jsonl` | Journal of a run whose payment fails; the reserved funds are released |
+| `runs/model-decision.journal.jsonl` | Journal of a run no table rule covers, so a model decides the route |
 | `RECIPE.md` | Recipe compiled from the completed run |
 | `runs/failed-and-compensated.recipe.md` | Recipe compiled from the failed run |
 | `knowledge/` | Knowledge distilled from both runs, as an Open Knowledge Format bundle |
@@ -21,14 +22,15 @@ One workflow that exercises most of AWA 1.1, with two recorded runs, the documen
 | An agent corrected by contract feedback | Assess damage: attempt 1 returns the cost as text and is rejected; attempt 2 is accepted |
 | Retry with backoff after an error | Check fraud signals: attempt 1 times out |
 | Parallel split and synchronising join | Assess damage → Check fraud signals and Verify policy cover → Consolidate findings |
-| Decision table | Settlement route |
+| Decision table, then a model for what the table does not cover | Settlement route |
+| Tools, each call journalled with its link | `price_part` and `get_policy` (HTTP), `transfer` (JSON-RPC) |
 | Timer event | Bank cut-off |
 | Compensation | Reserve funds is undone by Release funds when Pay claimant fails |
 | Model tiers | The roles name `tier:reasoning`, `tier:fast` and `tier:balanced` |
 
 ## See it
 
-Open `tools/visualization/replay.html` in a browser and choose a sample run. Both runs of this example are built in.
+Open `tools/visualization/replay.html` in a browser and choose a sample run. The three runs of this example are built in.
 
 ## Run it yourself
 
