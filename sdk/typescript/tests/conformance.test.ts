@@ -139,3 +139,26 @@ describe('Conformance: published examples', () => {
         });
     }
 });
+
+describe('Published examples run in simulation', () => {
+    // Simulated actors return no business data, so an example whose routing
+    // depends on data ships a simulation.json saying what each activity returns.
+    const dirs = fs.readdirSync(path.join(ROOT, 'examples'))
+        .map(dir => path.join(ROOT, 'examples', dir))
+        .filter(dir => list(dir).some(f => f.endsWith('.awa.json')));
+
+    for (const dir of dirs) {
+        const file = list(dir).find(f => f.endsWith('.awa.json'))!;
+        it(`${path.relative(ROOT, file)} completes`, async () => {
+            const fixture = path.join(dir, 'simulation.json');
+            const engine = new WorkflowEngine(parse_document(read(file)), {
+                simulate: true,
+                simulated_outputs: fs.existsSync(fixture) ? read(fixture) : undefined,
+                execution_logger: silent_logger,
+                sleep: async () => { },
+            });
+            await engine.start();
+            expect(await engine.run()).toBe('completed');
+        }, 30000);
+    }
+});

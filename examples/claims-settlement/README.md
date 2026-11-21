@@ -11,6 +11,7 @@ One workflow that exercises most of AWA 1.1, with two recorded runs, the documen
 | `runs/failed-and-compensated.recipe.md` | Recipe compiled from the failed run |
 | `knowledge/` | Knowledge distilled from both runs, as an Open Knowledge Format bundle |
 | `make-runs.mjs` | Regenerates all of the above |
+| `simulation.json` | What each activity returns when the workflow is run with `--simulate` |
 
 ## What the workflow shows
 
@@ -28,6 +29,12 @@ One workflow that exercises most of AWA 1.1, with two recorded runs, the documen
 ## See it
 
 Open `tools/visualization/replay.html` in a browser and choose a sample run. Both runs of this example are built in.
+
+## Run it yourself
+
+```bash
+awa run claims-settlement.awa.json --simulate --outputs simulation.json --journal my-run.journal.jsonl
+```
 
 ## Regenerate
 

@@ -1,0 +1,26 @@
+{
+  "Check Inventory": {
+    "output": {
+      "validation_passed": true,
+      "order_total": 240,
+      "is_flagged": false,
+      "approved": true
+    }
+  },
+  "Manual Approval": {
+    "output": {
+      "validation_passed": true,
+      "order_total": 240,
+      "is_flagged": false,
+      "approved": true
+    }
+  },
+  "Validate Order": {
+    "output": {
+      "validation_passed": true,
+      "order_total": 240,
+      "is_flagged": false,
+      "approved": true
+    }
+  }
+}

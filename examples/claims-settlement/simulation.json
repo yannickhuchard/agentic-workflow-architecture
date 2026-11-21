@@ -1,0 +1,20 @@
+{
+  "Register claim": { "output": { "claim_id": "CLM-2041", "policy_number": "POL-77310" } },
+  "Assess damage": {
+    "attempts": [
+      { "output": { "output": { "estimated_cost": "about 3,200 EUR", "severity": "moderate", "summary": "Rear bumper and tailgate damaged." } } },
+      { "output": { "output": { "estimated_cost": 3200, "severity": "moderate", "summary": "Low-speed rear-end collision. Rear bumper and tailgate need replacing.", "parts": ["rear bumper", "tailgate"] } } }
+    ]
+  },
+  "Check fraud signals": {
+    "attempts": [
+      { "error": "Fraud scoring service timed out", "code": "TIMEOUT" },
+      { "output": { "output": { "fraud_score": 0.12 } } }
+    ]
+  },
+  "Verify policy cover": { "output": { "cover_confirmed": true, "excess": 250 } },
+  "Consolidate findings": { "output": { "settlement_amount": 2950 } },
+  "Reserve funds": { "output": { "reservation_id": "RSV-90112", "reserved": 2950 } },
+  "Pay claimant": { "output": { "payment_id": "PAY-55018", "paid": 2950 } },
+  "Notify claimant": { "output": { "output": { "message": "Your claim has been settled." } } }
+}

@@ -66,6 +66,13 @@ export interface WorkflowEngineOptions {
     verification_model_id?: string;
     /** Run in simulation mode (mocks AI and Human interactions) */
     simulate?: boolean;
+    /**
+     * In simulation mode, what each activity returns, by activity name. Each
+     * entry gives `output`, or `error` (with an optional `code`), or `attempts`:
+     * a list of those, one per execution, the last repeating. Activities not
+     * listed use the built-in mocks, which return no business data.
+     */
+    simulated_outputs?: Record<string, SimulatedOutput>;
     /** Custom actor implementations per actor type. Overrides the built-in actors. */
     actors?: Partial<Record<Activity['actor_type'], Actor>>;
     /** Identifier of this run. Generated if absent. */
@@ -92,6 +99,13 @@ export interface WorkflowEngineOptions {
     learn?: boolean;
     /** Replaces the delay between retries. Tests use this to avoid real waiting. */
     sleep?: (ms: number) => Promise<void>;
+}
+
+export interface SimulatedOutput {
+    output?: Record<string, unknown>;
+    error?: string;
+    code?: string;
+    attempts?: SimulatedOutput[];
 }
 
 /** Error codes that are never retried, whatever the retry policy says */
@@ -1264,6 +1278,18 @@ export class WorkflowEngine {
     private createActor(activity: Activity): Actor | undefined {
         const custom = this.options.actors?.[activity.actor_type];
         if (custom) return custom;
+
+        const scripted = this.simulate ? this.options.simulated_outputs?.[activity.name] : undefined;
+        if (scripted) {
+            return {
+                execute: async (_activity, inputs) => {
+                    const attempt = Number(inputs._attempt) || 1;
+                    const step = scripted.attempts ? scripted.attempts[Math.min(attempt, scripted.attempts.length) - 1] : scripted;
+                    if (step.error) throw Object.assign(new Error(step.error), step.code ? { code: step.code } : {});
+                    return { ...(step.output || {}), _simulated: true };
+                },
+            };
+        }
 
         switch (activity.actor_type) {
             case 'application':

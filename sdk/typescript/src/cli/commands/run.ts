@@ -14,6 +14,7 @@ export const runCommand = new Command('run')
     .option('-k, --key <key>', 'Gemini API Key')
     .option('--db', 'Log execution to database')
     .option('-s, --simulate', 'Run in simulation mode (no real API calls)')
+    .option('--outputs <file>', 'With --simulate: JSON file giving what each activity returns, by activity name')
     .option('-j, --journal <file>', 'Write the execution journal to this .jsonl file')
     .option('-c, --checkpoint-dir <dir>', 'Checkpoint the run state to this directory after every step')
     .option('-i, --input <json>', 'Initial data for the run, as a JSON object')
@@ -47,6 +48,9 @@ export const runCommand = new Command('run')
             const engine = new WorkflowEngine(workflow, {
                 gemini_api_key: apiKey,
                 simulate: options.simulate,
+                simulated_outputs: options.outputs
+                    ? JSON.parse(await fs.readFile(path.resolve(process.cwd(), options.outputs), 'utf-8'))
+                    : undefined,
                 execution_logger: executionLogger,
                 journal: options.journal ? new FileJournalStore(path.resolve(process.cwd(), options.journal)) : undefined,
                 checkpoint: options.checkpointDir ? new FilePersistenceAdapter(path.resolve(process.cwd(), options.checkpointDir)) : undefined,
@@ -87,6 +91,12 @@ export const runCommand = new Command('run')
             }
 
             if (status === 'failed') {
+                for (const token of engine.getTokens().filter(t => t.status === 'failed')) {
+                    console.error(`Failed: ${token.getData('_error')}`);
+                }
+                if (options.simulate && engine.getTokens().some(t => t.getData('_error_code') === 'NO_ROUTE' || t.getData('_error_code') === 'CONTRACT_VIOLATION')) {
+                    console.error('Simulated activities return no business data unless you supply it. Use --outputs <file> to say what each activity returns.');
+                }
                 console.error("Workflow failed.");
                 process.exit(1);
             }
