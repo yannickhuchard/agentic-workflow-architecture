@@ -11,7 +11,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { WorkflowEngine, parse_document, FileJournalStore, parse_journal, compile_recipe } from '../../sdk/typescript/dist/index.mjs';
+import { WorkflowEngine, parse_document, FileJournalStore, parse_journal, compile_recipe, KnowledgeBase } from '../../sdk/typescript/dist/index.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const workflow = parse_document(JSON.parse(fs.readFileSync(path.join(here, 'claims-settlement.awa.json'), 'utf-8')));
@@ -113,6 +113,18 @@ const failed = await run('failed-and-compensated', { fraud_score: 0.12, payment_
 fs.writeFileSync(path.join(here, 'RECIPE.md'), compile_recipe(workflow, completed.events) + '\n');
 fs.writeFileSync(path.join(here, 'runs', 'failed-and-compensated.recipe.md'),
     compile_recipe(workflow, failed.events, { include_definition: false }) + '\n');
+
+// Knowledge distilled from both runs, with the damage-assessment entries
+// reviewed, exported as an Open Knowledge Format bundle.
+const knowledge = new KnowledgeBase();
+knowledge.ingest(workflow, completed.events);
+knowledge.ingest(workflow, failed.events);
+for (const entry of knowledge.list()) {
+    if (entry.scope.node_name === 'Assess damage') knowledge.review(entry.id, 'claims-lead');
+}
+fs.rmSync(path.join(here, 'knowledge'), { recursive: true, force: true });
+const written = await knowledge.export_okf(path.join(here, 'knowledge'), { title: 'Motor claim settlement knowledge' });
+console.log(`knowledge: ${knowledge.list().length} entries, ${written} files`);
 
 const samples = [
     { name: 'Motor claim: settled', workflow, events: completed.events },

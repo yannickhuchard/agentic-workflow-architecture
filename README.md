@@ -20,29 +20,44 @@ It solves the "Black Box" problem of AI agents by providing a **structured, obse
 
 ---
 
-## Capabilities
+## What AWA standardises
 
-- **First-Class AI Agents**: Native support for LLM-backed actors with specific personas, tool proficiencies (MCP), and context awareness.
-- **Context-Aware Memory**: Shared state, message passing, and blackboard patterns for multi-agent collaboration.
-- **Value Stream Intelligence**: Built-in Lean/Six Sigma analytics that automatically detect waste (DOWNTIME) and track value-added time.
-- **Human-in-the-Loop**: Seamless handoffs to humans for approvals, reviews, and complex decision-making via a dedicated Kanban interface.
-- **Queryable Architecture**: The entire workflow is a queryable graph. Ask "Which steps involve high-risk financial data?" or "Show me all activities performed by Gemini 3.0 Pro".
+AWA 1.1 is a specification with a reference implementation and a conformance suite. The guiding principle is **fixed outcome, free strategy**: an AI agent may reach a result by different means each time, so AWA fixes what must be true of the result, records how it was reached, and refuses results it cannot verify.
+
+| Layer | What it gives you | Specification |
+|---|---|---|
+| **Document** | A workflow as JSON: activities, actors, roles, edges, decision tables, events | Sections 4, 8 |
+| **Flow** | Sequence, conditional routing, parallel split and join, timers, compensation | Sections 5, 13 |
+| **Outcome contracts** | Per activity: output schema, postconditions, budgets, escalation to a human. Checked deterministically, failing closed | Sections 7, 11 |
+| **Resilience** | Retry with backoff, dead letters, checkpoints, recovery in another process, idempotency keys | Section 10 |
+| **Model binding** | Models named by capability tier (`tier:reasoning`, `tier:fast`), resolved to any provider at run time | Section 12 |
+| **Journal** | An append-only record of every run at three levels: execution, the actor's reasoning, and the engine's own decisions | Section 9 |
+| **Explanation** | A replay you can scrub through, and a recipe that explains how to rebuild the workflow from scratch | Section 14 |
+| **Knowledge** | Strategies, failure patterns and lessons distilled from runs, compounding over time, reviewed by people, exported as an Open Knowledge Format bundle | Section 15 |
+
+The full text is in [`docs/specification.md`](docs/specification.md). What it means to implement AWA is defined by the cases in [`spec/conformance`](spec/conformance).
+
+### Implementations
+
+| SDK | Conformance levels |
+|---|---|
+| TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `flow`, plus recipe, replay and knowledge |
+| Python | `core`, and most of `document` |
+| Java | Data model only |
+
+### See a run
+
+Open [`tools/visualization/replay.html`](tools/visualization/replay.html) in a browser and pick a sample run, or read the [recipe](examples/claims-settlement/RECIPE.md) and the [knowledge bundle](examples/claims-settlement/knowledge/index.md) produced from the same run.
 
 ---
 
-## Features
+## Other features
 
-- **AI-Native Runtime**: Built-in support for the latest **Gemini 3 series** (3.1 Pro, 3 Flash, 3.1 Flash-Lite) with hierarchical model configuration.
-- **Multi-Actor Support**: Orchestrate Humans, AI Agents, Robots, and Applications in a single flow.
-- **Smart Decision Nodes**: DMN-inspired decision tables with FEEL expression support for complex business logic.
-- **Visualizations**:
-    - **2D/3D Diagrams**: ReactFlow and Babylon.js rendering.
-    - **Kanban Board**: Real-time task management for human actors.
-- **Production Ready**:
-    - **Resilience**: Automatic retries and Dead Letter Queues (DLQ).
-    - **Security**: RBAC (Role-Based Access Control) with JWT and API Keys.
-    - **Persistence**: Checkpointing and state restoration (PostgreSQL/File).
-- **Polyglot SDKs**: Full support for **TypeScript** and **Python**.
+- **Multi-actor**: humans, AI agents, robots and applications in one flow, with a Kanban board for human tasks.
+- **Value stream analytics**: process, cycle and lead time, and DOWNTIME waste detection.
+- **Queryable**: the workflow is a graph you can query from code.
+- **Operational API**: REST server with JWT and API key authentication, role-based access and rate limiting.
+- **Visualisation**: 2D (ReactFlow) and 3D (Babylon.js) diagrams of a definition, in addition to the replay.
 
 ---
 
@@ -75,9 +90,20 @@ const engine = new WorkflowEngine(orderProcess, {
 await engine.run();
 ```
 
+Run from the command line, keeping the journal:
+
 ```bash
-# Run with verbose logging
-npx awa run workflow.awa.json --verbose --key YOUR_GEMINI_API_KEY
+npx awa run workflow.awa.json --journal run.journal.jsonl --key YOUR_GEMINI_API_KEY
+```
+
+Turn the journal into a recipe, and into knowledge:
+
+```bash
+npx awa recipe workflow.awa.json run.journal.jsonl -o RECIPE.md
+```
+
+```bash
+npx awa knowledge ingest workflow.awa.json run.journal.jsonl
 ```
 
 ---
@@ -99,13 +125,18 @@ graph TD
     end
     
     subgraph "Intelligence"
-        AI --> LLM["LLM Models (Gemini/Claude)"]
+        AI --> LLM["Model providers (by tier)"]
         AI --> Tools["MCP Tools"]
     end
     
     subgraph "Persistence & Analytics"
-        Engine --> DB[("State Store")]
+        Engine --> Journal[("Execution journal")]
+        Engine --> DB[("Checkpoints")]
         Engine --> VSM["VSM Analytics"]
+        Journal --> Replay["Replay"]
+        Journal --> Recipe["Recipe"]
+        Journal --> KB["Knowledge base (OKF)"]
+        KB --> AI
     end
 ```
 
@@ -120,7 +151,11 @@ The repository is organized into SDKs, Specifications, and Applications.
 | `sdk/typescript` | Core **TypeScript SDK** and CLI tools. |
 | `sdk/python` | **Python SDK** for data science and AI engineers. |
 | `apps/kanban-web` | **Kanban Web App** (Next.js) for human task management. |
-| `spec/` | Official specifications (JSON Schema, OpenAPI, Avro, DDL). |
+| `spec/json-schema` | Normative JSON Schemas. |
+| `spec/conformance` | Language-neutral conformance cases. |
+| `spec/` (other) | Informative projections: OpenAPI, GraphQL, Avro, DDL. |
+| `docs/specification.md` | The specification. |
+| `tools/visualization` | Replay and diagram viewers. |
 | `examples/` | End-to-end examples (Insurance, Retail, Banking). |
 
 ---
@@ -147,10 +182,12 @@ npm run dev
 
 ## Documentation & Resources
 
-- **[Skill Definition](SKILL.md)**: Comprehensive guide for AI assistants.
+- **[Specification](docs/specification.md)**: The normative text.
+- **[Conformance suite](spec/conformance/README.md)**: How to test an implementation.
+- **[Skill Definition](skills/agentic-workflow-architecture/SKILL.md)**: Guide for AI assistants (describes 1.0; not yet updated for 1.1).
 - **[CLI Guide](sdk/typescript/docs/cli-guide.md)**: Command-line reference.
 - **[API Reference](sdk/typescript/docs/operational-api.md)**: REST API documentation.
-- **[Examples](examples/)**: Explore real-world use cases like Insurance Claims and Retail Distribution.
+- **[Examples](examples/)**: Start with [claims-settlement](examples/claims-settlement/), which shows most of 1.1.
 
 ---
 

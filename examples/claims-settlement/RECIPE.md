@@ -1,7 +1,7 @@
 # Recipe: Motor Claim Settlement
 
 Workflow version 1.0.0, AWA specification 1.1.
-Compiled from run `474517bb-9a52-4d1e-a9f1-1afa1dc1b53e`, which completed in 6.3 s. The journal holds 57 events.
+Compiled from run `7c4e3471-2665-4706-b489-1dd3610ddb14`, which completed in 6.3 s. The journal holds 57 events.
 
 This document explains how to build this workflow from scratch and what one real run of it did. Sections 2 to 4 are the build instructions. Section 5 is what the run taught. Section 6 is how to check your build.
 
@@ -61,7 +61,7 @@ Steps are in the order this run reached them. Steps the run did not reach follow
 
 **In this run**
 
-- Attempt 1: accepted (the activity took 252 ms in all)
+- Attempt 1: accepted (the activity took 251 ms in all)
 
 Accepted outcome:
 
@@ -101,7 +101,7 @@ Accepted outcome:
   - Confidence it reported: 0.6
   - Contract: violated (/estimated_cost must be number; Within authority: "estimated_cost <= 50000" does not hold)
   - Engine decision (contract_retry): Re-execute with the violated contract terms as feedback. 2 contract term(s) did not hold and 2 of 3 attempts remained.
-- Attempt 2: accepted (the activity took 1.8 s in all)
+- Attempt 2: accepted (the activity took 1.9 s in all)
   - Model: Use model acme:assessor-large. The role assigned to this activity names this model. The reference is the capability tier "reasoning", which this deployment maps to that model.
   - Plan the actor reported: Re-read the contract feedback → Price each part from the repair catalogue → Sum parts and labour → Return the cost as a number
   - Rationale: The first answer gave the cost as text. Itemising the parts gives a numeric total of 3,200 EUR and satisfies the schema.
@@ -149,7 +149,7 @@ Accepted outcome:
 **In this run**
 
 - Attempt 1: errored: Fraud scoring service timed out
-  - Engine decision (retry): Retry after 306 ms. Attempt 1 raised "Fraud scoring service timed out" (TIMEOUT). The error is retryable and 2 of 2 retries remained.
+  - Engine decision (retry): Retry after 318 ms. Attempt 1 raised "Fraud scoring service timed out" (TIMEOUT). The error is retryable and 2 of 2 retries remained.
 - Attempt 2: accepted (the activity took 1.5 s in all)
   - Model: Use model acme:classifier-small. The role assigned to this activity names this model. The reference is the capability tier "fast", which this deployment maps to that model.
   - Plan the actor reported: Compare claim date with policy start → Check prior claims → Check repairer against watchlist
@@ -175,7 +175,7 @@ Accepted outcome:
 
 **In this run**
 
-- Attempt 1: accepted (the activity took 402 ms in all)
+- Attempt 1: accepted (the activity took 401 ms in all)
 
 Accepted outcome:
 
@@ -196,7 +196,7 @@ Accepted outcome:
 
 **In this run**
 
-- Attempt 1: accepted (the activity took 201 ms in all)
+- Attempt 1: accepted (the activity took 200 ms in all)
 
 Accepted outcome:
 
@@ -231,7 +231,7 @@ Accepted outcome:
 
 **In this run**
 
-- Attempt 1: accepted (the activity took 300 ms in all)
+- Attempt 1: accepted (the activity took 301 ms in all)
 
 Accepted outcome:
 

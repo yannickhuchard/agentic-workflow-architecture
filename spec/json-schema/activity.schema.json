@@ -158,6 +158,50 @@
                 }
             },
             "description": "How to undo this activity"
+        },
+        "knowledge": {
+            "type": "object",
+            "description": "Asks the engine to give the actor knowledge distilled from earlier runs of this activity",
+            "properties": {
+                "types": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": [
+                            "strategy",
+                            "failure_pattern",
+                            "decision_precedent",
+                            "lesson"
+                        ]
+                    },
+                    "default": [
+                        "strategy",
+                        "failure_pattern"
+                    ]
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "Only entries carrying at least one of these tags"
+                },
+                "max_entries": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20,
+                    "default": 5
+                },
+                "min_status": {
+                    "type": "string",
+                    "enum": [
+                        "draft",
+                        "reviewed"
+                    ],
+                    "default": "reviewed",
+                    "description": "reviewed: only entries a person has reviewed. draft: unreviewed entries as well."
+                }
+            }
         }
     },
     "$defs": {

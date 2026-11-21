@@ -1,7 +1,7 @@
 # Recipe: Motor Claim Settlement
 
 Workflow version 1.0.0, AWA specification 1.1.
-Compiled from run `c74e126e-768c-40cf-8254-954124d288f8`, which failed in 5.8 s. The journal holds 52 events.
+Compiled from run `ac863140-d3ec-4a67-b34b-aaaafca20cd5`, which failed in 5.9 s. The journal holds 52 events.
 
 This document explains how to build this workflow from scratch and what one real run of it did. Sections 2 to 4 are the build instructions. Section 5 is what the run taught. Section 6 is how to check your build.
 
@@ -12,7 +12,7 @@ Settles a motor insurance claim: registers it, has an AI agent assess the damage
 | In this run | |
 |---|---|
 | Outcome | failed |
-| Duration | 5.8 s |
+| Duration | 5.9 s |
 | Activities accepted | 6 |
 | Attempts made | 9 (3 rejected or errored) |
 | Model tokens | 2960 in, 420 out |
@@ -60,7 +60,7 @@ Steps are in the order this run reached them. Steps the run did not reach follow
 
 **In this run**
 
-- Attempt 1: accepted (the activity took 251 ms in all)
+- Attempt 1: accepted (the activity took 250 ms in all)
 
 Accepted outcome:
 
@@ -148,7 +148,7 @@ Accepted outcome:
 **In this run**
 
 - Attempt 1: errored: Fraud scoring service timed out
-  - Engine decision (retry): Retry after 258 ms. Attempt 1 raised "Fraud scoring service timed out" (TIMEOUT). The error is retryable and 2 of 2 retries remained.
+  - Engine decision (retry): Retry after 341 ms. Attempt 1 raised "Fraud scoring service timed out" (TIMEOUT). The error is retryable and 2 of 2 retries remained.
 - Attempt 2: accepted (the activity took 1.5 s in all)
   - Model: Use model acme:classifier-small. The role assigned to this activity names this model. The reference is the capability tier "fast", which this deployment maps to that model.
   - Plan the actor reported: Compare claim date with policy start → Check prior claims → Check repairer against watchlist
@@ -174,7 +174,7 @@ Accepted outcome:
 
 **In this run**
 
-- Attempt 1: accepted (the activity took 402 ms in all)
+- Attempt 1: accepted (the activity took 401 ms in all)
 
 Accepted outcome:
 
@@ -195,7 +195,7 @@ Accepted outcome:
 
 **In this run**
 
-- Attempt 1: accepted (the activity took 200 ms in all)
+- Attempt 1: accepted (the activity took 201 ms in all)
 
 Accepted outcome:
 
@@ -230,7 +230,7 @@ Accepted outcome:
 
 **In this run**
 
-- Attempt 1: accepted (the activity took 302 ms in all)
+- Attempt 1: accepted (the activity took 300 ms in all)
 
 Accepted outcome:
 

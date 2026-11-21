@@ -28,6 +28,7 @@ import { PersistenceAdapter, WorkflowState, serialize_token, deserialize_token }
 import { RetryConfig, DEFAULT_RETRY_CONFIG, calculate_retry_delay, DeadLetterQueue } from './retry';
 import { Logger } from '../server/logger';
 import { ModelProvider, ModelRegistry, GoogleModelProvider } from './models';
+import { KnowledgeBase, guidance } from './knowledge';
 
 export type EngineStatus = 'running' | 'paused' | 'completed' | 'failed' | 'idle' | 'waiting_human';
 
@@ -85,6 +86,10 @@ export interface WorkflowEngineOptions {
     default_model_provider?: string;
     /** Capability tiers mapped to model references, e.g. { fast: 'google:gemini-3.1-flash-lite' } */
     model_tiers?: Record<string, string>;
+    /** Knowledge base that activities with a `knowledge` binding draw on. */
+    knowledge?: KnowledgeBase;
+    /** If true, the run's journal is distilled into the knowledge base when the run ends. */
+    learn?: boolean;
     /** Replaces the delay between retries. Tests use this to avoid real waiting. */
     sleep?: (ms: number) => Promise<void>;
 }
@@ -388,6 +393,10 @@ export class WorkflowEngine {
         });
         await this.finalizeExecution();
         await this.journal.flush();
+
+        if (this.options.learn && this.options.knowledge) {
+            this.options.knowledge.ingest(this.workflow, await this.journalStore.read(this.runId));
+        }
     }
 
     /**
@@ -582,6 +591,18 @@ export class WorkflowEngine {
                 // Stable across retries and recovery, so actors can deduplicate side effects
                 _idempotency_key: `${this.runId}:${token.id}:${activity.id}:${visit}`,
             };
+
+            // Knowledge from earlier runs, if the activity asks for it (spec 15.4)
+            if (this.options.knowledge && activity.knowledge) {
+                const entries = this.options.knowledge.retrieve(this.workflow, activity, activity.knowledge);
+                if (entries.length > 0) {
+                    (inputs as Record<string, unknown>)._knowledge = entries.map(e => ({ id: e.id, type: e.type, title: e.title, guidance: guidance(e) }));
+                    this.record({
+                        type: 'knowledge.retrieved', token_id: token.id, ...this.nodeRef(activity.id),
+                        data: { entries: entries.map(e => ({ id: e.id, type: e.type, title: e.title, status: e.status, observations: e.observations })) },
+                    });
+                }
+            }
 
             this.log(`Executing activity "${activity.name}" with ${activity.actor_type} actor`);
 

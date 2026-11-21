@@ -152,6 +152,16 @@ export class AIAgent implements Actor {
             }
         }
 
+        // Reviewed knowledge from earlier runs of this activity
+        if (Array.isArray(inputs._knowledge) && inputs._knowledge.length > 0) {
+            lines.push('## Knowledge from earlier runs');
+            lines.push('Use this where it helps. It describes what worked and what was rejected before.\n');
+            for (const entry of inputs._knowledge as { title: string; guidance: string }[]) {
+                lines.push(`- ${entry.title}: ${entry.guidance}`);
+            }
+            lines.push('');
+        }
+
         lines.push('## Input Context');
         if (Object.keys(displayInputs).length > 0) {
             lines.push(JSON.stringify(displayInputs, null, 2));

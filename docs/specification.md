@@ -22,6 +22,7 @@ This document is normative. Where it and an SDK disagree, this document is right
 12. [Model binding](#12-model-binding)
 13. [Flow control](#13-flow-control)
 14. [Explaining a run](#14-explaining-a-run)
+15. [Knowledge](#15-knowledge)
 
 ## 1. Scope
 
@@ -29,8 +30,8 @@ AWA standardises four things:
 
 - **The document**: how a workflow is written down (section 4).
 - **The behaviour**: what an engine does with that document (sections 5 to 7).
-- **The record**: what an engine writes down while it runs, so a run can be explained, replayed and rebuilt.
-- **The knowledge**: how what was learned from runs is kept and exchanged.
+- **The record**: what an engine writes down while it runs, so a run can be explained, replayed and rebuilt (sections 9 and 14).
+- **The knowledge**: how what was learned from runs is kept and exchanged (section 15).
 
 The guiding principle is **fixed outcome, free strategy**. An AI agent may reach a result by different means on different runs. AWA does not try to fix the means. It fixes what must be true of the result, records how the result was reached, and refuses results it cannot verify.
 
@@ -321,6 +322,7 @@ The JSON Schemas are authoritative for field names and types. This section summa
 | `tool_requirements` | ToolRequirement[] | Tools or interfaces required |
 | `join` | enum | `any` (default) or `all` (13.2) |
 | `compensation` | object | The activity that undoes this one (13.6) |
+| `knowledge` | object | Which knowledge from earlier runs the actor is given (15.4) |
 | `verification` | VerificationPolicy | Acceptance criteria (section 7) |
 | `retry` | RetryPolicy | What to do when the actor raises an error (section 10) |
 | `outcome_contract` | OutcomeContract | What must be true of the outcome (section 11) |
@@ -447,6 +449,7 @@ An engine MUST NOT alter or remove an event once written.
 | `verification.completed` | execution | An output has been verified | `mode`, `verdict`, `score`, `criteria`, `feedback`, `output_hash` |
 | `contract.checked` | execution | An outcome has been checked against its contract | `passed`, `violations`, `tokens_used`, `output_hash`, `decided_by` |
 | `contract.escalated` | execution | A rejected outcome is handed to a human | `code`, `message`, `rejected_output` |
+| `knowledge.retrieved` | execution | An actor is given knowledge entries | `entries` (id, type, title, status, observations) |
 | `reasoning.recorded` | reasoning | An actor reports its reasoning | `plan`, `rationale`, `alternatives_considered`, `confidence` |
 | `meta.recorded` | meta | The engine makes a decision listed in 9.2 | `subject`, `decision`, `rationale` |
 
@@ -696,6 +699,91 @@ A replay that follows a run in progress SHOULD read the journal as Server-Sent E
 
 The reference implementation is `tools/visualization/replay.html`.
 
+## 15. Knowledge
+
+Each run teaches something: an approach that was accepted, a mistake and what corrected it, a route a decision took, a cause of failure. The knowledge layer keeps that, so the hundredth run is better informed than the first. Its design rests on four rules: knowledge is **distilled from the journal**, it **compounds**, it is **traceable to its evidence**, and it reaches actors only after **a person has reviewed it**.
+
+### 15.1 Entries
+
+A knowledge entry has:
+
+| Field | Meaning |
+|---|---|
+| `id` | Its path in a bundle, without `.md`, for example `strategies/claims-assess-damage` |
+| `type` | `strategy`, `failure_pattern`, `decision_precedent` or `lesson` |
+| `title`, `description`, `tags` | For people and for search |
+| `scope` | The workflow, and the node, the entry is about |
+| `status` | `draft`, `reviewed` or `deprecated` |
+| `observations` | The number of runs that contributed evidence |
+| `counts` | Counters that add up across runs |
+| `latest` | Facts from the most recent contributing run |
+| `sources` | For each contributing run: its `run_id` and the `seq` of each journal event used |
+| `reviewed_by`, `reviewed_at`, `superseded_by` | Review and replacement |
+
+| Type | Distilled from | Tells an actor or a designer |
+|---|---|---|
+| `strategy` | The reasoning reported with an **accepted** outcome | An approach that worked for this activity, and how often it is accepted first time |
+| `failure_pattern` | A rejected or errored attempt, with the terms or criteria it failed | What goes wrong here, how often, and what resolved it |
+| `decision_precedent` | A decision evaluation | Which inputs matched which rule and where they were routed |
+| `lesson` | A failed run | Where and why runs of this workflow fail, and whether their effects were undone |
+
+### 15.2 Distillation
+
+Distillation derives candidate entries from the journal of one run. It MUST be deterministic and MUST NOT call a model: the same journal always yields the same candidates. Every candidate MUST cite the journal events it was derived from.
+
+A candidate's `id` is derived from what it is about (the workflow, the node, and for a failure the terms or the error that characterise it), not from the run. Two runs that exhibit the same pattern therefore produce the same `id`.
+
+### 15.3 Compounding
+
+Ingesting a run into a knowledge base MUST:
+
+- create, as `draft`, each candidate whose `id` is new;
+- for each candidate whose `id` exists: add its `counts` to the entry's, replace `latest`, add the run to `sources`, and increase `observations` by one;
+- leave the entry's `status` unchanged, so reviewed knowledge stays reviewed as evidence accrues;
+- be idempotent: ingesting a run that was already ingested changes nothing.
+
+### 15.4 Review and use
+
+Only a person makes an entry `reviewed`. An implementation MUST record who and when.
+
+An activity asks for knowledge with a `knowledge` binding:
+
+| Field | Default | Meaning |
+|---|---|---|
+| `types` | `strategy`, `failure_pattern` | Entry types wanted |
+| `tags` | any | Only entries with at least one of these tags |
+| `max_entries` | 5 | Most entries given |
+| `min_status` | `reviewed` | `draft` also admits unreviewed entries |
+
+When such an activity executes, the engine gives the actor the matching entries about that activity, reviewed entries first and then by `observations`, and records `knowledge.retrieved` listing them. An engine MUST NOT give an actor a `deprecated` entry, and MUST NOT give a `draft` entry unless the binding sets `min_status: draft`. Activities without a binding receive no knowledge.
+
+Knowledge informs the actor's strategy. It never relaxes the outcome contract (section 11): an outcome produced with knowledge is checked exactly as any other.
+
+### 15.5 Portability: Open Knowledge Format
+
+Knowledge is exchanged as an Open Knowledge Format (OKF) bundle, version 0.3: a directory of Markdown files with YAML frontmatter, one concept per file, that any OKF consumer can read without AWA software. An implementation MUST be able to export a knowledge base as a conformant bundle and import one.
+
+| AWA | OKF |
+|---|---|
+| Entry `id` | The concept's path |
+| `type` | `type`: `Strategy`, `Failure Pattern`, `Decision Precedent`, `Lesson` |
+| `title`, `description`, `tags` | `title`, `description`, `tags` |
+| `scope` | `resource`: `urn:awa:workflow:<workflow id>:node:<node id>` |
+| `status` `draft` / `reviewed` / `deprecated` | `status` `draft` / `stable` / `deprecated` |
+| `reviewed_by`, `reviewed_at` | `verified`: one event with `by: human:<reviewer>` and `at` |
+| `updated_at` | `generated.at`, with `generated.by: agent:awa-distiller` |
+| `sources` | `sources`: one per run, `resource: urn:awa:run:<run id>` |
+| `superseded_by` | `superseded_by`: the bundle path of the replacement |
+| Everything else | Extension keys named `x-awa-<name>` |
+
+The bundle has a root `index.md` whose frontmatter declares `okf_version: "0.3"`, an `index.md` per type directory, and a `log.md` recording creations, updates, reviews and deprecations by date. The Markdown body of each concept is rendered from the entry's data, so a reader needs none of the extension keys to understand it.
+
+An import MUST restore AWA-written concepts exactly, including which runs were already ingested. Concepts written by other producers are imported as entries with their text preserved; a foreign concept whose OKF status is absent or `stable` is treated as `reviewed`.
+
+### 15.6 Conformance
+
+The knowledge layer is not yet covered by the language-neutral conformance suite. The reference implementation's behaviour is fixed by `sdk/typescript/tests/knowledge.test.ts`.
+
 ## Appendix A. Conformance suite
 
 `spec/conformance/` holds language-neutral cases.
@@ -741,3 +829,4 @@ Runners: `sdk/typescript/tests/conformance.test.ts`, `sdk/python/tests/test_conf
 - Several unconditional edges from one node are now a parallel split; 1.0 engines followed only the first.
 - `roles` are part of the workflow document; the fields of an object-valued `output` are merged into token data (5.2).
 - Recipe and replay defined as artefacts derived from the journal (section 14).
+- Knowledge layer with Open Knowledge Format exchange (section 15).

@@ -351,6 +351,12 @@ export const ActivitySchema = z.object({
     outcome_contract: OutcomeContractSchema.optional(),
     join: JoinMode.optional(),
     compensation: z.object({ activity_id: UUID }).optional(),
+    knowledge: z.object({
+        types: z.array(z.enum(['strategy', 'failure_pattern', 'decision_precedent', 'lesson'])).optional(),
+        tags: z.array(z.string()).optional(),
+        max_entries: z.number().int().min(1).max(20).optional(),
+        min_status: z.enum(['draft', 'reviewed']).optional(),
+    }).optional(),
 });
 export type Activity = z.infer<typeof ActivitySchema>;
 
