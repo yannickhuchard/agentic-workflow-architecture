@@ -15,7 +15,13 @@ workflowRouter.post('/run', async (req, res) => {
             return res.status(400).json({ error: 'filePath is required' });
         }
 
-        const absolutePath = path.resolve(process.cwd(), filePath);
+        // Only workflow files inside the configured workflows directory may be run
+        const workflowsDir = path.resolve(process.env.AWA_WORKFLOWS_DIR || process.cwd());
+        const absolutePath = path.resolve(workflowsDir, filePath);
+        const relative = path.relative(workflowsDir, absolutePath);
+        if (relative.startsWith('..') || path.isAbsolute(relative) || !absolutePath.endsWith('.json')) {
+            return res.status(400).json({ error: 'filePath must be a .json file inside the workflows directory' });
+        }
         const content = await fs.readFile(absolutePath, 'utf-8');
         const workflowRaw = JSON.parse(content);
 

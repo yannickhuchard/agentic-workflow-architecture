@@ -18,6 +18,7 @@ import { DecisionEvaluator, evaluate_decision } from './decision_evaluator';
 import { calculate_duration } from './duration_utils';
 import { WasteCategory, Analytics, VerificationRecord } from '../types';
 import { VerificationEngine } from './verification_engine';
+import { evaluate_expression } from './expression';
 
 export type EngineStatus = 'running' | 'paused' | 'completed' | 'failed' | 'idle' | 'waiting_human';
 
@@ -55,6 +56,8 @@ export interface WorkflowEngineOptions {
     verification_model_id?: string;
     /** Run in simulation mode (mocks AI and Human interactions) */
     simulate?: boolean;
+    /** Custom actor implementations per actor type. Overrides the built-in actors. */
+    actors?: Partial<Record<Activity['actor_type'], Actor>>;
 }
 
 export class WorkflowEngine {
@@ -207,13 +210,7 @@ export class WorkflowEngine {
         const activeTokens = this.tokens.filter(t => t.status === 'active');
 
         if (activeTokens.length === 0) {
-            // Check if any tokens are waiting for human input
-            const waitingTokens = this.tokens.filter(t => t.status === 'waiting');
-            if (waitingTokens.length > 0) {
-                this.status = 'waiting_human';
-                return;
-            }
-            this.status = 'completed';
+            await this.settle();
             return;
         }
 
@@ -221,12 +218,25 @@ export class WorkflowEngine {
             await this.processToken(token);
         }
 
-        // Re-check status
-        const allDone = this.tokens.every(t =>
-            t.status === 'completed' || t.status === 'failed' || t.status === 'cancelled'
-        );
-        if (allDone) {
-            this.status = 'completed';
+        await this.settle();
+    }
+
+    /**
+     * Derive the run status from token states (spec: "Run outcome").
+     * A run is `completed` only if every token completed. Any failed token
+     * makes the run `failed` once no token is still active or waiting.
+     */
+    private async settle(): Promise<void> {
+        if (this.tokens.some(t => t.status === 'active')) return;
+
+        if (this.tokens.some(t => t.status === 'waiting')) {
+            this.status = 'waiting_human';
+            return;
+        }
+
+        const previous = this.status;
+        this.status = this.tokens.some(t => t.status === 'failed') ? 'failed' : 'completed';
+        if (previous !== this.status) {
             await this.finalizeExecution();
         }
     }
@@ -295,10 +305,10 @@ export class WorkflowEngine {
                     waste_categories: []
                 };
 
-                // Check if verification ultimately failed
+                // Fail closed: anything other than an explicit pass fails the activity
                 if (verificationRecords.length > 0) {
                     const lastRecord = verificationRecords[verificationRecords.length - 1];
-                    if (lastRecord.verdict === 'fail') {
+                    if (lastRecord.verdict !== 'pass') {
                         this.log(`Activity "${activity.name}" failed verification after ${verificationRecords.length} attempt(s)`);
                         analytics.waste_categories?.push('defects' as WasteCategory);
                         analytics.error_rate = 1;
@@ -418,8 +428,14 @@ export class WorkflowEngine {
             return;
         }
 
-        // Evaluate edge conditions to find the next edge
-        const nextEdge = this.selectNextEdge(outgoingEdges, token.contextData);
+        let nextEdge: Edge | undefined;
+        try {
+            nextEdge = this.selectNextEdge(outgoingEdges, token.contextData);
+        } catch (error: unknown) {
+            token.updateStatus('failed', analytics);
+            token.mergeData({ _error: error instanceof Error ? error.message : String(error) });
+            return;
+        }
 
         if (nextEdge) {
             token.move(nextEdge.target_id, analytics);
@@ -427,87 +443,39 @@ export class WorkflowEngine {
         } else {
             // No valid edge found
             token.updateStatus('failed', analytics);
-            token.mergeData({ _error: 'No valid outgoing edge found' });
+            token.mergeData({ _error: 'No route: no edge condition matched and no default edge is defined' });
         }
     }
 
     /**
-     * Select the next edge based on conditions
+     * Select the next edge (spec: "Routing").
+     * 1. Conditional edges are evaluated in document order; the first true one wins.
+     * 2. Otherwise the edge marked `is_default` is taken.
+     * 3. Otherwise the first unconditional edge is taken.
+     * 4. Otherwise there is no route and the token fails. An engine never guesses.
      */
     private selectNextEdge(edges: Edge[], context: Record<string, unknown>): Edge | undefined {
-        // First, check for conditional edges
         for (const edge of edges) {
-            if (edge.condition) {
-                if (this.evaluateEdgeCondition(edge.condition, context)) {
-                    return edge;
-                }
+            if (edge.condition && evaluate_expression(edge.condition, context)) {
+                return edge;
             }
         }
 
-        // Then, check for default edge
         const defaultEdge = edges.find(e => e.is_default);
         if (defaultEdge) {
             return defaultEdge;
         }
 
-        // Finally, take first edge if no conditions match
-        return edges[0];
-    }
-
-    /**
-     * Evaluate a simple edge condition
-     * Supports: property == value, property != value, property (truthy check)
-     */
-    private evaluateEdgeCondition(condition: string, context: Record<string, unknown>): boolean {
-        try {
-            // Handle equality check: property == value
-            const eqMatch = condition.match(/^(\w+)\s*==\s*(.+)$/);
-            if (eqMatch) {
-                const [, prop, val] = eqMatch;
-                const contextVal = context[prop];
-                const compareVal = val.trim().replace(/^["']|["']$/g, '');
-                return String(contextVal) === compareVal || contextVal === JSON.parse(val);
-            }
-
-            // Handle inequality check: property != value
-            const neqMatch = condition.match(/^(\w+)\s*!=\s*(.+)$/);
-            if (neqMatch) {
-                const [, prop, val] = neqMatch;
-                const contextVal = context[prop];
-                const compareVal = val.trim().replace(/^["']|["']$/g, '');
-                return String(contextVal) !== compareVal && contextVal !== JSON.parse(val);
-            }
-
-            // Handle greater than: property > value
-            const gtMatch = condition.match(/^(\w+)\s*>\s*(\d+(?:\.\d+)?)$/);
-            if (gtMatch) {
-                const [, prop, val] = gtMatch;
-                return Number(context[prop]) > Number(val);
-            }
-
-            // Handle less than: property < value
-            const ltMatch = condition.match(/^(\w+)\s*<\s*(\d+(?:\.\d+)?)$/);
-            if (ltMatch) {
-                const [, prop, val] = ltMatch;
-                return Number(context[prop]) < Number(val);
-            }
-
-            // Handle truthy check: just property name
-            if (/^\w+$/.test(condition)) {
-                return Boolean(context[condition]);
-            }
-
-            // Default: evaluate as-is (unsafe, but matches original TODO behavior)
-            return Boolean(context[condition]);
-        } catch {
-            return false;
-        }
+        return edges.find(e => !e.condition);
     }
 
     /**
      * Create the appropriate actor for an activity
      */
     private createActor(activity: Activity): Actor | undefined {
+        const custom = this.options.actors?.[activity.actor_type];
+        if (custom) return custom;
+
         switch (activity.actor_type) {
             case 'application':
                 return new SoftwareAgent();
@@ -611,7 +579,7 @@ export class WorkflowEngine {
                     ? verificationError.message : String(verificationError);
                 this.log(`Verification error: ${message}`);
 
-                // If verification itself errors, record it and continue without blocking
+                // Fail closed: an output that could not be verified is not accepted
                 verificationRecords.push({
                     id: randomUUID(),
                     activity_id: activity.id,
@@ -624,7 +592,6 @@ export class WorkflowEngine {
                     duration_ms: 0,
                     output_hash: this.verificationEngine.compute_output_hash(lastOutput),
                 });
-                // On verification error, return the output as-is (don't block the workflow)
                 return { output: lastOutput, verificationRecords };
             }
         }

@@ -7,6 +7,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { createHash } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
+import { evaluate_expression } from './expression';
 import {
     Activity,
     VerificationPolicy,
@@ -92,9 +93,8 @@ export class VerificationEngine {
                     judgeResult = this.verify_with_schema(policy, output);
                     break;
                 case 'custom':
-                    // Custom mode: treat as schema_only fallback for now
-                    judgeResult = this.verify_with_schema(policy, output);
-                    break;
+                    // Fail closed: never substitute a weaker check for the one requested
+                    throw new Error('Verification mode "custom" has no registered verifier');
                 default:
                     throw new Error(`Unknown verification mode: ${policy.mode}`);
             }
@@ -193,11 +193,9 @@ export class VerificationEngine {
                     passed = false;
                 }
             } else {
-                // Without expression, check if output is non-empty as a basic check
-                passed = output !== null && output !== undefined && Object.keys(output).length > 0;
-                evidence = passed
-                    ? 'Output is present and non-empty'
-                    : 'Output is empty or null';
+                // Fail closed: a criterion that cannot be checked deterministically is not met
+                passed = false;
+                evidence = 'Criterion has no expression; schema_only mode cannot evaluate it';
             }
 
             criteriaResults.push({
@@ -212,42 +210,9 @@ export class VerificationEngine {
         return this.compute_verdict(criteriaResults, policy);
     }
 
-    /**
-     * Evaluate a simple expression against the output
-     * Supports: "key exists", "key == value", "key != value", "typeof key == type"
-     */
+    /** Evaluate an AWA condition expression against the output */
     private evaluate_expression(expression: string, output: Record<string, unknown>): boolean {
-        // "key exists" — check if a key is present in the output
-        const existsMatch = expression.match(/^(\S+)\s+exists$/);
-        if (existsMatch) {
-            return existsMatch[1] in output;
-        }
-
-        // "typeof key == type" — check type of key
-        const typeofMatch = expression.match(/^typeof\s+(\S+)\s*==\s*(\S+)$/);
-        if (typeofMatch) {
-            const [, key, expectedType] = typeofMatch;
-            return typeof output[key] === expectedType;
-        }
-
-        // "key == value" — equality check
-        const eqMatch = expression.match(/^(\S+)\s*==\s*(.+)$/);
-        if (eqMatch) {
-            const [, key, val] = eqMatch;
-            const compareVal = val.trim().replace(/^["']|["']$/g, '');
-            return String(output[key]) === compareVal;
-        }
-
-        // "key != value" — inequality check
-        const neqMatch = expression.match(/^(\S+)\s*!=\s*(.+)$/);
-        if (neqMatch) {
-            const [, key, val] = neqMatch;
-            const compareVal = val.trim().replace(/^["']|["']$/g, '');
-            return String(output[key]) !== compareVal;
-        }
-
-        // Default: treat as key existence check
-        return expression in output && Boolean(output[expression]);
+        return evaluate_expression(expression, output);
     }
 
     /**
