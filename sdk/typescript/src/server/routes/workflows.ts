@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { WorkflowEngine } from '../../runtime/workflow_engine';
-import { parse_workflow } from '../../validator';
+import { parse_document } from '../../validator';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -25,7 +25,7 @@ workflowRouter.post('/run', async (req, res) => {
         const content = await fs.readFile(absolutePath, 'utf-8');
         const workflowRaw = JSON.parse(content);
 
-        const workflow = parse_workflow(workflowRaw);
+        const workflow = parse_document(workflowRaw);
         if (!workflow) {
             return res.status(400).json({ error: 'Invalid workflow definition' });
         }

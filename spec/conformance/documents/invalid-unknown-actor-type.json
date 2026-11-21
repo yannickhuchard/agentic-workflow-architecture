@@ -1,0 +1,33 @@
+{
+  "id": "invalid-unknown-actor-type",
+  "description": "'actor_type' must be one of the defined actor types.",
+  "valid": false,
+  "stage": "schema",
+  "document": {
+    "id": "5743ecbb-bd84-52d8-8d3f-7c21adca37af",
+    "name": "invalid-unknown-actor-type",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "5edc5387-8855-56b5-b51d-26bcb1919796",
+        "name": "A",
+        "role_id": "c5ace163-4f3d-5b4f-bc92-0165195aff0d",
+        "actor_type": "wizard"
+      },
+      {
+        "id": "05667945-f4c9-5551-b44f-312f22935a62",
+        "name": "B",
+        "role_id": "c5ace163-4f3d-5b4f-bc92-0165195aff0d",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "f0091a0f-f813-5469-9717-613dcc59f0c9",
+        "source_id": "5edc5387-8855-56b5-b51d-26bcb1919796",
+        "target_id": "05667945-f4c9-5551-b44f-312f22935a62"
+      }
+    ]
+  }
+}

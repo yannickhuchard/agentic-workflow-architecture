@@ -27,6 +27,11 @@
             "pattern": "^\\d+\\.\\d+\\.\\d+$",
             "description": "Semantic version"
         },
+        "awa_version": {
+            "type": "string",
+            "pattern": "^\\d+\\.\\d+$",
+            "description": "Version of the AWA specification this document targets, e.g. \"1.1\""
+        },
         "description": {
             "type": "string",
             "description": "Natural language description of the workflow"

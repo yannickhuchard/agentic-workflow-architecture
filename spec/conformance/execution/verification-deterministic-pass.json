@@ -1,0 +1,60 @@
+{
+  "id": "verification-deterministic-pass",
+  "level": "verified",
+  "spec": "7",
+  "description": "An output that satisfies every required criterion is accepted.",
+  "workflow": {
+    "id": "85b31768-1228-5bbc-b9bd-436afd3bd235",
+    "name": "verification-deterministic-pass",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "56b6bdbf-ae62-576c-a791-792ef3a8908c",
+        "name": "A",
+        "role_id": "5fbaa0e5-2b70-56b6-b7e2-c921dd9d51ea",
+        "actor_type": "application",
+        "verification": {
+          "mode": "schema_only",
+          "max_retries": 0,
+          "criteria": [
+            {
+              "id": "fefd7b19-dbff-57e5-8e4c-89521053d8f0",
+              "name": "has-total",
+              "description": "has-total",
+              "type": "format",
+              "expression": "total > 0"
+            }
+          ]
+        }
+      },
+      {
+        "id": "d099964a-c131-5667-8cc0-29e5c07a15b8",
+        "name": "B",
+        "role_id": "5fbaa0e5-2b70-56b6-b7e2-c921dd9d51ea",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "2c2ff96c-8070-56cf-9770-2d755f8a5bb8",
+        "source_id": "56b6bdbf-ae62-576c-a791-792ef3a8908c",
+        "target_id": "d099964a-c131-5667-8cc0-29e5c07a15b8"
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "output": {
+        "total": 12
+      }
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "A",
+      "B"
+    ]
+  }
+}

@@ -18,6 +18,7 @@ export {
     validate_activity,
     validate_context,
     parse_workflow,
+    parse_document,
     parse_activity,
     parse_context,
     validate_workflow_integrity,

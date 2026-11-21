@@ -1,0 +1,56 @@
+{
+  "id": "initial-input-is-routable",
+  "level": "core",
+  "spec": "5.2",
+  "description": "Data supplied when the run starts is available to conditions.",
+  "workflow": {
+    "id": "4580b99b-e01a-5270-8b65-17904c43404f",
+    "name": "initial-input-is-routable",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "48c285bd-10df-5393-aae8-d7490482fe08",
+        "name": "A",
+        "role_id": "0031ac6b-9b2c-58b6-b9e5-75b26d630286",
+        "actor_type": "application"
+      },
+      {
+        "id": "4a9f82fe-af6e-508f-8c7c-68e0303adc7c",
+        "name": "B",
+        "role_id": "0031ac6b-9b2c-58b6-b9e5-75b26d630286",
+        "actor_type": "application"
+      },
+      {
+        "id": "dc7327bb-3090-5dae-84b3-58f2a600c022",
+        "name": "C",
+        "role_id": "0031ac6b-9b2c-58b6-b9e5-75b26d630286",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "85dec7ce-3e6d-5464-8e55-aa84c71c3836",
+        "source_id": "48c285bd-10df-5393-aae8-d7490482fe08",
+        "target_id": "4a9f82fe-af6e-508f-8c7c-68e0303adc7c",
+        "condition": "channel == web"
+      },
+      {
+        "id": "68bc9670-31c0-5186-b5a8-b436ee825512",
+        "source_id": "48c285bd-10df-5393-aae8-d7490482fe08",
+        "target_id": "dc7327bb-3090-5dae-84b3-58f2a600c022",
+        "is_default": true
+      }
+    ]
+  },
+  "input": {
+    "channel": "web"
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "A",
+      "B"
+    ]
+  }
+}

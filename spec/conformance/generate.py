@@ -1,0 +1,274 @@
+#!/usr/bin/env python3
+"""
+Generates the AWA conformance cases in this directory.
+
+The JSON files are the normative artefacts; this script only keeps them
+consistent and readable. Run it from anywhere: python3 spec/conformance/generate.py
+"""
+
+import json
+import pathlib
+import uuid
+
+ROOT = pathlib.Path(__file__).parent
+NS = uuid.UUID("6ba7b811-9dad-11d1-80b4-00c04fd430c8")
+
+
+def uid(case: str, name: str) -> str:
+    return str(uuid.uuid5(NS, f"awa-conformance:{case}:{name}"))
+
+
+class Case:
+    """Small builder so each case reads as a description of the scenario."""
+
+    def __init__(self, case_id: str, level: str, spec: str, description: str):
+        self.id, self.level, self.spec, self.description = case_id, level, spec, description
+        self.activities, self.edges, self.decisions, self.events = [], [], [], []
+        self.actors, self.input, self.expect, self.options = {}, {}, {}, {}
+
+    def u(self, name: str) -> str:
+        return uid(self.id, name)
+
+    def act(self, name: str, actor_type: str = "application", **extra):
+        self.activities.append({"id": self.u(name), "name": name, "role_id": self.u("role"),
+                                "actor_type": actor_type, **extra})
+        return self
+
+    def edge(self, source: str, target: str, **extra):
+        self.edges.append({"id": self.u(f"{source}->{target}"), "source_id": self.u(source),
+                           "target_id": self.u(target), **extra})
+        return self
+
+    def event(self, name: str, event_type: str, **definition):
+        event = {"id": self.u(name), "name": name, "event_type": event_type}
+        if definition:
+            event["event_definition"] = definition
+        self.events.append(event)
+        return self
+
+    def decision(self, name: str, hit_policy: str, inputs, rules, default=None):
+        node = {"id": self.u(name), "name": name, "decision_table": {
+            "hit_policy": hit_policy,
+            "inputs": [{"name": n, "type": t} for n, t in inputs],
+            "outputs": [{"name": "route", "type": "string"}],
+            "rules": [{"input_entries": entries, "output_entries": [target],
+                       "output_edge_id": self.u(f"{name}->{target}")} for entries, target in rules]}}
+        if default:
+            node["default_output_edge_id"] = self.u(f"{name}->{default}")
+        self.decisions.append(node)
+        return self
+
+    def build(self) -> dict:
+        workflow = {"id": self.u("workflow"), "name": self.id, "version": "1.0.0", "awa_version": "1.1",
+                    "activities": self.activities, "edges": self.edges}
+        if self.events:
+            workflow["events"] = self.events
+        if self.decisions:
+            workflow["decision_nodes"] = self.decisions
+        case = {"id": self.id, "level": self.level, "spec": self.spec, "description": self.description,
+                "workflow": workflow}
+        if self.input:
+            case["input"] = self.input
+        if self.options:
+            case["options"] = self.options
+        if self.actors:
+            case["actors"] = self.actors
+        case["expect"] = self.expect
+        return case
+
+
+def criterion(case: Case, name: str, expression: str | None = None) -> dict:
+    c = {"id": case.u(f"criterion-{name}"), "name": name, "description": name, "type": "format"}
+    if expression:
+        c["expression"] = expression
+    return c
+
+
+def execution_cases() -> list[Case]:
+    cases = []
+
+    c = Case("sequence-completes", "core", "5.3", "Activities connected by unconditional edges run in order and the run completes.")
+    c.act("A").act("B").act("C").edge("A", "B").edge("B", "C")
+    c.expect = {"status": "completed", "visited": ["A", "B", "C"]}
+    cases.append(c)
+
+    c = Case("activity-error-fails-run", "core", "5.7", "An activity that raises fails its token, and a run with a failed token is failed, never completed.")
+    c.act("A").act("B").edge("A", "B")
+    c.actors = {"A": {"error": "upstream unavailable"}}
+    c.expect = {"status": "failed", "visited": ["A"], "error_matches": "upstream unavailable"}
+    cases.append(c)
+
+    c = Case("data-flows-downstream", "core", "5.2", "The output of an activity is visible to routing and to later activities.")
+    c.act("A").act("B").edge("A", "B", condition="order.total >= 100")
+    c.actors = {"A": {"output": {"order": {"total": 150}}}}
+    c.expect = {"status": "completed", "visited": ["A", "B"], "data": {"order": {"total": 150}}}
+    cases.append(c)
+
+    c = Case("routing-first-true-condition", "core", "5.4", "Conditional edges are evaluated in document order; the first true one is taken.")
+    c.act("A").act("B").act("C").edge("A", "B", condition="score > 10").edge("A", "C", condition="score > 5")
+    c.actors = {"A": {"output": {"score": 50}}}
+    c.expect = {"status": "completed", "visited": ["A", "B"]}
+    cases.append(c)
+
+    c = Case("routing-default-edge", "core", "5.4", "When no condition is true the default edge is taken.")
+    c.act("A").act("B").act("C").edge("A", "B", condition="approved == true").edge("A", "C", is_default=True)
+    c.actors = {"A": {"output": {"approved": False}}}
+    c.expect = {"status": "completed", "visited": ["A", "C"]}
+    cases.append(c)
+
+    c = Case("routing-no-route-fails", "core", "5.4", "When no condition is true and there is no default edge the token fails; the engine does not guess.")
+    c.act("A").act("B").act("C").edge("A", "B", condition="approved == true").edge("A", "C", condition="approved == false")
+    c.actors = {"A": {"output": {"approved": "pending"}}}
+    c.expect = {"status": "failed", "visited": ["A"], "error_matches": "No route"}
+    cases.append(c)
+
+    c = Case("initial-input-is-routable", "core", "5.2", "Data supplied when the run starts is available to conditions.")
+    c.act("A").act("B").act("C").edge("A", "B", condition="channel == web").edge("A", "C", is_default=True)
+    c.input = {"channel": "web"}
+    c.expect = {"status": "completed", "visited": ["A", "B"]}
+    cases.append(c)
+
+    c = Case("decision-first-hit", "decision", "5.5", "A decision table with hit policy 'first' routes along the edge of the first matching rule.")
+    c.act("A").act("Low").act("High").act("Manual")
+    c.decision("Risk", "first", [("amount", "number")], [(["< 1000"], "Low"), ([">= 1000"], "High")], default="Manual")
+    c.edge("A", "Risk").edge("Risk", "Low").edge("Risk", "High").edge("Risk", "Manual")
+    c.actors = {"A": {"output": {"amount": 5000}}}
+    c.expect = {"status": "completed", "visited": ["A", "High"]}
+    cases.append(c)
+
+    c = Case("decision-default-edge", "decision", "5.5", "When no rule matches, the decision's default edge is taken.")
+    c.act("A").act("Low").act("Manual")
+    c.decision("Risk", "first", [("tier", "string")], [(['"gold"'], "Low")], default="Manual")
+    c.edge("A", "Risk").edge("Risk", "Low").edge("Risk", "Manual")
+    c.actors = {"A": {"output": {"tier": "bronze"}}}
+    c.expect = {"status": "completed", "visited": ["A", "Manual"]}
+    cases.append(c)
+
+    c = Case("decision-no-match-fails", "decision", "5.5", "When no rule matches and there is no default edge, the token fails.")
+    c.act("A").act("Low")
+    c.decision("Risk", "first", [("tier", "string")], [(['"gold"'], "Low")])
+    c.edge("A", "Risk").edge("Risk", "Low")
+    c.actors = {"A": {"output": {"tier": "bronze"}}}
+    c.expect = {"status": "failed", "visited": ["A"]}
+    cases.append(c)
+
+    c = Case("verification-deterministic-pass", "verified", "7", "An output that satisfies every required criterion is accepted.")
+    c.act("A").act("B").edge("A", "B")
+    c.activities[0]["verification"] = {"mode": "schema_only", "max_retries": 0,
+                                       "criteria": [criterion(c, "has-total", "total > 0")]}
+    c.actors = {"A": {"output": {"total": 12}}}
+    c.expect = {"status": "completed", "visited": ["A", "B"]}
+    cases.append(c)
+
+    c = Case("verification-fail-rejects-output", "verified", "7", "An output that fails a required criterion is rejected; the activity fails and downstream work does not run.")
+    c.act("A").act("B").edge("A", "B")
+    c.activities[0]["verification"] = {"mode": "schema_only", "max_retries": 0,
+                                       "criteria": [criterion(c, "has-total", "total > 0")]}
+    c.actors = {"A": {"output": {"total": 0}}}
+    c.expect = {"status": "failed", "visited": ["A"]}
+    cases.append(c)
+
+    c = Case("verification-unverifiable-fails-closed", "verified", "7", "A criterion that cannot be evaluated is not met. Verification never passes by default.")
+    c.act("A").act("B").edge("A", "B")
+    c.activities[0]["verification"] = {"mode": "schema_only", "max_retries": 0,
+                                       "criteria": [criterion(c, "looks-right")]}
+    c.actors = {"A": {"output": {"total": 12}}}
+    c.expect = {"status": "failed", "visited": ["A"]}
+    cases.append(c)
+
+    c = Case("verification-retry-with-feedback", "verified", "7", "A failed verification of an ai_agent output is retried up to max_retries; a later passing attempt is accepted.")
+    c.act("A", "ai_agent").act("B").edge("A", "B")
+    c.activities[0]["verification"] = {"mode": "schema_only", "max_retries": 2,
+                                       "criteria": [criterion(c, "has-summary", "summary exists")]}
+    c.actors = {"A": {"attempts": [{"output": {"draft": "x"}}, {"output": {"summary": "ok"}}]}}
+    c.expect = {"status": "completed", "visited": ["A", "A", "B"]}
+    cases.append(c)
+
+    return cases
+
+
+def document_cases() -> list[dict]:
+    def base(case_id: str) -> Case:
+        c = Case(case_id, "document", "4", "")
+        c.act("A").act("B").edge("A", "B")
+        return c
+
+    docs = []
+
+    c = base("valid-minimal")
+    docs.append({"id": c.id, "description": "The smallest useful workflow: two activities and one edge.",
+                 "valid": True, "document": c.build()["workflow"]})
+
+    c = base("valid-envelope")
+    docs.append({"id": c.id, "description": "The envelope form wraps the workflow in a 'workflow' property.",
+                 "valid": True, "document": {"workflow": c.build()["workflow"]}})
+
+    c = base("invalid-missing-version")
+    w = c.build()["workflow"]
+    del w["version"]
+    docs.append({"id": c.id, "description": "'version' is required.", "valid": False, "stage": "schema", "document": w})
+
+    c = base("invalid-unknown-actor-type")
+    w = c.build()["workflow"]
+    w["activities"][0]["actor_type"] = "wizard"
+    docs.append({"id": c.id, "description": "'actor_type' must be one of the defined actor types.",
+                 "valid": False, "stage": "schema", "document": w})
+
+    c = base("invalid-non-uuid-id")
+    w = c.build()["workflow"]
+    w["activities"][0]["id"] = "act-1"
+    docs.append({"id": c.id, "description": "Identifiers must be UUIDs.", "valid": False, "stage": "schema", "document": w})
+
+    c = base("invalid-dangling-edge")
+    w = c.build()["workflow"]
+    w["edges"][0]["target_id"] = c.u("nowhere")
+    docs.append({"id": c.id, "description": "An edge must connect nodes that exist.",
+                 "valid": False, "stage": "integrity", "error_code": "invalid_reference", "document": w})
+
+    c = base("invalid-duplicate-id")
+    w = c.build()["workflow"]
+    w["activities"][1]["id"] = w["activities"][0]["id"]
+    w["edges"][0]["target_id"] = w["activities"][0]["id"]
+    docs.append({"id": c.id, "description": "Node identifiers must be unique.",
+                 "valid": False, "stage": "integrity", "error_code": "duplicate_id", "document": w})
+
+    c = base("invalid-condition")
+    w = c.build()["workflow"]
+    w["edges"][0]["condition"] = "amount >> 3"
+    docs.append({"id": c.id, "description": "An edge condition must be a valid condition expression.",
+                 "valid": False, "stage": "integrity", "error_code": "invalid_expression", "document": w})
+
+    c = base("invalid-two-default-edges")
+    c.act("C").edge("A", "C")
+    w = c.build()["workflow"]
+    for e in w["edges"]:
+        e["is_default"] = True
+    docs.append({"id": c.id, "description": "A node may have at most one default edge.",
+                 "valid": False, "stage": "integrity", "error_code": "multiple_default_edges", "document": w})
+
+    c = Case("invalid-decision-edge", "document", "4", "")
+    c.act("A").act("B").decision("D", "first", [("x", "number")], [(["> 1"], "B")]).edge("A", "D")
+    docs.append({"id": c.id, "description": "A decision rule must route to an edge that exists and leaves the decision node.",
+                 "valid": False, "stage": "integrity", "error_code": "invalid_reference", "document": c.build()["workflow"]})
+
+    return docs
+
+
+def write(path: pathlib.Path, data: dict) -> None:
+    path.write_text(json.dumps(data, indent=2) + "\n")
+
+
+def main() -> None:
+    for folder in ("execution", "documents"):
+        (ROOT / folder).mkdir(exist_ok=True)
+        for old in (ROOT / folder).glob("*.json"):
+            old.unlink()
+    for case in execution_cases():
+        write(ROOT / "execution" / f"{case.id}.json", case.build())
+    for doc in document_cases():
+        write(ROOT / "documents" / f"{doc['id']}.json", doc)
+    print(f"wrote {len(execution_cases())} execution cases and {len(document_cases())} document cases")
+
+
+if __name__ == "__main__":
+    main()

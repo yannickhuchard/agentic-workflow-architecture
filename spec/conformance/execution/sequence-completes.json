@@ -1,0 +1,52 @@
+{
+  "id": "sequence-completes",
+  "level": "core",
+  "spec": "5.3",
+  "description": "Activities connected by unconditional edges run in order and the run completes.",
+  "workflow": {
+    "id": "a53a8c28-cca7-50f8-b6be-7515631a4ace",
+    "name": "sequence-completes",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "8e61c4bf-03e2-5746-a0ff-65ddc07ab673",
+        "name": "A",
+        "role_id": "bd6e9e99-3c0e-5745-a64b-65f612fa39d9",
+        "actor_type": "application"
+      },
+      {
+        "id": "2dc9d1a2-f6c0-514f-a78b-f7753ce668e1",
+        "name": "B",
+        "role_id": "bd6e9e99-3c0e-5745-a64b-65f612fa39d9",
+        "actor_type": "application"
+      },
+      {
+        "id": "6ebebdd5-992f-5475-90e1-88b26fe6a6bc",
+        "name": "C",
+        "role_id": "bd6e9e99-3c0e-5745-a64b-65f612fa39d9",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "6b3e4ab5-7858-5284-8863-a8219133357b",
+        "source_id": "8e61c4bf-03e2-5746-a0ff-65ddc07ab673",
+        "target_id": "2dc9d1a2-f6c0-514f-a78b-f7753ce668e1"
+      },
+      {
+        "id": "6cdf3a2e-c391-57e9-b809-e0eb35cd6737",
+        "source_id": "2dc9d1a2-f6c0-514f-a78b-f7753ce668e1",
+        "target_id": "6ebebdd5-992f-5475-90e1-88b26fe6a6bc"
+      }
+    ]
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "A",
+      "B",
+      "C"
+    ]
+  }
+}

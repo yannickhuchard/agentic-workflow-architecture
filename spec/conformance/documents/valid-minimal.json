@@ -1,0 +1,32 @@
+{
+  "id": "valid-minimal",
+  "description": "The smallest useful workflow: two activities and one edge.",
+  "valid": true,
+  "document": {
+    "id": "87fea472-9293-54ce-a2f5-6d14a504863c",
+    "name": "valid-minimal",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "f834d62d-7be8-5a21-a15c-cab4faceec13",
+        "name": "A",
+        "role_id": "e861dcd7-0b01-529d-9ae0-0b22fe11716d",
+        "actor_type": "application"
+      },
+      {
+        "id": "6114df50-f86b-5742-88c9-e3a19a5e61f7",
+        "name": "B",
+        "role_id": "e861dcd7-0b01-529d-9ae0-0b22fe11716d",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "1c930524-25b2-561f-8363-c00816ee2b0b",
+        "source_id": "f834d62d-7be8-5a21-a15c-cab4faceec13",
+        "target_id": "6114df50-f86b-5742-88c9-e3a19a5e61f7"
+      }
+    ]
+  }
+}

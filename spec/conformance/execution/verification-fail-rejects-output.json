@@ -1,0 +1,59 @@
+{
+  "id": "verification-fail-rejects-output",
+  "level": "verified",
+  "spec": "7",
+  "description": "An output that fails a required criterion is rejected; the activity fails and downstream work does not run.",
+  "workflow": {
+    "id": "498b3da1-857e-5c08-8263-67ea31a4b836",
+    "name": "verification-fail-rejects-output",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "2c9cedf0-ff13-5277-8a01-623c0ebae946",
+        "name": "A",
+        "role_id": "116ac5c6-1125-5335-a5f7-1cdc91a047be",
+        "actor_type": "application",
+        "verification": {
+          "mode": "schema_only",
+          "max_retries": 0,
+          "criteria": [
+            {
+              "id": "608e69ec-ecf1-5f29-87a1-6ede38b2b728",
+              "name": "has-total",
+              "description": "has-total",
+              "type": "format",
+              "expression": "total > 0"
+            }
+          ]
+        }
+      },
+      {
+        "id": "5db977a0-3575-5710-b401-644b89d1608b",
+        "name": "B",
+        "role_id": "116ac5c6-1125-5335-a5f7-1cdc91a047be",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "33a9eecf-6c60-5456-b914-42f838308737",
+        "source_id": "2c9cedf0-ff13-5277-8a01-623c0ebae946",
+        "target_id": "5db977a0-3575-5710-b401-644b89d1608b"
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "output": {
+        "total": 0
+      }
+    }
+  },
+  "expect": {
+    "status": "failed",
+    "visited": [
+      "A"
+    ]
+  }
+}

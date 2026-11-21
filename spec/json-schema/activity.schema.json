@@ -124,6 +124,10 @@
                 "$ref": "awa.schema.json#/$defs/tool_requirement"
             },
             "description": "Tools (Interfaces/Software) required to perform this activity"
+        },
+        "verification": {
+            "$ref": "#/$defs/verification_policy",
+            "description": "Acceptance verification applied to the activity output. Fail closed: an output that is not verified as 'pass' is rejected."
         }
     },
     "$defs": {
@@ -241,6 +245,112 @@
                 },
                 "enforcement": {
                     "$ref": "awa.schema.json#/$defs/enforcement"
+                }
+            }
+        },
+        "verification_criterion": {
+            "type": "object",
+            "required": [
+                "id",
+                "name",
+                "description",
+                "type"
+            ],
+            "properties": {
+                "id": {
+                    "$ref": "awa.schema.json#/$defs/uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "What must be true of the output, in natural language"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "completeness",
+                        "accuracy",
+                        "format",
+                        "compliance",
+                        "custom"
+                    ]
+                },
+                "expression": {
+                    "type": "string",
+                    "description": "Condition expression (see specification, Condition Expressions) evaluated against the output. Required for deterministic verification."
+                },
+                "weight": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1,
+                    "default": 1
+                },
+                "required": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "If true, failing this criterion fails verification regardless of score"
+                }
+            }
+        },
+        "verification_policy": {
+            "type": "object",
+            "required": [
+                "criteria"
+            ],
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "default": true
+                },
+                "mode": {
+                    "type": "string",
+                    "enum": [
+                        "ai_judge",
+                        "schema_only",
+                        "custom"
+                    ],
+                    "default": "ai_judge",
+                    "description": "ai_judge: a model evaluates each criterion. schema_only: only criterion expressions are evaluated, deterministically. custom: an engine-registered verifier."
+                },
+                "criteria": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/$defs/verification_criterion"
+                    }
+                },
+                "max_retries": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 10,
+                    "default": 3
+                },
+                "retry_with_feedback": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Feed the failed criteria back to an ai_agent actor on retry"
+                },
+                "output_schema": {
+                    "type": "object",
+                    "description": "JSON Schema the output must satisfy"
+                },
+                "judge_model_id": {
+                    "type": "string",
+                    "description": "Model reference for the judge (see specification, Model Binding). If absent the engine default is used."
+                },
+                "judge_temperature": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1,
+                    "default": 0.1
+                },
+                "pass_threshold": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1,
+                    "default": 0.9
                 }
             }
         }

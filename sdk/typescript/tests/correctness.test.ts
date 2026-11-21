@@ -65,14 +65,10 @@ describe('Routing', () => {
         expect(String(engine.getTokens()[0].getData('_error'))).toMatch(/No route/);
     });
 
-    it('fails on a condition that is not a valid expression', async () => {
+    it('rejects a workflow whose condition is not a valid expression', () => {
         const a = activity('A'); const b = activity('B');
-        const { actors } = scripted();
-        const engine = new WorkflowEngine(
-            workflow([a, b], [edge(a, b, { condition: 'approved === yes ???' })]),
-            { actors, execution_logger: silent_logger });
-        await engine.start();
-        expect(await engine.run()).toBe('failed');
+        expect(() => new WorkflowEngine(workflow([a, b], [edge(a, b, { condition: 'approved === yes ???' })])))
+            .toThrow(/Invalid expression/);
     });
 });
 

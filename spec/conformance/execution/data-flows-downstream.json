@@ -1,0 +1,55 @@
+{
+  "id": "data-flows-downstream",
+  "level": "core",
+  "spec": "5.2",
+  "description": "The output of an activity is visible to routing and to later activities.",
+  "workflow": {
+    "id": "f496d6b4-ff8f-51cc-a291-b8134049f927",
+    "name": "data-flows-downstream",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "72d6f2c9-d594-5389-b980-2a7bf26c8717",
+        "name": "A",
+        "role_id": "f6f5d3a9-5169-5569-a326-afb6404dbc3f",
+        "actor_type": "application"
+      },
+      {
+        "id": "93253939-5f31-5fa3-b850-8a003b9db599",
+        "name": "B",
+        "role_id": "f6f5d3a9-5169-5569-a326-afb6404dbc3f",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "10ba811b-f84f-5b06-81ee-ff25b372e84c",
+        "source_id": "72d6f2c9-d594-5389-b980-2a7bf26c8717",
+        "target_id": "93253939-5f31-5fa3-b850-8a003b9db599",
+        "condition": "order.total >= 100"
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "output": {
+        "order": {
+          "total": 150
+        }
+      }
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "A",
+      "B"
+    ],
+    "data": {
+      "order": {
+        "total": 150
+      }
+    }
+  }
+}

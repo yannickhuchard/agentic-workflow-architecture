@@ -1,0 +1,60 @@
+{
+  "id": "routing-default-edge",
+  "level": "core",
+  "spec": "5.4",
+  "description": "When no condition is true the default edge is taken.",
+  "workflow": {
+    "id": "923cadc5-4d18-5dd7-98ed-efe0b64903fc",
+    "name": "routing-default-edge",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "5f4add7e-7ba8-5c86-97e1-b6c5c94742d5",
+        "name": "A",
+        "role_id": "9c25638d-3925-554c-90df-02de7cf8ff63",
+        "actor_type": "application"
+      },
+      {
+        "id": "86437742-6ef3-53ed-91ab-fe5deac739e6",
+        "name": "B",
+        "role_id": "9c25638d-3925-554c-90df-02de7cf8ff63",
+        "actor_type": "application"
+      },
+      {
+        "id": "3cb1b34c-1c3c-5a56-91d2-10e382ea76a8",
+        "name": "C",
+        "role_id": "9c25638d-3925-554c-90df-02de7cf8ff63",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "4e92fcdf-aac3-5905-b5cb-e65c431cf313",
+        "source_id": "5f4add7e-7ba8-5c86-97e1-b6c5c94742d5",
+        "target_id": "86437742-6ef3-53ed-91ab-fe5deac739e6",
+        "condition": "approved == true"
+      },
+      {
+        "id": "29488771-047f-539c-bf57-3980ea792d8e",
+        "source_id": "5f4add7e-7ba8-5c86-97e1-b6c5c94742d5",
+        "target_id": "3cb1b34c-1c3c-5a56-91d2-10e382ea76a8",
+        "is_default": true
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "output": {
+        "approved": false
+      }
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "A",
+      "C"
+    ]
+  }
+}

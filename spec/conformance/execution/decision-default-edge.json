@@ -1,0 +1,96 @@
+{
+  "id": "decision-default-edge",
+  "level": "decision",
+  "spec": "5.5",
+  "description": "When no rule matches, the decision's default edge is taken.",
+  "workflow": {
+    "id": "1885c7a4-559e-546e-afef-f242eb8d16e1",
+    "name": "decision-default-edge",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "3ee1d454-ecba-575c-8ef8-99f1d8b7509d",
+        "name": "A",
+        "role_id": "e7da2860-ac99-5b5e-a0d7-0afc0e41edb4",
+        "actor_type": "application"
+      },
+      {
+        "id": "e7fbcd10-e851-5bb2-922d-61f84e8805dc",
+        "name": "Low",
+        "role_id": "e7da2860-ac99-5b5e-a0d7-0afc0e41edb4",
+        "actor_type": "application"
+      },
+      {
+        "id": "c5852edc-da79-5a2c-9bc8-ef323244b438",
+        "name": "Manual",
+        "role_id": "e7da2860-ac99-5b5e-a0d7-0afc0e41edb4",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "83f095fc-4cc3-53c4-85c4-3b062c3c1d86",
+        "source_id": "3ee1d454-ecba-575c-8ef8-99f1d8b7509d",
+        "target_id": "47883251-055f-5ed7-9ec8-10fe86213ffa"
+      },
+      {
+        "id": "c484fffd-32fa-5f94-95de-68f07ab9ca28",
+        "source_id": "47883251-055f-5ed7-9ec8-10fe86213ffa",
+        "target_id": "e7fbcd10-e851-5bb2-922d-61f84e8805dc"
+      },
+      {
+        "id": "a601af3d-cf54-519c-b01c-e3fb8f066bf3",
+        "source_id": "47883251-055f-5ed7-9ec8-10fe86213ffa",
+        "target_id": "c5852edc-da79-5a2c-9bc8-ef323244b438"
+      }
+    ],
+    "decision_nodes": [
+      {
+        "id": "47883251-055f-5ed7-9ec8-10fe86213ffa",
+        "name": "Risk",
+        "decision_table": {
+          "hit_policy": "first",
+          "inputs": [
+            {
+              "name": "tier",
+              "type": "string"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "route",
+              "type": "string"
+            }
+          ],
+          "rules": [
+            {
+              "input_entries": [
+                "\"gold\""
+              ],
+              "output_entries": [
+                "Low"
+              ],
+              "output_edge_id": "c484fffd-32fa-5f94-95de-68f07ab9ca28"
+            }
+          ]
+        },
+        "default_output_edge_id": "a601af3d-cf54-519c-b01c-e3fb8f066bf3"
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "output": {
+        "tier": "bronze"
+      }
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "A",
+      "Manual"
+    ]
+  }
+}

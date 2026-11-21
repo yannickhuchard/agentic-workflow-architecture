@@ -1,0 +1,60 @@
+{
+  "id": "routing-no-route-fails",
+  "level": "core",
+  "spec": "5.4",
+  "description": "When no condition is true and there is no default edge the token fails; the engine does not guess.",
+  "workflow": {
+    "id": "49350b71-2f7b-5c35-bc37-f090c2e25d88",
+    "name": "routing-no-route-fails",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "26171caf-f9bf-51c9-a5db-d7606d362575",
+        "name": "A",
+        "role_id": "39e7b26d-aff8-5b85-9444-b40c586d0dd1",
+        "actor_type": "application"
+      },
+      {
+        "id": "3f3f286e-ba19-5d6a-a5db-52abb615b88b",
+        "name": "B",
+        "role_id": "39e7b26d-aff8-5b85-9444-b40c586d0dd1",
+        "actor_type": "application"
+      },
+      {
+        "id": "0bb33c0a-d6d2-5816-ab7f-996a2ce98c78",
+        "name": "C",
+        "role_id": "39e7b26d-aff8-5b85-9444-b40c586d0dd1",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "662a65b4-9a53-584c-9a3a-0e4ba2ab9274",
+        "source_id": "26171caf-f9bf-51c9-a5db-d7606d362575",
+        "target_id": "3f3f286e-ba19-5d6a-a5db-52abb615b88b",
+        "condition": "approved == true"
+      },
+      {
+        "id": "831064cf-087c-5fe3-92c0-bf2c4ca1a488",
+        "source_id": "26171caf-f9bf-51c9-a5db-d7606d362575",
+        "target_id": "0bb33c0a-d6d2-5816-ab7f-996a2ce98c78",
+        "condition": "approved == false"
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "output": {
+        "approved": "pending"
+      }
+    }
+  },
+  "expect": {
+    "status": "failed",
+    "visited": [
+      "A"
+    ],
+    "error_matches": "No route"
+  }
+}

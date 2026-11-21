@@ -1,0 +1,60 @@
+{
+  "id": "routing-first-true-condition",
+  "level": "core",
+  "spec": "5.4",
+  "description": "Conditional edges are evaluated in document order; the first true one is taken.",
+  "workflow": {
+    "id": "21688e17-0c6f-506e-99a4-ffa04610e4f1",
+    "name": "routing-first-true-condition",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "2dc78738-6f95-5d37-85f1-b559c3a515a9",
+        "name": "A",
+        "role_id": "c401c919-6ba2-597f-8aff-0eef2c7418ed",
+        "actor_type": "application"
+      },
+      {
+        "id": "93ff75e3-cfef-54d2-8b56-2c357920778d",
+        "name": "B",
+        "role_id": "c401c919-6ba2-597f-8aff-0eef2c7418ed",
+        "actor_type": "application"
+      },
+      {
+        "id": "9bcc10cc-8453-5cb4-bb4e-f48187469266",
+        "name": "C",
+        "role_id": "c401c919-6ba2-597f-8aff-0eef2c7418ed",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "2af40704-d601-5e59-bb38-8929165d7164",
+        "source_id": "2dc78738-6f95-5d37-85f1-b559c3a515a9",
+        "target_id": "93ff75e3-cfef-54d2-8b56-2c357920778d",
+        "condition": "score > 10"
+      },
+      {
+        "id": "c477f0c8-d6b1-5531-9193-9f9a1484d40f",
+        "source_id": "2dc78738-6f95-5d37-85f1-b559c3a515a9",
+        "target_id": "9bcc10cc-8453-5cb4-bb4e-f48187469266",
+        "condition": "score > 5"
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "output": {
+        "score": 50
+      }
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "A",
+      "B"
+    ]
+  }
+}

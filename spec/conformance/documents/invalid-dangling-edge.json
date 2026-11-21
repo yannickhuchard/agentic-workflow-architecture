@@ -1,0 +1,34 @@
+{
+  "id": "invalid-dangling-edge",
+  "description": "An edge must connect nodes that exist.",
+  "valid": false,
+  "stage": "integrity",
+  "error_code": "invalid_reference",
+  "document": {
+    "id": "e4c06da7-e645-53e8-8e4f-0372aff85357",
+    "name": "invalid-dangling-edge",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "120ccfde-76bf-5bf8-b050-494d95cbed6a",
+        "name": "A",
+        "role_id": "c5b95458-5225-56d9-bfa3-1007dbb96a19",
+        "actor_type": "application"
+      },
+      {
+        "id": "a6d862ea-ab1f-5fa3-aa95-47f79117629c",
+        "name": "B",
+        "role_id": "c5b95458-5225-56d9-bfa3-1007dbb96a19",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "3c0e0228-a2e0-506c-9013-17e88deecbd8",
+        "source_id": "120ccfde-76bf-5bf8-b050-494d95cbed6a",
+        "target_id": "7c015f12-3ae5-57b1-ba53-ada1f99279e9"
+      }
+    ]
+  }
+}

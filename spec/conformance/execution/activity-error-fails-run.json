@@ -1,0 +1,45 @@
+{
+  "id": "activity-error-fails-run",
+  "level": "core",
+  "spec": "5.7",
+  "description": "An activity that raises fails its token, and a run with a failed token is failed, never completed.",
+  "workflow": {
+    "id": "745bb3c9-9acb-5ca6-a59f-4a28b936a90e",
+    "name": "activity-error-fails-run",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "1047648d-3576-52c3-9e53-997d010be183",
+        "name": "A",
+        "role_id": "839d3f0e-9ac8-5351-9462-21b26388ace1",
+        "actor_type": "application"
+      },
+      {
+        "id": "6fa82f37-ff56-5288-981b-5a7e462b2235",
+        "name": "B",
+        "role_id": "839d3f0e-9ac8-5351-9462-21b26388ace1",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "e834624c-6b8f-5c54-88e4-15d712e955c1",
+        "source_id": "1047648d-3576-52c3-9e53-997d010be183",
+        "target_id": "6fa82f37-ff56-5288-981b-5a7e462b2235"
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "error": "upstream unavailable"
+    }
+  },
+  "expect": {
+    "status": "failed",
+    "visited": [
+      "A"
+    ],
+    "error_matches": "upstream unavailable"
+  }
+}

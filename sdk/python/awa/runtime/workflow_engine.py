@@ -97,8 +97,11 @@ class WorkflowEngine:
         self._start_activity = self._find_start_activity()
         
         # Validate workflow
-        if not validate_workflow_integrity(workflow):
-            raise ValueError("Invalid workflow definition")
+        integrity = validate_workflow_integrity(workflow)
+        if not integrity.valid:
+            raise ValueError(
+                "Invalid workflow definition: " + ", ".join(e.message for e in integrity.errors)
+            )
     
     @property
     def status(self) -> EngineStatus:

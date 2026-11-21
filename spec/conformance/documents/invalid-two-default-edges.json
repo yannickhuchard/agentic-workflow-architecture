@@ -1,0 +1,47 @@
+{
+  "id": "invalid-two-default-edges",
+  "description": "A node may have at most one default edge.",
+  "valid": false,
+  "stage": "integrity",
+  "error_code": "multiple_default_edges",
+  "document": {
+    "id": "40a1c90c-0d08-59a6-b5c8-97f069c43c96",
+    "name": "invalid-two-default-edges",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "631ff0ad-98a0-5165-b872-d715cce339b1",
+        "name": "A",
+        "role_id": "947c5a10-c068-522f-8d3f-0abbc5bbb44b",
+        "actor_type": "application"
+      },
+      {
+        "id": "06530f71-3063-54b4-b74b-d037de16f4ae",
+        "name": "B",
+        "role_id": "947c5a10-c068-522f-8d3f-0abbc5bbb44b",
+        "actor_type": "application"
+      },
+      {
+        "id": "70d341f8-a7b8-5e90-8d84-04b31a2fb77b",
+        "name": "C",
+        "role_id": "947c5a10-c068-522f-8d3f-0abbc5bbb44b",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "364bdea0-bb14-5058-bb69-d3ddc68477e4",
+        "source_id": "631ff0ad-98a0-5165-b872-d715cce339b1",
+        "target_id": "06530f71-3063-54b4-b74b-d037de16f4ae",
+        "is_default": true
+      },
+      {
+        "id": "9dbc705e-67fb-5bb4-b86e-36f2b87cc377",
+        "source_id": "631ff0ad-98a0-5165-b872-d715cce339b1",
+        "target_id": "70d341f8-a7b8-5e90-8d84-04b31a2fb77b",
+        "is_default": true
+      }
+    ]
+  }
+}

@@ -3,7 +3,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { WorkflowEngine } from '../../runtime/workflow_engine';
 import { PrismaExecutionLogger, ConsoleExecutionLogger } from '../../runtime/execution_logger';
-import { parse_workflow } from '../../validator';
+import { parse_document } from '../../validator';
 import { Workflow, Context } from '../../types';
 
 export const runCommand = new Command('run')
@@ -21,7 +21,7 @@ export const runCommand = new Command('run')
 
             // Validate/Parse
             // We use parse_workflow which validates schema
-            const workflow = parse_workflow(workflowRaw);
+            const workflow = parse_document(workflowRaw);
 
             if (!workflow) {
                 console.error("Failed to parse workflow.");

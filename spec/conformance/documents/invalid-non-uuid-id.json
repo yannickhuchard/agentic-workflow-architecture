@@ -1,0 +1,33 @@
+{
+  "id": "invalid-non-uuid-id",
+  "description": "Identifiers must be UUIDs.",
+  "valid": false,
+  "stage": "schema",
+  "document": {
+    "id": "a12a713b-718d-5aaa-85f2-f21b1705e916",
+    "name": "invalid-non-uuid-id",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "act-1",
+        "name": "A",
+        "role_id": "abe768b7-47f7-5cd5-95d9-07d6d323d300",
+        "actor_type": "application"
+      },
+      {
+        "id": "601d174e-1487-5ddd-9c18-a8acbe25b7e9",
+        "name": "B",
+        "role_id": "abe768b7-47f7-5cd5-95d9-07d6d323d300",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "c0a7084d-0073-5f12-a6fa-411e46b2ae5e",
+        "source_id": "43db9c4b-62c3-504e-9852-13ea34ee0d9b",
+        "target_id": "601d174e-1487-5ddd-9c18-a8acbe25b7e9"
+      }
+    ]
+  }
+}

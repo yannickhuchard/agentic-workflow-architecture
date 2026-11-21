@@ -135,10 +135,8 @@ export class VerificationEngine {
         }
 
         // Resolve judge model: policy override > global default > hardcoded fallback
-        const modelId = policy.judge_model_id !== 'gemini-3-flash-preview' 
-            ? policy.judge_model_id 
-            : (this.config.default_model_id || 'gemini-3-flash-preview');
-            
+        const modelId = policy.judge_model_id || this.config.default_model_id || 'gemini-3-flash-preview';
+
         const genAI = new GoogleGenerativeAI(this.config.gemini_api_key);
         const model = genAI.getGenerativeModel({ model: modelId });
 

@@ -1,0 +1,83 @@
+{
+  "id": "decision-no-match-fails",
+  "level": "decision",
+  "spec": "5.5",
+  "description": "When no rule matches and there is no default edge, the token fails.",
+  "workflow": {
+    "id": "5d7b85a2-e3d4-5a90-8e18-b6b7feb6f67a",
+    "name": "decision-no-match-fails",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "ac9cbe8c-4774-5511-a135-153148d4d404",
+        "name": "A",
+        "role_id": "07042661-0530-5d73-a17b-ea9b36e6d77e",
+        "actor_type": "application"
+      },
+      {
+        "id": "3bb0f851-c68b-5f83-a4f6-49e67e004cdb",
+        "name": "Low",
+        "role_id": "07042661-0530-5d73-a17b-ea9b36e6d77e",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "4950bb6b-5b74-55cf-b00d-31d7da95f834",
+        "source_id": "ac9cbe8c-4774-5511-a135-153148d4d404",
+        "target_id": "74ef1750-6ec9-590b-b973-a9d2d2343eb3"
+      },
+      {
+        "id": "0d392883-4d1c-5217-a85b-14eada0d48db",
+        "source_id": "74ef1750-6ec9-590b-b973-a9d2d2343eb3",
+        "target_id": "3bb0f851-c68b-5f83-a4f6-49e67e004cdb"
+      }
+    ],
+    "decision_nodes": [
+      {
+        "id": "74ef1750-6ec9-590b-b973-a9d2d2343eb3",
+        "name": "Risk",
+        "decision_table": {
+          "hit_policy": "first",
+          "inputs": [
+            {
+              "name": "tier",
+              "type": "string"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "route",
+              "type": "string"
+            }
+          ],
+          "rules": [
+            {
+              "input_entries": [
+                "\"gold\""
+              ],
+              "output_entries": [
+                "Low"
+              ],
+              "output_edge_id": "0d392883-4d1c-5217-a85b-14eada0d48db"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "output": {
+        "tier": "bronze"
+      }
+    }
+  },
+  "expect": {
+    "status": "failed",
+    "visited": [
+      "A"
+    ]
+  }
+}

@@ -249,7 +249,7 @@ export const VerificationPolicySchema = z.object({
     max_retries: z.number().int().min(0).max(10).default(3),
     retry_with_feedback: z.boolean().default(true),
     output_schema: z.record(z.unknown()).optional(),
-    judge_model_id: z.string().default('gemini-3-flash-preview'),
+    judge_model_id: z.string().optional(),
     judge_temperature: z.number().min(0).max(1).default(0.1),
     pass_threshold: z.number().min(0).max(1).default(0.9),
 });
@@ -373,6 +373,7 @@ export const WorkflowSchema = z.object({
     id: UUID,
     name: z.string(),
     version: z.string().regex(/^\d+\.\d+\.\d+$/),
+    awa_version: z.string().regex(/^\d+\.\d+$/).optional(),
     description: z.string().optional(),
     owner_id: UUID.optional(),
     organization_id: UUID.optional(),

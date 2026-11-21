@@ -1,0 +1,66 @@
+{
+  "id": "invalid-decision-edge",
+  "description": "A decision rule must route to an edge that exists and leaves the decision node.",
+  "valid": false,
+  "stage": "integrity",
+  "error_code": "invalid_reference",
+  "document": {
+    "id": "e16788f8-3fe9-523d-9b82-930042768d7c",
+    "name": "invalid-decision-edge",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "19ac1f8c-e1e1-541e-8c05-c69867ed7c8e",
+        "name": "A",
+        "role_id": "ff12f1d6-a92a-500d-b3a9-91c9b8681c11",
+        "actor_type": "application"
+      },
+      {
+        "id": "8021ab20-5b1a-5acf-9f83-f0448dc4a466",
+        "name": "B",
+        "role_id": "ff12f1d6-a92a-500d-b3a9-91c9b8681c11",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "db2135ec-2595-5f69-8010-7244f229faf4",
+        "source_id": "19ac1f8c-e1e1-541e-8c05-c69867ed7c8e",
+        "target_id": "86997f72-bd59-5ab1-b951-76374ae3145e"
+      }
+    ],
+    "decision_nodes": [
+      {
+        "id": "86997f72-bd59-5ab1-b951-76374ae3145e",
+        "name": "D",
+        "decision_table": {
+          "hit_policy": "first",
+          "inputs": [
+            {
+              "name": "x",
+              "type": "number"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "route",
+              "type": "string"
+            }
+          ],
+          "rules": [
+            {
+              "input_entries": [
+                "> 1"
+              ],
+              "output_entries": [
+                "B"
+              ],
+              "output_edge_id": "6a8bece4-5a4f-5f5e-8fab-547c3e247071"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
