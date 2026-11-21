@@ -1,0 +1,49 @@
+{
+  "id": "compensation-not-run-on-success",
+  "level": "flow",
+  "spec": "13.6",
+  "description": "Compensation handlers are not part of the normal flow and do not run when the run completes.",
+  "workflow": {
+    "id": "f26a2a87-9288-51a6-b44c-7cbf373e763e",
+    "name": "compensation-not-run-on-success",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "f01d78b6-d635-5bb2-876c-1d91691ea07d",
+        "name": "Reserve",
+        "role_id": "33b77cf5-c9ee-59ed-99ff-df3f518b42cf",
+        "actor_type": "application",
+        "compensation": {
+          "activity_id": "a1a282d8-5f15-5719-8f73-a822c276f818"
+        }
+      },
+      {
+        "id": "56b0c9e9-3fae-5e2d-b7ca-d6d30105249a",
+        "name": "Ship",
+        "role_id": "33b77cf5-c9ee-59ed-99ff-df3f518b42cf",
+        "actor_type": "application"
+      },
+      {
+        "id": "a1a282d8-5f15-5719-8f73-a822c276f818",
+        "name": "Release",
+        "role_id": "33b77cf5-c9ee-59ed-99ff-df3f518b42cf",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "dcd7a0f1-7952-558e-b428-2cb340927861",
+        "source_id": "f01d78b6-d635-5bb2-876c-1d91691ea07d",
+        "target_id": "56b0c9e9-3fae-5e2d-b7ca-d6d30105249a"
+      }
+    ]
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "Reserve",
+      "Ship"
+    ]
+  }
+}

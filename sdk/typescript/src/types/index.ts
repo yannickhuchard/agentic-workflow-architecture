@@ -296,6 +296,9 @@ export const ActivityRetrySchema = z.object({
 });
 export type ActivityRetry = z.infer<typeof ActivityRetrySchema>;
 
+export const JoinMode = z.enum(['any', 'all']);
+export type JoinMode = z.infer<typeof JoinMode>;
+
 export const PostconditionSchema = z.object({
     id: UUID.optional(),
     name: z.string(),
@@ -346,6 +349,8 @@ export const ActivitySchema = z.object({
     verification: VerificationPolicySchema.optional(),
     retry: ActivityRetrySchema.optional(),
     outcome_contract: OutcomeContractSchema.optional(),
+    join: JoinMode.optional(),
+    compensation: z.object({ activity_id: UUID }).optional(),
 });
 export type Activity = z.infer<typeof ActivitySchema>;
 
@@ -369,6 +374,7 @@ export const EventSchema = z.object({
     description: z.string().optional(),
     event_type: z.string(),
     event_definition: z.record(z.unknown()).optional(),
+    join: JoinMode.optional(),
 });
 export type Event = z.infer<typeof EventSchema>;
 

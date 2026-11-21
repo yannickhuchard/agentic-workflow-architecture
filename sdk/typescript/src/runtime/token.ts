@@ -2,7 +2,11 @@ import { v4 as uuidv4 } from 'uuid';
 import { UUID, Analytics } from '../types';
 import { calculate_duration } from './duration_utils';
 
-export type TokenStatus = 'active' | 'completed' | 'failed' | 'waiting' | 'cancelled';
+/**
+ * - joining: arrived at a node with join "all" and waiting for the other branches
+ * - joined:  merged into another token at a join (terminal, not a failure)
+ */
+export type TokenStatus = 'active' | 'completed' | 'failed' | 'waiting' | 'cancelled' | 'joining' | 'joined';
 
 export interface TokenHistoryEntry {
     nodeId: UUID;

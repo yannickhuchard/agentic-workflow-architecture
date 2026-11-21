@@ -5,6 +5,7 @@
 import { WorkflowSchema, ActivitySchema, ContextSchema, type Workflow, type Activity, type Context } from '../types';
 import type { ZodError } from 'zod';
 import { validate_expression } from '../runtime/expression';
+import { parse_iso_duration } from '../runtime/duration_utils';
 
 export interface ValidationResult {
     valid: boolean;
@@ -175,6 +176,29 @@ export function validate_workflow_integrity(workflow: Workflow): ValidationResul
             if (!check.valid) {
                 errors.push({ path: `activities[${activity.id}].outcome_contract.postconditions[${condition.name}]`, message: check.error || 'Invalid postcondition', code: 'invalid_expression' });
             }
+        }
+    }
+
+    // Compensation handlers must exist and stand outside the normal flow
+    const activity_ids = new Set(workflow.activities.map(a => a.id));
+    const targeted = new Set(workflow.edges.map(e => e.target_id));
+    for (const activity of workflow.activities) {
+        const handler_id = activity.compensation?.activity_id;
+        if (!handler_id) continue;
+        if (!activity_ids.has(handler_id)) {
+            errors.push({ path: `activities[${activity.id}].compensation`, message: `Compensation activity '${handler_id}' not found`, code: 'invalid_reference' });
+        } else if (targeted.has(handler_id) || handler_id === activity.id) {
+            errors.push({ path: `activities[${activity.id}].compensation`, message: `Compensation activity '${handler_id}' must not be the target of an edge`, code: 'invalid_compensation' });
+        }
+    }
+
+    // Timer events need a duration the engine can wait for
+    for (const event of workflow.events) {
+        if (event.event_type !== 'timer') continue;
+        try {
+            parse_iso_duration(String(event.event_definition?.duration));
+        } catch {
+            errors.push({ path: `events[${event.id}].event_definition.duration`, message: `Timer event '${event.name}' needs an ISO 8601 duration of weeks, days, hours, minutes or seconds`, code: 'invalid_timer' });
         }
     }
 

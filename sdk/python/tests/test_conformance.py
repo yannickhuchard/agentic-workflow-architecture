@@ -75,6 +75,6 @@ def test_documents(case):
         with pytest.raises(Exception):
             Workflow.model_validate(document)
     else:
-        if case["error_code"] != "invalid_reference" or "decision_nodes" in document:
+        if case["error_code"] != "invalid_reference" or "decision_nodes" in document or "invalid-comp" in case["id"]:
             pytest.skip(f"integrity rule '{case['error_code']}' is not implemented by the Python SDK")
         assert not validate_workflow_integrity(Workflow.model_validate(document)).valid

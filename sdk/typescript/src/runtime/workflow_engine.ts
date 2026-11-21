@@ -4,7 +4,7 @@
  */
 
 import { randomUUID } from 'crypto';
-import { UUID, Workflow, Activity, Edge, Role, DecisionNode } from '../types';
+import { UUID, Workflow, Activity, Edge, Role, DecisionNode, Event as WorkflowEvent } from '../types';
 import { Token } from './token';
 import { ContextManager } from './context_manager';
 import { ExecutionLogger, ExecutionMetrics, get_execution_logger } from './execution_logger';
@@ -115,6 +115,10 @@ export class WorkflowEngine {
     private activityMap: Map<UUID, Activity>;
     private edgeMap: Map<UUID, Edge[]>; // Source ID -> Edges
     private decisionNodeMap: Map<UUID, DecisionNode>;
+    private eventMap: Map<UUID, WorkflowEvent> = new Map();
+    private incomingEdges: Map<UUID, Edge[]> = new Map(); // Target ID -> Edges
+    /** Activities whose outcome was accepted, in order of completion. Drives compensation. */
+    private completedActivities: { activity_id: UUID; token_id: UUID; output: Record<string, unknown> }[] = [];
     private options: WorkflowEngineOptions;
     private roleMap: Map<UUID, Role>;
     private decisionEvaluator: DecisionEvaluator;
@@ -203,6 +207,15 @@ export class WorkflowEngine {
                 this.edgeMap.set(edge.source_id, []);
             }
             this.edgeMap.get(edge.source_id)?.push(edge);
+
+            if (!this.incomingEdges.has(edge.target_id)) {
+                this.incomingEdges.set(edge.target_id, []);
+            }
+            this.incomingEdges.get(edge.target_id)?.push(edge);
+        }
+
+        for (const event of this.workflow.events) {
+            this.eventMap.set(event.id, event);
         }
 
         for (const decisionNode of this.workflow.decision_nodes) {
@@ -238,18 +251,7 @@ export class WorkflowEngine {
             throw new Error('Workflow has no activities');
         }
 
-        // Strategy: Find node with no incoming edges from Activities
-        let startNodeId: UUID | undefined;
-
-        const targetIds = new Set(this.workflow.edges.map(e => e.target_id));
-        const startActivities = this.workflow.activities.filter(a => !targetIds.has(a.id));
-
-        if (startActivities.length > 0) {
-            startNodeId = startActivities[0].id;
-        } else {
-            // Cycle or just pick first
-            startNodeId = this.workflow.activities[0].id;
-        }
+        const startNodeId = this.findStartNode();
 
         // Add workflow metadata to initial data
         const tokenData = {
@@ -280,6 +282,20 @@ export class WorkflowEngine {
         return token.id;
     }
 
+    /**
+     * The node a run starts at (spec: "Start"):
+     * the first start event; otherwise the first activity that no edge targets
+     * and that is not a compensation handler; otherwise the first activity.
+     */
+    private findStartNode(): UUID {
+        const startEvent = this.workflow.events.find(e => e.event_type === 'start');
+        if (startEvent) return startEvent.id;
+
+        const handlers = new Set(this.workflow.activities.map(a => a.compensation?.activity_id).filter(Boolean));
+        const entry = this.workflow.activities.find(a => !this.incomingEdges.has(a.id) && !handlers.has(a.id));
+        return (entry || this.workflow.activities[0]).id;
+    }
+
     public async runStep(): Promise<void> {
         if (this.status !== 'running' && this.status !== 'waiting_human') return;
 
@@ -290,9 +306,8 @@ export class WorkflowEngine {
             return;
         }
 
-        for (const token of activeTokens) {
-            await this.processToken(token);
-        }
+        // Tokens on parallel branches make progress concurrently
+        await Promise.all(activeTokens.map(token => this.processToken(token)));
 
         await this.settle();
         await this.saveCheckpoint();
@@ -304,11 +319,29 @@ export class WorkflowEngine {
      * makes the run `failed` once no token is still active or waiting.
      */
     private async settle(): Promise<void> {
-        if (this.tokens.some(t => t.status === 'active')) return;
+        const has = (status: Token['status']) => this.tokens.some(t => t.status === status);
+
+        // A join that can no longer be satisfied is a failure, not a wait
+        if (!has('active') && !has('waiting') && has('joining')) {
+            for (const token of this.tokens.filter(t => t.status === 'joining')) {
+                this.failToken(token, new ActivityError(
+                    'Join can never complete: no token can still arrive on the remaining incoming edges', 'JOIN_DEADLOCK'));
+            }
+        }
+
+        // Fail fast: once a token has failed, the rest of the run is withdrawn
+        if (has('failed')) {
+            for (const token of this.tokens.filter(t => ['active', 'waiting', 'joining'].includes(t.status))) {
+                token.updateStatus('cancelled');
+                this.record({ type: 'token.cancelled', token_id: token.id, ...this.nodeRef(token.activityId), data: { reason: 'run_failed' } });
+            }
+        }
+
+        if (has('active')) return;
 
         const previous = this.status;
 
-        if (this.tokens.some(t => t.status === 'waiting')) {
+        if (has('waiting')) {
             this.status = 'waiting_human';
             if (previous !== this.status) {
                 this.record({ type: 'run.waiting', data: { waiting_tokens: this.tokens.filter(t => t.status === 'waiting').map(t => t.id) } });
@@ -316,26 +349,77 @@ export class WorkflowEngine {
             return;
         }
 
-        this.status = this.tokens.some(t => t.status === 'failed') ? 'failed' : 'completed';
-        if (previous !== this.status) {
-            const durationMs = Date.now() - this.executionStats.startTime.getTime();
-            this.record({
-                type: this.status === 'completed' ? 'run.completed' : 'run.failed',
-                data: {
-                    duration_ms: durationMs,
-                    steps: this.executionStats.stepsCount,
-                    input_tokens: this.executionStats.inputTokens,
-                    output_tokens: this.executionStats.outputTokens,
-                    cost: this.executionStats.cost,
-                    currency: this.options.pricing_config?.currency || 'USD',
-                    ...(this.status === 'failed'
-                        ? { errors: this.tokens.filter(t => t.status === 'failed').map(t => ({ token_id: t.id, node_id: t.activityId, message: t.getData('_error') })) }
-                        : {}),
-                },
-            });
-            await this.finalizeExecution();
-            await this.journal.flush();
+        const failed = has('failed');
+        if (previous === 'completed' || previous === 'failed') return;
+
+        const compensation = failed ? await this.compensate() : undefined;
+        this.status = failed ? 'failed' : 'completed';
+
+        const durationMs = Date.now() - this.executionStats.startTime.getTime();
+        this.record({
+            type: failed ? 'run.failed' : 'run.completed',
+            data: {
+                duration_ms: durationMs,
+                steps: this.executionStats.stepsCount,
+                input_tokens: this.executionStats.inputTokens,
+                output_tokens: this.executionStats.outputTokens,
+                cost: this.executionStats.cost,
+                currency: this.options.pricing_config?.currency || 'USD',
+                ...(failed
+                    ? {
+                        errors: this.tokens.filter(t => t.status === 'failed').map(t => ({ token_id: t.id, node_id: t.activityId, message: t.getData('_error') })),
+                        compensation,
+                    }
+                    : {}),
+            },
+        });
+        await this.finalizeExecution();
+        await this.journal.flush();
+    }
+
+    /**
+     * Undo completed work after a failure (spec: "Compensation").
+     * Every completed activity that names a compensation handler is
+     * compensated, most recently completed first. A handler that fails does
+     * not stop the others.
+     */
+    private async compensate(): Promise<{ attempted: number; succeeded: number }> {
+        let attempted = 0;
+        let succeeded = 0;
+
+        for (const done of [...this.completedActivities].reverse()) {
+            const activity = this.activityMap.get(done.activity_id);
+            const handler = activity?.compensation ? this.activityMap.get(activity.compensation.activity_id) : undefined;
+            if (!activity || !handler) continue;
+
+            attempted++;
+            const ref = { token_id: done.token_id, ...this.nodeRef(handler.id) };
+            const failure = this.tokens.find(t => t.status === 'failed');
+            try {
+                const actor = this.createActor(handler);
+                if (!actor) throw new Error(`No actor for compensation handler "${handler.name}"`);
+                const result = await actor.execute(handler, {
+                    ...done.output,
+                    _compensating: { activity_id: activity.id, activity_name: activity.name, output: done.output },
+                    _failure: { message: failure?.getData('_error'), code: failure?.getData('_error_code') },
+                    _run_id: this.runId,
+                    _idempotency_key: `${this.runId}:${done.token_id}:${handler.id}:compensation`,
+                });
+                succeeded++;
+                this.record({
+                    type: 'activity.compensated', ...ref,
+                    data: { compensates_activity_id: activity.id, compensates_activity_name: activity.name, output: this.journal.payload(public_payload(result)) },
+                });
+            } catch (error: unknown) {
+                const info = error_info(error);
+                this.record({
+                    type: 'activity.compensation_failed', ...ref,
+                    data: { compensates_activity_id: activity.id, compensates_activity_name: activity.name, error: { message: info.message, code: info.code } },
+                });
+            }
         }
+
+        return { attempted, succeeded };
     }
 
     // ------------------------------------------------------------------
@@ -349,7 +433,7 @@ export class WorkflowEngine {
     private nodeRef(nodeId: UUID): { node_id: UUID; node_name?: string } {
         const name = this.activityMap.get(nodeId)?.name
             || this.decisionNodeMap.get(nodeId)?.name
-            || this.workflow.events.find(e => e.id === nodeId)?.name;
+            || this.eventMap.get(nodeId)?.name;
         return { node_id: nodeId, ...(name ? { node_name: name } : {}) };
     }
 
@@ -387,6 +471,7 @@ export class WorkflowEngine {
             metadata: {
                 run_id: this.runId,
                 journal_seq: this.journal.last_seq,
+                completed_activities: this.completedActivities,
                 stats: { ...this.executionStats, startTime: this.executionStats.startTime.toISOString() },
             },
         };
@@ -407,12 +492,16 @@ export class WorkflowEngine {
         if (state.workflow_id !== workflowDef.id) {
             throw new Error(`Checkpoint belongs to workflow ${state.workflow_id}, not ${workflowDef.id}`);
         }
-        const meta = (state.metadata || {}) as { run_id?: UUID; journal_seq?: number; stats?: Record<string, unknown> };
+        const meta = (state.metadata || {}) as {
+            run_id?: UUID; journal_seq?: number; stats?: Record<string, unknown>;
+            completed_activities?: WorkflowEngine['completedActivities'];
+        };
         const engine = new WorkflowEngine(workflowDef, { ...options, run_id: meta.run_id || options.run_id });
         engine.journal = new JournalWriter(
             engine.runId, workflowDef.id, engine.journalStore, options.journal_payloads || 'full', meta.journal_seq || 0);
         engine.tokens = state.tokens.map(t => deserialize_token(t, state.workflow_id));
         engine.contextManager.restore(state.contexts);
+        engine.completedActivities = meta.completed_activities || [];
         if (meta.stats) {
             engine.executionStats = { ...engine.executionStats, ...meta.stats, startTime: new Date(String(meta.stats.startTime)) };
         }
@@ -445,6 +534,12 @@ export class WorkflowEngine {
         const decisionNode = this.decisionNodeMap.get(currentNodeId);
         if (decisionNode) {
             await this.processDecisionNode(token, decisionNode);
+            return;
+        }
+
+        const event = this.eventMap.get(currentNodeId);
+        if (event) {
+            await this.processEvent(token, event);
             return;
         }
 
@@ -524,6 +619,8 @@ export class WorkflowEngine {
                 },
             });
 
+            this.completedActivities.push({ activity_id: activity.id, token_id: token.id, output: public_payload(output) });
+
             await this.advanceToken(token, currentNodeId, analytics);
         } catch (error: unknown) {
             const analytics: Analytics = {
@@ -532,6 +629,61 @@ export class WorkflowEngine {
                 error_rate: 1,
             };
             this.failToken(token, error, analytics);
+        }
+    }
+
+    /**
+     * Process an event node (spec: "Events").
+     * start and intermediate events pass the token on; end events complete it;
+     * timer events hold it for a duration. Other event types are not executable
+     * and fail the token rather than letting it through unexamined.
+     */
+    private async processEvent(token: Token, event: WorkflowEvent): Promise<void> {
+        const ref = { token_id: token.id, ...this.nodeRef(event.id) };
+
+        switch (event.event_type) {
+            case 'start':
+            case 'intermediate':
+                await this.advanceToken(token, event.id);
+                return;
+
+            case 'end':
+                token.updateStatus('completed');
+                this.record({ type: 'token.completed', ...ref, data: { end_event: true } });
+                return;
+
+            case 'timer': {
+                const dueKey = `_timer_due:${event.id}`;
+                const due = token.getData(dueKey) as string | undefined;
+
+                if (!due) {
+                    // First visit: note when the timer is due and yield, so the
+                    // deadline is checkpointed before the engine waits on it.
+                    let durationMs: number;
+                    try {
+                        durationMs = parse_iso_duration(String(event.event_definition?.duration));
+                    } catch (error) {
+                        this.failToken(token, new ActivityError(`Timer "${event.name}": ${error_info(error).message}`, 'VALIDATION_ERROR'));
+                        return;
+                    }
+                    const dueAt = new Date(Date.now() + durationMs).toISOString();
+                    token.setData(dueKey, dueAt);
+                    this.record({ type: 'timer.started', ...ref, data: { duration: event.event_definition?.duration, duration_ms: durationMs, due_at: dueAt } });
+                    return;
+                }
+
+                const remaining = new Date(due).getTime() - Date.now();
+                if (remaining > 0) await this.sleep(remaining);
+                const { [dueKey]: _fired, ...rest } = token.contextData;
+                token.contextData = rest;
+                this.record({ type: 'timer.fired', ...ref, data: { due_at: due } });
+                await this.advanceToken(token, event.id);
+                return;
+            }
+
+            default:
+                this.failToken(token, new ActivityError(
+                    `Event "${event.name}" has type "${event.event_type}", which this engine cannot execute`, 'UNSUPPORTED_EVENT'));
         }
     }
 
@@ -962,6 +1114,46 @@ export class WorkflowEngine {
             data: { from_node_id: from, to_node_id: targetId, edge_id: edgeId, reason, ...(condition ? { condition } : {}) },
         });
         this.log(`Token ${token.id} moved to ${targetId}`);
+
+        const join = this.activityMap.get(targetId)?.join || this.eventMap.get(targetId)?.join;
+        if (join === 'all' && (this.incomingEdges.get(targetId) || []).length > 1) {
+            token.setData('_arrived_edge', edgeId);
+            token.updateStatus('joining');
+            this.tryJoin(targetId);
+        }
+    }
+
+    /**
+     * Synchronising join (spec: "Join"). When a token has arrived over every
+     * incoming edge of the node, the tokens are merged into one, which then
+     * executes the node once.
+     */
+    private tryJoin(nodeId: UUID): void {
+        const incoming = this.incomingEdges.get(nodeId) || [];
+        const parked = this.tokens.filter(t => t.status === 'joining' && t.activityId === nodeId);
+        const arrivals = incoming.map(edge => parked.find(t => t.getData('_arrived_edge') === edge.id));
+        if (arrivals.some(t => !t)) return;
+
+        const tokens = arrivals as Token[];
+        const survivor = tokens[0];
+        let merged: Record<string, unknown> = {};
+        let archive: Record<string, unknown> = {};
+        // Merge in the document order of the incoming edges; later branches win on conflict
+        for (const token of tokens) {
+            archive = { ...archive, ...((token.contextData.activities as Record<string, unknown>) || {}) };
+            merged = { ...merged, ...token.contextData };
+        }
+        const { _arrived_edge, ...data } = merged;
+        survivor.contextData = { ...data, activities: archive };
+
+        for (const token of tokens.slice(1)) {
+            token.updateStatus('joined');
+        }
+        survivor.updateStatus('active');
+        this.record({
+            type: 'token.joined', token_id: survivor.id, ...this.nodeRef(nodeId),
+            data: { merged_token_ids: tokens.slice(1).map(t => t.id), incoming_edge_ids: incoming.map(e => e.id) },
+        });
     }
 
     /**
@@ -977,42 +1169,58 @@ export class WorkflowEngine {
             return;
         }
 
-        let selected: { edge: Edge; reason: string } | undefined;
+        let selected: { edges: Edge[]; reason: string };
         try {
-            selected = this.selectNextEdge(outgoingEdges, token.contextData);
+            selected = this.selectNextEdges(outgoingEdges, token.contextData);
         } catch (error: unknown) {
             this.failToken(token, error, analytics);
             return;
         }
 
-        if (!selected) {
+        if (selected.edges.length === 0) {
             this.failToken(token,
                 new ActivityError('No route: no edge condition matched and no default edge is defined', 'NO_ROUTE'), analytics);
             return;
         }
 
-        this.moveToken(token, selected.edge.id, selected.edge.target_id, selected.reason, analytics, selected.edge.condition);
+        // Parallel split: the token follows the first edge, and a new token,
+        // carrying a copy of its data, follows each of the others.
+        const [first, ...others] = selected.edges;
+        const siblings = others.map(edge => {
+            const sibling = new Token(currentNodeId, JSON.parse(JSON.stringify(token.contextData)), token.id, this.workflow.id);
+            this.tokens.push(sibling);
+            this.record({
+                type: 'token.created', token_id: sibling.id, ...this.nodeRef(currentNodeId),
+                data: { parent_token_id: token.id, reason: 'parallel_split' },
+            });
+            return { sibling, edge };
+        });
+
+        this.moveToken(token, first.id, first.target_id, selected.reason, analytics, first.condition);
+        for (const { sibling, edge } of siblings) {
+            this.moveToken(sibling, edge.id, edge.target_id, selected.reason);
+        }
     }
 
     /**
-     * Select the next edge (spec: "Routing").
-     * 1. Conditional edges are evaluated in document order; the first true one wins.
-     * 2. Otherwise the edge marked `is_default` is taken.
-     * 3. Otherwise the first unconditional edge is taken.
+     * Select the outgoing edges to follow (spec: "Routing").
+     * 1. Conditional edges are evaluated in document order; the first true one is taken, alone.
+     * 2. Otherwise the edge marked `is_default` is taken, alone.
+     * 3. Otherwise every unconditional edge is taken: one is a sequence, several are a parallel split.
      * 4. Otherwise there is no route and the token fails. An engine never guesses.
      */
-    private selectNextEdge(edges: Edge[], context: Record<string, unknown>): { edge: Edge; reason: string } | undefined {
+    private selectNextEdges(edges: Edge[], context: Record<string, unknown>): { edges: Edge[]; reason: string } {
         for (const edge of edges) {
             if (edge.condition && evaluate_expression(edge.condition, context)) {
-                return { edge, reason: 'condition' };
+                return { edges: [edge], reason: 'condition' };
             }
         }
 
         const defaultEdge = edges.find(e => e.is_default);
-        if (defaultEdge) return { edge: defaultEdge, reason: 'default' };
+        if (defaultEdge) return { edges: [defaultEdge], reason: 'default' };
 
-        const unconditional = edges.find(e => !e.condition);
-        return unconditional ? { edge: unconditional, reason: 'unconditional' } : undefined;
+        const unconditional = edges.filter(e => !e.condition);
+        return { edges: unconditional, reason: unconditional.length > 1 ? 'parallel_split' : 'unconditional' };
     }
 
     /**

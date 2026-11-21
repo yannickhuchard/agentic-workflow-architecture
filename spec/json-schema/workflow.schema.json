@@ -195,7 +195,16 @@
                 },
                 "event_definition": {
                     "type": "object",
-                    "description": "Event-specific configuration"
+                    "description": "Type-specific settings. For timer events: { \"duration\": \"<ISO 8601 duration>\" }"
+                },
+                "join": {
+                    "type": "string",
+                    "enum": [
+                        "any",
+                        "all"
+                    ],
+                    "default": "any",
+                    "description": "As for activities"
                 }
             }
         }

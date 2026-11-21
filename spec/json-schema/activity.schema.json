@@ -136,6 +136,28 @@
         "outcome_contract": {
             "$ref": "#/$defs/outcome_contract",
             "description": "What must be true of the activity's outcome, whatever strategy the actor used"
+        },
+        "join": {
+            "type": "string",
+            "enum": [
+                "any",
+                "all"
+            ],
+            "default": "any",
+            "description": "How tokens arriving over several incoming edges are treated. any: each token executes the activity. all: the engine waits for a token on every incoming edge, merges them and executes the activity once."
+        },
+        "compensation": {
+            "type": "object",
+            "required": [
+                "activity_id"
+            ],
+            "properties": {
+                "activity_id": {
+                    "$ref": "awa.schema.json#/$defs/uuid",
+                    "description": "Activity that undoes this one if the run later fails. It must not be the target of any edge."
+                }
+            },
+            "description": "How to undo this activity"
         }
     },
     "$defs": {

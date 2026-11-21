@@ -1,0 +1,60 @@
+{
+  "id": "timer-event-holds-token",
+  "level": "flow",
+  "spec": "13.5",
+  "description": "A timer event holds the token for its duration, then lets it continue.",
+  "workflow": {
+    "id": "b21b1101-2f3b-5bfa-8d63-538292df9e1e",
+    "name": "timer-event-holds-token",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "b2f908bd-4e88-5d9c-95d8-2a9873a8146c",
+        "name": "A",
+        "role_id": "7ddd32eb-faa1-5e3f-994b-0de1ce8f0c44",
+        "actor_type": "application"
+      },
+      {
+        "id": "6d2b855c-50e9-565f-aa1d-976a64818487",
+        "name": "B",
+        "role_id": "7ddd32eb-faa1-5e3f-994b-0de1ce8f0c44",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "a32d835f-6e15-5f6d-baec-8efb59dab23c",
+        "source_id": "b2f908bd-4e88-5d9c-95d8-2a9873a8146c",
+        "target_id": "ec3e508b-c46a-5e16-831f-84eb03117269"
+      },
+      {
+        "id": "1a389a92-538e-5121-b35f-9a7df5f7d25b",
+        "source_id": "ec3e508b-c46a-5e16-831f-84eb03117269",
+        "target_id": "6d2b855c-50e9-565f-aa1d-976a64818487"
+      }
+    ],
+    "events": [
+      {
+        "id": "ec3e508b-c46a-5e16-831f-84eb03117269",
+        "name": "Wait",
+        "event_type": "timer",
+        "event_definition": {
+          "duration": "PT0.02S"
+        }
+      }
+    ]
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "A",
+      "B"
+    ],
+    "journal": [
+      "timer.started",
+      "timer.fired",
+      "activity.started"
+    ]
+  }
+}

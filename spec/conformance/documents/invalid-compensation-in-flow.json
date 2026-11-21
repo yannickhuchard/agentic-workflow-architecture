@@ -1,0 +1,37 @@
+{
+  "id": "invalid-compensation-in-flow",
+  "description": "A compensation handler must not be the target of an edge.",
+  "valid": false,
+  "stage": "integrity",
+  "error_code": "invalid_compensation",
+  "document": {
+    "id": "fe5d3593-ad16-5b64-b3dc-defb47adabe1",
+    "name": "invalid-compensation-in-flow",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "0566a4c9-2485-5b9c-9bbe-79fc933ae352",
+        "name": "A",
+        "role_id": "bc2cda03-7a82-5a55-a0d8-5b668cdac6df",
+        "actor_type": "application",
+        "compensation": {
+          "activity_id": "97396900-df3b-5066-a426-5d223c22624e"
+        }
+      },
+      {
+        "id": "97396900-df3b-5066-a426-5d223c22624e",
+        "name": "B",
+        "role_id": "bc2cda03-7a82-5a55-a0d8-5b668cdac6df",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "cd1677af-e96f-5518-8609-8a5f41cd2151",
+        "source_id": "0566a4c9-2485-5b9c-9bbe-79fc933ae352",
+        "target_id": "97396900-df3b-5066-a426-5d223c22624e"
+      }
+    ]
+  }
+}

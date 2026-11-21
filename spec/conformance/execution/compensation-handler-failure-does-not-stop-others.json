@@ -1,0 +1,96 @@
+{
+  "id": "compensation-handler-failure-does-not-stop-others",
+  "level": "flow",
+  "spec": "13.6",
+  "description": "A handler that fails is recorded and the remaining compensations still run.",
+  "workflow": {
+    "id": "33f819e6-e4b1-51b0-be40-77a7da19cbff",
+    "name": "compensation-handler-failure-does-not-stop-others",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "c8527a3c-f4e6-5564-b6c4-8181d7a329cb",
+        "name": "Reserve",
+        "role_id": "cd8938ed-e2a9-58e0-bba6-ee50080290d8",
+        "actor_type": "application",
+        "compensation": {
+          "activity_id": "868766a9-3f56-52e8-985e-0d776347f77e"
+        }
+      },
+      {
+        "id": "407281e8-5b4f-54b6-af7c-d268e14579c1",
+        "name": "Charge",
+        "role_id": "cd8938ed-e2a9-58e0-bba6-ee50080290d8",
+        "actor_type": "application",
+        "compensation": {
+          "activity_id": "7bcedab9-92dd-5b63-9eaf-99bec0f24d9c"
+        }
+      },
+      {
+        "id": "8a89d7ab-c714-5036-af5d-85099e93c2c8",
+        "name": "Ship",
+        "role_id": "cd8938ed-e2a9-58e0-bba6-ee50080290d8",
+        "actor_type": "application"
+      },
+      {
+        "id": "868766a9-3f56-52e8-985e-0d776347f77e",
+        "name": "Release",
+        "role_id": "cd8938ed-e2a9-58e0-bba6-ee50080290d8",
+        "actor_type": "application"
+      },
+      {
+        "id": "7bcedab9-92dd-5b63-9eaf-99bec0f24d9c",
+        "name": "Refund",
+        "role_id": "cd8938ed-e2a9-58e0-bba6-ee50080290d8",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "58a79183-214c-525c-8dfd-ee7c29be43d9",
+        "source_id": "c8527a3c-f4e6-5564-b6c4-8181d7a329cb",
+        "target_id": "407281e8-5b4f-54b6-af7c-d268e14579c1"
+      },
+      {
+        "id": "058a7b95-bc8e-54e6-bfac-74381c2c3d51",
+        "source_id": "407281e8-5b4f-54b6-af7c-d268e14579c1",
+        "target_id": "8a89d7ab-c714-5036-af5d-85099e93c2c8"
+      }
+    ]
+  },
+  "actors": {
+    "Ship": {
+      "error": "carrier down"
+    },
+    "Refund": {
+      "error": "bank offline"
+    }
+  },
+  "expect": {
+    "status": "failed",
+    "visited": [
+      "Reserve",
+      "Charge",
+      "Ship",
+      "Refund",
+      "Release"
+    ],
+    "journal": [
+      "activity.compensation_failed",
+      "activity.compensated",
+      "run.failed"
+    ],
+    "journal_contains": [
+      {
+        "type": "run.failed",
+        "data": {
+          "compensation": {
+            "attempted": 2,
+            "succeeded": 1
+          }
+        }
+      }
+    ]
+  }
+}

@@ -301,6 +301,81 @@ def execution_cases() -> list[Case]:
                 "journal": ["contract.checked", "contract.escalated", "contract.checked", "activity.completed"]}
     cases.append(c)
 
+    c = Case("parallel-split-and-join", "flow", "13.1", "Several unconditional edges split the token; a node with join 'all' waits for every branch, merges their data and runs once.")
+    c.act("A").act("B").act("C").act("D", join="all")
+    c.edge("A", "B").edge("A", "C").edge("B", "D").edge("C", "D")
+    c.actors = {"B": {"output": {"b": 1}}, "C": {"output": {"c": 2}}}
+    c.expect = {"status": "completed", "visited_unordered": ["A", "B", "C", "D"], "data": {"b": 1, "c": 2},
+                "journal": ["token.created", "token.joined", "run.completed"]}
+    cases.append(c)
+
+    c = Case("parallel-split-without-join", "flow", "13.1", "Without a join, each branch runs to its own end and the run completes when all have.")
+    c.act("A").act("B").act("C").edge("A", "B").edge("A", "C")
+    c.expect = {"status": "completed", "visited_unordered": ["A", "B", "C"]}
+    cases.append(c)
+
+    c = Case("join-any-runs-per-token", "flow", "13.2", "With the default join 'any', a node reached by two tokens runs twice.")
+    c.act("A").act("B").act("C").act("D")
+    c.edge("A", "B").edge("A", "C").edge("B", "D").edge("C", "D")
+    c.expect = {"status": "completed", "visited_unordered": ["A", "B", "C", "D", "D"]}
+    cases.append(c)
+
+    c = Case("join-deadlock-fails", "flow", "13.2", "A join 'all' that can never be satisfied fails the run instead of waiting for ever.")
+    c.act("A").act("B").act("C").act("D", join="all")
+    c.edge("A", "B", condition="go == b").edge("A", "C", is_default=True).edge("B", "D").edge("C", "D")
+    c.actors = {"A": {"output": {"go": "b"}}}
+    c.expect = {"status": "failed", "visited": ["A", "B"], "error_matches": "Join can never complete"}
+    cases.append(c)
+
+    c = Case("failure-cancels-other-branches", "flow", "13.3", "When one branch fails, tokens on other branches are cancelled and the run fails.")
+    c.act("A").act("B").act("C").act("D").act("E")
+    c.edge("A", "B").edge("A", "C").edge("B", "D").edge("C", "E")
+    c.actors = {"B": {"error": "boom"}}
+    c.expect = {"status": "failed", "not_visited": ["D", "E"], "journal": ["token.failed", "token.cancelled", "run.failed"]}
+    cases.append(c)
+
+    c = Case("start-and-end-events", "flow", "13.4", "A run starts at the start event, and a token that reaches an end event completes.")
+    c.event("Begin", "start").event("Done", "end").act("Orphan").act("A")
+    c.edge("Begin", "A").edge("A", "Done")
+    c.expect = {"status": "completed", "visited": ["A"]}
+    cases.append(c)
+
+    c = Case("timer-event-holds-token", "flow", "13.5", "A timer event holds the token for its duration, then lets it continue.")
+    c.act("A").event("Wait", "timer", duration="PT0.02S").act("B").edge("A", "Wait").edge("Wait", "B")
+    c.expect = {"status": "completed", "visited": ["A", "B"], "journal": ["timer.started", "timer.fired", "activity.started"]}
+    cases.append(c)
+
+    c = Case("unsupported-event-fails", "flow", "13.4", "A token that reaches an event the engine cannot execute fails; it is not waved through.")
+    c.act("A").event("Await payment", "message").act("B").edge("A", "Await payment").edge("Await payment", "B")
+    c.expect = {"status": "failed", "visited": ["A"], "error_matches": "cannot execute"}
+    cases.append(c)
+
+    c = Case("compensation-on-failure", "flow", "13.6", "When a run fails, completed activities that name a compensation handler are compensated, most recent first.")
+    c.act("Reserve", compensation={"activity_id": c.u("Release")}).act("Charge", compensation={"activity_id": c.u("Refund")})
+    c.act("Ship").act("Release").act("Refund")
+    c.edge("Reserve", "Charge").edge("Charge", "Ship")
+    c.actors = {"Ship": {"error": "carrier down"}}
+    c.expect = {"status": "failed", "visited": ["Reserve", "Charge", "Ship", "Refund", "Release"],
+                "journal": ["token.failed", "activity.compensated", "activity.compensated", "run.failed"],
+                "journal_contains": [{"type": "run.failed", "data": {"compensation": {"attempted": 2, "succeeded": 2}}}]}
+    cases.append(c)
+
+    c = Case("compensation-not-run-on-success", "flow", "13.6", "Compensation handlers are not part of the normal flow and do not run when the run completes.")
+    c.act("Reserve", compensation={"activity_id": c.u("Release")}).act("Ship").act("Release")
+    c.edge("Reserve", "Ship")
+    c.expect = {"status": "completed", "visited": ["Reserve", "Ship"]}
+    cases.append(c)
+
+    c = Case("compensation-handler-failure-does-not-stop-others", "flow", "13.6", "A handler that fails is recorded and the remaining compensations still run.")
+    c.act("Reserve", compensation={"activity_id": c.u("Release")}).act("Charge", compensation={"activity_id": c.u("Refund")})
+    c.act("Ship").act("Release").act("Refund")
+    c.edge("Reserve", "Charge").edge("Charge", "Ship")
+    c.actors = {"Ship": {"error": "carrier down"}, "Refund": {"error": "bank offline"}}
+    c.expect = {"status": "failed", "visited": ["Reserve", "Charge", "Ship", "Refund", "Release"],
+                "journal": ["activity.compensation_failed", "activity.compensated", "run.failed"],
+                "journal_contains": [{"type": "run.failed", "data": {"compensation": {"attempted": 2, "succeeded": 1}}}]}
+    cases.append(c)
+
     return cases
 
 
@@ -367,6 +442,16 @@ def document_cases() -> list[dict]:
     c.act("A").act("B").decision("D", "first", [("x", "number")], [(["> 1"], "B")]).edge("A", "D")
     docs.append({"id": c.id, "description": "A decision rule must route to an edge that exists and leaves the decision node.",
                  "valid": False, "stage": "integrity", "error_code": "invalid_reference", "document": c.build()["workflow"]})
+
+    c = Case("invalid-compensation-in-flow", "document", "4", "")
+    c.act("A", compensation={"activity_id": c.u("B")}).act("B").edge("A", "B")
+    docs.append({"id": c.id, "description": "A compensation handler must not be the target of an edge.",
+                 "valid": False, "stage": "integrity", "error_code": "invalid_compensation", "document": c.build()["workflow"]})
+
+    c = Case("invalid-timer-duration", "document", "4", "")
+    c.act("A").event("Wait", "timer", duration="soon").edge("A", "Wait")
+    docs.append({"id": c.id, "description": "A timer event needs an ISO 8601 duration.",
+                 "valid": False, "stage": "integrity", "error_code": "invalid_timer", "document": c.build()["workflow"]})
 
     return docs
 

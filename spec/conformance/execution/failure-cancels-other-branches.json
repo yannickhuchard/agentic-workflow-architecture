@@ -1,0 +1,83 @@
+{
+  "id": "failure-cancels-other-branches",
+  "level": "flow",
+  "spec": "13.3",
+  "description": "When one branch fails, tokens on other branches are cancelled and the run fails.",
+  "workflow": {
+    "id": "d114f8b4-af7e-563c-8146-4c1cc914d42a",
+    "name": "failure-cancels-other-branches",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "4132ea4f-bf22-5ab8-bfb3-483ca32883e1",
+        "name": "A",
+        "role_id": "167a6da5-ae51-5796-8428-b67f212c53b0",
+        "actor_type": "application"
+      },
+      {
+        "id": "dad9b499-29e7-5c54-b941-d7fc336061d6",
+        "name": "B",
+        "role_id": "167a6da5-ae51-5796-8428-b67f212c53b0",
+        "actor_type": "application"
+      },
+      {
+        "id": "63d86f5c-874b-5f72-824c-063b30b6542f",
+        "name": "C",
+        "role_id": "167a6da5-ae51-5796-8428-b67f212c53b0",
+        "actor_type": "application"
+      },
+      {
+        "id": "8473af56-ce3d-5300-bf62-0e0aecd3a2e7",
+        "name": "D",
+        "role_id": "167a6da5-ae51-5796-8428-b67f212c53b0",
+        "actor_type": "application"
+      },
+      {
+        "id": "c69df85b-1dcf-585b-9df2-9e8105114382",
+        "name": "E",
+        "role_id": "167a6da5-ae51-5796-8428-b67f212c53b0",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "66afc580-6c1d-5813-a254-468884e3299b",
+        "source_id": "4132ea4f-bf22-5ab8-bfb3-483ca32883e1",
+        "target_id": "dad9b499-29e7-5c54-b941-d7fc336061d6"
+      },
+      {
+        "id": "994471d6-8c97-5623-9434-a9c453cfdb80",
+        "source_id": "4132ea4f-bf22-5ab8-bfb3-483ca32883e1",
+        "target_id": "63d86f5c-874b-5f72-824c-063b30b6542f"
+      },
+      {
+        "id": "7998e4b9-9d10-5672-8e82-6cc6d4065251",
+        "source_id": "dad9b499-29e7-5c54-b941-d7fc336061d6",
+        "target_id": "8473af56-ce3d-5300-bf62-0e0aecd3a2e7"
+      },
+      {
+        "id": "4ea12973-74c7-5a18-9b55-df93528f6ec9",
+        "source_id": "63d86f5c-874b-5f72-824c-063b30b6542f",
+        "target_id": "c69df85b-1dcf-585b-9df2-9e8105114382"
+      }
+    ]
+  },
+  "actors": {
+    "B": {
+      "error": "boom"
+    }
+  },
+  "expect": {
+    "status": "failed",
+    "not_visited": [
+      "D",
+      "E"
+    ],
+    "journal": [
+      "token.failed",
+      "token.cancelled",
+      "run.failed"
+    ]
+  }
+}

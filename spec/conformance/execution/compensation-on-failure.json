@@ -1,0 +1,94 @@
+{
+  "id": "compensation-on-failure",
+  "level": "flow",
+  "spec": "13.6",
+  "description": "When a run fails, completed activities that name a compensation handler are compensated, most recent first.",
+  "workflow": {
+    "id": "52a8c5a6-37c1-55da-a7c4-e5db495a2827",
+    "name": "compensation-on-failure",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "bb280c14-ac54-5f9f-a3f8-e1d52d5a5dbc",
+        "name": "Reserve",
+        "role_id": "83037a22-4e27-51a8-bc03-c76487aa8ae3",
+        "actor_type": "application",
+        "compensation": {
+          "activity_id": "d8f84631-9539-53e5-91b7-72d8b7299e7a"
+        }
+      },
+      {
+        "id": "41212d33-79d9-5674-a0cc-d26a7527667a",
+        "name": "Charge",
+        "role_id": "83037a22-4e27-51a8-bc03-c76487aa8ae3",
+        "actor_type": "application",
+        "compensation": {
+          "activity_id": "ac90b48b-2161-5e15-ad2d-004009f2fc91"
+        }
+      },
+      {
+        "id": "7cd1be74-cca3-5373-bb3b-9e8ba42e5c61",
+        "name": "Ship",
+        "role_id": "83037a22-4e27-51a8-bc03-c76487aa8ae3",
+        "actor_type": "application"
+      },
+      {
+        "id": "d8f84631-9539-53e5-91b7-72d8b7299e7a",
+        "name": "Release",
+        "role_id": "83037a22-4e27-51a8-bc03-c76487aa8ae3",
+        "actor_type": "application"
+      },
+      {
+        "id": "ac90b48b-2161-5e15-ad2d-004009f2fc91",
+        "name": "Refund",
+        "role_id": "83037a22-4e27-51a8-bc03-c76487aa8ae3",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "c82fe1fb-319a-588c-aeb4-094c0b480417",
+        "source_id": "bb280c14-ac54-5f9f-a3f8-e1d52d5a5dbc",
+        "target_id": "41212d33-79d9-5674-a0cc-d26a7527667a"
+      },
+      {
+        "id": "4454d064-03b4-5b6c-9ac8-11fab2b3751c",
+        "source_id": "41212d33-79d9-5674-a0cc-d26a7527667a",
+        "target_id": "7cd1be74-cca3-5373-bb3b-9e8ba42e5c61"
+      }
+    ]
+  },
+  "actors": {
+    "Ship": {
+      "error": "carrier down"
+    }
+  },
+  "expect": {
+    "status": "failed",
+    "visited": [
+      "Reserve",
+      "Charge",
+      "Ship",
+      "Refund",
+      "Release"
+    ],
+    "journal": [
+      "token.failed",
+      "activity.compensated",
+      "activity.compensated",
+      "run.failed"
+    ],
+    "journal_contains": [
+      {
+        "type": "run.failed",
+        "data": {
+          "compensation": {
+            "attempted": 2,
+            "succeeded": 2
+          }
+        }
+      }
+    ]
+  }
+}
