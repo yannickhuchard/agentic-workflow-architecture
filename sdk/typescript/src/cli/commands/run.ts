@@ -4,7 +4,8 @@ import path from 'path';
 import { WorkflowEngine } from '../../runtime/workflow_engine';
 import { PrismaExecutionLogger, ConsoleExecutionLogger } from '../../runtime/execution_logger';
 import { parse_document } from '../../validator';
-import { Workflow, Context } from '../../types';
+import { FileJournalStore } from '../../runtime/journal';
+import { FilePersistenceAdapter } from '../../runtime/persistence';
 
 export const runCommand = new Command('run')
     .description('Run a workflow file')
@@ -13,6 +14,9 @@ export const runCommand = new Command('run')
     .option('-k, --key <key>', 'Gemini API Key')
     .option('--db', 'Log execution to database')
     .option('-s, --simulate', 'Run in simulation mode (no real API calls)')
+    .option('-j, --journal <file>', 'Write the execution journal to this .jsonl file')
+    .option('-c, --checkpoint-dir <dir>', 'Checkpoint the run state to this directory after every step')
+    .option('-i, --input <json>', 'Initial data for the run, as a JSON object')
     .action(async (file, options) => {
         try {
             const filePath = path.resolve(process.cwd(), file);
@@ -44,6 +48,8 @@ export const runCommand = new Command('run')
                 gemini_api_key: apiKey,
                 simulate: options.simulate,
                 execution_logger: executionLogger,
+                journal: options.journal ? new FileJournalStore(path.resolve(process.cwd(), options.journal)) : undefined,
+                checkpoint: options.checkpointDir ? new FilePersistenceAdapter(path.resolve(process.cwd(), options.checkpointDir)) : undefined,
                 pricing_config: {
                     input_token_cost_per_1k: 0.0001, // Example rate
                     output_token_cost_per_1k: 0.0004, // Example rate
@@ -52,8 +58,8 @@ export const runCommand = new Command('run')
             });
 
             const execute = async () => {
-                const runId = await engine.start();
-                console.log(`Workflow started (Run ID: ${runId})`);
+                await engine.start(options.input ? JSON.parse(options.input) : {});
+                console.log(`Workflow started (Run ID: ${engine.getRunId()})`);
 
                 let steps = 0;
                 while (engine.getStatus() === 'running') {
@@ -74,7 +80,11 @@ export const runCommand = new Command('run')
             };
 
             const status = await execute();
+            await engine.getEvents();
             console.log(`Workflow finished with status: ${status}`);
+            if (options.journal) {
+                console.log(`Journal written to ${options.journal}`);
+            }
 
             if (status === 'failed') {
                 console.error("Workflow failed.");

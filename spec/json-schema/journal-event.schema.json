@@ -1,0 +1,108 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://awa.io/schema/journal-event.schema.json",
+    "title": "Journal Event",
+    "description": "One entry in the append-only execution journal of a run. A journal file is JSON Lines: one event per line, in sequence order.",
+    "type": "object",
+    "required": [
+        "spec_version",
+        "id",
+        "run_id",
+        "seq",
+        "time",
+        "type",
+        "level",
+        "workflow_id",
+        "data"
+    ],
+    "properties": {
+        "spec_version": {
+            "type": "string",
+            "pattern": "^\\d+\\.\\d+$",
+            "description": "Version of the AWA specification the event conforms to"
+        },
+        "id": {
+            "$ref": "awa.schema.json#/$defs/uuid",
+            "description": "Unique identifier of the event"
+        },
+        "run_id": {
+            "$ref": "awa.schema.json#/$defs/uuid",
+            "description": "The run the event belongs to"
+        },
+        "seq": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Position in the run, starting at 1, with no gaps"
+        },
+        "time": {
+            "$ref": "awa.schema.json#/$defs/datetime_tz",
+            "description": "When the event was recorded"
+        },
+        "type": {
+            "type": "string",
+            "enum": [
+                "run.started",
+                "run.completed",
+                "run.failed",
+                "run.waiting",
+                "run.resumed",
+                "token.created",
+                "token.moved",
+                "token.completed",
+                "token.failed",
+                "token.waiting",
+                "token.resumed",
+                "token.joined",
+                "token.cancelled",
+                "activity.started",
+                "activity.completed",
+                "activity.failed",
+                "activity.retry_scheduled",
+                "activity.dead_lettered",
+                "activity.compensated",
+                "activity.compensation_failed",
+                "decision.evaluated",
+                "verification.completed",
+                "contract.checked",
+                "contract.escalated",
+                "timer.started",
+                "timer.fired",
+                "reasoning.recorded",
+                "meta.recorded",
+                "knowledge.retrieved",
+                "checkpoint.saved"
+            ]
+        },
+        "level": {
+            "type": "string",
+            "enum": [
+                "execution",
+                "reasoning",
+                "meta"
+            ],
+            "description": "execution: what happened. reasoning: an actor's own account of how it worked. meta: why the engine handled the work as it did."
+        },
+        "workflow_id": {
+            "$ref": "awa.schema.json#/$defs/uuid"
+        },
+        "token_id": {
+            "$ref": "awa.schema.json#/$defs/uuid"
+        },
+        "node_id": {
+            "$ref": "awa.schema.json#/$defs/uuid",
+            "description": "The activity, event or decision node concerned"
+        },
+        "node_name": {
+            "type": "string"
+        },
+        "attempt": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Attempt number of the activity"
+        },
+        "data": {
+            "type": "object",
+            "description": "Event-specific payload, defined per event type in the specification"
+        }
+    }
+}

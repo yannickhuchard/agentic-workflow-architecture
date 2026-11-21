@@ -39,3 +39,17 @@ export function calculate_duration(start: Date, end: Date = new Date()): string 
 export function calculate_ms(start: Date, end: Date = new Date()): number {
     return end.getTime() - start.getTime();
 }
+
+/**
+ * Parses an ISO 8601 duration (the subset AWA allows: weeks, days, hours,
+ * minutes, seconds) into milliseconds. Years and months have no fixed
+ * length and are rejected.
+ */
+export function parse_iso_duration(duration: string): number {
+    const match = /^P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?)?$/.exec(duration);
+    if (!match || duration === 'P' || duration === 'PT') {
+        throw new Error(`Unsupported duration "${duration}": use weeks, days, hours, minutes and seconds`);
+    }
+    const [, w, d, h, m, s] = match;
+    return ((Number(w || 0) * 7 + Number(d || 0)) * 24 * 3600 + Number(h || 0) * 3600 + Number(m || 0) * 60 + Number(s || 0)) * 1000;
+}

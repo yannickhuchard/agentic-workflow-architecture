@@ -18,7 +18,7 @@ const CONFORMANCE = path.join(ROOT, 'spec/conformance');
 const SCHEMAS = path.join(ROOT, 'spec/json-schema');
 
 /** Conformance levels this implementation claims. */
-const CLAIMED_LEVELS = new Set(['core', 'decision', 'verified']);
+const CLAIMED_LEVELS = new Set(['core', 'decision', 'verified', 'resilient', 'recorded']);
 
 const read = (file: string) => JSON.parse(fs.readFileSync(file, 'utf-8'));
 const list = (dir: string) => fs.readdirSync(dir).filter(f => f.endsWith('.json')).sort().map(f => path.join(dir, f));
@@ -27,6 +27,7 @@ const ajv = new Ajv2020({ allErrors: true, strict: false });
 addFormats(ajv);
 for (const file of list(SCHEMAS)) ajv.addSchema(read(file));
 const validate_schema = ajv.getSchema('https://awa.io/schema/workflow.schema.json')!;
+const validate_event = ajv.getSchema('https://awa.io/schema/journal-event.schema.json')!;
 
 const unwrap = (doc: any) => (doc && doc.workflow && !doc.activities ? doc.workflow : doc);
 
@@ -99,6 +100,23 @@ describe('Conformance: execution', () => {
             if (c.expect.not_visited) for (const name of c.expect.not_visited) expect(actor.visited).not.toContain(name);
             if (c.expect.data) {
                 expect(engine.getTokens().some(t => is_subset(c.expect.data, t.contextData))).toBe(true);
+            }
+
+            // Every implementation that journals must journal validly: schema-valid
+            // events, numbered from 1 without gaps.
+            const events = await engine.getEvents();
+            events.forEach((event, i) => {
+                expect(validate_event(event), JSON.stringify(validate_event.errors)).toBe(true);
+                expect(event.seq).toBe(i + 1);
+            });
+            if (c.expect.journal) {
+                // The expected types must appear in this order; other events may be interleaved
+                let cursor = 0;
+                for (const event of events) if (event.type === c.expect.journal[cursor]) cursor++;
+                expect(c.expect.journal.slice(cursor), `journal was: ${events.map(e => e.type).join(', ')}`).toEqual([]);
+            }
+            for (const wanted of c.expect.journal_contains || []) {
+                expect(events.some(e => is_subset(wanted, e)), `no event matches ${JSON.stringify(wanted)}`).toBe(true);
             }
             if (c.expect.error_matches) {
                 const errors = engine.getTokens().map(t => String(t.getData('_error') || ''));

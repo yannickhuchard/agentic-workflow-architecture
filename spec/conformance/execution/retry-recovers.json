@@ -1,0 +1,64 @@
+{
+  "id": "retry-recovers",
+  "level": "resilient",
+  "spec": "10.1",
+  "description": "An activity that raises is executed again under its retry policy; a later success is accepted.",
+  "workflow": {
+    "id": "91e070d2-d4d5-5630-821d-38cae4e0aecb",
+    "name": "retry-recovers",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "913817d4-3aec-5c54-979d-a99e3e2d28d8",
+        "name": "A",
+        "role_id": "ffc4e280-0cbc-5169-a64b-fe8fb83af1fd",
+        "actor_type": "application",
+        "retry": {
+          "max_attempts": 3,
+          "initial_delay": "PT0S",
+          "jitter": false
+        }
+      },
+      {
+        "id": "0aebf565-73c0-58f3-a924-3a2f48edf25b",
+        "name": "B",
+        "role_id": "ffc4e280-0cbc-5169-a64b-fe8fb83af1fd",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "7f82dcbd-8e39-5cb6-b1ba-69ff14a781c2",
+        "source_id": "913817d4-3aec-5c54-979d-a99e3e2d28d8",
+        "target_id": "0aebf565-73c0-58f3-a924-3a2f48edf25b"
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "attempts": [
+        {
+          "error": "timeout"
+        },
+        {
+          "error": "timeout"
+        },
+        {
+          "output": {
+            "ok": true
+          }
+        }
+      ]
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "A",
+      "A",
+      "A",
+      "B"
+    ]
+  }
+}

@@ -16,6 +16,8 @@ This document is normative. Where it and an SDK disagree, this document is right
 6. [Condition expressions](#6-condition-expressions)
 7. [Verification](#7-verification)
 8. [Data model reference](#8-data-model-reference)
+9. [Execution journal](#9-execution-journal)
+10. [Resilience](#10-resilience)
 
 ## 1. Scope
 
@@ -42,6 +44,8 @@ An implementation claims one or more levels. Each level has cases in `spec/confo
 | `core` | Executes sequences and conditional routing, and reports the run outcome | 5.1 to 5.4, 5.7, 6 |
 | `decision` | Evaluates decision tables | 5.5 |
 | `verified` | Applies verification policies, failing closed | 7 |
+| `recorded` | Writes the execution journal | 9 |
+| `resilient` | Retries, dead-letters and recovers runs | 10 |
 
 An implementation MUST NOT claim a level unless it passes every case tagged with that level. It MUST report the cases it skips; it MUST NOT silently omit them.
 
@@ -49,7 +53,7 @@ An implementation MUST NOT claim a level unless it passes every case tagged with
 
 | SDK | Levels claimed |
 |---|---|
-| TypeScript (reference) | `document`, `core`, `decision`, `verified` |
+| TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient` |
 | Python | `core`, and `document` except four integrity rules (see its conformance run) |
 | Java | none (data model only) |
 
@@ -299,6 +303,7 @@ The JSON Schemas are authoritative for field names and types. This section summa
 | `skills` | SkillBinding[] | Knowledge or competency required |
 | `tool_requirements` | ToolRequirement[] | Tools or interfaces required |
 | `verification` | VerificationPolicy | Acceptance criteria (section 7) |
+| `retry` | RetryPolicy | What to do when the actor raises an error (section 10) |
 | `sla` | SLA | Activity-level SLA |
 | `analytics` | Analytics | Activity-level metrics |
 
@@ -354,6 +359,124 @@ An access right has a `direction` (`requires` or `provisions`), a `resource_type
 
 Waste categories (DOWNTIME): `defects`, `overproduction`, `waiting`, `non_utilized_talent`, `transport`, `inventory`, `motion`, `extra_processing`.
 
+## 9. Execution journal
+
+The journal is the append-only record of a run. It is the single source for everything that explains a run: live and replayed visualisation, recovery, the recipe document and distilled knowledge. An engine at level `recorded` MUST write it.
+
+### 9.1 Events
+
+A journal is an ordered sequence of events. Each event validates against `journal-event.schema.json`:
+
+| Field | Description |
+|---|---|
+| `spec_version` | Version of this specification, `"1.1"` |
+| `id` | Unique identifier of the event |
+| `run_id` | The run |
+| `seq` | Position in the run. The first event is 1 and there are no gaps |
+| `time` | When the event was recorded (RFC 3339) |
+| `type` | The event type (9.3) |
+| `level` | The trace level (9.2) |
+| `workflow_id` | The workflow |
+| `token_id`, `node_id`, `node_name`, `attempt` | What the event concerns, where applicable |
+| `data` | Payload specific to the event type |
+
+An engine MUST NOT alter or remove an event once written.
+
+### 9.2 Trace levels
+
+| Level | Answers | Written by |
+|---|---|---|
+| `execution` | What happened? | The engine |
+| `reasoning` | How did the actor arrive at its result? | The actor, through the engine |
+| `meta` | Why did the engine handle the work this way? | The engine |
+
+`reasoning` events carry an actor's own account: its `plan`, its `rationale`, the `alternatives_considered` and its `confidence`. For an AI agent this is a self-report produced alongside the output. It is evidence about the run, not a guaranteed-faithful trace of the model's internal computation, and consumers MUST NOT treat it as one.
+
+`meta` events record engine decisions that a reader could not otherwise reconstruct. Each has a `subject`, a `decision` and a `rationale`:
+
+| Subject | Recorded when |
+|---|---|
+| `model_selection` | A model is chosen for an attempt |
+| `retry` | An attempt raised and will be retried |
+| `verification_retry` | An output was rejected and the activity will be re-executed with feedback |
+
+### 9.3 Event types
+
+| Type | Level | Recorded when | Main `data` |
+|---|---|---|---|
+| `run.started` | execution | A run begins | `workflow_name`, `workflow_version`, `input` |
+| `run.completed`, `run.failed` | execution | The run reaches its outcome (5.7) | `duration_ms`, `steps`, token and cost totals; `errors` on failure |
+| `run.waiting` | execution | No token is active and at least one waits | `waiting_tokens` |
+| `run.resumed` | execution | A run continues from a checkpoint (10.3) | `from_seq`, `from_checkpoint_at` |
+| `token.created` | execution | A token comes into existence | |
+| `token.moved` | execution | A token follows an edge | `from_node_id`, `to_node_id`, `edge_id`, `reason` (`condition`, `default`, `unconditional`, `decision`), `condition` |
+| `token.completed`, `token.failed` | execution | A token ends | `error` on failure |
+| `token.waiting`, `token.resumed` | execution | A token pauses for, or returns from, an external party | `reason`, `waited_ms` |
+| `activity.started` | execution | An attempt begins | `actor_type`, `input`, `feedback` |
+| `activity.completed` | execution | An attempt's output is accepted | `output`, `duration_ms`, `attempts`, `usage` |
+| `activity.failed` | execution | An attempt raised, or its output was rejected | `error.message`, `error.code`, `retryable` |
+| `activity.retry_scheduled` | execution | A further attempt will follow an error | `delay_ms`, `next_attempt` |
+| `activity.dead_lettered` | execution | Retries are exhausted | `error`, `attempts` |
+| `decision.evaluated` | execution | A decision node is evaluated | `inputs`, `matched_rules`, `outputs`, `edge_id`, `used_default` |
+| `verification.completed` | execution | An output has been verified | `mode`, `verdict`, `score`, `criteria`, `feedback`, `output_hash` |
+| `reasoning.recorded` | reasoning | An actor reports its reasoning | `plan`, `rationale`, `alternatives_considered`, `confidence` |
+| `meta.recorded` | meta | The engine makes a decision listed in 9.2 | `subject`, `decision`, `rationale` |
+
+Every attempt of an activity is bracketed: one `activity.started`, then exactly one of `activity.completed` or `activity.failed`, with the same `attempt` number.
+
+### 9.4 Payloads
+
+Activity inputs and outputs may be sensitive. An engine MUST support three payload modes and MUST apply the chosen one to every `input` and `output` it journals:
+
+| Mode | The journal holds |
+|---|---|
+| `full` | The value |
+| `hash` | `{ "sha256": "<hex>" }`, the SHA-256 of the value's canonical JSON |
+| `none` | Nothing |
+
+Canonical JSON has object keys sorted at every depth and no insignificant whitespace, so equal values hash equally. Properties reserved to the engine (5.2) are not journalled as payload.
+
+### 9.5 Interchange and streaming
+
+The interchange format for a journal is JSON Lines: one event per line, in `seq` order, in a file named `<run_id>.journal.jsonl`.
+
+An engine that serves journals over HTTP SHOULD offer them as Server-Sent Events, with the SSE `id` set to `seq` and the SSE `event` set to `type`, and SHOULD resume from a `Last-Event-ID` header so that a client that reconnects misses nothing.
+
+## 10. Resilience
+
+### 10.1 Retry
+
+An activity MAY declare a `retry` policy. An engine MAY also be configured with a default policy for activities that declare none. Without either, an activity is executed once.
+
+| Field | Default | Meaning |
+|---|---|---|
+| `max_attempts` | 1 | Executions allowed when the actor raises, including the first |
+| `initial_delay` | `PT1S` | Delay before the second attempt |
+| `backoff_multiplier` | 2 | Factor applied to the delay after each failed attempt |
+| `max_delay` | `PT30S` | Upper bound on the delay |
+| `jitter` | true | Vary each delay randomly by up to 25% |
+| `non_retryable_errors` | see below | Error codes that end the activity at once |
+
+When an attempt raises an error the engine retries if attempts remain and the error is retryable. The delay before attempt *n* + 1 is `min(initial_delay × backoff_multiplier^(n−1), max_delay)`.
+
+An error MAY carry a `code`. An error is not retryable if its code is in `non_retryable_errors`, which defaults to `VALIDATION_ERROR`, `AUTHENTICATION_ERROR`, `PERMISSION_DENIED` and `NOT_FOUND`. An engine MUST NOT decide retryability by matching text in the error message.
+
+Retry applies to errors. A rejected output is governed by the verification policy (7.4), not by `retry`.
+
+### 10.2 Dead letters
+
+When an activity with a retry policy exhausts its attempts, the engine MUST record `activity.dead_lettered` and keep the token, its data and the last error available for inspection and manual resolution. The token is `failed`.
+
+### 10.3 Checkpoints and recovery
+
+An engine at level `resilient` MUST be able to persist the state of a run after each step and continue the run from that state in another process. The continued run keeps its `run_id`, and its journal continues at the next `seq` with a `run.resumed` event.
+
+A token that was `active` when the checkpoint was taken executes its current activity again. Activities are therefore executed **at least once**.
+
+### 10.4 Idempotency
+
+To make at-least-once execution safe, the engine MUST pass each execution an idempotency key that is the same for every attempt of the same visit of a token to an activity, including attempts made after recovery, and different for every other visit. Actors with side effects SHOULD use it to deduplicate. The reference engine passes it as `_idempotency_key`, with the attempt number as `_attempt`.
+
 ## Appendix A. Conformance suite
 
 `spec/conformance/` holds language-neutral cases.
@@ -368,11 +491,13 @@ Waste categories (DOWNTIME): `defects`, `overproduction`, `waiting`, `non_utiliz
 | `spec` | Section the case tests |
 | `workflow` | The workflow to run |
 | `input` | Data the run starts with |
-| `actors` | What each activity returns, keyed by activity name: `output`, or `error`, or `attempts` (a list of those, one per execution; the last repeats) |
+| `actors` | What each activity returns, keyed by activity name: `output`, or `error` (optionally with an error `code`), or `attempts` (a list of those, one per execution; the last repeats) |
 | `expect.status` | The run status |
 | `expect.visited` | Activity names in execution order, one entry per execution |
 | `expect.data` | A subset that the data of some token must contain |
 | `expect.error_matches` | A regular expression some token's `_error` must match |
+| `expect.journal` | Event types that must appear in the journal in this order; other events may come between them |
+| `expect.journal_contains` | Partial events, each of which some journal event must contain |
 
 A runner replaces every actor with one that follows `actors`, runs the workflow, and compares. An activity not listed in `actors` returns an empty object.
 
@@ -387,3 +512,5 @@ Runners: `sdk/typescript/tests/conformance.test.ts`, `sdk/python/tests/test_conf
 - `verification` is part of the activity schema; `judge_model_id` has no vendor default.
 - `awa_version` added to the workflow.
 - Conformance levels and a conformance suite introduced.
+- Execution journal with three trace levels (section 9).
+- Activity `retry` policy, dead letters, checkpoints, recovery and idempotency keys (section 10).

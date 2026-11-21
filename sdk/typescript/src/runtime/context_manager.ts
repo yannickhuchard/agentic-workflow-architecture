@@ -56,4 +56,16 @@ export class ContextManager {
     public getContextDefinition(contextId: UUID): Context | undefined {
         return this.contexts.get(contextId);
     }
+
+    /** All context values, keyed by context id */
+    public snapshot(): Record<UUID, unknown> {
+        return Object.fromEntries(this.values.entries());
+    }
+
+    /** Replace context values from a snapshot. Unknown context ids are ignored. */
+    public restore(values: Record<UUID, unknown>): void {
+        for (const [id, value] of Object.entries(values || {})) {
+            if (this.contexts.has(id)) this.values.set(id, value);
+        }
+    }
 }

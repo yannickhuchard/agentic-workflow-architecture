@@ -283,6 +283,20 @@ export const VerificationRecordSchema = z.object({
 export type VerificationRecord = z.infer<typeof VerificationRecordSchema>;
 
 // ============================================================================
+// RESILIENCE TYPES
+// ============================================================================
+
+export const ActivityRetrySchema = z.object({
+    max_attempts: z.number().int().min(1).max(20).optional(),
+    initial_delay: Duration.optional(),
+    max_delay: Duration.optional(),
+    backoff_multiplier: z.number().min(1).optional(),
+    jitter: z.boolean().optional(),
+    non_retryable_errors: z.array(z.string()).optional(),
+});
+export type ActivityRetry = z.infer<typeof ActivityRetrySchema>;
+
+// ============================================================================
 // ACTIVITY SCHEMA
 // ============================================================================
 
@@ -290,6 +304,7 @@ export const ActivitySchema = z.object({
     id: UUID,
     name: z.string(),
     description: z.string().optional(),
+    procedure: z.string().optional(),
     role_id: UUID,
     actor_type: ActorType,
     system_id: UUID.optional(),
@@ -309,6 +324,7 @@ export const ActivitySchema = z.object({
     skills: z.array(SkillBindingSchema).default([]),
     tool_requirements: z.array(ToolRequirementSchema).default([]),
     verification: VerificationPolicySchema.optional(),
+    retry: ActivityRetrySchema.optional(),
 });
 export type Activity = z.infer<typeof ActivitySchema>;
 

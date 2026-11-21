@@ -1,0 +1,58 @@
+{
+  "id": "retry-exhausted-fails",
+  "level": "resilient",
+  "spec": "10.1",
+  "description": "When every allowed attempt raises, the activity fails and so does the run.",
+  "workflow": {
+    "id": "90437d0c-619d-5fc7-91e9-788822bbfd26",
+    "name": "retry-exhausted-fails",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "c8c567a4-7c45-52e0-b6ac-410e06708320",
+        "name": "A",
+        "role_id": "fa079f62-7cdf-558a-a5e7-6c5bb280da37",
+        "actor_type": "application",
+        "retry": {
+          "max_attempts": 2,
+          "initial_delay": "PT0S",
+          "jitter": false
+        }
+      },
+      {
+        "id": "aef5c793-622f-5d5c-abe5-e0efd5093953",
+        "name": "B",
+        "role_id": "fa079f62-7cdf-558a-a5e7-6c5bb280da37",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "44680a74-71d3-58b9-927a-ef3cfbdda7af",
+        "source_id": "c8c567a4-7c45-52e0-b6ac-410e06708320",
+        "target_id": "aef5c793-622f-5d5c-abe5-e0efd5093953"
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "error": "timeout"
+    }
+  },
+  "expect": {
+    "status": "failed",
+    "visited": [
+      "A",
+      "A"
+    ],
+    "journal": [
+      "activity.failed",
+      "activity.retry_scheduled",
+      "activity.failed",
+      "activity.dead_lettered",
+      "token.failed",
+      "run.failed"
+    ]
+  }
+}

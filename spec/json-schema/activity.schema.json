@@ -128,6 +128,10 @@
         "verification": {
             "$ref": "#/$defs/verification_policy",
             "description": "Acceptance verification applied to the activity output. Fail closed: an output that is not verified as 'pass' is rejected."
+        },
+        "retry": {
+            "$ref": "#/$defs/retry_policy",
+            "description": "What the engine does when the actor raises an error"
         }
     },
     "$defs": {
@@ -351,6 +355,46 @@
                     "minimum": 0,
                     "maximum": 1,
                     "default": 0.9
+                }
+            }
+        },
+        "retry_policy": {
+            "type": "object",
+            "properties": {
+                "max_attempts": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20,
+                    "default": 1,
+                    "description": "Total executions allowed when the actor raises errors, including the first"
+                },
+                "initial_delay": {
+                    "$ref": "awa.schema.json#/$defs/duration",
+                    "default": "PT1S",
+                    "description": "Delay before the second attempt"
+                },
+                "max_delay": {
+                    "$ref": "awa.schema.json#/$defs/duration",
+                    "default": "PT30S",
+                    "description": "Upper bound on the delay between attempts"
+                },
+                "backoff_multiplier": {
+                    "type": "number",
+                    "minimum": 1,
+                    "default": 2,
+                    "description": "Factor applied to the delay after each failed attempt"
+                },
+                "jitter": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Vary each delay randomly by up to 25% to avoid synchronised retries"
+                },
+                "non_retryable_errors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "Error codes that end the activity immediately"
                 }
             }
         }

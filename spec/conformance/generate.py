@@ -184,6 +184,65 @@ def execution_cases() -> list[Case]:
     c.expect = {"status": "completed", "visited": ["A", "A", "B"]}
     cases.append(c)
 
+    retry = {"initial_delay": "PT0S", "jitter": False}
+
+    c = Case("retry-recovers", "resilient", "10.1", "An activity that raises is executed again under its retry policy; a later success is accepted.")
+    c.act("A", retry={"max_attempts": 3, **retry}).act("B").edge("A", "B")
+    c.actors = {"A": {"attempts": [{"error": "timeout"}, {"error": "timeout"}, {"output": {"ok": True}}]}}
+    c.expect = {"status": "completed", "visited": ["A", "A", "A", "B"]}
+    cases.append(c)
+
+    c = Case("retry-exhausted-fails", "resilient", "10.1", "When every allowed attempt raises, the activity fails and so does the run.")
+    c.act("A", retry={"max_attempts": 2, **retry}).act("B").edge("A", "B")
+    c.actors = {"A": {"error": "timeout"}}
+    c.expect = {"status": "failed", "visited": ["A", "A"], "journal": ["activity.failed", "activity.retry_scheduled", "activity.failed", "activity.dead_lettered", "token.failed", "run.failed"]}
+    cases.append(c)
+
+    c = Case("retry-skips-non-retryable-error", "resilient", "10.1", "An error whose code is non-retryable ends the activity at once.")
+    c.act("A", retry={"max_attempts": 5, **retry}).act("B").edge("A", "B")
+    c.actors = {"A": {"error": "bad input", "code": "VALIDATION_ERROR"}}
+    c.expect = {"status": "failed", "visited": ["A"]}
+    cases.append(c)
+
+    c = Case("no-retry-without-policy", "resilient", "10.1", "Without a retry policy an activity is executed once.")
+    c.act("A").act("B").edge("A", "B")
+    c.actors = {"A": {"attempts": [{"error": "timeout"}, {"output": {}}]}}
+    c.expect = {"status": "failed", "visited": ["A"]}
+    cases.append(c)
+
+    c = Case("journal-sequence", "recorded", "9.3", "A run is journalled as an ordered sequence of events from run.started to run.completed.")
+    c.act("A").act("B").edge("A", "B")
+    c.expect = {"status": "completed", "journal": [
+        "run.started", "token.created", "activity.started", "activity.completed", "token.moved",
+        "activity.started", "activity.completed", "token.completed", "run.completed"]}
+    cases.append(c)
+
+    c = Case("journal-records-routing-reason", "recorded", "9.3", "token.moved says which edge was taken and why.")
+    c.act("A").act("B").act("C").edge("A", "B", condition="x > 1").edge("A", "C", is_default=True)
+    c.actors = {"A": {"output": {"x": 0}}}
+    c.expect = {"status": "completed", "journal": ["token.moved"],
+                "journal_contains": [{"type": "token.moved", "data": {"reason": "default"}}]}
+    cases.append(c)
+
+    c = Case("journal-records-failure", "recorded", "9.3", "A failed run ends with token.failed then run.failed, carrying the error.")
+    c.act("A")
+    c.actors = {"A": {"error": "boom"}}
+    c.expect = {"status": "failed", "journal": ["activity.started", "activity.failed", "token.failed", "run.failed"],
+                "journal_contains": [{"type": "activity.failed", "data": {"error": {"message": "boom"}}}]}
+    cases.append(c)
+
+    c = Case("journal-records-verification", "recorded", "9.3", "Each verification attempt is journalled with its verdict before the attempt is accepted or rejected.")
+    c.act("A", "ai_agent").act("B").edge("A", "B")
+    c.activities[0]["verification"] = {"mode": "schema_only", "max_retries": 1,
+                                       "criteria": [criterion(c, "has-summary", "summary exists")]}
+    c.actors = {"A": {"attempts": [{"output": {"draft": "x"}}, {"output": {"summary": "ok"}}]}}
+    c.expect = {"status": "completed", "journal": [
+        "activity.started", "verification.completed", "activity.failed", "meta.recorded",
+        "activity.started", "verification.completed", "activity.completed"],
+        "journal_contains": [{"type": "verification.completed", "data": {"verdict": "fail"}},
+                             {"type": "verification.completed", "data": {"verdict": "pass"}}]}
+    cases.append(c)
+
     return cases
 
 

@@ -54,7 +54,8 @@ export class AIAgent implements Actor {
 
             // Attempt to parse JSON if the response looks like JSON
             const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-            let output = responseText;
+            let output: unknown = responseText;
+            let reasoning: unknown;
             if (jsonMatch) {
                 try {
                     output = JSON.parse(jsonMatch[0]);
@@ -63,8 +64,22 @@ export class AIAgent implements Actor {
                 }
             }
 
+            // The agent was asked for { reasoning, output }. Separate the two so the
+            // engine can journal the reasoning and pass only the output downstream.
+            if (output && typeof output === 'object' && 'reasoning' in output && 'output' in output) {
+                reasoning = (output as { reasoning: unknown }).reasoning;
+                output = (output as { output: unknown }).output;
+            }
+
             return {
                 output,
+                ...(reasoning && typeof reasoning === 'object' ? { _reasoning: reasoning } : {}),
+                _model: {
+                    id: modelId,
+                    provider: 'google',
+                    source: this.role?.ai_model_config?.model_id ? 'role' : 'engine_default',
+                    temperature: generationConfig.temperature,
+                },
                 status: 'complex_completed',
                 usage: {
                     input_tokens: result.response.usageMetadata?.promptTokenCount || 0,
@@ -101,8 +116,15 @@ export class AIAgent implements Actor {
             lines.push(`Description: ${activity.description}`);
         }
 
+        if (activity.procedure) {
+            lines.push(`Procedure: ${activity.procedure}`);
+        }
+
         // 3. Output Format Instruction
-        lines.push('\nPlease provide your output in a structured JSON format if the activity implies structured data, otherwise provide a clear textual response.');
+        lines.push('\nRespond with a single JSON object that has exactly two properties:');
+        lines.push('- "reasoning": an object with "plan" (array of the steps you took), "rationale" (why this result is right),');
+        lines.push('  "alternatives_considered" (array of approaches you rejected and why) and "confidence" (number from 0 to 1).');
+        lines.push('- "output": the result of the activity. Use a JSON object if the activity implies structured data, otherwise a string.');
 
         return lines.join('\n');
     }

@@ -15,10 +15,17 @@ import { AIAgent } from './actors/ai_agent';
 import { RobotAgent, RobotConfig } from './actors/robot_agent';
 import { HumanAgent } from './actors/human_agent';
 import { DecisionEvaluator, evaluate_decision } from './decision_evaluator';
-import { calculate_duration } from './duration_utils';
-import { WasteCategory, Analytics, VerificationRecord } from '../types';
+import { calculate_duration, parse_iso_duration } from './duration_utils';
+import { WasteCategory, Analytics, VerificationRecord, ActivityRetry } from '../types';
 import { VerificationEngine } from './verification_engine';
 import { evaluate_expression } from './expression';
+import {
+    InMemoryJournalStore, JournalEvent, JournalEventInput, JournalListener,
+    JournalStore, JournalWriter, PayloadMode, public_payload,
+} from './journal';
+import { PersistenceAdapter, WorkflowState, serialize_token, deserialize_token } from './persistence';
+import { RetryConfig, DEFAULT_RETRY_CONFIG, calculate_retry_delay, DeadLetterQueue } from './retry';
+import { Logger } from '../server/logger';
 
 export type EngineStatus = 'running' | 'paused' | 'completed' | 'failed' | 'idle' | 'waiting_human';
 
@@ -58,6 +65,38 @@ export interface WorkflowEngineOptions {
     simulate?: boolean;
     /** Custom actor implementations per actor type. Overrides the built-in actors. */
     actors?: Partial<Record<Activity['actor_type'], Actor>>;
+    /** Identifier of this run. Generated if absent. */
+    run_id?: UUID;
+    /** Where the execution journal is stored. In memory if absent. */
+    journal?: JournalStore;
+    /** How activity inputs and outputs are written to the journal. Default 'full'. */
+    journal_payloads?: PayloadMode;
+    /** If set, the run state is checkpointed here after every step, keyed by run id. */
+    checkpoint?: PersistenceAdapter;
+    /** Default retry policy for activities that do not declare their own. Default: no retries. */
+    retry?: Partial<RetryConfig>;
+    /** Receives activities whose retries are exhausted. */
+    dead_letter_queue?: DeadLetterQueue;
+    /** Replaces the delay between retries. Tests use this to avoid real waiting. */
+    sleep?: (ms: number) => Promise<void>;
+}
+
+/** Error codes that are never retried, whatever the retry policy says */
+const NEVER_RETRIED = new Set(['VERIFICATION_FAILED', 'CONTRACT_VIOLATION', 'NO_ROUTE']);
+
+class ActivityError extends Error {
+    constructor(message: string, public readonly code: string, public readonly details?: Record<string, unknown>) {
+        super(message);
+        this.name = 'ActivityError';
+    }
+}
+
+function error_info(error: unknown): { message: string; code?: string; stack?: string } {
+    if (error instanceof Error) {
+        const code = (error as { code?: unknown }).code;
+        return { message: error.message, code: typeof code === 'string' ? code : undefined, stack: error.stack };
+    }
+    return { message: String(error) };
 }
 
 export class WorkflowEngine {
@@ -75,6 +114,11 @@ export class WorkflowEngine {
     private verificationEngine: VerificationEngine;
     private defaultAIModelId: string;
     private simulate: boolean;
+    private runId: UUID;
+    private journal: JournalWriter;
+    private journalStore: JournalStore;
+    private deadLetterQueue: DeadLetterQueue;
+    private sleep: (ms: number) => Promise<void>;
     private executionStats: {
         startTime: Date;
         stepsCount: number;
@@ -99,6 +143,11 @@ export class WorkflowEngine {
         };
         this.defaultAIModelId = options.default_ai_model_id || 'gemini-3-flash-preview';
         this.simulate = options.simulate || false;
+        this.runId = options.run_id || randomUUID();
+        this.journalStore = options.journal || new InMemoryJournalStore();
+        this.journal = new JournalWriter(this.runId, workflowDef.id, this.journalStore, options.journal_payloads || 'full');
+        this.deadLetterQueue = options.dead_letter_queue || new DeadLetterQueue(new Logger({ output: () => { } }));
+        this.sleep = options.sleep || (ms => new Promise(resolve => setTimeout(resolve, ms)));
         this.tokens = [];
         this.contextManager = new ContextManager();
         this.status = 'idle';
@@ -198,6 +247,17 @@ export class WorkflowEngine {
         this.tokens.push(token);
         this.status = 'running';
 
+        this.record({
+            type: 'run.started',
+            data: {
+                workflow_name: this.workflow.name,
+                workflow_version: this.workflow.version,
+                input: this.journal.payload(initialData),
+                simulate: this.simulate,
+            },
+        });
+        this.record({ type: 'token.created', token_id: token.id, ...this.nodeRef(startNodeId), data: {} });
+
         this.log(`Started workflow "${this.workflow.name}" with token ${token.id}`);
 
         this.executionStats.startTime = new Date(); // Reset start time on actual start
@@ -219,6 +279,7 @@ export class WorkflowEngine {
         }
 
         await this.settle();
+        await this.saveCheckpoint();
     }
 
     /**
@@ -229,16 +290,124 @@ export class WorkflowEngine {
     private async settle(): Promise<void> {
         if (this.tokens.some(t => t.status === 'active')) return;
 
+        const previous = this.status;
+
         if (this.tokens.some(t => t.status === 'waiting')) {
             this.status = 'waiting_human';
+            if (previous !== this.status) {
+                this.record({ type: 'run.waiting', data: { waiting_tokens: this.tokens.filter(t => t.status === 'waiting').map(t => t.id) } });
+            }
             return;
         }
 
-        const previous = this.status;
         this.status = this.tokens.some(t => t.status === 'failed') ? 'failed' : 'completed';
         if (previous !== this.status) {
+            const durationMs = Date.now() - this.executionStats.startTime.getTime();
+            this.record({
+                type: this.status === 'completed' ? 'run.completed' : 'run.failed',
+                data: {
+                    duration_ms: durationMs,
+                    steps: this.executionStats.stepsCount,
+                    input_tokens: this.executionStats.inputTokens,
+                    output_tokens: this.executionStats.outputTokens,
+                    cost: this.executionStats.cost,
+                    currency: this.options.pricing_config?.currency || 'USD',
+                    ...(this.status === 'failed'
+                        ? { errors: this.tokens.filter(t => t.status === 'failed').map(t => ({ token_id: t.id, node_id: t.activityId, message: t.getData('_error') })) }
+                        : {}),
+                },
+            });
             await this.finalizeExecution();
+            await this.journal.flush();
         }
+    }
+
+    // ------------------------------------------------------------------
+    // Journal, checkpoints and recovery
+    // ------------------------------------------------------------------
+
+    private record(input: JournalEventInput): JournalEvent {
+        return this.journal.record(input);
+    }
+
+    private nodeRef(nodeId: UUID): { node_id: UUID; node_name?: string } {
+        const name = this.activityMap.get(nodeId)?.name
+            || this.decisionNodeMap.get(nodeId)?.name
+            || this.workflow.events.find(e => e.id === nodeId)?.name;
+        return { node_id: nodeId, ...(name ? { node_name: name } : {}) };
+    }
+
+    /** Identifier of this run. Journal events and checkpoints are keyed by it. */
+    public getRunId(): UUID {
+        return this.runId;
+    }
+
+    /** Subscribe to journal events as they are recorded. Returns an unsubscribe function. */
+    public onEvent(listener: JournalListener): () => void {
+        return this.journal.subscribe(listener);
+    }
+
+    /** The journal of this run so far, in sequence order */
+    public async getEvents(afterSeq = 0): Promise<JournalEvent[]> {
+        await this.journal.flush();
+        return this.journalStore.read(this.runId, afterSeq);
+    }
+
+    public getDeadLetterQueue(): DeadLetterQueue {
+        return this.deadLetterQueue;
+    }
+
+    /** Snapshot of the run, sufficient to continue it in another process */
+    public snapshot(): WorkflowState {
+        return {
+            version: '1.0',
+            workflow_id: this.workflow.id,
+            workflow_name: this.workflow.name,
+            workflow_version: this.workflow.version,
+            engine_status: this.status,
+            tokens: this.tokens.map(serialize_token),
+            contexts: this.contextManager.snapshot(),
+            checkpoint_at: new Date().toISOString(),
+            metadata: {
+                run_id: this.runId,
+                journal_seq: this.journal.last_seq,
+                stats: { ...this.executionStats, startTime: this.executionStats.startTime.toISOString() },
+            },
+        };
+    }
+
+    private async saveCheckpoint(): Promise<void> {
+        if (!this.options.checkpoint) return;
+        await this.journal.flush();
+        await this.options.checkpoint.save(this.runId, this.snapshot());
+    }
+
+    /**
+     * Continue a run from a checkpoint (spec: "Recovery").
+     * Tokens that were active when the checkpoint was taken execute their
+     * current activity again, so activities are executed at least once.
+     */
+    public static restore(workflowDef: Workflow, state: WorkflowState, options: WorkflowEngineOptions = {}): WorkflowEngine {
+        if (state.workflow_id !== workflowDef.id) {
+            throw new Error(`Checkpoint belongs to workflow ${state.workflow_id}, not ${workflowDef.id}`);
+        }
+        const meta = (state.metadata || {}) as { run_id?: UUID; journal_seq?: number; stats?: Record<string, unknown> };
+        const engine = new WorkflowEngine(workflowDef, { ...options, run_id: meta.run_id || options.run_id });
+        engine.journal = new JournalWriter(
+            engine.runId, workflowDef.id, engine.journalStore, options.journal_payloads || 'full', meta.journal_seq || 0);
+        engine.tokens = state.tokens.map(t => deserialize_token(t, state.workflow_id));
+        engine.contextManager.restore(state.contexts);
+        if (meta.stats) {
+            engine.executionStats = { ...engine.executionStats, ...meta.stats, startTime: new Date(String(meta.stats.startTime)) };
+        }
+        engine.status = engine.tokens.some(t => t.status === 'active') ? 'running'
+            : engine.tokens.some(t => t.status === 'waiting') ? 'waiting_human'
+                : (state.engine_status as EngineStatus);
+        engine.record({
+            type: 'run.resumed',
+            data: { from_checkpoint_at: state.checkpoint_at, from_seq: meta.journal_seq || 0, active_tokens: engine.tokens.filter(t => t.status === 'active').length },
+        });
+        return engine;
     }
 
     /**
@@ -257,119 +426,331 @@ export class WorkflowEngine {
     private async processToken(token: Token): Promise<void> {
         const currentNodeId = token.activityId;
 
-        // Check if this is a decision node
         const decisionNode = this.decisionNodeMap.get(currentNodeId);
         if (decisionNode) {
             await this.processDecisionNode(token, decisionNode);
             return;
         }
 
-        // Process as activity
         const activity = this.activityMap.get(currentNodeId);
         if (!activity) {
-            this.log(`Activity not found: ${currentNodeId}`);
-            token.updateStatus('failed');
+            this.failToken(token, new ActivityError(`Node not found: ${currentNodeId}`, 'NOT_FOUND'));
             return;
         }
 
         const startTime = new Date();
 
         try {
-            // Create appropriate actor
             const actor = this.createActor(activity);
-
-            if (actor) {
-                // Add token metadata to inputs
-                const inputs = {
-                    ...token.contextData,
-                    _token_id: token.id,
-                    _workflow_id: this.workflow.id,
-                    _activity_id: activity.id,
-                    _activity_name: activity.name
-                };
-
-                this.log(`Executing activity "${activity.name}" with ${activity.actor_type} actor`);
-
-                // Execute with verification loop
-                const { output, verificationRecords } = await this.executeWithVerification(
-                    actor, activity, inputs
-                );
-
-                const endTime = new Date();
-                const processTime = calculate_duration(startTime, endTime);
-                const analytics: Analytics = {
-                    process_time: processTime,
-                    cycle_time: processTime,
-                    lead_time: processTime,
-                    value_added: activity.analytics?.value_added ?? true,
-                    waste_categories: []
-                };
-
-                // Fail closed: anything other than an explicit pass fails the activity
-                if (verificationRecords.length > 0) {
-                    const lastRecord = verificationRecords[verificationRecords.length - 1];
-                    if (lastRecord.verdict !== 'pass') {
-                        this.log(`Activity "${activity.name}" failed verification after ${verificationRecords.length} attempt(s)`);
-                        analytics.waste_categories?.push('defects' as WasteCategory);
-                        analytics.error_rate = 1;
-                        token.updateStatus('failed', analytics);
-                        token.mergeActivityOutput(activity.id, {
-                            ...output,
-                            _error: `Verification failed: ${lastRecord.feedback}`,
-                            _verification_records: verificationRecords,
-                        });
-                        return;
-                    }
-                }
-
-                // Check if human task requires waiting
-                if (output._requires_human_action && this.options.wait_for_human_tasks) {
-                    analytics.waste_categories?.push('waiting' as WasteCategory);
-                    token.updateStatus('waiting', analytics);
-                    token.mergeActivityOutput(activity.id, {
-                        ...output,
-                        _waiting_since: endTime.toISOString()
-                    });
-                    this.log(`Token paused waiting for human task ${output._human_task_id}`);
-                    return;
-                }
-
-                token.mergeActivityOutput(activity.id, {
-                    ...output,
-                    _last_actor_id: activity.id,
-                    _last_actor_type: activity.actor_type,
-                    ...(verificationRecords.length > 0 ? { _verification_records: verificationRecords } : {})
-                });
-
-                // Track usage and cost
-                const durationMs = endTime.getTime() - startTime.getTime();
-                this.trackCost(activity, output, durationMs);
-
-                this.executionStats.stepsCount++;
-
-                // Determine next node(s)
-                await this.advanceToken(token, currentNodeId, analytics);
-
-            } else {
-                // No actor - just advance
+            if (!actor) {
                 await this.advanceToken(token, currentNodeId);
+                return;
             }
 
-        } catch (error: unknown) {
-            const endTime = new Date();
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            const errorStack = error instanceof Error ? error.stack : undefined;
-            console.error(`Error processing activity ${activity.name}:`, error);
-
-            const analytics: Analytics = {
-                process_time: calculate_duration(startTime, endTime),
-                waste_categories: ['defects' as WasteCategory],
-                error_rate: 1
+            const visit = token.history.filter(h => h.nodeId === activity.id && h.action === 'entered').length;
+            const inputs = {
+                ...token.contextData,
+                _token_id: token.id,
+                _run_id: this.runId,
+                _workflow_id: this.workflow.id,
+                _activity_id: activity.id,
+                _activity_name: activity.name,
+                // Stable across retries and recovery, so actors can deduplicate side effects
+                _idempotency_key: `${this.runId}:${token.id}:${activity.id}:${visit}`,
             };
 
-            token.updateStatus('failed', analytics);
-            token.mergeData({ _error: errorMessage, _stack: errorStack });
+            this.log(`Executing activity "${activity.name}" with ${activity.actor_type} actor`);
+
+            const { output, verificationRecords, attempts } = await this.executeActivity(token, actor, activity, inputs);
+
+            const endTime = new Date();
+            const processTime = calculate_duration(startTime, endTime);
+            const analytics: Analytics = {
+                process_time: processTime,
+                cycle_time: processTime,
+                lead_time: processTime,
+                value_added: activity.analytics?.value_added ?? true,
+                waste_categories: attempts > 1 ? ['defects' as WasteCategory] : [],
+            };
+
+            // A human task that has not been completed yet parks the token
+            if (output._requires_human_action && this.options.wait_for_human_tasks) {
+                analytics.waste_categories?.push('waiting' as WasteCategory);
+                token.updateStatus('waiting', analytics);
+                token.mergeActivityOutput(activity.id, { ...output, _waiting_since: endTime.toISOString() });
+                this.record({
+                    type: 'token.waiting', token_id: token.id, ...this.nodeRef(activity.id),
+                    data: { reason: 'human_task', human_task_id: output._human_task_id },
+                });
+                this.log(`Token paused waiting for human task ${output._human_task_id}`);
+                return;
+            }
+
+            token.mergeActivityOutput(activity.id, {
+                ...output,
+                _last_actor_id: activity.id,
+                _last_actor_type: activity.actor_type,
+                ...(verificationRecords.length > 0 ? { _verification_records: verificationRecords } : {}),
+            });
+
+            const durationMs = endTime.getTime() - startTime.getTime();
+            this.trackCost(activity, output, durationMs);
+            this.executionStats.stepsCount++;
+
+            this.record({
+                type: 'activity.completed', token_id: token.id, ...this.nodeRef(activity.id), attempt: attempts,
+                data: {
+                    actor_type: activity.actor_type,
+                    output: this.journal.payload(public_payload(output)),
+                    duration_ms: durationMs,
+                    attempts,
+                    ...(output.usage ? { usage: output.usage } : {}),
+                },
+            });
+
+            await this.advanceToken(token, currentNodeId, analytics);
+        } catch (error: unknown) {
+            const analytics: Analytics = {
+                process_time: calculate_duration(startTime, new Date()),
+                waste_categories: ['defects' as WasteCategory],
+                error_rate: 1,
+            };
+            this.failToken(token, error, analytics);
         }
+    }
+
+    /** Mark a token failed and record why, in its data and in the journal */
+    private failToken(token: Token, error: unknown, analytics?: Analytics): void {
+        const info = error_info(error);
+        const details = error instanceof ActivityError ? error.details : undefined;
+        this.log(`Token ${token.id} failed: ${info.message}`);
+        token.updateStatus('failed', analytics);
+        token.mergeData({
+            _error: info.message,
+            ...(info.code ? { _error_code: info.code } : {}),
+            ...(info.stack && !(error instanceof ActivityError) ? { _stack: info.stack } : {}),
+            ...(details || {}),
+        });
+        this.record({
+            type: 'token.failed', token_id: token.id, ...this.nodeRef(token.activityId),
+            data: { error: { message: info.message, code: info.code } },
+        });
+    }
+
+    /** The retry policy that applies to an activity: its own, else the engine default, else none */
+    private retryPolicy(activity: Activity): RetryConfig {
+        const declared = (activity as Activity & { retry?: ActivityRetry }).retry;
+        const base: RetryConfig = { ...DEFAULT_RETRY_CONFIG, max_retries: 0, ...(this.options.retry || {}) };
+        if (!declared) return base;
+        return {
+            ...base,
+            max_retries: Math.max(0, (declared.max_attempts ?? base.max_retries + 1) - 1),
+            initial_delay_ms: declared.initial_delay ? parse_iso_duration(declared.initial_delay) : base.initial_delay_ms,
+            max_delay_ms: declared.max_delay ? parse_iso_duration(declared.max_delay) : base.max_delay_ms,
+            backoff_multiplier: declared.backoff_multiplier ?? base.backoff_multiplier,
+            jitter: declared.jitter ?? base.jitter,
+            non_retryable_errors: declared.non_retryable_errors ?? base.non_retryable_errors,
+        };
+    }
+
+    /**
+     * Execute an activity until an attempt is accepted or no further attempt
+     * is allowed (spec: "Attempts"). Every execution of the actor is one
+     * attempt. An attempt ends in one of three ways:
+     *  - accepted: the actor returned and verification, if any, passed
+     *  - rejected: verification did not pass; retried with feedback if the policy allows
+     *  - errored:  the actor raised; retried with backoff if the retry policy allows
+     */
+    private async executeActivity(
+        token: Token,
+        actor: Actor,
+        activity: Activity,
+        inputs: Record<string, unknown>
+    ): Promise<{ output: Record<string, unknown>; verificationRecords: VerificationRecord[]; attempts: number }> {
+        const policy = activity.verification;
+        const verify = !!policy && policy.enabled && this.options.verification_enabled !== false;
+        const maxVerifications = verify ? policy!.max_retries + 1 : 1;
+        const retry = this.retryPolicy(activity);
+        const ref = { token_id: token.id, ...this.nodeRef(activity.id) };
+
+        const verificationRecords: VerificationRecord[] = [];
+        let currentInputs = { ...inputs };
+        let attempt = 0;
+        let errors = 0;
+        let rejections = 0;
+
+        for (;;) {
+            attempt++;
+            const attemptStart = Date.now();
+            this.record({
+                type: 'activity.started', ...ref, attempt,
+                data: {
+                    actor_type: activity.actor_type,
+                    role_id: activity.role_id,
+                    input: this.journal.payload(public_payload(currentInputs)),
+                    ...(currentInputs._verification_feedback ? { feedback: currentInputs._verification_feedback } : {}),
+                },
+            });
+
+            // --- execute -------------------------------------------------
+            let output: Record<string, unknown>;
+            try {
+                output = this.extractTraces(await actor.execute(activity, { ...currentInputs, _attempt: attempt }), ref, attempt);
+            } catch (error: unknown) {
+                errors++;
+                const info = error_info(error);
+                const retryable = errors <= retry.max_retries
+                    && !NEVER_RETRIED.has(info.code || '')
+                    && !(info.code && retry.non_retryable_errors?.includes(info.code));
+                this.record({
+                    type: 'activity.failed', ...ref, attempt,
+                    data: { error: { message: info.message, code: info.code }, retryable, duration_ms: Date.now() - attemptStart },
+                });
+
+                if (!retryable) {
+                    if (retry.max_retries > 0) {
+                        this.deadLetterQueue.add(token, this.workflow.id, activity.id,
+                            error instanceof Error ? error : new Error(info.message),
+                            { attempt, started_at: attemptStart, last_error: error instanceof Error ? error : undefined });
+                        this.record({ type: 'activity.dead_lettered', ...ref, attempt, data: { error: { message: info.message, code: info.code }, attempts: attempt } });
+                    }
+                    throw error;
+                }
+
+                const delay = calculate_retry_delay(retry, errors - 1);
+                this.record({ type: 'activity.retry_scheduled', ...ref, attempt, data: { delay_ms: delay, next_attempt: attempt + 1 } });
+                this.record({
+                    type: 'meta.recorded', level: 'meta', ...ref, attempt,
+                    data: {
+                        subject: 'retry',
+                        decision: `Retry after ${delay} ms`,
+                        rationale: `Attempt ${attempt} raised "${info.message}"${info.code ? ` (${info.code})` : ''}. `
+                            + `The error is retryable and ${retry.max_retries - errors + 1} of ${retry.max_retries} retries remained.`,
+                    },
+                });
+                await this.sleep(delay);
+                continue;
+            }
+
+            if (!verify) {
+                return { output, verificationRecords, attempts: attempt };
+            }
+
+            // --- verify --------------------------------------------------
+            let verification: VerificationRecord;
+            try {
+                verification = await this.verificationEngine.verify(activity, currentInputs, output, rejections + 1);
+            } catch (verificationError: unknown) {
+                // Fail closed: an output that could not be verified is not accepted
+                verification = {
+                    id: randomUUID(),
+                    activity_id: activity.id,
+                    attempt: rejections + 1,
+                    verdict: 'error',
+                    criteria_results: [],
+                    overall_score: 0,
+                    feedback: `Verification engine error: ${error_info(verificationError).message}`,
+                    verified_at: new Date().toISOString(),
+                    duration_ms: 0,
+                    output_hash: this.verificationEngine.compute_output_hash(output),
+                };
+            }
+            verificationRecords.push(verification);
+
+            if (verification.judge_tokens) {
+                this.executionStats.verificationTokens += verification.judge_tokens.input + verification.judge_tokens.output;
+                this.executionStats.inputTokens += verification.judge_tokens.input;
+                this.executionStats.outputTokens += verification.judge_tokens.output;
+            }
+
+            this.record({
+                type: 'verification.completed', ...ref, attempt,
+                data: {
+                    mode: policy!.mode,
+                    verdict: verification.verdict,
+                    score: verification.overall_score,
+                    pass_threshold: policy!.pass_threshold,
+                    criteria: verification.criteria_results,
+                    feedback: verification.feedback,
+                    output_hash: verification.output_hash,
+                    output: this.journal.payload(public_payload(output)),
+                },
+            });
+
+            if (verification.verdict === 'pass') {
+                this.log(`Activity "${activity.name}" passed verification (attempt ${attempt})`);
+                return { output, verificationRecords, attempts: attempt };
+            }
+
+            rejections++;
+            const canRetry = verification.verdict === 'fail'
+                && activity.actor_type === 'ai_agent'
+                && policy!.retry_with_feedback
+                && rejections < maxVerifications;
+
+            this.record({
+                type: 'activity.failed', ...ref, attempt,
+                data: {
+                    error: { message: `Verification ${verification.verdict}: ${verification.feedback || 'criteria not met'}`, code: 'VERIFICATION_FAILED' },
+                    retryable: canRetry,
+                    duration_ms: Date.now() - attemptStart,
+                },
+            });
+
+            if (!canRetry) {
+                throw new ActivityError(
+                    `Verification failed: ${verification.feedback || verification.verdict}`,
+                    'VERIFICATION_FAILED',
+                    { ...output, _verification_records: verificationRecords });
+            }
+
+            const feedback = this.verificationEngine.generate_corrective_feedback(verification);
+            currentInputs = { ...inputs, _verification_feedback: feedback, _verification_attempt: rejections + 1 };
+            this.record({
+                type: 'meta.recorded', level: 'meta', ...ref, attempt,
+                data: {
+                    subject: 'verification_retry',
+                    decision: 'Re-execute with corrective feedback',
+                    rationale: `The output scored ${(verification.overall_score * 100).toFixed(0)}% against a threshold of `
+                        + `${(policy!.pass_threshold * 100).toFixed(0)}%. ${maxVerifications - rejections} verification attempt(s) remained.`,
+                    failed_criteria: verification.criteria_results.filter(c => !c.passed).map(c => c.criterion_name),
+                },
+            });
+        }
+    }
+
+    /**
+     * Move an actor's self-reported traces out of its result and into the
+     * journal. `_reasoning` is the actor's account of how it worked;
+     * `_model` says which model served the attempt and why it was chosen.
+     */
+    private extractTraces(
+        result: Record<string, unknown>,
+        ref: { token_id: UUID; node_id: UUID; node_name?: string },
+        attempt: number
+    ): Record<string, unknown> {
+        const { _reasoning, _model, ...output } = result;
+
+        if (_model && typeof _model === 'object') {
+            const model = _model as { id?: string; provider?: string; source?: string; temperature?: number };
+            this.record({
+                type: 'meta.recorded', level: 'meta', ...ref, attempt,
+                data: {
+                    subject: 'model_selection',
+                    decision: `Use model ${model.provider ? `${model.provider}:` : ''}${model.id}`,
+                    rationale: model.source === 'role'
+                        ? 'The role assigned to this activity names this model.'
+                        : 'The role names no model, so the engine default applies.',
+                    model,
+                },
+            });
+        }
+
+        if (_reasoning && typeof _reasoning === 'object') {
+            this.record({ type: 'reasoning.recorded', level: 'reasoning', ...ref, attempt, data: { source: 'actor', ...(_reasoning as object) } });
+        }
+
+        return output;
     }
 
     /**
@@ -379,41 +760,57 @@ export class WorkflowEngine {
         this.log(`Evaluating decision node "${decision.name}"`);
 
         const result = evaluate_decision(decision, token.contextData);
+        const edgeId = result.output_edge_id || decision.default_output_edge_id;
+        const inputs = Object.fromEntries(
+            decision.decision_table.inputs.map(column => [column.name, token.contextData[column.name]]));
 
-        this.log(`Decision result: matched=${result.matched}, outputs=${JSON.stringify(result.outputs)}`);
-
-        // Merge decision outputs into token
         token.mergeData({
             _decision_node_id: decision.id,
             _decision_matched: result.matched,
-            _decision_outputs: result.outputs
+            _decision_outputs: result.outputs,
         });
 
-        if (result.output_edge_id) {
-            // Follow the specific edge from decision
-            token.move(this.getEdgeTarget(result.output_edge_id) || result.output_edge_id);
-        } else {
-            // No matching edge - use default or fail
-            if (decision.default_output_edge_id) {
-                token.move(this.getEdgeTarget(decision.default_output_edge_id) || decision.default_output_edge_id);
-            } else {
-                this.log(`No matching rule and no default edge for decision "${decision.name}"`);
-                token.updateStatus('failed');
-                token.mergeData({ _error: 'No matching decision rule and no default path' });
-            }
+        this.record({
+            type: 'decision.evaluated', token_id: token.id, ...this.nodeRef(decision.id),
+            data: {
+                hit_policy: decision.decision_table.hit_policy,
+                inputs: this.journal.payload(inputs),
+                matched: result.matched,
+                matched_rules: result.matched_rules.map(rule => ({
+                    index: decision.decision_table.rules.indexOf(rule),
+                    input_entries: rule.input_entries,
+                    description: rule.description,
+                })),
+                outputs: result.outputs,
+                edge_id: edgeId,
+                used_default: !result.matched || !result.output_edge_id,
+            },
+        });
+
+        const target = edgeId ? this.getEdgeTarget(edgeId) : undefined;
+        if (!edgeId || !target) {
+            this.failToken(token, new ActivityError('No matching decision rule and no default path', 'NO_ROUTE'));
+            return;
         }
+
+        this.moveToken(token, edgeId, target, 'decision');
     }
 
     /**
      * Get the target node ID for an edge ID
      */
     private getEdgeTarget(edgeId: UUID): UUID | undefined {
-        for (const edge of this.workflow.edges) {
-            if (edge.id === edgeId) {
-                return edge.target_id;
-            }
-        }
-        return undefined;
+        return this.workflow.edges.find(edge => edge.id === edgeId)?.target_id;
+    }
+
+    private moveToken(token: Token, edgeId: UUID, targetId: UUID, reason: string, analytics?: Analytics, condition?: string): void {
+        const from = token.activityId;
+        token.move(targetId, analytics);
+        this.record({
+            type: 'token.moved', token_id: token.id, ...this.nodeRef(targetId),
+            data: { from_node_id: from, to_node_id: targetId, edge_id: edgeId, reason, ...(condition ? { condition } : {}) },
+        });
+        this.log(`Token ${token.id} moved to ${targetId}`);
     }
 
     /**
@@ -424,27 +821,26 @@ export class WorkflowEngine {
 
         if (outgoingEdges.length === 0) {
             token.updateStatus('completed', analytics);
+            this.record({ type: 'token.completed', token_id: token.id, ...this.nodeRef(currentNodeId), data: {} });
             this.log(`Token ${token.id} completed (no outgoing edges)`);
             return;
         }
 
-        let nextEdge: Edge | undefined;
+        let selected: { edge: Edge; reason: string } | undefined;
         try {
-            nextEdge = this.selectNextEdge(outgoingEdges, token.contextData);
+            selected = this.selectNextEdge(outgoingEdges, token.contextData);
         } catch (error: unknown) {
-            token.updateStatus('failed', analytics);
-            token.mergeData({ _error: error instanceof Error ? error.message : String(error) });
+            this.failToken(token, error, analytics);
             return;
         }
 
-        if (nextEdge) {
-            token.move(nextEdge.target_id, analytics);
-            this.log(`Token ${token.id} moved to ${nextEdge.target_id}`);
-        } else {
-            // No valid edge found
-            token.updateStatus('failed', analytics);
-            token.mergeData({ _error: 'No route: no edge condition matched and no default edge is defined' });
+        if (!selected) {
+            this.failToken(token,
+                new ActivityError('No route: no edge condition matched and no default edge is defined', 'NO_ROUTE'), analytics);
+            return;
         }
+
+        this.moveToken(token, selected.edge.id, selected.edge.target_id, selected.reason, analytics, selected.edge.condition);
     }
 
     /**
@@ -454,19 +850,18 @@ export class WorkflowEngine {
      * 3. Otherwise the first unconditional edge is taken.
      * 4. Otherwise there is no route and the token fails. An engine never guesses.
      */
-    private selectNextEdge(edges: Edge[], context: Record<string, unknown>): Edge | undefined {
+    private selectNextEdge(edges: Edge[], context: Record<string, unknown>): { edge: Edge; reason: string } | undefined {
         for (const edge of edges) {
             if (edge.condition && evaluate_expression(edge.condition, context)) {
-                return edge;
+                return { edge, reason: 'condition' };
             }
         }
 
         const defaultEdge = edges.find(e => e.is_default);
-        if (defaultEdge) {
-            return defaultEdge;
-        }
+        if (defaultEdge) return { edge: defaultEdge, reason: 'default' };
 
-        return edges.find(e => !e.condition);
+        const unconditional = edges.find(e => !e.condition);
+        return unconditional ? { edge: unconditional, reason: 'unconditional' } : undefined;
     }
 
     /**
@@ -502,104 +897,6 @@ export class WorkflowEngine {
         }
     }
 
-    /**
-     * Execute an activity with optional verification-and-retry loop.
-     * If the activity has a verification policy, the output is verified
-     * after each execution. On failure, AI agents are retried with
-     * corrective feedback. Non-AI actors are verified but not retried.
-     */
-    private async executeWithVerification(
-        actor: Actor,
-        activity: Activity,
-        inputs: Record<string, unknown>
-    ): Promise<{ output: Record<string, unknown>; verificationRecords: VerificationRecord[] }> {
-        const policy = activity.verification;
-        const globalEnabled = this.options.verification_enabled !== false;
-        const hasVerification = policy && policy.enabled && globalEnabled;
-
-        if (!hasVerification) {
-            // No verification — execute once and return
-            const output = await actor.execute(activity, inputs);
-            return { output, verificationRecords: [] };
-        }
-
-        const maxAttempts = policy.max_retries + 1; // +1 for the initial attempt
-        const verificationRecords: VerificationRecord[] = [];
-        let currentInputs = { ...inputs };
-        let lastOutput: Record<string, unknown> = {};
-
-        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-            this.log(`Verification attempt ${attempt}/${maxAttempts} for "${activity.name}"`);
-
-            // Execute the activity
-            lastOutput = await actor.execute(activity, currentInputs);
-
-            // Verify the output
-            try {
-                const record = await this.verificationEngine.verify(
-                    activity, currentInputs, lastOutput, attempt
-                );
-                verificationRecords.push(record);
-
-                // Track verification token usage
-                if (record.judge_tokens) {
-                    this.executionStats.verificationTokens +=
-                        record.judge_tokens.input + record.judge_tokens.output;
-                    this.executionStats.inputTokens += record.judge_tokens.input;
-                    this.executionStats.outputTokens += record.judge_tokens.output;
-                }
-
-                if (record.verdict === 'pass') {
-                    this.log(`Activity "${activity.name}" passed verification (attempt ${attempt}, score: ${(record.overall_score * 100).toFixed(0)}%)`);
-                    return { output: lastOutput, verificationRecords };
-                }
-
-                // Verification failed — decide whether to retry
-                this.log(`Activity "${activity.name}" failed verification (attempt ${attempt}, score: ${(record.overall_score * 100).toFixed(0)}%)`);
-
-                // Only AI agents support automatic retry with feedback
-                if (activity.actor_type !== 'ai_agent' || !policy.retry_with_feedback) {
-                    this.log(`No retry for actor_type="${activity.actor_type}" — recording failure`);
-                    return { output: lastOutput, verificationRecords };
-                }
-
-                // Inject corrective feedback for the next attempt
-                if (attempt < maxAttempts) {
-                    const feedback = this.verificationEngine.generate_corrective_feedback(record);
-                    currentInputs = {
-                        ...inputs,
-                        _verification_feedback: feedback,
-                        _verification_attempt: attempt + 1,
-                    };
-                    this.log(`Injecting corrective feedback for retry attempt ${attempt + 1}`);
-                }
-
-            } catch (verificationError: unknown) {
-                const message = verificationError instanceof Error
-                    ? verificationError.message : String(verificationError);
-                this.log(`Verification error: ${message}`);
-
-                // Fail closed: an output that could not be verified is not accepted
-                verificationRecords.push({
-                    id: randomUUID(),
-                    activity_id: activity.id,
-                    attempt,
-                    verdict: 'error',
-                    criteria_results: [],
-                    overall_score: 0,
-                    feedback: `Verification engine error: ${message}`,
-                    verified_at: new Date().toISOString(),
-                    duration_ms: 0,
-                    output_hash: this.verificationEngine.compute_output_hash(lastOutput),
-                });
-                return { output: lastOutput, verificationRecords };
-            }
-        }
-
-        // All retries exhausted — return with the last failed records
-        return { output: lastOutput, verificationRecords };
-    }
-
     public async resumeToken(tokenId: UUID, output: Record<string, unknown>): Promise<boolean> {
         const token = this.tokens.find(t => t.id === tokenId);
         if (!token || token.status !== 'waiting') {
@@ -608,32 +905,36 @@ export class WorkflowEngine {
 
         const waitingSince = token.getData('_waiting_since');
         let analytics: Analytics | undefined;
+        let waitedMs: number | undefined;
 
         if (waitingSince) {
-            const waitTime = calculate_duration(new Date(waitingSince as string), new Date());
-            analytics = {
-                wait_time: waitTime,
-                waste_categories: ['waiting' as WasteCategory]
-            };
+            const since = new Date(waitingSince as string);
+            waitedMs = Date.now() - since.getTime();
+            analytics = { wait_time: calculate_duration(since, new Date()), waste_categories: ['waiting' as WasteCategory] };
         }
 
         token.mergeActivityOutput(token.activityId, output);
         token.mergeData({ _human_task_status: 'completed', _requires_human_action: false });
         token.updateStatus('active', analytics);
 
+        const ref = { token_id: token.id, ...this.nodeRef(token.activityId) };
+        this.record({ type: 'token.resumed', ...ref, data: { waited_ms: waitedMs } });
+        this.record({
+            type: 'activity.completed', ...ref,
+            data: {
+                actor_type: this.activityMap.get(token.activityId)?.actor_type || 'human',
+                output: this.journal.payload(public_payload(output)),
+                waited_ms: waitedMs,
+            },
+        });
+
         if (this.status === 'waiting_human') {
             this.status = 'running';
         }
 
-        // Advance the token to the next node in the graph
-        try {
-            await this.advanceToken(token, token.activityId);
-            return true;
-        } catch (err) {
-            this.log(`Failed to advance token on resume: ${err instanceof Error ? err.message : String(err)}`);
-            token.updateStatus('failed');
-            return false;
-        }
+        await this.advanceToken(token, token.activityId);
+        await this.saveCheckpoint();
+        return (token.status as string) !== 'failed';
     }
 
     public getStatus(): EngineStatus {

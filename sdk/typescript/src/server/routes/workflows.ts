@@ -1,10 +1,22 @@
 import { Router } from 'express';
 import { WorkflowEngine } from '../../runtime/workflow_engine';
 import { parse_document } from '../../validator';
+import { FileJournalStore, JournalEvent } from '../../runtime/journal';
 import fs from 'fs/promises';
 import path from 'path';
 
 export const workflowRouter = Router();
+
+/** Runs started by this server process, by run id */
+const runs = new Map<string, WorkflowEngine>();
+const MAX_TRACKED_RUNS = 200;
+
+function track(engine: WorkflowEngine): void {
+    runs.set(engine.getRunId(), engine);
+    if (runs.size > MAX_TRACKED_RUNS) {
+        runs.delete(runs.keys().next().value as string);
+    }
+}
 
 // Run a workflow by file path
 workflowRouter.post('/run', async (req, res) => {
@@ -31,9 +43,15 @@ workflowRouter.post('/run', async (req, res) => {
         }
 
         const key = apiKey || process.env.GEMINI_API_KEY;
-        const engine = new WorkflowEngine(workflow, { geminiApiKey: key });
+        const engine = new WorkflowEngine(workflow, {
+            gemini_api_key: key,
+            simulate: req.body.simulate === true,
+            journal: process.env.AWA_JOURNAL_DIR ? new FileJournalStore(process.env.AWA_JOURNAL_DIR) : undefined,
+        });
+        track(engine);
 
-        const runId = await engine.start();
+        await engine.start(req.body.input || {});
+        const runId = engine.getRunId();
 
         // Run in background? Or wait? 
         // For an Operational API, usually we return runId and let client poll status.
@@ -63,6 +81,55 @@ workflowRouter.post('/run', async (req, res) => {
     }
 });
 
-// TODO: specific endpoints to check status using runId if we persiste state.
-// Since WorkflowEngine is in-memory for now, we can lost it if not stored.
-// For Phase 3, we just trigger.
+// Status of a run
+workflowRouter.get('/runs/:runId', (req, res) => {
+    const engine = runs.get(req.params.runId);
+    if (!engine) return res.status(404).json({ error: 'Run not found' });
+    res.json({
+        runId: engine.getRunId(),
+        workflowId: engine.getWorkflow().id,
+        status: engine.getStatus(),
+        tokens: engine.getTokens().map(t => ({ id: t.id, node_id: t.activityId, status: t.status })),
+    });
+});
+
+// The workflow definition of a run, for visualisers
+workflowRouter.get('/runs/:runId/workflow', (req, res) => {
+    const engine = runs.get(req.params.runId);
+    if (!engine) return res.status(404).json({ error: 'Run not found' });
+    res.json(engine.getWorkflow());
+});
+
+// Journal of a run. `?after=<seq>` returns only later events.
+workflowRouter.get('/runs/:runId/events', async (req, res) => {
+    const engine = runs.get(req.params.runId);
+    if (!engine) return res.status(404).json({ error: 'Run not found' });
+    res.json(await engine.getEvents(Number(req.query.after) || 0));
+});
+
+// Live journal as Server-Sent Events. Replays from `?after=<seq>` (or the
+// Last-Event-ID header), then streams new events as they are recorded.
+workflowRouter.get('/runs/:runId/events/stream', async (req, res) => {
+    const engine = runs.get(req.params.runId);
+    if (!engine) return res.status(404).json({ error: 'Run not found' });
+
+    res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
+
+    let lastSent = Number(req.query.after) || Number(req.headers['last-event-id']) || 0;
+    const send = (event: JournalEvent) => {
+        if (event.seq <= lastSent) return;
+        lastSent = event.seq;
+        res.write(`id: ${event.seq}\nevent: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
+    };
+
+    // Subscribe first and buffer, so no event falls between the replay and the live stream
+    const buffered: JournalEvent[] = [];
+    let replaying = true;
+    const unsubscribe = engine.onEvent(event => (replaying ? buffered.push(event) : send(event)));
+
+    for (const event of await engine.getEvents(lastSent)) send(event);
+    replaying = false;
+    for (const event of buffered) send(event);
+
+    req.on('close', unsubscribe);
+});
