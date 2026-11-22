@@ -141,6 +141,12 @@ export class AwaRuntime {
         record_journey_event(instance, 'journey.run_ended', time,
             { workflow_name: ref.workflow_name, status, ...(status === 'failed' ? { error: engine.getTokens().find(t => t.status === 'failed')?.getData('_error') } : {}) },
             { run_id: ref.run_id, stage_id: ref.stage_id });
+        // A failed run leaves the subject where they were, with nobody working for them (spec 19.5)
+        if (status === 'failed' && instance.status === 'active' && !instance.stalled) {
+            instance.stalled = true;
+            const stage = definition.stages.find(s => s.id === instance.stage_id);
+            record_journey_event(instance, 'journey.stalled', time, { stage_name: stage?.name, reason: `the ${ref.workflow_name} workflow failed` }, { run_id: ref.run_id });
+        }
         await this.progress(definition, instance, time);
     }
 

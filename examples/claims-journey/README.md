@@ -10,6 +10,8 @@ Six customers make a motor claim. Each lives through up to three workflows, days
 | `customer-follow-up.awa.json` | Sends a survey, waits up to 14 days for `survey.answered`, thanks the customer or has a person call back |
 | `make-journeys.mjs` | Plays six customers on a simulated clock |
 | `journeys.json` | What happened: every journey event and every run's journal |
+| `make-story.mjs` | Turns `journeys.json` into a story: each journey as beats in causal order with one plain sentence each, each run's journal condensed into steps, and a layout per workflow |
+| `story.json` | That story. It is the data behind the journey visualisation design ([UX research](../../docs/ux/journey-visualisation-research.md)) |
 | `build-definitions.py` | Generates the three definitions above, so that identifiers stay consistent |
 
 ## The six stories
@@ -20,7 +22,7 @@ Six customers make a motor claim. Each lives through up to three workflows, days
 | A. Okafor | A large claim no decision rule covers: a model routes it to an adjuster, who takes three days; paid; rates 2; a person calls back | completed, paid but not satisfied |
 | L. Petit | Never sends documents: reminder after 5 days, closed after 10 | stalled in "Reported" |
 | S. Lindqvist | Withdraws the claim while the workflow waits for documents; the waiting run is cancelled | abandoned |
-| R. Haddad | The bank rejects the payment; the reserved funds are released | stalled in "Assessed and settled", run failed and compensated |
+| R. Haddad | The bank rejects the payment; the reserved funds are released; the journey stalls at once | stalled in "Assessed and settled", run failed and compensated |
 | M. Castellano | Paid without trouble; never answers the survey | completed, satisfaction unknown |
 
 ## Run it

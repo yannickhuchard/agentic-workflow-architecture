@@ -55,7 +55,7 @@ The full text is in [`docs/specification.md`](docs/specification.md). What it me
 
 Open [`tools/visualization/replay.html`](tools/visualization/replay.html) in a browser and pick a sample run, or read the [recipe](examples/claims-settlement/RECIPE.md) and the [knowledge bundle](examples/claims-settlement/knowledge/index.md) produced from the same run.
 
-To see workflows in the life of a customer, [`examples/claims-journey`](examples/claims-journey) follows six customers through a motor claim: three workflows, business events between them, a withdrawal, a missed deadline and a failed payment.
+To see workflows in the life of a customer, [`examples/claims-journey`](examples/claims-journey) follows six customers through a motor claim: three workflows, business events between them, a withdrawal, a missed deadline and a failed payment. How to show such journeys, and the runs behind them, to the people who need them is worked out in [`docs/ux/journey-visualisation-research.md`](docs/ux/journey-visualisation-research.md).
 
 To ask what a recorded run would have done under a different model or rule:
 

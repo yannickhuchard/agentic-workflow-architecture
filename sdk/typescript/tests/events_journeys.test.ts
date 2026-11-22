@@ -268,10 +268,10 @@ describe('Journeys', () => {
         const first = await runtime.tick();
         expect(first.timed_out_runs).toHaveLength(1);   // the 7-day wait for the customer ran out
         expect(instance.runs[1].status).toBe('failed'); // no timeout edge in this workflow
-        advance(3 * 24 * HOUR);
-        expect((await runtime.tick()).stalled_journeys).toEqual([instance.id]);
+        // A failed run stalls the journey at once: nobody is working for this customer any more
         expect(instance.stalled).toBe(true);
-        expect(instance.events.at(-1)!.type).toBe('journey.stalled');
+        expect(instance.events.at(-1)).toMatchObject({ type: 'journey.stalled', run_id: instance.runs[1].run_id, data: { reason: 'the Assessment workflow failed' } });
+        advance(3 * 24 * HOUR);
         expect((await runtime.tick()).stalled_journeys).toEqual([]); // reported once
     });
 
