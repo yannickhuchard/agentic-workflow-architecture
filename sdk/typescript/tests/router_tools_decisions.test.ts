@@ -263,6 +263,21 @@ describe('Tools', () => {
         expect(allowed.events[1].data.status).toBe(0);
     });
 
+    it('survives a command that exits without reading the arguments it was sent', async () => {
+        // "true" exits at once; the arguments are far larger than a pipe holds, so writing them meets a closed pipe
+        const { run, events } = runner([def({ name: 'noop', binding: { kind: 'command', command: 'true' } })], { allow_commands: ['true'] });
+        const errors: unknown[] = [];
+        const caught = (error: unknown) => errors.push(error);
+        process.on('uncaughtException', caught);
+        try {
+            const result = await run.call('noop', { blob: 'x'.repeat(2 * 1024 * 1024) });
+            await new Promise(resolve => setTimeout(resolve, 100));
+            expect(result.ok).toBe(true);
+            expect(events.map(e => e.type)).toEqual(['tool.invoked', 'tool.completed']);
+            expect(errors).toEqual([]);
+        } finally { process.off('uncaughtException', caught); }
+    });
+
     it('restricts hosts when the deployment lists them', async () => {
         const { run } = runner([def({ name: 'x', binding: { kind: 'http', url: 'https://elsewhere.example/api' } })], { allowed_hosts: ['api.internal'] });
         expect(await run.call('x', {})).toMatchObject({ ok: false, result: { code: 'PERMISSION_DENIED' } });
