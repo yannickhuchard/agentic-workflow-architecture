@@ -14,7 +14,7 @@ import { resolve_path } from './expression';
 import { JournalEvent, public_payload } from './journal';
 import {
     JourneyDefinition, JourneyInstance, advance_journey, check_stalled, enter_stage,
-    journey_analytics, new_journey_instance, record_journey_event, validate_journey,
+    apply_sentiment, journey_analytics, journey_transitions, new_journey_instance, record_journey_event, record_touchpoint, touchpoints_for, validate_journey,
 } from './journey';
 import { WorkflowEngine, WorkflowEngineOptions } from './workflow_engine';
 
@@ -52,6 +52,10 @@ export class AwaRuntime {
     /** run id -> journey instance id */
     private run_journey = new Map<string, string>();
     private seen_events = new Set<string>();
+    /** run id -> events the run published, taken in when the run next settles */
+    private outbox = new Map<string, BusinessEvent[]>();
+    /** journey id -> the business event types that concern it */
+    private concerns = new Map<string, Set<string>>();
 
     constructor(private options: RuntimeOptions = {}) { }
 
@@ -71,6 +75,20 @@ export class AwaRuntime {
         const errors = validate_journey(definition, new Set(this.workflows.keys()));
         if (errors.length) throw new Error(`Invalid journey "${definition.name}": ${errors.map(e => e.message).join('; ')}`);
         this.journeys.set(definition.id, definition);
+        // An event concerns a journey that names it, or whose workflows wait for it
+        const types = new Set<string>([
+            ...definition.triggers.map(t => t.event), ...definition.exits.map(e => e.event),
+            ...definition.touchpoints.map(t => t.on.event).filter((t): t is string => !!t),
+            ...(definition.sentiment?.rules || []).map(r => r.event).filter((t): t is string => !!t),
+        ]);
+        const workflow_ids = [...definition.stages.flatMap(s => [...s.workflows, ...(s.on_enter ? [s.on_enter.start_workflow] : [])]), ...definition.triggers.map(t => t.start_workflow)];
+        for (const id of workflow_ids) {
+            for (const event of (id && this.workflows.get(id)?.events) || []) {
+                const name = (event.event_definition as { name?: string } | undefined)?.name;
+                if (name) types.add(name);
+            }
+        }
+        this.concerns.set(definition.id, types);
         return this;
     }
 
@@ -93,7 +111,12 @@ export class AwaRuntime {
     async start(workflow_id: UUID, input: Record<string, unknown> = {}, journey?: { instance: JourneyInstance; caused_by_event?: string }): Promise<WorkflowEngine> {
         const workflow = this.workflows.get(workflow_id);
         if (!workflow) throw new Error(`Workflow ${workflow_id} is not registered`);
-        const engine = new WorkflowEngine(workflow, { ...this.options.engine, now: this.options.now });
+        const outer_sink = this.options.engine?.event_sink;
+        const engine = new WorkflowEngine(workflow, {
+            ...this.options.engine, now: this.options.now,
+            event_sink: async event => { this.outbox.set(run_id(), [...(this.outbox.get(run_id()) || []), event]); await outer_sink?.(event); },
+        });
+        const run_id = () => engine.getRunId();
         this.runs.set(engine.getRunId(), engine);
 
         if (journey) {
@@ -108,6 +131,21 @@ export class AwaRuntime {
             this.run_journey.set(ref.run_id, journey.instance.id);
             record_journey_event(journey.instance, 'journey.run_started', ref.started_at,
                 { workflow_id, workflow_name: workflow.name, caused_by_event: journey.caused_by_event }, { run_id: ref.run_id, stage_id: ref.stage_id });
+            // What the run does towards the outside world shows on the journey as touchpoints (spec 19.8)
+            const instance = journey.instance;
+            if (definition.touchpoints.length) engine.onEvent(event => {
+                const d = event.data as Record<string, unknown>;
+                const output = d.output as Record<string, unknown> | undefined;
+                const occasion = event.type === 'activity.completed' ? { activity: event.node_name, data: (output?.output && typeof output.output === 'object' ? output.output : output) as Record<string, unknown> | undefined }
+                    : event.type === 'tool.completed' ? { tool: d.tool as string, data: d.result as Record<string, unknown> | undefined, link: d.link as string | undefined }
+                        : event.type === 'event.published' ? { event: d.name as string, data: d.data as Record<string, unknown> | undefined, event_id: d.event_id as string | undefined }
+                            : undefined;
+                if (!occasion) return;
+                for (const touchpoint of touchpoints_for(definition, occasion)) {
+                    if (occasion.event && touchpoint.direction !== 'outbound') continue;
+                    record_touchpoint(definition, instance, touchpoint, event.time, { data: occasion.data, run_id: ref.run_id, event_id: (occasion as { event_id?: string }).event_id, link: (occasion as { link?: string }).link });
+                }
+            });
         }
 
         await engine.start(input);
@@ -118,13 +156,15 @@ export class AwaRuntime {
 
     /** After a run has made progress: if it ended, fold its result into its journey and move the journey on */
     private async sync(engine: WorkflowEngine): Promise<void> {
+        // What the run announced is taken in now that it has settled: after its own ending is recorded, before anything follows from it (spec 19.5)
+        const flush = async () => { const events = this.outbox.get(engine.getRunId()) || []; this.outbox.delete(engine.getRunId()); for (const event of events) await this.publish(event); };
         const instance = this.instances.get(this.run_journey.get(engine.getRunId()) || '');
-        if (!instance) return;
+        if (!instance) return flush();
         const ref = instance.runs.find(r => r.run_id === engine.getRunId())!;
         const status = engine.getStatus();
-        if (ref.status === status) return;
+        if (ref.status === status) return flush();
         ref.status = status;
-        if (status !== 'completed' && status !== 'failed' && status !== 'cancelled') return;
+        if (status !== 'completed' && status !== 'failed' && status !== 'cancelled') return flush();
 
         const definition = this.journeys.get(instance.journey_id)!;
         const time = this.time();
@@ -146,9 +186,28 @@ export class AwaRuntime {
             instance.stalled = true;
             const stage = definition.stages.find(s => s.id === instance.stage_id);
             record_journey_event(instance, 'journey.stalled', time, { stage_name: stage?.name, reason: `the ${ref.workflow_name} workflow failed` }, { run_id: ref.run_id });
+            apply_sentiment(definition, instance, time, { on: 'run_failed', stage: instance.stage_id });
+            apply_sentiment(definition, instance, time, { on: 'stalled', stage: instance.stage_id });
         }
+        await flush();
         await this.progress(definition, instance, time);
     }
+
+    /** An event from outside is an inbound touchpoint where the journey says so, and may move the mood */
+    private touch(definition: JourneyDefinition, instance: JourneyInstance, event: BusinessEvent, time: string): void {
+        if (event.source.startsWith('urn:awa:run:')) return; // told by the run that published it
+        const data = (event.data || {}) as Record<string, unknown>;
+        for (const touchpoint of touchpoints_for(definition, { event: event.type })) {
+            if (touchpoint.direction === 'inbound') record_touchpoint(definition, instance, touchpoint, time, { data, event_id: event.id });
+        }
+        apply_sentiment(definition, instance, time, { on: 'event', event: event.type, data });
+    }
+
+    /** How subjects move from one journey to the next, across every journey registered */
+    transitions() {
+        return journey_transitions([...this.instances.values()]);
+    }
+    list_journeys(): JourneyDefinition[] { return [...this.journeys.values()]; }
 
     private async progress(definition: JourneyDefinition, instance: JourneyInstance, time: string, caused_by_event?: string): Promise<void> {
         for (const workflow_id of advance_journey(definition, instance, time)) {
@@ -175,9 +234,10 @@ export class AwaRuntime {
             const key = resolve_path(data, definition.subject.key) ?? event.subject;
             if (key === undefined || key === null) continue;
             const instance = this.find_journey_instance(definition.id, String(key));
-            if (!instance) continue;
+            if (!instance || !this.concerns.get(definition.id)?.has(event.type)) continue;
             instance.data = { ...instance.data, ...public_payload(data) };
             record_journey_event(instance, 'journey.event_received', time, { event_id: event.id, name: event.type, source: event.source, data });
+            this.touch(definition, instance, event, time);
             recorded.add(instance.id);
         }
 
@@ -201,19 +261,28 @@ export class AwaRuntime {
             const exit = definition.exits.find(e => e.event === event.type);
             // An event about a subject already on its journey is part of that journey's story,
             // whether or not a rule reacts to it
-            if (!triggers.length && !exit && !instance) continue;
+            if (!triggers.length && !exit && !(instance && this.concerns.get(definition.id)?.has(event.type))) continue;
 
             if (!instance) {
                 if (!triggers.some(t => t.starts_journey)) continue;
                 instance = new_journey_instance(definition, randomUUID(), subject_key, time);
+                // The subject brings the mood their last journey left them in
+                const before = definition.sentiment?.carry_over
+                    ? [...this.instances.values()].filter(i => i.subject_key === subject_key && i.sentiment !== undefined).sort((a, b) => a.started_at.localeCompare(b.started_at)).pop()
+                    : undefined;
+                if (before) instance.sentiment = Math.min(definition.sentiment!.max, Math.max(definition.sentiment!.min, before.sentiment!));
                 this.instances.set(instance.id, instance);
-                record_journey_event(instance, 'journey.started', time, { subject: definition.subject.name, subject_key, journey_name: definition.name });
+                record_journey_event(instance, 'journey.started', time, {
+                    subject: definition.subject.name, subject_key, journey_name: definition.name,
+                    ...(instance.sentiment !== undefined ? { sentiment: instance.sentiment } : {}), ...(before ? { sentiment_carried_from: before.id } : {}),
+                });
                 enter_stage(definition, instance, definition.stages[0].id, time, 'journey started');
             }
             result.journeys.push(instance.id);
             if (!recorded.has(instance.id)) {
                 instance.data = { ...instance.data, ...public_payload(data) };
                 record_journey_event(instance, 'journey.event_received', time, { event_id: event.id, name: event.type, source: event.source, data });
+                this.touch(definition, instance, event, time);
             }
 
             if (exit) {

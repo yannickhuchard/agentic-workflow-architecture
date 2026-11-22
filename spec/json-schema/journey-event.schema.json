@@ -41,6 +41,8 @@
                 "journey.run_started",
                 "journey.run_ended",
                 "journey.goal_reached",
+        "journey.touchpoint",
+        "journey.sentiment_changed",
                 "journey.completed",
                 "journey.abandoned"
             ]

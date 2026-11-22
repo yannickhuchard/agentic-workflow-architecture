@@ -1,0 +1,223 @@
+{
+  "id": "233db4a0-c2b0-56a0-9f4f-55a95e50b21c",
+  "name": "Policy Renewal",
+  "version": "1.0.0",
+  "awa_version": "1.1",
+  "description": "The month before a policy ends: offer, payment, and a renewed policy or a lapsed one.",
+  "subject": {
+    "name": "customer",
+    "key": "customer_id"
+  },
+  "stages": [
+    {
+      "id": "offered",
+      "name": "Offered",
+      "description": "The renewal terms are set and sent; the customer decides.",
+      "workflows": [
+        "81caa07d-5e3c-5d4a-b7a5-9ab82b649ac7"
+      ],
+      "complete_when": "renewal_paid == true",
+      "max_duration": "P35D"
+    },
+    {
+      "id": "renewed",
+      "name": "Renewed",
+      "description": "The new certificate is issued.",
+      "workflows": [
+        "81caa07d-5e3c-5d4a-b7a5-9ab82b649ac7"
+      ],
+      "complete_when": "renewed == true",
+      "max_duration": "P2D",
+      "transitions": []
+    }
+  ],
+  "triggers": [
+    {
+      "event": "renewal.due",
+      "starts_journey": true,
+      "start_workflow": "81caa07d-5e3c-5d4a-b7a5-9ab82b649ac7"
+    }
+  ],
+  "goals": [
+    {
+      "id": "renewed",
+      "name": "Customer kept",
+      "expression": "renewed == true"
+    }
+  ],
+  "exits": [
+    {
+      "event": "policy.lapsed",
+      "outcome": "abandoned",
+      "reason": "The policy lapsed unpaid"
+    },
+    {
+      "event": "policy.cancelled",
+      "outcome": "abandoned",
+      "reason": "The customer cancelled the policy"
+    }
+  ],
+  "artefacts": [
+    {
+      "id": "renewal-invoice",
+      "name": "Renewal invoice",
+      "kind": "invoice",
+      "description": "The new premium and why it changed."
+    },
+    {
+      "id": "payment-order",
+      "name": "Payment order",
+      "kind": "order",
+      "description": "The customer's instruction to pay."
+    },
+    {
+      "id": "payment-receipt",
+      "name": "Payment receipt",
+      "kind": "receipt",
+      "description": "Proof that the premium was received."
+    },
+    {
+      "id": "insurance-certificate",
+      "name": "Certificate of insurance",
+      "kind": "certificate",
+      "description": "Proof of cover for the new year."
+    },
+    {
+      "id": "lapse-notice",
+      "name": "Notice of lapse",
+      "kind": "notice",
+      "description": "Tells the customer that cover has ended."
+    },
+    {
+      "id": "cancellation-request",
+      "name": "Cancellation request",
+      "kind": "form",
+      "description": "The customer's instruction to end the policy."
+    }
+  ],
+  "touchpoints": [
+    {
+      "id": "offer-sent",
+      "name": "Receives the renewal offer",
+      "party": "subject",
+      "direction": "outbound",
+      "channel": "email",
+      "technology": "Email gateway",
+      "on": {
+        "activity": "Send renewal offer"
+      },
+      "exchanges": [
+        {
+          "artefact": "renewal-invoice",
+          "reference": "invoice_id"
+        }
+      ]
+    },
+    {
+      "id": "last-reminder",
+      "name": "Is reminded cover ends soon",
+      "party": "subject",
+      "direction": "outbound",
+      "channel": "sms",
+      "technology": "SMS gateway",
+      "on": {
+        "activity": "Send last reminder"
+      },
+      "exchanges": []
+    },
+    {
+      "id": "renewal-paid",
+      "name": "Pays the renewal",
+      "party": "subject",
+      "direction": "inbound",
+      "channel": "bank transfer",
+      "technology": "Payment gateway",
+      "on": {
+        "event": "renewal.paid"
+      },
+      "exchanges": [
+        {
+          "artefact": "payment-order"
+        }
+      ]
+    },
+    {
+      "id": "certificate-sent",
+      "name": "Receives receipt and certificate",
+      "party": "subject",
+      "direction": "outbound",
+      "channel": "email",
+      "technology": "Email gateway",
+      "on": {
+        "activity": "Issue renewal certificate"
+      },
+      "exchanges": [
+        {
+          "artefact": "payment-receipt",
+          "reference": "receipt_id"
+        },
+        {
+          "artefact": "insurance-certificate",
+          "reference": "certificate_id"
+        }
+      ]
+    },
+    {
+      "id": "lapse-notified",
+      "name": "Is told cover has ended",
+      "party": "subject",
+      "direction": "outbound",
+      "channel": "post",
+      "technology": "Print and mail service",
+      "on": {
+        "activity": "Lapse policy"
+      },
+      "exchanges": [
+        {
+          "artefact": "lapse-notice"
+        }
+      ]
+    },
+    {
+      "id": "cancelled",
+      "name": "Cancels the policy",
+      "party": "subject",
+      "direction": "inbound",
+      "channel": "phone",
+      "technology": "Contact centre telephony",
+      "on": {
+        "event": "policy.cancelled"
+      },
+      "exchanges": [
+        {
+          "artefact": "cancellation-request"
+        }
+      ]
+    }
+  ],
+  "sentiment": {
+    "min": -2,
+    "max": 2,
+    "initial": 0,
+    "rules": [
+      {
+        "on": "touchpoint",
+        "change": -0.5,
+        "reason": "had to be chased",
+        "touchpoint": "last-reminder"
+      },
+      {
+        "on": "goal_reached",
+        "change": 0.5,
+        "reason": "chose to stay",
+        "goal": "renewed"
+      },
+      {
+        "on": "touchpoint",
+        "change": -1,
+        "reason": "lost their cover",
+        "touchpoint": "lapse-notified"
+      }
+    ]
+  }
+}

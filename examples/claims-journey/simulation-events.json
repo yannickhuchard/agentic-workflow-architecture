@@ -10,5 +10,29 @@
     "data": {
       "satisfaction": 5
     }
+  },
+  {
+    "type": "quote.accepted",
+    "data": {
+      "quote_accepted": true
+    }
+  },
+  {
+    "type": "contract.signed",
+    "data": {
+      "signed": true
+    }
+  },
+  {
+    "type": "payment.received",
+    "data": {
+      "amount": 600
+    }
+  },
+  {
+    "type": "renewal.paid",
+    "data": {
+      "renewal_paid": true
+    }
   }
 ]

@@ -47,6 +47,14 @@ const GRID = {
         'Consolidate findings': [4, 1], 'Settlement route': [5, 1], 'Adjuster review': [5, 0], 'Investigate': [5, 2],
         'Reserve funds': [6, 1], 'Release funds': [6, 2], 'Bank cut-off': [7, 1], 'Pay claimant': [8, 1], 'Notify claimant': [9, 1], 'Claim closed': [10, 1],
     },
+    'Policy Purchase': {
+        'Quote requested': [0, 0], 'Prepare quote': [1, 0], 'Quote accepted': [2, 0], 'Send contract': [3, 0], 'Contract signed': [4, 0], 'Send invoice': [5, 0],
+        'Payment received': [6, 0], 'Issue certificate': [7, 0], 'Policy issued': [8, 0], 'Purchase done': [9, 0], 'Expire quote': [8, 1],
+    },
+    'Policy Renewal': {
+        'Renewal due': [0, 0], 'Renewal terms': [1, 0], 'Send renewal offer': [2, 0], 'Renewal paid': [3, 0], 'Issue renewal certificate': [5, 0], 'Policy renewed': [6, 0], 'Renewal done': [7, 0],
+        'Send last reminder': [4, 1], 'Paid after reminder': [5, 1], 'Lapse policy': [6, 1], 'Policy lapsed': [7, 1],
+    },
     'Customer Follow-up': {
         'Send survey': [0, 0], 'Survey answered': [1, 0], 'How satisfied': [2, 0], 'Thank customer': [3, 0], 'Follow-up done': [4, 0],
         'Call back': [3, 1], 'Record no response': [1, 1],
@@ -75,9 +83,11 @@ function layout(workflow) {
     const timeout_edges = new Set(nodes.map(n => n.timeout_edge).filter(Boolean));
 
     // An edge is a chain of horizontal and vertical runs from the source's border to the target's
-    const route = (a, b) => {
+    const route = (a, b, timeout) => {
         const pts = [];
-        if (a.r === b.r && b.c > a.c) pts.push([a.x + a.w, a.cy], [b.x, b.cy]);
+        // A missed deadline leaves an event downwards, so that it never runs through the ordinary path
+        if (timeout && b.r > a.r && b.c > a.c) pts.push([a.cx, a.y + a.h], [a.cx, b.cy], [b.x, b.cy]);
+        else if (a.r === b.r && b.c > a.c) pts.push([a.x + a.w, a.cy], [b.x, b.cy]);
         else if (a.c === b.c) pts.push([a.cx, a.r < b.r ? a.y + a.h : a.y], [b.cx, a.r < b.r ? b.y : b.y + b.h]);
         else if (b.c - a.c > 2 && a.r !== b.r) {
             // A long way: along a clear track above the top row or below the bottom row
@@ -99,7 +109,7 @@ function layout(workflow) {
     };
     const edges = workflow.edges.map(e => {
         const a = by_id[e.source_id], b = by_id[e.target_id];
-        const segs = route(a, b), last = segs.at(-1);
+        const segs = route(a, b, timeout_edges.has(e.id)), last = segs.at(-1);
         const tip = last.dir === 'r' ? [last.x + last.len, last.y] : last.dir === 'l' ? [last.x, last.y] : last.dir === 'd' ? [last.x, last.y + last.len] : [last.x, last.y];
         return { id: e.id, a: nodes.indexOf(a), b: nodes.indexOf(b), segs, tip: { x: tip[0], y: tip[1], dir: last.dir }, kind: timeout_edges.has(e.id) ? 'timeout' : 'flow' };
     });
@@ -237,29 +247,43 @@ const EVENT_SENTENCE = {
     'documents.uploaded': (n, d) => [`Documents uploaded`, `${n} uploads ${plural(d.documents, 'document')}.`],
     'survey.answered': (n, d) => [`Survey answered: ${d.satisfaction} of 5`, `${n} answers the survey: ${d.satisfaction} out of 5.${d.comment ? ` “${d.comment}”` : ''}`],
     'claim.withdrawn': (n, d) => [`Claim withdrawn`, `${n} withdraws the claim. ${d.reason || ''}`],
+    'quote.requested': (n, d) => [`Quote requested`, `${n} asks for a quote to insure a ${d.vehicle}.`],
+    'quote.accepted': n => [`Quote accepted`, `${n} accepts the quote.`],
+    'contract.signed': n => [`Contract signed`, `${n} signs the insurance contract.`],
+    'payment.received': (n, d) => [`Premium paid`, `${n} pays the premium of EUR ${d.amount}.`],
+    'renewal.due': n => [`Renewal due`, `The policy of ${n} is 30 days from its end.`],
+    'renewal.paid': n => [`Renewal paid`, `${n} pays the renewal.`],
+    'policy.cancelled': (n, d) => [`Policy cancelled`, `${n} calls to cancel the policy. “${d.reason || ''}”`],
 };
+/** Events that come from the organisation's own systems, not from the customer */
+const SYSTEM_EVENTS = new Set(['renewal.due']);
 
-function tell(entry) {
+function tell(entry, definition) {
     const { instance, runs, subject_name: name } = entry;
     const day0 = Math.floor(ms(instance.started_at) / DAY) * DAY, start = ms(instance.started_at);
     const when = t => `Day ${Math.floor((t - day0) / DAY) + 1} · ${clock(t)}`;
-    const stage_name = id => sample.definition.stages.find(s => s.id === id)?.name;
+    const stage_name = id => definition.stages.find(s => s.id === id)?.name;
     const run_list = runs.map(r => ({ run_id: r.run_id, wf: layouts.findIndex(l => l.id === r.workflow_id), name: layout_of(r.workflow_id).name, stage: r.stage_id, status: instance.runs.find(x => x.run_id === r.run_id).status, steps: condense(r, name, day0) }));
     const run_ix = id => run_list.findIndex(r => r.run_id === id);
 
     const beats = [];
     // The record is in causal order. Where a clock reading runs backwards, the order wins
     let latest = 0;
-    const add = (order, t, lane, kind, title, cap, extra = {}) => { if (order % 1000 === 0) t = latest = Math.max(latest, t); beats.push({ order, t, lane, kind, title, cap, ...extra }); };
+    const add = (order, t, lane, kind, title, cap, extra = {}) => { if (order % 1000 === 0) { t = latest = Math.max(latest, t); extra = { src: order / 1000, ...extra }; } beats.push({ order, t, lane, kind, title, cap, ...extra }); };
+    const first_event = instance.events.findIndex(e => e.type === 'journey.event_received');
+    const moods = [], contacts = [];
     instance.events.forEach((e, i) => {
         const d = e.data || {}, t = ms(e.time), order = i * 1000, r = e.run_id ? run_ix(e.run_id) : undefined;
         switch (e.type) {
             case 'journey.started': break;
+            case 'journey.touchpoint': contacts.push({ i, t, r, d }); break;
+            case 'journey.sentiment_changed': moods.push({ i, d }); break;
             case 'journey.event_received': {
                 const inner = d.source?.startsWith('urn:awa:run:');
-                const [title, cap] = inner ? [`Announced: ${d.name}`, `The workflow announces “${d.name}”.`] : (EVENT_SENTENCE[d.name]?.(name, d.data || {}) || [d.name, `“${d.name}” is received.`]);
+                const system = SYSTEM_EVENTS.has(d.name);
+                const [title, cap] = inner ? [`Announced: ${d.name}`, `The workflow announces “${d.name}” to other systems.`] : (EVENT_SENTENCE[d.name]?.(name, d.data || {}) || [d.name, `“${d.name}” is received.`]);
                 // The event that began the journey is told first, although the record creates the journey a moment before it
-                add(i === 2 ? -1 : order, t, inner ? 'work' : 'world', inner ? 'announced' : 'event', title, cap, { outside: !inner });
+                add(i === first_event ? -1 : order, t, inner ? 'work' : system ? 'tech' : 'world', inner ? 'announced' : system ? 'signal' : 'event', title, cap, { outside: !inner, src: i, event_id: d.event_id });
                 break;
             }
             case 'journey.stage_entered': add(order, t, 'journey', 'stage_in', d.stage_name, `The journey enters the stage “${d.stage_name}”.`); break;
@@ -272,11 +296,11 @@ function tell(entry) {
             case 'journey.goal_reached': add(order, t, 'journey', 'goal', `Goal: ${d.goal_name}`, `A goal of the journey is reached: ${d.goal_name.toLowerCase()}.`); break;
             case 'journey.stalled': add(order, t, 'journey', 'stalled', 'Stalled', d.max_duration ? `The journey is stalled: “${d.stage_name}” has lasted ${span(d.in_stage_ms)}, longer than the ${iso_span(d.max_duration)} it is given. Someone needs to act.` : `The journey is stalled in “${d.stage_name || stage_name(e.stage_id)}”: ${d.reason || 'a run failed'}. Someone needs to act.`, { outside: !!d.max_duration }); break;
             case 'journey.completed': {
-                const missed = sample.definition.goals.filter(g => !instance.goals_reached.includes(g.id)).map(g => g.name.toLowerCase());
+                const missed = definition.goals.filter(g => !instance.goals_reached.includes(g.id)).map(g => g.name.toLowerCase());
                 add(order, t, 'journey', 'completed', 'Journey complete', `The journey is complete${missed.length ? `, but one goal was missed: ${missed.join(', ')}.` : ', with every goal reached.'}`);
                 break;
             }
-            case 'journey.abandoned': add(order, t, 'journey', 'abandoned', 'Journey ended by the customer', `The journey ends here, by the customer’s choice.`); break;
+            case 'journey.abandoned': add(order, t, 'journey', 'abandoned', d.reason || 'Journey abandoned', `The journey ends here. ${d.reason || ''}.`); break;
             default: break;
         }
     });
@@ -298,10 +322,38 @@ function tell(entry) {
         });
     });
 
+    // Touchpoints: who was in contact, over what, and what changed hands (spec 19.8)
+    for (const contact of contacts) {
+        const d = contact.d, tp = { name: d.name, party: d.party, direction: d.direction, channel: d.channel, technology: d.technology || '', artefacts: d.artefacts || [], link: d.link };
+        const things = tp.artefacts.map(a => `${a.name.toLowerCase()}${a.reference ? ` ${a.reference}` : ''}`).join(', ');
+        let beat = d.event_id ? beats.find(b => b.event_id === d.event_id)
+            : d.party === 'subject' ? beats.find(b => b.run === contact.r && b.t === contact.t && b.step !== undefined && !b.tp) : undefined;
+        if (!beat) {
+            const partner = d.party !== 'subject';
+            add(contact.i * 1000 + 0.5, contact.t, partner ? 'tech' : 'world', partner ? 'partner' : 'told', d.name,
+                partner ? `The ${d.party} is called over ${tp.technology}${things ? `: ${things}` : ''}.` : `${name}: ${d.name.toLowerCase()}.`, { run: contact.r, opens: contact.r });
+            beat = beats.at(-1);
+        }
+        beat.tp = tp; beat.src = Math.max(beat.src ?? 0, contact.i);
+        if (d.party === 'subject') beat.title = d.name;
+    }
+
     beats.sort((a, b) => a.order < 0 ? -1 : b.order < 0 ? 1 : a.t - b.t || a.order - b.order);
+
+    // Mood: each change belongs to the moment that caused it. A wait is felt at the reply that ends it
+    for (const mood of moods) {
+        const sourced = beats.filter(b => b.src !== undefined);
+        const target = mood.d.on === 'waited' ? sourced.filter(b => b.src > mood.i && b.tp).sort((a, b) => a.src - b.src)[0] : sourced.filter(b => b.src < mood.i).sort((a, b) => b.src - a.src)[0];
+        if (!target) continue;
+        target.mood_set = mood.d.value;
+        (target.mood_why ||= []).push({ basis: mood.d.basis, reason: mood.d.reason || '', change: Math.round((mood.d.value - mood.d.previous) * 100) / 100 });
+    }
+    let mood = instance.events[0]?.data?.sentiment ?? definition.sentiment?.initial ?? null;
+    const mood_start = mood;
+    for (const b of beats) { if (b.mood_set !== undefined) mood = b.mood_set; b.mood = mood; delete b.mood_set; delete b.src; delete b.event_id; }
     let stage = -1;
     beats.forEach((b, i) => {
-        if (b.kind === 'stage_in') stage = sample.definition.stages.findIndex(s => s.name === b.title);
+        if (b.kind === 'stage_in') stage = definition.stages.findIndex(s => s.name === b.title);
         b.stage = Math.max(stage, 0); b.when = when(b.t);
         const gap = i ? b.t - beats[i - 1].t : 0;
         if (gap >= 30 * MIN) b.gap = `${span(gap)} later`;
@@ -310,53 +362,74 @@ function tell(entry) {
     run_list.forEach((run, r) => { const mine = beats.map((b, i) => (b.run === r ? i : -1)).filter(i => i >= 0); run.b0 = mine[0]; run.b1 = mine.at(-1); });
 
     const end_kind = instance.status === 'completed' ? 'completed' : instance.status === 'abandoned' ? 'abandoned' : instance.stalled ? 'stalled' : 'active';
-    const end_label = { completed: 'Completed', abandoned: 'Withdrawn by customer', stalled: 'Stalled: needs action', active: 'Under way' }[end_kind];
+    const end_label = { completed: 'Completed', abandoned: beats.find(b => b.kind === 'abandoned')?.title || 'Abandoned', stalled: 'Stalled: needs action', active: 'Under way' }[end_kind];
     return {
-        id: instance.subject_key, name, summary: entry.summary, claim: instance.data.claim_id || '',
+        id: instance.subject_key, name, summary: entry.summary, claim: instance.data.claim_id || '', mood_start, mood_end: mood,
         ending: { kind: end_kind, label: end_label }, start,
         end: instance.ended_at ? ms(instance.ended_at) : beats.at(-1).t,
-        goals: sample.definition.goals.map(g => ({ name: g.name, reached: instance.goals_reached.includes(g.id) })),
-        stages: instance.stage_history.map(h => ({ stage: sample.definition.stages.findIndex(s => s.id === h.stage_id), from: ms(h.entered_at), to: h.left_at ? ms(h.left_at) : null })),
+        goals: definition.goals.map(g => ({ name: g.name, reached: instance.goals_reached.includes(g.id) })),
+        stages: instance.stage_history.map(h => ({ stage: definition.stages.findIndex(s => s.id === h.stage_id), from: ms(h.entered_at), to: h.left_at ? ms(h.left_at) : null })),
         beats, runs: run_list,
     };
 }
 
-const customers = sample.instances.map(tell);
-const t0 = Math.min(...customers.map(c => c.start)), t1 = ms(sample.as_of);
+// All journeys of one kind on one clock: the moments worth stopping at
+const KEY = new Set(['event', 'timeout', 'run_failed', 'goal', 'stalled', 'completed', 'abandoned', 'model_decision', 'human_done']);
+const people = sample.customers;
 
-// All journeys on one clock: the moments worth stopping at
-const KEY = new Set(['event', 'stage_in', 'timeout', 'run_failed', 'goal', 'stalled', 'completed', 'abandoned', 'model_decision', 'human_done']);
-const all = customers.flatMap((c, ci) => c.beats.map((b, bi) => ({ t: b.t, c: ci, b: bi, kind: b.kind, when: `${date(b.t)} · ${clock(b.t)}`, cap: b.cap })).filter(x => KEY.has(x.kind))).sort((a, b) => a.t - b.t || a.c - b.c);
-for (const moment of all) {
-    moment.counts = sample.definition.stages.map((_, s) => {
-        const count = { here: 0, done: 0, stalled: 0, left: 0 };
-        for (const c of customers) {
-            const seg = c.stages.find(x => x.stage === s && x.from <= moment.t);
-            if (!seg) continue;
-            const stalled_at = c.beats.find(b => b.kind === 'stalled' && b.stage === s)?.t, left_at = c.ending.kind === 'abandoned' ? c.end : undefined;
-            if (left_at !== undefined && left_at <= moment.t && (seg.to === null || seg.to >= left_at)) count.left++;
-            else if (seg.to !== null && seg.to <= moment.t) count.done++;
-            else if (stalled_at !== undefined && stalled_at <= moment.t) count.stalled++;
-            else count.here++;
-        }
-        return count;
-    });
-}
+const journeys = sample.journeys.map(({ definition, instances }) => {
+    const told = instances.map(entry => ({ c: people.findIndex(p => p.id === entry.instance.subject_key), ...tell(entry, definition) }));
+    const t0 = Math.min(...told.map(c => c.start)), t1 = Math.max(...told.map(c => c.beats.at(-1).t));
+    const all = told.flatMap((c, ci) => c.beats.map((b, bi) => ({ t: b.t, c: ci, b: bi, kind: b.kind, when: `${date(b.t)} · ${clock(b.t)}`, cap: b.cap })).filter(x => KEY.has(x.kind))).sort((a, b) => a.t - b.t || a.c - b.c);
+    for (const moment of all) {
+        moment.counts = definition.stages.map((_, s) => {
+            const count = { here: 0, done: 0, stalled: 0, left: 0 };
+            for (const c of told) {
+                const seg = c.stages.find(x => x.stage === s && x.from <= moment.t);
+                if (!seg) continue;
+                const stalled_at = c.beats.find(b => b.kind === 'stalled' && b.stage === s)?.t, left_at = c.ending.kind === 'abandoned' ? c.end : undefined;
+                if (left_at !== undefined && left_at <= moment.t && (seg.to === null || seg.to >= left_at)) count.left++;
+                else if (seg.to !== null && seg.to <= moment.t) count.done++;
+                else if (stalled_at !== undefined && stalled_at <= moment.t) count.stalled++;
+                else count.here++;
+            }
+            return count;
+        });
+    }
+    const uniq = list => [...new Set(list)];
+    const moods = told.map(c => c.mood_end).filter(m => m !== null);
+    return {
+        id: definition.id, name: definition.name, description: definition.description, t0, t1,
+        stages: definition.stages.map(s => ({ id: s.id, name: s.name, max: iso_span(s.max_duration) })), goals: definition.goals.map(g => g.name),
+        scale: definition.sentiment ? { min: definition.sentiment.min, max: definition.sentiment.max } : null,
+        // The rows of the technology and exchange lanes, in order of first use across the journey's definition
+        technologies: uniq(definition.touchpoints.map(t => t.technology).filter(Boolean)),
+        kinds: uniq(definition.touchpoints.flatMap(t => t.exchanges.map(x => definition.artefacts.find(a => a.id === x.artefact).kind))),
+        outcome: { completed: told.filter(c => c.ending.kind === 'completed').length, stalled: told.filter(c => c.ending.kind === 'stalled').length, left: told.filter(c => c.ending.kind === 'abandoned').length, mood: moods.length ? Math.round(moods.reduce((a, b) => a + b, 0) / moods.length * 100) / 100 : null,
+            goals: definition.goals.map(g => ({ name: g.name, reached: told.filter(c => c.goals.find(x => x.name === g.name).reached).length })) },
+        instances: told, all,
+    };
+});
 
 const story = {
-    as_of: sample.as_of, t0, t1,
-    journey: { name: sample.definition.name, subject: sample.definition.subject.name, stages: sample.definition.stages.map(s => ({ id: s.id, name: s.name, max: iso_span(s.max_duration) })), goals: sample.definition.goals.map(g => g.name) },
+    as_of: sample.as_of,
+    customers: people.map((p, i) => ({ ...p, life: journeys.map((j, ji) => ({ j: ji, i: j.instances.findIndex(x => x.c === i) })).filter(x => x.i >= 0) })),
+    transitions: sample.transitions.map(t => ({ from: journeys.findIndex(j => j.id === t.from), to: journeys.findIndex(j => j.id === t.to), count: t.count })),
     workflows: layouts.map(l => ({
         name: l.name, width: l.width, height: l.height,
         nodes: l.nodes.map(n => ({ name: n.name, kind: n.kind, x: Math.round(n.x), y: Math.round(n.y), w: n.w, h: n.h, tag: n.kind === 'activity' ? (n.handler ? 'Undo step' : ACTOR_LABEL[n.actor]) : n.kind === 'decision' ? 'Decision' : { start: 'Start', end: 'End', timer: 'Timer', wait: 'Waits for event', publish: 'Announces event' }[n.mode] || 'Event', mode: n.mode || n.actor || 'decision' })),
         edges: l.edges.map(e => ({ a: e.a, b: e.b, kind: e.kind, segs: e.segs, tip: e.tip })),
     })),
-    customers, all,
+    journeys,
 };
 fs.writeFileSync(out, JSON.stringify(story));
+fs.writeFileSync(path.join(here, '../../tools/visualization/journey-story.js'), '// Generated by examples/claims-journey/make-story.mjs. Do not edit.\n' + `window.AWA_STORY = ${JSON.stringify(story)};\n`);
 
-for (const c of customers) {
-    console.log(`\n${c.name} (${c.ending.label}), ${c.beats.length} beats, runs: ${c.runs.map(r => `${r.name} ${r.steps.length} steps`).join('; ')}`);
-    if (process.env.VERBOSE) for (const b of c.beats) console.log(`  ${b.gap ? `[${b.gap}] ` : ''}${b.when}  ${b.lane.padEnd(7)} ${b.kind.padEnd(14)} ${b.cap}`);
+for (const j of journeys) {
+    console.log(`\n== ${j.name}: ${j.instances.length} journeys, ${j.all.length} moments, technologies: ${j.technologies.join(', ')}; exchanged: ${j.kinds.join(', ')}`);
+    for (const c of j.instances) {
+        console.log(`${c.name} (${c.ending.label}), mood ${c.mood_start} -> ${c.mood_end}, ${c.beats.length} beats`);
+        if (process.env.VERBOSE) for (const b of c.beats) console.log(`  ${b.gap ? `[${b.gap}] ` : ''}${b.when}  ${b.lane.padEnd(7)} ${b.kind.padEnd(14)} mood ${String(b.mood).padEnd(4)} ${b.tp ? `<${b.tp.channel}/${b.tp.technology}: ${b.tp.artefacts.map(a => a.kind).join(',')}> ` : ''}${b.cap}${b.mood_why ? `  (${b.mood_why.map(w => `${w.change > 0 ? '+' : ''}${w.change} ${w.basis}: ${w.reason}`).join('; ')})` : ''}`);
+    }
 }
-console.log(`\n${all.length} moments across all journeys; ${(fs.statSync(out).size / 1024).toFixed(0)} KB -> ${path.relative(process.cwd(), out)}`);
+console.log(`\n${(fs.statSync(out).size / 1024).toFixed(0)} KB -> ${path.relative(process.cwd(), out)}`);

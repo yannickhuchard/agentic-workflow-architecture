@@ -1,6 +1,6 @@
-// Runs six customers through the Motor Claim journey on a simulated clock and
-// writes what happened: journeys.json here, and the same data as a script
-// (tools/visualization/journey-sample.js) for a visualisation to load.
+// Plays six customers through three journeys on a simulated clock: buying a
+// motor policy, making a claim on it, and the renewal a year later. Writes what
+// happened to journeys.json: every journey record and every run's journal.
 //
 //   cd sdk/typescript && npm install && npm run build
 //   node examples/claims-journey/make-journeys.mjs
@@ -18,10 +18,12 @@ const read = file => JSON.parse(fs.readFileSync(path.join(here, file), 'utf-8'))
 const intake = parse_document(read('claim-intake.awa.json'));
 const settlement = parse_document(read('../claims-settlement/claims-settlement.awa.json'));
 const followUp = parse_document(read('customer-follow-up.awa.json'));
-const journey = JourneyDefinitionSchema.parse(read('motor-claim.journey.json'));
+const purchase = parse_document(read('policy-purchase.awa.json'));
+const renewal = parse_document(read('policy-renewal.awa.json'));
+const journeys = ['policy-purchase', 'motor-claim', 'policy-renewal'].map(name => JourneyDefinitionSchema.parse(read(`${name}.journey.json`)));
 
 const MIN = 60 * 1000, HOUR = 60 * MIN, DAY = 24 * HOUR;
-let now = Date.parse('2026-09-01T08:00:00Z');
+let now = Date.parse('2026-03-02T09:00:00Z');
 const spend = ms => { now += ms; };
 /** The customer whose story is being played: scripted actors read it */
 let story = {};
@@ -29,7 +31,31 @@ let story = {};
 const model = (id, tier) => ({ id, provider: 'acme', requested: `tier:${tier}`, tier, source: 'role', temperature: 0.2 });
 const pending = task => ({ _requires_human_action: true, _human_task_id: task });
 
+const agent = (output, tier, model_id, rationale, plan) => ({ output, usage: { input_tokens: 480, output_tokens: 80 }, _model: model(model_id, tier), _reasoning: { plan, rationale, confidence: 0.9 } });
+
 const script = {
+    // --- Policy purchase ---
+    'Prepare quote': () => {
+        spend(5 * MIN);
+        return agent({ quote_id: `Q-${story.n}`, premium: story.premium, message: `Dear ${story.name}, comprehensive cover for your ${story.vehicle} is EUR ${story.premium} a year. The quote is valid for 7 days.` },
+            'reasoning', 'assessor-large', `Priced from the vehicle and ${story.history}.`, ['Read the vehicle and the driver history', 'Apply the tariff', 'State the price and how long it holds']);
+    },
+    'Send contract': () => { spend(2 * MIN); return { contract_id: `CT-${story.n}`, message: `Dear ${story.name}, your insurance contract is ready to sign.` }; },
+    'Send invoice': () => { spend(1 * MIN); return { invoice_id: `INV-${story.n}`, amount_due: story.premium, message: `Dear ${story.name}, please pay EUR ${story.premium} to start your cover.` }; },
+    'Issue certificate': () => { spend(2 * MIN); return { receipt_id: `RC-${story.n}`, certificate_id: `CERT-${story.n}`, policy_number: story.policy, covered: true, message: `Dear ${story.name}, you are covered. Your receipt and certificate of insurance are attached.` }; },
+    'Expire quote': () => { spend(20 * 1000); return { covered: false, quote_expired: true }; },
+
+    // --- Policy renewal ---
+    'Send renewal offer': (inputs) => {
+        spend(3 * MIN);
+        const change = Number(inputs.premium_change_percent), premium = Math.round(story.premium * (1 + change / 100));
+        return agent({ renewal_offer_sent: true, invoice_id: `INV-R${story.n}`, new_premium: premium, message: `Dear ${story.name}, your cover ends in 30 days. To renew, the premium is EUR ${premium} (${change > 0 ? '+' : ''}${change}%: ${inputs.terms_reason}).` },
+            'balanced', 'writer-medium', 'A renewal offer should give the price and the reason for any change.', ['State when cover ends', 'State the new premium', 'Give the reason for the change']);
+    },
+    'Send last reminder': () => { spend(2 * MIN); return agent({ reminder_sent: true, message: `Dear ${story.name}, your cover ends in 9 days. Pay the renewal to stay insured.` }, 'balanced', 'writer-medium', 'A last reminder should say what is lost and when.', ['State the date cover ends', 'State what to do']); },
+    'Issue renewal certificate': () => { spend(2 * MIN); return { receipt_id: `RC-R${story.n}`, certificate_id: `CERT-R${story.n}`, renewed: true, message: `Dear ${story.name}, your policy is renewed. Your receipt and new certificate are attached.` }; },
+    'Lapse policy': () => { spend(1 * MIN); return { renewed: false, lapsed: true, message: `Dear ${story.name}, your motor cover has ended because the renewal was not paid.` }; },
+
     // --- Claim intake ---
     'Register claim': () => { spend(40 * 1000); return { claim_id: story.claim_id, policy_number: story.policy }; },
     'Request documents': () => {
@@ -158,88 +184,126 @@ const runtime = new AwaRuntime({
         })],
         model_tiers: { fast: 'acme:classifier-small', reasoning: 'acme:assessor-large', balanced: 'acme:writer-medium' },
     },
-}).register_workflow(intake).register_workflow(settlement).register_workflow(followUp).register_journey(journey);
+});
+for (const workflow of [purchase, intake, settlement, followUp, renewal]) runtime.register_workflow(workflow);
+for (const journey of journeys) runtime.register_journey(journey);
 
-const say = (type, data, source = '/customer-portal') => runtime.publish(business_event(type, { customer_id: story.id, ...data }, { source, time: new Date(now).toISOString() }));
+const say = (type, data = {}, source = '/customer-portal') => runtime.publish(business_event(type, { customer_id: story.id, ...data }, { source, time: new Date(now).toISOString() }));
 const waiting_human = () => runtime.list_runs().flatMap(run => run.getTokens().filter(t => t.status === 'waiting' && !t.getData('_awaiting_event')).map(token => ({ run, token })));
 const answer_human = async (output) => { const [w] = waiting_human(); await runtime.resume(w.run.getRunId(), w.token.id, output); };
 
 const customers = [
-    {   // Everything goes as hoped
-        id: 'cust-1041', name: 'J. Moreau', claim_id: 'CLM-2041', policy: 'POL-77310', start: 0,
+    {   // Everything goes as hoped, three times
+        id: 'cust-1041', n: '1041', name: 'J. Moreau', persona: 'Organised commuter. Answers the same day and expects the same.', claim_id: 'CLM-2041', policy: 'POL-77310', start: 0,
+        premium: 640, history: 'eight years without a claim',
         description: 'Hit from behind at a junction; rear bumper and tailgate damaged.', vehicle: '2021 hatchback',
         parts: ['rear bumper', 'tailgate'], prices: { 'rear bumper': 1150, tailgate: 1400 }, cost: 3200, fraud: 0.12, assess_stumbles: true, fraud_service_flaky: true,
+        buy: async () => { spend(2 * HOUR); await accept(); spend(1 * DAY); await sign(); spend(3 * HOUR); await pay(); },
         play: async () => {
             spend(1 * DAY + 3 * HOUR); await say('documents.uploaded', { documents: 3 });
             spend(2 * DAY); await say('survey.answered', { satisfaction: 5, comment: 'Quick and clear.' });
         },
+        claims_paid: 1, last_satisfaction: 5,
+        renew: async () => { spend(2 * DAY); await say('renewal.paid', { renewal_paid: true }, '/payment-gateway'); },
     },
-    {   // A large claim: the table has no rule for it, a model routes it to an adjuster, the customer ends up unhappy
-        id: 'cust-2210', name: 'A. Okafor', claim_id: 'CLM-2044', policy: 'POL-51902', start: 1 * DAY,
+    {   // A large claim: no rule covers it, a model sends it to an adjuster, the wait costs the customer
+        id: 'cust-2210', n: '2210', name: 'A. Okafor', persona: 'Busy contractor who needs the car for work. Every day without it costs money.', claim_id: 'CLM-2044', policy: 'POL-51902', start: 1 * DAY,
+        premium: 910, history: 'a new driver record in this country',
         description: 'Side impact on a roundabout; both left doors and the sill damaged.', vehicle: '2023 estate',
         parts: ['front left door', 'rear left door'], prices: { 'front left door': 2900, 'rear left door': 2700 }, cost: 8200, fraud: 0.45,
+        buy: async () => { spend(20 * MIN); await accept(); spend(1 * HOUR); await sign(); spend(10 * MIN); await pay(); },
         play: async () => {
             spend(6 * HOUR); await say('documents.uploaded', { documents: 3 });
             spend(3 * DAY); await answer_human({ approved: true, adjuster_note: 'Costs match the photos. Approved.' });
             spend(4 * DAY); await say('survey.answered', { satisfaction: 2, comment: 'It took too long to hear back.' });
             spend(1 * DAY); await answer_human({ followed_up: true, callback_outcome: 'Apologised for the delay; offered a courtesy car next time.' });
         },
+        claims_paid: 1, last_satisfaction: 2,
+        // Offered a goodwill discount, and still leaves: the renewal goes unpaid and the policy lapses
+        renew: async () => { spend(21 * DAY + HOUR); await runtime.tick(); spend(9 * DAY + HOUR); await runtime.tick(); },
     },
-    {   // The documents never arrive: reminder, then closed, and the journey stalls
-        id: 'cust-3387', name: 'L. Petit', claim_id: 'CLM-2047', policy: 'POL-20455', start: 2 * DAY,
+    {   // Slow with paperwork: the claim documents never arrive
+        id: 'cust-3387', n: '3387', name: 'L. Petit', persona: 'Retired, not at ease online. Prefers a letter or a call to a portal.', claim_id: 'CLM-2047', policy: 'POL-20455', start: 2 * DAY,
+        premium: 520, history: 'forty years of driving, one small claim',
         description: 'Scraped a bollard in a car park; front wing dented.', vehicle: '2019 saloon',
         parts: ['front wing'], prices: { 'front wing': 780 }, cost: 1100, fraud: 0.08,
+        buy: async () => { spend(1 * DAY); await accept(); spend(4 * DAY); await sign(); spend(1 * DAY); await pay(); },
         play: async () => { spend(5 * DAY + HOUR); await runtime.tick(); spend(5 * DAY + HOUR); await runtime.tick(); },
+        claims_paid: 0,
+        renew: async () => { spend(21 * DAY + HOUR); await runtime.tick(); spend(3 * DAY); await say('renewal.paid', { renewal_paid: true }, '/payment-gateway'); },
     },
-    {   // The customer changes their mind while we wait for documents
-        id: 'cust-4102', name: 'S. Lindqvist', claim_id: 'CLM-2050', policy: 'POL-88120', start: 3 * DAY,
+    {   // Changes their mind about the claim; stays a customer
+        id: 'cust-4102', n: '4102', name: 'S. Lindqvist', persona: 'Compares everything first. Uses the cheapest route, including the warranty.', claim_id: 'CLM-2050', policy: 'POL-88120', start: 3 * DAY,
+        premium: 780, history: 'three years without a claim',
         description: 'Windscreen cracked by a stone on the motorway.', vehicle: '2022 SUV',
         parts: ['windscreen'], prices: { windscreen: 640 }, cost: 800, fraud: 0.05,
+        buy: async () => { spend(3 * HOUR); await accept(); spend(2 * HOUR); await sign(); spend(3 * DAY); await pay(); },
         play: async () => { spend(2 * DAY); await say('claim.withdrawn', { reason: 'Repaired under the manufacturer warranty instead.' }); },
+        claims_paid: 0,
+        renew: async () => { spend(1 * DAY); await say('renewal.paid', { renewal_paid: true }, '/payment-gateway'); },
     },
-    {   // The bank rejects the payment: the reserved funds are released and the journey is stuck
-        id: 'cust-5519', name: 'R. Haddad', claim_id: 'CLM-2052', policy: 'POL-34077', start: 4 * DAY,
+    {   // The bank rejects the claim payment; nobody puts it right; the customer cancels
+        id: 'cust-5519', n: '5519', name: 'R. Haddad', persona: 'Changed bank during the year. Does not chase; votes with their feet.', claim_id: 'CLM-2052', policy: 'POL-34077', start: 4 * DAY,
+        premium: 560, history: 'five years without a claim',
         description: 'Reversed into a gate post; rear bumper cracked.', vehicle: '2020 hatchback',
         parts: ['rear bumper'], prices: { 'rear bumper': 1150 }, cost: 1650, fraud: 0.1, payment_fails: true,
+        buy: async () => { spend(1 * HOUR); await accept(); spend(1 * DAY); await sign(); spend(2 * HOUR); await pay(); },
         play: async () => { spend(1 * DAY); await say('documents.uploaded', { documents: 2 }); spend(11 * DAY); await runtime.tick(); },
+        claims_paid: 0,
+        renew: async () => { spend(4 * DAY); await say('policy.cancelled', { reason: 'Still not paid for the claim made in September.' }, '/contact-centre'); },
     },
-    {   // Paid without trouble, then silence: the survey times out
-        id: 'cust-6034', name: 'M. Castellano', claim_id: 'CLM-2055', policy: 'POL-66231', start: 5 * DAY,
+    {   // Takes their time over everything, says little, stays
+        id: 'cust-6034', n: '6034', name: 'M. Castellano', persona: 'Owner of a cherished coupé. Decides slowly and ignores surveys.', claim_id: 'CLM-2055', policy: 'POL-66231', start: 5 * DAY,
+        premium: 1150, history: 'a high-value vehicle and a clean record',
         description: 'Hail damage to the bonnet and roof.', vehicle: '2018 coupé',
         parts: ['bonnet'], prices: { bonnet: 1900 }, cost: 2600, fraud: 0.15,
+        buy: async () => { spend(6 * DAY); await accept(); spend(1 * DAY); await sign(); spend(1 * DAY); await pay(); },
         play: async () => { spend(8 * HOUR); await say('documents.uploaded', { documents: 3 }); spend(14 * DAY + HOUR); await runtime.tick(); },
+        claims_paid: 1,
+        renew: async () => { spend(10 * DAY); await say('renewal.paid', { renewal_paid: true }, '/payment-gateway'); },
     },
 ];
+const accept = () => say('quote.accepted', { quote_accepted: true, quote_id: `Q-${story.n}` });
+const sign = () => say('contract.signed', { signed: true, contract_id: `CT-${story.n}` }, '/e-signature');
+const pay = () => say('payment.received', { amount: story.premium }, '/payment-gateway');
 
-const origin = now;
+// Three chapters of each customer's life with the insurer, months apart
+const chapters = [
+    { at: '2026-03-02T09:00:00Z', begin: c => say('quote.requested', { name: c.name, vehicle: c.vehicle }), then: c => c.buy() },
+    { at: '2026-09-01T08:00:00Z', begin: c => say('claim.submitted', { name: c.name, description: c.description, vehicle: c.vehicle, policy_number: c.policy }), then: c => c.play() },
+    { at: '2027-02-01T08:00:00Z', begin: c => say('renewal.due', { name: c.name, policy_number: c.policy, premium: c.premium, claims_paid: c.claims_paid, ...(c.last_satisfaction ? { last_satisfaction: c.last_satisfaction } : {}) }, '/policy-administration'), then: c => c.renew() },
+];
 let latest = now;
-for (const customer of customers) {
-    story = customer;
-    now = origin + customer.start;
-    await say('claim.submitted', { name: customer.name, description: customer.description, vehicle: customer.vehicle });
-    await customer.play();
-    latest = Math.max(latest, now);
+for (const chapter of chapters) {
+    for (const customer of customers) {
+        story = customer;
+        now = Date.parse(chapter.at) + customer.start;
+        await chapter.begin(customer);
+        await chapter.then(customer);
+        latest = Math.max(latest, now);
+    }
 }
 now = latest;
 
-const instances = [];
-for (const instance of runtime.list_journey_instances(journey.id)) {
-    const bundle = await runtime.export_journey(instance.id);
-    const customer = customers.find(c => c.id === instance.subject_key);
-    instances.push({ subject_name: customer.name, summary: customer.description, instance: bundle.instance, runs: bundle.runs });
-    const last = instance.events.at(-1);
-    console.log(`${customer.name.padEnd(14)} ${instance.status.padEnd(10)} stage=${instance.stage_id.padEnd(12)} runs=${instance.runs.map(r => r.status).join(',').padEnd(34)} ${instance.stalled ? 'STALLED ' : ''}last=${last.type}`);
-}
-
 const sample = {
     as_of: new Date(now).toISOString(),
-    definition: journey,
-    workflows: [intake, settlement, followUp],
-    analytics: runtime.analytics(journey.id),
-    instances,
+    customers: customers.map(c => ({ id: c.id, name: c.name, persona: c.persona, vehicle: c.vehicle })),
+    workflows: [purchase, intake, settlement, followUp, renewal],
+    transitions: runtime.transitions(),
+    journeys: [],
 };
+let events = 0;
+for (const journey of journeys) {
+    const instances = [];
+    for (const instance of runtime.list_journey_instances(journey.id)) {
+        const bundle = await runtime.export_journey(instance.id);
+        const customer = customers.find(c => c.id === instance.subject_key);
+        instances.push({ subject_name: customer.name, summary: journey.name === 'Motor Claim' ? customer.description : journey.name === 'Policy Purchase' ? `Comprehensive cover for a ${customer.vehicle}.` : `Renewal of policy ${customer.policy}.`, instance: bundle.instance, runs: bundle.runs });
+        events += instance.events.length + bundle.runs.reduce((n, r) => n + r.events.length, 0);
+        console.log(`${journey.name.padEnd(16)} ${customer.name.padEnd(14)} ${instance.status.padEnd(10)} stage=${instance.stage_id.padEnd(12)} mood=${String(instance.sentiment).padEnd(5)} touchpoints=${String(instance.events.filter(e => e.type === 'journey.touchpoint').length).padEnd(3)} ${instance.stalled ? 'STALLED ' : ''}runs=${instance.runs.map(r => r.status).join(',')}`);
+    }
+    sample.journeys.push({ definition: journey, analytics: runtime.analytics(journey.id), instances });
+}
 fs.writeFileSync(path.join(here, 'journeys.json'), JSON.stringify(sample, null, 1) + '\n');
-fs.writeFileSync(path.join(here, '../../tools/visualization/journey-sample.js'),
-    '// Generated by examples/claims-journey/make-journeys.mjs. Do not edit.\n' + `window.AWA_JOURNEY_SAMPLE = ${JSON.stringify(sample)};\n`);
-const events = instances.reduce((n, i) => n + i.instance.events.length + i.runs.reduce((m, r) => m + r.events.length, 0), 0);
-console.log(`\n${instances.length} journeys, ${events} events, funnel:`, JSON.stringify(sample.analytics.stages.map(s => `${s.stage_name}: ${s.entered} in, ${s.completed} on, ${s.active} here, ${s.stalled} stalled, ${s.abandoned} left`)));
+console.log(`\n${sample.journeys.reduce((n, j) => n + j.instances.length, 0)} journeys of ${customers.length} customers, ${events} events`);
+console.log('moves between journeys:', sample.transitions.map(t => `${journeys.find(j => j.id === t.from).name} -> ${journeys.find(j => j.id === t.to).name}: ${t.count}`).join('; '));

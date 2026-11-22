@@ -51,5 +51,61 @@
       "followed_up": true,
       "no_response": true
     }
+  },
+  "Prepare quote": {
+    "output": {
+      "quote_id": "Q-1",
+      "premium": 600,
+      "message": "Your quote."
+    }
+  },
+  "Send contract": {
+    "output": {
+      "contract_id": "CT-1"
+    }
+  },
+  "Send invoice": {
+    "output": {
+      "invoice_id": "INV-1",
+      "amount_due": 600
+    }
+  },
+  "Issue certificate": {
+    "output": {
+      "receipt_id": "RC-1",
+      "certificate_id": "CERT-1",
+      "policy_number": "POL-1",
+      "covered": true
+    }
+  },
+  "Expire quote": {
+    "output": {
+      "covered": false
+    }
+  },
+  "Send renewal offer": {
+    "output": {
+      "renewal_offer_sent": true,
+      "invoice_id": "INV-R1",
+      "new_premium": 630
+    }
+  },
+  "Send last reminder": {
+    "output": {
+      "reminder_sent": true
+    }
+  },
+  "Issue renewal certificate": {
+    "output": {
+      "receipt_id": "RC-R1",
+      "certificate_id": "CERT-R1",
+      "renewed": true
+    }
+  },
+  "Lapse policy": {
+    "output": {
+      "renewed": false,
+      "lapsed": true
+    }
   }
 }

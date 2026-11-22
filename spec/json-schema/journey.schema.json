@@ -1,203 +1,408 @@
 {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "https://awa.io/schema/journey.schema.json",
-    "title": "Journey",
-    "description": "The longer story that workflow runs belong to: one subject moving through stages, driven by business events (specification section 19)",
-    "type": "object",
-    "required": [
-        "id",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://awa.io/schema/journey.schema.json",
+  "title": "Journey",
+  "description": "The longer story that workflow runs belong to: one subject moving through stages, driven by business events (specification section 19)",
+  "type": "object",
+  "required": [
+    "id",
+    "name",
+    "version",
+    "subject",
+    "stages"
+  ],
+  "properties": {
+    "id": {
+      "$ref": "awa.schema.json#/$defs/uuid"
+    },
+    "name": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "awa_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+$"
+    },
+    "description": {
+      "type": "string"
+    },
+    "subject": {
+      "type": "object",
+      "required": [
         "name",
-        "version",
-        "subject",
-        "stages"
-    ],
-    "properties": {
-        "id": {
-            "$ref": "awa.schema.json#/$defs/uuid"
-        },
+        "key"
+      ],
+      "description": "Whose journey it is",
+      "properties": {
         "name": {
-            "type": "string"
+          "type": "string",
+          "description": "What the subject is, e.g. customer"
         },
-        "version": {
+        "key": {
+          "type": "string",
+          "description": "The property that identifies the subject in event data and run data, e.g. customer_id"
+        }
+      }
+    },
+    "stages": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
             "type": "string",
-            "pattern": "^\\d+\\.\\d+\\.\\d+$"
-        },
-        "awa_version": {
-            "type": "string",
-            "pattern": "^\\d+\\.\\d+$"
-        },
-        "description": {
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+          },
+          "name": {
             "type": "string"
-        },
-        "subject": {
+          },
+          "description": {
+            "type": "string"
+          },
+          "workflows": {
+            "type": "array",
+            "items": {
+              "$ref": "awa.schema.json#/$defs/uuid"
+            },
+            "description": "Runs of these workflows belong to this stage"
+          },
+          "on_enter": {
             "type": "object",
             "required": [
-                "name",
-                "key"
+              "start_workflow"
             ],
-            "description": "Whose journey it is",
             "properties": {
-                "name": {
-                    "type": "string",
-                    "description": "What the subject is, e.g. customer"
-                },
-                "key": {
-                    "type": "string",
-                    "description": "The property that identifies the subject in event data and run data, e.g. customer_id"
-                }
-            }
-        },
-        "stages": {
-            "type": "array",
-            "minItems": 1,
-            "items": {
-                "type": "object",
-                "required": [
-                    "id",
-                    "name"
-                ],
-                "properties": {
-                    "id": {
-                        "type": "string",
-                        "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
-                    },
-                    "name": {
-                        "type": "string"
-                    },
-                    "description": {
-                        "type": "string"
-                    },
-                    "workflows": {
-                        "type": "array",
-                        "items": {
-                            "$ref": "awa.schema.json#/$defs/uuid"
-                        },
-                        "description": "Runs of these workflows belong to this stage"
-                    },
-                    "on_enter": {
-                        "type": "object",
-                        "required": [
-                            "start_workflow"
-                        ],
-                        "properties": {
-                            "start_workflow": {
-                                "$ref": "awa.schema.json#/$defs/uuid"
-                            }
-                        },
-                        "description": "Started automatically when the stage is entered"
-                    },
-                    "complete_when": {
-                        "type": "string",
-                        "description": "Condition expression over the journey's data. The stage is complete when it is true."
-                    },
-                    "max_duration": {
-                        "$ref": "awa.schema.json#/$defs/duration",
-                        "description": "A journey that stays longer in the stage is stalled"
-                    },
-                    "transitions": {
-                        "type": "array",
-                        "description": "Where the journey goes when the stage completes. Absent: the next stage in the list. Empty: the journey completes here.",
-                        "items": {
-                            "type": "object",
-                            "required": [
-                                "to"
-                            ],
-                            "properties": {
-                                "to": {
-                                    "type": "string"
-                                },
-                                "condition": {
-                                    "type": "string"
-                                },
-                                "is_default": {
-                                    "type": "boolean",
-                                    "default": false
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "triggers": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "required": [
-                    "event"
-                ],
-                "properties": {
-                    "event": {
-                        "type": "string",
-                        "description": "Business event type"
-                    },
-                    "starts_journey": {
-                        "type": "boolean",
-                        "default": false,
-                        "description": "The event may begin a journey for a subject that has none"
-                    },
-                    "enter_stage": {
-                        "type": "string"
-                    },
-                    "start_workflow": {
-                        "$ref": "awa.schema.json#/$defs/uuid"
-                    }
-                }
-            }
-        },
-        "goals": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "required": [
-                    "id",
-                    "name",
-                    "expression"
-                ],
-                "properties": {
-                    "id": {
-                        "type": "string"
-                    },
-                    "name": {
-                        "type": "string"
-                    },
-                    "expression": {
-                        "type": "string"
-                    }
-                }
-            }
-        },
-        "exits": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "required": [
-                    "event",
-                    "outcome"
-                ],
-                "properties": {
-                    "event": {
-                        "type": "string"
-                    },
-                    "outcome": {
-                        "type": "string",
-                        "enum": [
-                            "completed",
-                            "abandoned"
-                        ]
-                    },
-                    "reason": {
-                        "type": "string"
-                    }
-                }
-            }
-        },
-        "collect": {
-            "type": "array",
-            "items": {
-                "type": "string"
+              "start_workflow": {
+                "$ref": "awa.schema.json#/$defs/uuid"
+              }
             },
-            "description": "Run data properties copied into the journey's data when a run ends. Absent: all."
+            "description": "Started automatically when the stage is entered"
+          },
+          "complete_when": {
+            "type": "string",
+            "description": "Condition expression over the journey's data. The stage is complete when it is true."
+          },
+          "max_duration": {
+            "$ref": "awa.schema.json#/$defs/duration",
+            "description": "A journey that stays longer in the stage is stalled"
+          },
+          "transitions": {
+            "type": "array",
+            "description": "Where the journey goes when the stage completes. Absent: the next stage in the list. Empty: the journey completes here.",
+            "items": {
+              "type": "object",
+              "required": [
+                "to"
+              ],
+              "properties": {
+                "to": {
+                  "type": "string"
+                },
+                "condition": {
+                  "type": "string"
+                },
+                "is_default": {
+                  "type": "boolean",
+                  "default": false
+                }
+              }
+            }
+          }
         }
+      }
+    },
+    "triggers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "event"
+        ],
+        "properties": {
+          "event": {
+            "type": "string",
+            "description": "Business event type"
+          },
+          "starts_journey": {
+            "type": "boolean",
+            "default": false,
+            "description": "The event may begin a journey for a subject that has none"
+          },
+          "enter_stage": {
+            "type": "string"
+          },
+          "start_workflow": {
+            "$ref": "awa.schema.json#/$defs/uuid"
+          }
+        }
+      }
+    },
+    "goals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "expression"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "expression": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "exits": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "event",
+          "outcome"
+        ],
+        "properties": {
+          "event": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "abandoned"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "collect": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Run data properties copied into the journey's data when a run ends. Absent: all."
+    },
+    "artefacts": {
+      "type": "array",
+      "description": "The kinds of thing that change hands (specification 19.8)",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "kind"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "description": "A business concept, not a file format. Recommended: contract, attestation, invoice, receipt, certificate, quote, form, evidence, notice, order, report, survey"
+          }
+        }
+      }
+    },
+    "touchpoints": {
+      "type": "array",
+      "description": "The moments of contact (specification 19.8)",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "direction",
+          "channel",
+          "on"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+          },
+          "name": {
+            "type": "string"
+          },
+          "party": {
+            "type": "string",
+            "default": "subject"
+          },
+          "direction": {
+            "enum": [
+              "inbound",
+              "outbound"
+            ]
+          },
+          "channel": {
+            "type": "string"
+          },
+          "technology": {
+            "type": "string"
+          },
+          "on": {
+            "type": "object",
+            "additionalProperties": false,
+            "minProperties": 1,
+            "maxProperties": 1,
+            "properties": {
+              "event": {
+                "type": "string"
+              },
+              "activity": {
+                "type": "string"
+              },
+              "tool": {
+                "type": "string"
+              }
+            }
+          },
+          "exchanges": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "artefact"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "artefact": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+                },
+                "reference": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "sentiment": {
+      "type": "object",
+      "description": "How the subject's mood is estimated (specification 19.9)",
+      "additionalProperties": false,
+      "properties": {
+        "min": {
+          "type": "number",
+          "default": -2
+        },
+        "max": {
+          "type": "number",
+          "default": 2
+        },
+        "initial": {
+          "type": "number",
+          "default": 0
+        },
+        "carry_over": {
+          "type": "boolean",
+          "default": true
+        },
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "on"
+            ],
+            "additionalProperties": false,
+            "oneOf": [
+              {
+                "required": [
+                  "measure"
+                ]
+              },
+              {
+                "required": [
+                  "change"
+                ]
+              }
+            ],
+            "properties": {
+              "on": {
+                "enum": [
+                  "event",
+                  "touchpoint",
+                  "goal_reached",
+                  "stage_completed",
+                  "stalled",
+                  "run_failed",
+                  "waited"
+                ]
+              },
+              "event": {
+                "type": "string"
+              },
+              "touchpoint": {
+                "type": "string"
+              },
+              "goal": {
+                "type": "string"
+              },
+              "stage": {
+                "type": "string"
+              },
+              "longer_than": {
+                "type": "string"
+              },
+              "measure": {
+                "type": "object",
+                "required": [
+                  "path",
+                  "from"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "from": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                  }
+                }
+              },
+              "change": {
+                "type": "number"
+              },
+              "reason": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
     }
+  }
 }

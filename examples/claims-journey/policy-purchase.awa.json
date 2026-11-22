@@ -1,0 +1,215 @@
+{
+  "$schema": "https://awa.io/schema/awa.schema.json",
+  "id": "dfbe8984-8b87-5dc0-b568-51893661d27a",
+  "name": "Policy Purchase",
+  "version": "1.0.0",
+  "awa_version": "1.1",
+  "description": "Quotes a motor policy, has the contract signed, takes the first premium and issues the certificate of insurance.",
+  "roles": [
+    {
+      "id": "6114c897-d4c7-5610-afbb-af8d0b0de988",
+      "name": "Pricing agent",
+      "actor_type": "ai_agent",
+      "ai_model_config": {
+        "model_id": "tier:reasoning",
+        "temperature": 0.2
+      }
+    },
+    {
+      "id": "b74f7da1-7a35-573e-bd68-042b80df898b",
+      "name": "E-signature service",
+      "actor_type": "application"
+    },
+    {
+      "id": "dad278c7-7449-57f7-93e5-c654ef10a09b",
+      "name": "Billing",
+      "actor_type": "application"
+    },
+    {
+      "id": "080686a4-0867-53b6-85f6-dfad9efc40a5",
+      "name": "Policy administration",
+      "actor_type": "application"
+    }
+  ],
+  "events": [
+    {
+      "id": "896cc421-0e33-52dc-9708-9df5d48296c6",
+      "name": "Quote requested",
+      "event_type": "start",
+      "description": "A prospect asks for a quote.",
+      "event_definition": {
+        "name": "quote.requested"
+      }
+    },
+    {
+      "id": "e588353d-d1be-5147-bd42-74574dfecbce",
+      "name": "Quote accepted",
+      "event_type": "message",
+      "description": "Wait for the prospect to accept the quote.",
+      "event_definition": {
+        "name": "quote.accepted",
+        "correlation_key": "customer_id",
+        "timeout": "P7D",
+        "timeout_edge_id": "b4704a47-1ea6-53f3-b952-a9621edd799b"
+      }
+    },
+    {
+      "id": "56213bad-3978-5ba7-90d4-c34df01c3831",
+      "name": "Contract signed",
+      "event_type": "message",
+      "description": "Wait for the signed contract.",
+      "event_definition": {
+        "name": "contract.signed",
+        "correlation_key": "customer_id",
+        "timeout": "P10D",
+        "timeout_edge_id": "2e437853-a000-5877-a0cc-87a842d72bfa"
+      }
+    },
+    {
+      "id": "6836d20d-2413-5593-9012-fb9017e607df",
+      "name": "Payment received",
+      "event_type": "message",
+      "description": "Wait for the first premium.",
+      "event_definition": {
+        "name": "payment.received",
+        "correlation_key": "customer_id",
+        "timeout": "P7D",
+        "timeout_edge_id": "8e098849-accc-5d69-8b6c-7a4d3bde9c3a"
+      }
+    },
+    {
+      "id": "3169d810-340b-5620-8ecf-8244055caf18",
+      "name": "Policy issued",
+      "event_type": "message",
+      "description": "Tell other systems the policy is in force.",
+      "event_definition": {
+        "name": "policy.issued",
+        "mode": "publish",
+        "data": [
+          "policy_number",
+          "customer_id"
+        ]
+      }
+    },
+    {
+      "id": "760b3e4d-8db5-5f4a-96ef-85a2d7f6eba2",
+      "name": "Purchase done",
+      "event_type": "end"
+    }
+  ],
+  "activities": [
+    {
+      "id": "d00c17f5-851e-5cf1-8b40-9b760827ac90",
+      "name": "Prepare quote",
+      "role_id": "6114c897-d4c7-5610-afbb-af8d0b0de988",
+      "actor_type": "ai_agent",
+      "description": "Price the cover from the vehicle and the driver's history, and write the quote.",
+      "outcome_contract": {
+        "postconditions": [
+          {
+            "name": "Has a premium",
+            "expression": "premium > 0"
+          }
+        ]
+      }
+    },
+    {
+      "id": "cf584dc5-6258-510b-b2f6-f6989869e1ce",
+      "name": "Send contract",
+      "role_id": "b74f7da1-7a35-573e-bd68-042b80df898b",
+      "actor_type": "application",
+      "description": "Send the insurance contract for signature."
+    },
+    {
+      "id": "53aca408-97b1-5492-aba6-b20ae497bc97",
+      "name": "Send invoice",
+      "role_id": "dad278c7-7449-57f7-93e5-c654ef10a09b",
+      "actor_type": "application",
+      "description": "Invoice the first premium."
+    },
+    {
+      "id": "bbde97ca-fb6f-5971-9bf5-19c2773e944b",
+      "name": "Issue certificate",
+      "role_id": "080686a4-0867-53b6-85f6-dfad9efc40a5",
+      "actor_type": "application",
+      "description": "Record the payment, issue the receipt and the certificate of insurance."
+    },
+    {
+      "id": "f1c43f64-c288-5131-a2d2-3735a21d8508",
+      "name": "Expire quote",
+      "role_id": "080686a4-0867-53b6-85f6-dfad9efc40a5",
+      "actor_type": "application",
+      "description": "Close the quote because the prospect did not go on."
+    }
+  ],
+  "edges": [
+    {
+      "id": "e8162743-07c3-5509-be5a-d8436ff04704",
+      "source_id": "896cc421-0e33-52dc-9708-9df5d48296c6",
+      "target_id": "d00c17f5-851e-5cf1-8b40-9b760827ac90"
+    },
+    {
+      "id": "f8340331-2eb0-56cd-a8b9-85dd6f4dcd9f",
+      "source_id": "d00c17f5-851e-5cf1-8b40-9b760827ac90",
+      "target_id": "e588353d-d1be-5147-bd42-74574dfecbce"
+    },
+    {
+      "id": "4d386052-a798-524c-a429-6e3928b36383",
+      "source_id": "e588353d-d1be-5147-bd42-74574dfecbce",
+      "target_id": "cf584dc5-6258-510b-b2f6-f6989869e1ce"
+    },
+    {
+      "id": "b4704a47-1ea6-53f3-b952-a9621edd799b",
+      "source_id": "e588353d-d1be-5147-bd42-74574dfecbce",
+      "target_id": "f1c43f64-c288-5131-a2d2-3735a21d8508",
+      "label": "no answer in 7 days"
+    },
+    {
+      "id": "f066b7b4-3314-5dfb-be30-027f3abf8abe",
+      "source_id": "cf584dc5-6258-510b-b2f6-f6989869e1ce",
+      "target_id": "56213bad-3978-5ba7-90d4-c34df01c3831"
+    },
+    {
+      "id": "a1d188dc-a969-553d-9c49-6a10e081c4b0",
+      "source_id": "56213bad-3978-5ba7-90d4-c34df01c3831",
+      "target_id": "53aca408-97b1-5492-aba6-b20ae497bc97"
+    },
+    {
+      "id": "2e437853-a000-5877-a0cc-87a842d72bfa",
+      "source_id": "56213bad-3978-5ba7-90d4-c34df01c3831",
+      "target_id": "f1c43f64-c288-5131-a2d2-3735a21d8508",
+      "label": "not signed in 10 days"
+    },
+    {
+      "id": "8501fb9f-c71e-56a5-9eeb-1f55de00ab4c",
+      "source_id": "53aca408-97b1-5492-aba6-b20ae497bc97",
+      "target_id": "6836d20d-2413-5593-9012-fb9017e607df"
+    },
+    {
+      "id": "33a02452-65d3-5b2a-a249-4792a8a2c490",
+      "source_id": "6836d20d-2413-5593-9012-fb9017e607df",
+      "target_id": "bbde97ca-fb6f-5971-9bf5-19c2773e944b"
+    },
+    {
+      "id": "8e098849-accc-5d69-8b6c-7a4d3bde9c3a",
+      "source_id": "6836d20d-2413-5593-9012-fb9017e607df",
+      "target_id": "f1c43f64-c288-5131-a2d2-3735a21d8508",
+      "label": "not paid in 7 days"
+    },
+    {
+      "id": "b9d591c2-e27f-5751-9fac-43eed38f685c",
+      "source_id": "bbde97ca-fb6f-5971-9bf5-19c2773e944b",
+      "target_id": "3169d810-340b-5620-8ecf-8244055caf18"
+    },
+    {
+      "id": "4ebf558d-8f74-5fe2-bb50-044d3effccf5",
+      "source_id": "3169d810-340b-5620-8ecf-8244055caf18",
+      "target_id": "760b3e4d-8db5-5f4a-96ef-85a2d7f6eba2"
+    },
+    {
+      "id": "dedae53f-aed5-590b-854c-281b192db4af",
+      "source_id": "f1c43f64-c288-5131-a2d2-3735a21d8508",
+      "target_id": "760b3e4d-8db5-5f4a-96ef-85a2d7f6eba2"
+    }
+  ]
+}

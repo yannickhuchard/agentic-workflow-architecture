@@ -1116,6 +1116,9 @@ A journey definition conforms to `spec/json-schema/journey.schema.json`:
 | `goals` | Each has an `id`, a `name` and an `expression` (section 6) over the journey's data. Reaching one is recorded once |
 | `exits` | Business events that end the journey, each with the `outcome` (`completed` or `abandoned`) and a `reason` |
 | `collect` | Paths of event and run data to keep as the journey's data. When absent, all of it is kept |
+| `artefacts` | The kinds of thing that change hands (19.8) |
+| `touchpoints` | The moments of contact, with channel, technology and what is exchanged (19.8) |
+| `sentiment` | How the subject's mood is estimated (19.9) |
 
 ### 19.2 Stages
 
@@ -1126,7 +1129,7 @@ A journey definition conforms to `spec/json-schema/journey.schema.json`:
 | `on_enter.start_workflow` | A workflow the host starts when the stage is entered, with the journey's data as input |
 | `complete_when` | A condition (section 6) over the journey's data. The stage is complete when it becomes true |
 | `max_duration` | A duration (13.5). A stage that lasts longer is **stalled** |
-| `transitions` | A list of `{to, when}`. When the stage completes, the first whose `when` is true, or is absent, names the next stage |
+| `transitions` | A list of `{to, condition, is_default}`. When the stage completes, the first whose `condition` is true names the next stage; failing that, the one marked `is_default`, or one with no condition |
 
 When a stage completes and it has no `transitions` property, the journey moves to the next stage in the list. When `transitions` is present and empty, or the stage is the last, the journey is `completed`. When transitions exist and none applies, the journey stays in the stage; it does not guess.
 
@@ -1150,6 +1153,8 @@ A journey instance has an `id`, the `subject_key` value, a `status` (`active`, `
 | `journey.stage_entered`, `journey.stage_completed` | A stage begins or ends. Completion carries the time spent |
 | `journey.run_started`, `journey.run_ended` | A workflow run begins or settles. Both carry `run_id`, which is the link from this record into the run's journal (section 9) |
 | `journey.goal_reached` | A goal's condition became true |
+| `journey.touchpoint` | A touchpoint took place (19.8) |
+| `journey.sentiment_changed` | The estimate of the subject's mood changed (19.9) |
 | `journey.stalled` | A stage outlasted its `max_duration`, or a run of the stage failed |
 | `journey.completed`, `journey.abandoned` | The journey ended |
 
@@ -1157,15 +1162,91 @@ A journey instance has an `id`, the `subject_key` value, a `status` (`active`, `
 
 ### 19.5 The host's duties
 
-For every business event it accepts, a host that runs journeys MUST, in this order: for a subject already on its journey, merge the event's `data` into the instance's data and record `journey.event_received`, whether or not any rule reacts to the event; deliver the event to the runs that wait (18.3); create an instance if a trigger says so, recording the event on it; apply exits; apply triggers; evaluate goals and the current stage's `complete_when`. The event is recorded before anything reacts to it, so that a journey's record reads in causal order. A host MUST ignore an event `id` it has already accepted. When a run started for an instance settles, the host merges the run's business data into the instance's data and evaluates again. Events published by a run (18.2) are accepted by the host like any other, so one workflow can move the journey or wake another workflow.
+An event **concerns** a journey when the journey names its type in a trigger, an exit, a touchpoint or a sentiment rule, or when a workflow of the journey has an event node of that name. An event that does not concern a journey leaves no trace on it.
 
-When a journey ends through an exit, the host MUST cancel (5.8) the runs still under way for it: a customer who has left is not sent a reminder. A run that fails marks its stage stalled. A journey never fails: a failed run is a reason for a person to look, not the end of the customer's story.
+For every business event it accepts, a host that runs journeys MUST, in this order:
+
+1. For a subject already on a journey the event concerns: merge the event's `data` into the instance's data and record `journey.event_received`, then any inbound touchpoint the event realises (19.8) and any change of mood (19.9).
+2. Deliver the event to the runs that wait for it (18.3).
+3. Create an instance if a trigger says so, recording the event on it as in step 1.
+4. Apply exits, then triggers.
+5. Evaluate goals and the current stage's `complete_when`.
+
+The event is recorded before anything reacts to it, so that a journey's record reads in causal order. A host MUST ignore an event `id` it has already accepted.
+
+When a run started for an instance settles, the host MUST, in this order: record `journey.run_ended`; accept the events the run published (18.2), exactly as it accepts any other; merge the run's business data into the instance's data; evaluate again. What a run announces is therefore on the record after the run that announced it and before anything that follows from it. This is how one workflow moves a journey, wakes another workflow, or begins another journey.
+
+When a journey ends through an exit, the host MUST cancel (5.8) the runs still under way for it: a customer who has left is not sent a reminder. A run that fails marks its stage stalled at once (`journey.stalled`, with the run's `run_id`). A journey never fails: a failed run is a reason for a person to look, not the end of the customer's story.
 
 ### 19.6 Analytics
 
 From instances alone a host can report, per stage: how many entered, completed, are there now, are stalled, and left from there; the median time spent; and per goal how many reached it. The reference host provides this as `journey_analytics`.
 
-### 19.7 Conformance
+### 19.7 Several journeys
+
+A subject usually lives through more than one journey: a customer buys, claims, renews. Journeys are not nested and do not call one another. They are joined by two things only: the **subject key**, which has the same value in each, and **business events**, since the event that ends one story is often the event that begins the next.
+
+A subject MAY be on several journeys at once. An event is recorded on each of those it concerns (19.5).
+
+From instances alone a host can report how subjects move between journeys: for each ordered pair of journeys, how many subjects went from an instance of the first to an instance of the second, taking each subject's instances in order of their start. The reference host provides this as `journey_transitions`.
+
+### 19.8 Touchpoints and what changes hands
+
+A journey map shows where the subject and the organisation meet. In AWA those meetings are declared, and then recorded when they happen.
+
+An **artefact** is a kind of thing that changes hands, named as the business names it:
+
+| Property | Meaning |
+|---|---|
+| `id`, `name`, `description` | Identity |
+| `kind` | What sort of thing it is. An open vocabulary. Recommended values: `contract`, `attestation`, `invoice`, `receipt`, `certificate`, `quote`, `form`, `evidence`, `notice`, `order`, `report`, `survey` |
+
+The `kind` is a business concept, not a file format. An insurance contract is a `contract` whether it travels as a PDF or as JSON; a police report is an `attestation`: a third party's statement of fact.
+
+A **touchpoint** is a moment of contact:
+
+| Property | Meaning |
+|---|---|
+| `id`, `name` | Identity. The name says what the party does or receives: "Signs the contract" |
+| `party` | Who is on the other side: `subject` (the default) or the name of a third party, such as `bank` |
+| `direction` | `inbound`: the party acts towards the organisation. `outbound`: the organisation acts towards the party |
+| `channel` | How the contact is made: `web`, `email`, `phone`, `sms`, `app`, `post`, `api`, `in_person`, or another word the deployment uses |
+| `technology` | The system that carries it: "Customer portal", "Payments (JSON-RPC)" |
+| `on` | What makes it happen. Exactly one of: `event` (a business event type), `activity` (the name of an activity that completes in a run of the journey), `tool` (the name of a tool a run of the journey calls, section 17) |
+| `exchanges` | What changes hands: a list of `{artefact, reference}`. `reference` is a path in the data of the occasion (the event's `data`, the activity's output, the tool's result) that identifies the particular document |
+
+When the occasion occurs the host records `journey.touchpoint` with `touchpoint_id`, `name`, `party`, `direction`, `channel`, `technology`, and `artefacts`: for each exchange the artefact's `id`, `name` and `kind`, and the `reference` value where one was found. A touchpoint realised by a run carries that run's `run_id`, and one realised by a tool call carries the call's `link` (17.5): from a point on the customer's journey a reader reaches the technology that served it.
+
+An `event` touchpoint with direction `inbound` is realised by an event from outside; with direction `outbound`, by an event a run publishes.
+
+### 19.9 Mood
+
+A journey MAY estimate how its subject feels. The estimate is a number on a scale the journey chooses (`min`, `max`, `initial`; by default −2 to 2, starting at 0).
+
+**An estimate is never presented as a fact.** It changes only by a rule the journey declares, and each change records its `basis`:
+
+| Basis | Meaning |
+|---|---|
+| `measured` | The subject said so. The rule reads a value from an event (`measure.path`), given on the scale `measure.from`, and maps it onto the journey's scale. The estimate is set to it |
+| `inferred` | The journey's authors assumed so. The rule moves the estimate by `change` |
+
+A rule applies `on` one kind of occasion, optionally narrowed:
+
+| `on` | The occasion | Narrowed by |
+|---|---|---|
+| `event` | A business event from outside is received | `event` |
+| `touchpoint` | A touchpoint is recorded | `touchpoint` |
+| `goal_reached`, `stage_completed` | As named | `goal`, `stage` |
+| `stalled`, `run_failed` | As named | `stage` |
+| `waited` | An outbound touchpoint reaches the subject more than `longer_than` after the subject last acted, having heard nothing since | |
+
+Every rule that matches applies, in the order written. The result is kept within the scale. Each change is recorded as `journey.sentiment_changed` with `value`, `previous`, `basis`, `reason` and `on`.
+
+With `carry_over` (the default), an instance begins at the estimate with which the subject's most recent journey stands, and `journey.started` records it as `sentiment` with `sentiment_carried_from`: a customer does not forget a bad claim when the renewal arrives.
+
+A view of a journey MUST let a reader tell a measured value from an inferred one.
+
+### 19.10 Conformance
 
 Journeys have no language-neutral cases yet. The reference behaviour is fixed by `sdk/typescript/tests/events_journeys.test.ts`.
 
@@ -1269,3 +1350,4 @@ Runners: `sdk/typescript/tests/conformance.test.ts`, `sdk/python/tests/test_conf
 - Business events in CloudEvents form; message and signal events publish them or hold a token until one arrives, with correlation and a timeout edge; run status `waiting_event`; conformance level `events` (section 18).
 - Journeys: stages, triggers, goals and exits over business events, linked to runs by `run_id` (section 19).
 - Counterfactual replay of a recorded run under a changed model, prompt, contract or rule (section 20).
+- Journeys declare touchpoints (channel, technology, what changes hands as business artefacts) and an estimate of the subject's mood whose every change is marked measured or inferred; a subject's journeys are joined by subject key and business events (19.7 to 19.9).

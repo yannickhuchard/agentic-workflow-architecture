@@ -66,5 +66,327 @@
       "outcome": "abandoned",
       "reason": "The customer withdrew the claim"
     }
-  ]
+  ],
+  "artefacts": [
+    {
+      "id": "claim-form",
+      "name": "Claim form",
+      "kind": "form",
+      "description": "What happened, where and when, as the customer tells it."
+    },
+    {
+      "id": "damage-photos",
+      "name": "Photos of the damage",
+      "kind": "evidence",
+      "description": "The customer's own pictures."
+    },
+    {
+      "id": "police-report",
+      "name": "Police report",
+      "kind": "attestation",
+      "description": "A third party's statement of the facts."
+    },
+    {
+      "id": "repair-quote",
+      "name": "Repair quote",
+      "kind": "quote",
+      "description": "What a garage would charge."
+    },
+    {
+      "id": "policy",
+      "name": "Insurance contract",
+      "kind": "contract",
+      "description": "The cover the claim is checked against."
+    },
+    {
+      "id": "parts-price",
+      "name": "Catalogue price",
+      "kind": "quote",
+      "description": "The list price of a part."
+    },
+    {
+      "id": "payment-order",
+      "name": "Payment order",
+      "kind": "order",
+      "description": "The instruction to the bank to pay the claimant."
+    },
+    {
+      "id": "settlement-notice",
+      "name": "Settlement notice",
+      "kind": "notice",
+      "description": "The decision on the claim and the amount."
+    },
+    {
+      "id": "payment-receipt",
+      "name": "Payment receipt",
+      "kind": "receipt",
+      "description": "Proof that the settlement was paid."
+    },
+    {
+      "id": "survey",
+      "name": "Satisfaction survey",
+      "kind": "survey",
+      "description": "One question, one to five."
+    }
+  ],
+  "touchpoints": [
+    {
+      "id": "claim-reported",
+      "name": "Reports the claim",
+      "party": "subject",
+      "direction": "inbound",
+      "channel": "web",
+      "technology": "Customer portal",
+      "on": {
+        "event": "claim.submitted"
+      },
+      "exchanges": [
+        {
+          "artefact": "claim-form"
+        }
+      ]
+    },
+    {
+      "id": "documents-requested",
+      "name": "Is asked for documents",
+      "party": "subject",
+      "direction": "outbound",
+      "channel": "email",
+      "technology": "Email gateway",
+      "on": {
+        "activity": "Request documents"
+      },
+      "exchanges": []
+    },
+    {
+      "id": "documents-uploaded",
+      "name": "Uploads documents",
+      "party": "subject",
+      "direction": "inbound",
+      "channel": "web",
+      "technology": "Customer portal",
+      "on": {
+        "event": "documents.uploaded"
+      },
+      "exchanges": [
+        {
+          "artefact": "damage-photos"
+        },
+        {
+          "artefact": "police-report"
+        },
+        {
+          "artefact": "repair-quote"
+        }
+      ]
+    },
+    {
+      "id": "reminder",
+      "name": "Is reminded",
+      "party": "subject",
+      "direction": "outbound",
+      "channel": "sms",
+      "technology": "SMS gateway",
+      "on": {
+        "activity": "Send reminder"
+      },
+      "exchanges": []
+    },
+    {
+      "id": "parts-priced",
+      "name": "Part priced",
+      "party": "repair catalogue",
+      "direction": "outbound",
+      "channel": "api",
+      "technology": "Repair catalogue API (HTTP)",
+      "on": {
+        "tool": "price_part"
+      },
+      "exchanges": [
+        {
+          "artefact": "parts-price"
+        }
+      ]
+    },
+    {
+      "id": "cover-checked",
+      "name": "Cover checked",
+      "party": "policy administration",
+      "direction": "outbound",
+      "channel": "api",
+      "technology": "Policy API (HTTP)",
+      "on": {
+        "tool": "get_policy"
+      },
+      "exchanges": [
+        {
+          "artefact": "policy",
+          "reference": "policy_number"
+        }
+      ]
+    },
+    {
+      "id": "claim-paid",
+      "name": "Payment sent",
+      "party": "bank",
+      "direction": "outbound",
+      "channel": "api",
+      "technology": "Payments (JSON-RPC)",
+      "on": {
+        "tool": "transfer"
+      },
+      "exchanges": [
+        {
+          "artefact": "payment-order",
+          "reference": "payment_id"
+        }
+      ]
+    },
+    {
+      "id": "settlement-notified",
+      "name": "Is told the claim is settled",
+      "party": "subject",
+      "direction": "outbound",
+      "channel": "email",
+      "technology": "Email gateway",
+      "on": {
+        "activity": "Notify claimant"
+      },
+      "exchanges": [
+        {
+          "artefact": "settlement-notice"
+        },
+        {
+          "artefact": "payment-receipt"
+        }
+      ]
+    },
+    {
+      "id": "survey-sent",
+      "name": "Is asked how it went",
+      "party": "subject",
+      "direction": "outbound",
+      "channel": "email",
+      "technology": "Email gateway",
+      "on": {
+        "activity": "Send survey"
+      },
+      "exchanges": [
+        {
+          "artefact": "survey"
+        }
+      ]
+    },
+    {
+      "id": "survey-answered",
+      "name": "Answers the survey",
+      "party": "subject",
+      "direction": "inbound",
+      "channel": "web",
+      "technology": "Customer portal",
+      "on": {
+        "event": "survey.answered"
+      },
+      "exchanges": [
+        {
+          "artefact": "survey"
+        }
+      ]
+    },
+    {
+      "id": "thanked",
+      "name": "Is thanked",
+      "party": "subject",
+      "direction": "outbound",
+      "channel": "email",
+      "technology": "Email gateway",
+      "on": {
+        "activity": "Thank customer"
+      },
+      "exchanges": []
+    },
+    {
+      "id": "called-back",
+      "name": "Is called back",
+      "party": "subject",
+      "direction": "outbound",
+      "channel": "phone",
+      "technology": "Contact centre telephony",
+      "on": {
+        "activity": "Call back"
+      },
+      "exchanges": []
+    },
+    {
+      "id": "claim-withdrawn",
+      "name": "Withdraws the claim",
+      "party": "subject",
+      "direction": "inbound",
+      "channel": "web",
+      "technology": "Customer portal",
+      "on": {
+        "event": "claim.withdrawn"
+      },
+      "exchanges": []
+    }
+  ],
+  "sentiment": {
+    "min": -2,
+    "max": 2,
+    "initial": 0,
+    "rules": [
+      {
+        "on": "event",
+        "change": -1,
+        "reason": "has had an accident",
+        "event": "claim.submitted"
+      },
+      {
+        "on": "waited",
+        "change": -1,
+        "reason": "waited more than two days for an answer",
+        "longer_than": "P2D"
+      },
+      {
+        "on": "touchpoint",
+        "change": -0.5,
+        "reason": "had to be chased",
+        "touchpoint": "reminder"
+      },
+      {
+        "on": "goal_reached",
+        "change": 1,
+        "reason": "has been paid",
+        "goal": "paid"
+      },
+      {
+        "on": "event",
+        "event": "survey.answered",
+        "measure": {
+          "path": "satisfaction",
+          "from": [
+            1,
+            5
+          ]
+        },
+        "reason": "said so in the survey"
+      },
+      {
+        "on": "touchpoint",
+        "change": 0.5,
+        "reason": "a person called to put it right",
+        "touchpoint": "called-back"
+      },
+      {
+        "on": "run_failed",
+        "change": -1,
+        "reason": "the work for them failed"
+      },
+      {
+        "on": "stalled",
+        "change": -0.5,
+        "reason": "nothing has moved for too long"
+      }
+    ]
+  }
 }
