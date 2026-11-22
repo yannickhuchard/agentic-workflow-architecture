@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, type FormEvent } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -9,9 +10,17 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Send, Bot, User } from 'lucide-react';
 
 export function ChatInterface() {
-    const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
-        api: '/api/chat',
-    });
+    // The chat posts to /api/chat, which is the default
+    const { messages, sendMessage, status } = useChat();
+    const [input, setInput] = useState('');
+    const isLoading = status === 'submitted' || status === 'streaming';
+    const handleSubmit = (event: FormEvent) => {
+        event.preventDefault();
+        const text = input.trim();
+        if (!text || isLoading) return;
+        sendMessage({ text });
+        setInput('');
+    };
 
     return (
         <Card className="h-full flex flex-col border-l rounded-none border-t-0 border-b-0">
@@ -35,7 +44,7 @@ export function ChatInterface() {
                                     <AvatarFallback>{m.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}</AvatarFallback>
                                 </Avatar>
                                 <div className={`rounded-lg p-3 text-sm max-w-[80%] ${m.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
-                                    {m.content}
+                                    {m.parts.map((part, i) => (part.type === 'text' ? <span key={i}>{part.text}</span> : null))}
                                 </div>
                             </div>
                         ))}
@@ -52,7 +61,7 @@ export function ChatInterface() {
                 <form onSubmit={handleSubmit} className="flex w-full gap-2">
                     <Input
                         value={input}
-                        onChange={handleInputChange}
+                        onChange={event => setInput(event.target.value)}
                         placeholder="Type a message..."
                         className="flex-1"
                     />
