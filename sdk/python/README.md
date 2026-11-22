@@ -35,12 +35,24 @@ print(result)
 
 - **Built-in VSM & Analytics**: Real-time tracking of DOWNTIME waste (Waiting, Defects) and process metrics.
 - **Fluent Builder API**: Construct complex workflows with a clean Pythonic interface.
-- **Gemini AI Integration**: First-class support for AI agents.
+- **AI agents**: activities done by an AI agent go through the actor you supply, or through a model provider you register. The built-in AI agent is a placeholder that calls no model.
 - **REST API Support**: Optional server mode via FastAPI.
+
+## Conformance
+
+The Python SDK passes every case of every conformance level of the specification (`docs/specification.md`, section 2.1): `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts` and `service_levels`. No case is skipped. Run them with `pytest tests/test_conformance.py -rs`.
+
+What it still lacks compared with the TypeScript reference implementation, none of which belongs to a conformance level:
+
+- **An AI agent that calls a model.** The built-in `AIAgent` is a placeholder that returns no business data. Give the engine your own actor in `options["actors"]["ai_agent"]`; it reads `_contexts`, `_knowledge` and `_verification_feedback` from the token's data. Model decisions at decision nodes do call the registered model providers.
+- **The Open Knowledge Format exchange** (specification 15.5). A knowledge base is saved and loaded as JSON, in the form the reference writes with `to_json`; it is not exported as, or imported from, an OKF bundle.
+- **The recipe** (14.1) and the visual replay (14.2).
+- **Model providers** for Google and for embedded models, and `tier_fallbacks`. `OpenAICompatibleModelProvider`, `ollama_provider` and `FunctionModelProvider` are available.
+- **Commands**: `awa knowledge`, `awa recipe`, `awa generate`, `awa init` and `awa task`; `awa measures --html`; and, for `awa replay`, a live replay (see below).
 
 ## Tools, model routing and model decisions
 
-The engine passes the conformance levels `tools` (specification section 17), `model_decision` (section 16) and `routing` (section 12), in addition to `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `flow` and `events`. Run the cases with `pytest tests/test_conformance.py -rs`.
+The levels `tools` (specification section 17), `model_decision` (section 16) and `routing` (section 12).
 
 ### Tools
 
@@ -106,9 +118,82 @@ A decision node with a `decision_model` lets a model choose among the options th
 
 External decision engines (specification 5.5.4) are registered by name in `decision_engines`: a callable, or an object with `decide(request)`, that returns `{"option": ..., "outputs": ..., "explanation": ..., "fired_rules": ...}`.
 
+## Contexts and service levels
+
+The levels `contexts` (specification section 22) and `service_levels` (section 23). `tests/test_contexts_service_levels.py` covers what the cases cannot reach: the time to live of a transient context, `transforms`, writes made by a person completing a task, a person's task that outlasts its service level, checkpoints, and the host's tick.
+
+### Contexts
+
+An activity reaches a context only through a binding. While its actor executes, the token's data holds `_contexts`: the value of each context the activity is bound to read (`read`, `read_write`, `subscribe`), by context name, and no other. An activity with no binding has no `_contexts`. An actor writes by returning `_context_writes`, an object keyed by context name; the engine applies it once the outcome is accepted, as the context's `sync_pattern` says. Neither property stays in the token's data, so contexts do not travel along edges and conditions do not see them.
+
+```python
+class Assessor:
+    def execute(self, activity, token):
+        order = token.get_data("_contexts")["Order"]          # bound with access_mode read
+        return {"score": 7, "_context_writes": {"Findings": {"damage": "rear bumper"}}}   # bound with write
+
+engine = WorkflowEngine(workflow, options={"actors": {"ai_agent": Assessor()}})
+engine.run({"claim": 1})
+engine.get_contexts()        # {"Order": {...}, "Findings": {"damage": "rear bumper"}}: every context that has a value, by name
+```
+
+A required context with no value fails the activity with `CONTEXT_MISSING` before its actor is called. A write with no binding that allows it fails with `CONTEXT_ACCESS_DENIED`, and one the context's `schema` refuses with `CONTEXT_INVALID`; the writes of one activity are applied together or not at all. None of these errors is retried. The journal records `context.read`, `context.written` and `context.denied`, with hashes, never values. A person's answer given to `resume_token` may carry `_context_writes` under the same bindings. Context values, and when each was last written, are part of a checkpoint.
+
+`ContextManager` now holds one value per context and has the interface of the reference: `get`, `set`, `write`, `list`, `snapshot`, `restore`. Its earlier key-value methods (`read`, `read_value`, `merge`, `clear`, `check_access`) are gone; the engine never called them.
+
+### Service levels
+
+An activity's or a workflow's `sla` is compared with the time the work takes: when an activity's outcome is accepted, before another attempt follows an error, when the run ends, and whenever the host calls `check_service_levels()`. The engine journals `sla.warning` and `sla.breached`, each once for a visit of a token to an activity and once for a run. Work that finished late stands. With `breach_action: fail`, work that is not finished fails with `SLA_BREACH`: an activity is not tried again, and a waiting token or run fails when the host checks.
+
+```python
+engine.check_service_levels()        # {"warnings": 0, "breaches": 1, "failed": 1}; call engine.run() when failed is not zero
+```
+
+`AwaRuntime.tick()` checks the service levels of every run it hosts, on the schedule on which it lets event waits run out. What was already recorded is part of a checkpoint, so a recovered run does not record it twice.
+
+## Knowledge
+
+The level `knowledge` (specification 15.1 to 15.4). `tests/test_knowledge.py` fixes the contents of `counts` and `latest` and the `types`, `tags` and `max_entries` of a binding.
+
+```python
+from awa import KnowledgeBase
+
+knowledge = KnowledgeBase.load("knowledge.json")              # empty when the file does not exist
+knowledge.ingest(workflow, engine.get_events())               # counted once per run, however often it is ingested
+knowledge.review("strategies/claims-assess-damage", "ana")    # only a person makes an entry reviewed
+knowledge.deprecate("failure-patterns/...")                   # never given to an actor again
+knowledge.save("knowledge.json")
+
+engine = WorkflowEngine(workflow, options={"knowledge": knowledge, "learn": True})
+```
+
+`distill(workflow, events)` derives candidate entries from one journal without calling a model: a `strategy` from the reasoning reported with an accepted outcome, a `failure_pattern` from each rejected or errored attempt, a `decision_precedent` from each decision evaluation, and a `lesson` from a failed run. Each cites the journal events it came from. An activity with a `knowledge` binding is given the matching entries about it in the token's data, as `_knowledge` (`id`, `type`, `title`, `guidance`): reviewed entries first, then by observations, never a deprecated one, and a draft only when the binding sets `min_status: draft`. The engine journals `knowledge.retrieved`. With `learn`, the run's journal is ingested when the run ends.
+
+## Counterfactual replay
+
+The level `replay` (specification section 20). `tests/test_counterfactual.py` covers the replay of tool results, business events, timeouts, model decisions and time.
+
+```python
+from awa import counterfactual_replay, render_counterfactual_report
+
+replay = counterfactual_replay(workflow, baseline_events, candidate=changed_workflow, ai="recorded")
+replay.status                      # the status of the candidate run
+replay.report["regressions"]       # a run that completed and no longer does, and every regressed node
+replay.report["nodes"]             # each with a verdict: same, changed, improved, regressed, only_baseline, only_candidate
+print(render_counterfactual_report(replay.report))
+```
+
+The run's input, the results of applications, robots and people, tool results (matched by tool and arguments), the business events received, timeouts and the passing of time are taken from the baseline journal. Something the baseline never did fails with `REPLAY_UNRECORDED` and is listed in `report["unrecorded"]`; nothing is invented and no tool is called. With `ai="recorded"` the outputs of AI agents and model decisions are replayed too. With `ai="live"` (the default) they run again: give the actor that performs the AI agents in `engine={"actors": {"ai_agent": ...}}`, and the model providers for model decisions; a live replay without that actor is refused, because the built-in AI agent calls no model. A journal recorded with payload mode `hash` or `none` is refused.
+
+```
+awa replay claim.awa.json run.journal.jsonl [--candidate changed.awa.json] [--json] [-o report.md] [--journal-out candidate.jsonl]
+```
+
+The command replays recorded AI outputs (`ai: "recorded"`), so it tests a changed contract, criterion, table or edge without a model. It exits with status 2 when the candidate regresses, 1 on an error, and 0 otherwise. The reference command's `--ai live`, `--providers` and `--key` options are not available: a live replay is made in code.
+
 ## Business events, journeys and measures
 
-The SDK also passes the conformance levels `journeys` (specification section 19) and `measures` (section 21). The cases are run by `tests/test_conformance.py`; `tests/test_journeys_measures.py` covers what the cases cannot reach: recovery from files by a second host, the lock on a runtime directory, duplicate event ids, the form of an export, the command line and the HTTP routes.
+The levels `journeys` (specification section 19) and `measures` (section 21). The cases are run by `tests/test_conformance.py`; `tests/test_journeys_measures.py` covers what the cases cannot reach: recovery from files by a second host, the lock on a runtime directory, duplicate event ids, the form of an export, the command line and the HTTP routes.
 
 ### A host for journeys
 

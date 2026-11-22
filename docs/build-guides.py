@@ -137,7 +137,7 @@ page("installation-guide.html", "Installation", "What you need, how to build, an
       ("python", "Python SDK", f'''
 <p>Python 3.10 or later.</p>
 {code("cd sdk/python\npip install -e '.[dev,web]'\npytest -q")}
-<p>The Python SDK runs workflows with the journal, retry, checkpoints, contracts, verification, parallel flow, timers, compensation and business events. It does not yet have model routing, tools, journeys or replay.</p>'''),
+<p>The Python SDK passes every conformance level, as the reference does: the engine rules, tools, model routing and model decisions, journeys, measures, replay, contexts and service levels. Install it with <code>pip install agentic-workflow-architecture</code>; the package you import is <code>awa</code>. Its built-in AI agent calls no model: supply your own actor, or an OpenAI-compatible provider. It has no recipe and no Open Knowledge Format exchange.</p>'''),
       ("models", "Model providers", f'''
 <p>Activities name a capability tier (<code>tier:fast</code>, <code>tier:balanced</code>, <code>tier:reasoning</code>), not a vendor. A deployment maps each tier to providers in order of preference; when one fails the next is tried.</p>
 {table(["Provider", "Needs"], [["google", "<code>GEMINI_API_KEY</code>"], ["openai", "<code>OPENAI_API_KEY</code>"], ["ollama", "A running Ollama; <code>OLLAMA_BASE_URL</code> if not on localhost"],

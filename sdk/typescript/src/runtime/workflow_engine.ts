@@ -1073,7 +1073,7 @@ export class WorkflowEngine {
         const named = sla.name ? { name: sla.name } : {};
         let recorded = 0;
         const once = (kind: string, event: () => void) => { if (!this.slaRecorded.has(`${key}:${kind}`)) { this.slaRecorded.add(`${key}:${kind}`); event(); recorded++; } };
-        if (warn !== undefined && elapsedMs > warn && (max === undefined || warn < max)) {
+        if (warn !== undefined && elapsedMs > warn && (max === undefined || elapsedMs <= max)) {
             once('warning', () => this.record({ type: 'sla.warning', ...ref, data: { scope, ...named, elapsed_ms: elapsedMs, threshold: warn_text, threshold_ms: warn, ...(policy?.warning_action ? { action: policy.warning_action } : {}), ...notify } }));
         }
         if (max !== undefined && elapsedMs > max) {
@@ -1958,21 +1958,10 @@ export class WorkflowEngine {
         const ref = { token_id: token.id, ...this.nodeRef(token.activityId) };
         token.updateStatus('active', analytics);
         this.record({ type: 'token.resumed', ...ref, data: { waited_ms: waitedMs } });
-        // A person's answer may write to contexts under the same bindings as any actor's
-        if (resumed) {
-            try {
-                output = { ...output };
-                this.writeContexts(token, resumed, output);
-                delete output._context_writes;
-            delete output._contexts;                     // an actor that echoes its input must not carry contexts into the token's data
-                this.closeServiceLevel(token, resumed);
-            } catch (error) {
-                this.failToken(token, error);
-                await this.settle();
-                await this.saveCheckpoint();
-                return false;
-            }
-        }
+        output = { ...output };
+        const context_writes = output._context_writes;
+        delete output._context_writes;
+        delete output._contexts;
         token.mergeActivityOutput(token.activityId, output);
         token.mergeData({ _human_task_status: 'completed', _requires_human_action: false });
 
@@ -1988,6 +1977,18 @@ export class WorkflowEngine {
                 this.failToken(token, new ActivityError(
                     `Outcome contract violated by the human decision: ${violations.map(v => v.message).join('; ')}`,
                     'CONTRACT_VIOLATION', { _contract_violations: violations }));
+                await this.settle();
+                await this.saveCheckpoint();
+                return false;
+            }
+        }
+        // A person's answer may write to contexts under the same bindings as any actor's, once it is accepted (22.3)
+        if (resumed) {
+            try {
+                if (context_writes !== undefined) this.writeContexts(token, resumed, { _context_writes: context_writes });
+                this.closeServiceLevel(token, resumed);
+            } catch (error) {
+                this.failToken(token, error);
                 await this.settle();
                 await this.saveCheckpoint();
                 return false;

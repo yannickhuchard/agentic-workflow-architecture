@@ -50,8 +50,8 @@ The full text is in [`docs/specification.md`](docs/specification.md). What it me
 
 | SDK | Conformance levels |
 |---|---|
-| TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `flow`, `events`, `model_decision`, `tools`, `journeys`, `replay`, plus recipe, knowledge and model routing |
-| Python | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `flow`, `events` |
+| TypeScript (reference) | Every level (18), plus the recipe, Open Knowledge Format exchange, model providers for Google, OpenAI, Ollama and an embedded model, and the views |
+| Python | Every level (18): the same engine rules, tools, model routing, journeys, measures, replay, contexts and service levels. Its built-in AI agent calls no model (supply your own actor or an OpenAI-compatible provider); no recipe, no Open Knowledge Format exchange |
 | Java | Data model only |
 
 ### See a run
