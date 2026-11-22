@@ -607,7 +607,8 @@ class AwaRuntime:
 
     def tick(self, now: float | None = None) -> dict[str, list[str]]:
         """
-        Let time act: time out the event waits whose deadline has passed, and mark
+        Let time act: time out the event waits whose deadline has passed, compare
+        the work that waits with its service levels (specification 23.2), and mark
         journeys that have stayed too long in a stage as stalled. `now` is in
         milliseconds since the epoch and defaults to the current time.
         """
@@ -619,6 +620,12 @@ class AwaRuntime:
                 if engine.expire_events(moment) > 0:
                     timed_out_runs.append(engine.run_id)
                     engine.run()
+                    self._sync(engine)
+                # Work that waits is compared with its service levels on the same schedule (23.2)
+                levels = engine.check_service_levels(moment)
+                if levels["failed"] > 0:
+                    engine.run()
+                if levels["failed"] > 0 or levels["breaches"] > 0 or levels["warnings"] > 0:
                     self._sync(engine)
             stalled_journeys = [i["id"] for i in list(self._instances.values())
                                 if check_stalled(self._journeys[i["journey_id"]], i, moment)]

@@ -3,7 +3,9 @@ AWA Workflow Engine
 Executes AWA workflow definitions: sequences, routing and decisions
 (specification 5), verification (7), the execution journal (9), retry,
 dead letters, checkpoints and recovery (10), outcome contracts (11),
-parallel flow, events, timers and compensation (13) and business events (18).
+parallel flow, events, timers and compensation (13), business events (18),
+contexts (22) and service levels (23). Activities with a knowledge binding are
+given entries of a knowledge base (15.4).
 """
 
 import copy
@@ -42,7 +44,7 @@ def format_iso_duration(seconds: float) -> str:
 
 from awa.types import Workflow, Activity, ActorType, DecisionNode, Edge, Event, WasteCategory
 from awa.runtime.token import Token, TokenStatus
-from awa.runtime.context_manager import ContextManager
+from awa.runtime.context_manager import NO_VALUE, ContextError, ContextManager
 from awa.runtime.actors import SoftwareAgent, AIAgent, HumanAgent, RobotAgent
 from awa.runtime.decision_evaluator import DecisionEvaluator
 from awa.runtime.decision_model import ModelDecision, decide_with_model
@@ -74,7 +76,13 @@ class EngineStatus(str, Enum):
 
 
 # Error codes that are never retried, whatever the retry policy says
-NEVER_RETRIED = {"VERIFICATION_FAILED", "CONTRACT_VIOLATION", "NO_ROUTE"}
+NEVER_RETRIED = {"VERIFICATION_FAILED", "CONTRACT_VIOLATION", "NO_ROUTE", "SLA_BREACH",
+                 "CONTEXT_MISSING", "CONTEXT_ACCESS_DENIED", "CONTEXT_INVALID", "CONTEXT_NOT_FOUND"}
+# Access modes of a context binding that let an activity read, and write (specification 22.2, 22.3)
+CAN_READ = {"read", "read_write", "subscribe"}
+CAN_WRITE = {"write", "read_write", "publish"}
+# What the engine hands an actor in the token's data for one execution and takes back afterwards
+_HANDED = ("_contexts", "_knowledge")
 
 _UNFINISHED = (TokenStatus.ACTIVE, TokenStatus.WAITING, TokenStatus.JOINING)
 _OUTCOMES = (EngineStatus.COMPLETED, EngineStatus.FAILED, EngineStatus.CANCELLED)
@@ -150,6 +158,14 @@ class WorkflowEngine:
       decision_engines:    external decision engines by name (5.5.4)
       model_decision_override: callable taking a decision node and returning {"option", "confidence"} to
                            decide it without calling a model, or None
+      log_execution:       False keeps the run out of the execution log (ExecutionService); a replay sets it
+      knowledge:           KnowledgeBase that activities with a `knowledge` binding draw on (15.4)
+      learn:               True to distil the run's journal into that knowledge base when the run ends
+
+    Contexts (22): while an actor executes an activity bound to contexts, the token's data holds
+    `_contexts`, the values the activity may read, by context name. An actor writes to contexts by
+    returning `_context_writes`, an object keyed by context name. Neither stays in the token's data.
+    Knowledge is handed over the same way, as `_knowledge`.
     """
 
     def __init__(
@@ -223,6 +239,9 @@ class WorkflowEngine:
         self._completed_activities: list[dict[str, Any]] = []
         # Ids of the business events this run has consumed, so that a redelivery is ignored
         self._delivered_events: set[str] = set()
+        # Service level warnings and breaches already journalled, so that each is recorded once (23.2)
+        self._sla_recorded: set[str] = set()
+        self._knowledge = opts.get("knowledge")
         self._stats: dict[str, Any] = {
             "started_at": self._now(), "steps": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0,
         }
@@ -270,8 +289,14 @@ class WorkflowEngine:
             "status": self._status.value,
             "run_id": self._run_id,
             "tokens": [t.to_dict() for t in self._tokens.values()],
-            "contexts": self._context_manager.get_all_data()
+            "contexts": self._context_manager.snapshot()
         }
+
+    def get_contexts(self) -> dict[str, Any]:
+        """The value of every context that has one now, by context name"""
+        now = self._now()
+        values = ((c.name, self._context_manager.get(c.id, now)) for c in self._context_manager.list())
+        return {name: copy.deepcopy(value) for name, value in values if value is not NO_VALUE}
 
     def _log(self, message: str) -> None:
         if self.verbose:
@@ -415,8 +440,11 @@ class WorkflowEngine:
         compensation = self._compensate() if failed else None
         self._status = EngineStatus.FAILED if failed else EngineStatus.COMPLETED
 
+        duration_ms = int(self._now() - self._stats["started_at"])
+        # A run that ended late is recorded as late; what it did is not undone (23.3)
+        self._service_level("workflow", self.workflow.sla, duration_ms, {}, "workflow")
         data: dict[str, Any] = {
-            "duration_ms": int(self._now() - self._stats["started_at"]),
+            "duration_ms": duration_ms,
             "steps": self._stats["steps"],
             "input_tokens": self._stats["input_tokens"],
             "output_tokens": self._stats["output_tokens"],
@@ -432,12 +460,17 @@ class WorkflowEngine:
         self._record("run.failed" if failed else "run.completed", data)
         self._finalize_execution()
 
+        if self.options.get("learn") and self._knowledge is not None:
+            self._knowledge.ingest(self.workflow, self.get_events())
+
     def _cancel_tokens(self, reason: str) -> None:
         for token in [t for t in self._tokens.values() if t.status in _UNFINISHED]:
             token.update_status(TokenStatus.CANCELLED)
             self._record("token.cancelled", {"reason": reason}, token=token, node_id=str(token.activity_id))
 
     def _finalize_execution(self) -> None:
+        if self.options.get("log_execution") is False:
+            return
         if self._status in [EngineStatus.COMPLETED, EngineStatus.FAILED]:
             start_time = datetime.fromtimestamp(self._stats["started_at"] / 1000)
             completed_time = datetime.fromtimestamp(self._now() / 1000)
@@ -499,13 +532,15 @@ class WorkflowEngine:
             "workflow_version": self.workflow.version,
             "engine_status": self._status.value,
             "tokens": [t.to_dict() for t in self._tokens.values()],
-            "contexts": self._context_manager.get_all_data(),
+            "contexts": self._context_manager.snapshot(),
             "checkpoint_at": self._iso(),
             "metadata": {
                 "run_id": self._run_id,
                 "journal_seq": self._journal.last_seq,
                 "completed_activities": self._completed_activities,
                 "delivered_events": sorted(self._delivered_events),
+                "sla_recorded": sorted(self._sla_recorded),
+                "context_times": self._context_manager.snapshot_times(),
                 "stats": dict(self._stats),
             },
         })
@@ -538,8 +573,11 @@ class WorkflowEngine:
             engine._run_id, str(workflow.id), engine._journal_store, opts.get("journal_payloads", "full"),
             max([checkpoint_seq, *on_record]), engine._now)
         engine._tokens = {t["id"]: Token.from_dict(copy.deepcopy(t)) for t in state.get("tokens", [])}
-        for context_id, data in (state.get("contexts") or {}).items():
-            engine._context_manager.merge(context_id, data)
+        # Context values are part of the state a run is recovered from (22.3). A checkpoint written before
+        # contexts were enforced holds an empty object for every context, which is not a value: it is ignored.
+        if "context_times" in meta:
+            engine._context_manager.restore(state.get("contexts"), meta.get("context_times"))
+        engine._sla_recorded = set(meta.get("sla_recorded") or [])
         engine._completed_activities = copy.deepcopy(meta.get("completed_activities") or [])
         engine._delivered_events = set(meta.get("delivered_events") or [])
         engine._stats.update(meta.get("stats") or {})
@@ -607,7 +645,39 @@ class WorkflowEngine:
                 "_idempotency_key": f"{self._run_id}:{token.id}:{node_id}:{visit}",
             })
 
-            output, verification_records, attempts = self._execute_activity(token, actor, activity)
+            # The service level of an activity counts from the moment the token reaches it,
+            # waits and retries included (23.2)
+            entered_key = f"_entered_at:{node_id}"
+            if not token.get_data(entered_key):
+                token.set_data(entered_key, self._iso())
+
+            # An activity is given the contexts it is bound to read, and no other (22.2)
+            given = self._read_contexts(token, activity)
+            handed: dict[str, Any] = {} if given is None else {"_contexts": given}
+
+            # Knowledge from earlier runs, if the activity asks for it (15.4)
+            if self._knowledge is not None and activity.knowledge is not None:
+                from awa.runtime.knowledge import guidance
+                entries = self._knowledge.retrieve(self.workflow, activity, activity.knowledge)
+                if entries:
+                    handed["_knowledge"] = [
+                        {"id": e["id"], "type": e["type"], "title": e["title"], "guidance": guidance(e)} for e in entries]
+                    self._record("knowledge.retrieved", {"entries": [
+                        {"id": e["id"], "type": e["type"], "title": e["title"], "status": e["status"],
+                         "observations": e["observations"]} for e in entries]}, token=token, node_id=node_id)
+
+            # Handed over in the token's data for this execution only: neither is part of the run's data
+            for key in _HANDED:
+                token.context_data.pop(key, None)
+            token.context_data.update(copy.deepcopy(handed))
+            try:
+                output, verification_records, attempts = self._execute_activity(token, actor, activity)
+            finally:
+                for key in _HANDED:
+                    token.context_data.pop(key, None)
+            # An actor that echoes what it was given must not carry it into the token's data
+            for key in _HANDED:
+                output.pop(key, None)
 
             ended = self._now()
             process_time = format_iso_duration((ended - started) / 1000)
@@ -631,6 +701,10 @@ class WorkflowEngine:
                              token=token, node_id=node_id)
                 self._log(f"Token paused waiting for human task {output.get('_human_task_id')}")
                 return
+
+            # What the activity wrote to contexts is checked against its bindings before anything else counts
+            self._write_contexts(token, activity, output.pop("_context_writes", _ABSENT))
+            self._close_service_level(token, activity)
 
             token.merge_activity_output(node_id, {
                 **output,
@@ -809,6 +883,8 @@ class WorkflowEngine:
                         record("activity.dead_lettered", {"error": {"message": message, "code": code}, "attempts": attempt})
                     raise
 
+                # Another attempt is not scheduled for work past its longest time, if the breach action says so (23.3)
+                self._fail_if_overdue(token, activity)
                 delay = calculate_retry_delay(retry, errors - 1)
                 record("activity.retry_scheduled", {"delay_ms": delay, "next_attempt": attempt + 1})
                 record("meta.recorded", {
@@ -998,8 +1074,254 @@ class WorkflowEngine:
         if isinstance(error, ActivityError) and error.details:
             data.update(error.details)
         token.merge_data(data)
+        # A rejected result that echoed what the actor was given must not leave contexts in the token's data
+        for key in (*_HANDED, "_context_writes"):
+            token.context_data.pop(key, None)
         self._record("token.failed", {"error": {"message": message, "code": code}},
                      token=token, node_id=str(token.activity_id))
+
+    # ------------------------------------------------------------------
+    # Contexts (specification 22)
+    # ------------------------------------------------------------------
+
+    def _read_contexts(self, token: Token, activity: Activity) -> dict[str, Any] | None:
+        """
+        The contexts an activity is bound to read, by name; None for an activity
+        with no binding. Fails the activity when a required one has no value.
+        """
+        bindings = activity.context_bindings or []
+        if not bindings:
+            return None
+        node_id = str(activity.id)
+        given: dict[str, Any] = {}
+        seen: list[dict[str, Any]] = []
+        for binding in bindings:
+            mode = binding.access_mode.value
+            if mode not in CAN_READ:
+                continue
+            context = self._context_manager.get_context(binding.context_id)
+            if context is None:
+                raise ActivityError(
+                    f'Activity "{activity.name}" binds a context the workflow does not declare ({binding.context_id})',
+                    "CONTEXT_NOT_FOUND")
+            value = self._context_manager.get(binding.context_id, self._now())
+            on_read = binding.transforms.on_read if binding.transforms else None
+            if value is not NO_VALUE and value is not None and on_read:
+                value = resolve_path(value, on_read, NO_VALUE)
+            present = value is not NO_VALUE and value is not None
+            seen.append({
+                "context_id": str(context.id), "context_name": context.name, "access_mode": mode, "present": present,
+                **({"value_hash": hash_payload(value)} if present else {}),
+            })
+            if not present and binding.required is not False:
+                self._record("context.read", {"contexts": seen}, token=token, node_id=node_id)
+                raise ActivityError(
+                    f'Activity "{activity.name}" requires context "{context.name}", which has no value', "CONTEXT_MISSING")
+            if present:
+                given[context.name] = copy.deepcopy(value)
+        if seen:
+            self._record("context.read", {"contexts": seen}, token=token, node_id=node_id)
+        return given
+
+    def _write_contexts(self, token: Token, activity: Activity, writes: Any) -> None:
+        """
+        Apply what an activity wrote to contexts: `_context_writes` in its result, by
+        context name. Every write needs a binding that allows writing; one that does
+        not, or a value the context's schema refuses, fails the activity, and then
+        none of its writes is applied (22.3).
+        """
+        if writes is _ABSENT or writes is None:
+            return
+        node_id = str(activity.id)
+
+        def record(type: str, data: dict[str, Any]) -> None:
+            self._record(type, data, token=token, node_id=node_id)
+
+        if not isinstance(writes, dict):
+            raise ActivityError(
+                f'Activity "{activity.name}" returned _context_writes that is not an object keyed by context name',
+                "CONTEXT_INVALID")
+        by_name = {c.name: c for c in self._context_manager.list()}
+        plan = []
+        for name, value in writes.items():
+            context = by_name.get(name)
+            binding = context and next(
+                (b for b in activity.context_bindings or []
+                 if str(b.context_id) == str(context.id) and b.access_mode.value in CAN_WRITE), None)
+            if context is None or binding is None:
+                reason = ("the workflow declares no such context" if context is None
+                          else "the activity has no binding that allows writing to it")
+                record("context.denied", {
+                    "context_name": name, "context_id": str(context.id) if context else None, "reason": reason})
+                raise ActivityError(f'Activity "{activity.name}" wrote to context "{name}": {reason}', "CONTEXT_ACCESS_DENIED")
+            plan.append((context, binding, value))
+
+        before, before_times = self._context_manager.snapshot(), self._context_manager.snapshot_times()
+        written: list[dict[str, Any]] = []
+        try:
+            for context, binding, value in plan:
+                now = self._now()
+                on_write = binding.transforms.on_write if binding.transforms else None
+                if on_write:
+                    # The value is placed at a path within the context's value
+                    whole = self._context_manager.get(context.id, now)
+                    whole = {} if whole is NO_VALUE or whole is None else copy.deepcopy(whole)
+                    if not isinstance(whole, dict):
+                        raise ContextError(
+                            f'Context "{context.name}" does not hold an object: nothing can be written at "{on_write}"',
+                            "CONTEXT_INVALID")
+                    parts = on_write.split(".")
+                    at = whole
+                    for part in parts[:-1]:
+                        if not isinstance(at.get(part), (dict, list)):
+                            at[part] = {}
+                        at = at[part]
+                        if not isinstance(at, dict):
+                            raise ContextError(
+                                f'Context "{context.name}" holds a list at "{part}": nothing can be written at "{on_write}"',
+                                "CONTEXT_INVALID")
+                    at[parts[-1]] = copy.deepcopy(value)
+                    self._context_manager.set(context.id, whole, now)
+                    after = whole
+                else:
+                    after = self._context_manager.write(context.id, value, now)
+                written.append({
+                    "context_id": str(context.id), "context_name": context.name,
+                    "sync_pattern": context.sync_pattern.value, "access_mode": binding.access_mode.value,
+                    "value_hash": hash_payload(after),
+                })
+        except Exception as error:
+            self._context_manager.replace(before, before_times)  # all of an activity's writes, or none
+            if isinstance(error, ContextError):
+                record("context.denied", {"reason": str(error)})
+                raise ActivityError(str(error), error.code) from None
+            raise
+        for data in written:
+            record("context.written", data)
+
+    # ------------------------------------------------------------------
+    # Service levels (specification 23)
+    # ------------------------------------------------------------------
+
+    def _service_level(self, scope: str, sla: Any, elapsed_ms: float, ref: dict[str, Any], key: str) -> tuple[str, str, int]:
+        """
+        Compare the time taken with a service level and journal, once each, a
+        warning and a breach. Returns the state ("ok", "warning" or "breached"),
+        the breach action, and how many records this call added.
+        """
+        if sla is None:
+            return "ok", "record", 0
+
+        def duration(text: str | None) -> float | None:
+            if not text:
+                return None
+            try:
+                return parse_iso_duration(text)
+            except ValueError:
+                return None
+
+        longest = duration(sla.max_time)
+        policy = sla.escalation_policy
+        warn_text = (policy.warning_threshold if policy else None) or sla.target_time
+        warn = duration(warn_text)
+        action = (policy.breach_action if policy else None) or "record"
+        notify = {"notify_roles": [str(role) for role in policy.notify_roles]} if policy and policy.notify_roles else {}
+        named = {"name": sla.name} if sla.name else {}
+        elapsed = int(elapsed_ms)
+        recorded = 0
+
+        def once(kind: str, type: str, data: dict[str, Any]) -> None:
+            nonlocal recorded
+            if f"{key}:{kind}" not in self._sla_recorded:
+                self._sla_recorded.add(f"{key}:{kind}")
+                self._record(type, data, **ref)
+                recorded += 1
+
+        if longest is not None and elapsed_ms > longest:
+            once("breached", "sla.breached", {
+                "scope": scope, **named, "elapsed_ms": elapsed, "max_time": sla.max_time, "max_time_ms": int(longest),
+                "action": action, **notify})
+            return "breached", action, recorded
+        # A warning is for work past the point of warning and short of its longest time (23.2)
+        if warn is not None and elapsed_ms > warn and (longest is None or warn < longest):
+            once("warning", "sla.warning", {
+                "scope": scope, **named, "elapsed_ms": elapsed, "threshold": warn_text, "threshold_ms": int(warn),
+                "action": policy.warning_action if policy else None, **notify})
+        return ("warning" if recorded else "ok"), action, recorded
+
+    def _activity_elapsed(self, token: Token, activity: Activity, now: float | None = None) -> tuple[float, str]:
+        entered = token.get_data(f"_entered_at:{activity.id}")
+        now = self._now() if now is None else now
+        return (now - _parse_time(entered) if entered else 0), f"activity:{token.id}:{activity.id}:{entered or ''}"
+
+    def _close_service_level(self, token: Token, activity: Activity) -> None:
+        """The activity is done: record how it stood against its service level. Work that finished late stands."""
+        elapsed, key = self._activity_elapsed(token, activity)
+        self._service_level("activity", activity.sla, elapsed, {"token": token, "node_id": str(activity.id)}, key)
+        token.context_data.pop(f"_entered_at:{activity.id}", None)
+
+    def _fail_if_overdue(self, token: Token, activity: Activity) -> None:
+        """Before another attempt: an activity past its longest time, whose breach action is `fail`, is not tried again"""
+        elapsed, key = self._activity_elapsed(token, activity)
+        state, action, _ = self._service_level(
+            "activity", activity.sla, elapsed, {"token": token, "node_id": str(activity.id)}, key)
+        if state == "breached" and action == "fail":
+            raise ActivityError(
+                f'Activity "{activity.name}" passed its service level of {activity.sla.max_time} and is not tried again',
+                "SLA_BREACH")
+
+    def check_service_levels(self, now: float | None = None) -> dict[str, int]:
+        """
+        Compare work that is waiting with its service levels (specification 23.2):
+        activities waiting for a person, and the run as a whole. Warnings and
+        breaches are journalled once. Where the breach action is `fail`, the waiting
+        token fails with SLA_BREACH. Returns how many warnings and breaches this
+        call recorded and how many tokens it failed; call run() afterwards when
+        `failed` is not zero. A host calls this on its schedule, as it calls
+        expire_events(). `now` is in milliseconds since the epoch.
+        """
+        result = {"warnings": 0, "breaches": 0, "failed": 0}
+        if self._status in _OUTCOMES or self._status == EngineStatus.IDLE:
+            return result
+        now = self._now() if now is None else now
+        before = len(self._sla_recorded)
+
+        def count(state: str, recorded: int) -> None:
+            if state == "breached" and recorded:
+                result["breaches"] += 1
+
+        for token in [t for t in self._tokens.values() if t.status == TokenStatus.WAITING]:
+            activity = self._activities_by_id.get(str(token.activity_id))
+            if activity is None or activity.sla is None:
+                continue
+            elapsed, key = self._activity_elapsed(token, activity, now)
+            state, action, recorded = self._service_level(
+                "activity", activity.sla, elapsed, {"token": token, "node_id": str(activity.id)}, key)
+            count(state, recorded)
+            if state == "breached" and action == "fail":
+                self._fail_token(token, ActivityError(
+                    f'Activity "{activity.name}" passed its service level of {activity.sla.max_time} while waiting',
+                    "SLA_BREACH"))
+                result["failed"] += 1
+
+        state, action, recorded = self._service_level(
+            "workflow", self.workflow.sla, now - self._stats["started_at"], {}, "workflow")
+        count(state, recorded)
+        if state == "breached" and action == "fail" and result["failed"] == 0:
+            unfinished = next((t for t in self._tokens.values() if t.status in _UNFINISHED), None)
+            if unfinished is not None:
+                self._fail_token(unfinished, ActivityError(
+                    f"The run passed its service level of {self.workflow.sla.max_time}", "SLA_BREACH"))
+                result["failed"] += 1
+
+        result["warnings"] = len(self._sla_recorded) - before - result["breaches"]
+        if result["failed"] > 0:
+            if self._status in (EngineStatus.WAITING_EVENT, EngineStatus.WAITING_HUMAN):
+                self._status = EngineStatus.RUNNING
+            self._settle()
+        if len(self._sla_recorded) != before or result["failed"] > 0:
+            self._save_checkpoint()
+        return result
 
     # ------------------------------------------------------------------
     # Decision nodes (specification 5.5)
@@ -1592,8 +1914,10 @@ class WorkflowEngine:
         Resume a token that was waiting for a person, with the person's answer.
         The answer is merged into the token's data, checked against the
         activity's outcome contract if it has one, and the token is routed.
-        Returns False if the token was not waiting for a person or the answer
-        was rejected. Call run() afterwards.
+        An answer may write to contexts, under `_context_writes`, with the same
+        bindings as any actor's result; the writes are applied once the answer
+        is accepted. Returns False if the token was not waiting for a person or
+        the answer was rejected. Call run() afterwards.
         """
         token = self._tokens.get(token_id)
         if not token or token.status != TokenStatus.WAITING or token.get_data("_awaiting_event"):
@@ -1602,6 +1926,9 @@ class WorkflowEngine:
         node_id = str(token.activity_id)
         activity = self._activities_by_id.get(node_id)
         output = dict(output or {})
+        writes = output.pop("_context_writes", _ABSENT)
+        for key in _HANDED:
+            output.pop(key, None)
         waiting_since = token.get_data("_waiting_since")
         analytics = None
         waited_ms = None
@@ -1633,6 +1960,18 @@ class WorkflowEngine:
                 self._fail_token(token, ActivityError(
                     "Outcome contract violated by the human decision: " + "; ".join(v["message"] for v in violations),
                     "CONTRACT_VIOLATION", {"_contract_violations": violations}))
+                self._settle()
+                self._save_checkpoint()
+                return False
+
+        # The answer is accepted: what it wrote to contexts is applied, and the time the activity took is compared
+        # with its service level. Work that finished late stands (23.3).
+        if activity:
+            try:
+                self._write_contexts(token, activity, writes)
+                self._close_service_level(token, activity)
+            except Exception as error:
+                self._fail_token(token, error)
                 self._settle()
                 self._save_checkpoint()
                 return False

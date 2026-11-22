@@ -4,6 +4,7 @@ Runs the language-neutral cases in spec/conformance against this SDK.
 Cases at levels not claimed here are skipped, not hidden.
 """
 
+import copy
 import json
 import re
 import time
@@ -13,7 +14,11 @@ from uuid import uuid4
 
 import pytest
 
+from awa.runtime.counterfactual import counterfactual_replay
+from awa.runtime.duration import parse_iso_duration
 from awa.runtime.expression import ExpressionError, evaluate_expression
+from awa.runtime.journey import time_ms
+from awa.runtime.knowledge import KnowledgeBase
 from awa.runtime.models import FunctionModelProvider
 from awa.runtime.unary_test import MISSING, evaluate_unary_tests, validate_unary_tests
 from awa.runtime.workflow_engine import WorkflowEngine
@@ -23,7 +28,8 @@ from awa.validator import validate_workflow_integrity
 CONFORMANCE = Path(__file__).resolve().parents[3] / "spec" / "conformance"
 SCHEMAS = Path(__file__).resolve().parents[3] / "spec" / "json-schema"
 CLAIMED_LEVELS = {"core", "decision", "verified", "recorded", "resilient", "contract", "flow", "events",
-                  "tools", "model_decision", "routing", "journeys", "measures"}
+                  "tools", "model_decision", "routing", "journeys", "measures",
+                  "replay", "contexts", "service_levels", "knowledge"}
 # Integrity rules the Python SDK does not enforce. None at present.
 UNSUPPORTED_INTEGRITY_RULES: set[str] = set()
 
@@ -39,23 +45,37 @@ class ScriptedError(RuntimeError):
 
 
 class ConformanceActor:
-    def __init__(self, scripts):
+    def __init__(self, scripts, spend=None):
         self.scripts, self.visited, self.counts = scripts or {}, [], {}
+        # Moves the case's clock by the time an execution `takes`
+        self.spend = spend or (lambda ms: None)
+        # The ids of the knowledge entries the actor was handed, one list per execution
+        self.given = []
+        # The contexts the actor was handed at its last execution of each activity; None when it was handed none
+        self.contexts = {}
 
     def execute(self, activity, token, context=None):
         self.visited.append(activity.name)
+        self.given.append({"activity": activity.name, "ids": [k["id"] for k in token.get_data("_knowledge") or []]})
+        self.contexts[activity.name] = copy.deepcopy(token.context_data.get("_contexts"))
         n = self.counts[activity.name] = self.counts.get(activity.name, 0) + 1
         script = self.scripts.get(activity.name, {})
         if "attempts" in script:
             script = script["attempts"][min(n, len(script["attempts"])) - 1]
         if script.get("delay_ms"):
             time.sleep(script["delay_ms"] / 1000)
+        if script.get("takes"):
+            self.spend(parse_iso_duration(script["takes"]))
         # Tool calls the actor makes, in order, before it returns
         for call in script.get("calls", []):
             context.tools.call(call["tool"], call.get("arguments", {}))
         if "error" in script:
             raise ScriptedError(script["error"], script.get("code"))
-        return script.get("output", {})
+        return {
+            **script.get("output", {}),
+            **({"_reasoning": script["reasoning"]} if "reasoning" in script else {}),
+            **({"_context_writes": script["contexts"]} if "contexts" in script else {}),
+        }
 
 
 def scripted_tools(script):
@@ -164,20 +184,34 @@ def test_execution(case):
     if case["level"] not in CLAIMED_LEVELS:
         pytest.skip(f"level '{case['level']}' is not claimed by the Python SDK")
 
+    # A case with a clock runs on it: actors spend time on it and the case moves it
+    clock = {"now": time_ms(case["clock"]) if "clock" in case else 0}
+
+    def spend(ms):
+        clock["now"] += ms
+
     # Every actor is replaced by one that follows the case's script
-    actor = ConformanceActor(case.get("actors"))
+    actor = ConformanceActor(case.get("actors"), spend)
     model_options, model_calls = scripted_models(case.get("model", {}))
     engine = WorkflowEngine(Workflow.model_validate(case["workflow"]), options={
         "actors": {actor_type: actor for actor_type in ActorType},
         **({"tools": scripted_tools(case["tools"])} if "tools" in case else {}),
         **(model_options if "model" in case else {}),
+        **({"now": lambda: clock["now"], "sleep": lambda ms: None} if "clock" in case else {}),
         **case.get("options", {}),
     })
     status = engine.run(case.get("input"))["status"]
 
-    # Steps performed while the run waits: deliver a business event, or let its waits time out
+    # Steps performed while the run waits: deliver a business event, let its waits time out,
+    # move the clock, or ask the engine to check the work that is waiting
     for number, step in enumerate(case.get("deliver", [])):
-        if step.get("expire"):
+        if "advance" in step:
+            spend(parse_iso_duration(step["advance"]))
+            continue
+        elif step.get("check_service_levels"):
+            checked = engine.check_service_levels()
+            assert is_subset(step.get("expect", {}), checked), f"service levels checked: {checked}"
+        elif step.get("expire"):
             engine.expire_events(float("inf"))
         else:
             event = step["event"]
@@ -199,6 +233,11 @@ def test_execution(case):
         assert sorted(actor.visited) == sorted(expect["visited_unordered"])
     for name in expect.get("not_visited", []):
         assert name not in actor.visited
+    for name, given in expect.get("given_contexts", {}).items():
+        assert name in actor.contexts or given is None, f"{name} was not executed"
+        assert actor.contexts.get(name) == given, f"contexts given to {name}"
+    if "contexts" in expect:
+        assert engine.get_contexts() == expect["contexts"]
     if "data" in expect:
         assert any(is_subset(expect["data"], t.context_data) for t in engine.tokens)
 
@@ -278,10 +317,8 @@ def test_invalid_condition_expressions_are_rejected(expression):
 # Journeys (specification section 19) and measures (section 21)
 # ---------------------------------------------------------------------------
 
-from awa.runtime.duration import parse_iso_duration  # noqa: E402
 from awa.runtime.expression import resolve_path  # noqa: E402
 from awa.runtime.journal import InMemoryJournalStore  # noqa: E402
-from awa.runtime.journey import time_ms  # noqa: E402
 from awa.runtime.kpi import compute_measures  # noqa: E402
 from awa.runtime.runtime_host import AwaRuntime, InMemoryRuntimeStore  # noqa: E402
 
@@ -296,20 +333,6 @@ def schema_validator(file_name):
     schemas = [json.loads(p.read_text()) for p in sorted(SCHEMAS.glob("*.json"))]
     registry = Registry().with_resources([(s["$id"], Resource.from_contents(s)) for s in schemas if "$id" in s])
     return Draft202012Validator(json.loads((SCHEMAS / file_name).read_text()), registry=registry, format_checker=FormatChecker())
-
-
-class JourneyCaseActor(ConformanceActor):
-    """Follows the case's script; an activity that `takes` time moves the case's clock by that much"""
-
-    def __init__(self, scripts, spend):
-        super().__init__(scripts)
-        self.spend = spend
-
-    def execute(self, activity, token):
-        script = self.scripts.get(activity.name, {})
-        if script.get("takes"):
-            self.spend(parse_iso_duration(script["takes"]))
-        return super().execute(activity, token)
 
 
 def in_order(wanted, actual):
@@ -333,7 +356,7 @@ def test_journeys(case):
     def spend(ms):
         clock["now"] += ms
 
-    actor = JourneyCaseActor(case.get("actors"), spend)
+    actor = ConformanceActor(case.get("actors"), spend)
 
     def host(recover):
         """A new host over what the previous one kept: the same store and the same journals, nothing else"""
@@ -463,3 +486,131 @@ def test_measures(case):
         assert len(report["attention"]) == len(expect["attention"])
         for got, want in zip(report["attention"], expect["attention"]):
             assert is_subset(want, got), f"{json.dumps(got)} does not contain {json.dumps(want)}"
+
+
+# ---------------------------------------------------------------------------
+# Counterfactual replay (specification section 20) and knowledge (section 15)
+# ---------------------------------------------------------------------------
+
+REPLAY_CASES = [json.loads(p.read_text()) for p in sorted((CONFORMANCE / "replay").glob("*.json"))]
+KNOWLEDGE_CASES = [json.loads(p.read_text()) for p in sorted((CONFORMANCE / "knowledge").glob("*.json"))]
+
+
+@pytest.mark.parametrize("case", REPLAY_CASES, ids=[c["id"] for c in REPLAY_CASES])
+def test_replay(case):
+    if case["level"] not in CLAIMED_LEVELS:
+        pytest.skip(f"level '{case['level']}' is not claimed by the Python SDK")
+
+    quiet = {"sleep": lambda ms: None}
+    actor = ConformanceActor(case.get("actors"))
+    workflow = Workflow.model_validate(case["workflow"])
+    baseline = WorkflowEngine(workflow, options={"actors": {actor_type: actor for actor_type in ActorType}, **quiet})
+    assert baseline.run(case.get("input") or {})["status"] == case["expect"]["baseline_status"]
+
+    # In the replay nothing but the candidate's AI agents may run: every other actor is the recording
+    live = ConformanceActor(case.get("candidate_actors"))
+    replay = counterfactual_replay(
+        workflow, baseline.get_events(),
+        candidate=Workflow.model_validate(case["candidate"]) if "candidate" in case else None, ai=case["ai"],
+        engine={**quiet, **({"actors": {ActorType.ai_agent: live}} if case["ai"] == "live" else {})})
+    report, expect = replay.report, case["expect"]
+
+    for index, event in enumerate(replay.events):
+        check_journal_event(event, index + 1)
+    assert replay.status == expect["candidate_status"]
+    if "same_path" in expect:
+        assert report["same_path"] is expect["same_path"]
+    for name, verdict in expect.get("verdicts", {}).items():
+        found = [n["verdict"] for n in report["nodes"] if n["node_name"] == name]
+        assert found == [verdict], f"verdict for {name}"
+    if "regressions" in expect:
+        assert len(report["regressions"]) == expect["regressions"], "; ".join(report["regressions"])
+    if "regressions_at_least" in expect:
+        assert len(report["regressions"]) >= expect["regressions_at_least"]
+    if "unrecorded" in expect:
+        assert len(report["unrecorded"]) == expect["unrecorded"], "; ".join(report["unrecorded"])
+    if "divergence_after" in expect:
+        assert report.get("divergence", {}).get("after") == expect["divergence_after"]
+    if "error_matches" in expect:
+        assert any(re.search(expect["error_matches"], json.dumps(e["data"])) for e in replay.events), \
+            "no event carries the expected error"
+
+
+def knowledge_entry_matches(wanted, entry):
+    """Whether an entry is as a case describes it; what the description leaves out is not compared"""
+    return (entry is not None
+            and ("type" not in wanted or entry["type"] == wanted["type"])
+            and ("node" not in wanted or entry["scope"].get("node_name") == wanted["node"])
+            and ("status" not in wanted or entry["status"] == wanted["status"])
+            and ("observations" not in wanted or entry["observations"] == wanted["observations"])
+            and ("sources" not in wanted or len(entry["sources"]) == wanted["sources"])
+            and ("reviewed_by" not in wanted
+                 or (entry.get("reviewed_by") == wanted["reviewed_by"] and bool(entry.get("reviewed_at")))))
+
+
+def shown(entries):
+    return json.dumps([e and {"type": e["type"], "node": e["scope"].get("node_name"), "status": e["status"],
+                              "observations": e["observations"], "sources": len(e["sources"])} for e in entries])
+
+
+@pytest.mark.parametrize("case", KNOWLEDGE_CASES, ids=[c["id"] for c in KNOWLEDGE_CASES])
+def test_knowledge(case):
+    if case["level"] not in CLAIMED_LEVELS:
+        pytest.skip(f"level '{case['level']}' is not claimed by the Python SDK")
+
+    workflow = Workflow.model_validate(case["workflow"])
+    knowledge = KnowledgeBase()
+    journals = {}
+    ingested = set()
+
+    def one(wanted):
+        """The one entry a step names"""
+        found = [e for e in knowledge.list() if knowledge_entry_matches(wanted, e)]
+        assert len(found) == 1, f"entries matching {json.dumps(wanted)} among {shown(knowledge.list())}"
+        return found[0]
+
+    for step in case["steps"]:
+        if "ingest" in step:
+            assert step["ingest"] in journals, f'run "{step["ingest"]}" has been performed'
+            knowledge.ingest(workflow, journals[step["ingest"]])
+            ingested.add(journals[step["ingest"]][0]["run_id"])
+        elif "review" in step:
+            knowledge.review(one(step["review"])["id"], step["by"])
+        elif "deprecate" in step:
+            knowledge.deprecate(one(step["deprecate"])["id"])
+        else:
+            # A run draws on the knowledge base as it stands; it is not ingested until a step says so
+            actor = ConformanceActor(step.get("actors"))
+            engine = WorkflowEngine(workflow, options={
+                "actors": {actor_type: actor for actor_type in ActorType}, "knowledge": knowledge, "sleep": lambda ms: None})
+            assert engine.run(step.get("input") or {})["status"] == step["expect"]["status"], f'status of run "{step["run"]}"'
+            events = engine.get_events()
+            for index, event in enumerate(events):
+                check_journal_event(event, index + 1)
+            journals[step["run"]] = events
+            for name, wanted in step["expect"].get("given", {}).items():
+                executions = [g for g in actor.given if g["activity"] == name]
+                assert executions, f'executions of {name} in run "{step["run"]}"'
+                for execution in executions:
+                    entries = [knowledge.get(id) for id in execution["ids"]]
+                    assert len(entries) == len(wanted) and all(
+                        knowledge_entry_matches(w, e) for w, e in zip(wanted, entries)), \
+                        f'{name} in run "{step["run"]}" was given {shown(entries)}, expected {json.dumps(wanted)}'
+            for wanted in step["expect"].get("journal_contains", []):
+                assert any(is_subset(wanted, e) for e in events), \
+                    f'no event of run "{step["run"]}" matches {json.dumps(wanted)}'
+
+    entries, expect = knowledge.list(), case["expect"]
+    if "entry_count" in expect:
+        assert len(entries) == expect["entry_count"], shown(entries)
+    for wanted in expect.get("entries", []):
+        assert len([e for e in entries if knowledge_entry_matches(wanted, e)]) == wanted.get("count", 1), \
+            f"entries matching {json.dumps(wanted)} among {shown(entries)}"
+    # Every entry is traceable: each source names a run that was ingested and events of its journal (15.2)
+    for entry in entries:
+        for source in entry["sources"]:
+            assert source["run_id"] in ingested, f'{entry["id"]} cites run {source["run_id"]}, which was not ingested'
+            journal = next(events for events in journals.values() if events[0]["run_id"] == source["run_id"])
+            assert source["event_seqs"], f'{entry["id"]} cites events'
+            for seq in source["event_seqs"]:
+                assert any(e["seq"] == seq for e in journal), f'{entry["id"]} cites event {seq}'

@@ -58,10 +58,11 @@ def main() -> int:
         help="Host to bind to (default: 0.0.0.0)"
     )
     
-    # Journeys kept in a runtime directory, and the measures of what was recorded
-    from awa.cli import journey as journey_commands, measures as measures_command
+    # Journeys kept in a runtime directory, the measures of what was recorded, and counterfactual replay
+    from awa.cli import journey as journey_commands, measures as measures_command, replay as replay_command
     journey_commands.add_parser(subparsers)
     measures_command.add_parser(subparsers)
+    replay_command.add_parser(subparsers)
 
     args = parser.parse_args()
     

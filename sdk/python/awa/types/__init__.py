@@ -355,6 +355,14 @@ class Compensation(BaseModel):
     activity_id: UUID
 
 
+class KnowledgeBinding(BaseModel):
+    """Which knowledge entries an activity's actor is given when it executes (specification 15.4)"""
+    types: list[Literal["strategy", "failure_pattern", "decision_precedent", "lesson"]] | None = None
+    tags: list[str] | None = None
+    max_entries: int | None = Field(default=None, ge=1, le=20)
+    min_status: Literal["draft", "reviewed"] | None = None
+
+
 class Activity(BaseModel):
     id: UUID
     name: str
@@ -380,6 +388,7 @@ class Activity(BaseModel):
     outcome_contract: OutcomeContract | None = None
     tools: list[ToolDefinition] = Field(default_factory=list)
     compensation: Compensation | None = None
+    knowledge: KnowledgeBinding | None = None
     join: Literal["any", "all"] = "any"
 
 

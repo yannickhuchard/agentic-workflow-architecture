@@ -5,8 +5,10 @@ Python SDK for Agentic Workflow Architecture (AWA).
 ## Installation
 
 ```bash
-pip install awa
+pip install agentic-workflow-architecture
 ```
+
+The distribution is named `agentic-workflow-architecture`; the package you import, and the command, are `awa`. Do not install the unrelated PyPI project named `awa`.
 
 ## Usage
 

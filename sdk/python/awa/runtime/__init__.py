@@ -26,6 +26,9 @@ from .runtime_host import (
     AwaRuntime, InMemoryRuntimeStore, FileRuntimeStore, open_runtime_directory, add_definition, simulated_actors,
 )
 from .kpi import MEASURES, compute_measures, measures_to_openmetrics
+from .context_manager import ContextError
+from .knowledge import KnowledgeBase, distill, guidance
+from .counterfactual import ReplayResult, compare_runs, counterfactual_replay, render_counterfactual_report
 
 __all__ = [
     "Token",
@@ -82,4 +85,12 @@ __all__ = [
     "MEASURES",
     "compute_measures",
     "measures_to_openmetrics",
+    "ContextError",
+    "KnowledgeBase",
+    "distill",
+    "guidance",
+    "ReplayResult",
+    "compare_runs",
+    "counterfactual_replay",
+    "render_counterfactual_report",
 ]
