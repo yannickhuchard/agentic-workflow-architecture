@@ -207,11 +207,24 @@ def validate_workflow_integrity(workflow: Workflow) -> ValidationResult:
                         add(where, problem, "invalid_expression")
                 if rule.output_edge_id:
                     refs.append(rule.output_edge_id)
+        # Options of a decision model or an external engine: unique ids, edges that leave the node (16.1, 5.5.4)
+        for field in ("decision_model", "decision_engine"):
+            options = getattr(decision, field).options if getattr(decision, field) else []
+            option_ids = [option.id for option in options]
+            for option_id in sorted({i for i in option_ids if option_ids.count(i) > 1}):
+                add(f"decision_nodes[{decision.id}].{field}.options", f"Duplicate option '{option_id}'", "duplicate_id")
+            refs.extend(option.output_edge_id for option in options)
         for ref in refs:
             target = edges_by_id.get(ref)
             if target is None:
                 add(f"decision_nodes[{decision.id}]", f"Output edge '{ref}' not found", "invalid_reference")
             elif target.source_id != decision.id:
                 add(f"decision_nodes[{decision.id}]", f"Output edge '{ref}' does not leave this decision node", "invalid_reference")
+
+    # Tool names are unique within an activity (specification 17.1)
+    for activity in workflow.activities:
+        names = [tool.name for tool in activity.tools]
+        for name in sorted({n for n in names if names.count(n) > 1}):
+            add(f"activities[{activity.id}].tools", f"Duplicate tool name '{name}'", "duplicate_id")
 
     return ValidationResult(valid=len(errors) == 0, errors=errors)

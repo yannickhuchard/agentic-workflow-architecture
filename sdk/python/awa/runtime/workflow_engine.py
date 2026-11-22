@@ -7,6 +7,7 @@ parallel flow, events, timers and compensation (13) and business events (18).
 """
 
 import copy
+import inspect
 import os
 import time
 from datetime import datetime
@@ -44,6 +45,9 @@ from awa.runtime.token import Token, TokenStatus
 from awa.runtime.context_manager import ContextManager
 from awa.runtime.actors import SoftwareAgent, AIAgent, HumanAgent, RobotAgent
 from awa.runtime.decision_evaluator import DecisionEvaluator
+from awa.runtime.decision_model import ModelDecision, decide_with_model
+from awa.runtime.models import ModelRegistry, ModelRouter, RouteAttempt
+from awa.runtime.tools import ActorContext, ToolOptions, ToolRunner
 from awa.validator import validate_workflow_integrity
 from awa.runtime.expression import evaluate_expression, resolve_path
 from awa.runtime.duration import parse_iso_duration
@@ -91,6 +95,16 @@ def _error_info(error: BaseException) -> tuple[str, str | None]:
     return str(error) or type(error).__name__, code if isinstance(code, str) else None
 
 
+def _takes_context(actor: Any) -> bool:
+    """Whether an actor's execute() accepts the attempt's context after the activity and the token"""
+    try:
+        parameters = list(inspect.signature(actor.execute).parameters.values())
+    except (TypeError, ValueError):
+        return False
+    positional = [p for p in parameters if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)]
+    return len(positional) >= 3 or any(p.kind == p.VAR_POSITIONAL for p in parameters)
+
+
 def _parse_time(value: str) -> float:
     """An RFC 3339 timestamp as milliseconds since the epoch"""
     return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp() * 1000
@@ -127,6 +141,15 @@ class WorkflowEngine:
       event_sink:          callable that receives the business events the workflow publishes
       now:                 callable returning the current time in milliseconds
       sleep:               callable taking milliseconds; replaces the wait between retries and at timers
+      model_providers:     model providers the engine itself may call, at decision nodes (specification 12.4)
+      default_model_provider: id of the provider that serves a reference naming none; the first registered if absent
+      model_tiers:         tier name to a model reference, or to an ordered list of them (12.2, 12.5)
+      default_ai_model_id: model reference used where a document names none; "tier:balanced" if absent
+      tools:               ToolOptions, or a dict of its fields: handlers, executors, allow_commands,
+                           allowed_hosts, secrets, simulated_results (specification 17)
+      decision_engines:    external decision engines by name (5.5.4)
+      model_decision_override: callable taking a decision node and returning {"option", "confidence"} to
+                           decide it without calling a model, or None
     """
 
     def __init__(
@@ -173,6 +196,18 @@ class WorkflowEngine:
         for actor_type, actor in (opts.get("actors") or {}).items():
             self._actors[ActorType(actor_type)] = actor
         self._decision_evaluator = DecisionEvaluator()
+
+        # Models the engine itself calls, and tools (specification 12, 16, 17)
+        self._models = ModelRegistry()
+        for provider in opts.get("model_providers") or []:
+            self._models.register(provider)
+        if opts.get("default_model_provider"):
+            self._models.set_default_provider(opts["default_model_provider"])
+        for tier, ref in (opts.get("model_tiers") or {}).items():
+            self._models.set_tier(tier, ref)
+        self._router = ModelRouter(self._models)
+        self._default_model_ref: str = opts.get("default_ai_model_id") or "tier:balanced"
+        self._tool_options = ToolOptions.of(opts.get("tools"))
         self._verification = VerificationEngine(opts.get("verifiers"), simulate=self.simulate)
 
         # Journal, resilience and events
@@ -661,8 +696,12 @@ class WorkflowEngine:
             base.non_retryable_errors = list(declared.non_retryable_errors)
         return base
 
-    def _call_actor(self, actor: Any, activity: Activity, token: Token) -> dict[str, Any]:
-        result = actor.execute(activity, token)
+    def _call_actor(self, actor: Any, activity: Activity, token: Token, context: ActorContext | None = None) -> dict[str, Any]:
+        # An actor that takes a third parameter is given the context of the attempt, which holds its tools
+        if context is not None and _takes_context(actor):
+            result = actor.execute(activity, token, context)
+        else:
+            result = actor.execute(activity, token)
         if result is None:
             return {}
         if not isinstance(result, dict):
@@ -737,7 +776,14 @@ class WorkflowEngine:
 
             # --- execute -------------------------------------------------
             try:
-                raw = self._call_actor(actor, activity, token)
+                context = ActorContext()
+                if activity.tools:
+                    # One runner per attempt: every call is journalled with the attempt it belongs to (17.5)
+                    context.tools = ToolRunner(
+                        activity.tools, self._tool_options, record, self._journal.payload,
+                        max_calls=budgets.max_tool_calls if budgets and budgets.max_tool_calls is not None else 16,
+                        simulate=bool(self.simulate), now=self._now)
+                raw = self._call_actor(actor, activity, token, context)
                 # The engine cannot interrupt the actor, so a result that arrives late is ignored (11.4)
                 if timeout_ms is not None and self._now() - attempt_start > timeout_ms:
                     raise ActivityError(
@@ -963,14 +1009,21 @@ class WorkflowEngine:
         self._log(f"Evaluating Decision: {decision.name}")
         node_id = str(decision.id)
         table = decision.decision_table
+        model = decision.decision_model
+        external = decision.decision_engine
         hit_policy = getattr(table.hit_policy, "value", table.hit_policy) if table else None
+        if model:
+            strategy = model.strategy or ("table_first" if table or external else "model")
+        else:
+            strategy = "engine" if external else "table"
 
+        # --- decision table (deterministic, native) ----------------------
         try:
-            result = self._decision_evaluator.decide(decision, token.context_data)
+            result = self._decision_evaluator.decide(decision, token.context_data) if table and strategy != "model" else None
         except Exception as error:
             # A hit-policy conflict is a defect in the table: fail, do not take the default edge
             self._record("decision.evaluated", {
-                "method": "none", "strategy": "table", "hit_policy": hit_policy, "matched": False,
+                "method": "none", "strategy": strategy, "hit_policy": hit_policy, "matched": False,
                 "conflict": _error_info(error)[0],
             }, token=token, node_id=node_id)
             if not isinstance(getattr(error, "code", None), str):
@@ -978,44 +1031,175 @@ class WorkflowEngine:
             self._fail_token(token, error)
             return
 
-        rule_edge = next((str(r.output_edge_id) for r in result.matched_rules if r.output_edge_id), None)
-        edge_id = result.output_edge_id
-        method = "table" if result.matched and rule_edge else "default" if edge_id else "none"
-        outputs = result.outputs if result.matched else {}
+        matched_rules = result.matched_rules if result and result.matched else []
+        edge_id = next((str(r.output_edge_id) for r in matched_rules if r.output_edge_id), None)
+        method = "table" if edge_id else "none"
+        outputs: dict[str, Any] = result.outputs if result and result.matched else {}
+        model_data: dict[str, Any] = {}
+        engine_data: dict[str, Any] | None = None
+        # What the decision adds to the token's data, when that is not its outputs
+        data_outputs: dict[str, Any] | None = None
 
+        # --- external decision engine (5.5.4) ----------------------------
+        if external and strategy != "model":
+            engine = (self.options.get("decision_engines") or {}).get(external.name)
+            if engine is None:
+                # No other way of deciding is substituted
+                self._fail_token(token, ActivityError(
+                    f'Decision "{decision.name}" needs the decision engine "{external.name}", '
+                    "which is not registered in this deployment", "VALIDATION_ERROR"))
+                return
+            facts = ({name: token.context_data.get(name) for name in external.inputs} if external.inputs is not None
+                     else public_payload(token.context_data))
+            started = self._now()
+            engine_data = {"name": external.name, "ruleset": external.ruleset}
+            try:
+                decide = engine.decide if hasattr(engine, "decide") else engine
+                answer = decide({
+                    "node_id": node_id, "node_name": decision.name, "ruleset": external.ruleset,
+                    "options": [{"id": o.id, "description": o.description} for o in external.options],
+                    "inputs": facts, "config": external.config,
+                }) or {}
+                chosen = answer.get("option")
+                option = next((o for o in external.options if o.id == chosen), None)
+                engine_data.update({
+                    "option": chosen, "fired_rules": answer.get("fired_rules"), "explanation": answer.get("explanation"),
+                    "no_decision_reason": None if option else (
+                        f'"{chosen}" is not one of the options' if chosen else "the engine returned no option"),
+                })
+                if option:
+                    edge_id, method, outputs = str(option.output_edge_id), "engine", dict(answer.get("outputs") or {})
+            except Exception as error:
+                engine_data["no_decision_reason"] = f"the engine failed: {_error_info(error)[0]}"
+            engine_data["duration_ms"] = int(self._now() - started)
+            engine_data = {key: value for key, value in engine_data.items() if value is not None}
+
+        # --- decision model (section 16) ---------------------------------
+        if not edge_id and model:
+            decided = self._decide_with_model(decision)
+            if decided is None:
+                decided = decide_with_model(decision, token.context_data, self._router, self._default_model_ref)
+            self._stats["input_tokens"] += decided.usage["input_tokens"]
+            self._stats["output_tokens"] += decided.usage["output_tokens"]
+
+            if decided.model:
+                self._record("meta.recorded", {
+                    "subject": "model_selection",
+                    "decision": f"Use model {decided.model['provider']}:{decided.model['id']}",
+                    "rationale": ("The decision names this model." if model.model
+                                  else "The decision names no model, so the engine default applies.")
+                                 + (f' The reference is the capability tier "{decided.model["tier"]}", which this '
+                                    "deployment maps to that model." if decided.model.get("tier") else ""),
+                    "model": decided.model,
+                }, token=token, node_id=node_id, level="meta")
+            self._record_route(decided.route, token, node_id)
+            if decided.rationale:
+                self._record("reasoning.recorded", {
+                    "source": "decision_model", "rationale": decided.rationale, "confidence": decided.confidence,
+                    "plan": [], "option": decided.option,
+                }, token=token, node_id=node_id, level="reasoning")
+
+            model_data = {
+                "option": decided.option,
+                "confidence": decided.confidence,
+                "min_confidence": model.min_confidence,
+                "votes": [vote.to_dict() for vote in decided.votes],
+                "no_decision_reason": decided.reason,
+                "usage": decided.usage,
+            }
+            model_data = {key: value for key, value in model_data.items() if value is not None}
+            # Only an option the model validly chose is taken (16.4)
+            if decided.edge_id:
+                edge_id, method = decided.edge_id, "model"
+                outputs = {key: value for key, value in
+                           (("option", decided.option), ("confidence", decided.confidence)) if value is not None}
+                data_outputs = {model.output: decided.option} if model.output else {}
+
+        if not edge_id and decision.default_output_edge_id:
+            edge_id, method = str(decision.default_output_edge_id), "default"
+
+        if table:
+            inputs = {c.name: token.context_data.get(c.name) for c in table.inputs}
+        else:
+            inputs = {name: token.context_data.get(name) for name in ((model.inputs if model else None) or [])}
+
+        decided_here = method in ("table", "engine", "model")
         # The outputs become token data, so a later decision or condition can use them
+        added = outputs if data_outputs is None else data_outputs
         decisions = dict(token.get_data("decisions") or {}) if isinstance(token.get_data("decisions"), dict) else {}
         decisions[node_id] = {"name": decision.name, "method": method, "outputs": outputs}
         token.merge_data({
-            **{k: v for k, v in outputs.items() if not k.startswith("_") and k not in ("activities", "decisions")},
+            **{k: v for k, v in added.items() if not k.startswith("_") and k not in ("activities", "decisions")},
             "decisions": decisions,
             "_decision_node_id": node_id,
-            "_decision_matched": method == "table",
+            "_decision_matched": decided_here,
             "_decision_method": method,
             "_decision_outputs": outputs,
         })
 
         self._record("decision.evaluated", {
             "method": method,
-            "strategy": "table",
+            "strategy": strategy,
             "hit_policy": hit_policy,
-            "inputs": self._journal.payload({c.name: token.context_data.get(c.name) for c in table.inputs} if table else {}),
-            "matched": method == "table",
+            "inputs": self._journal.payload(inputs),
+            "matched": decided_here,
             "matched_rules": [
                 {"index": table.rules.index(rule), "input_entries": rule.input_entries, "description": rule.description}
-                for rule in result.matched_rules
+                for rule in matched_rules
             ] if table else [],
             "outputs": outputs,
             "edge_id": edge_id,
             "used_default": method == "default",
+            "engine": engine_data,
+            "model": model_data if model and method in ("model", "default", "none") else None,
         }, token=token, node_id=node_id)
 
         edge = self._edges_by_id.get(str(edge_id)) if edge_id else None
         if not edge:
-            self._fail_token(token, ActivityError("No matching decision rule and no default path", "NO_ROUTE"))
+            reason = model_data.get("no_decision_reason")
+            self._fail_token(token, ActivityError(
+                "No matching decision rule and no default path" + (f" (model: {reason})" if reason else ""), "NO_ROUTE"))
             return
 
         self._move_token(token, edge, "decision")
+
+    def _decide_with_model(self, decision: DecisionNode) -> ModelDecision | None:
+        """
+        A model decision supplied without calling a model: scripted for a
+        simulation, or given by the deployment's `model_decision_override`.
+        None means the model is to be asked. In simulation no model is called.
+        """
+        model = decision.decision_model
+        scripted: Any = None
+        if self.simulate:
+            scripted = ((self.options.get("simulated_outputs") or {}).get(decision.name) or {}).get("output")
+        if scripted is None and self.options.get("model_decision_override"):
+            scripted = self.options["model_decision_override"](decision)
+        if scripted is None or model is None:
+            return ModelDecision(reason="simulation mode supplies no model decision") if self.simulate else None
+        option = next((o for o in model.options if o.id == scripted.get("option")), None)
+        confidence = scripted.get("confidence")
+        return ModelDecision(
+            option=option.id if option else None,
+            edge_id=str(option.output_edge_id) if option else None,
+            confidence=confidence if isinstance(confidence, (int, float)) and not isinstance(confidence, bool) else None,
+            rationale="Simulated decision" if self.simulate else "Decision supplied without calling a model",
+            reason=None if option else f'"{scripted.get("option")}" is not one of the options')
+
+    def _record_route(self, route: list[RouteAttempt], token: Token, node_id: str, attempt: int | None = None) -> None:
+        """Journal a model route that was anything other than "first candidate used" (specification 12.5)"""
+        if not any(step.outcome != "used" for step in route):
+            return
+        used = next((step for step in route if step.outcome == "used"), None)
+        self._record("meta.recorded", {
+            "subject": "model_route",
+            "decision": f"Route to {used.ref}" if used else "No model could serve the request",
+            "rationale": ". ".join(
+                f"{step.ref} was {'skipped' if step.outcome == 'skipped' else 'tried and failed'}"
+                + (f": {step.reason}" if step.reason else "")
+                for step in route if step.outcome != "used") + ".",
+            "route": [step.to_dict() for step in route],
+        }, token=token, node_id=node_id, attempt=attempt, level="meta")
 
     # ------------------------------------------------------------------
     # Events, timers and business events (specification 13.4, 13.5, 18)

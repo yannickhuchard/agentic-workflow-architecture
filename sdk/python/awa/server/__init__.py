@@ -425,3 +425,12 @@ async def get_queue_stats(user: Dict[str, Any] = Depends(get_current_user)):
     except Exception as e:
         logger.error("Failed to get task queue stats", e)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- Journeys and measures (specification sections 19 and 21) ---
+# Behind the same authentication and rate limit as the routes above.
+
+from awa.server.journeys import journey_router, measures_router, set_journey_runtime  # noqa: E402,F401
+
+app.include_router(journey_router, prefix="/api/v1/journeys", dependencies=[Depends(rate_limiter)])
+app.include_router(measures_router, prefix="/api/v1/measures", dependencies=[Depends(rate_limiter)])
