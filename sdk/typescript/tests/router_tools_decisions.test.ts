@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import http from 'http';
 import { createRequire } from 'module';
 import type { AddressInfo } from 'net';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID as uuidv4 } from 'crypto';
 import { WorkflowEngine } from '../src/runtime/workflow_engine';
 import {
     EmbeddedModelProvider, FunctionModelProvider, ModelRegistry, ModelRequest, ModelRouter,

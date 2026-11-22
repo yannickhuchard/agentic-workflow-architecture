@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID as uuidv4 } from 'crypto';
 import { WorkflowEngine } from '../src/runtime/workflow_engine';
 import { AwaRuntime, InMemoryRuntimeStore, FileRuntimeStore } from '../src/runtime/runtime';
 import os from 'os';

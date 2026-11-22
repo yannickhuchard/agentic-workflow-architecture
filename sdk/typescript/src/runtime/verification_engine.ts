@@ -6,7 +6,7 @@
 
 import { ModelRegistry, GoogleModelProvider } from './models';
 import { hash_payload } from './journal';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID as uuidv4 } from 'crypto';
 import { evaluate_expression } from './expression';
 import {
     Activity,

@@ -1,4 +1,4 @@
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID as uuidv4 } from 'crypto';
 import { Activity, Edge, Workflow } from '../src/types';
 import { Actor } from '../src/runtime/actors/actor';
 

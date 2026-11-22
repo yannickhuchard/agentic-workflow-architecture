@@ -18,9 +18,9 @@ const mockGetGenerativeModel = vi.fn(() => ({
 
 vi.mock('@google/generative-ai', () => {
     return {
-        GoogleGenerativeAI: vi.fn(() => ({
+        GoogleGenerativeAI: vi.fn(function () { return {
             getGenerativeModel: mockGetGenerativeModel
-        }))
+        }; })
     };
 });
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID as uuidv4 } from 'crypto';
 import { WorkflowEngine } from '../src/runtime/workflow_engine';
 import { counterfactual_replay, render_counterfactual_report } from '../src/runtime/counterfactual';
 import { FunctionModelProvider, ModelRequest } from '../src/runtime/models';
