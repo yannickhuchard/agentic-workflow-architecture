@@ -614,6 +614,26 @@ Over HTTP: `AWA_DATA_DIR=.awa awa serve`, then `POST /api/v1/journeys/events`, `
 awa replay workflow.awa.json run.jsonl --candidate changed.awa.json --ai recorded   # exit 2 on regression
 ```
 
+### Measures (specification section 21)
+
+What an organisation asks of its journeys and workflows, computed from the record: completion, abandonment and stall rates, goal attainment, time per stage and stages that outlasted their time, mood and how much of it was measured, success rate, right first time, lead time against work time, waits for customers and for people, tool failures, decisions by method, tokens and cost.
+
+```bash
+awa measures --dir .awa                 # for people
+awa measures --dir .awa --json          # the report
+awa measures --file portfolio.json --from 2026-09-01T00:00:00Z
+awa measures --list                     # every measure with its rule
+```
+
+```typescript
+import { compute_measures } from 'agentic-workflow-architecture';
+const report = compute_measures(await runtime.export_portfolio(), { journey_id });
+report.journeys[0].measures['journey.completion_rate'];   // { value: 0.5, n: 6 }
+report.attention;                                         // who is stuck, in which stage, and its owner
+```
+
+A measure is `{ value, n }`: `n` is what it was computed over, and `value` is `null`, never 0, when that is nothing. `GET /api/v1/measures` serves the report and `?format=openmetrics` gives it to a metrics system. `tools/visualization/dashboard.html` shows it (`?live=http://localhost:3000` reads a running server). Give a stage an `owner` so that a stalled journey names who must act.
+
 ## Production Infrastructure
 
 ### Structured Logging

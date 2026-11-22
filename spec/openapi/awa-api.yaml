@@ -685,6 +685,71 @@ paths:
               schema:
                 type: object
 
+  /measures:
+    get:
+      tags: [journeys]
+      summary: The measures of journeys and workflows (specification section 21)
+      description: Computed from what was recorded. Each measure is a value and the number it was computed over; the value is null when there is nothing to compute it from.
+      operationId: getMeasures
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date-time }, description: Keep what started at or after this instant }
+        - { name: to, in: query, schema: { type: string, format: date-time }, description: Keep what started before this instant }
+        - { name: journey_id, in: query, schema: { type: string } }
+        - { name: workflow_id, in: query, schema: { type: string } }
+        - { name: format, in: query, schema: { type: string, enum: [json, openmetrics] }, description: openmetrics gives the OpenMetrics text format, for a metrics system to scrape }
+      responses:
+        '200':
+          description: The report (21.1)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [spec_version, as_of, period, totals, journeys, workflows, attention, series]
+                properties:
+                  spec_version: { type: string }
+                  as_of: { type: string, format: date-time }
+                  period: { type: object }
+                  currency: { type: [string, 'null'] }
+                  totals:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      required: [value, n]
+                      properties:
+                        value: { type: [number, 'null'], description: Null when there is nothing to compute it from }
+                        n: { type: integer, description: The number of things the value was computed over }
+                  journeys: { type: array, items: { type: object } }
+                  workflows: { type: array, items: { type: object } }
+                  attention: { type: array, items: { type: object } }
+                  series: { type: object }
+            application/openmetrics-text:
+              schema: { type: string }
+        '400':
+          description: from or to is not an instant
+
+  /measures/definitions:
+    get:
+      tags: [journeys]
+      summary: Every measure with its unit and its rule
+      operationId: getMeasureDefinitions
+      responses:
+        '200':
+          description: The measures of section 21
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [id, name, scope, unit, better, definition]
+                  properties:
+                    id: { type: string }
+                    name: { type: string }
+                    scope: { type: string, enum: [journey, stage, workflow, activity] }
+                    unit: { type: string, enum: [count, ratio, ms, score, tokens, currency] }
+                    better: { type: string, enum: [higher, lower, neither] }
+                    definition: { type: string }
+
   /journeys/runs/{run_id}/tokens/{token_id}/resume:
     post:
       tags: [journeys]
