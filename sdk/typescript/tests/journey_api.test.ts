@@ -94,4 +94,18 @@ describe('A runtime directory', () => {
         expect(events.filter(e => e.type === 'run.resumed').length).toBeGreaterThanOrEqual(2);
         expect(fs.readdirSync(path.join(dir, 'journals'))).toHaveLength(1);
     });
+
+    it('is held by one host at a time, and a lock left by a dead process is taken over', async () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'awa-lock-'));
+        await add_definition(dir, read('policy-purchase.awa.json'));
+        // Another live process holds it: this test's parent
+        fs.writeFileSync(path.join(dir, 'runtime.lock'), String(process.ppid));
+        await expect(open_runtime_directory(dir, { engine })).rejects.toThrow(/in use by process/);
+        // A process that no longer exists left its lock behind
+        fs.writeFileSync(path.join(dir, 'runtime.lock'), '2147483646');
+        const runtime = await open_runtime_directory(dir, { engine });
+        expect(fs.readFileSync(path.join(dir, 'runtime.lock'), 'utf-8')).toBe(String(process.pid));
+        await runtime.close();
+        expect(fs.existsSync(path.join(dir, 'runtime.lock'))).toBe(false);
+    });
 });

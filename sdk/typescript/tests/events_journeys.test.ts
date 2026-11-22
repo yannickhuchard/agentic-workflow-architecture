@@ -186,7 +186,7 @@ describe('Journeys', () => {
             subject: { name: 'customer', key: 'customer_id' },
             stages: [
                 { id: 'reported', name: 'Reported', workflows: [intake.id], complete_when: 'claim_id exists', max_duration: 'P1D' },
-                { id: 'assessed', name: 'Assessed', on_enter: { start_workflow: assessment.id }, complete_when: 'offer_accepted exists', max_duration: 'P10D',
+                { id: 'assessed', name: 'Assessed', on_enter: { start_workflow: assessment.id }, complete_when: 'offer_accepted exists', max_duration: 'P10D', owner: 'Claims desk',
                   transitions: [{ to: 'settled', condition: 'offer_accepted == true' }, { to: 'disputed', is_default: true }] },
                 { id: 'settled', name: 'Settled', on_enter: { start_workflow: payout.id }, complete_when: 'paid == true', transitions: [] },
                 { id: 'disputed', name: 'Disputed' },
@@ -273,7 +273,7 @@ describe('Journeys', () => {
         expect(instance.runs[1].status).toBe('failed'); // no timeout edge in this workflow
         // A failed run stalls the journey at once: nobody is working for this customer any more
         expect(instance.stalled).toBe(true);
-        expect(instance.events.at(-1)).toMatchObject({ type: 'journey.stalled', run_id: instance.runs[1].run_id, data: { reason: 'the Assessment workflow failed' } });
+        expect(instance.events.at(-1)).toMatchObject({ type: 'journey.stalled', run_id: instance.runs[1].run_id, data: { reason: 'the Assessment workflow failed', owner: 'Claims desk' } });   // and says who must act
         advance(3 * 24 * HOUR);
         expect((await runtime.tick()).stalled_journeys).toEqual([]); // reported once
     });

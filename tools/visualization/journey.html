@@ -289,6 +289,8 @@ const fit = () => { const k = Math.min(innerWidth / 1440, innerHeight / 900); $(
 addEventListener('resize', fit); fit();
 
 const DAY = 86400000, r = Math.round;
+/** A value from a record, made safe to stand inside a class name or an attribute */
+const tok = s => String(s ?? '').replace(/[^A-Za-z0-9_-]/g, '');
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const day = t => new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
 const LEVELS = ['atlas', 'journey', 'story', 'run'];
@@ -358,7 +360,7 @@ scenes.atlas = () => {
             const pts = inst.beats.map((b, k) => `${r(4 + k / Math.max(n - 1, 1) * 142)},${r(20 - (b.mood ?? 0) / sc.max * 15)}`).join(' ');
             h += `<button class="pcell" style="left:${CX(life.j)}px;top:${PY(i)}px" data-open-s="${life.j},${life.i}" aria-label="Follow ${esc(c.name)} through ${esc(S.journeys[life.j].name)}">
               <svg class="spark" viewBox="0 0 150 40" aria-hidden="true"><line x1="0" y1="20" x2="150" y2="20" stroke="#334155" stroke-dasharray="3 4"/><polyline points="${pts}" fill="none" stroke="#e2e8f0" stroke-width="2" stroke-linejoin="round"/></svg>
-              <span style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="e-${inst.ending.kind}" style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(inst.ending.label)}</span><span style="font-size:12px">${mood(inst.mood_end)}${basisOf(inst) ? ` <span style="color:var(--mute)">&middot; ${basisOf(inst)}</span>` : ''}</span></span></button>`;
+              <span style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="e-${tok(inst.ending.kind)}" style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(inst.ending.label)}</span><span style="font-size:12px">${mood(inst.mood_end)}${basisOf(inst) ? ` <span style="color:var(--mute)">&middot; ${basisOf(inst)}</span>` : ''}</span></span></button>`;
         }
     });
     return h;
@@ -382,10 +384,10 @@ scenes.journey = () => {
         const top = laneTop(i), stalledBeat = c.beats.find(b => b.kind === 'stalled');
         h += `<button class="lane" data-lane="${i}" style="top:${top}px" aria-label="Follow the journey of ${esc(c.name)}"><span style="font-size:15px;font-weight:600">${esc(c.name)}</span><span class="ls">${esc(c.summary)}</span></button>`;
         c.stages.forEach(sg => { h += `<div class="seg st${sg.stage % 3}" data-from="${sg.from}" data-to="${sg.to === null ? j.t1 : sg.to}" data-open="${sg.to === null ? 1 : 0}" data-stall="${stalledBeat ? stalledBeat.t : ''}" data-name="${esc(j.stages[sg.stage].name)}" style="left:${r(ax(sg.from))}px;top:${top + 22}px;width:0"></div>`; });
-        c.beats.forEach(b => { if (MARK[b.kind]) h += `<div class="mk off" data-t="${b.t}" style="left:${r(ax(b.t))}px;top:${top + 34}px"><span class="sh k-${b.kind}"></span></div>`; });
+        c.beats.forEach(b => { if (MARK[b.kind]) h += `<div class="mk off" data-t="${b.t}" style="left:${r(ax(b.t))}px;top:${top + 34}px"><span class="sh k-${tok(b.kind)}"></span></div>`; });
         const kind = c.ending.kind, endT = kind === 'stalled' && stalledBeat ? stalledBeat.t : c.end, x = ax(endT), missed = c.goals.some(g => !g.reached);
         const txt = esc(c.ending.label) + (kind === 'completed' ? (missed ? ', a goal missed' : ', every goal reached') : '') + (c.mood_end === null ? '' : ' &middot; ' + mood(c.mood_end));
-        h += `<div class="endl e-${kind}${x > 1000 ? ' rt' : ''} off" data-t="${kind === 'active' ? Infinity : endT}" style="left:${r(x)}px;top:${top + 52}px">${txt}</div>`;
+        h += `<div class="endl e-${tok(kind)}${x > 1000 ? ' rt' : ''} off" data-t="${kind === 'active' ? Infinity : endT}" style="left:${r(x)}px;top:${top + 52}px">${txt}</div>`;
     });
     return h + `<div class="ph"><span class="phl"></span></div><div class="ring sm"></div>`;
 };
@@ -402,7 +404,7 @@ scenes.story = () => {
       ${c.mood_from ? `<div class="chip" title="A journey begins at the mood the customer's last one left them in">Arrived ${mood(c.mood_start)} from ${esc(c.mood_from)}</div>` : ''}
       <div class="chip" id="moodchip"></div>
       ${c.goals.map((g, k) => `<div class="chip" data-goal="${k}"></div>`).join('')}
-      <div class="chip e-${c.ending.kind} hide" id="endchip">${esc(c.ending.label)}</div></div>`;
+      <div class="chip e-${tok(c.ending.kind)} hide" id="endchip">${esc(c.ending.label)}</div></div>`;
     j.stages.forEach((sg, k) => {
         let first = -1, last = -1; beats.forEach((b, i) => { if (b.stage === k) { if (first < 0) first = i; last = i; } });
         if (first < 0) return;
@@ -419,7 +421,7 @@ scenes.story = () => {
     h += `<div class="ll" style="top:${techY(0) - 26}px"><div class="pt">Technology</div></div>`;
     j.technologies.forEach((t, k) => { h += `<div class="rowl" style="top:${techY(k) - 8}px" title="${esc(t)}">${esc(t)}</div><div class="rail" style="top:${techY(k)}px;border-top:1px solid rgba(255,255,255,.05)"></div>`; });
     h += `<div class="ll" style="top:${kindY(j, 0) - 26}px"><div class="pt">Exchanged</div></div>`;
-    j.kinds.forEach((t, k) => { h += `<div class="rowl" style="top:${kindY(j, k) - 8}px">${KIND(t)}</div><div class="rail" style="top:${kindY(j, k)}px;border-top:1px solid rgba(255,255,255,.05)"></div>`; });
+    j.kinds.forEach((t, k) => { h += `<div class="rowl" style="top:${kindY(j, k) - 8}px">${esc(KIND(t))}</div><div class="rail" style="top:${kindY(j, k)}px;border-top:1px solid rgba(255,255,255,.05)"></div>`; });
 
     // Mood: one line, revealed as the story is told. A filled dot was said by the customer; a hollow one was inferred.
     if (j.scale) {
@@ -437,7 +439,7 @@ scenes.story = () => {
         });
     }
     c.runs.forEach((run, ri) => {
-        h += `<button class="rb off" data-run="${ri}" data-b0="${run.b0}" data-b1="${run.b1}" data-status="${run.status}" style="left:${xs[run.b0] - 18}px;top:${LY.work}px;width:${xs[run.b1] - xs[run.b0] + 36}px" aria-label="Look inside the run of ${esc(run.name)}"></button>
+        h += `<button class="rb off" data-run="${ri}" data-b0="${run.b0}" data-b1="${run.b1}" data-status="${tok(run.status)}" style="left:${xs[run.b0] - 18}px;top:${LY.work}px;width:${xs[run.b1] - xs[run.b0] + 36}px" aria-label="Look inside the run of ${esc(run.name)}"></button>
           <button class="rbl off" data-b="${run.b0}" data-run="${ri}" data-runlabel="${ri}" style="left:${xs[run.b0] - 16}px;top:${LY.work + 25}px;max-width:${(c.runs[ri + 1] ? xs[c.runs[ri + 1].b0] : 1420) - xs[run.b0] - 6}px"></button>`;
     });
     for (let i = 1; i < n; i++) {
@@ -447,7 +449,7 @@ scenes.story = () => {
         if (b.gap) h += `<div class="gap off" data-b="${i}" style="left:${r((xs[i - 1] + xs[i]) / 2)}px">${esc(b.gap)}</div>`;
     }
     beats.forEach((b, i) => {
-        h += `<button class="g off" data-b="${i}" data-beat="${i}" style="left:${xs[i]}px;top:${ys[i]}px" aria-label="${esc(b.title)}"><span class="sh k-${b.kind}"></span></button>`;
+        h += `<button class="g off" data-b="${i}" data-beat="${i}" style="left:${xs[i]}px;top:${ys[i]}px" aria-label="${esc(b.title)}"><span class="sh k-${tok(b.kind)}"></span></button>`;
         if (!b.tp) return;
         const out = b.tp.direction === 'outbound' ? ' out' : '';
         const tk = j.technologies.indexOf(b.tp.technology);
@@ -485,14 +487,14 @@ scenes.run = () => {
     W.edges.forEach((e, ei) => {
         e.segs.forEach((sg, si) => {
             const hz = sg.dir === 'r' || sg.dir === 'l';
-            h += `<div class="eg ${e.kind}${hz ? '' : ' vv'}" style="left:${gx + sg.x - (hz ? 0 : 1)}px;top:${gy + sg.y - (hz ? 1 : 0)}px;width:${hz ? sg.len : 2}px;height:${hz ? 2 : sg.len}px"><div class="ef ${sg.dir} ${e.kind}" data-e="${ei}" data-si="${si}"></div></div>`;
+            h += `<div class="eg ${tok(e.kind)}${hz ? '' : ' vv'}" style="left:${gx + sg.x - (hz ? 0 : 1)}px;top:${gy + sg.y - (hz ? 1 : 0)}px;width:${hz ? sg.len : 2}px;height:${hz ? 2 : sg.len}px"><div class="ef ${tok(sg.dir)} ${tok(e.kind)}" data-e="${ei}" data-si="${si}"></div></div>`;
         });
-        if (e.tip) h += `<div class="tip ${e.tip.dir} ${e.kind}" data-e="${ei}" style="left:${gx + e.tip.x - 6}px;top:${gy + e.tip.y - 6}px"></div>`;
+        if (e.tip) h += `<div class="tip ${tok(e.tip.dir)} ${tok(e.kind)}" data-e="${ei}" style="left:${gx + e.tip.x - 6}px;top:${gy + e.tip.y - 6}px"></div>`;
     });
     W.nodes.forEach((n, i) => {
         const box = `left:${gx + n.x}px;top:${gy + n.y}px;width:${n.w}px;height:${n.h}px`;
         if (n.kind === 'activity') h += `<div class="nd act" data-n="${i}" data-base="nd act" style="${box}"><span class="tg">${esc(n.tag)}</span><span class="nm">${esc(n.name)}</span></div>`;
-        else if (n.kind === 'event') h += `<div class="nd evt m-${n.mode}" data-n="${i}" data-base="nd evt m-${n.mode}" style="${box}"><span class="ev-in"></span></div><div class="nl" style="left:${gx + n.x + n.w / 2}px;top:${gy + n.y + n.h + 5}px"><span>${esc(n.name)}</span></div>`;
+        else if (n.kind === 'event') h += `<div class="nd evt m-${tok(n.mode)}" data-n="${i}" data-base="nd evt m-${tok(n.mode)}" style="${box}"><span class="ev-in"></span></div><div class="nl" style="left:${gx + n.x + n.w / 2}px;top:${gy + n.y + n.h + 5}px"><span>${esc(n.name)}</span></div>`;
         else h += `<div class="nd dec" data-n="${i}" data-base="nd dec" style="${box}"></div><div class="nl dl" style="left:${gx + n.x + n.w - 10}px;top:${gy + n.y - 14}px"><span>${esc(n.name)}</span></div>`;
     });
     h += `</div>`;
@@ -535,9 +537,9 @@ apply.story = el => {
     const WORD = { completed: 'completed', failed: 'failed', cancelled: 'withdrawn' };
     el.querySelectorAll('.rb[data-b0]').forEach(bar => {
         const started = ib >= +bar.dataset.b0, ended = ib >= +bar.dataset.b1, status = bar.dataset.status;
-        bar.className = 'rb' + (started ? '' : ' off') + (ended ? ' r-' + status : ' r-running');
+        bar.className = 'rb' + (started ? '' : ' off') + (ended ? ' r-' + tok(status) : ' r-running');
         const label = el.querySelector(`[data-runlabel="${bar.dataset.run}"]`);
-        label.innerHTML = `<b style="color:#fff">${esc(c.runs[+bar.dataset.run].name)}</b> &middot; ${ended ? WORD[status] || status : 'under way'} &middot; <span style="color:#a5b4fc;font-weight:600">Look inside &rsaquo;</span>`;
+        label.innerHTML = `<b style="color:#fff">${esc(c.runs[+bar.dataset.run].name)}</b> &middot; ${ended ? WORD[status] || esc(status) : 'under way'} &middot; <span style="color:#a5b4fc;font-weight:600">Look inside &rsaquo;</span>`;
     });
     const finished = ib === n - 1, over = finished && c.ending.kind !== 'stalled';
     c.goals.forEach((g, k) => {
@@ -735,8 +737,10 @@ setInterval(() => { if (!st.playing) return; acc += 200 * (st.fast ? 2.4 : 1); i
 // ---------------------------------------------------------------- where the record comes from
 const message = text => { $('none').textContent = text; $('none').hidden = !text; };
 /** Show a record: a story as the builder makes it, or the portfolio a host exports, which is built into one here */
-function show(data, source, keep) {
-    const story = data && data.journeys && data.journeys[0] && data.journeys[0].instances[0] && data.journeys[0].instances[0].beats ? data : window.AWA_build_story(data);
+function show(data, source, keep, trusted) {
+    const prebuilt = data && data.journeys && data.journeys[0] && data.journeys[0].instances[0] && data.journeys[0].instances[0].beats;
+    if (prebuilt && !trusted) { message('This file is a prepared story, not a record. Open the record itself: the file written by awa journey export.'); return; }
+    const story = prebuilt ? data : window.AWA_build_story(data);
     if (!story.journeys.length) { message('This record holds no journey yet.'); return; }
     // Following a live record: a reader at the latest moment stays at the latest moment
     const following = keep && S && st.level !== 'atlas' && pos() === count() - 1;
