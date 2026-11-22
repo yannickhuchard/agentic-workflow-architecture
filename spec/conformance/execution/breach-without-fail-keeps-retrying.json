@@ -1,0 +1,63 @@
+{
+  "id": "breach-without-fail-keeps-retrying",
+  "level": "service_levels",
+  "spec": "23.3",
+  "description": "Without the breach action fail, a breach is recorded and the retry policy goes on as it would.",
+  "workflow": {
+    "id": "b1dff014-b946-584a-b150-516021f9c820",
+    "name": "breach-without-fail-keeps-retrying",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "5254e3e3-7cd4-5242-8090-cc3fdff3eb30",
+        "name": "A",
+        "role_id": "29e56ced-7e23-5f17-b421-f53d962cc9b1",
+        "actor_type": "application",
+        "sla": {
+          "max_time": "PT1H"
+        },
+        "retry": {
+          "max_attempts": 3,
+          "initial_delay": "PT0S"
+        }
+      }
+    ],
+    "edges": []
+  },
+  "actors": {
+    "A": {
+      "attempts": [
+        {
+          "error": "upstream unavailable",
+          "takes": "PT2H"
+        },
+        {
+          "output": {
+            "done": true
+          }
+        }
+      ]
+    }
+  },
+  "clock": "2026-01-05T09:00:00.000Z",
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "A",
+      "A"
+    ],
+    "journal_count": {
+      "sla.breached": 1
+    },
+    "journal_contains": [
+      {
+        "type": "sla.breached",
+        "data": {
+          "scope": "activity",
+          "action": "record"
+        }
+      }
+    ]
+  }
+}

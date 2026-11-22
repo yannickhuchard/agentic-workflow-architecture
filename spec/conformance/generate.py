@@ -65,6 +65,10 @@ class Case:
             workflow["events"] = self.events
         if self.decisions:
             workflow["decision_nodes"] = self.decisions
+        if getattr(self, "contexts", None):
+            workflow["contexts"] = self.contexts
+        if getattr(self, "sla", None):
+            workflow["sla"] = self.sla
         case = {"id": self.id, "level": self.level, "spec": self.spec, "description": self.description,
                 "workflow": workflow}
         if self.input:
@@ -75,7 +79,7 @@ class Case:
             case["actors"] = self.actors
         if getattr(self, "deliver", None):
             case["deliver"] = self.deliver
-        for extra in ("tools", "model"):
+        for extra in ("tools", "model", "clock"):
             if getattr(self, extra, None):
                 case[extra] = getattr(self, extra)
         case["expect"] = self.expect
@@ -1533,12 +1537,190 @@ def measure_cases() -> list[dict]:
     return [whole, later, after, before]
 
 
+def context_cases() -> list[Case]:
+    """Level `contexts` (section 22): an activity sees and changes a context only through a binding."""
+    cases = []
+
+    def ctx(c: Case, name: str, pattern: str = "shared_state", **extra) -> dict:
+        context = {"id": c.u(f"context-{name}"), "name": name, "type": "data", "sync_pattern": pattern, **extra}
+        c.contexts = getattr(c, "contexts", []) + [context]
+        return context
+
+    def bind(c: Case, context: str, mode: str, **extra) -> dict:
+        return {"context_id": c.u(f"context-{context}"), "access_mode": mode, **extra}
+
+    def failed(code: str) -> dict:
+        return {"type": "token.failed", "data": {"error": {"code": code}}}
+
+    c = Case("context-given-only-to-bound-activities", "contexts", "22.2", "An activity bound to read a context is given its value. An activity with no binding is given no context at all.")
+    ctx(c, "Order", initial_value={"total": 150})
+    c.act("A", context_bindings=[bind(c, "Order", "read")]).act("B").edge("A", "B")
+    c.expect = {"status": "completed", "visited": ["A", "B"], "given_contexts": {"A": {"Order": {"total": 150}}, "B": None},
+                "journal_contains": [{"type": "context.read", "node_name": "A", "data": {"contexts": [{"context_name": "Order", "access_mode": "read", "present": True}]}}],
+                "journal_count": {"context.read": 1}}
+    cases.append(c)
+
+    c = Case("context-written-then-read", "contexts", "22.3", "What one activity writes under a binding that allows writing, a later activity bound to read is given.")
+    ctx(c, "Order")
+    c.act("A", context_bindings=[bind(c, "Order", "write")]).act("B", context_bindings=[bind(c, "Order", "read")]).edge("A", "B")
+    c.actors = {"A": {"contexts": {"Order": {"total": 80}}}}
+    c.expect = {"status": "completed", "visited": ["A", "B"], "given_contexts": {"A": {}, "B": {"Order": {"total": 80}}}, "contexts": {"Order": {"total": 80}},
+                "journal_contains": [{"type": "context.written", "node_name": "A", "data": {"context_name": "Order", "sync_pattern": "shared_state", "access_mode": "write"}}]}
+    cases.append(c)
+
+    c = Case("context-write-without-binding-is-denied", "contexts", "22.3", "An activity bound only to read a context cannot write to it: the activity fails with CONTEXT_ACCESS_DENIED and the context keeps its value.")
+    ctx(c, "Order", initial_value={"total": 150})
+    c.act("A", context_bindings=[bind(c, "Order", "read")]).act("B").edge("A", "B")
+    c.actors = {"A": {"contexts": {"Order": {"total": 0}}}}
+    c.expect = {"status": "failed", "visited": ["A"], "contexts": {"Order": {"total": 150}},
+                "journal_contains": [{"type": "context.denied", "node_name": "A", "data": {"context_name": "Order"}}, failed("CONTEXT_ACCESS_DENIED")],
+                "journal_excludes": ["context.written"]}
+    cases.append(c)
+
+    c = Case("context-write-to-unbound-context-is-denied", "contexts", "22.3", "A context the activity has no binding to cannot be written, even though the workflow declares it.")
+    ctx(c, "Order"); ctx(c, "Ledger")
+    c.act("A", context_bindings=[bind(c, "Order", "write")])
+    c.actors = {"A": {"contexts": {"Ledger": {"entry": 1}}}}
+    c.expect = {"status": "failed", "visited": ["A"], "contexts": {}, "journal_contains": [failed("CONTEXT_ACCESS_DENIED")]}
+    cases.append(c)
+
+    c = Case("required-context-without-value-fails", "contexts", "22.2", "A binding is required unless it says otherwise. When a required context has no value the activity fails with CONTEXT_MISSING before its actor is called.")
+    ctx(c, "Order")
+    c.act("A", context_bindings=[bind(c, "Order", "read")])
+    c.expect = {"status": "failed", "visited": [], "journal_contains": [failed("CONTEXT_MISSING"), {"type": "context.read", "data": {"contexts": [{"context_name": "Order", "present": False}]}}],
+                "journal_excludes": ["activity.started"]}
+    cases.append(c)
+
+    c = Case("optional-context-without-value-is-left-out", "contexts", "22.2", "A binding with required false lets the activity run without the context, which is then left out of what it is given.")
+    ctx(c, "Notes")
+    c.act("A", context_bindings=[bind(c, "Notes", "read", required=False)])
+    c.expect = {"status": "completed", "visited": ["A"], "given_contexts": {"A": {}}}
+    cases.append(c)
+
+    c = Case("context-schema-refuses-a-write", "contexts", "22.3", "A value that does not match the context's schema is not written: the activity fails with CONTEXT_INVALID.")
+    ctx(c, "Order", schema={"type": "object", "required": ["total"], "properties": {"total": {"type": "number"}}}, initial_value={"total": 1})
+    c.act("A", context_bindings=[bind(c, "Order", "read_write")])
+    c.actors = {"A": {"contexts": {"Order": {"total": "many"}}}}
+    c.expect = {"status": "failed", "visited": ["A"], "contexts": {"Order": {"total": 1}}, "journal_contains": [failed("CONTEXT_INVALID")], "journal_excludes": ["context.written"]}
+    cases.append(c)
+
+    c = Case("context-writes-are-all-or-nothing", "contexts", "22.3", "When one of an activity's writes is refused, none of them is applied.")
+    ctx(c, "Notes"); ctx(c, "Order", schema={"type": "object", "required": ["total"]})
+    c.act("A", context_bindings=[bind(c, "Notes", "write"), bind(c, "Order", "write")])
+    c.actors = {"A": {"contexts": {"Notes": {"text": "checked"}, "Order": {"sum": 3}}}}
+    c.expect = {"status": "failed", "visited": ["A"], "contexts": {}, "journal_contains": [failed("CONTEXT_INVALID")], "journal_excludes": ["context.written"]}
+    cases.append(c)
+
+    c = Case("blackboard-merges-what-is-written", "contexts", "22.3", "On a blackboard each write adds its properties to what is there; a later writer does not erase an earlier one.")
+    ctx(c, "Findings", "blackboard")
+    c.act("A", context_bindings=[bind(c, "Findings", "write")]).act("B", context_bindings=[bind(c, "Findings", "read_write")]).edge("A", "B")
+    c.actors = {"A": {"contexts": {"Findings": {"damage": "rear bumper"}}}, "B": {"contexts": {"Findings": {"fraud": "none"}}}}
+    c.expect = {"status": "completed", "visited": ["A", "B"], "given_contexts": {"B": {"Findings": {"damage": "rear bumper"}}},
+                "contexts": {"Findings": {"damage": "rear bumper", "fraud": "none"}}}
+    cases.append(c)
+
+    c = Case("event-sourcing-appends-what-is-written", "contexts", "22.3", "With event sourcing and message passing each write is appended: the context is the list of what was written, in order.")
+    ctx(c, "Log", "event_sourcing")
+    c.act("A", context_bindings=[bind(c, "Log", "publish")]).act("B", context_bindings=[bind(c, "Log", "publish")]).act("C", context_bindings=[bind(c, "Log", "subscribe")]).edge("A", "B").edge("B", "C")
+    c.actors = {"A": {"contexts": {"Log": {"step": "received"}}}, "B": {"contexts": {"Log": {"step": "checked"}}}}
+    c.expect = {"status": "completed", "visited": ["A", "B", "C"], "given_contexts": {"C": {"Log": [{"step": "received"}, {"step": "checked"}]}},
+                "contexts": {"Log": [{"step": "received"}, {"step": "checked"}]}}
+    cases.append(c)
+
+    c = Case("contexts-stay-out-of-the-run-data", "contexts", "22.2", "A context is not part of the data that flows along edges: an activity without a binding cannot reach it through the run's data, and routing does not see it.")
+    ctx(c, "Secret", initial_value={"limit": 5})
+    c.act("A", context_bindings=[bind(c, "Secret", "read")]).act("B").act("C").edge("A", "B", condition="_contexts exists").edge("A", "C", is_default=True)
+    c.expect = {"status": "completed", "visited": ["A", "C"], "given_contexts": {"C": None}}
+    cases.append(c)
+    return cases
+
+
+def service_level_cases() -> list[Case]:
+    """Level `service_levels` (section 23): time taken, waits and retries included, compared with what was promised."""
+    cases = []
+    START = "2026-01-05T09:00:00.000Z"
+
+    def timed(case_id, spec, description) -> Case:
+        c = Case(case_id, "service_levels", spec, description)
+        c.clock = START
+        return c
+
+    c = timed("within-service-level-is-silent", "23.2", "An activity that finishes within its target and its longest time leaves no service level record.")
+    c.act("A", sla={"target_time": "PT1H", "max_time": "PT4H"})
+    c.actors = {"A": {"takes": "PT10M"}}
+    c.expect = {"status": "completed", "journal_excludes": ["sla.warning", "sla.breached"]}
+    cases.append(c)
+
+    c = timed("target-missed-is-a-warning", "23.2", "Past the target but within the longest time, one warning is recorded and the work goes on.")
+    c.act("A", sla={"name": "Assessment", "target_time": "PT1H", "max_time": "PT4H"}).act("B").edge("A", "B")
+    c.actors = {"A": {"takes": "PT2H"}}
+    c.expect = {"status": "completed", "visited": ["A", "B"],
+                "journal_contains": [{"type": "sla.warning", "node_name": "A", "data": {"scope": "activity", "name": "Assessment", "elapsed_ms": 7200000, "threshold": "PT1H"}}],
+                "journal_count": {"sla.warning": 1}, "journal_excludes": ["sla.breached"]}
+    cases.append(c)
+
+    c = timed("warning-threshold-names-who-to-notify", "23.2", "An escalation policy's warning threshold takes the place of the target, and its roles to notify are carried by the record.")
+    c.act("A", sla={"target_time": "PT3H", "max_time": "PT4H", "escalation_policy": {"warning_threshold": "PT30M", "warning_action": "notify", "notify_roles": [uid("warning-threshold-names-who-to-notify", "supervisor")]}})
+    c.actors = {"A": {"takes": "PT1H"}}
+    c.expect = {"status": "completed",
+                "journal_contains": [{"type": "sla.warning", "data": {"scope": "activity", "threshold": "PT30M", "action": "notify", "notify_roles": [uid("warning-threshold-names-who-to-notify", "supervisor")]}}]}
+    cases.append(c)
+
+    c = timed("breach-is-recorded-and-finished-work-stands", "23.3", "Work that finished after its longest time is recorded as a breach. It is not undone, whatever the breach action: the run goes on with its output.")
+    c.act("A", sla={"max_time": "PT4H", "escalation_policy": {"breach_action": "fail"}}).act("B").edge("A", "B")
+    c.actors = {"A": {"takes": "PT5H", "output": {"done": True}}}
+    c.expect = {"status": "completed", "visited": ["A", "B"], "data": {"done": True},
+                "journal_contains": [{"type": "sla.breached", "node_name": "A", "data": {"scope": "activity", "elapsed_ms": 18000000, "max_time": "PT4H", "action": "fail"}}],
+                "journal_count": {"sla.breached": 1}}
+    cases.append(c)
+
+    c = timed("breach-with-fail-stops-retries", "23.3", "The time of an activity counts across its attempts. With breach action fail, an activity past its longest time is not tried again: it fails with SLA_BREACH.")
+    c.act("A", sla={"max_time": "PT1H", "escalation_policy": {"breach_action": "fail"}}, retry={"max_attempts": 3, "initial_delay": "PT0S"}).act("B").edge("A", "B")
+    c.actors = {"A": {"attempts": [{"error": "upstream unavailable", "takes": "PT2H"}, {"output": {"done": True}}]}}
+    c.expect = {"status": "failed", "visited": ["A"], "journal_count": {"activity.started": 1},
+                "journal_contains": [{"type": "sla.breached", "data": {"scope": "activity", "action": "fail"}}, {"type": "token.failed", "data": {"error": {"code": "SLA_BREACH"}}}]}
+    cases.append(c)
+
+    c = timed("breach-without-fail-keeps-retrying", "23.3", "Without the breach action fail, a breach is recorded and the retry policy goes on as it would.")
+    c.act("A", sla={"max_time": "PT1H"}, retry={"max_attempts": 3, "initial_delay": "PT0S"})
+    c.actors = {"A": {"attempts": [{"error": "upstream unavailable", "takes": "PT2H"}, {"output": {"done": True}}]}}
+    c.expect = {"status": "completed", "visited": ["A", "A"], "journal_count": {"sla.breached": 1},
+                "journal_contains": [{"type": "sla.breached", "data": {"scope": "activity", "action": "record"}}]}
+    cases.append(c)
+
+    c = timed("run-breach-is-recorded-at-the-end", "23.4", "A workflow's service level counts from the start of the run. A run that ends late is recorded as breached before its end is recorded.")
+    c.sla = {"name": "Claim settled", "max_time": "PT1H"}
+    c.act("A").act("B").edge("A", "B")
+    c.actors = {"A": {"takes": "PT40M"}, "B": {"takes": "PT40M"}}
+    c.expect = {"status": "completed", "journal": ["sla.breached", "run.completed"],
+                "journal_contains": [{"type": "sla.breached", "data": {"scope": "workflow", "name": "Claim settled", "elapsed_ms": 4800000, "max_time": "PT1H"}}]}
+    cases.append(c)
+
+    c = timed("waiting-run-past-its-time-fails-when-told-to", "23.4", "Work that waits is compared with its service levels when the host checks them. With breach action fail, a run still waiting past its longest time fails with SLA_BREACH.")
+    c.sla = {"max_time": "P1D", "escalation_policy": {"breach_action": "fail"}}
+    c.act("Ask").event("Reply", "message", name="customer.replied").act("Proceed").edge("Ask", "Reply").edge("Reply", "Proceed")
+    c.deliver = [{"advance": "PT2H"}, {"check_service_levels": True, "expect": {"warnings": 0, "breaches": 0, "failed": 0}},
+                 {"advance": "P2D"}, {"check_service_levels": True, "expect": {"breaches": 1, "failed": 1}}]
+    c.expect = {"status": "failed", "visited": ["Ask"], "journal_count": {"sla.breached": 1},
+                "journal_contains": [{"type": "sla.breached", "data": {"scope": "workflow", "action": "fail"}}, {"type": "token.failed", "data": {"error": {"code": "SLA_BREACH"}}}]}
+    cases.append(c)
+
+    c = timed("waiting-run-breach-is-recorded-once", "23.4", "Without the breach action fail, a waiting run past its longest time is recorded as breached once, however often the host checks, and goes on waiting.")
+    c.sla = {"max_time": "P1D"}
+    c.act("Ask").event("Reply", "message", name="customer.replied").act("Proceed").edge("Ask", "Reply").edge("Reply", "Proceed")
+    c.deliver = [{"advance": "P2D"}, {"check_service_levels": True, "expect": {"breaches": 1, "failed": 0}}, {"advance": "P1D"}, {"check_service_levels": True, "expect": {"breaches": 0, "failed": 0}},
+                 {"event": {"type": "customer.replied"}, "resumes": 1}]
+    c.expect = {"status": "completed", "visited": ["Ask", "Proceed"], "journal_count": {"sla.breached": 1}}
+    cases.append(c)
+    return cases
+
+
 def main() -> None:
     for folder in ("execution", "documents", "journeys", "replay", "knowledge", "measures"):
         (ROOT / folder).mkdir(exist_ok=True)
         for old in (ROOT / folder).glob("*.json"):
             old.unlink()
-    execution = execution_cases() + tool_cases() + model_decision_cases() + routing_cases()
+    execution = execution_cases() + tool_cases() + model_decision_cases() + routing_cases() + context_cases() + service_level_cases()
     for case in execution:
         write(ROOT / "execution" / f"{case.id}.json", case.build())
     for case in journey_cases():

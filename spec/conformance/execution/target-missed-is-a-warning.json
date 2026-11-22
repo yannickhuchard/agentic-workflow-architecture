@@ -1,0 +1,69 @@
+{
+  "id": "target-missed-is-a-warning",
+  "level": "service_levels",
+  "spec": "23.2",
+  "description": "Past the target but within the longest time, one warning is recorded and the work goes on.",
+  "workflow": {
+    "id": "93f78930-cc6a-593b-bee3-52f7df207c29",
+    "name": "target-missed-is-a-warning",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "3a1f881e-ff1c-581c-b671-00a5651bb9af",
+        "name": "A",
+        "role_id": "f79de520-03d5-5ef0-aa2e-ff174afba8a2",
+        "actor_type": "application",
+        "sla": {
+          "name": "Assessment",
+          "target_time": "PT1H",
+          "max_time": "PT4H"
+        }
+      },
+      {
+        "id": "cd20ea9b-5053-552b-b80a-85081455d8e7",
+        "name": "B",
+        "role_id": "f79de520-03d5-5ef0-aa2e-ff174afba8a2",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "2ca67f9e-4073-55f9-b2d5-696491c7add8",
+        "source_id": "3a1f881e-ff1c-581c-b671-00a5651bb9af",
+        "target_id": "cd20ea9b-5053-552b-b80a-85081455d8e7"
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "takes": "PT2H"
+    }
+  },
+  "clock": "2026-01-05T09:00:00.000Z",
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "A",
+      "B"
+    ],
+    "journal_contains": [
+      {
+        "type": "sla.warning",
+        "node_name": "A",
+        "data": {
+          "scope": "activity",
+          "name": "Assessment",
+          "elapsed_ms": 7200000,
+          "threshold": "PT1H"
+        }
+      }
+    ],
+    "journal_count": {
+      "sla.warning": 1
+    },
+    "journal_excludes": [
+      "sla.breached"
+    ]
+  }
+}

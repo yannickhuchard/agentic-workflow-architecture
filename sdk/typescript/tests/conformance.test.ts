@@ -29,7 +29,7 @@ const CONFORMANCE = path.join(ROOT, 'spec/conformance');
 const SCHEMAS = path.join(ROOT, 'spec/json-schema');
 
 /** Conformance levels this implementation claims. */
-const CLAIMED_LEVELS = new Set(['core', 'decision', 'verified', 'resilient', 'recorded', 'contract', 'flow', 'events', 'tools', 'model_decision', 'journeys', 'replay', 'routing', 'knowledge', 'measures']);
+const CLAIMED_LEVELS = new Set(['core', 'decision', 'verified', 'resilient', 'recorded', 'contract', 'flow', 'events', 'tools', 'model_decision', 'journeys', 'replay', 'routing', 'knowledge', 'measures', 'contexts', 'service_levels']);
 
 const read = (file: string) => JSON.parse(fs.readFileSync(file, 'utf-8'));
 const list = (dir: string) => fs.readdirSync(dir).filter(f => f.endsWith('.json')).sort().map(f => path.join(dir, f));
@@ -48,6 +48,8 @@ type ActorScript = {
     calls?: { tool: string; arguments?: Record<string, unknown> }[];
     /** How long the activity takes on the case's clock, as a duration */
     takes?: string;
+    /** What the actor writes to contexts, by context name */
+    contexts?: Record<string, unknown>;
     /** The actor's own account of how it worked, reported with its result */
     reasoning?: Record<string, unknown>;
 };
@@ -56,12 +58,15 @@ class ConformanceActor implements Actor {
     public visited: string[] = [];
     /** The ids of the knowledge entries the actor was handed, one list per execution */
     public given: { activity: string; ids: string[] }[] = [];
+    /** The contexts the actor was handed at its last execution of each activity; null when it was handed none */
+    public contexts: Record<string, unknown> = {};
     private counts = new Map<string, number>();
     constructor(private scripts: Record<string, ActorScript> = {}, private spend: (ms: number) => void = () => { }) { }
 
     async execute(activity: Activity, inputs?: Record<string, unknown>, context?: { tools?: { call: (name: string, args: Record<string, unknown>) => Promise<unknown> } }): Promise<Record<string, unknown>> {
         this.visited.push(activity.name);
         this.given.push({ activity: activity.name, ids: ((inputs?._knowledge as { id: string }[] | undefined) || []).map(k => k.id) });
+        this.contexts[activity.name] = inputs?._contexts === undefined ? null : JSON.parse(JSON.stringify(inputs._contexts));
         const n = (this.counts.get(activity.name) || 0) + 1;
         this.counts.set(activity.name, n);
         let script = this.scripts[activity.name] || {};
@@ -70,7 +75,7 @@ class ConformanceActor implements Actor {
         if (script.takes) this.spend(parse_iso_duration(script.takes));
         for (const call of script.calls || []) await context!.tools!.call(call.tool, call.arguments || {});
         if (script.error) throw Object.assign(new Error(script.error), script.code ? { code: script.code } : {});
-        return { ...(script.output || {}), ...(script.reasoning ? { _reasoning: script.reasoning } : {}) };
+        return { ...(script.output || {}), ...(script.reasoning ? { _reasoning: script.reasoning } : {}), ...(script.contexts ? { _context_writes: script.contexts } : {}) };
     }
 }
 
@@ -166,13 +171,16 @@ describe('Conformance: execution', () => {
         const run = CLAIMED_LEVELS.has(c.level) ? it : it.skip;
         run(`[${c.level}] ${c.id}: ${c.description}`, async () => {
             expect(validate_schema(c.workflow), JSON.stringify(validate_schema.errors)).toBe(true);
-            const actor = new ConformanceActor(c.actors);
+            // A case with a clock runs on it: actors spend time on it and the host moves it
+            let clock = c.clock ? Date.parse(c.clock) : 0;
+            const actor = new ConformanceActor(c.actors, ms => { clock += ms; });
             const models = scripted_models(c.model || {});
             const options: WorkflowEngineOptions = {
                 actors: { application: actor, ai_agent: actor, human: actor, robot: actor },
                 execution_logger: silent_logger,
                 ...(c.tools ? { tools: { handlers: Object.fromEntries(Object.entries(c.tools as Record<string, { result?: unknown; error?: string }>).map(([name, script]) => [name, () => { if (script.error) throw new Error(script.error); return script.result; }])) } } : {}),
                 ...(c.model ? models.options : {}),
+                ...(c.clock ? { now: () => clock, sleep: async () => { } } : {}),
                 ...(c.options || {}),
             };
             const engine = new WorkflowEngine(parse_document(c.workflow), options);
@@ -181,7 +189,12 @@ describe('Conformance: execution', () => {
 
             // Steps performed while the run waits: deliver a business event, or let its waits time out
             for (const step of c.deliver || []) {
-                if (step.expire) {
+                if (step.advance) {
+                    clock += parse_iso_duration(step.advance);
+                    continue;
+                } else if (step.check_service_levels) {
+                    expect(await engine.checkServiceLevels(), 'service levels checked').toMatchObject(step.expect || {});
+                } else if (step.expire) {
                     await engine.expireEvents(Number.MAX_SAFE_INTEGER);
                 } else {
                     const resumed = await engine.deliverEvent({ specversion: '1.0', id: step.event.id || `evt-${Math.random()}`, source: '/conformance', type: step.event.type, data: step.event.data || {} });
@@ -194,6 +207,8 @@ describe('Conformance: execution', () => {
             if (c.expect.visited) expect(actor.visited).toEqual(c.expect.visited);
             if (c.expect.visited_unordered) expect([...actor.visited].sort()).toEqual([...c.expect.visited_unordered].sort());
             if (c.expect.not_visited) for (const name of c.expect.not_visited) expect(actor.visited).not.toContain(name);
+            for (const [name, given] of Object.entries(c.expect.given_contexts || {})) expect(actor.contexts[name], `contexts given to ${name}`).toEqual(given);
+            if (c.expect.contexts) expect(engine.getContexts()).toEqual(c.expect.contexts);
             if (c.expect.data) {
                 expect(engine.getTokens().some(t => is_subset(c.expect.data, t.contextData))).toBe(true);
             }

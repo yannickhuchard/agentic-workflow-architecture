@@ -1,0 +1,45 @@
+{
+  "id": "optional-context-without-value-is-left-out",
+  "level": "contexts",
+  "spec": "22.2",
+  "description": "A binding with required false lets the activity run without the context, which is then left out of what it is given.",
+  "workflow": {
+    "id": "bdcf87e8-e6f1-5ea7-a4ee-1865a5d72919",
+    "name": "optional-context-without-value-is-left-out",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "8a8e2753-5cbc-5dc9-b256-3d55836cd48f",
+        "name": "A",
+        "role_id": "bcc1a6e3-f8ea-54e3-8b18-978dc1614797",
+        "actor_type": "application",
+        "context_bindings": [
+          {
+            "context_id": "fa390c39-e85b-5cdc-a2ac-6a507af4111a",
+            "access_mode": "read",
+            "required": false
+          }
+        ]
+      }
+    ],
+    "edges": [],
+    "contexts": [
+      {
+        "id": "fa390c39-e85b-5cdc-a2ac-6a507af4111a",
+        "name": "Notes",
+        "type": "data",
+        "sync_pattern": "shared_state"
+      }
+    ]
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "A"
+    ],
+    "given_contexts": {
+      "A": {}
+    }
+  }
+}

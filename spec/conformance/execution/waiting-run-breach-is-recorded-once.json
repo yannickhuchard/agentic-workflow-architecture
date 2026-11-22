@@ -1,0 +1,90 @@
+{
+  "id": "waiting-run-breach-is-recorded-once",
+  "level": "service_levels",
+  "spec": "23.4",
+  "description": "Without the breach action fail, a waiting run past its longest time is recorded as breached once, however often the host checks, and goes on waiting.",
+  "workflow": {
+    "id": "a2ee838a-15e4-5d05-ba02-b7ddecd4963c",
+    "name": "waiting-run-breach-is-recorded-once",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "0a2548fb-7aa7-5b4c-b251-f99b7a1c2096",
+        "name": "Ask",
+        "role_id": "256150a9-9a34-58c5-ab0b-9d6ec2d13167",
+        "actor_type": "application"
+      },
+      {
+        "id": "006d7812-d2f1-5bf9-a7fd-60ac593d255e",
+        "name": "Proceed",
+        "role_id": "256150a9-9a34-58c5-ab0b-9d6ec2d13167",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "3315440d-98e4-5b2a-8e1b-1e935e65a185",
+        "source_id": "0a2548fb-7aa7-5b4c-b251-f99b7a1c2096",
+        "target_id": "8202b953-4685-5e6d-8cc2-668cb7595420"
+      },
+      {
+        "id": "2f0be29b-431c-577b-9fe9-f9c059292a02",
+        "source_id": "8202b953-4685-5e6d-8cc2-668cb7595420",
+        "target_id": "006d7812-d2f1-5bf9-a7fd-60ac593d255e"
+      }
+    ],
+    "events": [
+      {
+        "id": "8202b953-4685-5e6d-8cc2-668cb7595420",
+        "name": "Reply",
+        "event_type": "message",
+        "event_definition": {
+          "name": "customer.replied"
+        }
+      }
+    ],
+    "sla": {
+      "max_time": "P1D"
+    }
+  },
+  "deliver": [
+    {
+      "advance": "P2D"
+    },
+    {
+      "check_service_levels": true,
+      "expect": {
+        "breaches": 1,
+        "failed": 0
+      }
+    },
+    {
+      "advance": "P1D"
+    },
+    {
+      "check_service_levels": true,
+      "expect": {
+        "breaches": 0,
+        "failed": 0
+      }
+    },
+    {
+      "event": {
+        "type": "customer.replied"
+      },
+      "resumes": 1
+    }
+  ],
+  "clock": "2026-01-05T09:00:00.000Z",
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "Ask",
+      "Proceed"
+    ],
+    "journal_count": {
+      "sla.breached": 1
+    }
+  }
+}

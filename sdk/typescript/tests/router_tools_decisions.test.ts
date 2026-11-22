@@ -283,6 +283,51 @@ describe('Tools', () => {
         expect(await run.call('x', {})).toMatchObject({ ok: false, result: { code: 'PERMISSION_DENIED' } });
     });
 
+    it('holds redirects to the allowed hosts, keeps secrets from following one elsewhere, and reaches web addresses only', async () => {
+        const seen: { host: string; auth?: string }[] = [];
+        const other = http.createServer((req, res) => { seen.push({ host: 'other', auth: req.headers['x-api-key'] as string }); res.writeHead(200, { 'content-type': 'application/json' }).end('{"from":"other"}'); }).listen(0, '127.0.0.1');
+        await new Promise(resolve => other.once('listening', resolve));
+        const other_host = `127.0.0.1:${(other.address() as any).port}`;
+        const first = http.createServer((req, res) => { seen.push({ host: 'first', auth: req.headers['x-api-key'] as string }); res.writeHead(302, { location: `http://${other_host}/landed` }).end(); }).listen(0, '127.0.0.1');
+        await new Promise(resolve => first.once('listening', resolve));
+        const first_host = `127.0.0.1:${(first.address() as any).port}`;
+        const tool = def({ name: 'get', binding: { kind: 'http', url: `http://${first_host}/start`, headers: { 'x-api-key': '{{secret:KEY}}' } } });
+        try {
+            // The redirect leads to a host the deployment does not allow: refused, and never reached
+            const strict = runner([tool], { allowed_hosts: [first_host], secrets: { KEY: 's3cret' } });
+            expect(await strict.run.call('get', {})).toMatchObject({ ok: false, result: { code: 'PERMISSION_DENIED' } });
+            expect(seen.map(s => s.host)).toEqual(['first']);
+            // Allowed: followed, but the header that carries the secret does not go to the other origin
+            seen.length = 0;
+            const open = runner([tool], { allowed_hosts: [first_host, other_host], secrets: { KEY: 's3cret' } });
+            expect(await open.run.call('get', {})).toMatchObject({ ok: true, result: { from: 'other' } });
+            expect(seen).toEqual([{ host: 'first', auth: 's3cret' }, { host: 'other', auth: undefined }]);
+            // A reply larger than the deployment allows fails the call
+            const small = runner([def({ name: 'big', binding: { kind: 'http', url: `http://${other_host}/` } })], { max_output_bytes: 4 });
+            expect(await small.run.call('big', {})).toMatchObject({ ok: false, result: { code: 'TOOL_ERROR' } });
+        } finally { first.close(); other.close(); }
+
+        for (const url of ['file:///etc/hostname', 'data:text/plain,hello', 'ftp://example.org/x']) {
+            const { run, events } = runner([def({ name: 'x', binding: { kind: 'http', url } })]);
+            expect(await run.call('x', {}), url).toMatchObject({ ok: false, result: { code: 'VALIDATION_ERROR' } });
+            expect(events.at(-1)).toMatchObject({ type: 'tool.failed', data: { invoked: false } });
+        }
+        const rpc = runner([def({ name: 'r', binding: { kind: 'jsonrpc', endpoint: 'file:///etc/passwd', method: 'm' } })]);
+        expect(await rpc.run.call('r', {})).toMatchObject({ ok: false, result: { code: 'VALIDATION_ERROR' } });
+    });
+
+    it('journals a binding as declared, not as filled, unless payloads are journalled in full', async () => {
+        const tool = def({ name: 'lookup', parameters: { type: 'object', properties: { name: { type: 'string' } } }, binding: { kind: 'function', name: 'lookup' } });
+        const cmd = def({ name: 'grep', parameters: { type: 'object', properties: { name: { type: 'string' } } }, binding: { kind: 'command', command: 'echo', args: ['{name}'] } });
+        const events: any[] = [];
+        const hashed = new ToolRunner([tool, cmd], { handlers: { lookup: () => 'ok' }, allow_commands: true }, e => events.push(e), () => ({ sha256: 'x' }), { max_calls: 16, simulate: false });
+        await hashed.call('grep', { name: 'Ada Lovelace' });
+        expect(JSON.stringify(events)).not.toContain('Ada Lovelace');
+        expect(events.find(e => e.type === 'tool.invoked').data.binding).toMatchObject({ kind: 'command', command: 'echo', args: ['{name}'] });
+        expect(tool_link({ kind: 'grpc', endpoint: 'ledger.internal:443', service: 'Ledger', method: 'Post' } as any, {})).toBe('grpc://ledger.internal:443/Ledger/Post');
+        expect(tool_link({ kind: 'grpc', endpoint: 'dns://ledger.internal:443', service: 'Ledger', method: 'Post' } as any, {})).toBe('grpc://ledger.internal:443/Ledger/Post');
+    });
+
     it('checks arguments against the schema before anything runs', async () => {
         const handler = { calls: 0 };
         const tool = def({ name: 'pay', parameters: { type: 'object', required: ['amount'], properties: { amount: { type: 'number' } } }, binding: { kind: 'function', name: 'pay' } });

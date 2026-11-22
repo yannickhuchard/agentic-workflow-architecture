@@ -8,6 +8,62 @@
       "approved": true
     }
   },
+  "AI Document Intelligence": {
+    "output": {
+      "documents_consistent": true
+    },
+    "contexts": {
+      "Fraud Detection Signals": {
+        "signals": [],
+        "score": 12
+      }
+    }
+  },
+  "Automated Policy Verification": {
+    "output": {
+      "policy_active": true
+    },
+    "contexts": {
+      "Policy Information": {
+        "policy_id": "POL-88",
+        "active": true,
+        "cover": "comprehensive",
+        "excess": 250
+      }
+    }
+  },
+  "Claim Intake & Registration": {
+    "output": {
+      "claim_id": "CLM-5001"
+    },
+    "contexts": {
+      "Claim Master Data": {
+        "claim_id": "CLM-5001",
+        "policy_id": "POL-88",
+        "claimant_id": "C-311",
+        "claim_type": "auto",
+        "claim_amount": 4200,
+        "status": "registered",
+        "priority": "medium",
+        "documents": []
+      },
+      "AI Agent Reasoning Log": {
+        "intake": "Claim registered from the web form; nothing unusual."
+      }
+    }
+  },
+  "Document Collection & OCR": {
+    "output": {
+      "documents_received": 2
+    },
+    "contexts": {
+      "Document Analysis Results": {
+        "document": "repair-estimate.pdf",
+        "pages": 3,
+        "legible": true
+      }
+    }
+  },
   "Human Review - Exceptions & Fraud": {
     "output": {
       "claim_amount": 4200,

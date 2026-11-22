@@ -35,7 +35,8 @@ export interface ToolExecution {
 }
 
 export type ToolExecutor = (
-    binding: ToolBinding, args: Record<string, unknown>, context: { call_id: string; secrets: Record<string, string>; signal: AbortSignal }
+    binding: ToolBinding, args: Record<string, unknown>,
+    context: { call_id: string; secrets: Record<string, string>; signal: AbortSignal; allowed_hosts?: string[]; max_output_bytes?: number }
 ) => Promise<ToolExecution>;
 
 export type ToolHandler = (args: Record<string, unknown>) => unknown | Promise<unknown>;
@@ -51,8 +52,10 @@ export interface ToolOptions {
      * A list allows only the named commands.
      */
     allow_commands?: boolean | string[];
-    /** If set, "http" and "jsonrpc" bindings may only reach these hosts */
+    /** If set, "http" and "jsonrpc" bindings may only reach these hosts, redirects included */
     allowed_hosts?: string[];
+    /** The most a call may return, in bytes. Default 4 MiB. A larger reply fails the call. */
+    max_output_bytes?: number;
     /** Values for {{secret:NAME}} placeholders in binding headers. Never journalled. */
     secrets?: Record<string, string>;
     /** In simulation mode, what each tool returns, by tool name */
@@ -110,9 +113,57 @@ export function tool_link(binding: ToolBinding, args: Record<string, unknown>): 
         }
         case 'command': return `command:${binding.command}`;
         case 'jsonrpc': return `${binding.endpoint}#${binding.method}`;
-        case 'grpc': return `grpc://${binding.endpoint.replace(/^[a-z]+:\/*/, "")}/${binding.service}/${binding.method}`;
+        case 'grpc': return `grpc://${binding.endpoint.replace(/^[a-z][a-z0-9+.-]*:\/\/+/i, '')}/${binding.service}/${binding.method}`;
         case 'mcp': return `mcp://${binding.server}/${binding.tool}`;
         case 'function': return `function:${binding.name}`;
+    }
+}
+
+const DEFAULT_MAX_OUTPUT = 4 * 1024 * 1024;
+
+/** A tool reaches the web over http or https and nothing else: no file:, no data:, no other scheme a URL can carry */
+function web_url(text: string): URL {
+    let url: URL;
+    try { url = new URL(text); } catch { throw new ToolError(`"${text}" is not a URL`, 'VALIDATION_ERROR'); }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new ToolError(`Tools call http and https addresses only, not ${url.protocol}`, 'VALIDATION_ERROR');
+    return url;
+}
+
+/**
+ * fetch for tools: redirects are followed here, one at a time, so that each hop is held to the
+ * allowed hosts and headers that may carry secrets never follow a redirect to another origin;
+ * and the reply is read up to a bound.
+ */
+async function bounded_fetch(address: string, init: { method: string; headers: Record<string, string>; body?: string },
+    context: { signal: AbortSignal; allowed_hosts?: string[]; max_output_bytes?: number }): Promise<{ status: number; ok: boolean; text: string; host: string }> {
+    let url = web_url(address);
+    let { method, headers, body } = init;
+    for (let hop = 0; ; hop++) {
+        if (context.allowed_hosts && !context.allowed_hosts.includes(url.host)) throw new ToolError(`This deployment does not allow calls to host "${url.host}"`, 'PERMISSION_DENIED');
+        const response = await fetch(url, { method, headers, body, signal: context.signal, redirect: 'manual' });
+        const location = response.status >= 300 && response.status < 400 ? response.headers.get('location') : null;
+        if (location) {
+            if (hop >= 5) throw new ToolError(`Too many redirects from ${new URL(address).host}`, 'TOOL_ERROR');
+            const next = web_url(new URL(location, url).toString());
+            if (next.origin !== url.origin) headers = Object.fromEntries(Object.entries(headers).filter(([name]) => name === 'accept' || name === 'content-type'));
+            if (response.status === 303 || ((response.status === 301 || response.status === 302) && method === 'POST')) { method = 'GET'; body = undefined; }
+            url = next;
+            continue;
+        }
+        const limit = context.max_output_bytes ?? DEFAULT_MAX_OUTPUT;
+        const chunks: Uint8Array[] = [];
+        let size = 0;
+        if (response.body) {
+            const reader = response.body.getReader();
+            for (;;) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                size += value.byteLength;
+                if (size > limit) { await reader.cancel().catch(() => { }); throw new ToolError(`The reply from ${url.host} is larger than ${limit} bytes`, 'TOOL_ERROR'); }
+                chunks.push(value);
+            }
+        }
+        return { status: response.status, ok: response.ok, text: Buffer.concat(chunks).toString('utf-8'), host: url.host };
     }
 }
 
@@ -127,24 +178,24 @@ const built_in: Partial<Record<ToolBinding['kind'], ToolExecutor>> = {
                 return context.secrets[key];
             });
         }
-        const response = await fetch(request.url, { method: request.method, headers, body: request.body, signal: context.signal });
-        const text = await response.text();
-        let result: unknown = text;
-        try { result = JSON.parse(text); } catch { /* not JSON: keep the text */ }
+        const response = await bounded_fetch(request.url, { method: request.method, headers, body: request.body }, context);
+        let result: unknown = response.text;
+        try { result = JSON.parse(response.text); } catch { /* not JSON: keep the text */ }
         if (!response.ok) {
-            throw Object.assign(new ToolError(`HTTP ${response.status} from ${new URL(request.url).host}`, 'TOOL_ERROR'), { status: response.status, result });
+            throw Object.assign(new ToolError(`HTTP ${response.status} from ${response.host}`, 'TOOL_ERROR'), { status: response.status, result });
         }
         return { status: response.status, result };
     },
 
     jsonrpc: async (binding, args, context) => {
         if (binding.kind !== 'jsonrpc') throw new Error('unreachable');
-        const response = await fetch(binding.endpoint, {
-            method: 'POST', headers: { 'content-type': 'application/json' }, signal: context.signal,
+        const response = await bounded_fetch(binding.endpoint, {
+            method: 'POST', headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ jsonrpc: '2.0', id: context.call_id, method: binding.method, params: args }),
-        });
-        if (!response.ok) throw Object.assign(new ToolError(`HTTP ${response.status} from ${new URL(binding.endpoint).host}`, 'TOOL_ERROR'), { status: response.status });
-        const body = await response.json() as { result?: unknown; error?: { code?: number; message?: string } };
+        }, context);
+        if (!response.ok) throw Object.assign(new ToolError(`HTTP ${response.status} from ${response.host}`, 'TOOL_ERROR'), { status: response.status });
+        let body: { result?: unknown; error?: { code?: number; message?: string } };
+        try { body = JSON.parse(response.text); } catch { throw new ToolError(`${response.host} did not answer in JSON`, 'TOOL_ERROR'); }
         if (body.error) throw Object.assign(new ToolError(`RPC error ${body.error.code}: ${body.error.message}`, 'TOOL_ERROR'), { status: body.error.code });
         return { status: response.status, result: body.result };
     },
@@ -152,7 +203,7 @@ const built_in: Partial<Record<ToolBinding['kind'], ToolExecutor>> = {
     command: (binding, args, context) => new Promise((resolve, reject) => {
         if (binding.kind !== 'command') return reject(new Error('unreachable'));
         const argv = command_line(binding, args);
-        const child = execFile(binding.command, argv, { signal: context.signal, maxBuffer: 4 * 1024 * 1024 }, (error, stdout, stderr) => {
+        const child = execFile(binding.command, argv, { signal: context.signal, maxBuffer: context.max_output_bytes ?? DEFAULT_MAX_OUTPUT }, (error, stdout, stderr) => {
             if (error) {
                 const exit = (error as { code?: number | string }).code;
                 return reject(Object.assign(new ToolError(`Command "${binding.command}" failed: ${stderr.trim() || error.message}`, 'TOOL_ERROR'), { status: exit }));
@@ -204,7 +255,7 @@ export class ToolRunner {
     async call(name: string, args: Record<string, unknown>, call_id: string = randomUUID()): Promise<ToolResult> {
         const started = Date.now();
         const tool = this.tools.find(t => t.name === name);
-        const link = tool ? safe_link(tool.binding, args) : undefined;
+        const link = tool ? safe_link(tool.binding, JSON.stringify(this.payload({ probe: 1 })) === '{"probe":1}' ? args : {}) : undefined;
         const failure = (error: unknown, invoked: boolean): ToolResult => {
             const message = error instanceof Error ? error.message : String(error);
             const code = (error as { code?: string })?.code || 'TOOL_ERROR';
@@ -244,7 +295,9 @@ export class ToolRunner {
             return failure(error, false);
         }
 
-        const binding = describe_binding(tool.binding, args);
+        // Argument values follow the payload mode (17.5): unless payloads are journalled in full, the binding is recorded as declared, not as filled
+        const full = JSON.stringify(this.payload({ probe: 1 })) === '{"probe":1}';
+        const binding = describe_binding(tool.binding, full ? args : {});
         this.record({
             type: 'tool.invoked',
             data: {
@@ -280,9 +333,10 @@ export class ToolRunner {
                 throw new ToolError(`This deployment does not allow the command "${binding.command}"`, 'PERMISSION_DENIED');
             }
         }
-        if ((binding.kind === 'http' || binding.kind === 'jsonrpc') && this.options.allowed_hosts) {
-            const host = new URL(binding.kind === 'http' ? http_request(binding, args).url : binding.endpoint).host;
-            if (!this.options.allowed_hosts.includes(host)) {
+        if (binding.kind === 'http' || binding.kind === 'jsonrpc') {
+            // Refused before anything is called: an address that is not a web address, or a host the deployment does not allow
+            const host = web_url(binding.kind === 'http' ? http_request(binding, args).url : binding.endpoint).host;
+            if (this.options.allowed_hosts && !this.options.allowed_hosts.includes(host)) {
                 throw new ToolError(`This deployment does not allow calls to host "${host}"`, 'PERMISSION_DENIED');
             }
         }
@@ -306,7 +360,7 @@ export class ToolRunner {
         const timer = setTimeout(() => controller.abort(), timeout);
         try {
             return await Promise.race([
-                executor(binding, args, { call_id, secrets: this.options.secrets || {}, signal: controller.signal }),
+                executor(binding, args, { call_id, secrets: this.options.secrets || {}, signal: controller.signal, allowed_hosts: this.options.allowed_hosts, max_output_bytes: this.options.max_output_bytes }),
                 new Promise<never>((_, reject) => controller.signal.addEventListener('abort',
                     () => reject(new ToolError(`Tool "${tool.name}" timed out after ${timeout} ms`, 'TIMEOUT')))),
             ]);

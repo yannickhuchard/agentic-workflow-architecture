@@ -1,0 +1,83 @@
+{
+  "id": "context-writes-are-all-or-nothing",
+  "level": "contexts",
+  "spec": "22.3",
+  "description": "When one of an activity's writes is refused, none of them is applied.",
+  "workflow": {
+    "id": "c716a7ce-0b03-5100-bf5b-e6a26353a6f6",
+    "name": "context-writes-are-all-or-nothing",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "3084e314-b80f-5bff-a448-b6edbe0dcc0b",
+        "name": "A",
+        "role_id": "97b76671-49e7-5d69-a4f1-d5d6c78bcdf1",
+        "actor_type": "application",
+        "context_bindings": [
+          {
+            "context_id": "3042642b-3e05-51e6-a504-1d97246c5c02",
+            "access_mode": "write"
+          },
+          {
+            "context_id": "908d8e3a-ca9f-5a36-9e57-cdf646fb1007",
+            "access_mode": "write"
+          }
+        ]
+      }
+    ],
+    "edges": [],
+    "contexts": [
+      {
+        "id": "3042642b-3e05-51e6-a504-1d97246c5c02",
+        "name": "Notes",
+        "type": "data",
+        "sync_pattern": "shared_state"
+      },
+      {
+        "id": "908d8e3a-ca9f-5a36-9e57-cdf646fb1007",
+        "name": "Order",
+        "type": "data",
+        "sync_pattern": "shared_state",
+        "schema": {
+          "type": "object",
+          "required": [
+            "total"
+          ]
+        }
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "contexts": {
+        "Notes": {
+          "text": "checked"
+        },
+        "Order": {
+          "sum": 3
+        }
+      }
+    }
+  },
+  "expect": {
+    "status": "failed",
+    "visited": [
+      "A"
+    ],
+    "contexts": {},
+    "journal_contains": [
+      {
+        "type": "token.failed",
+        "data": {
+          "error": {
+            "code": "CONTEXT_INVALID"
+          }
+        }
+      }
+    ],
+    "journal_excludes": [
+      "context.written"
+    ]
+  }
+}

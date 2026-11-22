@@ -1,0 +1,104 @@
+{
+  "id": "waiting-run-past-its-time-fails-when-told-to",
+  "level": "service_levels",
+  "spec": "23.4",
+  "description": "Work that waits is compared with its service levels when the host checks them. With breach action fail, a run still waiting past its longest time fails with SLA_BREACH.",
+  "workflow": {
+    "id": "0823416e-14ee-5cff-953d-584f774152fe",
+    "name": "waiting-run-past-its-time-fails-when-told-to",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "a4e3214c-ae20-5f5e-b13d-6e0b295a63b1",
+        "name": "Ask",
+        "role_id": "04352c38-70c2-504d-b244-7bb16e71c14a",
+        "actor_type": "application"
+      },
+      {
+        "id": "942f5b78-f1b3-50e4-aa24-668ede0d2ca0",
+        "name": "Proceed",
+        "role_id": "04352c38-70c2-504d-b244-7bb16e71c14a",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "30d24100-5e1a-5096-9233-0c840de8b4e5",
+        "source_id": "a4e3214c-ae20-5f5e-b13d-6e0b295a63b1",
+        "target_id": "85b9447f-803c-5fab-8725-9627c1f63009"
+      },
+      {
+        "id": "142f3c51-52aa-554d-bdfc-0325d5da66da",
+        "source_id": "85b9447f-803c-5fab-8725-9627c1f63009",
+        "target_id": "942f5b78-f1b3-50e4-aa24-668ede0d2ca0"
+      }
+    ],
+    "events": [
+      {
+        "id": "85b9447f-803c-5fab-8725-9627c1f63009",
+        "name": "Reply",
+        "event_type": "message",
+        "event_definition": {
+          "name": "customer.replied"
+        }
+      }
+    ],
+    "sla": {
+      "max_time": "P1D",
+      "escalation_policy": {
+        "breach_action": "fail"
+      }
+    }
+  },
+  "deliver": [
+    {
+      "advance": "PT2H"
+    },
+    {
+      "check_service_levels": true,
+      "expect": {
+        "warnings": 0,
+        "breaches": 0,
+        "failed": 0
+      }
+    },
+    {
+      "advance": "P2D"
+    },
+    {
+      "check_service_levels": true,
+      "expect": {
+        "breaches": 1,
+        "failed": 1
+      }
+    }
+  ],
+  "clock": "2026-01-05T09:00:00.000Z",
+  "expect": {
+    "status": "failed",
+    "visited": [
+      "Ask"
+    ],
+    "journal_count": {
+      "sla.breached": 1
+    },
+    "journal_contains": [
+      {
+        "type": "sla.breached",
+        "data": {
+          "scope": "workflow",
+          "action": "fail"
+        }
+      },
+      {
+        "type": "token.failed",
+        "data": {
+          "error": {
+            "code": "SLA_BREACH"
+          }
+        }
+      }
+    ]
+  }
+}

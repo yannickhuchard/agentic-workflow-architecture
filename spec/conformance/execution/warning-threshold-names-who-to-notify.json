@@ -1,0 +1,54 @@
+{
+  "id": "warning-threshold-names-who-to-notify",
+  "level": "service_levels",
+  "spec": "23.2",
+  "description": "An escalation policy's warning threshold takes the place of the target, and its roles to notify are carried by the record.",
+  "workflow": {
+    "id": "561d56a2-2815-55df-8c1b-fb278b7be7f0",
+    "name": "warning-threshold-names-who-to-notify",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "487454c5-f1da-5136-aab4-160297be18c2",
+        "name": "A",
+        "role_id": "6e676231-4e16-51c5-8b06-3e5056c36deb",
+        "actor_type": "application",
+        "sla": {
+          "target_time": "PT3H",
+          "max_time": "PT4H",
+          "escalation_policy": {
+            "warning_threshold": "PT30M",
+            "warning_action": "notify",
+            "notify_roles": [
+              "67329535-2035-5812-80a1-4417b071581e"
+            ]
+          }
+        }
+      }
+    ],
+    "edges": []
+  },
+  "actors": {
+    "A": {
+      "takes": "PT1H"
+    }
+  },
+  "clock": "2026-01-05T09:00:00.000Z",
+  "expect": {
+    "status": "completed",
+    "journal_contains": [
+      {
+        "type": "sla.warning",
+        "data": {
+          "scope": "activity",
+          "threshold": "PT30M",
+          "action": "notify",
+          "notify_roles": [
+            "67329535-2035-5812-80a1-4417b071581e"
+          ]
+        }
+      }
+    ]
+  }
+}

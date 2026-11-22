@@ -1,0 +1,38 @@
+{
+  "id": "within-service-level-is-silent",
+  "level": "service_levels",
+  "spec": "23.2",
+  "description": "An activity that finishes within its target and its longest time leaves no service level record.",
+  "workflow": {
+    "id": "dd8f850c-08bf-555a-8e53-a267f0d26951",
+    "name": "within-service-level-is-silent",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "632d6036-b06a-5bd0-a28a-8f40dccedfc5",
+        "name": "A",
+        "role_id": "00289d99-24ec-5380-8044-661aad769ec6",
+        "actor_type": "application",
+        "sla": {
+          "target_time": "PT1H",
+          "max_time": "PT4H"
+        }
+      }
+    ],
+    "edges": []
+  },
+  "actors": {
+    "A": {
+      "takes": "PT10M"
+    }
+  },
+  "clock": "2026-01-05T09:00:00.000Z",
+  "expect": {
+    "status": "completed",
+    "journal_excludes": [
+      "sla.warning",
+      "sla.breached"
+    ]
+  }
+}

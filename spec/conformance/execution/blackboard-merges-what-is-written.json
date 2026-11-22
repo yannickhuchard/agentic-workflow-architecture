@@ -1,0 +1,89 @@
+{
+  "id": "blackboard-merges-what-is-written",
+  "level": "contexts",
+  "spec": "22.3",
+  "description": "On a blackboard each write adds its properties to what is there; a later writer does not erase an earlier one.",
+  "workflow": {
+    "id": "99c74857-88d2-5da4-a79e-08405cb0d75a",
+    "name": "blackboard-merges-what-is-written",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "47a53a47-9746-56ab-8508-3979d3b46f32",
+        "name": "A",
+        "role_id": "9125aaee-4e64-5ada-be52-855b663e48d8",
+        "actor_type": "application",
+        "context_bindings": [
+          {
+            "context_id": "d0d38c8d-1e54-5e21-b729-092d4452d686",
+            "access_mode": "write"
+          }
+        ]
+      },
+      {
+        "id": "4fc1589c-65c1-5a38-bfb4-61c81086ac02",
+        "name": "B",
+        "role_id": "9125aaee-4e64-5ada-be52-855b663e48d8",
+        "actor_type": "application",
+        "context_bindings": [
+          {
+            "context_id": "d0d38c8d-1e54-5e21-b729-092d4452d686",
+            "access_mode": "read_write"
+          }
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "id": "967cb68d-bb46-5ed6-a32f-652ca369992b",
+        "source_id": "47a53a47-9746-56ab-8508-3979d3b46f32",
+        "target_id": "4fc1589c-65c1-5a38-bfb4-61c81086ac02"
+      }
+    ],
+    "contexts": [
+      {
+        "id": "d0d38c8d-1e54-5e21-b729-092d4452d686",
+        "name": "Findings",
+        "type": "data",
+        "sync_pattern": "blackboard"
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "contexts": {
+        "Findings": {
+          "damage": "rear bumper"
+        }
+      }
+    },
+    "B": {
+      "contexts": {
+        "Findings": {
+          "fraud": "none"
+        }
+      }
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "A",
+      "B"
+    ],
+    "given_contexts": {
+      "B": {
+        "Findings": {
+          "damage": "rear bumper"
+        }
+      }
+    },
+    "contexts": {
+      "Findings": {
+        "damage": "rear bumper",
+        "fraud": "none"
+      }
+    }
+  }
+}

@@ -36,6 +36,8 @@ export type JournalEventType =
     | 'reasoning.recorded'
     | 'meta.recorded'
     | 'knowledge.retrieved'
+    | 'context.read' | 'context.written' | 'context.denied'
+    | 'sla.warning' | 'sla.breached'
     | 'checkpoint.saved';
 
 export interface JournalEvent {

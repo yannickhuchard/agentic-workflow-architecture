@@ -1,0 +1,116 @@
+{
+  "id": "event-sourcing-appends-what-is-written",
+  "level": "contexts",
+  "spec": "22.3",
+  "description": "With event sourcing and message passing each write is appended: the context is the list of what was written, in order.",
+  "workflow": {
+    "id": "56f41a34-3b7b-5960-b91a-3d3a033bfcbf",
+    "name": "event-sourcing-appends-what-is-written",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "ac663266-4669-5b01-a072-332ff1e71424",
+        "name": "A",
+        "role_id": "4c85d9b1-72f0-5942-802c-99b24f6256ef",
+        "actor_type": "application",
+        "context_bindings": [
+          {
+            "context_id": "989903aa-fef5-522a-ad35-0d47ada16aba",
+            "access_mode": "publish"
+          }
+        ]
+      },
+      {
+        "id": "e71338c6-55da-51d2-956d-327a6d733f41",
+        "name": "B",
+        "role_id": "4c85d9b1-72f0-5942-802c-99b24f6256ef",
+        "actor_type": "application",
+        "context_bindings": [
+          {
+            "context_id": "989903aa-fef5-522a-ad35-0d47ada16aba",
+            "access_mode": "publish"
+          }
+        ]
+      },
+      {
+        "id": "add745dd-92ae-5eb8-8bc8-07100c198307",
+        "name": "C",
+        "role_id": "4c85d9b1-72f0-5942-802c-99b24f6256ef",
+        "actor_type": "application",
+        "context_bindings": [
+          {
+            "context_id": "989903aa-fef5-522a-ad35-0d47ada16aba",
+            "access_mode": "subscribe"
+          }
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "id": "5f5b70b7-2ec1-5fd4-8879-78507575dc9c",
+        "source_id": "ac663266-4669-5b01-a072-332ff1e71424",
+        "target_id": "e71338c6-55da-51d2-956d-327a6d733f41"
+      },
+      {
+        "id": "255ad185-d090-5f5d-8f8b-3d12867d9773",
+        "source_id": "e71338c6-55da-51d2-956d-327a6d733f41",
+        "target_id": "add745dd-92ae-5eb8-8bc8-07100c198307"
+      }
+    ],
+    "contexts": [
+      {
+        "id": "989903aa-fef5-522a-ad35-0d47ada16aba",
+        "name": "Log",
+        "type": "data",
+        "sync_pattern": "event_sourcing"
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "contexts": {
+        "Log": {
+          "step": "received"
+        }
+      }
+    },
+    "B": {
+      "contexts": {
+        "Log": {
+          "step": "checked"
+        }
+      }
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "A",
+      "B",
+      "C"
+    ],
+    "given_contexts": {
+      "C": {
+        "Log": [
+          {
+            "step": "received"
+          },
+          {
+            "step": "checked"
+          }
+        ]
+      }
+    },
+    "contexts": {
+      "Log": [
+        {
+          "step": "received"
+        },
+        {
+          "step": "checked"
+        }
+      ]
+    }
+  }
+}

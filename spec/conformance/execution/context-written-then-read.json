@@ -1,0 +1,93 @@
+{
+  "id": "context-written-then-read",
+  "level": "contexts",
+  "spec": "22.3",
+  "description": "What one activity writes under a binding that allows writing, a later activity bound to read is given.",
+  "workflow": {
+    "id": "96d719fd-d435-50bf-84ce-e019045c99a3",
+    "name": "context-written-then-read",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "2d97342f-34d3-5580-b3ae-0d448c5da5db",
+        "name": "A",
+        "role_id": "abea097d-6697-533d-8a46-dbafddde1ff1",
+        "actor_type": "application",
+        "context_bindings": [
+          {
+            "context_id": "efb934ff-ee37-58a7-9884-3e862632e0bb",
+            "access_mode": "write"
+          }
+        ]
+      },
+      {
+        "id": "d185e7b5-6804-533e-8807-0997d7fa66ce",
+        "name": "B",
+        "role_id": "abea097d-6697-533d-8a46-dbafddde1ff1",
+        "actor_type": "application",
+        "context_bindings": [
+          {
+            "context_id": "efb934ff-ee37-58a7-9884-3e862632e0bb",
+            "access_mode": "read"
+          }
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "id": "04ff70cf-dad8-59f4-828f-fde51d0a7ba7",
+        "source_id": "2d97342f-34d3-5580-b3ae-0d448c5da5db",
+        "target_id": "d185e7b5-6804-533e-8807-0997d7fa66ce"
+      }
+    ],
+    "contexts": [
+      {
+        "id": "efb934ff-ee37-58a7-9884-3e862632e0bb",
+        "name": "Order",
+        "type": "data",
+        "sync_pattern": "shared_state"
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "contexts": {
+        "Order": {
+          "total": 80
+        }
+      }
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "A",
+      "B"
+    ],
+    "given_contexts": {
+      "A": {},
+      "B": {
+        "Order": {
+          "total": 80
+        }
+      }
+    },
+    "contexts": {
+      "Order": {
+        "total": 80
+      }
+    },
+    "journal_contains": [
+      {
+        "type": "context.written",
+        "node_name": "A",
+        "data": {
+          "context_name": "Order",
+          "sync_pattern": "shared_state",
+          "access_mode": "write"
+        }
+      }
+    ]
+  }
+}

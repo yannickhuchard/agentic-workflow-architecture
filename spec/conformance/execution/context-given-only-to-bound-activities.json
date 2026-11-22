@@ -1,0 +1,83 @@
+{
+  "id": "context-given-only-to-bound-activities",
+  "level": "contexts",
+  "spec": "22.2",
+  "description": "An activity bound to read a context is given its value. An activity with no binding is given no context at all.",
+  "workflow": {
+    "id": "d2376c9e-0dc4-5460-a766-dc03fed2b518",
+    "name": "context-given-only-to-bound-activities",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "7e00f489-54b9-5333-a69b-c9af2fd2fc0b",
+        "name": "A",
+        "role_id": "5e4593db-7fb2-5f5b-b9bb-8f865931b8e6",
+        "actor_type": "application",
+        "context_bindings": [
+          {
+            "context_id": "d4131395-577b-5227-90b0-4ca8f68f4dce",
+            "access_mode": "read"
+          }
+        ]
+      },
+      {
+        "id": "358c8493-a6e0-5725-aa0d-26c850bbe048",
+        "name": "B",
+        "role_id": "5e4593db-7fb2-5f5b-b9bb-8f865931b8e6",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "c7961032-651c-55c8-9522-b1ed87effd03",
+        "source_id": "7e00f489-54b9-5333-a69b-c9af2fd2fc0b",
+        "target_id": "358c8493-a6e0-5725-aa0d-26c850bbe048"
+      }
+    ],
+    "contexts": [
+      {
+        "id": "d4131395-577b-5227-90b0-4ca8f68f4dce",
+        "name": "Order",
+        "type": "data",
+        "sync_pattern": "shared_state",
+        "initial_value": {
+          "total": 150
+        }
+      }
+    ]
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "A",
+      "B"
+    ],
+    "given_contexts": {
+      "A": {
+        "Order": {
+          "total": 150
+        }
+      },
+      "B": null
+    },
+    "journal_contains": [
+      {
+        "type": "context.read",
+        "node_name": "A",
+        "data": {
+          "contexts": [
+            {
+              "context_name": "Order",
+              "access_mode": "read",
+              "present": true
+            }
+          ]
+        }
+      }
+    ],
+    "journal_count": {
+      "context.read": 1
+    }
+  }
+}

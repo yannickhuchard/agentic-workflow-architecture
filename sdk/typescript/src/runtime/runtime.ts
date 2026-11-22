@@ -479,6 +479,10 @@ export class AwaRuntime {
                 await engine.run();
                 await this.sync(engine);
             }
+            // Work that waits is compared with its service levels on the same schedule (spec 23.2)
+            const levels = await engine.checkServiceLevels(now);
+            if (levels.failed > 0) await engine.run();
+            if (levels.failed > 0 || levels.breaches > 0 || levels.warnings > 0) await this.sync(engine);
         }
         const stalled_journeys: string[] = [];
         for (const instance of this.instances.values()) {

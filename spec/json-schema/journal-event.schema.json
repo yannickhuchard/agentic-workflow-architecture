@@ -78,7 +78,12 @@
                 "reasoning.recorded",
                 "meta.recorded",
                 "knowledge.retrieved",
-                "checkpoint.saved"
+                "checkpoint.saved",
+                "context.read",
+                "context.written",
+                "context.denied",
+                "sla.warning",
+                "sla.breached"
             ]
         },
         "level": {
