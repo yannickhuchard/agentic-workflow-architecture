@@ -1,0 +1,399 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/yannickhuchard/agentic-workflow-architecture/spec/json-schema/measure-report.schema.json",
+  "title": "AWA measure report",
+  "description": "The measures of journeys and workflows over a period (specification section 21).",
+  "type": "object",
+  "required": [
+    "spec_version",
+    "as_of",
+    "period",
+    "currency",
+    "totals",
+    "journeys",
+    "workflows",
+    "attention",
+    "series"
+  ],
+  "properties": {
+    "spec_version": {
+      "type": "string"
+    },
+    "as_of": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "period": {
+      "type": "object",
+      "required": [
+        "from",
+        "to"
+      ],
+      "properties": {
+        "from": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "to": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "currency": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "totals": {
+      "$ref": "#/$defs/measures"
+    },
+    "journeys": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "journey_id",
+          "name",
+          "measures",
+          "goals",
+          "stages",
+          "channels",
+          "technologies",
+          "artefacts",
+          "leads_to"
+        ],
+        "properties": {
+          "journey_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "measures": {
+            "$ref": "#/$defs/measures"
+          },
+          "goals": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "goal_id",
+                "name",
+                "reached",
+                "rate"
+              ],
+              "properties": {
+                "goal_id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "reached": {
+                  "type": "integer"
+                },
+                "rate": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                }
+              }
+            }
+          },
+          "stages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "stage_id",
+                "name",
+                "measures"
+              ],
+              "properties": {
+                "stage_id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "owner": {
+                  "type": "string"
+                },
+                "max_duration": {
+                  "type": "string"
+                },
+                "measures": {
+                  "$ref": "#/$defs/measures"
+                }
+              }
+            }
+          },
+          "channels": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "channel",
+                "touchpoints",
+                "inbound",
+                "outbound"
+              ]
+            }
+          },
+          "technologies": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "technology",
+                "touchpoints"
+              ]
+            }
+          },
+          "artefacts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "kind",
+                "count"
+              ]
+            }
+          },
+          "mood": {
+            "type": "object",
+            "required": [
+              "min",
+              "max",
+              "ended",
+              "measured_changes",
+              "inferred_changes"
+            ],
+            "properties": {
+              "min": {
+                "type": "number"
+              },
+              "max": {
+                "type": "number"
+              },
+              "ended": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "value",
+                    "count"
+                  ]
+                }
+              },
+              "measured_changes": {
+                "type": "integer"
+              },
+              "inferred_changes": {
+                "type": "integer"
+              }
+            }
+          },
+          "leads_to": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "journey_id",
+                "name",
+                "count"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "workflows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "workflow_id",
+          "name",
+          "measures",
+          "activities",
+          "decisions",
+          "tools",
+          "errors"
+        ],
+        "properties": {
+          "workflow_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "measures": {
+            "$ref": "#/$defs/measures"
+          },
+          "activities": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "activity_id",
+                "name",
+                "measures"
+              ],
+              "properties": {
+                "activity_id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "actor_type": {
+                  "type": "string"
+                },
+                "measures": {
+                  "$ref": "#/$defs/measures"
+                }
+              }
+            }
+          },
+          "decisions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "node_id",
+                "name",
+                "evaluations",
+                "table",
+                "model",
+                "engine",
+                "default",
+                "none"
+              ]
+            }
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "tool",
+                "calls",
+                "failures",
+                "duration_median_ms"
+              ]
+            }
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "code",
+                "count"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "attention": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "journey_id",
+          "journey_name",
+          "instance_id",
+          "subject_key",
+          "stage_id",
+          "stage_name",
+          "since",
+          "waiting_ms",
+          "reason"
+        ],
+        "properties": {
+          "owner": {
+            "type": "string"
+          },
+          "subject_name": {
+            "type": "string"
+          },
+          "waiting_ms": {
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "series": {
+      "type": "object",
+      "required": [
+        "bucket",
+        "points"
+      ],
+      "properties": {
+        "bucket": {
+          "enum": [
+            "day",
+            "week",
+            "month"
+          ]
+        },
+        "points": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "start",
+              "journeys_started",
+              "journeys_completed",
+              "journeys_abandoned",
+              "runs_ended",
+              "runs_failed",
+              "cost",
+              "mood"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "measure": {
+      "type": "object",
+      "required": [
+        "value",
+        "n"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Null when there is nothing to compute it from"
+        },
+        "n": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "The number of things the value was computed over"
+        }
+      }
+    },
+    "measures": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/measure"
+      }
+    }
+  }
+}

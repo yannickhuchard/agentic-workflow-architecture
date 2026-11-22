@@ -420,6 +420,8 @@ describe('Conformance: knowledge', () => {
 });
 
 describe('Conformance: measures', () => {
+    const ajv = new Ajv2020({ strict: false, allErrors: true }); addFormats(ajv);
+    const report_schema = ajv.compile(JSON.parse(fs.readFileSync(path.join(ROOT, 'spec/json-schema/measure-report.schema.json'), 'utf-8')));
     const dir = path.join(CONFORMANCE, 'measures');
     const same = (got: unknown, want: unknown) => (want === null ? got === null : typeof got === 'number' && Math.abs(got - (want as number)) < 1e-9);
     for (const file of fs.readdirSync(dir).filter(f => f.endsWith('.json')).sort()) {
@@ -427,6 +429,9 @@ describe('Conformance: measures', () => {
         const run = CLAIMED_LEVELS.has(c.level) ? it : it.skip;
         run(`${c.id}: ${c.description}`, () => {
             const report = compute_measures(c.recorded, c.options) as any;
+            // The report has the form the schema fixes
+            const valid = report_schema(JSON.parse(JSON.stringify(report)));
+            expect(valid, JSON.stringify(report_schema.errors?.slice(0, 3))).toBe(true);
             const measures = (where: string, got: Record<string, { value: number | null }>, want: Record<string, number | null>) => {
                 for (const [id, value] of Object.entries(want)) expect(same(got[id]?.value, value), `${where} ${id}: got ${got[id]?.value}, expected ${value}`).toBe(true);
             };

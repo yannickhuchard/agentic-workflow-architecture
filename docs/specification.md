@@ -1334,7 +1334,7 @@ Measures are computed, never estimated. Their only source is what was recorded: 
 
 A **measure** is a `value` and `n`, the number of things the value was computed over. When there is nothing to compute it from, `value` is `null` and MUST NOT be reported as zero: an empty week has no completion rate. A reader shows `n` wherever a rate over few could mislead.
 
-A report covers a **period**: with `from` and `to`, it keeps the journey instances and the runs started at or after `from` and before `to`, and may be narrowed to one journey or one workflow. It carries:
+The form of the report is fixed by `spec/json-schema/measure-report.schema.json`. A report covers a **period**: with `from` and `to`, it keeps the journey instances and the runs started at or after `from` and before `to`, and may be narrowed to one journey or one workflow. It carries:
 
 | Part | Content |
 |---|---|
