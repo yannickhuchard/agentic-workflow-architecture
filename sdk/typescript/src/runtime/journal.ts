@@ -32,6 +32,7 @@ export type JournalEventType =
     | 'verification.completed'
     | 'contract.checked' | 'contract.escalated'
     | 'timer.started' | 'timer.fired'
+    | 'event.waiting' | 'event.received' | 'event.timed_out' | 'event.published'
     | 'reasoning.recorded'
     | 'meta.recorded'
     | 'knowledge.retrieved'

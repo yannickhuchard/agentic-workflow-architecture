@@ -235,6 +235,29 @@ export function validate_workflow_integrity(workflow: Workflow): ValidationResul
         }
     }
 
+    // Message and signal events name the event; a wait's timeout is a duration and its timeout edge leaves the event
+    for (const event of workflow.events) {
+        if (event.event_type !== 'message' && event.event_type !== 'signal') continue;
+        const definition = (event.event_definition || {}) as { name?: unknown; timeout?: unknown; timeout_edge_id?: unknown };
+        const where = `events[${event.id}].event_definition`;
+        if (typeof definition.name !== 'string' || definition.name === '') {
+            errors.push({ path: `${where}.name`, message: `Event '${event.name}' must name the event it waits for or publishes`, code: 'invalid_event' });
+        }
+        if (definition.timeout !== undefined) {
+            try {
+                parse_iso_duration(String(definition.timeout));
+            } catch {
+                errors.push({ path: `${where}.timeout`, message: `Event '${event.name}' has a timeout that is not an ISO 8601 duration`, code: 'invalid_event' });
+            }
+        }
+        if (definition.timeout_edge_id !== undefined) {
+            const timeout_edge = workflow.edges.find(e => e.id === definition.timeout_edge_id);
+            if (!timeout_edge || timeout_edge.source_id !== event.id) {
+                errors.push({ path: `${where}.timeout_edge_id`, message: `The timeout edge of event '${event.name}' must be an edge that leaves it`, code: 'invalid_reference' });
+            }
+        }
+    }
+
     // Decision rules must route to edges that leave the decision node
     const edge_by_id = new Map(workflow.edges.map(e => [e.id, e]));
     for (const decision of workflow.decision_nodes) {

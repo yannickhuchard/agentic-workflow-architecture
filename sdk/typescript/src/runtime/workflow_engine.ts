@@ -32,9 +32,11 @@ import { ModelProvider, ModelRegistry, ModelRouter, GoogleModelProvider, RouteAt
 import { ToolOptions, ToolRunner } from './tools';
 import { decide_with_model } from './decision_model';
 import { ActorContext } from './actors/actor';
+import { BusinessEvent, EventSink } from './business_event';
+import { resolve_path } from './expression';
 import { KnowledgeBase, guidance } from './knowledge';
 
-export type EngineStatus = 'running' | 'paused' | 'completed' | 'failed' | 'idle' | 'waiting_human';
+export type EngineStatus = 'running' | 'paused' | 'completed' | 'failed' | 'idle' | 'waiting_human' | 'waiting_event';
 
 export interface WorkflowEngineOptions {
     /** Gemini API key for AI agents */
@@ -97,6 +99,10 @@ export interface WorkflowEngineOptions {
     default_model_provider?: string;
     /** Capability tiers mapped to model references, e.g. { fast: 'google:gemini-3.1-flash-lite' } */
     model_tiers?: Record<string, string | string[]>;
+    /** Receives the business events the workflow publishes. Without one they are recorded in the journal only. */
+    event_sink?: EventSink;
+    /** The current time in milliseconds. Tests replace it to move time forward. */
+    now?: () => number;
     /** External decision engines that decision nodes may consult, by name */
     decision_engines?: Record<string, DecisionEngine>;
     /** How the tools declared on activities are executed, and what they are allowed to do */
@@ -114,6 +120,31 @@ export interface SimulatedOutput {
     error?: string;
     code?: string;
     attempts?: SimulatedOutput[];
+}
+
+/** What a message or signal event's event_definition holds */
+interface EventDefinition {
+    name?: string;
+    /** "wait" (default): hold the token until the event arrives. "publish": emit the event and continue. */
+    mode?: 'wait' | 'publish';
+    /** For a wait: the property that must be equal in the token's data and in the event's data */
+    correlation_key?: string;
+    /** For a wait: how long to wait */
+    timeout?: string;
+    /** For a wait: the edge taken when the wait times out */
+    timeout_edge_id?: UUID;
+    /** For a publish: the token data properties sent as the event's data */
+    data?: string[];
+}
+
+interface AwaitedEvent {
+    node_id: UUID;
+    name: string;
+    correlation_key?: string;
+    correlation_value?: unknown;
+    due_at?: string;
+    timeout_edge_id?: UUID;
+    broadcast: boolean;
 }
 
 /** Error codes that are never retried, whatever the retry policy says */
@@ -156,6 +187,8 @@ export class WorkflowEngine {
     private incomingEdges: Map<UUID, Edge[]> = new Map(); // Target ID -> Edges
     /** Activities whose outcome was accepted, in order of completion. Drives compensation. */
     private completedActivities: { activity_id: UUID; token_id: UUID; output: Record<string, unknown> }[] = [];
+    /** Ids of the business events this run has consumed, so that a redelivery is ignored */
+    private deliveredEvents = new Set<string>();
     private options: WorkflowEngineOptions;
     private roleMap: Map<UUID, Role>;
     private decisionEvaluator: DecisionEvaluator;
@@ -340,7 +373,7 @@ export class WorkflowEngine {
     }
 
     public async runStep(): Promise<void> {
-        if (this.status !== 'running' && this.status !== 'waiting_human') return;
+        if (this.status !== 'running' && this.status !== 'waiting_human' && this.status !== 'waiting_event') return;
 
         const activeTokens = this.tokens.filter(t => t.status === 'active');
 
@@ -385,9 +418,11 @@ export class WorkflowEngine {
         const previous = this.status;
 
         if (has('waiting')) {
-            this.status = 'waiting_human';
+            const waiting = this.tokens.filter(t => t.status === 'waiting');
+            // Waiting on a person takes precedence in the status; otherwise the run waits on events
+            this.status = waiting.some(t => !t.getData('_awaiting_event')) ? 'waiting_human' : 'waiting_event';
             if (previous !== this.status) {
-                this.record({ type: 'run.waiting', data: { waiting_tokens: this.tokens.filter(t => t.status === 'waiting').map(t => t.id) } });
+                this.record({ type: 'run.waiting', data: { waiting_for: this.status === 'waiting_human' ? 'human' : 'event', waiting_tokens: waiting.map(t => t.id) } });
             }
             return;
         }
@@ -519,6 +554,7 @@ export class WorkflowEngine {
                 run_id: this.runId,
                 journal_seq: this.journal.last_seq,
                 completed_activities: this.completedActivities,
+                delivered_events: [...this.deliveredEvents],
                 stats: { ...this.executionStats, startTime: this.executionStats.startTime.toISOString() },
             },
         };
@@ -542,6 +578,7 @@ export class WorkflowEngine {
         const meta = (state.metadata || {}) as {
             run_id?: UUID; journal_seq?: number; stats?: Record<string, unknown>;
             completed_activities?: WorkflowEngine['completedActivities'];
+            delivered_events?: string[];
         };
         const engine = new WorkflowEngine(workflowDef, { ...options, run_id: meta.run_id || options.run_id });
         engine.journal = new JournalWriter(
@@ -549,11 +586,13 @@ export class WorkflowEngine {
         engine.tokens = state.tokens.map(t => deserialize_token(t, state.workflow_id));
         engine.contextManager.restore(state.contexts);
         engine.completedActivities = meta.completed_activities || [];
+        engine.deliveredEvents = new Set(meta.delivered_events || []);
         if (meta.stats) {
             engine.executionStats = { ...engine.executionStats, ...meta.stats, startTime: new Date(String(meta.stats.startTime)) };
         }
         engine.status = engine.tokens.some(t => t.status === 'active') ? 'running'
-            : engine.tokens.some(t => t.status === 'waiting') ? 'waiting_human'
+            : engine.tokens.some(t => t.status === 'waiting' && !t.getData('_awaiting_event')) ? 'waiting_human'
+                : engine.tokens.some(t => t.status === 'waiting') ? 'waiting_event'
                 : (state.engine_status as EngineStatus);
         engine.record({
             type: 'run.resumed',
@@ -741,10 +780,154 @@ export class WorkflowEngine {
                 return;
             }
 
+            case 'message':
+            case 'signal': {
+                const definition = (event.event_definition || {}) as EventDefinition;
+                if (!definition.name) {
+                    this.failToken(token, new ActivityError(`Event "${event.name}" has no event_definition.name`, 'VALIDATION_ERROR'));
+                    return;
+                }
+
+                if (definition.mode === 'publish') {
+                    // The journal is the outbox: the event is recorded first, with an id that is
+                    // the same on every retry, then handed to the sink. A consumer deduplicates by id.
+                    const visit = token.history.filter(h => h.nodeId === event.id && h.action === 'entered').length;
+                    const published: BusinessEvent = {
+                        specversion: '1.0',
+                        id: `${this.runId}:${event.id}:${visit}`,
+                        source: `urn:awa:run:${this.runId}`,
+                        type: definition.name,
+                        time: new Date(this.now()).toISOString(),
+                        datacontenttype: 'application/json',
+                        data: Object.fromEntries((definition.data || []).map(key => [key, resolve_path(token.contextData, key)])),
+                    };
+                    this.record({ type: 'event.published', ...ref, data: { event_id: published.id, name: published.type, source: published.source, data: this.journal.payload(published.data), delivered: !!this.options.event_sink } });
+                    try {
+                        await this.options.event_sink?.(published);
+                    } catch (error) {
+                        this.failToken(token, new ActivityError(`Event "${definition.name}" could not be published: ${error_info(error).message}`, 'EVENT_PUBLISH_FAILED'));
+                        return;
+                    }
+                    await this.advanceToken(token, event.id);
+                    return;
+                }
+
+                // Wait for the event. The deadline is fixed now and survives a restart.
+                let dueAt: string | undefined;
+                if (definition.timeout) {
+                    try {
+                        dueAt = new Date(this.now() + parse_iso_duration(definition.timeout)).toISOString();
+                    } catch (error) {
+                        this.failToken(token, new ActivityError(`Event "${event.name}": ${error_info(error).message}`, 'VALIDATION_ERROR'));
+                        return;
+                    }
+                }
+                const correlation = event.event_type === 'message' ? definition.correlation_key : undefined;
+                const awaiting = {
+                    node_id: event.id,
+                    name: definition.name,
+                    ...(correlation ? { correlation_key: correlation, correlation_value: resolve_path(token.contextData, correlation) } : {}),
+                    ...(dueAt ? { due_at: dueAt } : {}),
+                    ...(definition.timeout_edge_id ? { timeout_edge_id: definition.timeout_edge_id } : {}),
+                    broadcast: event.event_type === 'signal',
+                };
+                token.setData('_awaiting_event', awaiting);
+                token.updateStatus('waiting');
+                this.record({ type: 'event.waiting', ...ref, data: { name: awaiting.name, correlation_key: correlation, correlation_value: awaiting.correlation_value, due_at: dueAt } });
+                return;
+            }
+
             default:
                 this.failToken(token, new ActivityError(
                     `Event "${event.name}" has type "${event.event_type}", which this engine cannot execute`, 'UNSUPPORTED_EVENT'));
         }
+    }
+
+    private now(): number {
+        return this.options.now ? this.options.now() : Date.now();
+    }
+
+    private awaiting(token: Token): AwaitedEvent | undefined {
+        return token.status === 'waiting' ? token.getData('_awaiting_event') as AwaitedEvent | undefined : undefined;
+    }
+
+    /**
+     * Give the run a business event (spec 18.2). Tokens waiting for an event of
+     * this type, whose correlation matches, take its data and continue. A message
+     * is consumed by one token; a signal by every token waiting for it. An event
+     * id the run has already seen is ignored, so redelivery is harmless.
+     * Returns how many tokens continued. Call run() afterwards.
+     */
+    public async deliverEvent(event: BusinessEvent): Promise<number> {
+        if (this.deliveredEvents.has(event.id)) return 0;
+        let resumed = 0;
+
+        for (const token of this.tokens) {
+            const awaited = this.awaiting(token);
+            if (!awaited || awaited.name !== event.type) continue;
+            if (awaited.correlation_key
+                && String(resolve_path(event.data || {}, awaited.correlation_key)) !== String(awaited.correlation_value)) continue;
+
+            const ref = { token_id: token.id, ...this.nodeRef(awaited.node_id) };
+            const { _awaiting_event, ...rest } = token.contextData;
+            token.contextData = rest;
+            token.mergeData(public_payload(event.data || {}));
+            token.updateStatus('active');
+            this.record({
+                type: 'event.received', ...ref,
+                data: { event_id: event.id, name: event.type, source: event.source, data: this.journal.payload(event.data || {}) },
+            });
+            resumed++;
+            await this.advanceToken(token, awaited.node_id);
+            if (!awaited.broadcast) break;
+        }
+
+        if (resumed > 0) {
+            this.deliveredEvents.add(event.id);
+            if (this.status === 'waiting_event' || this.status === 'waiting_human') this.status = 'running';
+            await this.settle();
+            await this.saveCheckpoint();
+        }
+        return resumed;
+    }
+
+    /** The earliest time at which a waiting token's event wait runs out, in milliseconds */
+    public nextEventDeadline(): number | undefined {
+        const due = this.tokens.map(t => this.awaiting(t)?.due_at).filter((d): d is string => !!d).map(d => new Date(d).getTime());
+        return due.length ? Math.min(...due) : undefined;
+    }
+
+    /**
+     * Time out the event waits whose deadline has passed (spec 18.3). The token
+     * takes the event's timeout edge; an event without one fails the token.
+     * Returns how many tokens timed out. Call run() afterwards.
+     */
+    public async expireEvents(now: number = this.now()): Promise<number> {
+        let expired = 0;
+        for (const token of this.tokens) {
+            const awaited = this.awaiting(token);
+            if (!awaited?.due_at || new Date(awaited.due_at).getTime() > now) continue;
+
+            const ref = { token_id: token.id, ...this.nodeRef(awaited.node_id) };
+            const { _awaiting_event, ...rest } = token.contextData;
+            token.contextData = rest;
+            token.updateStatus('active');
+            this.record({ type: 'event.timed_out', ...ref, data: { name: awaited.name, due_at: awaited.due_at } });
+            expired++;
+
+            const target = awaited.timeout_edge_id ? this.getEdgeTarget(awaited.timeout_edge_id) : undefined;
+            if (awaited.timeout_edge_id && target) {
+                this.moveToken(token, awaited.timeout_edge_id, target, 'timeout');
+            } else {
+                this.failToken(token, new ActivityError(`No "${awaited.name}" event arrived before ${awaited.due_at}, and the event has no timeout edge`, 'EVENT_TIMEOUT'));
+            }
+        }
+        if (expired > 0) {
+            if (this.status === 'waiting_event' || this.status === 'waiting_human') this.status = 'running';
+            await this.settle();
+            await this.saveCheckpoint();
+        }
+        return expired;
     }
 
     /** Mark a token failed and record why, in its data and in the journal */
@@ -1393,7 +1576,9 @@ export class WorkflowEngine {
      * Advance token to next node(s) based on outgoing edges
      */
     private async advanceToken(token: Token, currentNodeId: UUID, analytics?: Analytics): Promise<void> {
-        const outgoingEdges = this.edgeMap.get(currentNodeId) || [];
+        // An event's timeout edge is taken only when its wait times out, never by ordinary routing
+        const timeoutEdge = (this.eventMap.get(currentNodeId)?.event_definition as { timeout_edge_id?: UUID } | undefined)?.timeout_edge_id;
+        const outgoingEdges = (this.edgeMap.get(currentNodeId) || []).filter(edge => edge.id !== timeoutEdge);
 
         if (outgoingEdges.length === 0) {
             token.updateStatus('completed', analytics);
