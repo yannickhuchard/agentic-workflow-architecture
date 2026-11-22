@@ -81,7 +81,9 @@ export function simulated_actor(outputs, clock, notes) {
             }
             // The same shapes "awa run --simulate --outputs" produces: the fields themselves, or { output, usage } when usage is scripted
             const output = { ...(step?.output || {}), _simulated: true };
-            return step?.usage ? { output, usage: { input_tokens: step.usage.input_tokens || 0, output_tokens: step.usage.output_tokens || 0 } } : output;
+            // What the script writes to contexts goes through the engine's own check of the activity's bindings (specification 22.3)
+            const writes = step?.contexts && typeof step.contexts === 'object' ? { _context_writes: step.contexts } : {};
+            return step?.usage ? { output, usage: { input_tokens: step.usage.input_tokens || 0, output_tokens: step.usage.output_tokens || 0 }, ...writes } : { ...output, ...writes };
         },
     };
 }

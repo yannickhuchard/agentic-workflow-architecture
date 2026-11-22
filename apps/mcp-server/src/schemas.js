@@ -52,6 +52,7 @@ const simulated_step = z.strictObject({
     error: z.string().max(500).optional().describe('Make the activity fail with this message instead.'),
     code: z.string().max(60).optional().describe('Error code of the failure, such as TIMEOUT.'),
     usage: z.strictObject({ input_tokens: z.number().int().min(0).max(10_000_000).optional(), output_tokens: z.number().int().min(0).max(10_000_000).optional() }).optional().describe('Token usage to count for an AI activity. Only used to compute cost from the pricing you give.'),
+    contexts: small_json('Simulated context writes', 50_000).optional().describe('What the activity writes to the workflow\'s contexts, by context name: { "<context name>": <value> }. The activity needs a context binding that allows writing.'),
     duration: iso_duration.optional().describe('How long the activity takes on the simulated clock.'),
 });
 export const simulated_outputs = z.record(name, simulated_step.extend({

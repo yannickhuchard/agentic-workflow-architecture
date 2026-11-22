@@ -699,7 +699,7 @@ A deployment MAY define further tiers. A tier MUST map to a model, not to anothe
 
 When an AI agent executes an activity the model reference is, in order: the one named by the activity's role; otherwise the engine default. For a judge it is the policy's `judge_model_id`; otherwise the engine default.
 
-A reference that cannot be resolved (an unmapped tier, or no provider) is an error with code `VALIDATION_ERROR`. An engine MUST NOT substitute another model silently.
+A reference that cannot be resolved (an unmapped tier, or no provider) is an error with code `VALIDATION_ERROR`. An engine MUST NOT substitute another model silently. At a decision node the error is a vote that cannot be cast: it is invalid (16.3), so the decision falls to its default edge or fails with `NO_ROUTE`.
 
 The engine MUST journal each resolution as a `meta.recorded` event with subject `model_selection`, giving the provider, the model, the tier if one was used, and why that reference applied.
 
@@ -1015,7 +1015,7 @@ An engine MUST implement `http`, `jsonrpc`, `command` and `function`. It MAY imp
 
 For each call, in this order, the engine MUST:
 
-1. Refuse an unknown tool (`UNKNOWN_TOOL`) and a call beyond `budgets.max_tool_calls` (`TOOL_BUDGET_EXCEEDED`).
+1. Refuse an unknown tool (`UNKNOWN_TOOL`) and a call beyond `budgets.max_tool_calls` (`TOOL_BUDGET_EXCEEDED`). Every call counts toward the budget, refused ones included.
 2. Validate the arguments against `parameters`, and refuse invalid ones (`VALIDATION_ERROR`). Nothing runs.
 3. Apply the deployment's permissions (17.4), and refuse what they forbid (`PERMISSION_DENIED`).
 4. Record `tool.invoked`.
@@ -1032,6 +1032,9 @@ A workflow document can name any URL or program. What may actually run is for th
 
 - `command` bindings MUST NOT run unless the deployment allows commands, either all or a named list. The default is to allow none.
 - A deployment MAY restrict `http` and `jsonrpc` bindings to a list of hosts.
+- `http` and `jsonrpc` bindings reach `http` and `https` addresses only. Any other scheme (a file, a data URL) is refused with `VALIDATION_ERROR` before anything is called.
+- A redirect is a call to another address: each hop is held to the list of hosts, and a hop to a host not on it is refused with `PERMISSION_DENIED`. Headers set by the binding, which may carry secrets, MUST NOT be sent on to a different origin.
+- An engine MUST bound what a call may return, and fail a call whose reply is larger. The reference bound is 4 MiB, configurable by the deployment.
 
 ### 17.5 Record
 
@@ -1043,7 +1046,7 @@ A workflow document can name any URL or program. What may actually run is for th
 
 Each event carries the `time` it was recorded, the `node_id` of the activity and the `attempt` it belongs to, so every call can be placed exactly in the run. `call_id` ties the events of one call together. Tool events fall between the `activity.started` of their attempt and the event that ends it.
 
-Arguments and results follow the payload mode (9.4). The `link` is never hashed or omitted: which interface was called is always on record, even when what was sent is not.
+Arguments and results follow the payload mode (9.4). The `link` is never hashed or omitted: which interface was called is always on record, even when what was sent is not. Unless the mode is `full`, the link and the binding are recorded as declared, with their placeholders, and not as filled: an argument that became part of an address or of a command line is still an argument.
 
 In simulation an engine MUST NOT run bindings. It records the call with `simulated: true` and returns a result the deployment scripted.
 
@@ -1247,7 +1250,7 @@ A journey MAY estimate how its subject feels. The estimate is a number on a scal
 
 | Basis | Meaning |
 |---|---|
-| `measured` | The subject said so. The rule reads a value from an event (`measure.path`), given on the scale `measure.from`, and maps it onto the journey's scale. The estimate is set to it |
+| `measured` | The subject said so. The rule reads a value from an event (`measure.path`), given on the scale `measure.from`, and maps it onto the journey's scale. The estimate is set to it. A value that is not a number, or text that is one, is no measurement: the rule makes no change |
 | `inferred` | The journey's authors assumed so. The rule moves the estimate by `change` |
 
 A rule applies `on` one kind of occasion, optionally narrowed:

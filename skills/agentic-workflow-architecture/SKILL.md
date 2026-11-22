@@ -614,6 +614,16 @@ Over HTTP: `AWA_DATA_DIR=.awa awa serve`, then `POST /api/v1/journeys/events`, `
 awa replay workflow.awa.json run.jsonl --candidate changed.awa.json --ai recorded   # exit 2 on regression
 ```
 
+### Contexts and service levels (specification sections 22 and 23)
+
+Context bindings are enforced. An actor is given, under `inputs._contexts`, the contexts its activity is bound to read (`read`, `read_write`, `subscribe`) and no other. It writes by returning `_context_writes: { "<context name>": value }`, which needs a binding that allows writing (`write`, `read_write`, `publish`) and must match the context's `schema`. `shared_state` replaces the value, `blackboard` merges, `event_sourcing` and `message_passing` append.
+
+- A required context with no value fails the activity with `CONTEXT_MISSING`. Give the context an `initial_value`, make sure an earlier activity writes it, or set `required: false` on the binding.
+- A write without a binding fails with `CONTEXT_ACCESS_DENIED`; one the schema refuses with `CONTEXT_INVALID`.
+- In a simulation, script the writes: `{ "Receive order": { "contexts": { "Order": { "total": 240 } } } }`.
+
+An `sla` on an activity or a workflow is compared with the time the work takes, waits and retries included: `sla.warning` past `target_time` (or `escalation_policy.warning_threshold`), `sla.breached` past `max_time`. Work that finished late stands. With `escalation_policy.breach_action: "fail"`, work still waited for fails with `SLA_BREACH`. `runtime.tick()` and `engine.checkServiceLevels()` check what is waiting.
+
 ### Measures (specification section 21)
 
 What an organisation asks of its journeys and workflows, computed from the record: completion, abandonment and stall rates, goal attainment, time per stage and stages that outlasted their time, mood and how much of it was measured, success rate, right first time, lead time against work time, waits for customers and for people, tool failures, decisions by method, tokens and cost.

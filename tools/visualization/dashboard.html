@@ -482,6 +482,7 @@ function workflow_detail(w) {
                 <dt>Retries</dt><dd>${num(m['workflow.retries'])}</dd>
                 <dt>Given up on (dead letters)</dt><dd>${num(m['workflow.dead_letters'])}</dd>
                 <dt>Steps undone</dt><dd>${num(m['workflow.compensations'])}</dd>
+                ${m['workflow.sla_breaches'] && (m['workflow.sla_breaches'].value || m['workflow.sla_warnings'].value) ? `<dt>Service levels breached</dt><dd><span class="late">${num(m['workflow.sla_breaches'])}</span></dd><dt>Service level warnings</dt><dd>${num(m['workflow.sla_warnings'])}</dd>` : ''}
                 ${w.errors.map(e => `<dt><span class="pill">${esc(e.code)}</span></dt><dd>${e.count}</dd>`).join('')}
             </dl><br>
             <h3>Where the time goes</h3><dl class="kv">
