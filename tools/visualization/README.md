@@ -46,7 +46,9 @@ The picture at any position is computed from the journal events up to that posit
 | "Open a record" | The file written by `awa journey export` |
 | `dashboard.html?data=<url>` | The same, from an address |
 | `dashboard.html?live=http://localhost:3000` | A running AWA server, read every few seconds |
-| `window.AWA_dashboard_show(record, source)` | For a page that embeds this one |
+| `window.AWA_dashboard_show(record, source)` | For a page that embeds this one. It may set `window.AWA_open_journey = (journey, instance, record) => …` to say how a customer's journey is opened when no journey view sits beside the page |
+| `awa measures --html measures.html` | One file with the record inside it: nothing to install, nothing fetched, to send to someone or attach to a report |
+| `http://localhost:3000/views/dashboard.html?live=http://localhost:3000` | The page as `awa serve` serves it: the SDK package carries the measures page and the journey view |
 
 The page reads top to bottom as four questions: who needs someone now; do customers get what they came for; does the work go right; how did it go over time. A journey opens into its stages, a workflow into its steps, tools, errors, waits and decisions.
 

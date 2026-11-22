@@ -149,7 +149,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 #ev ol { list-style: none; margin: 0; padding: 0; overflow: auto; flex: 1; }
 #ev li { padding: 10px 16px; border-bottom: 1px solid var(--hair); display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; }
 #ev li .t { font-weight: 600; } #ev li .s { color: var(--ink2); font-size: 12.5px; grid-column: 1; }
-#ev li a { grid-row: 1 / span 2; grid-column: 2; align-self: center; }
+#ev li a, #ev li button { grid-row: 1 / span 2; grid-column: 2; align-self: center; }
 a { color: var(--focus); }
 #msg { margin: 40px auto; max-width: 560px; text-align: center; color: var(--ink2); }
 footer { margin-top: 28px; color: var(--mute); font-size: 12px; }
@@ -280,15 +280,18 @@ const RUNS = {
     clean: r => run_status(r) === 'completed' && !rough(r), rough: r => run_status(r) !== 'in progress' && !(run_status(r) === 'completed' && !rough(r)),
 };
 
+/* The way from a number to the customer's story: the journey view beside this page, or whatever an embedding page offers */
+const alone = () => !!(window.AWA_SOURCE || window.AWA_EMBEDDED);
 function journey_link(j, row) {
     const ji = (P.journeys || []).indexOf(j), ii = j.instances.indexOf(row);
-    return `journey.html${link}#story/${ji}/${ii}`;
+    if (typeof window.AWA_open_journey === 'function') return `<button class="n" type="button" data-go="${ji}/${ii}">Open the journey</button>`;
+    return alone() ? '' : `<a href="${esc(`journey.html${link}#story/${ji}/${ii}`)}">Open the journey</a>`;
 }
 function person(j, row, note) {
     const i = row.instance;
     const stage = j.definition.stages.find(s => s.id === i.stage_id);
     const state = i.status === 'completed' ? 'reached the end' : i.status === 'abandoned' ? `left in “${stage ? stage.name : i.stage_id}”` : i.stalled ? `stuck in “${stage ? stage.name : i.stage_id}”` : `in “${stage ? stage.name : i.stage_id}”`;
-    return `<li><span class="t">${esc(row.subject_name || i.subject_key)}</span><span class="s">${esc(j.definition.name)} · started ${esc(day(i.started_at))} · ${esc(state)}${note ? ` · ${esc(note)}` : ''}</span><a href="${esc(journey_link(j, row))}">Open the journey</a></li>`;
+    return `<li><span class="t">${esc(row.subject_name || i.subject_key)}</span><span class="s">${esc(j.definition.name)} · started ${esc(day(i.started_at))} · ${esc(state)}${note ? ` · ${esc(note)}` : ''}</span>${journey_link(j, row)}</li>`;
 }
 function evidence(key) {
     const [kind, id, what, extra] = key.split('|');
@@ -318,7 +321,7 @@ function evidence(key) {
             if (!(RUNS[what] || RUNS.all)(run)) continue;
             const first = run.events[0], last = ended(run);
             const errors = run.events.filter(e => e.type === 'activity.failed').map(e => `${e.node_name || 'a step'} failed (${(e.data && e.data.error && e.data.error.code) || 'error'})`);
-            items.push(`<li><span class="t">${esc(row.subject_name || row.instance.subject_key)} · ${esc(run_status(run))}</span><span class="s">${esc(day(first.time))}${last ? ` · lasted ${esc(dur(Date.parse(last.time) - Date.parse(first.time)))}` : ''}${errors.length ? ` · ${esc(errors.join('; '))}` : ''} · run ${esc(run.run_id.slice(0, 8))}</span><a href="${esc(journey_link(j, row))}">Open the journey</a></li>`);
+            items.push(`<li><span class="t">${esc(row.subject_name || row.instance.subject_key)} · ${esc(run_status(run))}</span><span class="s">${esc(day(first.time))}${last ? ` · lasted ${esc(dur(Date.parse(last.time) - Date.parse(first.time)))}` : ''}${errors.length ? ` · ${esc(errors.join('; '))}` : ''} · run ${esc(run.run_id.slice(0, 8))}</span>${journey_link(j, row)}</li>`);
         }
     }
     $('ev-title').textContent = `${title} (${items.length})`;
@@ -356,7 +359,7 @@ function attention() {
             <span><span class="who">${esc(a.subject_name || a.subject_key)}</span><br><span class="note">${esc(a.journey_name)}</span></span>
             <span>Stuck in “${esc(a.stage_name)}” for <b>${esc(dur(a.waiting_ms))}</b><br><span class="note">${esc(a.reason)}</span></span>
             <span class="own${a.owner ? '' : ' none'}">${a.owner ? esc(a.owner) : 'No owner named for this stage'}</span>
-            <span class="open">${row ? `<a href="${esc(journey_link(j, row))}">Open the journey</a>` : ''}</span></div>`;
+            <span class="open">${row ? `${journey_link(j, row)}` : ''}</span></div>`;
     }).join('');
 }
 
@@ -548,6 +551,7 @@ function show(data, from, how) {
     P = data; source = from || ''; link = how || '';
     $('source').textContent = source;
     $('tojourney').href = `journey.html${link}`;
+    $('tojourney').hidden = alone();
     const keep = st.journey;
     $('journey').innerHTML = '<option value="">All journeys</option>' + (P.journeys || []).map(j => `<option value="${esc(j.definition.id)}">${esc(j.definition.name)}</option>`).join('');
     st.journey = (P.journeys || []).some(j => j.definition.id === keep) ? keep : '';
@@ -567,8 +571,9 @@ $('file').addEventListener('change', async e => {
     e.target.value = '';
 });
 document.addEventListener('click', e => {
-    const t = e.target.closest('[data-open],[data-ev]');
+    const t = e.target.closest('[data-open],[data-ev],[data-go]');
     if (!t) return;
+    if (t.dataset.go) { const [ji, ii] = t.dataset.go.split('/').map(Number); window.AWA_open_journey(ji, ii, P.journeys[ji].instances[ii].instance); return; }
     if (t.dataset.open) { open.has(t.dataset.open) ? open.delete(t.dataset.open) : open.add(t.dataset.open); const y = window.scrollY; render(); window.scrollTo(0, y); const again = document.querySelector(`[data-open="${CSS.escape(t.dataset.open)}"]`); if (again) again.focus(); }
     else evidence(t.dataset.ev);
 });
@@ -595,7 +600,7 @@ if (query.get('live')) {
     poll(); setInterval(poll, 5000);
 } else if (query.get('data')) {
     get(query.get('data')).then(d => show(d, query.get('data'), `?data=${encodeURIComponent(query.get('data'))}`)).catch(error => message(`Cannot load ${query.get('data')}: ${error.message}`));
-} else if (window.AWA_PORTFOLIO) show(window.AWA_PORTFOLIO, 'sample: six customers, three journeys', '');
+} else if (window.AWA_PORTFOLIO) show(window.AWA_PORTFOLIO, window.AWA_SOURCE || 'sample: six customers, three journeys', '');
 else if (!window.AWA_EMBEDDED) message('No record loaded. Use "Open a record", or add ?data=<url> or ?live=<server>.');
 })();
 </script>

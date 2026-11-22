@@ -153,6 +153,16 @@ const text = async (page, selector) => (await page.innerText(selector)).replace(
     await page.close();
 }
 
+// 6. Embedded without a journey view beside it: the embedding page says how a journey is opened
+{
+    const page = await open(`${base}/dashboard.html?data=${encodeURIComponent(`${base}/empty.json`)}`);
+    await page.evaluate(record => { window.AWA_EMBEDDED = true; window.AWA_open_journey = (j, i, instance) => { window.asked = `${j}/${i}/${instance.subject_key}`; }; window.AWA_dashboard_show(record, 'in a panel'); }, sample);
+    check(await page.locator('#tojourney').isHidden() && await page.locator('#attention a').count() === 0, 'embedded, there is no link to a page that is not there');
+    await page.locator('#attention [data-go]').first().click();
+    check(/^1\/\d\/cust-/.test(await page.evaluate(() => window.asked)), 'and "Open the journey" asks the embedding page instead');
+    await page.close();
+}
+
 await browser.close(); server.close();
 console.log(failures.length ? `\n${failures.length} check(s) failed` : '\nall checks passed');
 process.exit(failures.length ? 1 : 0);

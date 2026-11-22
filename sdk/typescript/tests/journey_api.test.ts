@@ -129,3 +129,29 @@ describe('A runtime directory', () => {
         expect(fs.existsSync(path.join(dir, 'runtime.lock'))).toBe(false);
     });
 });
+
+describe('The views that come with the SDK', () => {
+    it('writes the measures page as one file that carries the record and cannot be broken out of', async () => {
+        const { measures_page, view_directory } = await import('../src/runtime/views');
+        expect(fs.existsSync(path.join(view_directory(), 'journey.html'))).toBe(true);
+        const record = { as_of: '2026-01-01T00:00:00Z', journeys: [{ definition: { id: 'j', name: '</script><script>alert(1)</script>', stages: [] }, instances: [] }] };
+        const page = measures_page(record, { source: '</script>' });
+        expect(page).not.toContain('src="awa-kpis.js"');
+        expect(page).not.toContain('</script><script>alert(1)');
+        expect(page).toContain('\\u003c/script>\\u003cscript>alert(1)');
+        expect(page.match(/<script>/g)).toHaveLength(3);          // the measures, the record, the page's own
+        expect(page.match(/<\/script>/g)).toHaveLength(3);
+    });
+
+    it('is served by the server', async () => {
+        const server = createServer({ request_logging: false }).listen(0);
+        await new Promise(resolve => server.once('listening', resolve));
+        const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+        const page = await fetch(`${base}/views/dashboard.html`);
+        expect(page.status).toBe(200);
+        expect(page.headers.get('content-type')).toContain('text/html');
+        expect((await fetch(`${base}/views/awa-kpis.js`)).status).toBe(200);
+        expect((await fetch(`${base}/views/../package.json`)).status).toBe(404);
+        await new Promise(resolve => server.close(resolve));
+    });
+});

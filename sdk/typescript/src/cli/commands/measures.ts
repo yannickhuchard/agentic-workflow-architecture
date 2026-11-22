@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import fs from 'fs/promises';
 import path from 'path';
 import { open_runtime_directory } from '../../runtime/runtime';
+import { measures_page } from '../../runtime/views';
 import { compute_measures, measures_to_openmetrics, MEASURES, Measure, MeasureInput, MeasureReport } from '../../runtime/kpi';
 
 const UNIT = new Map(MEASURES.map(m => [m.id, m]));
@@ -57,6 +58,7 @@ export const measuresCommand = new Command('measures')
     .option('--workflow <id>', 'Only this workflow')
     .option('--json', 'Print the report as JSON')
     .option('--openmetrics', 'Print the measures in the OpenMetrics text format')
+    .option('--html <file>', 'Write the measures page as one file that shows this record, to open in a browser')
     .option('--list', 'List the measures and their definitions')
     .action(async options => {
         try {
@@ -70,6 +72,12 @@ export const measuresCommand = new Command('measures')
                 const runtime = await open_runtime_directory(path.resolve(process.cwd(), options.dir), { engine: { execution_logger: { log_execution: async () => { } } } });
                 input = await runtime.export_portfolio();
                 await runtime.close();
+            }
+            if (options.html) {
+                const file = path.resolve(process.cwd(), options.html);
+                await fs.writeFile(file, measures_page(input, { source: options.file || options.dir }));
+                console.log(`wrote ${options.html}: open it in a browser`);
+                return;
             }
             const report = compute_measures(input, { from: options.from, to: options.to, journey_id: options.journey, workflow_id: options.workflow });
             if (options.openmetrics) process.stdout.write(measures_to_openmetrics(report));
