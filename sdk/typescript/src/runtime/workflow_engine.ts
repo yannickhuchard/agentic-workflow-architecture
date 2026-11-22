@@ -881,6 +881,12 @@ export class WorkflowEngine {
                 continue;
             }
 
+            // A human task that is still pending is not an outcome yet. The token is
+            // parked, and the contract is checked when the answer arrives (resumeToken).
+            if (output._requires_human_action && this.options.wait_for_human_tasks) {
+                return { output, verificationRecords, attempts: attempt };
+            }
+
             const usage = output.usage as { input_tokens?: number; output_tokens?: number } | undefined;
             tokensUsed += (usage?.input_tokens || 0) + (usage?.output_tokens || 0);
             const outcome = outcome_of(output);
@@ -969,6 +975,15 @@ export class WorkflowEngine {
                     output: this.journal.payload(outcome),
                 },
             });
+
+            // The token budget covers the judge as well (spec 11.4): check it again now
+            if (budgets?.max_tokens !== undefined && tokensUsed > budgets.max_tokens) {
+                const violation = { kind: 'budget' as const, name: 'max_tokens', message: `max_tokens: ${tokensUsed} tokens used including verification, the budget is ${budgets.max_tokens}` };
+                const message = `Outcome contract violated: ${violation.message}`;
+                this.record({ type: 'contract.checked', ...ref, attempt, data: { passed: false, violations: [violation], tokens_used: tokensUsed, output_hash: hash_payload(outcome) } });
+                this.record({ type: 'activity.failed', ...ref, attempt, data: { error: { message, code: 'CONTRACT_VIOLATION' }, retryable: false, duration_ms: Date.now() - attemptStart } });
+                return reject('CONTRACT_VIOLATION', message, { _contract_violations: [violation] });
+            }
 
             if (verification.verdict === 'pass') {
                 this.log(`Activity "${activity.name}" passed verification (attempt ${attempt})`);
@@ -1539,6 +1554,9 @@ export class WorkflowEngine {
         if (this.status === 'waiting_human') {
             this.status = 'running';
         }
+
+        // The activity is now complete: if the run fails later, its effects are undone like any other's
+        this.completedActivities.push({ activity_id: token.activityId, token_id: token.id, output: public_payload(output) });
 
         await this.advanceToken(token, token.activityId);
         await this.saveCheckpoint();

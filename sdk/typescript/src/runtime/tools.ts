@@ -287,15 +287,17 @@ export class ToolRunner {
 
     private async execute(tool: ToolDefinition, args: Record<string, unknown>, call_id: string): Promise<ToolExecution> {
         const binding = tool.binding;
+        let executor = this.options.executors?.[binding.kind] || built_in[binding.kind];
         if (binding.kind === 'function' && !this.options.executors?.function) {
             const handler = this.options.handlers?.[binding.name];
             if (!handler) throw new ToolError(`No handler is registered for function "${binding.name}"`, 'VALIDATION_ERROR');
-            return { result: await handler(args) };
+            executor = async (_binding, handler_args) => ({ result: await handler(handler_args) });
         }
-        const executor = this.options.executors?.[binding.kind] || built_in[binding.kind];
         if (!executor) {
             throw new ToolError(`No executor is registered for "${binding.kind}" tools. Register one with tools.executors.${binding.kind}`, 'VALIDATION_ERROR');
         }
+
+        // Every kind of binding runs under the tool's timeout, registered handlers included
         const timeout = tool.timeout ? parse_iso_duration(tool.timeout) : 30000;
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), timeout);

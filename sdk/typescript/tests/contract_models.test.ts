@@ -202,3 +202,54 @@ describe('Model binding', () => {
         }
     });
 });
+
+describe('Review findings: contracts, budgets and compensation around human tasks', () => {
+    it('parks a human activity that has a contract, and checks the contract when the answer arrives', async () => {
+        const approve = activity('Approve', { actor_type: 'human', outcome_contract: contract({ postconditions: [{ name: 'decided', expression: 'decision exists' }] }) });
+        const next = activity('Next');
+        const human = scripted({ Approve: { _requires_human_action: true, _human_task_id: 't-1' } });
+        const engine = new WorkflowEngine(workflow([approve, next], [edge(approve, next)]), { actors: human.actors, wait_for_human_tasks: true, ...quiet });
+        await engine.start();
+        expect(await engine.run()).toBe('waiting_human'); // not failed on the placeholder
+        expect(await engine.resumeToken(engine.getTokens()[0].id, { decision: 'yes' })).toBe(true);
+        expect(await engine.run()).toBe('completed');
+    });
+
+    it('counts judge tokens against the token budget', async () => {
+        const a = activity('A', {
+            actor_type: 'ai_agent',
+            outcome_contract: contract({ budgets: { max_tokens: 100, max_attempts: 3 } }),
+            verification: {
+                enabled: true, mode: 'ai_judge', max_retries: 2, retry_with_feedback: true, judge_temperature: 0, pass_threshold: 0.9,
+                criteria: [{ id: uuidv4(), name: 'c', description: 'd', type: 'completeness', weight: 1, required: true }],
+            },
+        });
+        const judge = new FunctionModelProvider('acme', () => ({
+            text: JSON.stringify({ results: [{ criterion_id: 1, passed: true, evidence: 'ok', confidence: 1 }], feedback: null }),
+            usage: { input_tokens: 100, output_tokens: 20 },
+        }));
+        const { actor, actors } = scripted({ A: { output: { ok: true }, usage: { input_tokens: 15, output_tokens: 5 } } });
+        const engine = new WorkflowEngine(workflow([a], []), { actors, model_providers: [judge], ...quiet });
+        await engine.start();
+        expect(await engine.run()).toBe('failed'); // 20 by the actor is within budget; 140 with the judge is not
+        expect(actor.count('A')).toBe(1);
+        expect(String(engine.getTokens()[0].getData('_error'))).toMatch(/140 tokens used including verification, the budget is 100/);
+    });
+
+    it('compensates an activity that was completed by a human through resume', async () => {
+        const undo = activity('Undo approval');
+        const approve = activity('Approve', { actor_type: 'human', compensation: { activity_id: undo.id } });
+        const ship = activity('Ship');
+        const app = scripted({ Ship: new Error('carrier down') });
+        const human = scripted({ Approve: { _requires_human_action: true, _human_task_id: 't-1' } });
+        const engine = new WorkflowEngine(workflow([approve, ship, undo], [edge(approve, ship)]), {
+            actors: { application: app.actor, human: human.actor }, wait_for_human_tasks: true, ...quiet,
+        });
+        await engine.start();
+        await engine.run();
+        await engine.resumeToken(engine.getTokens()[0].id, { approved: true });
+        expect(await engine.run()).toBe('failed');
+        expect(app.actor.calls.map(c => c.activity)).toEqual(['Ship', 'Undo approval']);
+        expect(app.actor.calls[1].inputs._compensating).toMatchObject({ activity_name: 'Approve', output: { approved: true } });
+    });
+});

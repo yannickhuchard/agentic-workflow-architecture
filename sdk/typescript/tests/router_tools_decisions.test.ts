@@ -292,6 +292,13 @@ describe('Tools', () => {
         expect(events.find(e => e.data.tool === 'search' && e.type === 'tool.invoked')!.data.link).toBe('mcp://docs/search');
     });
 
+    it('applies the tool timeout to registered function handlers', async () => {
+        const tool = def({ name: 'slow', timeout: 'PT0.05S', binding: { kind: 'function', name: 'slow' } });
+        const { run, events } = runner([tool], { handlers: { slow: () => new Promise(() => { /* never resolves */ }) } });
+        expect((await run.call('slow', {})).result).toMatchObject({ code: 'TIMEOUT' });
+        expect(events.map(e => e.type)).toEqual(['tool.invoked', 'tool.failed']);
+    });
+
     it('uses a registered executor for kinds the engine does not implement', async () => {
         const { run } = runner([def({ name: 'quote', binding: { kind: 'grpc', endpoint: 'pricing:443', service: 'pricing.Quotes', method: 'Get' } })], {
             executors: { grpc: async (binding, args) => ({ status: 'OK', result: { binding: binding.kind, echoed: args } }) },
