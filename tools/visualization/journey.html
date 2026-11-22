@@ -158,7 +158,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid #a5b4fc; outline-
 .lgi { width: 14px; height: 14px; flex: none; position: relative; }
 
 /* On one customer's journey nothing disappears: what lies after the moment being read is dimmed, so a click inspects and never seems to erase */
-#L2 .g.off { opacity: .32; transform: none; pointer-events: auto; }
+#L2 .g.off { opacity: .42; transform: none; pointer-events: auto; }
 #L2 .dot.off, #L2 .doc.off { opacity: .25; transform: none; }
 #L2 .th.h.off, #L2 .th.v.off { transform: none; opacity: .22; }
 #L2 .gap.off { opacity: .4; }
@@ -168,7 +168,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid #a5b4fc; outline-
 .ms { stroke: #e2e8f0; stroke-width: 2; stroke-linecap: round; transition: opacity .3s ease; }
 .ms.said { stroke-width: 3.5; } .ms.guess { stroke-dasharray: 5 5; } .ms.off { opacity: .25; }
 .md { position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; border: 2px solid #e2e8f0; background: var(--bg); padding: 0; cursor: pointer; z-index: 3; transition: opacity .3s ease; }
-.md.said { background: #e2e8f0; } .md.off { opacity: .3; }
+.md.said { background: #e2e8f0; } .md.off { opacity: .45; }
 .nd[data-n] { cursor: pointer; }
 
 .listp { position: absolute; right: 24px; top: 58px; width: 560px; height: 596px; border-radius: 14px; background: var(--panel); border: 1px solid rgba(129,140,248,.5); box-shadow: 0 20px 60px rgba(0,0,0,.6); z-index: 6; display: flex; flex-direction: column; overflow: hidden; }
@@ -394,11 +394,11 @@ scenes.story = () => {
     const j = J(), c = I(), beats = c.beats, n = beats.length, xs = xsOf(c), person = S.customers[c.c];
     const ys = beats.map(b => beatY(j, b));
     let h = `<div style="position:absolute;left:28px;top:12px;width:1384px;display:flex;align-items:center;gap:10px">
-      <div class="hd" style="font-size:22px;font-weight:600;white-space:nowrap">${esc(c.name)}</div>
+      <div class="hd" style="font-size:22px;font-weight:600;white-space:nowrap" title="${esc((person.persona || '') + ' ' + c.summary)}">${esc(c.name)}</div>
       <button class="crumb" style="border-color:rgba(255,255,255,.16);font-size:12px;height:28px;padding:0 9px" data-person="-1" title="The previous customer in this journey">&lsaquo; previous customer</button>
       <button class="crumb" style="border-color:rgba(255,255,255,.16);font-size:12px;height:28px;padding:0 9px" data-person="1" title="The next customer in this journey">next customer &rsaquo;</button>
       <button class="crumb" style="border-color:var(--focus);color:#fff;font-size:12px;height:28px;padding:0 9px" data-list="toggle" title="The whole story as a dated list you can read from top to bottom">Read as a list</button>
-      <div class="sub" style="font-size:13px;flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(person.persona)}">${esc(person.persona)} ${esc(c.summary)}</div>
+<div style="flex:1 1 auto"></div>
       ${c.mood_from ? `<div class="chip" title="A journey begins at the mood the customer's last one left them in">Arrived ${mood(c.mood_start)} from ${esc(c.mood_from)}</div>` : ''}
       <div class="chip" id="moodchip"></div>
       ${c.goals.map((g, k) => `<div class="chip" data-goal="${k}"></div>`).join('')}
@@ -459,7 +459,7 @@ scenes.story = () => {
             h += `<div class="doc${out} off" data-b="${i}" style="left:${xs[i] + (seen[k] - 1) * 7}px;top:${kindY(j, k)}px" title="${esc(a.name)}${a.reference ? ' ' + esc(a.reference) : ''}"></div>`;
         }
     });
-    h += `<div class="listp" id="listp" hidden><div class="listh"><b style="flex:1 1 auto">${esc(c.name)}: what happened, in order</b><div class="seg-ctl"><button data-list="customer">The customer&rsquo;s side</button><button data-list="all">Everything</button></div><button class="crumb" data-list="toggle">Close</button></div><div class="listb" id="listb"></div></div>`;
+    h += `<div class="listp" id="listp" hidden><div class="listh"><b style=\"flex:1 1 auto;white-space:nowrap\">What happened, in order</b><div class="seg-ctl"><button data-list="customer">The customer&rsquo;s side</button><button data-list="all">Everything</button></div><button class="crumb" data-list="toggle">Close</button></div><div class="listb" id="listb"></div></div>`;
     h += `<div class="ring"></div><div class="fl ct"></div>
       <div style="position:absolute;left:28px;top:654px;width:1384px;display:flex;align-items:center;gap:16px">
         ${[['k-event', 'customer acts'], ['k-told', 'customer is told'], ['k-timeout', 'nothing arrives in time'], ['k-stage_in', 'stage begins'], ['k-goal', 'goal reached'], ['k-model_decision', 'a model decides'], ['k-human_wait', 'waits for a person'], ['k-partner', 'a partner system is called']].map(([k, t]) => `<div class="lg"><span class="lgi"><span class="sh ${k}"></span></span>${t}</div>`).join('')}
@@ -558,8 +558,10 @@ apply.story = el => {
         const SIDE = { event: 1, told: 1, timeout: 1, stalled: 1, completed: 1, abandoned: 1, human_done: 1, model_decision: 1, run_failed: 1, goal: 1, undone: 1 };
         el.querySelectorAll('[data-list="customer"],[data-list="all"]').forEach(b => b.classList.toggle('on', (b.dataset.list === 'all') === !!st.listAll));
         el.querySelector('#listb').innerHTML = beats.map((b, i) => (st.listAll || SIDE[b.kind]) ? `${b.gap ? `<div class="ll2" style="cursor:default"><span class="w"></span><span class="gapl">${esc(b.gap)}</span></div>` : ''}<button class="ll2${i === ib ? ' cur' : ''}" data-beat="${i}"><span class="w mono">${esc(b.when)}</span><span>${esc(b.cap)}${b.mood_why ? ` <span style="color:var(--mute)">(mood ${b.mood_why.map(w => `${signed(w.change)}, ${w.basis === 'measured' ? 'said by the customer' : 'inferred'}: ${esc(w.reason)}`).join('; ')})</span>` : ''}</span></button>` : '').join('');
-        const cur = el.querySelector('#listb .cur'); if (cur) cur.scrollIntoView({ block: 'nearest' });
-    }
+        const body = el.querySelector('#listb'), cur = body.querySelector('.cur');
+        if (!panel.dataset.open) body.scrollTop = 0; else if (cur) cur.scrollIntoView({ block: 'nearest' });
+        panel.dataset.open = '1';
+    } else delete panel.dataset.open;
     const line = el.querySelector('#moodline');
     if (line) {
         if (!line.dataset.len) {

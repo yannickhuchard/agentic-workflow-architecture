@@ -298,9 +298,29 @@ The number is the count of actions. No task was abandoned outright. Task 2, the 
 - **Nobody used play**, and through this tool it could not have been judged. Three said they would rather jump than watch. The storytelling the brief asked for is the least tested part of the design.
 - **Words.** Nobody said "journey", "workflow", "touchpoint", "atlas" or "blueprint" unprompted. They said: the grid, boxes, the diagram, the long bar, the sentence at the bottom, the slider, stuck. The view's vocabulary is the specification's, not its readers'.
 
-### 12.5 What the sessions say about the design
+### 12.5 Re-test of the revised view
+
+A sixth agent, playing a second case handler, was given five of the tasks on the revised view. [Report](sessions/aline-case-handler-retest.md).
+
+| Task | Before (Tom) | After (Aline) |
+|---|---|---|
+| Tell me what happened to A. Okafor | partly, 20 actions, ran out at step 16 of 30 | yes, 4 actions, through "Read as a list" |
+| Was the money left reserved | yes, 6 | yes, 4, one of them a wrong turn into the renewal |
+| Where do we lose the most customers | yes, 3, after a blank screen | yes, 1 |
+| Did the claim cost us anything later | partly, 5, link inferred | yes, 3: read "Arrived unhappy from Motor Claim" and the goodwill discount |
+| Are the two drops the same kind | yes, 5, from the small print | yes, 3: read it off the dashed and solid line and the key before selecting anything |
+
+One participant is not a comparison, and a second agent in the same role is not an independent sample. What it does show is that the list was found and used at once, and that the dashed and solid line was read correctly without being pointed at.
+
+It also found what the revision got wrong: the list opened at the end of the story instead of the beginning; a dimmed mark looked disabled; the header ran off the right edge once it carried more chips. Those three are corrected. Still open from this session: her wish that the list, not the diagram, be what opens first for a case handler; and "completed" on a workflow whose policy lapsed.
+
+### 12.6 What the sessions say about the design
 
 Three things held. The caption carried every answer: all five called it some version of "the sentence at the bottom" and treated it as the source of truth, which is the inversion section 7.2 argued for. The atlas answered the first task for everyone in five actions or fewer. And every participant, asked what the screen was for, described a case history to be replayed, not a dashboard.
 
 Two things did not. Progressive reveal, the heart of the storytelling, was the main source of disorientation when reached by a click rather than by play. And the distinction the specification insists on, measured against inferred, was invisible until pointed at. Both are now changed in the view; neither change has been put in front of a person.
+
+## 13. Testing with people
+
+Still owed. The [test kit](usability-test-kit.md) is ready. Where people and the agents of section 12 disagree, that difference is itself a finding.
 
