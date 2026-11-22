@@ -101,6 +101,8 @@ export interface WorkflowEngineOptions {
     model_tiers?: Record<string, string | string[]>;
     /** Receives the business events the workflow publishes. Without one they are recorded in the journal only. */
     event_sink?: EventSink;
+    /** On restore: the highest sequence number already in the journal of the run, when it is beyond the checkpoint's. Set by WorkflowEngine.recover. */
+    journal_tail_seq?: number;
     /** The current time in milliseconds. Tests replace it to move time forward. */
     now?: () => number;
     /**
@@ -592,7 +594,7 @@ export class WorkflowEngine {
         };
         const engine = new WorkflowEngine(workflowDef, { ...options, run_id: meta.run_id || options.run_id });
         engine.journal = new JournalWriter(
-            engine.runId, workflowDef.id, engine.journalStore, options.journal_payloads || 'full', meta.journal_seq || 0, options.now);
+            engine.runId, workflowDef.id, engine.journalStore, options.journal_payloads || 'full', Math.max(meta.journal_seq || 0, options.journal_tail_seq || 0), options.now);
         engine.tokens = state.tokens.map(t => deserialize_token(t, state.workflow_id));
         engine.contextManager.restore(state.contexts);
         engine.completedActivities = meta.completed_activities || [];
@@ -609,6 +611,18 @@ export class WorkflowEngine {
             data: { from_checkpoint_at: state.checkpoint_at, from_seq: meta.journal_seq || 0, active_tokens: engine.tokens.filter(t => t.status === 'active').length },
         });
         return engine;
+    }
+
+    /**
+     * Continue a run from a checkpoint and from its journal as it stands. A process
+     * that stopped in the middle of an activity had already journalled events after
+     * its last checkpoint; numbering continues after the last event on record, so no
+     * sequence number is ever used twice (spec 10.3). Prefer this to restore().
+     */
+    public static async recover(workflowDef: Workflow, state: WorkflowState, options: WorkflowEngineOptions = {}): Promise<WorkflowEngine> {
+        const run_id = ((state.metadata || {}) as { run_id?: UUID }).run_id || options.run_id;
+        const on_record = options.journal && run_id ? await options.journal.read(run_id) : [];
+        return WorkflowEngine.restore(workflowDef, state, { ...options, journal_tail_seq: on_record.reduce((max, e) => Math.max(max, e.seq), 0) });
     }
 
     /**

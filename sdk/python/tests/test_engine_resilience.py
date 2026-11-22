@@ -357,3 +357,40 @@ def test_next_event_deadline_and_expiry_respect_the_clock():
     assert engine.expire_events() == 1
     assert engine.run()["status"] == "failed"
     assert engine.tokens[0].get_data("_error_code") == "EVENT_TIMEOUT"
+
+
+def test_recovery_never_reuses_a_journal_sequence_number():
+    """A process that stops mid-activity has journalled events after its last checkpoint.
+    The recovered run numbers its events after the last one on record, not after the checkpoint."""
+    from awa.runtime.checkpoint import InMemoryCheckpointStore
+    from awa.runtime.journal import InMemoryJournalStore
+
+    workflow = Workflow.model_validate({
+        "id": "00000000-0000-4000-8000-0000000000a1", "name": "wait", "version": "1.0.0",
+        "activities": [
+            {"id": "00000000-0000-4000-8000-0000000000a2", "name": "A", "role_id": "00000000-0000-4000-8000-0000000000a9", "actor_type": "application"},
+            {"id": "00000000-0000-4000-8000-0000000000a3", "name": "B", "role_id": "00000000-0000-4000-8000-0000000000a9", "actor_type": "application"},
+        ],
+        "events": [{"id": "00000000-0000-4000-8000-0000000000a4", "name": "Go", "event_type": "message", "event_definition": {"name": "go"}}],
+        "edges": [
+            {"id": "00000000-0000-4000-8000-0000000000a5", "source_id": "00000000-0000-4000-8000-0000000000a2", "target_id": "00000000-0000-4000-8000-0000000000a4"},
+            {"id": "00000000-0000-4000-8000-0000000000a6", "source_id": "00000000-0000-4000-8000-0000000000a4", "target_id": "00000000-0000-4000-8000-0000000000a3"},
+        ],
+    })
+    journal, checkpoints = InMemoryJournalStore(), InMemoryCheckpointStore()
+    first = WorkflowEngine(workflow, options={"journal": journal, "checkpoint": checkpoints})
+    assert first.run()["status"] == "waiting_event"
+    run_id = first.run_id
+    state = checkpoints.load(run_id)
+    tail = journal.read(run_id)[-1]
+    # Two more events reached the journal before the process died without checkpointing again
+    journal.append({**tail, "id": "00000000-0000-4000-8000-0000000000b1", "seq": tail["seq"] + 1, "type": "activity.started"})
+    journal.append({**tail, "id": "00000000-0000-4000-8000-0000000000b2", "seq": tail["seq"] + 2, "type": "tool.invoked"})
+
+    second = WorkflowEngine.restore(workflow, state, options={"journal": journal, "checkpoint": checkpoints})
+    second.deliver_event({"specversion": "1.0", "id": "e1", "source": "/test", "type": "go", "data": {}})
+    second.run()
+    seqs = [e["seq"] for e in journal.read(run_id)]
+    assert seqs == list(range(1, len(seqs) + 1))
+    resumed = next(e for e in journal.read(run_id) if e["type"] == "run.resumed")
+    assert resumed["seq"] == tail["seq"] + 3

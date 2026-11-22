@@ -495,9 +495,13 @@ class WorkflowEngine:
         opts["run_id"] = meta.get("run_id") or opts.get("run_id")
 
         engine = cls(workflow, options=opts)
+        # A process that stopped in the middle of an activity had already journalled events after its last
+        # checkpoint. Numbering continues after the last event on record, not after the checkpoint.
+        checkpoint_seq = int(meta.get("journal_seq") or 0)
+        on_record = [int(e["seq"]) for e in engine._journal_store.read(engine._run_id)]
         engine._journal = JournalWriter(
             engine._run_id, str(workflow.id), engine._journal_store, opts.get("journal_payloads", "full"),
-            int(meta.get("journal_seq") or 0), engine._now)
+            max([checkpoint_seq, *on_record]), engine._now)
         engine._tokens = {t["id"]: Token.from_dict(copy.deepcopy(t)) for t in state.get("tokens", [])}
         for context_id, data in (state.get("contexts") or {}).items():
             engine._context_manager.merge(context_id, data)

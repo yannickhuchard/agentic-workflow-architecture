@@ -190,21 +190,31 @@ export class AwaRuntime {
     async recover(): Promise<{ instances: number; runs: number; continued: string[] }> {
         const state = await this.options.store?.load();
         if (!state) return { instances: 0, runs: 0, continued: [] };
+
+        // Everything is rebuilt aside first. A recovery that cannot complete throws here, before
+        // anything is taken over or saved: the state on record stays exactly as it was (spec 19.10).
+        const missing = state.runs.filter(saved => !this.workflows.has(saved.workflow_id));
+        if (missing.length) throw new Error(`Cannot recover: ${missing.map(m => `run ${m.run_id} needs workflow ${m.workflow_id}`).join('; ')}, which is not registered. Nothing was changed.`);
+        const instances = new Map(state.instances.map(i => [i.id, i]));
+        const engines: { saved: RuntimeState['runs'][number]; engine: WorkflowEngine }[] = [];
+        for (const saved of state.runs) {
+            engines.push({ saved, engine: await WorkflowEngine.recover(this.workflows.get(saved.workflow_id)!, saved.state, this.engine_options(() => saved.run_id)) });
+        }
+
         return this.op(async () => {
-            this.instances = new Map(state.instances.map(i => [i.id, i]));
+            this.instances = instances;
             this.seen_events = new Set(state.seen_events);
             this.outbox = new Map(Object.entries(state.outbox || {}));
             const continued: string[] = [];
-            for (const saved of state.runs) {
-                const workflow = this.workflows.get(saved.workflow_id);
-                if (!workflow) throw new Error(`Cannot recover run ${saved.run_id}: workflow ${saved.workflow_id} is not registered`);
-                const engine = WorkflowEngine.restore(workflow, saved.state, this.engine_options(() => saved.run_id));
+            for (const { saved, engine } of engines) {
                 this.runs.set(saved.run_id, engine);
                 const instance = this.instances.get(saved.journey_instance_id || '');
                 if (instance) {
                     this.run_journey.set(saved.run_id, instance.id);
                     this.watch(engine, this.journeys.get(instance.journey_id)!, instance, saved.run_id);
                 }
+            }
+            for (const { saved, engine } of engines) {
                 if (engine.getStatus() === 'running') { continued.push(saved.run_id); await engine.run(); }
                 await this.sync(engine);
             }

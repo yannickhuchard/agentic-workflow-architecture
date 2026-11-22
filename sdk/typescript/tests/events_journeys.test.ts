@@ -545,9 +545,37 @@ describe('A host that restarts (spec 19.10)', () => {
         expect(await new FileRuntimeStore(path.join(path.dirname(file), 'none.json')).load()).toBeNull();
     });
 
-    it('refuses to recover a run whose workflow is not registered', async () => {
+    it('refuses to recover a run whose workflow is not registered, and leaves what was saved untouched', async () => {
         const d = definitions(), store = new InMemoryRuntimeStore(), journal = new InMemoryJournalStore();
         await host(d, store, journal).publish(business_event('claim.submitted', { customer_id: 'c-1' }));
+        const before = JSON.stringify(await store.load());
         await expect(new AwaRuntime({ store }).recover()).rejects.toThrow(/is not registered/);
+        expect(JSON.stringify(await store.load())).toBe(before);              // a failed recovery must not overwrite the record
+
+        // Once the definition is back, the same state recovers in full
+        const repaired = host(d, store, journal);
+        expect(await repaired.recover()).toMatchObject({ instances: 1, runs: 1 });
+        await repaired.publish(business_event('documents.uploaded', { customer_id: 'c-1' }));
+        expect(repaired.list_journey_instances()[0].status).toBe('completed');
+    });
+
+    it('never uses a journal sequence number twice, even when the process stopped after its last checkpoint', async () => {
+        const d = definitions(), store = new InMemoryRuntimeStore(), journal = new InMemoryJournalStore();
+        const first = host(d, store, journal);
+        await first.publish(business_event('claim.submitted', { customer_id: 'c-4' }));
+        const run_id = first.list_journey_instances()[0].runs[0].run_id;
+        // The process journalled two more events, then died before it could save its state again
+        const tail = (await journal.read(run_id)).at(-1)!;
+        await journal.append({ ...tail, id: uuidv4(), seq: tail.seq + 1, type: 'activity.started' });
+        await journal.append({ ...tail, id: uuidv4(), seq: tail.seq + 2, type: 'tool.invoked' });
+
+        const second = host(d, store, journal);
+        await second.recover();
+        await second.publish(business_event('documents.uploaded', { customer_id: 'c-4' }));
+        const events = await journal.read(run_id);
+        expect(events.map(e => e.seq)).toEqual(events.map((_, i) => i + 1));
+        const resumed = events.find(e => e.type === 'run.resumed')!;
+        expect(resumed.seq).toBe(tail.seq + 3);
+        expect(resumed.data.from_seq).toBe(tail.seq);                           // where the checkpoint was, which is not where the journal ended
     });
 });
