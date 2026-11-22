@@ -8,7 +8,7 @@ import {
     evaluate_decision,
     DecisionEvaluator
 } from '../src/runtime/decision_evaluator';
-import { DecisionNode, DecisionTable } from '../src/types';
+import { DecisionNode, DecisionTable, DecisionModelSchema, DecisionNodeSchema } from '../src/types';
 import { v4 as uuidv4 } from 'uuid';
 
 // Helper to create a decision node
@@ -285,5 +285,158 @@ describe('DecisionEvaluator Class', () => {
 
         const evaluator = new DecisionEvaluator([node]);
         expect(evaluator.get_next_edge(node.id, { score: 50 })).toBe(edgeId);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Native engine extensions and the external engine plug-in
+// ---------------------------------------------------------------------------
+import { WorkflowEngine } from '../src/runtime/workflow_engine';
+import { DecisionConflictError } from '../src/runtime/decision_evaluator';
+import { DecisionEngine, DecisionEngineRequest } from '../src/runtime/decision_engine';
+import { FunctionModelProvider } from '../src/runtime/models';
+import { compile_recipe } from '../src/runtime/recipe';
+import { validate_workflow_integrity } from '../src/validator';
+import { activity, edge, workflow, scripted, silent_logger } from './helpers';
+
+describe('Hit policy conflicts', () => {
+    const node = (hit_policy: string, rules: unknown[]) => ({
+        id: uuidv4(), name: 'D',
+        decision_table: { hit_policy, inputs: [{ name: 'x', type: 'number' }], outputs: [{ name: 'r', type: 'string' }], rules },
+    }) as DecisionNode;
+
+    it('unique raises when two rules match, and names them', () => {
+        const d = node('unique', [{ input_entries: ['> 0'], output_entries: ['a'] }, { input_entries: ['< 100'], output_entries: ['b'] }]);
+        expect(() => evaluate_decision(d, { x: 5 })).toThrow(DecisionConflictError);
+        expect(() => evaluate_decision(d, { x: 5 })).toThrow(/rules 1 and 2 both match/);
+        expect(evaluate_decision(d, { x: 500 }).outputs).toEqual({ r: 'a' });
+    });
+
+    it('any accepts agreeing rules and raises on disagreeing ones', () => {
+        const agree = node('any', [{ input_entries: ['> 0'], output_entries: ['a'] }, { input_entries: ['< 100'], output_entries: ['a'] }]);
+        expect(evaluate_decision(agree, { x: 5 }).outputs).toEqual({ r: 'a' });
+        const differ = node('any', [{ input_entries: ['> 0'], output_entries: ['a'] }, { input_entries: ['< 100'], output_entries: ['b'] }]);
+        expect(() => evaluate_decision(differ, { x: 5 })).toThrow(/different results/);
+    });
+
+    it('priority takes the highest priority among the matches', () => {
+        const d = node('priority', [
+            { input_entries: ['-'], output_entries: ['low'], priority: 1 },
+            { input_entries: ['> 10'], output_entries: ['high'], priority: 7 },
+        ]);
+        expect(evaluate_decision(d, { x: 50 }).outputs).toEqual({ r: 'high' });
+        expect(evaluate_decision(d, { x: 5 }).outputs).toEqual({ r: 'low' });
+    });
+
+    it('rejects a table whose rule has the wrong number of entries, or an entry that does not parse', () => {
+        const a = activity('A');
+        const bad = node('first', [{ input_entries: ['> 1', '> 2'], output_entries: ['a'] }, { input_entries: ['[1..'], output_entries: ['b'] }]);
+        const codes = validate_workflow_integrity(workflow([a], [edge(a, bad)], { decision_nodes: [bad] })).errors.map(e => e.code);
+        expect(codes).toEqual(['invalid_rule', 'invalid_expression']);
+    });
+});
+
+describe('External decision engine', () => {
+    const quiet = { sleep: async () => { }, execution_logger: silent_logger };
+
+    function build(extra: Record<string, unknown> = {}) {
+        const intake = activity('Intake'); const pay = activity('Pay'); const review = activity('Review'); const manual = activity('Manual');
+        const id = uuidv4();
+        const toPay = edge({ id }, pay); const toReview = edge({ id }, review); const toManual = edge({ id }, manual);
+        const node = {
+            id, name: 'Triage',
+            decision_engine: {
+                name: 'rules', ruleset: 'claims-triage@3', inputs: ['amount'],
+                options: [{ id: 'pay', output_edge_id: toPay.id }, { id: 'review', output_edge_id: toReview.id }],
+            },
+            default_output_edge_id: toManual.id,
+            ...extra,
+        } as unknown as DecisionNode;
+        return { wf: workflow([intake, pay, review, manual], [edge(intake, { id }), toPay, toReview, toManual], { decision_nodes: [node] }), toPay, toReview };
+    }
+
+    async function run(wf: ReturnType<typeof build>['wf'], engine: DecisionEngine | undefined, options = {}) {
+        const s = scripted({ Intake: { amount: 900, secret: 'x' } });
+        const e = new WorkflowEngine(wf, { actors: s.actors, ...(engine ? { decision_engines: { rules: engine } } : {}), ...quiet, ...options });
+        await e.start();
+        const status = await e.run();
+        const events = await e.getEvents();
+        return { status, visited: s.actor.calls.map(c => c.activity), events, data: e.getTokens()[0].contextData, decision: events.find(x => x.type === 'decision.evaluated')?.data as Record<string, any> };
+    }
+
+    it('routes along the option the engine returns, gives it only the selected facts, and records what fired', async () => {
+        const seen: DecisionEngineRequest[] = [];
+        const engine: DecisionEngine = {
+            decide: request => { seen.push(request); return { option: 'review', outputs: { risk_band: 'B' }, fired_rules: ['large-claim'], explanation: 'Amount over 500' }; },
+        };
+        const r = await run(build().wf, engine);
+        expect(r.visited).toEqual(['Intake', 'Review']);
+        expect(seen[0]).toMatchObject({ node_name: 'Triage', ruleset: 'claims-triage@3', inputs: { amount: 900 }, options: [{ id: 'pay' }, { id: 'review' }] });
+        expect(seen[0].inputs).not.toHaveProperty('secret');
+        expect(r.decision).toMatchObject({ method: 'engine', strategy: 'engine', engine: { name: 'rules', ruleset: 'claims-triage@3', option: 'review', fired_rules: ['large-claim'], explanation: 'Amount over 500' } });
+        expect(r.data.risk_band).toBe('B'); // engine outputs become token data
+    });
+
+    it('treats an option that was not offered, no option, or an engine failure as no decision', async () => {
+        for (const engine of [
+            { decide: () => ({ option: 'approve-all' }) },
+            { decide: () => ({}) },
+            { decide: () => { throw new Error('rule base unavailable'); } },
+        ] as DecisionEngine[]) {
+            const r = await run(build().wf, engine);
+            expect(r.visited).toEqual(['Intake', 'Manual']);
+            expect(r.decision.method).toBe('default');
+            expect(r.decision.engine.no_decision_reason).toBeTruthy();
+        }
+    });
+
+    it('fails the token when the engine the node names is not registered', async () => {
+        const r = await run(build().wf, undefined);
+        expect(r.status).toBe('failed');
+        expect(r.visited).toEqual(['Intake']);
+        expect(String(r.data._error)).toMatch(/decision engine "rules", which is not registered/);
+    });
+
+    it('lets a model decide what the engine could not', async () => {
+        const { wf, toPay, toReview } = build();
+        (wf.decision_nodes[0] as any).decision_model = DecisionModelSchema.parse({
+            instructions: 'Decide.', output: 'triage',
+            options: [{ id: 'pay', description: 'p', output_edge_id: toPay.id }, { id: 'review', description: 'r', output_edge_id: toReview.id }],
+        });
+        const provider = new FunctionModelProvider('acme', () => '{"option":"pay","confidence":0.9,"rationale":"small"}');
+        const r = await run(wf, { decide: () => ({}) }, { model_providers: [provider] });
+        expect(r.visited).toEqual(['Intake', 'Pay']);
+        expect(r.decision).toMatchObject({ method: 'model', strategy: 'table_first' });
+        expect(r.data.triage).toBe('pay'); // the model's choice, under the property the node names
+        expect(provider.requests).toHaveLength(1);
+    });
+
+    it('does not allow a table and an engine on the same node', () => {
+        expect(() => DecisionNodeSchema.parse({
+            id: uuidv4(), name: 'D',
+            decision_table: { hit_policy: 'first', inputs: [{ name: 'x', type: 'number' }], outputs: [{ name: 'r', type: 'string' }], rules: [] },
+            decision_engine: { name: 'rules', options: [{ id: 'a', output_edge_id: uuidv4() }] },
+        })).toThrow(/not both/);
+    });
+
+    it('journals a hit-policy conflict and fails rather than taking the default edge', async () => {
+        const a = activity('A'); const b = activity('B'); const c = activity('C');
+        const id = uuidv4(); const toB = edge({ id }, b); const toC = edge({ id }, c);
+        const node = {
+            id, name: 'D', default_output_edge_id: toC.id,
+            decision_table: {
+                hit_policy: 'unique', inputs: [{ name: 'x', type: 'number' }], outputs: [{ name: 'r', type: 'string' }],
+                rules: [{ input_entries: ['> 0'], output_entries: ['a'], output_edge_id: toB.id }, { input_entries: ['< 9'], output_entries: ['b'], output_edge_id: toB.id }],
+            },
+        } as DecisionNode;
+        const wf = workflow([a, b, c], [edge(a, { id }), toB, toC], { decision_nodes: [node] });
+        const s = scripted({ A: { x: 5 } });
+        const e = new WorkflowEngine(wf, { actors: s.actors, ...quiet });
+        await e.start();
+        expect(await e.run()).toBe('failed');
+        expect(e.getTokens()[0].getData('_error_code')).toBe('DECISION_CONFLICT');
+        const event = (await e.getEvents()).find(x => x.type === 'decision.evaluated')!;
+        expect(String(event.data.conflict)).toMatch(/rules 1 and 2 both match/);
+        expect(compile_recipe(wf, await e.getEvents())).toContain('The run failed at **D**');
     });
 });

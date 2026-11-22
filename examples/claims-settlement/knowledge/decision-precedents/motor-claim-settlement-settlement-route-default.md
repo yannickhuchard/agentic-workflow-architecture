@@ -9,12 +9,12 @@ tags:
 status: draft
 generated:
   by: agent:awa-distiller
-  at: "2026-11-22T09:55:14.226Z"
+  at: "2026-11-22T11:23:35.788Z"
 sources:
-  - id: run-148f2184
-    resource: urn:awa:run:148f2184-e25a-495a-bcf3-97181d4cc29d
-    title: Run 148f2184-e25a-495a-bcf3-97181d4cc29d, journal events 47
-    last_modified: "2026-11-22T09:55:14.226Z"
+  - id: run-191bdcc6
+    resource: urn:awa:run:191bdcc6-80b8-4d3d-a855-fb1fbbbb1393
+    title: Run 191bdcc6-80b8-4d3d-a855-fb1fbbbb1393, journal events 47
+    last_modified: "2026-11-22T11:23:35.788Z"
     x-awa-event-seqs:
       - 47
 x-awa-entry-type: decision_precedent
@@ -32,7 +32,7 @@ x-awa-latest:
     fraud_score: 0.45
     estimated_cost: 8200
   route: Adjuster review
-x-awa-created-at: "2026-11-22T09:55:14.226Z"
+x-awa-created-at: "2026-11-22T11:23:35.788Z"
 ---
 
 # Settlement route: default routes to Adjuster review

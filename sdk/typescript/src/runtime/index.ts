@@ -14,3 +14,5 @@ export * from './recipe';
 export * from './knowledge';
 export * from './tools';
 export * from './decision_model';
+export * from './unary_test';
+export * from './decision_engine';

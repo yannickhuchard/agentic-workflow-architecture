@@ -63,7 +63,7 @@ An implementation MUST NOT claim a level unless it passes every case tagged with
 | SDK | Levels claimed |
 |---|---|
 | TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `flow` |
-| Python | `core`, and `document` except four integrity rules (see its conformance run) |
+| Python | `core`, `decision`, and `document` except some integrity rules (see its conformance run) |
 | Java | none (data model only) |
 
 ### 2.3 Normative and informative artefacts
@@ -110,7 +110,8 @@ A processor MUST validate a document in two stages and MUST reject a document th
 | Every context binding names a context in the workflow | `invalid_reference` |
 | Every decision rule's `output_edge_id`, and every `default_output_edge_id`, names an edge whose source is that decision node | `invalid_reference` |
 | Node and edge identifiers are unique | `duplicate_id` |
-| Every edge `condition` and every postcondition is a valid condition expression (section 6) | `invalid_expression` |
+| Every edge `condition` and every postcondition is a valid condition expression (section 6); every decision table entry is a valid entry (5.5.1) | `invalid_expression` |
+| Every decision rule has one input entry per input column and one output entry per output column | `invalid_rule` |
 | Every `compensation.activity_id` names an activity in the workflow | `invalid_reference` |
 | No compensation handler is the target of an edge | `invalid_compensation` |
 | Every timer event has a valid `event_definition.duration` | `invalid_timer` |
@@ -172,30 +173,82 @@ An engine MUST NOT select an edge whose condition evaluated to false. In particu
 
 ### 5.5 Decision nodes
 
-A decision node routes a token. It performs no work. It decides with a decision table, described here, with a language model (section 16), or with a table first and a model for the cases no rule covers.
+A decision node routes a token. It performs no work. What decides is one of:
 
-Each rule has one input entry per input column. An entry is a **unary test** applied to the token data property named by the column:
+| Decided by | Field | Nature |
+|---|---|---|
+| A decision table | `decision_table` | Native to AWA, deterministic, specified here. Every engine evaluates it the same way |
+| An external decision engine | `decision_engine` | A rule engine the deployment already runs (5.5.4) |
+| A language model | `decision_model` | For judgement that cannot be written as rules (section 16) |
 
-| Entry | True when the value |
+A node has a table or an external engine, not both, and MAY add a model for the cases those leave undecided.
+
+#### 5.5.1 Entries
+
+Each rule has exactly one input entry per input column. An entry is a test applied to the token data property the column names.
+
+```
+entry   := "-" | "*" | ""                          any value
+         | "not(" tests ")"                        none of the tests holds
+         | tests
+tests   := test ( "," test )*                      at least one test holds
+test    := "null" | "not null"
+         | ( ">" | ">=" | "<" | "<=" | "=" | "==" | "!=" | "<>" ) literal
+         | ( "[" | "(" ) literal ".." literal ( "]" | ")" )
+         | "in" "(" literal ( "," literal )* ")"
+         | "not in" "(" literal ( "," literal )* ")"
+         | "contains(" string ")" | "starts with" string | "ends with" string | "matches(" string ")"
+         | literal                                 equality
+literal := number | "string" | 'string' | true | false | word
+```
+
+- A value is **missing** when the property is absent or null. A missing value satisfies only `-`, `null`, and tests that are negations: `!=`, `not in`, `not(...)`.
+- Equality with a number compares numerically; with a boolean, to that boolean; otherwise as text. A bare `word` is text.
+- `>`, `>=`, `<`, `<=` and ranges compare numerically when the literal is a number, and are false if the value is not a number. When the literal is text they compare as text, which orders ISO 8601 dates and times correctly.
+- In a range, `[` and `]` include the bound; `(` and `)` exclude it.
+- `matches` takes a regular expression, found anywhere in the value unless anchored.
+
+An entry that does not fit the grammar is an error. A processor MUST reject it at validation (`invalid_expression`), as it MUST a rule whose number of input or output entries differs from the number of columns (`invalid_rule`). The file `spec/conformance/unary-tests.json` holds entries, values and expected results that every implementation MUST reproduce.
+
+#### 5.5.2 Hit policies
+
+A rule matches when every one of its entries is satisfied. The hit policy says which matching rule decides.
+
+| Hit policy | Deciding rule | If the matches contradict the policy |
+|---|---|---|
+| `first` | The first matching rule in document order | |
+| `unique` | The only matching rule | More than one rule matches: conflict |
+| `any` | Any matching rule, since all must give the same outputs and edge | Two matching rules differ: conflict |
+| `priority` | The matching rule with the highest `priority` (default 0); among equals, the earlier | |
+| `collect`, `rule_order` | All matching rules. Each output is the list of their values in document order. The edge is that of the first matching rule that names one | |
+
+A **conflict** is a defect in the table, not a routing outcome. The token MUST fail with error code `DECISION_CONFLICT`. An engine MUST NOT take the default edge on a conflict, because that would hide the defect.
+
+For `unique` and `any` an engine MUST evaluate every rule, since it cannot otherwise detect a conflict.
+
+#### 5.5.3 Outputs and routing
+
+The outputs of the deciding rule, named by the output columns, are **merged into the token's data**. A later condition, or another decision node, can therefore use what a decision derived. Decision nodes MAY be connected directly to one another; the second reads the outputs of the first. The engine also keeps each decision under `decisions.<node id>`.
+
+The token moves along the deciding rule's `output_edge_id`. If the rule names none, or no rule matches, the token moves along the node's `default_output_edge_id`. If there is none, the token fails with `NO_ROUTE`.
+
+#### 5.5.4 External decision engines
+
+Decision tables cover decisions that are one pass over the facts. Some organisations already hold their rules in a production rule engine with forward chaining, or in a decision service. A decision node MAY consult such an engine instead of a table:
+
+| Field | Meaning |
 |---|---|
-| `-`, `*` or empty | always |
-| `true`, `false` | is that boolean |
-| `null`, `not null` | is absent or null; is present and not null |
-| `"text"` | equals the quoted string |
-| `> n`, `>= n`, `< n`, `<= n` | compares so, as a number |
-| `== x`, `= x`, `!= x`, `<> x` | equals, or does not equal, `x` |
-| `[a..b]`, `(a..b)`, `[a..b)`, `(a..b]` | lies in the range; `[` `]` include the bound, `(` `)` exclude it |
-| `in (a, b, c)`, `not in (a, b, c)` | is, or is not, one of the listed values |
+| `name` | The engine, as registered by the deployment |
+| `ruleset` | What the engine should evaluate. Its meaning is the engine's |
+| `options` | The only possible decisions: each an `id` and the `output_edge_id` it takes |
+| `inputs` | The token data properties the engine is given. Default: all |
+| `config` | Passed to the engine unchanged |
 
-A rule matches when all its entries are true. Which matching rule supplies the outgoing edge depends on the table's hit policy:
+The engine receives the node, the rule set, the options and the facts, and returns the `id` of one option. It MAY also return outputs, which are merged into the token's data, an explanation, and the names of the rules that fired.
 
-| Hit policy | Edge taken |
-|---|---|
-| `first`, `rule_order`, `collect` | that of the first matching rule in document order |
-| `unique` | that of the single matching rule |
-| `priority`, `any` | that of the first matching rule |
+The engine is bounded as a decision model is. An option that was not offered, no option, or a failure of the engine is **no decision**: the node's model decides if it has one, otherwise the default edge is taken, otherwise the token fails. If the engine a node names is not registered, the token fails with `VALIDATION_ERROR`; an engine MUST NOT substitute another way of deciding.
 
-The token moves along the selected rule's `output_edge_id`. If the rule has none, or no rule matches, the token moves along `default_output_edge_id`. If there is none, the token is `failed`.
+This specification does not define how an external engine evaluates its rules. A workflow that uses one is portable only to deployments that register an engine of that name. Workflows meant to be portable SHOULD use decision tables.
 
 ### 5.6 Waiting
 
@@ -449,7 +502,7 @@ An engine MUST NOT alter or remove an event once written.
 | `activity.failed` | execution | An attempt raised, or its output was rejected | `error.message`, `error.code`, `retryable` |
 | `activity.retry_scheduled` | execution | A further attempt will follow an error | `delay_ms`, `next_attempt` |
 | `activity.dead_lettered` | execution | Retries are exhausted | `error`, `attempts` |
-| `decision.evaluated` | execution | A decision node is evaluated | `method` (`table`, `model`, `default`, `none`), `inputs`, `matched_rules`, `outputs`, `edge_id`, `used_default`, and for a model decision `model` (16.4) |
+| `decision.evaluated` | execution | A decision node is evaluated | `method` (`table`, `engine`, `model`, `default`, `none`), `inputs`, `matched_rules`, `outputs`, `edge_id`, `used_default`, `conflict`; for an external engine `engine` (name, rule set, option, fired rules, explanation); for a model decision `model` (16.4) |
 | `tool.invoked` | execution | A tool call is about to run | `call_id`, `tool`, `link`, `binding`, `arguments`, `documentation` |
 | `tool.completed` | execution | A tool call returned | `call_id`, `tool`, `link`, `status`, `duration_ms`, `result` |
 | `tool.failed` | execution | A tool call failed, or was refused before running | `call_id`, `tool`, `link`, `invoked`, `error`, `status`, `duration_ms` |
@@ -839,7 +892,8 @@ A decision table needs every case anticipated as a rule. Some routing depends on
 | `instructions` | required | How to decide, in natural language |
 | `options` | required, at least 2 | The only possible decisions. Each has an `id`, a `description` of when it applies, and the `output_edge_id` it takes |
 | `inputs` | all token data | The token data properties the model is shown |
-| `strategy` | `table_first` if the node has a table, else `model` | See 16.2 |
+| `strategy` | `table_first` if the node has a table or an external engine, else `model` | See 16.2 |
+| `output` | none | Name of a token data property that receives the id of the chosen option, so later nodes can use it |
 | `min_confidence` | 0 | A decision with lower, or unstated, confidence is no decision |
 | `votes` | 1 | Number of independent samples (16.3) |
 | `temperature` | 0 for one vote, 0.7 for several | Sampling temperature |
@@ -850,7 +904,7 @@ A decision node has a `decision_table`, a `decision_model`, or both. Every optio
 
 | Strategy | Behaviour |
 |---|---|
-| `table_first` | The table is evaluated (5.5). If a rule matches, it decides and **no model is called**. Otherwise the model decides. |
+| `table_first` | The table, or the external engine, is consulted first (5.5). If it decides, **no model is called**. Otherwise the model decides. |
 | `model` | The model decides. Any table on the node is ignored. |
 
 `table_first` keeps every anticipated case deterministic and free, and spends a model call only on the remainder.
@@ -996,3 +1050,6 @@ Runners: `sdk/typescript/tests/conformance.test.ts`, `sdk/python/tests/test_conf
 - Model router with ordered fallbacks per tier; OpenAI, open-source and embedded providers (12.4 to 12.6).
 - Decision nodes may be decided by a model within enumerated options (section 16).
 - Executable tools with bindings, permissions and a journalled record of every call (section 17).
+- Decision tables fully specified: entry grammar, strict hit policies with conflicts, rule `priority`, outputs merged into token data so decisions can be chained (5.5.1 to 5.5.3).
+- External decision engines as a plug-in point (5.5.4).
+- `unique` and `any` now fail on a conflict; 1.0 engines took the first matching rule.

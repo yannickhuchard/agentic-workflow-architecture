@@ -9,12 +9,12 @@ tags:
 status: draft
 generated:
   by: agent:awa-distiller
-  at: "2026-11-22T09:55:07.459Z"
+  at: "2026-11-22T11:23:29.066Z"
 sources:
-  - id: run-3c8b8cc4
-    resource: urn:awa:run:3c8b8cc4-0f7f-4944-8761-324d412b3e1c
-    title: Run 3c8b8cc4-0f7f-4944-8761-324d412b3e1c, journal events 58, 60
-    last_modified: "2026-11-22T09:55:07.459Z"
+  - id: run-f4b30187
+    resource: urn:awa:run:f4b30187-6774-41d0-abf3-7f707e2a920a
+    title: Run f4b30187-6774-41d0-abf3-7f707e2a920a, journal events 58, 60
+    last_modified: "2026-11-22T11:23:29.066Z"
     x-awa-event-seqs:
       - 58
       - 60
@@ -32,7 +32,7 @@ x-awa-counts:
 x-awa-latest:
   code: VALIDATION_ERROR
   message: "Bank rejected the transfer: RPC error -32010: account closed"
-x-awa-created-at: "2026-11-22T09:55:07.459Z"
+x-awa-created-at: "2026-11-22T11:23:29.066Z"
 ---
 
 # Motor Claim Settlement fails at Pay claimant (VALIDATION_ERROR)

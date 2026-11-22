@@ -1,0 +1,135 @@
+{
+  "id": "decision-priority-highest-wins",
+  "level": "decision",
+  "spec": "5.5.2",
+  "description": "Hit policy 'priority': of the matching rules the one with the highest priority decides, even if it comes later.",
+  "workflow": {
+    "id": "8ebf4d23-9d4a-5388-a8d3-5c2a65fc4ec7",
+    "name": "decision-priority-highest-wins",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "80042238-0f01-589b-a770-a0413eee24e3",
+        "name": "A",
+        "role_id": "89ee83d0-adc9-5c08-afa5-713a2c9be47d",
+        "actor_type": "application"
+      },
+      {
+        "id": "1870975b-db51-56ec-b492-b46e58d0cdf6",
+        "name": "Standard",
+        "role_id": "89ee83d0-adc9-5c08-afa5-713a2c9be47d",
+        "actor_type": "application"
+      },
+      {
+        "id": "9b8fbe34-f238-5cb3-8237-4a1e25a1b526",
+        "name": "Vip",
+        "role_id": "89ee83d0-adc9-5c08-afa5-713a2c9be47d",
+        "actor_type": "application"
+      },
+      {
+        "id": "88b56cff-c157-530a-a1bc-c49c34b735e2",
+        "name": "Blocked",
+        "role_id": "89ee83d0-adc9-5c08-afa5-713a2c9be47d",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "f008df2c-39d8-56b8-9c12-9f1158ae5c4a",
+        "source_id": "80042238-0f01-589b-a770-a0413eee24e3",
+        "target_id": "4a985302-6c9c-5811-9f3a-06f3d665301c"
+      },
+      {
+        "id": "b3cb9915-33b8-51ac-83fa-99efc2e4752c",
+        "source_id": "4a985302-6c9c-5811-9f3a-06f3d665301c",
+        "target_id": "1870975b-db51-56ec-b492-b46e58d0cdf6"
+      },
+      {
+        "id": "6eed5953-c583-5042-94ab-d7755172a81d",
+        "source_id": "4a985302-6c9c-5811-9f3a-06f3d665301c",
+        "target_id": "9b8fbe34-f238-5cb3-8237-4a1e25a1b526"
+      },
+      {
+        "id": "b780a49e-9f0a-5859-a0d2-8a2ab919bf3f",
+        "source_id": "4a985302-6c9c-5811-9f3a-06f3d665301c",
+        "target_id": "88b56cff-c157-530a-a1bc-c49c34b735e2"
+      }
+    ],
+    "decision_nodes": [
+      {
+        "id": "4a985302-6c9c-5811-9f3a-06f3d665301c",
+        "name": "D",
+        "decision_table": {
+          "hit_policy": "priority",
+          "inputs": [
+            {
+              "name": "spend",
+              "type": "number"
+            },
+            {
+              "name": "blocked",
+              "type": "boolean"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "route",
+              "type": "string"
+            }
+          ],
+          "rules": [
+            {
+              "input_entries": [
+                "-",
+                "-"
+              ],
+              "output_entries": [
+                "standard"
+              ],
+              "output_edge_id": "b3cb9915-33b8-51ac-83fa-99efc2e4752c",
+              "priority": 1
+            },
+            {
+              "input_entries": [
+                "> 1000",
+                "-"
+              ],
+              "output_entries": [
+                "vip"
+              ],
+              "output_edge_id": "6eed5953-c583-5042-94ab-d7755172a81d",
+              "priority": 5
+            },
+            {
+              "input_entries": [
+                "-",
+                "true"
+              ],
+              "output_entries": [
+                "blocked"
+              ],
+              "output_edge_id": "b780a49e-9f0a-5859-a0d2-8a2ab919bf3f",
+              "priority": 9
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "output": {
+        "spend": 4000,
+        "blocked": false
+      }
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "A",
+      "Vip"
+    ]
+  }
+}

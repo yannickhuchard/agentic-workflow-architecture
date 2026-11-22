@@ -6,6 +6,7 @@ import { WorkflowSchema, ActivitySchema, ContextSchema, type Workflow, type Acti
 import type { ZodError } from 'zod';
 import { validate_expression } from '../runtime/expression';
 import { parse_iso_duration } from '../runtime/duration_utils';
+import { validate_unary_tests } from '../runtime/unary_test';
 
 export interface ValidationResult {
     valid: boolean;
@@ -209,6 +210,24 @@ export function validate_workflow_integrity(workflow: Workflow): ValidationResul
             errors.push({ path: `activities[${activity.id}].tools`, message: `Duplicate tool name '${name}'`, code: 'duplicate_id' });
         }
     }
+    // Decision tables: every entry parses, and every rule has one entry per column
+    for (const decision of workflow.decision_nodes) {
+        const table = decision.decision_table;
+        if (!table) continue;
+        table.rules.forEach((rule, index) => {
+            const where = `decision_nodes[${decision.id}].decision_table.rules[${index}]`;
+            if (rule.input_entries.length !== table.inputs.length) {
+                errors.push({ path: where, message: `Rule ${index + 1} of '${decision.name}' has ${rule.input_entries.length} input entries for ${table.inputs.length} input columns`, code: 'invalid_rule' });
+            }
+            if (rule.output_entries.length !== table.outputs.length) {
+                errors.push({ path: where, message: `Rule ${index + 1} of '${decision.name}' has ${rule.output_entries.length} output entries for ${table.outputs.length} output columns`, code: 'invalid_rule' });
+            }
+            for (const entry of rule.input_entries) {
+                const check = validate_unary_tests(entry);
+                if (!check.valid) errors.push({ path: where, message: check.error || 'Invalid entry', code: 'invalid_expression' });
+            }
+        });
+    }
     for (const decision of workflow.decision_nodes) {
         const ids = (decision.decision_model?.options || []).map(o => o.id);
         for (const id of new Set(ids.filter((n, i) => ids.indexOf(n) !== i))) {
@@ -223,6 +242,7 @@ export function validate_workflow_integrity(workflow: Workflow): ValidationResul
             decision.default_output_edge_id,
             ...(decision.decision_table?.rules || []).map(r => r.output_edge_id),
             ...(decision.decision_model?.options || []).map(o => o.output_edge_id),
+            ...(decision.decision_engine?.options || []).map(o => o.output_edge_id),
         ].filter((id): id is string => !!id);
         for (const ref of refs) {
             const target = edge_by_id.get(ref);

@@ -572,7 +572,9 @@
       case 'activity.dead_lettered': return `${name}: retries exhausted, sent to the dead-letter queue`;
       case 'activity.compensated': return `${d.compensates_activity_name} undone by ${name}`;
       case 'activity.compensation_failed': return `${d.compensates_activity_name} could NOT be undone: ${name} failed`;
-      case 'decision.evaluated': return d.method === 'model'
+      case 'decision.evaluated': return d.conflict ? `${name}: the rules conflict: ${d.conflict}` : d.method === 'engine'
+        ? `${name}: engine ${d.engine && d.engine.name} decided "${d.engine && d.engine.option}"`
+        : d.method === 'model'
         ? `${name}: the model chose "${d.model && d.model.option}"` + (d.model && d.model.confidence != null ? ` (confidence ${Number(d.model.confidence).toFixed(2)})` : '')
         : `${name}: ${d.matched ? 'rule ' + (d.matched_rules || []).map(r => r.index + 1).join(', ') + ' matched' : 'no rule matched'}${d.model && d.model.no_decision_reason ? ', the model gave no decision' : ''}${d.used_default ? ', default route' : ''}`;
       case 'tool.invoked': return `${name}: called tool ${d.tool} → ${d.link}` + (d.simulated ? ' (simulated)' : '');

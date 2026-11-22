@@ -1,0 +1,405 @@
+{
+  "description": "Decision table entries. 'cases': an entry, a value (or 'missing': true when the property is absent) and whether the value satisfies the entry. 'invalid': entries that must be rejected at validation.",
+  "spec": "5.5.1",
+  "cases": [
+    {
+      "entry": "-",
+      "expect": true,
+      "value": 5
+    },
+    {
+      "entry": "-",
+      "expect": true,
+      "missing": true
+    },
+    {
+      "entry": "*",
+      "expect": true,
+      "value": "x"
+    },
+    {
+      "entry": "",
+      "expect": true,
+      "value": null
+    },
+    {
+      "entry": "100",
+      "expect": true,
+      "value": 100
+    },
+    {
+      "entry": "100",
+      "expect": true,
+      "value": "100"
+    },
+    {
+      "entry": "100",
+      "expect": false,
+      "value": 99
+    },
+    {
+      "entry": "100",
+      "expect": false,
+      "missing": true
+    },
+    {
+      "entry": "\"approved\"",
+      "expect": true,
+      "value": "approved"
+    },
+    {
+      "entry": "\"approved\"",
+      "expect": false,
+      "value": "rejected"
+    },
+    {
+      "entry": "approved",
+      "expect": true,
+      "value": "approved"
+    },
+    {
+      "entry": "= 5",
+      "expect": true,
+      "value": 5
+    },
+    {
+      "entry": "== 5",
+      "expect": true,
+      "value": 5.0
+    },
+    {
+      "entry": "true",
+      "expect": true,
+      "value": true
+    },
+    {
+      "entry": "true",
+      "expect": false,
+      "value": false
+    },
+    {
+      "entry": "true",
+      "expect": true,
+      "value": "true"
+    },
+    {
+      "entry": "false",
+      "expect": false,
+      "missing": true
+    },
+    {
+      "entry": "\"100\"",
+      "expect": true,
+      "value": 100
+    },
+    {
+      "entry": "5",
+      "expect": false,
+      "value": true
+    },
+    {
+      "entry": "!= 5",
+      "expect": true,
+      "value": 6
+    },
+    {
+      "entry": "!= 5",
+      "expect": false,
+      "value": 5
+    },
+    {
+      "entry": "<> 5",
+      "expect": true,
+      "missing": true
+    },
+    {
+      "entry": "!= \"a\"",
+      "expect": true,
+      "value": "b"
+    },
+    {
+      "entry": "> 10",
+      "expect": true,
+      "value": 11
+    },
+    {
+      "entry": "> 10",
+      "expect": false,
+      "value": 10
+    },
+    {
+      "entry": ">= 10",
+      "expect": true,
+      "value": 10
+    },
+    {
+      "entry": "< 10",
+      "expect": true,
+      "value": 9.5
+    },
+    {
+      "entry": "<= 10",
+      "expect": true,
+      "value": 10
+    },
+    {
+      "entry": ">=80",
+      "expect": true,
+      "value": 80
+    },
+    {
+      "entry": "> 10",
+      "expect": true,
+      "value": "11"
+    },
+    {
+      "entry": "> 10",
+      "expect": false,
+      "value": "abc"
+    },
+    {
+      "entry": "> 10",
+      "expect": false,
+      "missing": true
+    },
+    {
+      "entry": "< 10",
+      "expect": false,
+      "value": null
+    },
+    {
+      "entry": "< 0.3",
+      "expect": true,
+      "value": 0.12
+    },
+    {
+      "entry": "> -5",
+      "expect": true,
+      "value": -4
+    },
+    {
+      "entry": ">= \"2026-01-01\"",
+      "expect": true,
+      "value": "2026-06-30"
+    },
+    {
+      "entry": "< \"2026-01-01\"",
+      "expect": false,
+      "value": "2026-06-30"
+    },
+    {
+      "entry": "[50..70]",
+      "expect": true,
+      "value": 50
+    },
+    {
+      "entry": "[50..70]",
+      "expect": true,
+      "value": 70
+    },
+    {
+      "entry": "(50..70)",
+      "expect": false,
+      "value": 50
+    },
+    {
+      "entry": "(50..70)",
+      "expect": true,
+      "value": 60
+    },
+    {
+      "entry": "[50..70)",
+      "expect": false,
+      "value": 70
+    },
+    {
+      "entry": "(50..70]",
+      "expect": true,
+      "value": 70
+    },
+    {
+      "entry": "[50..70]",
+      "expect": false,
+      "missing": true
+    },
+    {
+      "entry": "[0.5..1]",
+      "expect": true,
+      "value": 0.75
+    },
+    {
+      "entry": "[\"2026-01-01\"..\"2026-12-31\"]",
+      "expect": true,
+      "value": "2026-06-30"
+    },
+    {
+      "entry": "in(\"red\", \"green\")",
+      "expect": true,
+      "value": "red"
+    },
+    {
+      "entry": "in(\"red\", \"green\")",
+      "expect": false,
+      "value": "blue"
+    },
+    {
+      "entry": "in (1, 2, 3)",
+      "expect": true,
+      "value": 2
+    },
+    {
+      "entry": "in(1, 2)",
+      "expect": false,
+      "missing": true
+    },
+    {
+      "entry": "not in(\"US\", \"CA\")",
+      "expect": true,
+      "value": "UK"
+    },
+    {
+      "entry": "not in(\"US\", \"CA\")",
+      "expect": false,
+      "value": "US"
+    },
+    {
+      "entry": "not in(1, 2)",
+      "expect": true,
+      "missing": true
+    },
+    {
+      "entry": "\"FR\", \"DE\"",
+      "expect": true,
+      "value": "DE"
+    },
+    {
+      "entry": "\"FR\", \"DE\"",
+      "expect": false,
+      "value": "IT"
+    },
+    {
+      "entry": "< 10, > 90",
+      "expect": true,
+      "value": 95
+    },
+    {
+      "entry": "< 10, > 90",
+      "expect": false,
+      "value": 50
+    },
+    {
+      "entry": "null, 0",
+      "expect": true,
+      "missing": true
+    },
+    {
+      "entry": "null, 0",
+      "expect": true,
+      "value": 0
+    },
+    {
+      "entry": "not(< 18, > 99)",
+      "expect": true,
+      "value": 40
+    },
+    {
+      "entry": "not(< 18, > 99)",
+      "expect": false,
+      "value": 12
+    },
+    {
+      "entry": "not(\"a\", \"b\")",
+      "expect": true,
+      "value": "c"
+    },
+    {
+      "entry": "not(null)",
+      "expect": false,
+      "missing": true
+    },
+    {
+      "entry": "not(5)",
+      "expect": true,
+      "missing": true
+    },
+    {
+      "entry": "null",
+      "expect": true,
+      "value": null
+    },
+    {
+      "entry": "null",
+      "expect": true,
+      "missing": true
+    },
+    {
+      "entry": "null",
+      "expect": false,
+      "value": 0
+    },
+    {
+      "entry": "not null",
+      "expect": true,
+      "value": 0
+    },
+    {
+      "entry": "not null",
+      "expect": false,
+      "missing": true
+    },
+    {
+      "entry": "not null",
+      "expect": true,
+      "value": ""
+    },
+    {
+      "entry": "contains(\"fire\")",
+      "expect": true,
+      "value": "engine fire"
+    },
+    {
+      "entry": "contains(\"fire\")",
+      "expect": false,
+      "value": "flood"
+    },
+    {
+      "entry": "contains(\"x\")",
+      "expect": false,
+      "missing": true
+    },
+    {
+      "entry": "starts with \"POL-\"",
+      "expect": true,
+      "value": "POL-77"
+    },
+    {
+      "entry": "ends with \".pdf\"",
+      "expect": false,
+      "value": "claim.PDF"
+    },
+    {
+      "entry": "matches(\"^[A-Z]{3}-[0-9]+$\")",
+      "expect": true,
+      "value": "CLM-2041"
+    },
+    {
+      "entry": "matches(\"^[A-Z]{3}$\")",
+      "expect": false,
+      "value": "clm"
+    }
+  ],
+  "invalid": [
+    "[1..",
+    "(1..5",
+    "in(",
+    "in()",
+    ">",
+    ">=",
+    "\"open",
+    "not(",
+    "matches(\"[\")",
+    "> > 3",
+    "1, , 2",
+    "contains(5)"
+  ]
+}

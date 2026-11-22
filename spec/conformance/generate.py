@@ -158,6 +158,110 @@ def execution_cases() -> list[Case]:
     c.expect = {"status": "failed", "visited": ["A"]}
     cases.append(c)
 
+    # ---- decision tables: hit policies, outputs, chaining ------------------
+    def table(c, name, policy, inputs, rules, outputs=(("route", "string"),), default=None):
+        """rules: (input_entries, output_entries, target or None, extra)"""
+        node = {"id": c.u(name), "name": name, "decision_table": {
+            "hit_policy": policy,
+            "inputs": [{"name": n, "type": t} for n, t in inputs],
+            "outputs": [{"name": n, "type": t} for n, t in outputs],
+            "rules": [{"input_entries": i, "output_entries": o,
+                       **({"output_edge_id": c.u(f"{name}->{t}")} if t else {}), **(x or {})} for i, o, t, x in rules]}}
+        if default:
+            node["default_output_edge_id"] = c.u(f"{name}->{default}")
+        c.decisions.append(node)
+        return c
+
+    c = Case("decision-unique-single-match", "decision", "5.5.2", "Hit policy 'unique': when exactly one rule matches, it decides, wherever it is in the table.")
+    c.act("A").act("Low").act("High")
+    table(c, "D", "unique", [("amount", "number")], [(["< 100"], ["low"], "Low", None), ([">= 100"], ["high"], "High", None)])
+    c.edge("A", "D").edge("D", "Low").edge("D", "High")
+    c.actors = {"A": {"output": {"amount": 500}}}
+    c.expect = {"status": "completed", "visited": ["A", "High"]}
+    cases.append(c)
+
+    c = Case("decision-unique-conflict-fails", "decision", "5.5.2", "Hit policy 'unique': two matching rules are a defect in the table. The token fails; the default edge is not taken.")
+    c.act("A").act("Low").act("High").act("Other")
+    table(c, "D", "unique", [("amount", "number")], [(["< 1000"], ["low"], "Low", None), (["> 100"], ["high"], "High", None)], default="Other")
+    c.edge("A", "D").edge("D", "Low").edge("D", "High").edge("D", "Other")
+    c.actors = {"A": {"output": {"amount": 500}}}
+    c.expect = {"status": "failed", "visited": ["A"], "error_matches": "unique"}
+    cases.append(c)
+
+    c = Case("decision-any-agreeing-rules", "decision", "5.5.2", "Hit policy 'any': several rules may match if they give the same result.")
+    c.act("A").act("Review").act("Pay")
+    table(c, "D", "any", [("amount", "number"), ("flagged", "boolean")],
+          [(["> 1000", "-"], ["review"], "Review", None), (["-", "true"], ["review"], "Review", None), (["<= 1000", "false"], ["pay"], "Pay", None)])
+    c.edge("A", "D").edge("D", "Review").edge("D", "Pay")
+    c.actors = {"A": {"output": {"amount": 5000, "flagged": True}}}
+    c.expect = {"status": "completed", "visited": ["A", "Review"]}
+    cases.append(c)
+
+    c = Case("decision-any-disagreeing-rules-fail", "decision", "5.5.2", "Hit policy 'any': matching rules with different results are a conflict, and the token fails.")
+    c.act("A").act("Review").act("Pay")
+    table(c, "D", "any", [("amount", "number"), ("flagged", "boolean")],
+          [(["> 1000", "-"], ["review"], "Review", None), (["-", "false"], ["pay"], "Pay", None)])
+    c.edge("A", "D").edge("D", "Review").edge("D", "Pay")
+    c.actors = {"A": {"output": {"amount": 5000, "flagged": False}}}
+    c.expect = {"status": "failed", "visited": ["A"], "error_matches": "any"}
+    cases.append(c)
+
+    c = Case("decision-priority-highest-wins", "decision", "5.5.2", "Hit policy 'priority': of the matching rules the one with the highest priority decides, even if it comes later.")
+    c.act("A").act("Standard").act("Vip").act("Blocked")
+    table(c, "D", "priority", [("spend", "number"), ("blocked", "boolean")],
+          [(["-", "-"], ["standard"], "Standard", {"priority": 1}), (["> 1000", "-"], ["vip"], "Vip", {"priority": 5}), (["-", "true"], ["blocked"], "Blocked", {"priority": 9})])
+    c.edge("A", "D").edge("D", "Standard").edge("D", "Vip").edge("D", "Blocked")
+    c.actors = {"A": {"output": {"spend": 4000, "blocked": False}}}
+    c.expect = {"status": "completed", "visited": ["A", "Vip"]}
+    cases.append(c)
+
+    c = Case("decision-priority-tie-earlier-rule", "decision", "5.5.2", "Hit policy 'priority': among matching rules of equal priority the earlier one decides.")
+    c.act("A").act("First").act("Second")
+    table(c, "D", "priority", [("x", "number")], [(["> 0"], ["first"], "First", {"priority": 2}), (["> 0"], ["second"], "Second", {"priority": 2})])
+    c.edge("A", "D").edge("D", "First").edge("D", "Second")
+    c.actors = {"A": {"output": {"x": 1}}}
+    c.expect = {"status": "completed", "visited": ["A", "First"]}
+    cases.append(c)
+
+    c = Case("decision-collect-lists-outputs", "decision", "5.5.2", "Hit policy 'collect': each output is the list of the matching rules' values, in rule order; the first matching rule that names an edge routes.")
+    c.act("A").act("Next")
+    table(c, "D", "collect", [("amount", "number"), ("country", "string")],
+          [(["> 1000", "-"], ["large-amount"], "Next", None), (["-", "in(\"XX\", \"YY\")"], ["high-risk-country"], None, None), (["< 0", "-"], ["negative"], None, None)],
+          outputs=(("flags", "string"),))
+    c.edge("A", "D").edge("D", "Next")
+    c.actors = {"A": {"output": {"amount": 5000, "country": "XX"}}}
+    c.expect = {"status": "completed", "visited": ["A", "Next"], "data": {"flags": ["large-amount", "high-risk-country"]}}
+    cases.append(c)
+
+    c = Case("decision-outputs-become-token-data", "decision", "5.5.3", "The outputs of the deciding rule are merged into the token's data, where later conditions can use them.")
+    c.act("A").act("B").act("Fast").act("Slow")
+    table(c, "D", "first", [("amount", "number")], [(["< 100"], ["express", 1], "B", None), (["-"], ["standard", 5], "B", None)],
+          outputs=(("lane", "string"), ("days", "number")))
+    c.edge("A", "D").edge("D", "B").edge("B", "Fast", condition="lane == express").edge("B", "Slow", is_default=True)
+    c.actors = {"A": {"output": {"amount": 20}}}
+    c.expect = {"status": "completed", "visited": ["A", "B", "Fast"], "data": {"lane": "express", "days": 1}}
+    cases.append(c)
+
+    c = Case("decision-chained-decisions", "decision", "5.5.3", "One decision can feed another directly: the second reads what the first derived.")
+    c.act("A").act("Approve").act("Refer")
+    table(c, "Band", "first", [("score", "number")], [([">= 700"], ["A"], "Outcome", None), (["[600..700)"], ["B"], "Outcome", None), (["-"], ["C"], "Outcome", None)],
+          outputs=(("band", "string"),))
+    table(c, "Outcome", "first", [("band", "string"), ("amount", "number")],
+          [(['"A"', "-"], ["approve"], "Approve", None), (['"B"', "< 5000"], ["approve"], "Approve", None), (["-", "-"], ["refer"], "Refer", None)])
+    c.edge("A", "Band").edge("Band", "Outcome").edge("Outcome", "Approve").edge("Outcome", "Refer")
+    c.actors = {"A": {"output": {"score": 640, "amount": 9000}}}
+    c.expect = {"status": "completed", "visited": ["A", "Refer"], "data": {"band": "B", "route": "refer"}}
+    cases.append(c)
+
+    c = Case("decision-entries-combine", "decision", "5.5.1", "An entry may list alternatives separated by commas, and may negate a list with not(...).")
+    c.act("A").act("Eu").act("Other")
+    table(c, "D", "first", [("country", "string"), ("age", "number")],
+          [(['"FR", "DE", "LU"', "not(< 18, > 99)"], ["eu"], "Eu", None), (["-", "-"], ["other"], "Other", None)])
+    c.edge("A", "D").edge("D", "Eu").edge("D", "Other")
+    c.actors = {"A": {"output": {"country": "LU", "age": 40}}}
+    c.expect = {"status": "completed", "visited": ["A", "Eu"]}
+    cases.append(c)
+
     c = Case("verification-deterministic-pass", "verified", "7", "An output that satisfies every required criterion is accepted.")
     c.act("A").act("B").edge("A", "B")
     c.activities[0]["verification"] = {"mode": "schema_only", "max_retries": 0,
@@ -449,6 +553,16 @@ def document_cases() -> list[dict]:
     docs.append({"id": c.id, "description": "A decision rule must route to an edge that exists and leaves the decision node.",
                  "valid": False, "stage": "integrity", "error_code": "invalid_reference", "document": c.build()["workflow"]})
 
+    c = Case("invalid-decision-entry", "document", "4", "")
+    c.act("A").act("B").decision("D", "first", [("x", "number")], [(["[1..", ], "B")]).edge("A", "D").edge("D", "B")
+    docs.append({"id": c.id, "description": "A decision table entry must be a valid unary test.",
+                 "valid": False, "stage": "integrity", "error_code": "invalid_expression", "document": c.build()["workflow"]})
+
+    c = Case("invalid-decision-rule-width", "document", "4", "")
+    c.act("A").act("B").decision("D", "first", [("x", "number"), ("y", "number")], [(["> 1"], "B")]).edge("A", "D").edge("D", "B")
+    docs.append({"id": c.id, "description": "A rule has exactly one input entry per input column.",
+                 "valid": False, "stage": "integrity", "error_code": "invalid_rule", "document": c.build()["workflow"]})
+
     c = Case("invalid-compensation-in-flow", "document", "4", "")
     c.act("A", compensation={"activity_id": c.u("B")}).act("B").edge("A", "B")
     docs.append({"id": c.id, "description": "A compensation handler must not be the target of an edge.",
@@ -460,6 +574,54 @@ def document_cases() -> list[dict]:
                  "valid": False, "stage": "integrity", "error_code": "invalid_timer", "document": c.build()["workflow"]})
 
     return docs
+
+
+def unary_tests() -> dict:
+    """Entries of decision tables (specification 5.5.1), each with a value and whether it satisfies the entry."""
+    MISSING = {"missing": True}
+    T, F = True, False
+    rows = [
+        # any
+        ("-", 5, T), ("-", MISSING, T), ("*", "x", T), ("", None, T),
+        # equality
+        ("100", 100, T), ("100", "100", T), ("100", 99, F), ("100", MISSING, F),
+        ('"approved"', "approved", T), ('"approved"', "rejected", F), ("approved", "approved", T),
+        ("= 5", 5, T), ("== 5", 5.0, T), ("true", True, T), ("true", False, F), ("true", "true", T), ("false", MISSING, F),
+        ('"100"', 100, T), ("5", True, F),
+        # inequality: a missing value differs from every value
+        ("!= 5", 6, T), ("!= 5", 5, F), ("<> 5", MISSING, T), ('!= "a"', "b", T),
+        # comparison
+        ("> 10", 11, T), ("> 10", 10, F), (">= 10", 10, T), ("< 10", 9.5, T), ("<= 10", 10, T), (">=80", 80, T),
+        ("> 10", "11", T), ("> 10", "abc", F), ("> 10", MISSING, F), ("< 10", None, F), ("< 0.3", 0.12, T), ("> -5", -4, T),
+        # text is ordered as text, which orders ISO dates
+        ('>= "2026-01-01"', "2026-06-30", T), ('< "2026-01-01"', "2026-06-30", F),
+        # ranges
+        ("[50..70]", 50, T), ("[50..70]", 70, T), ("(50..70)", 50, F), ("(50..70)", 60, T), ("[50..70)", 70, F), ("(50..70]", 70, T),
+        ("[50..70]", MISSING, F), ("[0.5..1]", 0.75, T), ('["2026-01-01".."2026-12-31"]', "2026-06-30", T),
+        # lists
+        ('in("red", "green")', "red", T), ('in("red", "green")', "blue", F), ("in (1, 2, 3)", 2, T), ("in(1, 2)", MISSING, F),
+        ('not in("US", "CA")', "UK", T), ('not in("US", "CA")', "US", F), ("not in(1, 2)", MISSING, T),
+        # alternatives
+        ('"FR", "DE"', "DE", T), ('"FR", "DE"', "IT", F), ("< 10, > 90", 95, T), ("< 10, > 90", 50, F), ("null, 0", MISSING, T), ("null, 0", 0, T),
+        # negation
+        ("not(< 18, > 99)", 40, T), ("not(< 18, > 99)", 12, F), ('not("a", "b")', "c", T), ("not(null)", MISSING, F), ("not(5)", MISSING, T),
+        # null
+        ("null", None, T), ("null", MISSING, T), ("null", 0, F), ("not null", 0, T), ("not null", MISSING, F), ("not null", "", T),
+        # text functions
+        ('contains("fire")', "engine fire", T), ('contains("fire")', "flood", F), ('contains("x")', MISSING, F),
+        ('starts with "POL-"', "POL-77", T), ('ends with ".pdf"', "claim.PDF", F), ('matches("^[A-Z]{3}-[0-9]+$")', "CLM-2041", T), ('matches("^[A-Z]{3}$")', "clm", F),
+    ]
+    cases = []
+    for entry, value, expect in rows:
+        case = {"entry": entry, "expect": expect}
+        if value is MISSING:
+            case["missing"] = True
+        else:
+            case["value"] = value
+        cases.append(case)
+    invalid = ["[1..", "(1..5", "in(", "in()", ">", ">=", '"open', "not(", "matches(\"[\")", "> > 3", "1, , 2", 'contains(5)']
+    return {"description": "Decision table entries. 'cases': an entry, a value (or 'missing': true when the property is absent) and whether the value satisfies the entry. 'invalid': entries that must be rejected at validation.",
+            "spec": "5.5.1", "cases": cases, "invalid": invalid}
 
 
 def write(path: pathlib.Path, data: dict) -> None:
@@ -475,7 +637,10 @@ def main() -> None:
         write(ROOT / "execution" / f"{case.id}.json", case.build())
     for doc in document_cases():
         write(ROOT / "documents" / f"{doc['id']}.json", doc)
-    print(f"wrote {len(execution_cases())} execution cases and {len(document_cases())} document cases")
+    tests = unary_tests()
+    write(ROOT / "unary-tests.json", tests)
+    print(f"wrote {len(execution_cases())} execution cases, {len(document_cases())} document cases "
+          f"and {len(tests['cases']) + len(tests['invalid'])} unary tests")
 
 
 if __name__ == "__main__":

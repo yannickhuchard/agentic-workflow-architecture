@@ -15,6 +15,7 @@ import { AIAgent } from './actors/ai_agent';
 import { RobotAgent, RobotConfig } from './actors/robot_agent';
 import { HumanAgent } from './actors/human_agent';
 import { DecisionEvaluator, evaluate_decision } from './decision_evaluator';
+import { DecisionEngine } from './decision_engine';
 import { calculate_duration, parse_iso_duration } from './duration_utils';
 import { WasteCategory, Analytics, VerificationRecord, ActivityRetry } from '../types';
 import { VerificationEngine } from './verification_engine';
@@ -96,6 +97,8 @@ export interface WorkflowEngineOptions {
     default_model_provider?: string;
     /** Capability tiers mapped to model references, e.g. { fast: 'google:gemini-3.1-flash-lite' } */
     model_tiers?: Record<string, string | string[]>;
+    /** External decision engines that decision nodes may consult, by name */
+    decision_engines?: Record<string, DecisionEngine>;
     /** How the tools declared on activities are executed, and what they are allowed to do */
     tools?: ToolOptions;
     /** Knowledge base that activities with a `knowledge` binding draw on. */
@@ -1149,14 +1152,61 @@ export class WorkflowEngine {
         const ref = { token_id: token.id, ...this.nodeRef(decision.id) };
         const table = decision.decision_table;
         const model = decision.decision_model;
-        const strategy = model ? (model.strategy || (table ? 'table_first' : 'model')) : 'table';
+        const external = decision.decision_engine;
+        const strategy = model ? (model.strategy || (table || external ? 'table_first' : 'model')) : external ? 'engine' : 'table';
 
-        // --- decision table (deterministic) ------------------------------
-        const result = table && strategy !== 'model' ? evaluate_decision(decision, token.contextData) : undefined;
+        // --- decision table (deterministic, native) ----------------------
+        let result: ReturnType<typeof evaluate_decision> | undefined;
+        try {
+            result = table && strategy !== 'model' ? evaluate_decision(decision, token.contextData) : undefined;
+        } catch (error: unknown) {
+            // The matching rules contradict the hit policy: a defect in the table.
+            // Taking the default edge would hide it, so the token fails.
+            this.record({ type: 'decision.evaluated', ...ref, data: { method: 'none', strategy, hit_policy: table?.hit_policy, matched: false, conflict: error_info(error).message } });
+            this.failToken(token, error);
+            return;
+        }
         let edgeId = result?.matched ? result.output_edge_id : undefined;
-        let method: 'table' | 'model' | 'default' | 'none' = edgeId ? 'table' : 'none';
+        let method: 'table' | 'engine' | 'model' | 'default' | 'none' = edgeId ? 'table' : 'none';
         let outputs: Record<string, unknown> = result?.matched ? result.outputs : {};
         let modelData: Record<string, unknown> = {};
+        let engineData: Record<string, unknown> | undefined;
+        /** What the decision adds to the token's data, so that later nodes can use it */
+        let dataOutputs: Record<string, unknown> | undefined;
+
+        // --- external decision engine ------------------------------------
+        if (external && strategy !== 'model') {
+            const engine = this.options.decision_engines?.[external.name];
+            if (!engine) {
+                this.failToken(token, new ActivityError(
+                    `Decision "${decision.name}" needs the decision engine "${external.name}", which is not registered in this deployment`, 'VALIDATION_ERROR'));
+                return;
+            }
+            const facts = external.inputs
+                ? Object.fromEntries(external.inputs.map(name => [name, token.contextData[name]]))
+                : public_payload(token.contextData);
+            const started = Date.now();
+            engineData = { name: external.name, ruleset: external.ruleset };
+            try {
+                const decided = await engine.decide({
+                    node_id: decision.id, node_name: decision.name, ruleset: external.ruleset,
+                    options: external.options.map(o => ({ id: o.id, description: o.description })), inputs: facts, config: external.config,
+                });
+                const option = external.options.find(o => o.id === decided.option);
+                engineData = {
+                    ...engineData, option: decided.option, fired_rules: decided.fired_rules, explanation: decided.explanation, duration_ms: Date.now() - started,
+                    ...(decided.option && !option ? { no_decision_reason: `"${decided.option}" is not one of the options` } : {}),
+                    ...(!decided.option ? { no_decision_reason: 'the engine returned no option' } : {}),
+                };
+                if (option) {
+                    edgeId = option.output_edge_id;
+                    method = 'engine';
+                    outputs = { ...(decided.outputs || {}) };
+                }
+            } catch (error: unknown) {
+                engineData = { ...engineData, no_decision_reason: `the engine failed: ${error_info(error).message}`, duration_ms: Date.now() - started };
+            }
+        }
 
         // --- decision model ----------------------------------------------
         if (!edgeId && model) {
@@ -1209,6 +1259,7 @@ export class WorkflowEngine {
                 edgeId = decided.edge_id;
                 method = 'model';
                 outputs = { option: decided.option, confidence: decided.confidence };
+                if (model.output) dataOutputs = { [model.output]: decided.option };
             }
         }
 
@@ -1221,9 +1272,16 @@ export class WorkflowEngine {
             ? Object.fromEntries(table.inputs.map(column => [column.name, token.contextData[column.name]]))
             : Object.fromEntries((model?.inputs || []).map(name => [name, token.contextData[name]]));
 
+        const decided = method === 'table' || method === 'engine' || method === 'model';
+        // The outputs become token data, so a later decision or condition can use them
+        const added = Object.fromEntries(Object.entries(dataOutputs ?? (method === 'model' ? {} : outputs))
+            .filter(([key]) => !key.startsWith('_') && key !== 'activities' && key !== 'decisions'));
+        const record = (token.getData('decisions') || {}) as Record<string, unknown>;
         token.mergeData({
+            ...added,
+            decisions: { ...record, [decision.id]: { name: decision.name, method, outputs } },
             _decision_node_id: decision.id,
-            _decision_matched: method === 'table' || method === 'model',
+            _decision_matched: decided,
             _decision_method: method,
             _decision_outputs: outputs,
         });
@@ -1235,7 +1293,7 @@ export class WorkflowEngine {
                 strategy,
                 ...(table ? { hit_policy: table.hit_policy } : {}),
                 inputs: this.journal.payload(inputs),
-                matched: method === 'table' || method === 'model',
+                matched: decided,
                 matched_rules: (result?.matched_rules || []).map(rule => ({
                     index: table!.rules.indexOf(rule),
                     input_entries: rule.input_entries,
@@ -1244,7 +1302,8 @@ export class WorkflowEngine {
                 outputs,
                 edge_id: edgeId,
                 used_default: method === 'default',
-                ...(model ? { model: modelData } : {}),
+                ...(engineData ? { engine: engineData } : {}),
+                ...(model && (method === 'model' || method === 'default' || method === 'none') ? { model: modelData } : {}),
             },
         });
 

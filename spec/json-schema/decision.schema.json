@@ -30,6 +30,56 @@
         "decision_model": {
             "$ref": "#/$defs/decision_model",
             "description": "Lets a language model decide, within enumerated options"
+        },
+        "decision_engine": {
+            "type": "object",
+            "required": [
+                "name",
+                "options"
+            ],
+            "description": "Consults an external decision engine the deployment registers, instead of a decision table",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "The engine, as registered by the deployment"
+                },
+                "ruleset": {
+                    "type": "string",
+                    "description": "What the engine should evaluate. Its meaning is the engine's."
+                },
+                "options": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "object",
+                        "required": [
+                            "id",
+                            "output_edge_id"
+                        ],
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                            },
+                            "description": {
+                                "type": "string"
+                            },
+                            "output_edge_id": {
+                                "$ref": "awa.schema.json#/$defs/uuid"
+                            }
+                        }
+                    }
+                },
+                "inputs": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "config": {
+                    "type": "object"
+                }
+            }
         }
     },
     "$defs": {
@@ -125,6 +175,11 @@
                 "output_edge_id": {
                     "$ref": "awa.schema.json#/$defs/uuid",
                     "description": "Edge to follow when rule matches"
+                },
+                "priority": {
+                    "type": "number",
+                    "default": 0,
+                    "description": "For hit policy 'priority': the matching rule with the highest value decides"
                 }
             }
         },
@@ -202,6 +257,11 @@
                     "type": "number",
                     "minimum": 0,
                     "maximum": 2
+                },
+                "output": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z][A-Za-z0-9_]*$",
+                    "description": "Token data property that receives the id of the chosen option"
                 }
             }
         }
@@ -214,8 +274,19 @@
         },
         {
             "required": [
+                "decision_engine"
+            ]
+        },
+        {
+            "required": [
                 "decision_model"
             ]
         }
-    ]
+    ],
+    "not": {
+        "required": [
+            "decision_table",
+            "decision_engine"
+        ]
+    }
 }

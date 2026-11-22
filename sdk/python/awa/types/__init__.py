@@ -304,6 +304,7 @@ class DecisionRule(BaseModel):
     input_entries: list[str]
     output_entries: list[Any]
     output_edge_id: UUID | None = None
+    priority: float | None = None
 
 
 class DecisionTable(BaseModel):
@@ -317,7 +318,7 @@ class DecisionNode(BaseModel):
     id: UUID
     name: str
     description: str | None = None
-    decision_table: DecisionTable
+    decision_table: DecisionTable | None = None
     default_output_edge_id: UUID | None = None
 
 

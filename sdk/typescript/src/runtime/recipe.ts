@@ -434,7 +434,13 @@ export function compile_recipe(workflow: Workflow, events: JournalEvent[], optio
             push(`### Step ${step}: ${decision.name}${not_reached}`, '');
 const table = decision.decision_table, model = decision.decision_model;
             const strategy = model ? (model.strategy || (table ? 'table_first' : 'model')) : 'table';
-            push(`- **Kind**: decision, decided by ${strategy === 'table' ? `a decision table (hit policy ${code(table!.hit_policy)})`
+            const external = decision.decision_engine;
+            if (external) {
+                push(`- **External engine**: ${code(external.name)}${external.ruleset ? `, rule set ${code(external.ruleset)}` : ''}. `
+                    + `It must return one of: ${external.options.map(o => code(o.id)).join(', ')}. Register an engine under this name before running.`);
+            }
+            push(`- **Kind**: decision, decided by ${external && !model ? 'an external decision engine' : external ? 'an external decision engine first, and by a model when it gives no decision'
+                : strategy === 'table' ? `a decision table (hit policy ${code(table!.hit_policy)})`
                 : strategy === 'model' ? 'a model' : 'a decision table first, and by a model when no rule matches'}`);
             if (decision.description) push(`- **Purpose**: ${one_line(decision.description)}`);
             if (table) push('', ...decision_table(decision, name_of, workflow), '');
@@ -457,7 +463,10 @@ const table = decision.decision_table, model = decision.decision_model;
                     const rules = (e.data.matched_rules as { index: number }[]) || [];
                     const target = workflow.edges.find(edge => edge.id === e.data.edge_id);
                     const m = e.data.model as { option?: string; confidence?: number; no_decision_reason?: string; votes?: unknown[] } | undefined;
-                    const how = e.data.method === 'model'
+                    const eng = e.data.engine as { name?: string; option?: string; fired_rules?: string[]; explanation?: string } | undefined;
+                    const how = e.data.conflict ? `the rules conflict (${one_line(e.data.conflict)})`
+                        : e.data.method === 'engine' ? `engine ${code(eng?.name)} decided ${code(eng?.option)}${eng?.fired_rules?.length ? `, rules fired: ${eng.fired_rules.join(', ')}` : ''}${eng?.explanation ? `. ${one_line(eng.explanation)}` : ''}`
+                        : e.data.method === 'model'
                         ? `the model chose ${code(m?.option)}${m?.confidence !== undefined ? ` with confidence ${Number(m.confidence).toFixed(2)}` : ''}${(m?.votes?.length || 0) > 1 ? ` (${m!.votes!.length} votes)` : ''}`
                         : rules.length ? `rule ${rules.map(r => r.index + 1).join(', ')} matched`
                             : m?.no_decision_reason ? `no rule matched and the model gave no decision (${one_line(m.no_decision_reason)})` : 'no rule matched';

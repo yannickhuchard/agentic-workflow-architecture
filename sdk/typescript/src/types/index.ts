@@ -417,6 +417,8 @@ export const DecisionRuleSchema = z.object({
     input_entries: z.array(z.string()),
     output_entries: z.array(z.unknown()),
     output_edge_id: UUID.optional(),
+    /** For hit policy "priority": the matching rule with the highest value decides. Default 0. */
+    priority: z.number().optional(),
 });
 export type DecisionRule = z.infer<typeof DecisionRuleSchema>;
 
@@ -453,20 +455,37 @@ export const DecisionModelSchema = z.object({
     /** table_first: ask the model only when no rule of the table matches. model: always ask the model. */
     strategy: z.enum(['table_first', 'model']).optional(),
     min_confidence: z.number().min(0).max(1).default(0),
+    /** Token data property that receives the id of the chosen option, so later nodes can use it */
+    output: z.string().regex(/^[A-Za-z][\w]*$/).optional(),
     /** Independent samples; the option chosen by a strict majority is taken */
     votes: z.number().int().min(1).max(9).default(1),
     temperature: z.number().min(0).max(2).optional(),
 });
 export type DecisionModel = z.infer<typeof DecisionModelSchema>;
 
+export const DecisionEngineBindingSchema = z.object({
+    /** Name of an engine registered with the deployment, e.g. "drools" */
+    name: z.string(),
+    /** What the engine should evaluate: a rule set, a knowledge base, a decision service. Meaning is the engine's. */
+    ruleset: z.string().optional(),
+    /** The only possible decisions, as for a decision model */
+    options: z.array(z.object({ id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/), description: z.string().optional(), output_edge_id: UUID })).min(1),
+    /** Token data properties the engine is given. Default: all. */
+    inputs: z.array(z.string()).optional(),
+    config: z.record(z.unknown()).optional(),
+});
+export type DecisionEngineBinding = z.infer<typeof DecisionEngineBindingSchema>;
+
 export const DecisionNodeSchema = z.object({
     id: UUID,
     name: z.string(),
     description: z.string().optional(),
     decision_table: DecisionTableSchema.optional(),
+    decision_engine: DecisionEngineBindingSchema.optional(),
     decision_model: DecisionModelSchema.optional(),
     default_output_edge_id: UUID.optional(),
-}).refine(node => !!node.decision_table || !!node.decision_model, { message: 'A decision node needs a decision_table, a decision_model, or both' });
+}).refine(node => !!node.decision_table || !!node.decision_model || !!node.decision_engine, { message: 'A decision node needs a decision_table, a decision_engine or a decision_model' })
+    .refine(node => !(node.decision_table && node.decision_engine), { message: 'A decision node has a decision_table or a decision_engine, not both' });
 export type DecisionNode = z.infer<typeof DecisionNodeSchema>;
 
 export const RoleSchema = z.object({

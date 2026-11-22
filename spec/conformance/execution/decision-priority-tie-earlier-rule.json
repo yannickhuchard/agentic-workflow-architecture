@@ -1,0 +1,106 @@
+{
+  "id": "decision-priority-tie-earlier-rule",
+  "level": "decision",
+  "spec": "5.5.2",
+  "description": "Hit policy 'priority': among matching rules of equal priority the earlier one decides.",
+  "workflow": {
+    "id": "d01e4aa2-7622-5b12-9a7d-1ac3f1dffc3c",
+    "name": "decision-priority-tie-earlier-rule",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "01be80a8-12ee-59ad-b487-4166a91f78d8",
+        "name": "A",
+        "role_id": "40f02ba6-474c-5fc6-bf0c-28ea95b1953a",
+        "actor_type": "application"
+      },
+      {
+        "id": "c56cd6f9-81de-56fb-b0aa-9cad7f46d9bc",
+        "name": "First",
+        "role_id": "40f02ba6-474c-5fc6-bf0c-28ea95b1953a",
+        "actor_type": "application"
+      },
+      {
+        "id": "044ba15d-564c-5490-8618-d1b5700ef0c8",
+        "name": "Second",
+        "role_id": "40f02ba6-474c-5fc6-bf0c-28ea95b1953a",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "5c4aa57a-b7d8-5325-87b6-946174b77092",
+        "source_id": "01be80a8-12ee-59ad-b487-4166a91f78d8",
+        "target_id": "0d0cab23-e572-5cc4-b126-6fe427d2a232"
+      },
+      {
+        "id": "d05a6c19-1a17-5d1c-b720-51fee86a516a",
+        "source_id": "0d0cab23-e572-5cc4-b126-6fe427d2a232",
+        "target_id": "c56cd6f9-81de-56fb-b0aa-9cad7f46d9bc"
+      },
+      {
+        "id": "62550921-4ff1-5f9f-a5da-d7cfa57dbc93",
+        "source_id": "0d0cab23-e572-5cc4-b126-6fe427d2a232",
+        "target_id": "044ba15d-564c-5490-8618-d1b5700ef0c8"
+      }
+    ],
+    "decision_nodes": [
+      {
+        "id": "0d0cab23-e572-5cc4-b126-6fe427d2a232",
+        "name": "D",
+        "decision_table": {
+          "hit_policy": "priority",
+          "inputs": [
+            {
+              "name": "x",
+              "type": "number"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "route",
+              "type": "string"
+            }
+          ],
+          "rules": [
+            {
+              "input_entries": [
+                "> 0"
+              ],
+              "output_entries": [
+                "first"
+              ],
+              "output_edge_id": "d05a6c19-1a17-5d1c-b720-51fee86a516a",
+              "priority": 2
+            },
+            {
+              "input_entries": [
+                "> 0"
+              ],
+              "output_entries": [
+                "second"
+              ],
+              "output_edge_id": "62550921-4ff1-5f9f-a5da-d7cfa57dbc93",
+              "priority": 2
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "output": {
+        "x": 1
+      }
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "A",
+      "First"
+    ]
+  }
+}

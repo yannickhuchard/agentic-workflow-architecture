@@ -10,12 +10,13 @@ from pathlib import Path
 
 import pytest
 
+from awa.runtime.unary_test import MISSING, evaluate_unary_tests, validate_unary_tests
 from awa.runtime.workflow_engine import WorkflowEngine
 from awa.types import Workflow
 from awa.validator import validate_workflow_integrity
 
 CONFORMANCE = Path(__file__).resolve().parents[3] / "spec" / "conformance"
-CLAIMED_LEVELS = {"core"}
+CLAIMED_LEVELS = {"core", "decision"}
 
 EXECUTION = [json.loads(p.read_text()) for p in sorted((CONFORMANCE / "execution").glob("*.json"))]
 DOCUMENTS = [json.loads(p.read_text()) for p in sorted((CONFORMANCE / "documents").glob("*.json"))]
@@ -78,3 +79,17 @@ def test_documents(case):
         if case["error_code"] != "invalid_reference" or "decision_nodes" in document or "invalid-comp" in case["id"]:
             pytest.skip(f"integrity rule '{case['error_code']}' is not implemented by the Python SDK")
         assert not validate_workflow_integrity(Workflow.model_validate(document)).valid
+
+
+UNARY = json.loads((CONFORMANCE / "unary-tests.json").read_text())
+
+
+@pytest.mark.parametrize("case", UNARY["cases"], ids=[f"{c['entry']!r} | {c.get('value', 'missing')!r}" for c in UNARY["cases"]])
+def test_decision_entries(case):
+    value = MISSING if case.get("missing") else case["value"]
+    assert evaluate_unary_tests(case["entry"], value) is case["expect"]
+
+
+@pytest.mark.parametrize("entry", UNARY["invalid"])
+def test_invalid_decision_entries_are_rejected(entry):
+    assert validate_unary_tests(entry) is not None

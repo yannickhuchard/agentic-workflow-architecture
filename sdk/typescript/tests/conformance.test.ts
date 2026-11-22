@@ -12,6 +12,7 @@ import { parse_document, validate_workflow_integrity } from '../src/validator';
 import { Activity } from '../src/types';
 import { Actor } from '../src/runtime/actors/actor';
 import { silent_logger } from './helpers';
+import { evaluate_unary_tests, validate_unary_tests } from '../src/runtime/unary_test';
 
 const ROOT = path.resolve(__dirname, '../../..');
 const CONFORMANCE = path.join(ROOT, 'spec/conformance');
@@ -74,6 +75,21 @@ describe('Conformance: documents', () => {
                 expect(result.valid).toBe(false);
                 expect(result.errors.map(e => e.code)).toContain(c.error_code);
             }
+        });
+    }
+});
+
+describe('Conformance: decision table entries', () => {
+    const suite = read(path.join(CONFORMANCE, 'unary-tests.json'));
+    for (const c of suite.cases) {
+        const shown = c.missing ? 'missing' : JSON.stringify(c.value);
+        it(`${JSON.stringify(c.entry)} with ${shown} -> ${c.expect}`, () => {
+            expect(evaluate_unary_tests(c.entry, c.missing ? undefined : c.value)).toBe(c.expect);
+        });
+    }
+    for (const entry of suite.invalid) {
+        it(`${JSON.stringify(entry)} is rejected`, () => {
+            expect(validate_unary_tests(entry).valid).toBe(false);
         });
     }
 });

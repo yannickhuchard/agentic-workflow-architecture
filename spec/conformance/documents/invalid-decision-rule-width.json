@@ -1,0 +1,75 @@
+{
+  "id": "invalid-decision-rule-width",
+  "description": "A rule has exactly one input entry per input column.",
+  "valid": false,
+  "stage": "integrity",
+  "error_code": "invalid_rule",
+  "document": {
+    "id": "9223d691-41fe-5597-8571-63404d387ed7",
+    "name": "invalid-decision-rule-width",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "9b3f2afe-cef8-5060-9da2-6e9f19e0f9cc",
+        "name": "A",
+        "role_id": "041fc2ad-3401-5193-91e1-d339698e2b09",
+        "actor_type": "application"
+      },
+      {
+        "id": "cad1d35f-1283-5cc2-92a4-db08822edaf3",
+        "name": "B",
+        "role_id": "041fc2ad-3401-5193-91e1-d339698e2b09",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "a62d50b9-b34f-5c7f-8668-07495729a559",
+        "source_id": "9b3f2afe-cef8-5060-9da2-6e9f19e0f9cc",
+        "target_id": "015297f3-0c4b-5bf2-b69d-44505a8a2990"
+      },
+      {
+        "id": "7a0ec1bb-5632-5573-a45d-e2b600a927b0",
+        "source_id": "015297f3-0c4b-5bf2-b69d-44505a8a2990",
+        "target_id": "cad1d35f-1283-5cc2-92a4-db08822edaf3"
+      }
+    ],
+    "decision_nodes": [
+      {
+        "id": "015297f3-0c4b-5bf2-b69d-44505a8a2990",
+        "name": "D",
+        "decision_table": {
+          "hit_policy": "first",
+          "inputs": [
+            {
+              "name": "x",
+              "type": "number"
+            },
+            {
+              "name": "y",
+              "type": "number"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "route",
+              "type": "string"
+            }
+          ],
+          "rules": [
+            {
+              "input_entries": [
+                "> 1"
+              ],
+              "output_entries": [
+                "B"
+              ],
+              "output_edge_id": "7a0ec1bb-5632-5573-a45d-e2b600a927b0"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

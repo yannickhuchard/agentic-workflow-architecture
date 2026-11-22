@@ -28,6 +28,7 @@ AWA 1.1 is a specification with a reference implementation and a conformance sui
 |---|---|---|
 | **Document** | A workflow as JSON: activities, actors, roles, edges, decision tables, events | Sections 4, 8 |
 | **Flow** | Sequence, conditional routing, parallel split and join, timers, compensation | Sections 5, 13 |
+| **Decisions** | A native decision table engine with a specified entry language and strict hit policies; decisions can feed one another. External rule engines plug in where a rule base already exists | Section 5.5 |
 | **Outcome contracts** | Per activity: output schema, postconditions, budgets, escalation to a human. Checked deterministically, failing closed | Sections 7, 11 |
 | **Resilience** | Retry with backoff, dead letters, checkpoints, recovery in another process, idempotency keys | Section 10 |
 | **Model routing** | Models named by capability tier (`tier:reasoning`, `tier:fast`). One router resolves a tier to Google, OpenAI, any open-source model server, or a small model embedded in the engine, and falls back down the list when a provider fails | Section 12 |
@@ -44,7 +45,7 @@ The full text is in [`docs/specification.md`](docs/specification.md). What it me
 | SDK | Conformance levels |
 |---|---|
 | TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `flow`, plus recipe, replay, knowledge, model routing, model decisions and tools |
-| Python | `core`, and most of `document` |
+| Python | `core`, `decision`, and most of `document` |
 | Java | Data model only |
 
 ### See a run

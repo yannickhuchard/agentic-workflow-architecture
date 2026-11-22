@@ -278,19 +278,24 @@ class WorkflowEngine:
                 if self.verbose:
                     print(f"[Engine] Evaluating Decision: {decision.name}")
                 
-                edge_id = self._decision_evaluator.evaluate(
-                    decision, 
-                    token.context_data
-                )
-                
-                if edge_id:
-                    next_node = self._find_target_by_edge(str(edge_id))
-                    if next_node:
-                        token.move(str(next_node))
-                    else:
-                        token.update_status(TokenStatus.FAILED)
+                try:
+                    result = self._decision_evaluator.decide(decision, token.context_data)
+                except Exception as error:
+                    # A hit-policy conflict is a defect in the table: fail, do not take the default edge
+                    token.update_status(TokenStatus.FAILED)
+                    token.set_data("_error", str(error))
+                    token.set_data("_error_code", getattr(error, "code", "DECISION_CONFLICT"))
+                    continue
+
+                # The outputs become token data, so a later decision or condition can use them
+                token.merge_data({k: v for k, v in result.outputs.items() if not k.startswith("_")})
+
+                next_node = self._find_target_by_edge(result.output_edge_id) if result.output_edge_id else None
+                if next_node:
+                    token.move(str(next_node))
                 else:
                     token.update_status(TokenStatus.FAILED)
+                    token.set_data("_error", "No matching decision rule and no default path")
                 continue
             
             # Unknown node

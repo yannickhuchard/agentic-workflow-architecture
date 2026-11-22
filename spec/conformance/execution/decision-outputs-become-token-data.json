@@ -1,0 +1,128 @@
+{
+  "id": "decision-outputs-become-token-data",
+  "level": "decision",
+  "spec": "5.5.3",
+  "description": "The outputs of the deciding rule are merged into the token's data, where later conditions can use them.",
+  "workflow": {
+    "id": "31ea4443-811c-5afa-a354-8c922bc40081",
+    "name": "decision-outputs-become-token-data",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "964fc355-73cd-5864-a49e-d7774abe4098",
+        "name": "A",
+        "role_id": "4b8a07b6-2570-52ce-a256-9ebff11ef262",
+        "actor_type": "application"
+      },
+      {
+        "id": "765dc120-d550-5aa6-a1d0-1c09a317b7cb",
+        "name": "B",
+        "role_id": "4b8a07b6-2570-52ce-a256-9ebff11ef262",
+        "actor_type": "application"
+      },
+      {
+        "id": "a56f4374-e392-5d88-a8cf-68c8314866ee",
+        "name": "Fast",
+        "role_id": "4b8a07b6-2570-52ce-a256-9ebff11ef262",
+        "actor_type": "application"
+      },
+      {
+        "id": "214352fb-02d4-5895-8032-271373dc7139",
+        "name": "Slow",
+        "role_id": "4b8a07b6-2570-52ce-a256-9ebff11ef262",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "33657234-ac88-5e3e-80ab-35e6ff621fae",
+        "source_id": "964fc355-73cd-5864-a49e-d7774abe4098",
+        "target_id": "0f2685f7-b13e-5925-b155-4e1b4ad366bb"
+      },
+      {
+        "id": "37b9c942-f701-500b-9982-baffb9789923",
+        "source_id": "0f2685f7-b13e-5925-b155-4e1b4ad366bb",
+        "target_id": "765dc120-d550-5aa6-a1d0-1c09a317b7cb"
+      },
+      {
+        "id": "37b2a9a2-dac0-58e3-a34d-b8b1e6ed4095",
+        "source_id": "765dc120-d550-5aa6-a1d0-1c09a317b7cb",
+        "target_id": "a56f4374-e392-5d88-a8cf-68c8314866ee",
+        "condition": "lane == express"
+      },
+      {
+        "id": "080616de-19d9-5257-97fc-69e0d602f569",
+        "source_id": "765dc120-d550-5aa6-a1d0-1c09a317b7cb",
+        "target_id": "214352fb-02d4-5895-8032-271373dc7139",
+        "is_default": true
+      }
+    ],
+    "decision_nodes": [
+      {
+        "id": "0f2685f7-b13e-5925-b155-4e1b4ad366bb",
+        "name": "D",
+        "decision_table": {
+          "hit_policy": "first",
+          "inputs": [
+            {
+              "name": "amount",
+              "type": "number"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "lane",
+              "type": "string"
+            },
+            {
+              "name": "days",
+              "type": "number"
+            }
+          ],
+          "rules": [
+            {
+              "input_entries": [
+                "< 100"
+              ],
+              "output_entries": [
+                "express",
+                1
+              ],
+              "output_edge_id": "37b9c942-f701-500b-9982-baffb9789923"
+            },
+            {
+              "input_entries": [
+                "-"
+              ],
+              "output_entries": [
+                "standard",
+                5
+              ],
+              "output_edge_id": "37b9c942-f701-500b-9982-baffb9789923"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "output": {
+        "amount": 20
+      }
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "A",
+      "B",
+      "Fast"
+    ],
+    "data": {
+      "lane": "express",
+      "days": 1
+    }
+  }
+}

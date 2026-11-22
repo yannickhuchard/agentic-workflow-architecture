@@ -1,0 +1,116 @@
+{
+  "id": "decision-unique-conflict-fails",
+  "level": "decision",
+  "spec": "5.5.2",
+  "description": "Hit policy 'unique': two matching rules are a defect in the table. The token fails; the default edge is not taken.",
+  "workflow": {
+    "id": "67f263f8-ad8c-56d9-9267-2f15fc70d8b9",
+    "name": "decision-unique-conflict-fails",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "df7fa95c-5a2f-56c3-8962-ff0ccdf3d635",
+        "name": "A",
+        "role_id": "036c02ec-9a79-56ee-998c-441e16c44483",
+        "actor_type": "application"
+      },
+      {
+        "id": "f33301da-b2dd-5d32-84ce-8e6a699b3bb0",
+        "name": "Low",
+        "role_id": "036c02ec-9a79-56ee-998c-441e16c44483",
+        "actor_type": "application"
+      },
+      {
+        "id": "acc211ba-6baa-5baf-89ce-c03bf395deb8",
+        "name": "High",
+        "role_id": "036c02ec-9a79-56ee-998c-441e16c44483",
+        "actor_type": "application"
+      },
+      {
+        "id": "1d6a585a-22f8-5d06-9c3b-7ccdeb5eeb75",
+        "name": "Other",
+        "role_id": "036c02ec-9a79-56ee-998c-441e16c44483",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "0a5f4dde-b99f-5848-8a2c-2e1ae9c19f21",
+        "source_id": "df7fa95c-5a2f-56c3-8962-ff0ccdf3d635",
+        "target_id": "4acfa5bf-1b5e-535f-887b-7cefe13af9be"
+      },
+      {
+        "id": "5b664ee0-d674-5bfa-ad89-1c44185ab1b8",
+        "source_id": "4acfa5bf-1b5e-535f-887b-7cefe13af9be",
+        "target_id": "f33301da-b2dd-5d32-84ce-8e6a699b3bb0"
+      },
+      {
+        "id": "dabf3011-48e7-5ed0-b1c4-251849362e7e",
+        "source_id": "4acfa5bf-1b5e-535f-887b-7cefe13af9be",
+        "target_id": "acc211ba-6baa-5baf-89ce-c03bf395deb8"
+      },
+      {
+        "id": "26110c83-cd26-505c-b3a7-12ed32d0534b",
+        "source_id": "4acfa5bf-1b5e-535f-887b-7cefe13af9be",
+        "target_id": "1d6a585a-22f8-5d06-9c3b-7ccdeb5eeb75"
+      }
+    ],
+    "decision_nodes": [
+      {
+        "id": "4acfa5bf-1b5e-535f-887b-7cefe13af9be",
+        "name": "D",
+        "decision_table": {
+          "hit_policy": "unique",
+          "inputs": [
+            {
+              "name": "amount",
+              "type": "number"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "route",
+              "type": "string"
+            }
+          ],
+          "rules": [
+            {
+              "input_entries": [
+                "< 1000"
+              ],
+              "output_entries": [
+                "low"
+              ],
+              "output_edge_id": "5b664ee0-d674-5bfa-ad89-1c44185ab1b8"
+            },
+            {
+              "input_entries": [
+                "> 100"
+              ],
+              "output_entries": [
+                "high"
+              ],
+              "output_edge_id": "dabf3011-48e7-5ed0-b1c4-251849362e7e"
+            }
+          ]
+        },
+        "default_output_edge_id": "26110c83-cd26-505c-b3a7-12ed32d0534b"
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "output": {
+        "amount": 500
+      }
+    }
+  },
+  "expect": {
+    "status": "failed",
+    "visited": [
+      "A"
+    ],
+    "error_matches": "unique"
+  }
+}
