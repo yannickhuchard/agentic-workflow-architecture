@@ -746,7 +746,7 @@ function show(data, source, keep, trusted) {
     const following = keep && S && st.level !== 'atlas' && pos() === count() - 1;
     S = story;
     for (const level of LEVELS) delete built[level];
-    if (!keep) Object.assign(st, { level: 'atlas', j: 0, i: 0, r: 0, ip: 0, ia: 0, ib: 0, ic: 0, playing: false });
+    if (!keep) { Object.assign(st, { level: 'atlas', j: 0, i: 0, r: 0, ip: 0, ia: 0, ib: 0, ic: 0, playing: false }); place(); }   // a link may name the place, e.g. from the measures page
     st.j = Math.min(st.j, S.journeys.length - 1); st.i = Math.min(st.i, J().instances.length - 1);
     if (st.level === 'run' && !I().runs.length) st.level = 'story';
     if (following) st[KEY[st.level]] = count() - 1;
@@ -754,6 +754,7 @@ function show(data, source, keep, trusted) {
     message('');
     render();
 }
+window.AWA_show = show; // for embedding: a host hands the view a record or a story
 async function fetch_record(url) {
     const response = await fetch(url, { headers: { accept: 'application/json' } });
     if (!response.ok) throw new Error(`${url} answered ${response.status}`);
