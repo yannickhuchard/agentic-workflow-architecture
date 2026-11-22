@@ -1,6 +1,6 @@
 # Journey view: usability test kit
 
-Everything needed to run the validation planned in [the research](journey-visualisation-research.md), section 9. **These sessions have not been run.** Until they have, every claim that the view works for people is a hypothesis; the scripted walkthrough only shows that answers are reachable.
+Everything needed to run the validation planned in [the research](journey-visualisation-research.md), section 9. **These sessions have not been run with people.** They have been simulated with AI agents playing the roles (research, section 12), which found real defects and is not a substitute. Until people have done these tasks, every claim that the view works for them is a hypothesis.
 
 ## What you need
 
@@ -68,4 +68,4 @@ A task passes when four of five people in the role it matters most to complete i
 | Task 7 fails | Filled and hollow dots are not enough | Put the basis in words on the line itself |
 | People press play and wait | Good for the story, bad for a question | Make jumping to a mark more obvious than playing |
 
-Write the findings into the research document as section 12, with what was changed as a result.
+Write the findings into the research document beside the simulated ones in section 12, with what was changed as a result. Where people and agents disagree, that difference is itself a finding.

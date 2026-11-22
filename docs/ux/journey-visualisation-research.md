@@ -243,6 +243,64 @@ Since the second round it also opens any record, from a file, an address, or liv
 
 Not built: everything under 8 and 10.5, in particular an atlas for more than a handful of customers and journeys.
 
-## 12. Testing with people
+## 12. Simulated sessions
 
-Not done. [`usability-test-kit.md`](usability-test-kit.md) holds the session script, the seven task cards, the observation sheet and how to read the results. The findings belong here.
+**No person took part in what follows.** Five AI agents each played one of the roles of section 3 and used the built view through screenshots and clicks, with no access to the code, the data or this document, on the seven tasks of the [test kit](usability-test-kit.md). The tool that let them look and act is [`synthetic-session.mjs`](synthetic-session.mjs). Their full reports and action logs are in [`sessions/`](sessions/).
+
+What this is worth: an agent reading a screenshot finds labels a hurried person would miss, does not get bored, and cannot watch an animation play, so play and timing were not tested at all. It is good at finding what is missing, mislabelled, cut off or inconsistent. It is not evidence about people. Sessions with people are still owed.
+
+### 12.1 Results
+
+| Task | Inès, operations | Tom, case handler | Priya, engineer | Gerhard, auditor | Camille, journey owner |
+|---|---|---|---|---|---|
+| 1. Who needs action today, and why | yes, 4 | yes, 6 | yes, 5 | yes, 5 | yes, 3 |
+| 2. Tell me what happened to A. Okafor | partly, 7 | **partly, 20: ran out** | yes, 9 | **partly, 20: ran out** | yes, 11 |
+| 3. Why did the claim go to an adjuster | yes, 3 | yes, 2 | yes, 3 | yes, 2 | yes, 2 |
+| 4. Was the money left reserved | yes, 4 | yes, 6 | yes, 4 | yes, 4 | yes, 4 |
+| 5. Where do we lose the most customers | partly, 2 | yes, 3 | yes, 2 | yes, 2 | yes, 2 |
+| 6. Did the claim cost us anything later | partly, 5 | partly, 5 | partly, 6 | yes, 11 | yes, 6 |
+| 7. Are the two drops in mood the same kind of information | yes, 5 | yes, 5 | yes, 3 | yes, 4 | yes, 3 |
+
+The number is the count of actions. No task was abandoned outright. Task 2, the one that matters most to a case handler, was the weakest: the two participants who read step by step ran out of actions before the end of the story.
+
+### 12.2 What five out of five ran into
+
+| Finding | In their words | What was done |
+|---|---|---|
+| **Selecting a mark made everything after it vanish.** The same journey opened at its end from the atlas, at its beginning from the journey switch or the customer arrows, and in the middle from the trail. | "Every time I clicked something, everything to the right of it vanished. I thought I'd broken it." (Inès) | Nothing is hidden any more: what lies after the moment being read is dimmed. Every way into a journey opens on the whole story |
+| **The mood was taken as fact.** All five answered task 7, but only because the question sent them to the small print. Until then each had quoted inferred values as if measured. Nobody saw that hollow and filled dots meant anything; it was not in the key. | "I made half my statements today off guessed numbers without knowing." (Camille) | An inferred change is now drawn dashed and a stated one solid and heavier; the dots can be selected; both are in the key; the atlas says "said" or "inferred" beside every mood; the caption says "the customer said so" or "inferred" first |
+| **The mood line itself could not be selected.** All five tried. | "I wanted to just click the dip on the mood line." (Camille) | It can |
+| **The calendar showed counts for a date in the middle, and looked final.** Four nearly reported them. | "The counts are as of the slider position. That nearly gave me the wrong answer." (Priya) | The calendar opens at the end of the record and states the date its counts are for |
+| **The detail at the bottom right was cut off under the step counter**, at exactly the words that say why the mood changed. | "The key field is the one that's cut off." (Priya) | One line each, mood first, the full text on hover; evidence inside a run is no longer cut |
+| **"Someone needs to act" names nobody.** | "Who is 'someone'? It doesn't say who or what to do." (Inès) | Not done. A journey has no notion of who owns a stalled stage. That is a gap in the specification, not in the view: section 19 would need an owner per stage |
+
+### 12.3 What most ran into
+
+| Finding | Who | What was done |
+|---|---|---|
+| **No way to read one customer's story as a list.** Thirty steps, a third of them bookkeeping ("the journey enters the stage"), with a caller on the line. | Tom, Gerhard, Priya, Inès | "Read as a list": the story as a dated list, by default only the customer's side, each line selecting its moment |
+| **"look inside" read as a caption, not a control.** Three of five never went into a run; the two who did said it was the view they had wanted from the start. | Inès, Tom, Camille | It is now drawn as a button on every workflow bar |
+| **Nothing says that one journey led to the next.** The renewal starts at the mood the claim ended on, unexplained; all five joined the two themselves, two of them only through a phrase in a letter. | all, on task 6 | A journey that begins with a carried-over mood says so and names the journey it came from. Still no drawn link between journeys in the atlas |
+| **The unlabelled arrows beside the customer's name were never understood.** Four never touched them. | Tom, Gerhard, Inès, Camille | They are now labelled "previous customer" and "next customer" |
+| **The mark for "an earlier step is undone" was not in the key**, though task 4 turns on it. | Inès, Tom, Camille | It is in the key, with "a workflow fails" and "stalled" |
+| **Technology and Exchanged rows were ignored.** Half the height of the screen, used for no answer. | all five | Not changed. No task asked about channel, system or documents, so this says the tasks did not test those rows as much as that the rows are unused. Camille asked for them to be hidden until wanted |
+| **Inside a run, the boxes of the diagram could not be selected.** | Priya | They can |
+
+### 12.4 Not addressed
+
+- **Evidence is thin and uneven.** Six fields for a model's decision, a bare event number for a release of funds; no amount, no raw record, no way to copy; "Rules: none matched" without showing the rules. Raised by the engineer and the auditor, who are the two readers the evidence panel exists for.
+- **System words reach the reader**: `documents.uploaded`, `RPC error -32010`, "a model". The first two come from the record, the third from the caption writer.
+- **The same sentence twice** ("Part priced") when two parts are priced: the caption does not say which part.
+- **"Release funds" appears before "the workflow fails"**, which is the order of the record and reads backwards.
+- **A workflow shown as "completed" in green when the policy lapsed.** True of the run, misleading about the outcome.
+- **"Lose" was ambiguous** between left and stalled; the stage cards do not take a side.
+- **No money anywhere**: what a lapse cost cannot be read off.
+- **Nobody used play**, and through this tool it could not have been judged. Three said they would rather jump than watch. The storytelling the brief asked for is the least tested part of the design.
+- **Words.** Nobody said "journey", "workflow", "touchpoint", "atlas" or "blueprint" unprompted. They said: the grid, boxes, the diagram, the long bar, the sentence at the bottom, the slider, stuck. The view's vocabulary is the specification's, not its readers'.
+
+### 12.5 What the sessions say about the design
+
+Three things held. The caption carried every answer: all five called it some version of "the sentence at the bottom" and treated it as the source of truth, which is the inversion section 7.2 argued for. The atlas answered the first task for everyone in five actions or fewer. And every participant, asked what the screen was for, described a case history to be replayed, not a dashboard.
+
+Two things did not. Progressive reveal, the heart of the storytelling, was the main source of disorientation when reached by a click rather than by play. And the distinction the specification insists on, measured against inferred, was invisible until pointed at. Both are now changed in the view; neither change has been put in front of a person.
+

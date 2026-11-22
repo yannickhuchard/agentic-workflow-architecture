@@ -365,7 +365,8 @@ function build_story(sample, options) {
         const end_kind = instance.status === 'completed' ? 'completed' : instance.status === 'abandoned' ? 'abandoned' : instance.stalled ? 'stalled' : 'active';
         const end_label = { completed: 'Completed', abandoned: beats.find(b => b.kind === 'abandoned')?.title || 'Abandoned', stalled: 'Stalled: needs action', active: 'Under way' }[end_kind];
         return {
-            id: instance.subject_key, name, summary: entry.summary || definition.description || '', claim: instance.data.claim_id || '', mood_start, mood_end: mood,
+            id: instance.subject_key, name, summary: entry.summary || definition.description || '',
+            mood_from: (sample.journeys.find(j => j.instances.some(e => e.instance.id === instance.events[0]?.data?.sentiment_carried_from)) || {}).definition?.name || null, claim: instance.data.claim_id || '', mood_start, mood_end: mood,
             ending: { kind: end_kind, label: end_label }, start,
             end: instance.ended_at ? ms(instance.ended_at) : beats.at(-1).t,
             goals: definition.goals.map(g => ({ name: g.name, reached: instance.goals_reached.includes(g.id) })),

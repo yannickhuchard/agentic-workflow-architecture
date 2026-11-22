@@ -66,4 +66,6 @@ The switch at the top right moves sideways to another journey; on one customer's
 | Esc | Go up one height |
 | The address | Carries the place: copy it to share exactly what you are looking at |
 
-A filled dot on the mood line is something the customer said. A hollow dot is an inference by a rule of the journey; the caption gives the rule's reason.
+On one customer's journey nothing is hidden: selecting a mark reads that moment and dims what comes after. "Read as a list" gives the same story as a dated list, by default only the customer's side.
+
+A filled dot and a solid stretch of the mood line are something the customer said. A hollow dot and a dashed stretch are an inference by a rule of the journey; the caption gives the rule's reason.
