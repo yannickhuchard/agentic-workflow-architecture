@@ -346,17 +346,19 @@ var AWA_MEASURES = (() => {
       return Number.isNaN(t) ? from === -Infinity && to === Infinity : t >= from && t < to;
     };
     const keep_workflow = (id) => !options.workflow_id || options.workflow_id === id;
-    const journeys = (input.journeys || []).filter((j) => !options.journey_id || j.definition.id === options.journey_id).map((j) => ({ definition: j.definition, rows: j.instances.filter((r) => within(r.instance.started_at)) }));
+    const selected = (input.journeys || []).filter((j) => !options.journey_id || j.definition.id === options.journey_id);
+    const journeys = selected.map((j) => ({ definition: j.definition, rows: j.instances.filter((r) => within(r.instance.started_at)) }));
     const cache = /* @__PURE__ */ new Map();
     const facts_of = (run) => {
       if (!cache.has(run)) cache.set(run, run_facts(run));
       return cache.get(run);
     };
-    const journey_runs = journeys.flatMap((j) => j.rows.flatMap((r) => r.runs));
-    const loose_runs = options.journey_id ? [] : (input.runs || []).filter((r) => {
+    const run_start = (r) => {
       var _a2;
-      return within((_a2 = r.events.find((e) => e.type === "run.started") || r.events[0]) == null ? void 0 : _a2.time);
-    });
+      return (_a2 = r.events.find((e) => e.type === "run.started") || r.events[0]) == null ? void 0 : _a2.time;
+    };
+    const journey_runs = selected.flatMap((j) => j.instances.flatMap((r) => r.runs)).filter((r) => within(run_start(r)));
+    const loose_runs = options.journey_id ? [] : (input.runs || []).filter((r) => within(run_start(r)));
     const all_runs = [...journey_runs, ...loose_runs].filter((r) => keep_workflow(r.workflow_id));
     const names = new Map((input.workflows || []).map((w) => [w.id, w.name]));
     const catalogue = /* @__PURE__ */ new Map();

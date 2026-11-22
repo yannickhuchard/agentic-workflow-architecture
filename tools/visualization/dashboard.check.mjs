@@ -155,6 +155,18 @@ const text = async (page, selector) => (await page.innerText(selector)).replace(
     await page.close();
 }
 
+// 5b. An embedding page fixes the period: the page shows what was asked for and offers no other
+{
+    const page = await open(`${base}/dashboard.html?data=${encodeURIComponent(`${base}/empty.json`)}`);
+    const from = new Date(Date.parse(sample.as_of) - 30 * 86400000).toISOString();
+    const late = K.compute_measures(sample, { from });
+    await page.evaluate(([record, from]) => window.AWA_dashboard_show(record, 'handed over', '', { from }), [sample, from]);
+    check((await text(page, '#tiles')).includes(`Journeys started ${late.totals['journey.started'].value}`) && await page.locator('#period').isHidden(), `a period given by the embedding page is kept (${late.totals['journey.started'].value} journeys) and cannot be changed in the page`);
+    const runs_shown = (await page.locator('#workflows .item').allInnerTexts()).join(' ');
+    check(late.workflows.every(w => runs_shown.includes(w.name)) && await page.locator('#workflows .item').count() === late.workflows.length, 'and the workflows listed are those with runs started in that period');
+    await page.close();
+}
+
 // 6. Embedded without a journey view beside it: the embedding page says how a journey is opened
 {
     const page = await open(`${base}/dashboard.html?data=${encodeURIComponent(`${base}/empty.json`)}`);

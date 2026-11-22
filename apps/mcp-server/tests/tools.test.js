@@ -309,6 +309,8 @@ test('show_dashboard: measures of the example, of a simulation and of a portfoli
 
     const later = await call(client, 'show_dashboard', { use_claims_example: true, from: '2999-01-01T00:00:00Z' });
     assert.match(text_of(later), /nothing to measure/);
+    assert.deepEqual(later._meta.awa.period, { from: '2999-01-01T00:00:00Z' }, 'the widget is given the period the tool was asked for');
+    assert.equal(example._meta.awa.period, undefined);
     const none = await call(client, 'show_dashboard', {});
     assert.equal(none.isError, true); assert.match(text_of(none), /exactly one of/);
     const two = await call(client, 'show_dashboard', { use_claims_example: true, portfolio: { journeys: [], workflows: [] } });

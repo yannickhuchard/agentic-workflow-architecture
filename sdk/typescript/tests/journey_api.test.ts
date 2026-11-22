@@ -127,6 +127,18 @@ describe('A runtime directory', () => {
         expect(fs.readFileSync(path.join(dir, 'runtime.lock'), 'utf-8')).toBe(String(process.pid));
         await runtime.close();
         expect(fs.existsSync(path.join(dir, 'runtime.lock'))).toBe(false);
+
+        // Closing twice is safe: the second call must not take away the lock a later opening holds
+        const later = await open_runtime_directory(dir, { engine });
+        await runtime.close();
+        expect(fs.readFileSync(path.join(dir, 'runtime.lock'), 'utf-8')).toBe(String(process.pid));
+        await later.close();
+        expect(fs.existsSync(path.join(dir, 'runtime.lock'))).toBe(false);
+
+        // A lock that names no process is not taken for one left behind: it may be a lock being written by something else
+        fs.writeFileSync(path.join(dir, 'runtime.lock'), '');
+        await expect(open_runtime_directory(dir, { engine })).rejects.toThrow(/names no process/);
+        expect(fs.readdirSync(dir).filter(f => f.startsWith('runtime.lock'))).toEqual(['runtime.lock']);      // nothing written aside is left
     });
 });
 

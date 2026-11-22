@@ -11,7 +11,7 @@
   dashboard.html                 the bundled sample
   dashboard.html?data=<url>      a portfolio exported with "awa journey export"
   dashboard.html?live=<server>   a running host, read every few seconds
-  window.AWA_dashboard_show(portfolio, source)   for a page that embeds this one
+  window.AWA_dashboard_show(portfolio, source, link, { from, to })   for a page that embeds this one
 -->
 <style>
 :root {
@@ -237,6 +237,7 @@ let R = null;                        // its measures for the period and journey 
 let source = '', link = '';          // where it came from, and how the journey view is told to load the same
 const open = new Set();              // rows opened
 const st = { journey: '', period: 'all' };
+let fixed = null;                    // a period given by an embedding page: { from, to }
 
 /* ---- words and numbers ---- */
 const dur = ms => ms == null ? null : ms < 1000 ? `${Math.round(ms)} ms` : ms < 90e3 ? `${Math.round(ms / 1e3)} s` : ms < 90 * 60e3 ? `${Math.round(ms / 60e3)} min` : ms < 48 * 3600e3 ? `${(ms / 3600e3).toFixed(1)} h` : `${(ms / DAY).toFixed(ms < 20 * DAY ? 1 : 0)} days`;
@@ -260,13 +261,15 @@ const btn = (html, ev, title) => `<button class="n" type="button" data-ev="${esc
 /* ---- what a number was computed over ---- */
 const in_period = iso => { const [a, b] = bounds(); const t = Date.parse(iso); return t >= a && t < b; };
 function bounds() {
+    if (fixed) return [fixed.from ? Date.parse(fixed.from) : -Infinity, fixed.to ? Date.parse(fixed.to) : Infinity];
     if (st.period === 'all') return [-Infinity, Infinity];
     const end = Date.parse(P.as_of || new Date().toISOString());
     return [end - Number(st.period) * DAY, Infinity];
 }
 const rows_of = j => j.instances.filter(r => in_period(r.instance.started_at));
 const journeys = () => (P.journeys || []).filter(j => !st.journey || j.definition.id === st.journey);
-const runs = () => journeys().flatMap(j => rows_of(j).flatMap(r => r.runs.map(run => ({ run, row: r, j }))));
+// A run is counted by its own start, whichever period its journey began in
+const runs = () => journeys().flatMap(j => j.instances.flatMap(r => r.runs.filter(run => run.events.length && in_period((run.events.find(e => e.type === 'run.started') || run.events[0]).time)).map(run => ({ run, row: r, j }))));
 const ended = run => [...run.events].reverse().find(e => e.type === 'run.completed' || e.type === 'run.failed' || e.type === 'run.cancelled');
 const run_status = run => { const e = ended(run); return !e ? 'in progress' : e.type.slice(4); };
 const rough = run => run.events.some(e => e.type === 'activity.failed' || e.type === 'activity.retry_scheduled' || e.type === 'activity.dead_lettered' || e.type === 'activity.compensated');
@@ -533,8 +536,8 @@ function charts() {
 }
 
 function render() {
-    const [from] = bounds();
-    R = K.compute_measures(P, { journey_id: st.journey || undefined, from: Number.isFinite(from) ? new Date(from).toISOString() : undefined });
+    const [from, to] = bounds();
+    R = K.compute_measures(P, { journey_id: st.journey || undefined, from: Number.isFinite(from) ? new Date(from).toISOString() : undefined, to: Number.isFinite(to) ? new Date(to).toISOString() : undefined });
     for (const p of R.series.points) p.runs_ok = p.runs_ended - p.runs_failed;
     $('asof').textContent = `As of ${day(R.as_of)}. ${R.period.from ? `What started between ${day(R.period.from)} and ${day(R.period.to)}.` : 'Nothing started in the period chosen.'} Computed from the record by the rules of specification section 21; hover a number for its rule.`;
     tiles(); attention(); journey_rows(); workflow_rows(); charts();
@@ -545,10 +548,15 @@ function render() {
 function message(text) { $('msg').textContent = text; $('msg').hidden = false; $('main').hidden = true; }
 
 /** Show a portfolio: what "awa journey export" writes and GET /api/v1/journeys/portfolio returns */
-function show(data, from, how) {
+function show(data, from, how, options) {
     if (!K) return message('awa-kpis.js is missing: run "npm run build:measures" in sdk/typescript.');
     if (!data || typeof data !== 'object' || !(Array.isArray(data.journeys) || Array.isArray(data.runs))) return message(`${from || 'This'} is not a record of journeys: it has no "journeys". Export one with "awa journey export".`);
     P = data; source = from || ''; link = how || '';
+    // Whoever embeds the page may fix the period, so that the page shows what was asked for and nothing else
+    const instant = text => (typeof text === 'string' && !Number.isNaN(Date.parse(text)) ? text : undefined);
+    fixed = options && (instant(options.from) || instant(options.to)) ? { from: instant(options.from), to: instant(options.to) } : null;
+    $('period').hidden = !!fixed;
+    document.querySelector('label[for="period"]').hidden = !!fixed;
     $('source').textContent = source;
     $('tojourney').href = `journey.html${link}`;
     $('tojourney').hidden = alone();

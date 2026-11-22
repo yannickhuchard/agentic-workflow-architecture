@@ -17,7 +17,7 @@
             if (result.isError) { if (!shown) say(first_text(result)); return; }
             var awa = (result._meta && result._meta.awa) || (result.structuredContent && result.structuredContent.awa);
             if (!awa || awa.view !== 'dashboard' || !awa.record) return;
-            try { window.AWA_dashboard_show(awa.record, typeof awa.source === 'string' ? awa.source : 'simulated'); shown = true; }
+            try { window.AWA_dashboard_show(awa.record, typeof awa.source === 'string' ? awa.source : 'simulated', '', awa.period && typeof awa.period === 'object' ? awa.period : undefined); shown = true; }
             catch (error) { say('These measures could not be shown: ' + error.message); }
         },
         // The page has its own light and dark; the host says which

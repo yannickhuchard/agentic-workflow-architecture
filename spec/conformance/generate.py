@@ -1505,7 +1505,32 @@ def measure_cases() -> list[dict]:
                                                            "workflow.event_wait_median_ms": None, "workflow.event_timeout_rate": 1, "workflow.automation_rate": None}}],
         },
     }
-    return [whole, later]
+    # A journey and its runs need not start in the same period: each is kept by its own start
+    follow_up = {"run_id": "r5", "workflow_id": "fulfil", "stage_id": "delivered", "events": [
+        ev("run.started", day(9, "10:00"), data={"workflow_name": "Fulfil"}),
+        ev("run.completed", day(9, "10:30"), data={"cost": 0.01, "currency": "EUR", "input_tokens": 0, "output_tokens": 0}),
+    ]}
+    spread = json.loads(json.dumps(recorded))
+    spread["journeys"][0]["instances"][0]["runs"].append(follow_up)
+    after = {
+        "id": "measures-keep-runs-by-their-own-start", "level": "measures", "spec": "21.1",
+        "description": "A journey that started on 5 January starts another run on 9 January. A report from 9 January keeps that run, although it keeps no journey: workflow measures follow the start of each run, not of the journey it belongs to.",
+        "recorded": spread, "options": {"from": day(9, "00:00")},
+        "expect": {
+            "journeys": [{"name": "Order", "measures": {"journey.started": 0, "journey.completion_rate": None}}],
+            "workflows": [{"name": "Fulfil", "measures": {"workflow.runs": 1, "workflow.success_rate": 1, "workflow.cost": 0.01, "workflow.lead_time_median_ms": 1800000}}],
+        },
+    }
+    before = {
+        "id": "measures-leave-out-runs-started-after-the-period", "level": "measures", "spec": "21.1",
+        "description": "The same record up to 6 January: the journey of 5 January is kept with both of its runs counted as its own, but the workflow's measures leave out the run that started on the 9th.",
+        "recorded": spread, "options": {"to": day(6, "00:00")},
+        "expect": {
+            "journeys": [{"name": "Order", "measures": {"journey.started": 1, "journey.completion_rate": 1, "journey.runs_per_journey": 2, "journey.cost_per_journey": 0.03}}],
+            "workflows": [{"name": "Fulfil", "measures": {"workflow.runs": 1, "workflow.cost": 0.02, "workflow.lead_time_median_ms": 3600000}}],
+        },
+    }
+    return [whole, later, after, before]
 
 
 def main() -> None:

@@ -564,27 +564,45 @@ const held = new Map<string, number>();
  */
 async function lock_directory(directory: string): Promise<() => Promise<void>> {
     const file = path.join(directory, 'runtime.lock');
+    let released = false;
+    // Each opening releases once: a second call must not take away a lock that a later opening holds
     const release = async () => {
+        if (released) return;
+        released = true;
         const left = (held.get(file) || 1) - 1;
         if (left > 0) { held.set(file, left); return; }
         held.delete(file);
         await fs.rm(file, { force: true });
     };
     if (held.has(file)) { held.set(file, held.get(file)! + 1); return release; }
-    for (let attempt = 0; attempt < 2; attempt++) {
-        try {
-            await fs.writeFile(file, String(process.pid), { flag: 'wx' });
-            held.set(file, 1);
-            process.once('exit', () => { try { if (held.has(file)) rmSync(file, { force: true }); } catch { /* leaving */ } });
-            return release;
-        } catch (error) {
-            if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
-            const pid = Number(await fs.readFile(file, 'utf-8').catch(() => ''));
-            let alive = false;
-            try { if (pid > 0) { process.kill(pid, 0); alive = true; } } catch (probe) { alive = (probe as NodeJS.ErrnoException).code === 'EPERM'; }
-            if (alive) throw new Error(`The runtime directory ${directory} is in use by process ${pid}. One host at a time: stop it, or talk to it over HTTP.`);
-            await fs.rm(file, { force: true });           // left behind by a process that is gone
+
+    // The lock is written aside and linked into place, so that it never exists without naming its owner:
+    // another host can then never mistake a lock that is being taken for one left behind.
+    const mine = `${file}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}`;
+    await fs.writeFile(mine, String(process.pid));
+    try {
+        for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+                await fs.link(mine, file);
+                if ((await fs.readFile(file, 'utf-8')) !== String(process.pid)) continue;     // taken over in the same instant: start again
+                held.set(file, 1);
+                process.once('exit', () => { try { if (held.has(file)) rmSync(file, { force: true }); } catch { /* leaving */ } });
+                return release;
+            } catch (error) {
+                if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+                const text = await fs.readFile(file, 'utf-8').catch(() => null);
+                if (text === null) continue;                                                // released meanwhile
+                const pid = Number(text);
+                if (!Number.isInteger(pid) || pid <= 0) throw new Error(`The runtime directory ${directory} holds a lock that names no process (${file}). If no host is running, remove that file.`);
+                let alive = false;
+                try { process.kill(pid, 0); alive = true; } catch (probe) { alive = (probe as NodeJS.ErrnoException).code === 'EPERM'; }
+                if (alive) throw new Error(`The runtime directory ${directory} is in use by process ${pid}. One host at a time: stop it, or talk to it over HTTP.`);
+                // Left behind by a process that is gone. Remove it only if it is still that lock.
+                if ((await fs.readFile(file, 'utf-8').catch(() => null)) === text) await fs.rm(file, { force: true });
+            }
         }
+    } finally {
+        await fs.rm(mine, { force: true });
     }
     throw new Error(`Could not lock the runtime directory ${directory}`);
 }

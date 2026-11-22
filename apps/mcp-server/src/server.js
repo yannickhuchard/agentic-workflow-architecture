@@ -268,7 +268,7 @@ export async function createMcpServer({ widget_domain = process.env.AWA_MCP_WIDG
             const sentence = n
                 ? `Measures of ${plural(n, 'journey')} and ${plural(t['workflow.runs']?.value || 0, 'run')}${simulated ? ' (simulated)' : ''}: ${done ? `${Math.round(done.value * done.of)} of ${done.of} reached the end` : 'none has ended'}; ${summary.needs_someone_now.length ? `${plural(summary.needs_someone_now.length, 'customer')} stuck (${summary.needs_someone_now.slice(0, 3).map(a => `${a.customer} in ${a.stage}${a.owner ? `, owner ${a.owner}` : ', no owner named'}`).join('; ')})` : 'nobody is stuck'}. Quote counts with rates: these are over few.`
                 : 'There is nothing to measure yet: no journey has started in what was given.';
-            return text_result(sentence, { simulated, source, ...summary }, { awa: { view: 'dashboard', record, source } });
+            return text_result(sentence, { simulated, source, ...summary }, { awa: { view: 'dashboard', record, source, ...(args.from || args.to ? { period: { ...(args.from ? { from: args.from } : {}), ...(args.to ? { to: args.to } : {}) } } : {}) } });
         }, { widget: 'dashboard', invoking: 'Computing the measures…', invoked: 'Measures shown' });
 
     // The SDK serialises only the standard fields of a tool. ChatGPT also reads a
