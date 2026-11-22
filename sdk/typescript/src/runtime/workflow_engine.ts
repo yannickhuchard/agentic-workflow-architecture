@@ -36,7 +36,7 @@ import { BusinessEvent, EventSink } from './business_event';
 import { resolve_path } from './expression';
 import { KnowledgeBase, guidance } from './knowledge';
 
-export type EngineStatus = 'running' | 'paused' | 'completed' | 'failed' | 'idle' | 'waiting_human' | 'waiting_event';
+export type EngineStatus = 'running' | 'paused' | 'completed' | 'failed' | 'idle' | 'waiting_human' | 'waiting_event' | 'cancelled';
 
 export interface WorkflowEngineOptions {
     /** Gemini API key for AI agents */
@@ -433,7 +433,7 @@ export class WorkflowEngine {
         }
 
         const failed = has('failed');
-        if (previous === 'completed' || previous === 'failed') return;
+        if (previous === 'completed' || previous === 'failed' || previous === 'cancelled') return;
 
         const compensation = failed ? await this.compensate() : undefined;
         this.status = failed ? 'failed' : 'completed';
@@ -894,6 +894,25 @@ export class WorkflowEngine {
             await this.saveCheckpoint();
         }
         return resumed;
+    }
+
+    /**
+     * Withdraw the run (spec 5.8): the work is no longer wanted. Tokens that have
+     * not finished are cancelled, completed activities that name a compensation
+     * handler are undone, and the run is `cancelled`. A run that already reached
+     * an outcome is left as it is. Returns whether the run was cancelled.
+     */
+    public async cancel(reason: string): Promise<boolean> {
+        if (['completed', 'failed', 'cancelled', 'idle'].includes(this.status)) return false;
+        for (const token of this.tokens.filter(t => ['active', 'waiting', 'joining'].includes(t.status))) {
+            token.updateStatus('cancelled');
+            this.record({ type: 'token.cancelled', token_id: token.id, ...this.nodeRef(token.activityId), data: { reason: 'run_cancelled' } });
+        }
+        const compensation = await this.compensate();
+        this.status = 'cancelled';
+        this.record({ type: 'run.cancelled', data: { reason, ...(compensation ? { compensation } : {}) } });
+        await this.saveCheckpoint();
+        return true;
     }
 
     /** The earliest time at which a waiting token's event wait runs out, in milliseconds */

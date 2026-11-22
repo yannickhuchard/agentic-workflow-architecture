@@ -19,7 +19,7 @@ Six customers make a motor claim. Each lives through up to three workflows, days
 | J. Moreau | Documents next day; assessment needs a second attempt, the fraud service one retry; paid; rates 5 | completed, both goals reached |
 | A. Okafor | A large claim no decision rule covers: a model routes it to an adjuster, who takes three days; paid; rates 2; a person calls back | completed, paid but not satisfied |
 | L. Petit | Never sends documents: reminder after 5 days, closed after 10 | stalled in "Reported" |
-| S. Lindqvist | Withdraws the claim while the workflow waits for documents | abandoned |
+| S. Lindqvist | Withdraws the claim while the workflow waits for documents; the waiting run is cancelled | abandoned |
 | R. Haddad | The bank rejects the payment; the reserved funds are released | stalled in "Assessed and settled", run failed and compensated |
 | M. Castellano | Paid without trouble; never answers the survey | completed, satisfaction unknown |
 

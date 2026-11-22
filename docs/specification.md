@@ -286,10 +286,15 @@ A run has a status derived from its tokens:
 | `waiting_event` | No token is `active`, none waits for a person, and at least one is `waiting` for a business event (18.3) |
 | `failed` | At least one token is `failed` (the others are then cancelled, 13.3) |
 | `completed` | Every token is `completed` or `joined` |
+| `cancelled` | The host withdrew the run (5.8) |
 
 An engine MUST NOT report `completed` for a run in which any token failed.
 
 When an activity raises an error, its token is `failed` and the error message is recorded in the token's data as `_error`.
+
+### 5.8 Cancellation
+
+A host MAY withdraw a run that has not reached an outcome, because the work is no longer wanted: the customer withdrew, the order was replaced. The engine cancels every token that is `active`, `waiting` or `joining` (`token.cancelled` with reason `run_cancelled`), compensates as for a failure (13.6), and records `run.cancelled` with the reason the host gave. The run is `cancelled`; it is neither `completed` nor `failed`, and it accepts no further events. Cancelling a run that already reached an outcome changes nothing.
 
 ## 6. Condition expressions
 
@@ -509,6 +514,7 @@ An engine MUST NOT alter or remove an event once written.
 |---|---|---|---|
 | `run.started` | execution | A run begins | `workflow_name`, `workflow_version`, `input` |
 | `run.completed`, `run.failed` | execution | The run reaches its outcome (5.7) | `duration_ms`, `steps`, token and cost totals; `errors` on failure |
+| `run.cancelled` | execution | The host withdrew the run (5.8) | `reason`, `compensation` |
 | `run.waiting` | execution | No token is active and at least one waits | `waiting_tokens` |
 | `run.resumed` | execution | A run continues from a checkpoint (10.3) | `from_seq`, `from_checkpoint_at` |
 | `token.created` | execution | A token comes into existence | `parent_token_id` and `reason: parallel_split` for a split |
@@ -1151,9 +1157,9 @@ A journey instance has an `id`, the `subject_key` value, a `status` (`active`, `
 
 ### 19.5 The host's duties
 
-For every business event it accepts, a host that runs journeys MUST, in this order: deliver it to the runs that wait (18.3); find the subject's instance, creating one if a trigger says so; merge the event's `data` into the instance's data and record `journey.event_received`, whether or not any rule reacts to the event; apply exits; apply triggers; evaluate goals and the current stage's `complete_when`. A host MUST ignore an event `id` it has already accepted. When a run started for an instance settles, the host merges the run's business data into the instance's data and evaluates again. Events published by a run (18.2) are accepted by the host like any other, so one workflow can move the journey or wake another workflow.
+For every business event it accepts, a host that runs journeys MUST, in this order: for a subject already on its journey, merge the event's `data` into the instance's data and record `journey.event_received`, whether or not any rule reacts to the event; deliver the event to the runs that wait (18.3); create an instance if a trigger says so, recording the event on it; apply exits; apply triggers; evaluate goals and the current stage's `complete_when`. The event is recorded before anything reacts to it, so that a journey's record reads in causal order. A host MUST ignore an event `id` it has already accepted. When a run started for an instance settles, the host merges the run's business data into the instance's data and evaluates again. Events published by a run (18.2) are accepted by the host like any other, so one workflow can move the journey or wake another workflow.
 
-A run that fails marks its stage stalled. A journey never fails: a failed run is a reason for a person to look, not the end of the customer's story.
+When a journey ends through an exit, the host MUST cancel (5.8) the runs still under way for it: a customer who has left is not sent a reminder. A run that fails marks its stage stalled. A journey never fails: a failed run is a reason for a person to look, not the end of the customer's story.
 
 ### 19.6 Analytics
 

@@ -1,6 +1,6 @@
 // Runs six customers through the Motor Claim journey on a simulated clock and
-// writes what happened: journeys.json here, and the sample data for
-// tools/visualization/journey.html.
+// writes what happened: journeys.json here, and the same data as a script
+// (tools/visualization/journey-sample.js) for a visualisation to load.
 //
 //   cd sdk/typescript && npm install && npm run build
 //   node examples/claims-journey/make-journeys.mjs

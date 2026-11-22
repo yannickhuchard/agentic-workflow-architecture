@@ -44,6 +44,7 @@
                 "run.started",
                 "run.completed",
                 "run.failed",
+                "run.cancelled",
                 "run.waiting",
                 "run.resumed",
                 "token.created",

@@ -228,7 +228,8 @@ describe('Journeys', () => {
         expect(instance.events.map(e => e.type)).toEqual([
             'journey.started', 'journey.stage_entered', 'journey.event_received',
             'journey.run_started', 'journey.run_ended', 'journey.stage_completed', 'journey.stage_entered',
-            'journey.run_started', 'journey.run_ended', 'journey.stage_completed', 'journey.stage_entered',
+            // the customer's answer is recorded before the run it wakes ends: the record reads in causal order
+            'journey.run_started', 'journey.event_received', 'journey.run_ended', 'journey.stage_completed', 'journey.stage_entered',
             'journey.run_started', 'journey.run_ended', 'journey.goal_reached', 'journey.stage_completed', 'journey.completed',
         ]);
         expect(instance.events.map(e => e.seq)).toEqual(instance.events.map((_, i) => i + 1));
@@ -281,6 +282,12 @@ describe('Journeys', () => {
         const instance = runtime.get_journey_instance(journeys[0])!;
         expect(instance.status).toBe('abandoned');
         expect(instance.events.at(-1)).toMatchObject({ type: 'journey.abandoned', data: { reason: 'Customer withdrew the claim' } });
+        // The run that was still waiting for the customer is withdrawn, not left to time out
+        const statuses = instance.runs.map(r => runtime.get_run(r.run_id)!.getStatus());
+        expect(statuses).toContain('cancelled');
+        expect(statuses.every(status => status === 'completed' || status === 'cancelled')).toBe(true);
+        expect(instance.events.at(-2)).toMatchObject({ type: 'journey.run_ended', data: { status: 'cancelled' } });
+        expect((await runtime.tick(Date.now() + 365 * 24 * 3600 * 1000)).timed_out_runs).toEqual([]);
     });
 
     it('reports the funnel: who entered each stage, went on, is waiting, or dropped out', async () => {
@@ -315,5 +322,32 @@ describe('Journeys', () => {
             triggers: [{ event: 'e' }],
         });
         expect(validate_journey(bad).map(e => e.code).sort()).toEqual(['invalid_expression', 'invalid_journey', 'invalid_reference']);
+    });
+});
+
+describe('Cancelling a run (spec 5.8)', () => {
+    it('withdraws waiting tokens, undoes completed work and refuses later events', async () => {
+        const release = activity('Release');
+        const reserve = activity('Reserve', { compensation: { activity_id: release.id } });
+        const wait = { id: uuidv4(), name: 'Confirmed', event_type: 'message' as const, event_definition: { name: 'order.confirmed' } };
+        const wf = workflow([reserve, release], [edge(reserve, wait)], { events: [wait] });
+        const ran: string[] = [];
+        const actor = { execute: async (a: { name: string }) => { ran.push(a.name); return {}; } };
+        const engine = new WorkflowEngine(wf, {
+            actors: { application: actor, ai_agent: actor, human: actor, robot: actor } as never,
+            execution_logger: silent_logger,
+        });
+        await engine.start();
+        expect(await engine.run()).toBe('waiting_event');
+
+        expect(await engine.cancel('order replaced')).toBe(true);
+        expect(engine.getStatus()).toBe('cancelled');
+        expect(ran).toEqual(['Reserve', 'Release']);
+        const types = (await engine.getEvents()).map(e => e.type);
+        expect(types).toContain('token.cancelled');
+        expect(types.at(-1)).toBe('run.cancelled');
+
+        expect(await engine.deliverEvent(business_event('order.confirmed', {}))).toBe(0);
+        expect(await engine.cancel('again')).toBe(false);
     });
 });

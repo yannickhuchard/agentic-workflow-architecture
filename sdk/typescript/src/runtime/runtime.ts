@@ -124,7 +124,7 @@ export class AwaRuntime {
         const status = engine.getStatus();
         if (ref.status === status) return;
         ref.status = status;
-        if (status !== 'completed' && status !== 'failed') return;
+        if (status !== 'completed' && status !== 'failed' && status !== 'cancelled') return;
 
         const definition = this.journeys.get(instance.journey_id)!;
         const time = this.time();
@@ -162,7 +162,20 @@ export class AwaRuntime {
         const data = event.data || {};
         const time = this.time();
 
-        // 1. Runs waiting for this event
+        // 1. The event becomes part of the story of every journey it concerns before anything
+        //    reacts to it, so that the record reads in causal order
+        const recorded = new Set<string>();
+        for (const definition of this.journeys.values()) {
+            const key = resolve_path(data, definition.subject.key) ?? event.subject;
+            if (key === undefined || key === null) continue;
+            const instance = this.find_journey_instance(definition.id, String(key));
+            if (!instance) continue;
+            instance.data = { ...instance.data, ...public_payload(data) };
+            record_journey_event(instance, 'journey.event_received', time, { event_id: event.id, name: event.type, source: event.source, data });
+            recorded.add(instance.id);
+        }
+
+        // 2. Runs waiting for this event
         for (const engine of this.runs.values()) {
             if (await engine.deliverEvent(event) > 0) {
                 result.resumed_runs.push(engine.getRunId());
@@ -171,7 +184,7 @@ export class AwaRuntime {
             }
         }
 
-        // 2. Journeys the event concerns
+        // 3. Journeys the event concerns
         const in_journey = new Set<string>();
         for (const definition of this.journeys.values()) {
             const key = resolve_path(data, definition.subject.key) ?? event.subject;
@@ -192,14 +205,21 @@ export class AwaRuntime {
                 enter_stage(definition, instance, definition.stages[0].id, time, 'journey started');
             }
             result.journeys.push(instance.id);
-            instance.data = { ...instance.data, ...public_payload(data) };
-            record_journey_event(instance, 'journey.event_received', time, { event_id: event.id, name: event.type, source: event.source, data });
+            if (!recorded.has(instance.id)) {
+                instance.data = { ...instance.data, ...public_payload(data) };
+                record_journey_event(instance, 'journey.event_received', time, { event_id: event.id, name: event.type, source: event.source, data });
+            }
 
             if (exit) {
                 const open = instance.stage_history.find(h => !h.left_at);
                 if (open) open.left_at = time;
                 instance.status = exit.outcome;
                 instance.ended_at = time;
+                // Work still under way for a subject that has left is withdrawn, not left to time out
+                for (const ref of instance.runs) {
+                    const engine = this.runs.get(ref.run_id);
+                    if (engine && await engine.cancel(`journey ${exit.outcome}: ${exit.reason || event.type}`)) await this.sync(engine);
+                }
                 record_journey_event(instance, exit.outcome === 'completed' ? 'journey.completed' : 'journey.abandoned', time, { reason: exit.reason || event.type, event_id: event.id });
                 continue;
             }
@@ -222,7 +242,7 @@ export class AwaRuntime {
             await this.progress(definition, instance, time, event.id);
         }
 
-        // 3. Workflows that start on this event and were not started as part of a journey
+        // 4. Workflows that start on this event and were not started as part of a journey
         for (const workflow of this.workflows.values()) {
             if (in_journey.has(workflow.id)) continue;
             const start = workflow.events.find(e => e.event_type === 'start' && (e.event_definition as { name?: string } | undefined)?.name === event.type);
