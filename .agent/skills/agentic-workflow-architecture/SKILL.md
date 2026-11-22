@@ -352,7 +352,7 @@ const orderProcess = workflow('Order Processing', '1.0.0')
 
 ```bash
 # Project installation
-pip install awa
+pip install agentic-workflow-architecture
 
 # With optional dependencies
 pip install "awa[ai,web,dev]"
