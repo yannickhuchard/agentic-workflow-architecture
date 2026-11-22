@@ -1,0 +1,133 @@
+# Publishes a release when a version tag is pushed: v2.0.0 publishes 2.0.0.
+#
+# The tag must match the version in sdk/typescript/package.json and sdk/python/pyproject.toml.
+# Both packages are tested, built, installed in an empty environment and run before anything
+# is published; nothing is published if either fails.
+#
+# Repository secrets needed (Settings, Secrets and variables, Actions):
+#   NPM_TOKEN        an npm token allowed to publish agentic-workflow-architecture
+#   PYPI_API_TOKEN   a PyPI token allowed to upload agentic-workflow-architecture
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Test and build both packages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: sdk/typescript/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: The tag is the version of both packages
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          npm_version="$(node -p "require('./sdk/typescript/package.json').version")"
+          py_version="$(python -c "import tomllib; print(tomllib.load(open('sdk/python/pyproject.toml','rb'))['project']['version'])")"
+          echo "tag $version, npm $npm_version, PyPI $py_version"
+          test "$version" = "$npm_version" && test "$version" = "$py_version"
+
+      - name: TypeScript SDK, tested and packed
+        working-directory: sdk/typescript
+        run: |
+          npm ci
+          npx prisma generate
+          npm run typecheck
+          npx vitest run
+          npm run build
+          mkdir -p "$RUNNER_TEMP/release"
+          npm pack --pack-destination "$RUNNER_TEMP/release"
+
+      - name: The packed npm package, installed in an empty project
+        working-directory: ${{ runner.temp }}
+        run: |
+          mkdir consumer && cd consumer && npm init -y > /dev/null
+          npm install ../release/agentic-workflow-architecture-*.tgz
+          node -e "const a = require('agentic-workflow-architecture'); if (typeof a.WorkflowEngine !== 'function') process.exit(1)"
+          node --input-type=module -e "import { AwaRuntime } from 'agentic-workflow-architecture'; if (typeof AwaRuntime !== 'function') process.exit(1)"
+          npx awa run "$GITHUB_WORKSPACE/examples/claims-settlement/claims-settlement.awa.json" --simulate --outputs "$GITHUB_WORKSPACE/examples/claims-settlement/simulation.json" | grep "status: completed"
+
+      - name: Python SDK, tested and built
+        working-directory: sdk/python
+        run: |
+          pip install -e ".[dev,web]" build twine
+          pytest -q
+          python -m build --outdir "$RUNNER_TEMP/release"
+          twine check "$RUNNER_TEMP"/release/*.whl "$RUNNER_TEMP"/release/*.tar.gz
+
+      - name: The built wheel, installed in an empty environment
+        run: |
+          python -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install "$RUNNER_TEMP"/release/*.whl
+          cd "$RUNNER_TEMP" && venv/bin/python -c "import awa; from awa.runtime.kpi import MEASURES; assert len(MEASURES) > 50" && venv/bin/awa measures --list | grep -q "journey.completion_rate"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release
+          path: ${{ runner.temp }}/release
+          if-no-files-found: error
+
+  npm:
+    name: Publish to npm
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write          # for the provenance statement npm attaches to the package
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+      - uses: actions/download-artifact@v4
+        with:
+          name: release
+          path: release
+      - run: npm publish release/agentic-workflow-architecture-*.tgz --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  pypi:
+    name: Publish to PyPI
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          name: release
+          path: release
+      - run: pip install twine && twine upload release/*.whl release/*.tar.gz
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+
+  github:
+    name: GitHub release
+    needs: [npm, pypi]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: release
+          path: release
+      - run: gh release create "$GITHUB_REF_NAME" release/* --title "AWA SDK ${GITHUB_REF_NAME#v}" --notes "Agentic Workflow Architecture specification 1.1. See release_notes.md for what changed, and sdk/typescript/README.md for what breaks with 1.x." --verify-tag
+        env:
+          GH_TOKEN: ${{ github.token }}
