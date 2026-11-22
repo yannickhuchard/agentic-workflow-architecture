@@ -15,7 +15,7 @@ NAV = [
     ("Start", [("getting-started.html", "Introduction"), ("installation-guide.html", "Installation")]),
     ("Build", [("developer-guide.html", "Developer guide"), ("data-model-guide.html", "Data model")]),
     ("Design", [("abpm-guide.html", "For process owners"), ("architect-guide.html", "For architects")]),
-    ("See", [("playground.html", "Playground"), ("../tools/visualization/journey.html", "Journey view"), ("../tools/visualization/replay.html", "Run replay")]),
+    ("See", [("playground.html", "Playground"), ("../tools/visualization/journey.html", "Journey view"), ("../tools/visualization/dashboard.html", "Measures"), ("../tools/visualization/replay.html", "Run replay")]),
 ]
 
 
@@ -127,6 +127,7 @@ page("installation-guide.html", "Installation", "What you need, how to build, an
 {table(["Command", "What it does"], [
     ["<code>awa run</code>", "Run a workflow file; keep its journal and checkpoints"],
     ["<code>awa journey</code>", "Journeys kept in a runtime directory: add definitions, take in events, let time pass, list, show, export"],
+    ["<code>awa measures</code>", "The measures of journeys and workflows, computed from what was recorded"],
     ["<code>awa replay</code>", "Counterfactual replay of a recorded run"],
     ["<code>awa recipe</code>", "Compile a workflow and a journal into a build-from-scratch recipe"],
     ["<code>awa knowledge</code>", "Distil, review and exchange knowledge from journals"],
@@ -218,7 +219,25 @@ awa journey list --stalled
 awa journey show c-1
 awa journey export -o portfolio.json
 """)}
-<p>A journey may also declare its touchpoints, what changes hands and how mood is estimated; see the <a href="data-model-guide.html#journeys">data model</a>.</p>'''),
+<p>A journey may also declare its touchpoints, what changes hands and how mood is estimated; see the <a href="data-model-guide.html#journeys">data model</a>. Only one process at a time may hold a runtime directory: a second is refused while the first is alive, and talks to it over HTTP instead.</p>'''),
+      ("measures", "Measures", f'''
+<p>Specification section 21 fixes what is measured of journeys, stages, workflows and activities, so that two implementations report the same numbers from the same record. A measure is a value and the number it was computed over; it has no value, rather than zero, when there is nothing to compute it from.</p>
+{code("""
+import { compute_measures, measures_to_openmetrics } from 'agentic-workflow-architecture';
+
+const report = compute_measures(await runtime.export_portfolio(), { from: '2026-09-01T00:00:00Z' });
+report.journeys[0].measures['journey.completion_rate'];     // { value: 0.5, n: 6 }
+report.workflows[0].measures['workflow.first_pass_yield'];  // runs right first time
+report.attention;                                           // who is stuck, where, since when, and whose it is
+measures_to_openmetrics(report);                            // for a metrics system to scrape
+""", "typescript")}
+{code("""
+awa measures                      # for people
+awa measures --json               # the report
+awa measures --list               # every measure with its rule
+curl localhost:3000/api/v1/measures?format=openmetrics
+""")}
+<p>Give a stage an <code>owner</code> and a stalled journey names who must act. The <a href="../tools/visualization/dashboard.html">measures page</a> shows the report and opens any number into the customers behind it; it follows a running server with <code>?live=http://localhost:3000</code>.</p>'''),
       ("tools", "Tools", f'''
 <p>An activity lists the tools its actor may call. Every call goes through one runner, which refuses unknown tools, invalid arguments and calls over budget, applies the deployment's permissions, and journals the call with a link to what ran.</p>
 {code("""
