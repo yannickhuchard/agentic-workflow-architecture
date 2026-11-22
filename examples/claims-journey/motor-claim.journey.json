@@ -1,0 +1,70 @@
+{
+  "id": "25a56cb5-2529-55be-850d-70f2580c6e56",
+  "name": "Motor Claim",
+  "version": "1.0.0",
+  "awa_version": "1.1",
+  "description": "A customer's motor claim, from the day it is reported to the follow-up after payment.",
+  "subject": {
+    "name": "customer",
+    "key": "customer_id"
+  },
+  "stages": [
+    {
+      "id": "reported",
+      "name": "Reported",
+      "description": "The claim is registered and its documents collected.",
+      "workflows": [
+        "e87dd0a6-317a-518b-99d6-58a87908b388"
+      ],
+      "complete_when": "documents_complete == true",
+      "max_duration": "P7D"
+    },
+    {
+      "id": "settled",
+      "name": "Assessed and settled",
+      "description": "The damage is assessed, the claim is routed, and the customer is paid.",
+      "on_enter": {
+        "start_workflow": "42ddec2f-18d0-5b06-837b-bf1e9c8cecdb"
+      },
+      "complete_when": "paid exists",
+      "max_duration": "P10D"
+    },
+    {
+      "id": "followed-up",
+      "name": "Followed up",
+      "description": "The customer is asked how it went.",
+      "on_enter": {
+        "start_workflow": "dbf2d340-25ca-59a1-a77d-3d403aa19962"
+      },
+      "complete_when": "followed_up == true",
+      "max_duration": "P21D",
+      "transitions": []
+    }
+  ],
+  "triggers": [
+    {
+      "event": "claim.submitted",
+      "starts_journey": true,
+      "start_workflow": "e87dd0a6-317a-518b-99d6-58a87908b388"
+    }
+  ],
+  "goals": [
+    {
+      "id": "paid",
+      "name": "Claimant paid",
+      "expression": "paid exists"
+    },
+    {
+      "id": "satisfied",
+      "name": "Customer satisfied",
+      "expression": "satisfaction >= 4"
+    }
+  ],
+  "exits": [
+    {
+      "event": "claim.withdrawn",
+      "outcome": "abandoned",
+      "reason": "The customer withdrew the claim"
+    }
+  ]
+}

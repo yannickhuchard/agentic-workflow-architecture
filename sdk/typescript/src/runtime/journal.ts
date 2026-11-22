@@ -21,7 +21,7 @@ export const JOURNAL_SPEC_VERSION = '1.1';
 export type TraceLevel = 'execution' | 'reasoning' | 'meta';
 
 export type JournalEventType =
-    | 'run.started' | 'run.completed' | 'run.failed' | 'run.waiting' | 'run.resumed'
+    | 'run.started' | 'run.completed' | 'run.failed' | 'run.cancelled' | 'run.waiting' | 'run.resumed'
     | 'token.created' | 'token.moved' | 'token.completed' | 'token.failed'
     | 'token.waiting' | 'token.resumed' | 'token.joined' | 'token.cancelled'
     | 'activity.started' | 'activity.completed' | 'activity.failed'
@@ -32,6 +32,7 @@ export type JournalEventType =
     | 'verification.completed'
     | 'contract.checked' | 'contract.escalated'
     | 'timer.started' | 'timer.fired'
+    | 'event.waiting' | 'event.received' | 'event.timed_out' | 'event.published'
     | 'reasoning.recorded'
     | 'meta.recorded'
     | 'knowledge.retrieved'
@@ -164,6 +165,8 @@ export class JournalWriter {
         private store: JournalStore,
         private payload_mode: PayloadMode = 'full',
         start_seq = 0,
+        /** The clock events are stamped with. Defaults to the system clock. */
+        private now: () => number = Date.now,
     ) {
         this.seq = start_seq;
     }
@@ -188,7 +191,7 @@ export class JournalWriter {
             id: randomUUID(),
             run_id: this.run_id,
             seq: ++this.seq,
-            time: new Date().toISOString(),
+            time: new Date(this.now()).toISOString(),
             type: input.type,
             level: input.level || 'execution',
             workflow_id: this.workflow_id,

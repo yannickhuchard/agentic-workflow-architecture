@@ -1,0 +1,182 @@
+{
+  "$schema": "https://awa.io/schema/awa.schema.json",
+  "id": "e87dd0a6-317a-518b-99d6-58a87908b388",
+  "name": "Claim Intake",
+  "version": "1.0.0",
+  "awa_version": "1.1",
+  "description": "Registers a new claim, asks the customer for the documents that are missing, and waits for them.",
+  "roles": [
+    {
+      "id": "e2336607-c5d8-58aa-84f0-9ab7c631d9cd",
+      "name": "Claims system",
+      "actor_type": "application"
+    },
+    {
+      "id": "ceebb872-eb88-5d39-b09e-530dab9e0a6a",
+      "name": "Customer communications",
+      "actor_type": "ai_agent",
+      "ai_model_config": {
+        "model_id": "tier:balanced",
+        "temperature": 0.2
+      }
+    }
+  ],
+  "events": [
+    {
+      "id": "4aa1af50-49a4-5c31-af50-b9d0458badab",
+      "name": "Claim submitted",
+      "event_type": "start",
+      "description": "The customer submits a claim in the portal.",
+      "event_definition": {
+        "name": "claim.submitted"
+      }
+    },
+    {
+      "id": "a463ee49-4bc9-5781-abb6-7b8cf9c8061f",
+      "name": "Documents uploaded",
+      "event_type": "message",
+      "description": "Wait for the customer to upload the documents.",
+      "event_definition": {
+        "name": "documents.uploaded",
+        "correlation_key": "customer_id",
+        "timeout": "P5D",
+        "timeout_edge_id": "aa2a1c14-d2a1-5b41-9805-606b9cd23cf5"
+      }
+    },
+    {
+      "id": "fa33531e-da94-5a97-bf8f-ef9906db9794",
+      "name": "Reminder answered",
+      "event_type": "message",
+      "description": "Wait once more after the reminder.",
+      "event_definition": {
+        "name": "documents.uploaded",
+        "correlation_key": "customer_id",
+        "timeout": "P5D",
+        "timeout_edge_id": "4eec5ac6-524a-5a9c-84f0-e84f9de493c2"
+      }
+    },
+    {
+      "id": "0bec2658-a5f4-52a2-ab1e-da5a1e4ac831",
+      "name": "Claim registered",
+      "event_type": "message",
+      "description": "Tell other systems the claim is complete.",
+      "event_definition": {
+        "name": "claim.registered",
+        "mode": "publish",
+        "data": [
+          "claim_id",
+          "customer_id"
+        ]
+      }
+    },
+    {
+      "id": "8f6992ee-9cae-5739-a9a6-81b9f63db706",
+      "name": "Intake done",
+      "event_type": "end"
+    }
+  ],
+  "activities": [
+    {
+      "id": "f4985edb-aaa4-581d-b442-eab7080fe05c",
+      "name": "Register claim",
+      "role_id": "e2336607-c5d8-58aa-84f0-9ab7c631d9cd",
+      "actor_type": "application",
+      "description": "Create the claim record."
+    },
+    {
+      "id": "2452fafd-bc52-5cfd-8428-3c7e1ae51d50",
+      "name": "Request documents",
+      "role_id": "ceebb872-eb88-5d39-b09e-530dab9e0a6a",
+      "actor_type": "ai_agent",
+      "description": "Write to the customer listing the documents needed.",
+      "outcome_contract": {
+        "postconditions": [
+          {
+            "name": "Lists the documents",
+            "expression": "documents_requested exists"
+          }
+        ]
+      }
+    },
+    {
+      "id": "a9c40e49-5d9b-5071-84ec-a9f3c81311cf",
+      "name": "Send reminder",
+      "role_id": "ceebb872-eb88-5d39-b09e-530dab9e0a6a",
+      "actor_type": "ai_agent",
+      "description": "Remind the customer that the documents are still missing."
+    },
+    {
+      "id": "47c8bc88-366a-5df3-bf89-35e517f9630f",
+      "name": "Check completeness",
+      "role_id": "e2336607-c5d8-58aa-84f0-9ab7c631d9cd",
+      "actor_type": "application",
+      "description": "Confirm every required document is present."
+    },
+    {
+      "id": "e64b95c0-8dde-51ca-913e-ca9323c0b513",
+      "name": "Close as incomplete",
+      "role_id": "e2336607-c5d8-58aa-84f0-9ab7c631d9cd",
+      "actor_type": "application",
+      "description": "Close the claim because the documents never arrived."
+    }
+  ],
+  "edges": [
+    {
+      "id": "85dae6f4-9d24-5ea0-853b-38deb9dc3c6b",
+      "source_id": "4aa1af50-49a4-5c31-af50-b9d0458badab",
+      "target_id": "f4985edb-aaa4-581d-b442-eab7080fe05c"
+    },
+    {
+      "id": "1da4af3c-fbdf-542f-b447-67739fb256f6",
+      "source_id": "f4985edb-aaa4-581d-b442-eab7080fe05c",
+      "target_id": "2452fafd-bc52-5cfd-8428-3c7e1ae51d50"
+    },
+    {
+      "id": "f1c2cc82-568c-55b6-9994-f09dcef26cba",
+      "source_id": "2452fafd-bc52-5cfd-8428-3c7e1ae51d50",
+      "target_id": "a463ee49-4bc9-5781-abb6-7b8cf9c8061f"
+    },
+    {
+      "id": "ca6b0d6a-5aaa-59ca-8baa-21635aa2fe09",
+      "source_id": "a463ee49-4bc9-5781-abb6-7b8cf9c8061f",
+      "target_id": "47c8bc88-366a-5df3-bf89-35e517f9630f"
+    },
+    {
+      "id": "aa2a1c14-d2a1-5b41-9805-606b9cd23cf5",
+      "source_id": "a463ee49-4bc9-5781-abb6-7b8cf9c8061f",
+      "target_id": "a9c40e49-5d9b-5071-84ec-a9f3c81311cf",
+      "label": "no reply in 5 days"
+    },
+    {
+      "id": "f74fc988-b85a-5ca3-880c-1d2751c283f7",
+      "source_id": "a9c40e49-5d9b-5071-84ec-a9f3c81311cf",
+      "target_id": "fa33531e-da94-5a97-bf8f-ef9906db9794"
+    },
+    {
+      "id": "7835d796-64b0-54ee-9307-f5b15ef171eb",
+      "source_id": "fa33531e-da94-5a97-bf8f-ef9906db9794",
+      "target_id": "47c8bc88-366a-5df3-bf89-35e517f9630f"
+    },
+    {
+      "id": "4eec5ac6-524a-5a9c-84f0-e84f9de493c2",
+      "source_id": "fa33531e-da94-5a97-bf8f-ef9906db9794",
+      "target_id": "e64b95c0-8dde-51ca-913e-ca9323c0b513",
+      "label": "no reply in 5 more days"
+    },
+    {
+      "id": "aa1f8220-0a16-5530-a159-086ec3cda62f",
+      "source_id": "47c8bc88-366a-5df3-bf89-35e517f9630f",
+      "target_id": "0bec2658-a5f4-52a2-ab1e-da5a1e4ac831"
+    },
+    {
+      "id": "32899a83-c9c0-5627-b611-8f82cc391230",
+      "source_id": "0bec2658-a5f4-52a2-ab1e-da5a1e4ac831",
+      "target_id": "8f6992ee-9cae-5739-a9a6-81b9f63db706"
+    },
+    {
+      "id": "e3844739-ba47-51cb-a879-211ea38903d3",
+      "source_id": "e64b95c0-8dde-51ca-913e-ca9323c0b513",
+      "target_id": "8f6992ee-9cae-5739-a9a6-81b9f63db706"
+    }
+  ]
+}

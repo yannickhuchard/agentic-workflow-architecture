@@ -32,9 +32,11 @@ import { ModelProvider, ModelRegistry, ModelRouter, GoogleModelProvider, RouteAt
 import { ToolOptions, ToolRunner } from './tools';
 import { decide_with_model } from './decision_model';
 import { ActorContext } from './actors/actor';
+import { BusinessEvent, EventSink } from './business_event';
+import { resolve_path } from './expression';
 import { KnowledgeBase, guidance } from './knowledge';
 
-export type EngineStatus = 'running' | 'paused' | 'completed' | 'failed' | 'idle' | 'waiting_human';
+export type EngineStatus = 'running' | 'paused' | 'completed' | 'failed' | 'idle' | 'waiting_human' | 'waiting_event' | 'cancelled';
 
 export interface WorkflowEngineOptions {
     /** Gemini API key for AI agents */
@@ -97,6 +99,15 @@ export interface WorkflowEngineOptions {
     default_model_provider?: string;
     /** Capability tiers mapped to model references, e.g. { fast: 'google:gemini-3.1-flash-lite' } */
     model_tiers?: Record<string, string | string[]>;
+    /** Receives the business events the workflow publishes. Without one they are recorded in the journal only. */
+    event_sink?: EventSink;
+    /** The current time in milliseconds. Tests replace it to move time forward. */
+    now?: () => number;
+    /**
+     * Supplies a model decision without calling a model. Counterfactual replay uses it
+     * to replay recorded decisions. Returning undefined lets the model decide.
+     */
+    model_decision_override?: (decision: DecisionNode) => { option?: string; confidence?: number } | undefined;
     /** External decision engines that decision nodes may consult, by name */
     decision_engines?: Record<string, DecisionEngine>;
     /** How the tools declared on activities are executed, and what they are allowed to do */
@@ -114,6 +125,31 @@ export interface SimulatedOutput {
     error?: string;
     code?: string;
     attempts?: SimulatedOutput[];
+}
+
+/** What a message or signal event's event_definition holds */
+interface EventDefinition {
+    name?: string;
+    /** "wait" (default): hold the token until the event arrives. "publish": emit the event and continue. */
+    mode?: 'wait' | 'publish';
+    /** For a wait: the property that must be equal in the token's data and in the event's data */
+    correlation_key?: string;
+    /** For a wait: how long to wait */
+    timeout?: string;
+    /** For a wait: the edge taken when the wait times out */
+    timeout_edge_id?: UUID;
+    /** For a publish: the token data properties sent as the event's data */
+    data?: string[];
+}
+
+interface AwaitedEvent {
+    node_id: UUID;
+    name: string;
+    correlation_key?: string;
+    correlation_value?: unknown;
+    due_at?: string;
+    timeout_edge_id?: UUID;
+    broadcast: boolean;
 }
 
 /** Error codes that are never retried, whatever the retry policy says */
@@ -156,6 +192,8 @@ export class WorkflowEngine {
     private incomingEdges: Map<UUID, Edge[]> = new Map(); // Target ID -> Edges
     /** Activities whose outcome was accepted, in order of completion. Drives compensation. */
     private completedActivities: { activity_id: UUID; token_id: UUID; output: Record<string, unknown> }[] = [];
+    /** Ids of the business events this run has consumed, so that a redelivery is ignored */
+    private deliveredEvents = new Set<string>();
     private options: WorkflowEngineOptions;
     private roleMap: Map<UUID, Role>;
     private decisionEvaluator: DecisionEvaluator;
@@ -196,7 +234,7 @@ export class WorkflowEngine {
         this.simulate = options.simulate || false;
         this.runId = options.run_id || randomUUID();
         this.journalStore = options.journal || new InMemoryJournalStore();
-        this.journal = new JournalWriter(this.runId, workflowDef.id, this.journalStore, options.journal_payloads || 'full');
+        this.journal = new JournalWriter(this.runId, workflowDef.id, this.journalStore, options.journal_payloads || 'full', 0, options.now);
         this.deadLetterQueue = options.dead_letter_queue || new DeadLetterQueue(new Logger({ output: () => { } }));
         this.sleep = options.sleep || (ms => new Promise(resolve => setTimeout(resolve, ms)));
         this.tokens = [];
@@ -225,7 +263,7 @@ export class WorkflowEngine {
         });
 
         this.executionStats = {
-            startTime: new Date(),
+            startTime: new Date(this.now()),
             stepsCount: 0,
             inputTokens: 0,
             outputTokens: 0,
@@ -301,7 +339,7 @@ export class WorkflowEngine {
             ...initialData,
             _workflow_id: this.workflow.id,
             _workflow_name: this.workflow.name,
-            _started_at: new Date().toISOString()
+            _started_at: new Date(this.now()).toISOString()
         };
 
         const token = new Token(startNodeId, tokenData, undefined, this.workflow.id);
@@ -321,7 +359,7 @@ export class WorkflowEngine {
 
         this.log(`Started workflow "${this.workflow.name}" with token ${token.id}`);
 
-        this.executionStats.startTime = new Date(); // Reset start time on actual start
+        this.executionStats.startTime = new Date(this.now()); // Reset start time on actual start
         return token.id;
     }
 
@@ -340,7 +378,7 @@ export class WorkflowEngine {
     }
 
     public async runStep(): Promise<void> {
-        if (this.status !== 'running' && this.status !== 'waiting_human') return;
+        if (this.status !== 'running' && this.status !== 'waiting_human' && this.status !== 'waiting_event') return;
 
         const activeTokens = this.tokens.filter(t => t.status === 'active');
 
@@ -385,20 +423,22 @@ export class WorkflowEngine {
         const previous = this.status;
 
         if (has('waiting')) {
-            this.status = 'waiting_human';
+            const waiting = this.tokens.filter(t => t.status === 'waiting');
+            // Waiting on a person takes precedence in the status; otherwise the run waits on events
+            this.status = waiting.some(t => !t.getData('_awaiting_event')) ? 'waiting_human' : 'waiting_event';
             if (previous !== this.status) {
-                this.record({ type: 'run.waiting', data: { waiting_tokens: this.tokens.filter(t => t.status === 'waiting').map(t => t.id) } });
+                this.record({ type: 'run.waiting', data: { waiting_for: this.status === 'waiting_human' ? 'human' : 'event', waiting_tokens: waiting.map(t => t.id) } });
             }
             return;
         }
 
         const failed = has('failed');
-        if (previous === 'completed' || previous === 'failed') return;
+        if (previous === 'completed' || previous === 'failed' || previous === 'cancelled') return;
 
         const compensation = failed ? await this.compensate() : undefined;
         this.status = failed ? 'failed' : 'completed';
 
-        const durationMs = Date.now() - this.executionStats.startTime.getTime();
+        const durationMs = this.now() - this.executionStats.startTime.getTime();
         this.record({
             type: failed ? 'run.failed' : 'run.completed',
             data: {
@@ -514,11 +554,12 @@ export class WorkflowEngine {
             engine_status: this.status,
             tokens: this.tokens.map(serialize_token),
             contexts: this.contextManager.snapshot(),
-            checkpoint_at: new Date().toISOString(),
+            checkpoint_at: new Date(this.now()).toISOString(),
             metadata: {
                 run_id: this.runId,
                 journal_seq: this.journal.last_seq,
                 completed_activities: this.completedActivities,
+                delivered_events: [...this.deliveredEvents],
                 stats: { ...this.executionStats, startTime: this.executionStats.startTime.toISOString() },
             },
         };
@@ -542,18 +583,21 @@ export class WorkflowEngine {
         const meta = (state.metadata || {}) as {
             run_id?: UUID; journal_seq?: number; stats?: Record<string, unknown>;
             completed_activities?: WorkflowEngine['completedActivities'];
+            delivered_events?: string[];
         };
         const engine = new WorkflowEngine(workflowDef, { ...options, run_id: meta.run_id || options.run_id });
         engine.journal = new JournalWriter(
-            engine.runId, workflowDef.id, engine.journalStore, options.journal_payloads || 'full', meta.journal_seq || 0);
+            engine.runId, workflowDef.id, engine.journalStore, options.journal_payloads || 'full', meta.journal_seq || 0, options.now);
         engine.tokens = state.tokens.map(t => deserialize_token(t, state.workflow_id));
         engine.contextManager.restore(state.contexts);
         engine.completedActivities = meta.completed_activities || [];
+        engine.deliveredEvents = new Set(meta.delivered_events || []);
         if (meta.stats) {
             engine.executionStats = { ...engine.executionStats, ...meta.stats, startTime: new Date(String(meta.stats.startTime)) };
         }
         engine.status = engine.tokens.some(t => t.status === 'active') ? 'running'
-            : engine.tokens.some(t => t.status === 'waiting') ? 'waiting_human'
+            : engine.tokens.some(t => t.status === 'waiting' && !t.getData('_awaiting_event')) ? 'waiting_human'
+                : engine.tokens.some(t => t.status === 'waiting') ? 'waiting_event'
                 : (state.engine_status as EngineStatus);
         engine.record({
             type: 'run.resumed',
@@ -596,7 +640,7 @@ export class WorkflowEngine {
             return;
         }
 
-        const startTime = new Date();
+        const startTime = new Date(this.now());
 
         try {
             const actor = this.createActor(activity);
@@ -633,7 +677,7 @@ export class WorkflowEngine {
 
             const { output, verificationRecords, attempts } = await this.executeActivity(token, actor, activity, inputs);
 
-            const endTime = new Date();
+            const endTime = new Date(this.now());
             const processTime = calculate_duration(startTime, endTime);
             const analytics: Analytics = {
                 process_time: processTime,
@@ -684,7 +728,7 @@ export class WorkflowEngine {
             await this.advanceToken(token, currentNodeId, analytics);
         } catch (error: unknown) {
             const analytics: Analytics = {
-                process_time: calculate_duration(startTime, new Date()),
+                process_time: calculate_duration(startTime, new Date(this.now())),
                 waste_categories: ['defects' as WasteCategory],
                 error_rate: 1,
             };
@@ -726,13 +770,13 @@ export class WorkflowEngine {
                         this.failToken(token, new ActivityError(`Timer "${event.name}": ${error_info(error).message}`, 'VALIDATION_ERROR'));
                         return;
                     }
-                    const dueAt = new Date(Date.now() + durationMs).toISOString();
+                    const dueAt = new Date(this.now() + durationMs).toISOString();
                     token.setData(dueKey, dueAt);
                     this.record({ type: 'timer.started', ...ref, data: { duration: event.event_definition?.duration, duration_ms: durationMs, due_at: dueAt } });
                     return;
                 }
 
-                const remaining = new Date(due).getTime() - Date.now();
+                const remaining = new Date(due).getTime() - this.now();
                 if (remaining > 0) await this.sleep(remaining);
                 const { [dueKey]: _fired, ...rest } = token.contextData;
                 token.contextData = rest;
@@ -741,10 +785,173 @@ export class WorkflowEngine {
                 return;
             }
 
+            case 'message':
+            case 'signal': {
+                const definition = (event.event_definition || {}) as EventDefinition;
+                if (!definition.name) {
+                    this.failToken(token, new ActivityError(`Event "${event.name}" has no event_definition.name`, 'VALIDATION_ERROR'));
+                    return;
+                }
+
+                if (definition.mode === 'publish') {
+                    // The journal is the outbox: the event is recorded first, with an id that is
+                    // the same on every retry, then handed to the sink. A consumer deduplicates by id.
+                    const visit = token.history.filter(h => h.nodeId === event.id && h.action === 'entered').length;
+                    const published: BusinessEvent = {
+                        specversion: '1.0',
+                        id: `${this.runId}:${event.id}:${visit}`,
+                        source: `urn:awa:run:${this.runId}`,
+                        type: definition.name,
+                        time: new Date(this.now()).toISOString(),
+                        datacontenttype: 'application/json',
+                        data: Object.fromEntries((definition.data || []).map(key => [key, resolve_path(token.contextData, key)])),
+                    };
+                    this.record({ type: 'event.published', ...ref, data: { event_id: published.id, name: published.type, source: published.source, data: this.journal.payload(published.data), delivered: !!this.options.event_sink } });
+                    try {
+                        await this.options.event_sink?.(published);
+                    } catch (error) {
+                        this.failToken(token, new ActivityError(`Event "${definition.name}" could not be published: ${error_info(error).message}`, 'EVENT_PUBLISH_FAILED'));
+                        return;
+                    }
+                    await this.advanceToken(token, event.id);
+                    return;
+                }
+
+                // Wait for the event. The deadline is fixed now and survives a restart.
+                let dueAt: string | undefined;
+                if (definition.timeout) {
+                    try {
+                        dueAt = new Date(this.now() + parse_iso_duration(definition.timeout)).toISOString();
+                    } catch (error) {
+                        this.failToken(token, new ActivityError(`Event "${event.name}": ${error_info(error).message}`, 'VALIDATION_ERROR'));
+                        return;
+                    }
+                }
+                const correlation = event.event_type === 'message' ? definition.correlation_key : undefined;
+                const awaiting = {
+                    node_id: event.id,
+                    name: definition.name,
+                    ...(correlation ? { correlation_key: correlation, correlation_value: resolve_path(token.contextData, correlation) } : {}),
+                    ...(dueAt ? { due_at: dueAt } : {}),
+                    ...(definition.timeout_edge_id ? { timeout_edge_id: definition.timeout_edge_id } : {}),
+                    broadcast: event.event_type === 'signal',
+                };
+                token.setData('_awaiting_event', awaiting);
+                token.updateStatus('waiting');
+                this.record({ type: 'event.waiting', ...ref, data: { name: awaiting.name, correlation_key: correlation, correlation_value: awaiting.correlation_value, due_at: dueAt } });
+                return;
+            }
+
             default:
                 this.failToken(token, new ActivityError(
                     `Event "${event.name}" has type "${event.event_type}", which this engine cannot execute`, 'UNSUPPORTED_EVENT'));
         }
+    }
+
+    private now(): number {
+        return this.options.now ? this.options.now() : Date.now();
+    }
+
+    private awaiting(token: Token): AwaitedEvent | undefined {
+        return token.status === 'waiting' ? token.getData('_awaiting_event') as AwaitedEvent | undefined : undefined;
+    }
+
+    /**
+     * Give the run a business event (spec 18.2). Tokens waiting for an event of
+     * this type, whose correlation matches, take its data and continue. A message
+     * is consumed by one token; a signal by every token waiting for it. An event
+     * id the run has already seen is ignored, so redelivery is harmless.
+     * Returns how many tokens continued. Call run() afterwards.
+     */
+    public async deliverEvent(event: BusinessEvent): Promise<number> {
+        if (this.deliveredEvents.has(event.id)) return 0;
+        let resumed = 0;
+
+        for (const token of this.tokens) {
+            const awaited = this.awaiting(token);
+            if (!awaited || awaited.name !== event.type) continue;
+            if (awaited.correlation_key
+                && String(resolve_path(event.data || {}, awaited.correlation_key)) !== String(awaited.correlation_value)) continue;
+
+            const ref = { token_id: token.id, ...this.nodeRef(awaited.node_id) };
+            const { _awaiting_event, ...rest } = token.contextData;
+            token.contextData = rest;
+            token.mergeData(public_payload(event.data || {}));
+            token.updateStatus('active');
+            this.record({
+                type: 'event.received', ...ref,
+                data: { event_id: event.id, name: event.type, source: event.source, data: this.journal.payload(event.data || {}) },
+            });
+            resumed++;
+            await this.advanceToken(token, awaited.node_id);
+            if (!awaited.broadcast) break;
+        }
+
+        if (resumed > 0) {
+            this.deliveredEvents.add(event.id);
+            if (this.status === 'waiting_event' || this.status === 'waiting_human') this.status = 'running';
+            await this.settle();
+            await this.saveCheckpoint();
+        }
+        return resumed;
+    }
+
+    /**
+     * Withdraw the run (spec 5.8): the work is no longer wanted. Tokens that have
+     * not finished are cancelled, completed activities that name a compensation
+     * handler are undone, and the run is `cancelled`. A run that already reached
+     * an outcome is left as it is. Returns whether the run was cancelled.
+     */
+    public async cancel(reason: string): Promise<boolean> {
+        if (['completed', 'failed', 'cancelled', 'idle'].includes(this.status)) return false;
+        for (const token of this.tokens.filter(t => ['active', 'waiting', 'joining'].includes(t.status))) {
+            token.updateStatus('cancelled');
+            this.record({ type: 'token.cancelled', token_id: token.id, ...this.nodeRef(token.activityId), data: { reason: 'run_cancelled' } });
+        }
+        const compensation = await this.compensate();
+        this.status = 'cancelled';
+        this.record({ type: 'run.cancelled', data: { reason, ...(compensation ? { compensation } : {}) } });
+        await this.saveCheckpoint();
+        return true;
+    }
+
+    /** The earliest time at which a waiting token's event wait runs out, in milliseconds */
+    public nextEventDeadline(): number | undefined {
+        const due = this.tokens.map(t => this.awaiting(t)?.due_at).filter((d): d is string => !!d).map(d => new Date(d).getTime());
+        return due.length ? Math.min(...due) : undefined;
+    }
+
+    /**
+     * Time out the event waits whose deadline has passed (spec 18.3). The token
+     * takes the event's timeout edge; an event without one fails the token.
+     * Returns how many tokens timed out. Call run() afterwards.
+     */
+    public async expireEvents(now: number = this.now()): Promise<number> {
+        let expired = 0;
+        for (const token of this.tokens) {
+            const awaited = this.awaiting(token);
+            if (!awaited?.due_at || new Date(awaited.due_at).getTime() > now) continue;
+
+            const ref = { token_id: token.id, ...this.nodeRef(awaited.node_id) };
+            const { _awaiting_event, ...rest } = token.contextData;
+            token.contextData = rest;
+            token.updateStatus('active');
+            this.record({ type: 'event.timed_out', ...ref, data: { name: awaited.name, due_at: awaited.due_at } });
+            expired++;
+
+            const target = awaited.timeout_edge_id ? this.getEdgeTarget(awaited.timeout_edge_id) : undefined;
+            if (awaited.timeout_edge_id && target) {
+                this.moveToken(token, awaited.timeout_edge_id, target, 'timeout');
+            } else {
+                this.failToken(token, new ActivityError(`No "${awaited.name}" event arrived before ${awaited.due_at}, and the event has no timeout edge`, 'EVENT_TIMEOUT'));
+            }
+        }
+        if (expired > 0) {
+            if (this.status === 'waiting_event' || this.status === 'waiting_human') this.status = 'running';
+            await this.settle();
+            await this.saveCheckpoint();
+        }
+        return expired;
     }
 
     /** Mark a token failed and record why, in its data and in the journal */
@@ -817,7 +1024,7 @@ export class WorkflowEngine {
 
         for (;;) {
             attempt++;
-            const attemptStart = Date.now();
+            const attemptStart = this.now();
             this.record({
                 type: 'activity.started', ...ref, attempt,
                 data: {
@@ -853,7 +1060,7 @@ export class WorkflowEngine {
                     && !(info.code && retry.non_retryable_errors?.includes(info.code));
                 this.record({
                     type: 'activity.failed', ...ref, attempt,
-                    data: { error: { message: info.message, code: info.code }, retryable, duration_ms: Date.now() - attemptStart },
+                    data: { error: { message: info.message, code: info.code }, retryable, duration_ms: this.now() - attemptStart },
                 });
 
                 if (!retryable) {
@@ -910,7 +1117,7 @@ export class WorkflowEngine {
                     const canRetry = !overBudget && activity.actor_type === 'ai_agent' && attempt < violationCap;
                     this.record({
                         type: 'activity.failed', ...ref, attempt,
-                        data: { error: { message, code: 'CONTRACT_VIOLATION' }, retryable: canRetry, duration_ms: Date.now() - attemptStart },
+                        data: { error: { message, code: 'CONTRACT_VIOLATION' }, retryable: canRetry, duration_ms: this.now() - attemptStart },
                     });
                     if (!canRetry) {
                         return reject('CONTRACT_VIOLATION', message, { _contract_violations: violations });
@@ -947,7 +1154,7 @@ export class WorkflowEngine {
                     criteria_results: [],
                     overall_score: 0,
                     feedback: `Verification engine error: ${error_info(verificationError).message}`,
-                    verified_at: new Date().toISOString(),
+                    verified_at: new Date(this.now()).toISOString(),
                     duration_ms: 0,
                     output_hash: this.verificationEngine.compute_output_hash(outcome),
                 };
@@ -981,7 +1188,7 @@ export class WorkflowEngine {
                 const violation = { kind: 'budget' as const, name: 'max_tokens', message: `max_tokens: ${tokensUsed} tokens used including verification, the budget is ${budgets.max_tokens}` };
                 const message = `Outcome contract violated: ${violation.message}`;
                 this.record({ type: 'contract.checked', ...ref, attempt, data: { passed: false, violations: [violation], tokens_used: tokensUsed, output_hash: hash_payload(outcome) } });
-                this.record({ type: 'activity.failed', ...ref, attempt, data: { error: { message, code: 'CONTRACT_VIOLATION' }, retryable: false, duration_ms: Date.now() - attemptStart } });
+                this.record({ type: 'activity.failed', ...ref, attempt, data: { error: { message, code: 'CONTRACT_VIOLATION' }, retryable: false, duration_ms: this.now() - attemptStart } });
                 return reject('CONTRACT_VIOLATION', message, { _contract_violations: [violation] });
             }
 
@@ -1000,7 +1207,7 @@ export class WorkflowEngine {
 
             this.record({
                 type: 'activity.failed', ...ref, attempt,
-                data: { error: { message, code: 'VERIFICATION_FAILED' }, retryable: canRetry, duration_ms: Date.now() - attemptStart },
+                data: { error: { message, code: 'VERIFICATION_FAILED' }, retryable: canRetry, duration_ms: this.now() - attemptStart },
             });
 
             if (!canRetry) {
@@ -1200,7 +1407,7 @@ export class WorkflowEngine {
             const facts = external.inputs
                 ? Object.fromEntries(external.inputs.map(name => [name, token.contextData[name]]))
                 : public_payload(token.contextData);
-            const started = Date.now();
+            const started = this.now();
             engineData = { name: external.name, ruleset: external.ruleset };
             try {
                 const decided = await engine.decide({
@@ -1209,7 +1416,7 @@ export class WorkflowEngine {
                 });
                 const option = external.options.find(o => o.id === decided.option);
                 engineData = {
-                    ...engineData, option: decided.option, fired_rules: decided.fired_rules, explanation: decided.explanation, duration_ms: Date.now() - started,
+                    ...engineData, option: decided.option, fired_rules: decided.fired_rules, explanation: decided.explanation, duration_ms: this.now() - started,
                     ...(decided.option && !option ? { no_decision_reason: `"${decided.option}" is not one of the options` } : {}),
                     ...(!decided.option ? { no_decision_reason: 'the engine returned no option' } : {}),
                 };
@@ -1219,19 +1426,20 @@ export class WorkflowEngine {
                     outputs = { ...(decided.outputs || {}) };
                 }
             } catch (error: unknown) {
-                engineData = { ...engineData, no_decision_reason: `the engine failed: ${error_info(error).message}`, duration_ms: Date.now() - started };
+                engineData = { ...engineData, no_decision_reason: `the engine failed: ${error_info(error).message}`, duration_ms: this.now() - started };
             }
         }
 
         // --- decision model ----------------------------------------------
         if (!edgeId && model) {
-            const scripted = this.simulate ? this.options.simulated_outputs?.[decision.name]?.output : undefined;
+            const scripted = (this.simulate ? this.options.simulated_outputs?.[decision.name]?.output : undefined)
+                ?? (this.options.model_decision_override?.(decision) as Record<string, unknown> | undefined);
             const decided = scripted
                 ? {
                     option: model.options.find(o => o.id === scripted.option)?.id,
                     edge_id: model.options.find(o => o.id === scripted.option)?.output_edge_id,
                     confidence: scripted.confidence as number | undefined,
-                    rationale: 'Simulated decision',
+                    rationale: this.simulate ? 'Simulated decision' : 'Decision supplied without calling a model',
                     reason: model.options.some(o => o.id === scripted.option) ? undefined : `"${scripted.option}" is not one of the options`,
                     votes: [], route: [] as RouteAttempt[], usage: { input_tokens: 0, output_tokens: 0 }, model: undefined,
                 }
@@ -1393,7 +1601,9 @@ export class WorkflowEngine {
      * Advance token to next node(s) based on outgoing edges
      */
     private async advanceToken(token: Token, currentNodeId: UUID, analytics?: Analytics): Promise<void> {
-        const outgoingEdges = this.edgeMap.get(currentNodeId) || [];
+        // An event's timeout edge is taken only when its wait times out, never by ordinary routing
+        const timeoutEdge = (this.eventMap.get(currentNodeId)?.event_definition as { timeout_edge_id?: UUID } | undefined)?.timeout_edge_id;
+        const outgoingEdges = (this.edgeMap.get(currentNodeId) || []).filter(edge => edge.id !== timeoutEdge);
 
         if (outgoingEdges.length === 0) {
             token.updateStatus('completed', analytics);
@@ -1514,8 +1724,8 @@ export class WorkflowEngine {
 
         if (waitingSince) {
             const since = new Date(waitingSince as string);
-            waitedMs = Date.now() - since.getTime();
-            analytics = { wait_time: calculate_duration(since, new Date()), waste_categories: ['waiting' as WasteCategory] };
+            waitedMs = this.now() - since.getTime();
+            analytics = { wait_time: calculate_duration(since, new Date(this.now())), waste_categories: ['waiting' as WasteCategory] };
         }
 
         token.mergeActivityOutput(token.activityId, output);
@@ -1617,7 +1827,7 @@ export class WorkflowEngine {
 
     private async finalizeExecution() {
         if (this.status === 'completed' || this.status === 'failed') {
-            const endTime = new Date();
+            const endTime = new Date(this.now());
             const durationMs = endTime.getTime() - this.executionStats.startTime.getTime();
 
             const metrics: ExecutionMetrics = {

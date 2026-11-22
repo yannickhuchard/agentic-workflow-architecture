@@ -39,8 +39,8 @@ class Case:
                            "target_id": self.u(target), **extra})
         return self
 
-    def event(self, name: str, event_type: str, **definition):
-        event = {"id": self.u(name), "name": name, "event_type": event_type}
+    def event(self, title: str, event_type: str, **definition):
+        event = {"id": self.u(title), "name": title, "event_type": event_type}
         if definition:
             event["event_definition"] = definition
         self.events.append(event)
@@ -73,6 +73,8 @@ class Case:
             case["options"] = self.options
         if self.actors:
             case["actors"] = self.actors
+        if getattr(self, "deliver", None):
+            case["deliver"] = self.deliver
         case["expect"] = self.expect
         return case
 
@@ -456,8 +458,63 @@ def execution_cases() -> list[Case]:
     cases.append(c)
 
     c = Case("unsupported-event-fails", "flow", "13.4", "A token that reaches an event the engine cannot execute fails; it is not waved through.")
-    c.act("A").event("Await payment", "message").act("B").edge("A", "Await payment").edge("Await payment", "B")
+    c.act("A").event("Await payment", "conditional").act("B").edge("A", "Await payment").edge("Await payment", "B")
     c.expect = {"status": "failed", "visited": ["A"], "error_matches": "cannot execute"}
+    cases.append(c)
+
+    # ---- business events (section 18) -------------------------------------
+    c = Case("event-wait-and-receive", "events", "18.2", "A token at a message event waits; an event with the right name and correlation continues it, and the event's data joins the token's data.")
+    c.act("Ask").event("Reply", "message", name="customer.replied", correlation_key="case_id").act("Yes").act("No")
+    c.edge("Ask", "Reply").edge("Reply", "Yes", condition="answer == yes").edge("Reply", "No", is_default=True)
+    c.actors = {"Ask": {"output": {"case_id": "C-1"}}}
+    c.deliver = [{"event": {"type": "customer.replied", "data": {"case_id": "OTHER", "answer": "no"}}, "resumes": 0},
+                 {"event": {"type": "customer.replied", "data": {"case_id": "C-1", "answer": "yes"}}, "resumes": 1}]
+    c.expect = {"status": "completed", "visited": ["Ask", "Yes"], "data": {"answer": "yes"},
+                "journal": ["event.waiting", "run.waiting", "event.received", "run.completed"]}
+    cases.append(c)
+
+    c = Case("event-redelivery-ignored", "events", "18.2", "An event id a run has consumed is ignored when delivered again.")
+    c.act("A").event("First", "message", name="ping").act("B").event("Second", "message", name="ping").act("C")
+    c.edge("A", "First").edge("First", "B").edge("B", "Second").edge("Second", "C")
+    c.deliver = [{"event": {"id": "evt-1", "type": "ping"}, "resumes": 1}, {"event": {"id": "evt-1", "type": "ping"}, "resumes": 0},
+                 {"event": {"id": "evt-2", "type": "ping"}, "resumes": 1}]
+    c.expect = {"status": "completed", "visited": ["A", "B", "C"]}
+    cases.append(c)
+
+    c = Case("event-timeout-takes-timeout-edge", "events", "18.3", "When the wait runs out the token takes the event's timeout edge, which ordinary routing never takes.")
+    c.act("Ask").event("Reply", "message", name="customer.replied", timeout="P3D", timeout_edge_id=c.u("Reply->Chase")).act("Proceed").act("Chase")
+    c.edge("Ask", "Reply").edge("Reply", "Proceed").edge("Reply", "Chase")
+    c.deliver = [{"expire": True}]
+    c.expect = {"status": "completed", "visited": ["Ask", "Chase"], "not_visited": ["Proceed"], "journal": ["event.waiting", "event.timed_out", "token.moved"]}
+    cases.append(c)
+
+    c = Case("event-received-in-time-skips-timeout-edge", "events", "18.3", "An event that arrives in time continues along the ordinary edge only.")
+    c.act("Ask").event("Reply", "message", name="customer.replied", timeout="P3D", timeout_edge_id=c.u("Reply->Chase")).act("Proceed").act("Chase")
+    c.edge("Ask", "Reply").edge("Reply", "Proceed").edge("Reply", "Chase")
+    c.deliver = [{"event": {"type": "customer.replied"}, "resumes": 1}]
+    c.expect = {"status": "completed", "visited": ["Ask", "Proceed"], "not_visited": ["Chase"]}
+    cases.append(c)
+
+    c = Case("event-timeout-without-edge-fails", "events", "18.3", "A wait that runs out with no timeout edge fails the token.")
+    c.act("Ask").event("Reply", "message", name="customer.replied", timeout="PT1H").act("Proceed")
+    c.edge("Ask", "Reply").edge("Reply", "Proceed")
+    c.deliver = [{"expire": True}]
+    c.expect = {"status": "failed", "visited": ["Ask"], "error_matches": "customer.replied"}
+    cases.append(c)
+
+    c = Case("signal-reaches-every-waiting-token", "events", "18.2", "A signal continues every token waiting for it; it has no correlation.")
+    c.act("A").event("Go 1", "signal", name="market.opened").event("Go 2", "signal", name="market.opened").act("B").act("C")
+    c.edge("A", "Go 1").edge("A", "Go 2").edge("Go 1", "B").edge("Go 2", "C")
+    c.deliver = [{"event": {"type": "market.opened"}, "resumes": 2}]
+    c.expect = {"status": "completed", "visited_unordered": ["A", "B", "C"]}
+    cases.append(c)
+
+    c = Case("event-published-to-journal", "events", "18.4", "A message event in publish mode records the event, with the listed data only, and the token continues.")
+    c.act("Settle").event("Settled", "message", name="claim.settled", mode="publish", data=["claim_id"]).act("Close")
+    c.edge("Settle", "Settled").edge("Settled", "Close")
+    c.actors = {"Settle": {"output": {"claim_id": "C-9", "internal": "x"}}}
+    c.expect = {"status": "completed", "visited": ["Settle", "Close"],
+                "journal_contains": [{"type": "event.published", "data": {"name": "claim.settled", "data": {"claim_id": "C-9"}}}]}
     cases.append(c)
 
     c = Case("compensation-on-failure", "flow", "13.6", "When a run fails, completed activities that name a compensation handler are compensated, most recent first.")
@@ -562,6 +619,11 @@ def document_cases() -> list[dict]:
     c.act("A").act("B").decision("D", "first", [("x", "number"), ("y", "number")], [(["> 1"], "B")]).edge("A", "D").edge("D", "B")
     docs.append({"id": c.id, "description": "A rule has exactly one input entry per input column.",
                  "valid": False, "stage": "integrity", "error_code": "invalid_rule", "document": c.build()["workflow"]})
+
+    c = Case("invalid-event-without-name", "document", "4", "")
+    c.act("A").event("Wait", "message").act("B").edge("A", "Wait").edge("Wait", "B")
+    docs.append({"id": c.id, "description": "A message or signal event must name its event.",
+                 "valid": False, "stage": "integrity", "error_code": "invalid_event", "document": c.build()["workflow"]})
 
     c = Case("invalid-compensation-in-flow", "document", "4", "")
     c.act("A", compensation={"activity_id": c.u("B")}).act("B").edge("A", "B")

@@ -1,0 +1,88 @@
+{
+  "id": "signal-reaches-every-waiting-token",
+  "level": "events",
+  "spec": "18.2",
+  "description": "A signal continues every token waiting for it; it has no correlation.",
+  "workflow": {
+    "id": "987d80a3-bc5a-5941-b1ac-7d53520a3d4e",
+    "name": "signal-reaches-every-waiting-token",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "5dd806ad-a380-5279-8147-40f241ef3db6",
+        "name": "A",
+        "role_id": "2b45f06c-cc97-507d-b6ed-1c46b8e48572",
+        "actor_type": "application"
+      },
+      {
+        "id": "1c29fb2c-32f8-56e1-b86f-6f462941a516",
+        "name": "B",
+        "role_id": "2b45f06c-cc97-507d-b6ed-1c46b8e48572",
+        "actor_type": "application"
+      },
+      {
+        "id": "8fca061f-16b0-56fa-b6c5-7b42225cab01",
+        "name": "C",
+        "role_id": "2b45f06c-cc97-507d-b6ed-1c46b8e48572",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "8aeb6f81-93c1-5f27-8810-91cd7708af5e",
+        "source_id": "5dd806ad-a380-5279-8147-40f241ef3db6",
+        "target_id": "cac6f6fc-9a44-55f2-a59a-0d808c5f560e"
+      },
+      {
+        "id": "c39f19ab-cc5b-5fbb-a53a-051bb4ad5c27",
+        "source_id": "5dd806ad-a380-5279-8147-40f241ef3db6",
+        "target_id": "90f1ef5c-96bd-5db1-b987-65398c0b186b"
+      },
+      {
+        "id": "b26c5d17-896f-5ad0-8608-98c64baa2972",
+        "source_id": "cac6f6fc-9a44-55f2-a59a-0d808c5f560e",
+        "target_id": "1c29fb2c-32f8-56e1-b86f-6f462941a516"
+      },
+      {
+        "id": "41906a5e-bf41-55bb-95d1-c06e106fcac0",
+        "source_id": "90f1ef5c-96bd-5db1-b987-65398c0b186b",
+        "target_id": "8fca061f-16b0-56fa-b6c5-7b42225cab01"
+      }
+    ],
+    "events": [
+      {
+        "id": "cac6f6fc-9a44-55f2-a59a-0d808c5f560e",
+        "name": "Go 1",
+        "event_type": "signal",
+        "event_definition": {
+          "name": "market.opened"
+        }
+      },
+      {
+        "id": "90f1ef5c-96bd-5db1-b987-65398c0b186b",
+        "name": "Go 2",
+        "event_type": "signal",
+        "event_definition": {
+          "name": "market.opened"
+        }
+      }
+    ]
+  },
+  "deliver": [
+    {
+      "event": {
+        "type": "market.opened"
+      },
+      "resumes": 2
+    }
+  ],
+  "expect": {
+    "status": "completed",
+    "visited_unordered": [
+      "A",
+      "B",
+      "C"
+    ]
+  }
+}

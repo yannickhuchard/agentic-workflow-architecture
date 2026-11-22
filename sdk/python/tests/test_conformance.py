@@ -19,7 +19,7 @@ from awa.validator import validate_workflow_integrity
 CONFORMANCE = Path(__file__).resolve().parents[3] / "spec" / "conformance"
 CLAIMED_LEVELS = {"core", "decision"}
 # Rules about features the Python SDK does not execute (compensation, timer events)
-UNSUPPORTED_INTEGRITY_RULES = {"invalid_compensation", "invalid_timer"}
+UNSUPPORTED_INTEGRITY_RULES = {"invalid_compensation", "invalid_timer", "invalid_event"}
 
 EXECUTION = [json.loads(p.read_text()) for p in sorted((CONFORMANCE / "execution").glob("*.json"))]
 DOCUMENTS = [json.loads(p.read_text()) for p in sorted((CONFORMANCE / "documents").glob("*.json"))]

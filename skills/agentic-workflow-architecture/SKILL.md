@@ -554,6 +554,37 @@ curl -X POST http://localhost:3000/api/v1/tasks/task-uuid/complete \
   -d '{ "result": { "approved": true, "notes": "Looks good" } }'
 ```
 
+## Business Events, Journeys and Counterfactual Replay
+
+**Wait for a business event** with a `message` event node (a `signal` reaches every waiting token):
+
+```json
+{ "id": "…", "name": "Documents uploaded", "event_type": "message",
+  "event_definition": { "name": "documents.uploaded", "correlation_key": "customer_id",
+                        "timeout": "P5D", "timeout_edge_id": "<edge taken when nothing arrives>" } }
+```
+
+Without a `timeout_edge_id` a timeout fails the token (`EVENT_TIMEOUT`). `"mode": "publish"` publishes instead of waiting; `data` lists the token paths to publish.
+
+**Host many runs and journeys** with `AwaRuntime`:
+
+```typescript
+const runtime = new AwaRuntime({ engine: { /* WorkflowEngine options */ } })
+    .register_workflow(intake).register_workflow(settlement).register_journey(journey);
+await runtime.publish(business_event('claim.submitted', { customer_id: 'c-1' }));  // starts journey and run
+await runtime.publish(business_event('documents.uploaded', { customer_id: 'c-1' })); // wakes the waiting run
+await runtime.tick();                       // lets deadlines pass
+runtime.analytics(journey.id);              // funnel per stage
+```
+
+A journey (`spec/json-schema/journey.schema.json`) has `subject.key`, `stages` (`complete_when`, `max_duration`, `on_enter.start_workflow`, `transitions`), `triggers`, `goals` and `exits`. See `examples/claims-journey`.
+
+**Counterfactual replay** answers "what if this run had used another model or rule":
+
+```bash
+awa replay workflow.awa.json run.jsonl --candidate changed.awa.json --ai recorded   # exit 2 on regression
+```
+
 ## Production Infrastructure
 
 ### Structured Logging

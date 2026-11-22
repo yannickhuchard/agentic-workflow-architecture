@@ -1,0 +1,167 @@
+{
+  "$schema": "https://awa.io/schema/awa.schema.json",
+  "id": "dbf2d340-25ca-59a1-a77d-3d403aa19962",
+  "name": "Customer Follow-up",
+  "version": "1.0.0",
+  "awa_version": "1.1",
+  "description": "After a claim is paid, asks the customer how it went and acts on the answer.",
+  "roles": [
+    {
+      "id": "2723288f-ad2c-5f1b-ad6d-8a7573ce037f",
+      "name": "Customer communications",
+      "actor_type": "ai_agent",
+      "ai_model_config": {
+        "model_id": "tier:balanced",
+        "temperature": 0.2
+      }
+    },
+    {
+      "id": "042bd928-0046-533b-af50-918cd8446598",
+      "name": "Customer care agent",
+      "actor_type": "human"
+    },
+    {
+      "id": "fb869e17-3422-545a-9357-3666c4ead7cc",
+      "name": "CRM",
+      "actor_type": "application"
+    }
+  ],
+  "events": [
+    {
+      "id": "b06e5811-adc3-55cc-a3bb-f9e6d837b996",
+      "name": "Survey answered",
+      "event_type": "message",
+      "description": "Wait for the customer's answer.",
+      "event_definition": {
+        "name": "survey.answered",
+        "correlation_key": "customer_id",
+        "timeout": "P14D",
+        "timeout_edge_id": "2a326758-7456-5ef3-a53c-e241a192ffba"
+      }
+    },
+    {
+      "id": "e01edc4a-a5dd-5036-a540-77439b7adfc9",
+      "name": "Follow-up done",
+      "event_type": "end"
+    }
+  ],
+  "activities": [
+    {
+      "id": "2c26585c-e767-5c9c-9bc3-aa9b7debf149",
+      "name": "Send survey",
+      "role_id": "2723288f-ad2c-5f1b-ad6d-8a7573ce037f",
+      "actor_type": "ai_agent",
+      "description": "Ask the customer to rate the claim experience from 1 to 5."
+    },
+    {
+      "id": "f2175561-ceeb-5ee3-af0c-fa1b68603788",
+      "name": "Thank customer",
+      "role_id": "2723288f-ad2c-5f1b-ad6d-8a7573ce037f",
+      "actor_type": "ai_agent",
+      "description": "Thank a satisfied customer."
+    },
+    {
+      "id": "ccfa14e9-62d2-53fa-b32d-4e1b5d598935",
+      "name": "Call back",
+      "role_id": "042bd928-0046-533b-af50-918cd8446598",
+      "actor_type": "human",
+      "description": "A customer care agent calls a dissatisfied customer."
+    },
+    {
+      "id": "045def36-7176-5803-8559-15036a61e08f",
+      "name": "Record no response",
+      "role_id": "fb869e17-3422-545a-9357-3666c4ead7cc",
+      "actor_type": "application",
+      "description": "Note that the customer did not answer."
+    }
+  ],
+  "decision_nodes": [
+    {
+      "id": "44606373-4645-5587-98cb-6fcdede0b9e9",
+      "name": "How satisfied",
+      "description": "Route on the satisfaction score.",
+      "decision_table": {
+        "hit_policy": "first",
+        "inputs": [
+          {
+            "name": "satisfaction",
+            "label": "Satisfaction",
+            "type": "number"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "sentiment",
+            "type": "string"
+          }
+        ],
+        "rules": [
+          {
+            "description": "Satisfied",
+            "input_entries": [
+              ">= 4"
+            ],
+            "output_entries": [
+              "positive"
+            ],
+            "output_edge_id": "58e0a519-ad13-5f7a-bdf1-4dff8800afca"
+          },
+          {
+            "description": "Not satisfied",
+            "input_entries": [
+              "< 4"
+            ],
+            "output_entries": [
+              "negative"
+            ],
+            "output_edge_id": "a63d952f-3d5f-5391-8a56-e94938851346"
+          }
+        ]
+      },
+      "default_output_edge_id": "a63d952f-3d5f-5391-8a56-e94938851346"
+    }
+  ],
+  "edges": [
+    {
+      "id": "df7d9946-1faf-5b1c-97e3-0fa7d5d64299",
+      "source_id": "2c26585c-e767-5c9c-9bc3-aa9b7debf149",
+      "target_id": "b06e5811-adc3-55cc-a3bb-f9e6d837b996"
+    },
+    {
+      "id": "d9719c57-b00d-5482-bacc-127be90a221c",
+      "source_id": "b06e5811-adc3-55cc-a3bb-f9e6d837b996",
+      "target_id": "44606373-4645-5587-98cb-6fcdede0b9e9"
+    },
+    {
+      "id": "2a326758-7456-5ef3-a53c-e241a192ffba",
+      "source_id": "b06e5811-adc3-55cc-a3bb-f9e6d837b996",
+      "target_id": "045def36-7176-5803-8559-15036a61e08f",
+      "label": "no answer in 14 days"
+    },
+    {
+      "id": "58e0a519-ad13-5f7a-bdf1-4dff8800afca",
+      "source_id": "44606373-4645-5587-98cb-6fcdede0b9e9",
+      "target_id": "f2175561-ceeb-5ee3-af0c-fa1b68603788"
+    },
+    {
+      "id": "a63d952f-3d5f-5391-8a56-e94938851346",
+      "source_id": "44606373-4645-5587-98cb-6fcdede0b9e9",
+      "target_id": "ccfa14e9-62d2-53fa-b32d-4e1b5d598935"
+    },
+    {
+      "id": "ec11c7f7-9364-5fcc-9725-9a54cd6c4e71",
+      "source_id": "f2175561-ceeb-5ee3-af0c-fa1b68603788",
+      "target_id": "e01edc4a-a5dd-5036-a540-77439b7adfc9"
+    },
+    {
+      "id": "1719aaf2-637e-5dab-b749-d88bfc08da87",
+      "source_id": "ccfa14e9-62d2-53fa-b32d-4e1b5d598935",
+      "target_id": "e01edc4a-a5dd-5036-a540-77439b7adfc9"
+    },
+    {
+      "id": "bf0df66e-fd46-5c24-89e5-1adb2efc1b1a",
+      "source_id": "045def36-7176-5803-8559-15036a61e08f",
+      "target_id": "e01edc4a-a5dd-5036-a540-77439b7adfc9"
+    }
+  ]
+}

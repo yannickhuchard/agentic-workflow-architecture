@@ -7,6 +7,7 @@ import { initCommand } from './commands/init';
 import { generateCommand } from './commands/generate';
 import { recipeCommand } from './commands/recipe';
 import { knowledgeCommand } from './commands/knowledge';
+import { replayCommand } from './commands/replay';
 
 import { version } from '../../package.json';
 
@@ -24,5 +25,6 @@ program.addCommand(initCommand);
 program.addCommand(generateCommand);
 program.addCommand(recipeCommand);
 program.addCommand(knowledgeCommand);
+program.addCommand(replayCommand);
 
 program.parse(process.argv);

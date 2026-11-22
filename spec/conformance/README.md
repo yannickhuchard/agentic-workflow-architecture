@@ -11,6 +11,8 @@ Language-neutral test cases that define what it means to implement AWA. The rule
 
 Each execution case is tagged with a conformance level. An implementation claims a level only if it passes every case at that level, and reports the cases it skips.
 
+Levels: `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `flow`, `events`. Cases at level `events` carry a `deliver` list: business events to deliver, or deadlines to let pass, once the run has settled.
+
 ## Running
 
 ```bash

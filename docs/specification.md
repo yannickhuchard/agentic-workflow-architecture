@@ -25,6 +25,9 @@ This document is normative. Where it and an SDK disagree, this document is right
 15. [Knowledge](#15-knowledge)
 16. [Model decisions](#16-model-decisions)
 17. [Tools](#17-tools)
+18. [Business events](#18-business-events)
+19. [Journeys](#19-journeys)
+20. [Counterfactual replay](#20-counterfactual-replay)
 
 ## 1. Scope
 
@@ -55,6 +58,7 @@ An implementation claims one or more levels. Each level has cases in `spec/confo
 | `resilient` | Retries, dead-letters and recovers runs | 10 |
 | `contract` | Enforces outcome contracts, budgets and escalation | 11 |
 | `flow` | Parallel split and join, events, timers and compensation | 13 |
+| `events` | Publishes business events and holds tokens until one arrives or a deadline passes | 18 |
 
 An implementation MUST NOT claim a level unless it passes every case tagged with that level. It MUST report the cases it skips; it MUST NOT silently omit them.
 
@@ -62,11 +66,27 @@ An implementation MUST NOT claim a level unless it passes every case tagged with
 
 | SDK | Levels claimed |
 |---|---|
-| TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `flow` |
+| TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `flow`, `events` |
 | Python | `core`, `decision`, and `document` except the two rules about features it does not execute (compensation, timers) |
 | Java | none (data model only) |
 
-### 2.3 Normative and informative artefacts
+### 2.3 Versions
+
+Two things carry a version, and they are independent.
+
+| What | Version | Where it appears | Changes when |
+|---|---|---|---|
+| The specification | `major.minor`, e.g. 1.1 | `awa_version` in documents, `spec_version` in journal events | The rules in this document change |
+| An SDK | Semantic version, e.g. 2.0.0 | The package | Its behaviour changes: major for any change that makes a previously valid workflow fail or behave differently, minor for additions, patch for fixes |
+
+| SDK | Implements specification |
+|---|---|
+| TypeScript 1.x, Python 1.x | 1.0 |
+| TypeScript 2.x, Python 2.x | 1.1 |
+
+An SDK moved from 1.x to 2.0 for specification 1.1 because 1.1 is stricter: Appendix B lists what changed.
+
+### 2.4 Normative and informative artefacts
 
 The JSON Schemas in `spec/json-schema/` and this document are normative. The Avro, OpenAPI, GraphQL and PostgreSQL DDL files in `spec/` are informative projections of the same model, kept in step with version 1.1; where they differ from the JSON Schemas, the JSON Schemas apply.
 
@@ -115,6 +135,7 @@ A processor MUST validate a document in two stages and MUST reject a document th
 | Every `compensation.activity_id` names an activity in the workflow | `invalid_reference` |
 | No compensation handler is the target of an edge | `invalid_compensation` |
 | Every timer event has a valid `event_definition.duration` | `invalid_timer` |
+| Every message or signal event has `event_definition.name`; a `timeout` is a valid duration; a `timeout_edge_id` names an edge leaving the event | `invalid_event` |
 | No node is the source of more than one edge with `is_default: true` | `multiple_default_edges` |
 
 ### 4.4 Extension
@@ -261,13 +282,19 @@ A run has a status derived from its tokens:
 | Run status | Condition |
 |---|---|
 | `running` | At least one token is `active` |
-| `waiting_human` | No token is `active` and at least one is `waiting` |
+| `waiting_human` | No token is `active` and at least one is `waiting` for a person |
+| `waiting_event` | No token is `active`, none waits for a person, and at least one is `waiting` for a business event (18.3) |
 | `failed` | At least one token is `failed` (the others are then cancelled, 13.3) |
 | `completed` | Every token is `completed` or `joined` |
+| `cancelled` | The host withdrew the run (5.8) |
 
 An engine MUST NOT report `completed` for a run in which any token failed.
 
 When an activity raises an error, its token is `failed` and the error message is recorded in the token's data as `_error`.
+
+### 5.8 Cancellation
+
+A host MAY withdraw a run that has not reached an outcome, because the work is no longer wanted: the customer withdrew, the order was replaced. The engine cancels every token that is `active`, `waiting` or `joining` (`token.cancelled` with reason `run_cancelled`), compensates as for a failure (13.6), and records `run.cancelled` with the reason the host gave. The run is `cancelled`; it is neither `completed` nor `failed`, and it accepts no further events. Cancelling a run that already reached an outcome changes nothing.
 
 ## 6. Condition expressions
 
@@ -487,12 +514,17 @@ An engine MUST NOT alter or remove an event once written.
 |---|---|---|---|
 | `run.started` | execution | A run begins | `workflow_name`, `workflow_version`, `input` |
 | `run.completed`, `run.failed` | execution | The run reaches its outcome (5.7) | `duration_ms`, `steps`, token and cost totals; `errors` on failure |
+| `run.cancelled` | execution | The host withdrew the run (5.8) | `reason`, `compensation` |
 | `run.waiting` | execution | No token is active and at least one waits | `waiting_tokens` |
 | `run.resumed` | execution | A run continues from a checkpoint (10.3) | `from_seq`, `from_checkpoint_at` |
 | `token.created` | execution | A token comes into existence | `parent_token_id` and `reason: parallel_split` for a split |
 | `token.joined` | execution | Tokens are merged at a join | `merged_token_ids`, `incoming_edge_ids` |
 | `token.cancelled` | execution | A token is withdrawn because the run failed | `reason` |
 | `timer.started`, `timer.fired` | execution | A token reaches a timer event; the timer elapses | `duration`, `due_at` |
+| `event.published` | execution | A token passes a publishing event (18.2) | `event_id`, `name`, `source`, `data`, `delivered` |
+| `event.waiting` | execution | A token is held at a waiting event (18.3) | `name`, `correlation_key`, `correlation_value`, `due_at` |
+| `event.received` | execution | A business event released a held token | `event_id`, `name`, `source`, `data` |
+| `event.timed_out` | execution | The deadline of a waiting event passed | `name`, `due_at` |
 | `activity.compensated`, `activity.compensation_failed` | execution | A compensation handler ran, or raised | `compensates_activity_id`, `output` or `error` |
 | `token.moved` | execution | A token follows an edge | `from_node_id`, `to_node_id`, `edge_id`, `reason` (`condition`, `default`, `unconditional`, `parallel_split`, `decision`), `condition` |
 | `token.completed`, `token.failed` | execution | A token ends | `error` on failure |
@@ -732,9 +764,10 @@ A token at an event node is handled according to the event's `event_type`:
 | `start`, `intermediate` | The token is routed onward (5.4) |
 | `end` | The token is `completed` |
 | `timer` | The token is held for a duration, then routed onward (13.5) |
+| `message`, `signal` | A business event is published, or the token is held until one arrives (section 18) |
 | any other | The token is `failed` with error code `UNSUPPORTED_EVENT` |
 
-An engine MUST NOT pass a token through an event it does not implement. `message`, `signal`, `conditional` and `error` events are reserved for a future version.
+An engine MUST NOT pass a token through an event it does not implement. `conditional` and `error` events are reserved for a future version.
 
 ### 13.5 Timers
 
@@ -1001,6 +1034,183 @@ A recipe (14.1) lists every tool with its binding among the prerequisites, and u
 
 Sections 16 and 17 are not yet covered by the language-neutral conformance suite. The reference implementation's behaviour is fixed by `sdk/typescript/tests/router_tools_decisions.test.ts`.
 
+## 18. Business events
+
+A workflow does not live alone. It is started by something that happened in the business, it waits for things to happen, and what it does is of interest to other systems. This section makes those three relations explicit and gives them one shape.
+
+### 18.1 The business event
+
+A **business event** is a statement that something happened. It has the attributes of [CloudEvents 1.0](https://github.com/cloudevents/spec/blob/v1.0.2/cloudevents/spec.md):
+
+| Attribute | Required | Meaning |
+|---|---|---|
+| `specversion` | yes | `"1.0"` |
+| `id` | yes | Unique within `source`. Two events with the same `source` and `id` are the same event |
+| `source` | yes | Where it happened, as a URI reference |
+| `type` | yes | What happened, for example `documents.uploaded`. This is the name workflows and journeys refer to |
+| `time` | no | When it happened |
+| `subject` | no | Whom or what it concerns |
+| `data` | no | An object with the details |
+
+Events travel between an engine and the outside world through a **host**: the program that runs engines. An engine never opens a connection to a broker. A host that receives events from Kafka, a webhook or a queue translates them to this shape and delivers them; a host that is handed a published event sends it wherever the deployment wants.
+
+### 18.2 Publishing
+
+A message or signal event node with `event_definition.mode` `"publish"` publishes a business event when a token reaches it. The token is not held.
+
+- `type` is `event_definition.name`.
+- `data` holds the values of the paths listed in `event_definition.data`, read from the token's data. Nothing else is published: what leaves the run is chosen, never the whole token.
+- `id` is `<run_id>:<node_id>:<visit>`, so a recovered run that passes the node again publishes the same event, and a consumer can discard the duplicate.
+- `source` is `urn:awa:run:<run_id>`.
+
+The engine records `event.published` before handing the event to the host: the journal is the outbox. If the host reports that it could not send the event, the token is `failed` with error code `EVENT_PUBLISH_FAILED`; a recovered run (10.3) publishes it again under the same `id`.
+
+### 18.3 Waiting
+
+A message or signal event node with `event_definition.mode` `"wait"`, or with no `mode`, holds the token until a matching business event is delivered.
+
+| `event_definition` | Meaning |
+|---|---|
+| `name` | The `type` to wait for. Required |
+| `correlation_key` | For a `message`: a path, read both in the token's data when the wait begins and in the event's `data`. The event matches only if the two values are equal as strings. Without it, every event of the type matches. A `signal` ignores it |
+| `timeout` | A duration (13.5). When it passes without a match, the wait times out |
+| `timeout_edge_id` | The edge a token takes when the wait times out. It is never taken otherwise |
+
+When a token reaches the node the engine records `event.waiting` with the deadline, sets the token `waiting`, and persists the run. The run is `waiting_event` (5.7).
+
+**Delivery.** When the host delivers an event, the engine finds the held tokens it matches. A `message` releases the first of them, in token order; a `signal` releases all of them. For each, the engine records `event.received`, merges the event's `data` into the token's data (except properties whose names begin with `_`), and routes the token over the edges that leave the node, excluding the `timeout_edge_id`.
+
+Delivery is **idempotent**: an engine MUST ignore an event whose `id` it has already accepted for the run. The set of accepted events is part of a checkpoint (10.3).
+
+An event that matches no held token is not kept by the engine. A host MAY keep it and deliver it later; the reference host does not, so a workflow should begin to wait before the event can occur.
+
+**Timeout.** When the deadline passes, the engine records `event.timed_out`. With a `timeout_edge_id` the token takes that edge. Without one the token is `failed` with error code `EVENT_TIMEOUT`: a wait that nobody planned an answer for MUST NOT hang, and MUST NOT continue as if the event had arrived.
+
+An engine does not watch the clock for held tokens. The host asks for the next deadline and tells the engine when it has passed, which lets a run that waits two weeks cost nothing while it waits.
+
+### 18.4 Starting
+
+A `start` event MAY carry `event_definition.name`. It declares which business event starts the workflow. An engine does nothing with it; a host uses it, or a journey trigger (19.3), to start a run with the event's `data` as input.
+
+### 18.5 Conformance
+
+Level `events` covers 18.2 and 18.3. Its cases use a `deliver` list: after the run settles, the runner delivers each event in turn, or lets the pending deadlines pass with `{"expire": true}`, and then compares.
+
+## 19. Journeys
+
+A workflow describes how one piece of work is done. A customer, a supplier or an order lives through several of them, over days or months, with waiting in between. A **journey** is the layer that describes that life: the stages a subject passes through, which workflows serve each stage, and what counts as success.
+
+A journey does not replace workflows and has no tokens. It is a small state machine over business events. Everything it knows, it learned from an event or from the end of a run.
+
+### 19.1 Definition
+
+A journey definition conforms to `spec/json-schema/journey.schema.json`:
+
+| Property | Meaning |
+|---|---|
+| `id`, `name`, `version` | Identity |
+| `subject.name` | What travels: "customer", "order" |
+| `subject.key` | The path in event `data` that identifies one subject. Events with the same value belong to the same journey instance |
+| `stages` | Ordered list of stages (19.2) |
+| `triggers` | What business events do to the journey (19.3) |
+| `goals` | Each has an `id`, a `name` and an `expression` (section 6) over the journey's data. Reaching one is recorded once |
+| `exits` | Business events that end the journey, each with the `outcome` (`completed` or `abandoned`) and a `reason` |
+| `collect` | Paths of event and run data to keep as the journey's data. When absent, all of it is kept |
+
+### 19.2 Stages
+
+| Property | Meaning |
+|---|---|
+| `id`, `name`, `description` | Identity |
+| `workflows` | Ids of the workflows that do the work of this stage. Informative: it is what a reader and a visualisation use to link the two layers |
+| `on_enter.start_workflow` | A workflow the host starts when the stage is entered, with the journey's data as input |
+| `complete_when` | A condition (section 6) over the journey's data. The stage is complete when it becomes true |
+| `max_duration` | A duration (13.5). A stage that lasts longer is **stalled** |
+| `transitions` | A list of `{to, when}`. When the stage completes, the first whose `when` is true, or is absent, names the next stage |
+
+When a stage completes and it has no `transitions` property, the journey moves to the next stage in the list. When `transitions` is present and empty, or the stage is the last, the journey is `completed`. When transitions exist and none applies, the journey stays in the stage; it does not guess.
+
+### 19.3 Triggers
+
+| Property | Meaning |
+|---|---|
+| `event` | The business event `type` |
+| `starts_journey` | When true and the subject has no active instance, one is created in the first stage |
+| `enter_stage` | Move the instance to this stage |
+| `start_workflow` | Start this workflow with the event's `data` as input |
+
+### 19.4 Instance and record
+
+A journey instance has an `id`, the `subject_key` value, a `status` (`active`, `completed`, `abandoned`), the current `stage_id`, its `data`, the `runs` started on its behalf (each with `run_id`, `workflow_id`, `stage_id` and status) and an append-only list of **journey events** conforming to `spec/json-schema/journey-event.schema.json`:
+
+| Type | When |
+|---|---|
+| `journey.started` | The instance is created |
+| `journey.event_received` | A business event concerning the subject arrived. Carries the event |
+| `journey.stage_entered`, `journey.stage_completed` | A stage begins or ends. Completion carries the time spent |
+| `journey.run_started`, `journey.run_ended` | A workflow run begins or settles. Both carry `run_id`, which is the link from this record into the run's journal (section 9) |
+| `journey.goal_reached` | A goal's condition became true |
+| `journey.stalled` | A stage outlasted its `max_duration`, or a run of the stage failed |
+| `journey.completed`, `journey.abandoned` | The journey ended |
+
+`run_id` is the only join between the two layers, and it is enough: from a journey event a reader reaches every step, attempt, reasoning record and tool call of the run; from a run's journal a reader reaches the journey through the same id.
+
+### 19.5 The host's duties
+
+For every business event it accepts, a host that runs journeys MUST, in this order: for a subject already on its journey, merge the event's `data` into the instance's data and record `journey.event_received`, whether or not any rule reacts to the event; deliver the event to the runs that wait (18.3); create an instance if a trigger says so, recording the event on it; apply exits; apply triggers; evaluate goals and the current stage's `complete_when`. The event is recorded before anything reacts to it, so that a journey's record reads in causal order. A host MUST ignore an event `id` it has already accepted. When a run started for an instance settles, the host merges the run's business data into the instance's data and evaluates again. Events published by a run (18.2) are accepted by the host like any other, so one workflow can move the journey or wake another workflow.
+
+When a journey ends through an exit, the host MUST cancel (5.8) the runs still under way for it: a customer who has left is not sent a reminder. A run that fails marks its stage stalled. A journey never fails: a failed run is a reason for a person to look, not the end of the customer's story.
+
+### 19.6 Analytics
+
+From instances alone a host can report, per stage: how many entered, completed, are there now, are stalled, and left from there; the median time spent; and per goal how many reached it. The reference host provides this as `journey_analytics`.
+
+### 19.7 Conformance
+
+Journeys have no language-neutral cases yet. The reference behaviour is fixed by `sdk/typescript/tests/events_journeys.test.ts`.
+
+## 20. Counterfactual replay
+
+A journal records what a run did. **Counterfactual replay** asks what it would have done had something been different: another model, another prompt, a stricter contract, a changed rule. It runs the workflow again with the world held as recorded, and compares.
+
+### 20.1 What is held and what runs again
+
+| Taken from the baseline journal | Runs again |
+|---|---|
+| The run's input | AI agents, under the candidate configuration |
+| Results of activities performed by applications, robots and people | Model decisions (section 16) |
+| Results of tool calls, matched by tool and arguments | Verification and judges (section 7) |
+| Business events received, and timeouts | Contracts, decision tables and routing |
+| The passing of time: timers and backoff do not wait | |
+
+With `ai: "recorded"`, the recorded outputs of AI agents and model decisions are replayed as well. Nothing calls a model, and the comparison isolates the effect of a changed contract, criterion, table or edge.
+
+The candidate MAY be a different workflow document. Nodes are matched by `id`.
+
+### 20.2 Unrecorded situations
+
+The candidate may do something the baseline never did: call a tool with other arguments, or reach an activity the baseline did not. There is then no recording to replay. The replay MUST fail that step with error code `REPLAY_UNRECORDED` and list it in the report. It MUST NOT invent a result, and it MUST NOT perform the real call: a replay has no side effects.
+
+A baseline recorded with payload mode `hash` or `none` (9.4) holds no outputs, and can be replayed only as far as its first activity.
+
+### 20.3 The report
+
+The report compares the runs as a whole (status, path, attempts, tokens, cost, duration) and node by node. Each node gets a verdict:
+
+| Verdict | Meaning |
+|---|---|
+| `same` | Same acceptance and the same outcome |
+| `changed` | Accepted in both, with a different outcome. Whether that is better is for a person to judge |
+| `improved` | Accepted where the baseline was not, or accepted in fewer attempts |
+| `regressed` | Not accepted where the baseline was, or accepted in more attempts |
+| `only_baseline`, `only_candidate` | Reached by one run only: the path diverged |
+
+It names the first point at which the paths diverge. A run that was `completed` and is not any more is a regression; so is every `regressed` node. The reference command `awa replay` exits with status 2 when there is one, so a set of recorded journals can serve as a regression suite for a change of model.
+
+### 20.4 Conformance
+
+Counterfactual replay is an artefact derived from the journal, like the recipe (14.1). It has no conformance level. The reference behaviour is fixed by `sdk/typescript/tests/counterfactual.test.ts`.
+
 ## Appendix A. Conformance suite
 
 `spec/conformance/` holds language-neutral cases.
@@ -1018,6 +1228,7 @@ Sections 16 and 17 are not yet covered by the language-neutral conformance suite
 | `workflow` | The workflow to run |
 | `input` | Data the run starts with |
 | `actors` | What each activity returns, keyed by activity name: `output`, or `error` (optionally with an error `code`), or `attempts` (a list of those, one per execution; the last repeats) |
+| `deliver` | Business events to deliver after the run settles, in order (18.5) |
 | `expect.status` | The run status |
 | `expect.visited` | Activity names in execution order, one entry per execution |
 | `expect.visited_unordered` | The same, where parallel branches make the order unspecified |
@@ -1055,3 +1266,6 @@ Runners: `sdk/typescript/tests/conformance.test.ts`, `sdk/python/tests/test_conf
 - Decision tables fully specified: entry grammar, strict hit policies with conflicts, rule `priority`, outputs merged into token data so decisions can be chained (5.5.1 to 5.5.3).
 - External decision engines as a plug-in point (5.5.4).
 - `unique` and `any` now fail on a conflict; 1.0 engines took the first matching rule.
+- Business events in CloudEvents form; message and signal events publish them or hold a token until one arrives, with correlation and a timeout edge; run status `waiting_event`; conformance level `events` (section 18).
+- Journeys: stages, triggers, goals and exits over business events, linked to runs by `run_id` (section 19).
+- Counterfactual replay of a recorded run under a changed model, prompt, contract or rule (section 20).

@@ -1,0 +1,81 @@
+{
+  "id": "event-timeout-takes-timeout-edge",
+  "level": "events",
+  "spec": "18.3",
+  "description": "When the wait runs out the token takes the event's timeout edge, which ordinary routing never takes.",
+  "workflow": {
+    "id": "b85d12d1-0d05-5b7f-9e5a-268f28899269",
+    "name": "event-timeout-takes-timeout-edge",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "ac623629-8e01-56de-8325-2e4aa3bff6f9",
+        "name": "Ask",
+        "role_id": "be8d9c6a-3744-5ff3-b819-95f873dbcea1",
+        "actor_type": "application"
+      },
+      {
+        "id": "19c3747e-48a3-591c-b33f-e0f43bc87665",
+        "name": "Proceed",
+        "role_id": "be8d9c6a-3744-5ff3-b819-95f873dbcea1",
+        "actor_type": "application"
+      },
+      {
+        "id": "3f156320-2673-5edc-b2d3-f960eabf060a",
+        "name": "Chase",
+        "role_id": "be8d9c6a-3744-5ff3-b819-95f873dbcea1",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "37e490a7-bc52-550d-aec9-7492c045d905",
+        "source_id": "ac623629-8e01-56de-8325-2e4aa3bff6f9",
+        "target_id": "6cd4cee3-195d-546e-8b51-a539d6cbcc7e"
+      },
+      {
+        "id": "e95e9b55-8ba7-5451-9036-42717183f514",
+        "source_id": "6cd4cee3-195d-546e-8b51-a539d6cbcc7e",
+        "target_id": "19c3747e-48a3-591c-b33f-e0f43bc87665"
+      },
+      {
+        "id": "f2eecbde-1867-595e-81c4-f0960b5fdd5f",
+        "source_id": "6cd4cee3-195d-546e-8b51-a539d6cbcc7e",
+        "target_id": "3f156320-2673-5edc-b2d3-f960eabf060a"
+      }
+    ],
+    "events": [
+      {
+        "id": "6cd4cee3-195d-546e-8b51-a539d6cbcc7e",
+        "name": "Reply",
+        "event_type": "message",
+        "event_definition": {
+          "name": "customer.replied",
+          "timeout": "P3D",
+          "timeout_edge_id": "f2eecbde-1867-595e-81c4-f0960b5fdd5f"
+        }
+      }
+    ]
+  },
+  "deliver": [
+    {
+      "expire": true
+    }
+  ],
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "Ask",
+      "Chase"
+    ],
+    "not_visited": [
+      "Proceed"
+    ],
+    "journal": [
+      "event.waiting",
+      "event.timed_out",
+      "token.moved"
+    ]
+  }
+}

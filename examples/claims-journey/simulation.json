@@ -1,0 +1,55 @@
+{
+  "Register claim": {
+    "output": {
+      "claim_id": "CLM-0001",
+      "policy_number": "POL-0001"
+    }
+  },
+  "Request documents": {
+    "output": {
+      "documents_requested": [
+        "photos"
+      ],
+      "message": "Please send photos."
+    }
+  },
+  "Send reminder": {
+    "output": {
+      "reminder_sent": true,
+      "message": "Reminder."
+    }
+  },
+  "Check completeness": {
+    "output": {
+      "documents_complete": true
+    }
+  },
+  "Close as incomplete": {
+    "output": {
+      "documents_complete": false
+    }
+  },
+  "Send survey": {
+    "output": {
+      "survey_sent": true,
+      "message": "How was it?"
+    }
+  },
+  "Thank customer": {
+    "output": {
+      "followed_up": true,
+      "message": "Thank you."
+    }
+  },
+  "Call back": {
+    "output": {
+      "followed_up": true
+    }
+  },
+  "Record no response": {
+    "output": {
+      "followed_up": true,
+      "no_response": true
+    }
+  }
+}
