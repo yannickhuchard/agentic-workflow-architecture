@@ -1,0 +1,34 @@
+{
+  "id": "valid-envelope",
+  "description": "The envelope form wraps the workflow in a 'workflow' property.",
+  "valid": true,
+  "document": {
+    "workflow": {
+      "id": "9de0062a-77f7-5ab6-b76b-e007f4d82180",
+      "name": "valid-envelope",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "ae5dfd28-2e22-53c2-be4a-915b5ec2889b",
+          "name": "A",
+          "role_id": "55ac96fe-892b-5966-b1e9-20c336ab1b5b",
+          "actor_type": "application"
+        },
+        {
+          "id": "3511990c-8474-5c0e-b65e-96203715b0b0",
+          "name": "B",
+          "role_id": "55ac96fe-892b-5966-b1e9-20c336ab1b5b",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "114b52ad-222a-5ba6-8813-6290d856effa",
+          "source_id": "ae5dfd28-2e22-53c2-be4a-915b5ec2889b",
+          "target_id": "3511990c-8474-5c0e-b65e-96203715b0b0"
+        }
+      ]
+    }
+  }
+}

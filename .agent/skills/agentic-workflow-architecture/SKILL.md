@@ -1,7 +1,7 @@
 ---
 name: agentic-workflow-architecture
 description: Expert guide for working with the Agentic Workflow Architecture (AWA) framework. Use this skill when users need to create, edit, validate, execute, or visualize AI-native workflow processes using AWA's SDK (TypeScript & Python), CLI, API, or visualization tools. This skill covers workflow building with the fluent API, running workflows via CLI, triggering workflows via REST API, creating workflow JSON files, understanding AWA concepts (actors, contexts, skills, access rights, decision nodes), and rendering workflow diagrams.
-Sync: Updated for Phase 3 (Python SDK Parity)
+Sync: Updated for AWA 1.1 (normative specification, outcome contracts, model routing, tools, journal, knowledge)
 ---
 
 # Agentic Workflow Architecture (AWA) Skill
@@ -139,6 +139,108 @@ Use this skill when working with:
 - Visualizing workflows in 2D or 3D
 - Querying workflows for analytics or access rights
 - Implementing multi-actor processes (human, AI agent, robot, application)
+
+## AWA 1.1: what the engine requires
+
+AWA 1.1 has a normative specification (`docs/specification.md`) and a conformance suite (`spec/conformance`). The engine is stricter than 1.0. A workflow written to the rules below runs; one that ignores them fails on purpose instead of guessing. The TypeScript SDK implements everything in this section. The Python SDK implements routing, decision tables and validation; the rest is TypeScript only.
+
+### Rules that make a workflow fail if you break them
+
+1. **Give every choice a way out.** If a node's outgoing edges all have conditions and none is true, the token fails with `NO_ROUTE`. Add an edge with `"is_default": true`, usually to an end event:
+
+   ```json
+   "edges": [
+     { "id": "…", "source_id": "<analyze>", "target_id": "<review>", "condition": "sentiment_score < 0.3" },
+     { "id": "…", "source_id": "<analyze>", "target_id": "<done>", "is_default": true }
+   ],
+   "events": [ { "id": "<done>", "name": "No action needed", "event_type": "end" } ]
+   ```
+
+2. **Several edges without conditions from one node are a parallel split**, not a list of alternatives. Use conditions (plus a default) for a choice. To bring parallel branches back together, set `"join": "all"` on the activity where they meet.
+3. **Conditions use one expression language**: `path op literal` with `== != > >= < <=`, combined with `&&`, `||`, `!` and parentheses, plus `path exists` and `typeof path == type`. Paths may be dotted (`order.total`). An invalid condition is rejected when the workflow loads.
+4. **A failed token fails the run.** Do not expect `completed` when an activity raised.
+5. **Verification fails closed.** An output that was not verified as `pass` is rejected. A `schema_only` criterion needs an `expression`.
+6. **Decision tables are strict.** With hit policy `unique` or `any`, overlapping rules that disagree fail the token (`DECISION_CONFLICT`). Each rule needs exactly one entry per input column. Use `first` when order should decide.
+7. **Simulated activities return no business data.** A workflow whose routing depends on data needs `awa run --simulate --outputs simulation.json`, where the file gives what each activity returns by name.
+
+### Outcome contracts: fix the result, leave the strategy free
+
+Put what must be true of an AI agent's result on the activity. The engine checks it deterministically, re-runs the agent with the violated terms as feedback, and can hand over to a person.
+
+```json
+"outcome_contract": {
+  "output_schema": { "type": "object", "required": ["estimated_cost"], "properties": { "estimated_cost": { "type": "number", "minimum": 0 } } },
+  "postconditions": [ { "name": "Within authority", "expression": "estimated_cost <= 50000" } ],
+  "budgets": { "max_attempts": 3, "max_duration": "PT30S", "max_tokens": 20000, "max_tool_calls": 8 },
+  "on_violation": "escalate_human"
+}
+```
+
+Other per-activity settings: `retry` (`max_attempts`, `initial_delay`, `backoff_multiplier`), `compensation` (`{ "activity_id": … }`, an activity with no incoming edge that undoes this one if the run later fails), `join`.
+
+### Roles and models
+
+Define roles in the workflow (`"roles": [...]`) and name models by capability tier, not by vendor:
+
+```json
+{ "id": "…", "name": "Damage assessor", "actor_type": "ai_agent", "ai_model_config": { "model_id": "tier:reasoning", "temperature": 0.2 } }
+```
+
+Tiers are `tier:reasoning`, `tier:balanced`, `tier:fast`. The deployment maps them: `awa run workflow.awa.json --providers google,openai,ollama,embedded` (each tier falls back down the list). `embedded` runs a small open-source model in-process; it follows formats but judges poorly, so keep it last (`docs/embedded-models.md`).
+
+### Decisions
+
+A decision node is decided by a table, by an external rule engine, or by a model, and a model may back up the first two.
+
+- **Table entries**: `-` (any), `> 100`, `[50..70)`, `"FR", "DE"` (any of), `not(< 18, > 99)`, `in("a", "b")`, `null`, `contains("x")`. Outputs become token data, so a later condition or decision can use them.
+- **Model decision**: the model must choose one of the options you list. With a table present, the model is asked only when no rule matches.
+
+```json
+"decision_model": {
+  "model": "tier:fast",
+  "instructions": "Prefer review when the cost is high or the fraud score is middling.",
+  "options": [
+    { "id": "auto", "description": "Routine, pay without review", "output_edge_id": "<edge to Reserve funds>" },
+    { "id": "review", "description": "An adjuster should look first", "output_edge_id": "<edge to Adjuster review>" }
+  ],
+  "inputs": ["fraud_score", "estimated_cost"],
+  "min_confidence": 0.6
+}
+```
+
+Always give such a node a `default_output_edge_id` that leads to a person: it is taken when the model gives no valid decision.
+
+### Tools
+
+Declare what an agent may call on the activity. Every call is journalled with the time, arguments, result and a link to what ran.
+
+```json
+"tools": [ {
+  "name": "price_part",
+  "description": "Price of a replacement part from the repair catalogue.",
+  "parameters": { "type": "object", "required": ["part"], "properties": { "part": { "type": "string" } } },
+  "binding": { "kind": "http", "method": "GET", "url": "https://catalogue.example/v2/parts/{part}/price", "headers": { "authorization": "Bearer {{secret:CATALOGUE_KEY}}" } }
+} ]
+```
+
+Binding kinds: `http`, `command` (needs `--allow-commands`), `jsonrpc`, `grpc` and `mcp` (need a registered executor), `function`.
+
+### After a run: journal, recipe, replay, knowledge
+
+```bash
+awa run workflow.awa.json --journal run.journal.jsonl
+awa recipe workflow.awa.json run.journal.jsonl -o RECIPE.md
+awa knowledge ingest workflow.awa.json run.journal.jsonl
+awa knowledge review all --by <name>
+awa knowledge export knowledge/
+```
+
+- The **journal** records every step at three levels: what happened, the agent's reported reasoning, and the engine's own decisions.
+- The **recipe** explains how to rebuild the workflow from scratch and what the run did.
+- **Replay**: open `tools/visualization/replay.html` and drop the workflow and journal on it.
+- **Knowledge** is distilled from journals, accumulates across runs, reaches agents only after a person reviews it (the activity opts in with `"knowledge": {}`), and exports as an Open Knowledge Format bundle.
+
+A complete worked example is `examples/claims-settlement`.
 
 ## Core Concepts
 
@@ -319,7 +421,10 @@ awa serve --port 8080
 
 | Command | Description | Options |
 |---------|-------------|---------|
-| `awa run <file>` | Execute a workflow file | `-v, --verbose`, `-k, --key <key>` |
+| `awa run <file>` | Execute a workflow file | `-v, --verbose`, `-k, --key <key>`, `-s, --simulate`, `--outputs <file>`, `-p, --providers <list>`, `-j, --journal <file>`, `-c, --checkpoint-dir <dir>`, `-i, --input <json>`, `--allow-commands [list]` |
+| `awa recipe <workflow> [journal]` | Compile a build-from-scratch recipe | `-o, --output <file>`, `--no-definition`, `--no-payloads` |
+| `awa knowledge <ingest\|list\|review\|deprecate\|export\|import>` | Build, review and exchange knowledge | `--kb <file>` |
+| `awa init` / `awa generate <prompt>` | Create a starter workflow / generate one from a description | - |
 | `awa serve` | Start REST API server | `-p, --port <port>`, `--jwt-secret <secret>`, `--api-key <key:role>`, `--rate-limit <max>`, `--no-auth` |
 | `awa --version` | Display version | - |
 | `awa --help` | Display help | - |
@@ -385,8 +490,8 @@ console.log('Results:', tokens[0].contextData);
 | `idle` | Engine created, not started |
 | `running` | Actively processing tokens |
 | `waiting_human` | Paused, waiting for human task |
-| `completed` | All tokens finished |
-| `failed` | Token encountered error |
+| `completed` | Every token completed |
+| `failed` | At least one token failed. The other tokens are cancelled and compensation handlers run |
 | `paused` | Manually paused |
 
 ### Human Task Management
@@ -663,6 +768,7 @@ console.log('Waste detected:', lastStep.analytics.waste_categories);
 2. **inputs and outputs must be arrays**, not objects
 3. **Edges connect activities** via `source_id` and `target_id`
 4. **Roles define actor capabilities** and must match `actor_type`
+5. **Follow the 1.1 rules above**: a default edge for every choice, no accidental parallel splits, valid condition expressions
 
 ### Activity with Skills and Tools
 
@@ -983,8 +1089,8 @@ When using AI agents, configure the model in the role definition:
   "name": "AI Analyst",
   "actor_type": "ai_agent",
   "ai_model_config": {
-    "model_id": "gemini-2.5-flash",
-    "temperature": 0.7,
+    "model_id": "tier:balanced",
+    "temperature": 0.2,
     "system_prompt": "You are a customer support analyst."
   }
 }
@@ -995,6 +1101,8 @@ When using AI agents, configure the model in the role definition:
 - **Main README**: `README.md` - Quick start and overview
 - **CLI Guide**: `sdk/typescript/docs/cli-guide.md` - Complete CLI documentation
 - **API Guide**: `sdk/typescript/docs/operational-api.md` - REST API reference
-- **Specification**: `docs/specification.md` - Full AWA specification
+- **Specification**: `docs/specification.md` - The normative AWA 1.1 specification
+- **Conformance suite**: `spec/conformance/` - What it means to implement AWA
+- **Embedded models**: `docs/embedded-models.md` - What small in-process models can and cannot do
 - **Examples**: `examples/` - Working workflow examples
 - **Schemas**: `spec/json-schema/` - JSON Schema definitions

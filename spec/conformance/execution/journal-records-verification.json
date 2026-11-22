@@ -1,0 +1,88 @@
+{
+  "id": "journal-records-verification",
+  "level": "recorded",
+  "spec": "9.3",
+  "description": "Each verification attempt is journalled with its verdict before the attempt is accepted or rejected.",
+  "workflow": {
+    "id": "d223ae3c-bbdf-54d4-b604-4d5023ff8f68",
+    "name": "journal-records-verification",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "1167e8ba-c5a8-529f-81d3-99d2a9a7190f",
+        "name": "A",
+        "role_id": "f86ae050-6279-59ce-ae3e-fe8f77740558",
+        "actor_type": "ai_agent",
+        "verification": {
+          "mode": "schema_only",
+          "max_retries": 1,
+          "criteria": [
+            {
+              "id": "cef59d7b-8703-52ec-a743-4024d6cd1c45",
+              "name": "has-summary",
+              "description": "has-summary",
+              "type": "format",
+              "expression": "summary exists"
+            }
+          ]
+        }
+      },
+      {
+        "id": "107fb024-41db-51c6-bba0-0097644e1fa6",
+        "name": "B",
+        "role_id": "f86ae050-6279-59ce-ae3e-fe8f77740558",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "0c5b7758-92e2-54e3-9ad1-ed37b3a605a4",
+        "source_id": "1167e8ba-c5a8-529f-81d3-99d2a9a7190f",
+        "target_id": "107fb024-41db-51c6-bba0-0097644e1fa6"
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "attempts": [
+        {
+          "output": {
+            "draft": "x"
+          }
+        },
+        {
+          "output": {
+            "summary": "ok"
+          }
+        }
+      ]
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "journal": [
+      "activity.started",
+      "verification.completed",
+      "activity.failed",
+      "meta.recorded",
+      "activity.started",
+      "verification.completed",
+      "activity.completed"
+    ],
+    "journal_contains": [
+      {
+        "type": "verification.completed",
+        "data": {
+          "verdict": "fail"
+        }
+      },
+      {
+        "type": "verification.completed",
+        "data": {
+          "verdict": "pass"
+        }
+      }
+    ]
+  }
+}

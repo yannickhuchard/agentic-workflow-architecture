@@ -71,3 +71,6 @@ build/
 .project
 .classpath
 *.factorypath
+
+# Created by the Python SDK tests
+sdk/python/awa.db

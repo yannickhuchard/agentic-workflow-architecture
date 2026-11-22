@@ -39,6 +39,7 @@ export interface SerializedToken {
     activity_id: UUID;
     status: TokenStatus;
     context_data: Record<string, unknown>;
+    parent_token_id?: UUID;
     created_at: string;
     updated_at: string;
 }
@@ -163,6 +164,7 @@ export function serialize_token(token: Token): SerializedToken {
         activity_id: token.activityId,
         status: token.status,
         context_data: token.contextData,
+        ...(token.parentTokenId ? { parent_token_id: token.parentTokenId } : {}),
         created_at: token.createdAt.toISOString(),
         updated_at: token.updatedAt.toISOString()
     };
@@ -180,6 +182,7 @@ export function deserialize_token(data: SerializedToken, workflow_id: UUID): Tok
     );
     // Manually restore the original ID since Token constructor generates a new one
     (token as any).id = data.id;
+    if (data.parent_token_id) token.parentTokenId = data.parent_token_id;
     token.updateStatus(data.status);
     return token;
 }

@@ -124,6 +124,91 @@
                 "$ref": "awa.schema.json#/$defs/tool_requirement"
             },
             "description": "Tools (Interfaces/Software) required to perform this activity"
+        },
+        "verification": {
+            "$ref": "#/$defs/verification_policy",
+            "description": "Acceptance verification applied to the activity output. Fail closed: an output that is not verified as 'pass' is rejected."
+        },
+        "retry": {
+            "$ref": "#/$defs/retry_policy",
+            "description": "What the engine does when the actor raises an error"
+        },
+        "outcome_contract": {
+            "$ref": "#/$defs/outcome_contract",
+            "description": "What must be true of the activity's outcome, whatever strategy the actor used"
+        },
+        "join": {
+            "type": "string",
+            "enum": [
+                "any",
+                "all"
+            ],
+            "default": "any",
+            "description": "How tokens arriving over several incoming edges are treated. any: each token executes the activity. all: the engine waits for a token on every incoming edge, merges them and executes the activity once."
+        },
+        "compensation": {
+            "type": "object",
+            "required": [
+                "activity_id"
+            ],
+            "properties": {
+                "activity_id": {
+                    "$ref": "awa.schema.json#/$defs/uuid",
+                    "description": "Activity that undoes this one if the run later fails. It must not be the target of any edge."
+                }
+            },
+            "description": "How to undo this activity"
+        },
+        "knowledge": {
+            "type": "object",
+            "description": "Asks the engine to give the actor knowledge distilled from earlier runs of this activity",
+            "properties": {
+                "types": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": [
+                            "strategy",
+                            "failure_pattern",
+                            "decision_precedent",
+                            "lesson"
+                        ]
+                    },
+                    "default": [
+                        "strategy",
+                        "failure_pattern"
+                    ]
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "Only entries carrying at least one of these tags"
+                },
+                "max_entries": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20,
+                    "default": 5
+                },
+                "min_status": {
+                    "type": "string",
+                    "enum": [
+                        "draft",
+                        "reviewed"
+                    ],
+                    "default": "reviewed",
+                    "description": "reviewed: only entries a person has reviewed. draft: unreviewed entries as well."
+                }
+            }
+        },
+        "tools": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/tool"
+            },
+            "description": "Functions the actor may call while performing the activity. Every call is journalled with a link to what it ran."
         }
     },
     "$defs": {
@@ -243,6 +328,396 @@
                     "$ref": "awa.schema.json#/$defs/enforcement"
                 }
             }
+        },
+        "verification_criterion": {
+            "type": "object",
+            "required": [
+                "id",
+                "name",
+                "description",
+                "type"
+            ],
+            "properties": {
+                "id": {
+                    "$ref": "awa.schema.json#/$defs/uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "What must be true of the output, in natural language"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "completeness",
+                        "accuracy",
+                        "format",
+                        "compliance",
+                        "custom"
+                    ]
+                },
+                "expression": {
+                    "type": "string",
+                    "description": "Condition expression (see specification, Condition Expressions) evaluated against the output. Required for deterministic verification."
+                },
+                "weight": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1,
+                    "default": 1
+                },
+                "required": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "If true, failing this criterion fails verification regardless of score"
+                }
+            }
+        },
+        "verification_policy": {
+            "type": "object",
+            "required": [
+                "criteria"
+            ],
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "default": true
+                },
+                "mode": {
+                    "type": "string",
+                    "enum": [
+                        "ai_judge",
+                        "schema_only",
+                        "custom"
+                    ],
+                    "default": "ai_judge",
+                    "description": "ai_judge: a model evaluates each criterion. schema_only: only criterion expressions are evaluated, deterministically. custom: an engine-registered verifier."
+                },
+                "criteria": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/$defs/verification_criterion"
+                    }
+                },
+                "max_retries": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 10,
+                    "default": 3
+                },
+                "retry_with_feedback": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Feed the failed criteria back to an ai_agent actor on retry"
+                },
+                "output_schema": {
+                    "type": "object",
+                    "description": "JSON Schema the output must satisfy"
+                },
+                "judge_model_id": {
+                    "type": "string",
+                    "description": "Model reference for the judge (see specification, Model Binding). If absent the engine default is used."
+                },
+                "judge_temperature": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1,
+                    "default": 0.1
+                },
+                "pass_threshold": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1,
+                    "default": 0.9
+                }
+            }
+        },
+        "retry_policy": {
+            "type": "object",
+            "properties": {
+                "max_attempts": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20,
+                    "default": 1,
+                    "description": "Total executions allowed when the actor raises errors, including the first"
+                },
+                "initial_delay": {
+                    "$ref": "awa.schema.json#/$defs/duration",
+                    "default": "PT1S",
+                    "description": "Delay before the second attempt"
+                },
+                "max_delay": {
+                    "$ref": "awa.schema.json#/$defs/duration",
+                    "default": "PT30S",
+                    "description": "Upper bound on the delay between attempts"
+                },
+                "backoff_multiplier": {
+                    "type": "number",
+                    "minimum": 1,
+                    "default": 2,
+                    "description": "Factor applied to the delay after each failed attempt"
+                },
+                "jitter": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Vary each delay randomly by up to 25% to avoid synchronised retries"
+                },
+                "non_retryable_errors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "Error codes that end the activity immediately"
+                }
+            }
+        },
+        "outcome_contract": {
+            "type": "object",
+            "properties": {
+                "output_schema": {
+                    "type": "object",
+                    "description": "JSON Schema (2020-12) the outcome must validate against"
+                },
+                "postconditions": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": [
+                            "name",
+                            "expression"
+                        ],
+                        "properties": {
+                            "id": {
+                                "$ref": "awa.schema.json#/$defs/uuid"
+                            },
+                            "name": {
+                                "type": "string"
+                            },
+                            "description": {
+                                "type": "string"
+                            },
+                            "expression": {
+                                "type": "string",
+                                "description": "Condition expression that must be true of the outcome"
+                            }
+                        }
+                    }
+                },
+                "budgets": {
+                    "type": "object",
+                    "properties": {
+                        "max_attempts": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 50,
+                            "description": "Most executions of the actor allowed for one visit, for any reason"
+                        },
+                        "max_duration": {
+                            "$ref": "awa.schema.json#/$defs/duration",
+                            "description": "Longest a single attempt may take"
+                        },
+                        "max_tokens": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "description": "Most model tokens, input plus output, the visit may consume, including judge tokens"
+                        },
+                        "max_tool_calls": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "default": 16,
+                            "description": "Most tool calls allowed in one attempt"
+                        }
+                    }
+                },
+                "on_violation": {
+                    "type": "string",
+                    "enum": [
+                        "fail",
+                        "escalate_human"
+                    ],
+                    "default": "fail",
+                    "description": "What happens when the outcome is rejected and no automatic attempt remains"
+                }
+            }
+        },
+        "tool": {
+            "type": "object",
+            "required": [
+                "name",
+                "binding"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_-]{0,63}$",
+                    "description": "Name the actor calls the tool by. Unique within the activity."
+                },
+                "description": {
+                    "type": "string",
+                    "description": "What the tool does and when to use it. Shown to the model."
+                },
+                "parameters": {
+                    "type": "object",
+                    "description": "JSON Schema of the arguments object. Arguments are validated against it before the tool runs."
+                },
+                "binding": {
+                    "$ref": "#/$defs/tool_binding"
+                },
+                "documentation": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "Where the underlying interface is documented, e.g. an OpenAPI document"
+                },
+                "timeout": {
+                    "$ref": "awa.schema.json#/$defs/duration",
+                    "default": "PT30S"
+                }
+            }
+        },
+        "tool_binding": {
+            "description": "What actually runs when the tool is called",
+            "oneOf": [
+                {
+                    "type": "object",
+                    "required": [
+                        "kind",
+                        "url"
+                    ],
+                    "properties": {
+                        "kind": {
+                            "const": "http"
+                        },
+                        "method": {
+                            "type": "string",
+                            "enum": [
+                                "GET",
+                                "POST",
+                                "PUT",
+                                "PATCH",
+                                "DELETE",
+                                "HEAD"
+                            ],
+                            "default": "GET"
+                        },
+                        "url": {
+                            "type": "string",
+                            "description": "URL. {name} is replaced by the argument of that name."
+                        },
+                        "headers": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            },
+                            "description": "Request headers. {{secret:NAME}} is replaced by a secret the deployment supplies. Never journalled."
+                        }
+                    }
+                },
+                {
+                    "type": "object",
+                    "required": [
+                        "kind",
+                        "command"
+                    ],
+                    "properties": {
+                        "kind": {
+                            "const": "command"
+                        },
+                        "command": {
+                            "type": "string",
+                            "description": "Program to run. Runs only if the deployment allows it."
+                        },
+                        "args": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "Arguments. {name} is replaced by the argument of that name. No shell is involved."
+                        }
+                    }
+                },
+                {
+                    "type": "object",
+                    "required": [
+                        "kind",
+                        "endpoint",
+                        "method"
+                    ],
+                    "properties": {
+                        "kind": {
+                            "const": "jsonrpc"
+                        },
+                        "endpoint": {
+                            "type": "string",
+                            "format": "uri"
+                        },
+                        "method": {
+                            "type": "string"
+                        }
+                    }
+                },
+                {
+                    "type": "object",
+                    "required": [
+                        "kind",
+                        "endpoint",
+                        "service",
+                        "method"
+                    ],
+                    "properties": {
+                        "kind": {
+                            "const": "grpc"
+                        },
+                        "endpoint": {
+                            "type": "string"
+                        },
+                        "service": {
+                            "type": "string"
+                        },
+                        "method": {
+                            "type": "string"
+                        }
+                    }
+                },
+                {
+                    "type": "object",
+                    "required": [
+                        "kind",
+                        "server",
+                        "tool"
+                    ],
+                    "properties": {
+                        "kind": {
+                            "const": "mcp"
+                        },
+                        "server": {
+                            "type": "string"
+                        },
+                        "tool": {
+                            "type": "string"
+                        }
+                    }
+                },
+                {
+                    "type": "object",
+                    "required": [
+                        "kind",
+                        "name"
+                    ],
+                    "properties": {
+                        "kind": {
+                            "const": "function"
+                        },
+                        "name": {
+                            "type": "string",
+                            "description": "A handler registered with the engine"
+                        }
+                    }
+                }
+            ]
         }
     }
 }

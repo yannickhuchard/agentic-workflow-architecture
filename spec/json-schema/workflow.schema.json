@@ -27,6 +27,11 @@
             "pattern": "^\\d+\\.\\d+\\.\\d+$",
             "description": "Semantic version"
         },
+        "awa_version": {
+            "type": "string",
+            "pattern": "^\\d+\\.\\d+$",
+            "description": "Version of the AWA specification this document targets, e.g. \"1.1\""
+        },
         "description": {
             "type": "string",
             "description": "Natural language description of the workflow"
@@ -46,6 +51,13 @@
         "expansion_activity_id": {
             "$ref": "awa.schema.json#/$defs/uuid",
             "description": "Activity being expanded by this workflow"
+        },
+        "roles": {
+            "type": "array",
+            "items": {
+                "$ref": "role.schema.json"
+            },
+            "description": "Roles referenced by activities. A deployment may supply or override roles when it runs the workflow."
         },
         "activities": {
             "type": "array",
@@ -190,7 +202,16 @@
                 },
                 "event_definition": {
                     "type": "object",
-                    "description": "Event-specific configuration"
+                    "description": "Type-specific settings. For timer events: { \"duration\": \"<ISO 8601 duration>\" }"
+                },
+                "join": {
+                    "type": "string",
+                    "enum": [
+                        "any",
+                        "all"
+                    ],
+                    "default": "any",
+                    "description": "As for activities"
                 }
             }
         }

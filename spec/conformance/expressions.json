@@ -1,0 +1,226 @@
+{
+  "description": "Condition expressions. 'data' is the object every expression is evaluated against. 'cases': an expression and its result. 'invalid': expressions that must be rejected.",
+  "spec": "6",
+  "data": {
+    "amount": 120,
+    "status": "approved",
+    "ok": true,
+    "off": false,
+    "nested": {
+      "score": 0.2,
+      "tags": [
+        "a"
+      ]
+    },
+    "empty": null,
+    "zero": 0,
+    "blank": ""
+  },
+  "cases": [
+    {
+      "expression": "amount > 100",
+      "expect": true
+    },
+    {
+      "expression": "amount <= 100",
+      "expect": false
+    },
+    {
+      "expression": "amount == 120",
+      "expect": true
+    },
+    {
+      "expression": "amount >= 120",
+      "expect": true
+    },
+    {
+      "expression": "amount < 120",
+      "expect": false
+    },
+    {
+      "expression": "amount != 121",
+      "expect": true
+    },
+    {
+      "expression": "status == approved",
+      "expect": true
+    },
+    {
+      "expression": "status == \"approved\"",
+      "expect": true
+    },
+    {
+      "expression": "status != 'rejected'",
+      "expect": true
+    },
+    {
+      "expression": "status != approved",
+      "expect": false
+    },
+    {
+      "expression": "ok == true",
+      "expect": true
+    },
+    {
+      "expression": "off == false",
+      "expect": true
+    },
+    {
+      "expression": "ok",
+      "expect": true
+    },
+    {
+      "expression": "!ok",
+      "expect": false
+    },
+    {
+      "expression": "off",
+      "expect": false
+    },
+    {
+      "expression": "zero",
+      "expect": false
+    },
+    {
+      "expression": "blank",
+      "expect": false
+    },
+    {
+      "expression": "empty",
+      "expect": false
+    },
+    {
+      "expression": "missing",
+      "expect": false
+    },
+    {
+      "expression": "!missing",
+      "expect": true
+    },
+    {
+      "expression": "nested.score < 0.3",
+      "expect": true
+    },
+    {
+      "expression": "nested.missing == 1",
+      "expect": false
+    },
+    {
+      "expression": "nested.tags exists",
+      "expect": true
+    },
+    {
+      "expression": "missing == 1",
+      "expect": false
+    },
+    {
+      "expression": "missing != 1",
+      "expect": true
+    },
+    {
+      "expression": "missing > 1",
+      "expect": false
+    },
+    {
+      "expression": "missing < 1",
+      "expect": false
+    },
+    {
+      "expression": "missing exists",
+      "expect": false
+    },
+    {
+      "expression": "empty exists",
+      "expect": true
+    },
+    {
+      "expression": "empty == null",
+      "expect": true
+    },
+    {
+      "expression": "missing == null",
+      "expect": true
+    },
+    {
+      "expression": "amount == null",
+      "expect": false
+    },
+    {
+      "expression": "typeof amount == number",
+      "expect": true
+    },
+    {
+      "expression": "typeof status == string",
+      "expect": true
+    },
+    {
+      "expression": "typeof ok == boolean",
+      "expect": true
+    },
+    {
+      "expression": "typeof nested == object",
+      "expect": true
+    },
+    {
+      "expression": "typeof nested.tags == array",
+      "expect": true
+    },
+    {
+      "expression": "typeof empty == null",
+      "expect": true
+    },
+    {
+      "expression": "typeof missing == undefined",
+      "expect": true
+    },
+    {
+      "expression": "ok && amount > 100",
+      "expect": true
+    },
+    {
+      "expression": "ok && amount > 500",
+      "expect": false
+    },
+    {
+      "expression": "amount > 500 || status == approved",
+      "expect": true
+    },
+    {
+      "expression": "off || missing",
+      "expect": false
+    },
+    {
+      "expression": "!(ok && amount > 500)",
+      "expect": true
+    },
+    {
+      "expression": "(off || ok) && amount == 120",
+      "expect": true
+    },
+    {
+      "expression": "off || ok && amount > 500",
+      "expect": false
+    },
+    {
+      "expression": "status > 5",
+      "expect": false
+    },
+    {
+      "expression": "amount == 120.0",
+      "expect": true
+    }
+  ],
+  "invalid": [
+    "",
+    "amount >",
+    "== 3",
+    "amount > 1 &&",
+    "a ? b",
+    "(ok",
+    "ok)",
+    "amount >> 3",
+    "typeof amount",
+    "\"quoted\" == 1",
+    "amount = 1"
+  ]
+}

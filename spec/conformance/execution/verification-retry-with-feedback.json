@@ -1,0 +1,70 @@
+{
+  "id": "verification-retry-with-feedback",
+  "level": "verified",
+  "spec": "7",
+  "description": "A failed verification of an ai_agent output is retried up to max_retries; a later passing attempt is accepted.",
+  "workflow": {
+    "id": "4d3e26a5-8319-514d-ad6c-3044efe4b7eb",
+    "name": "verification-retry-with-feedback",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "aab32b16-1be1-5607-8495-123abebd50e4",
+        "name": "A",
+        "role_id": "6c9571f1-a1be-5585-86f2-fd60bd8f4a38",
+        "actor_type": "ai_agent",
+        "verification": {
+          "mode": "schema_only",
+          "max_retries": 2,
+          "criteria": [
+            {
+              "id": "086d17cc-6798-5822-ae7f-ea9b58fbec77",
+              "name": "has-summary",
+              "description": "has-summary",
+              "type": "format",
+              "expression": "summary exists"
+            }
+          ]
+        }
+      },
+      {
+        "id": "7a6884a6-d3d2-5be0-8865-ec33a08ff543",
+        "name": "B",
+        "role_id": "6c9571f1-a1be-5585-86f2-fd60bd8f4a38",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "0c5533ea-400f-5446-a2db-5ba675df0e83",
+        "source_id": "aab32b16-1be1-5607-8495-123abebd50e4",
+        "target_id": "7a6884a6-d3d2-5be0-8865-ec33a08ff543"
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "attempts": [
+        {
+          "output": {
+            "draft": "x"
+          }
+        },
+        {
+          "output": {
+            "summary": "ok"
+          }
+        }
+      ]
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "A",
+      "A",
+      "B"
+    ]
+  }
+}

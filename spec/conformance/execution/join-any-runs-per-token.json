@@ -1,0 +1,70 @@
+{
+  "id": "join-any-runs-per-token",
+  "level": "flow",
+  "spec": "13.2",
+  "description": "With the default join 'any', a node reached by two tokens runs twice.",
+  "workflow": {
+    "id": "03e8fc01-3582-5fee-9de6-2a3a8531094f",
+    "name": "join-any-runs-per-token",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "c1bd245d-21bb-50d5-8fcd-b55c213498f3",
+        "name": "A",
+        "role_id": "f3ab2896-bc78-55c2-b733-deb08816137e",
+        "actor_type": "application"
+      },
+      {
+        "id": "55a097ea-3920-5a6a-8126-0180a7559407",
+        "name": "B",
+        "role_id": "f3ab2896-bc78-55c2-b733-deb08816137e",
+        "actor_type": "application"
+      },
+      {
+        "id": "3151e909-5f3d-5084-9008-6ae807e739c0",
+        "name": "C",
+        "role_id": "f3ab2896-bc78-55c2-b733-deb08816137e",
+        "actor_type": "application"
+      },
+      {
+        "id": "5429cc93-6bd2-5f42-9a56-dc757403516c",
+        "name": "D",
+        "role_id": "f3ab2896-bc78-55c2-b733-deb08816137e",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "151e6776-d273-58c9-8a1e-320d7e8c5418",
+        "source_id": "c1bd245d-21bb-50d5-8fcd-b55c213498f3",
+        "target_id": "55a097ea-3920-5a6a-8126-0180a7559407"
+      },
+      {
+        "id": "25e6b7ba-cbb6-5531-a788-210ff39a9778",
+        "source_id": "c1bd245d-21bb-50d5-8fcd-b55c213498f3",
+        "target_id": "3151e909-5f3d-5084-9008-6ae807e739c0"
+      },
+      {
+        "id": "cc8e3263-cf94-51e4-9c0a-466c402ff0b1",
+        "source_id": "55a097ea-3920-5a6a-8126-0180a7559407",
+        "target_id": "5429cc93-6bd2-5f42-9a56-dc757403516c"
+      },
+      {
+        "id": "b7315c3e-d104-5f4c-927b-58dcae29017e",
+        "source_id": "3151e909-5f3d-5084-9008-6ae807e739c0",
+        "target_id": "5429cc93-6bd2-5f42-9a56-dc757403516c"
+      }
+    ]
+  },
+  "expect": {
+    "status": "completed",
+    "visited_unordered": [
+      "A",
+      "B",
+      "C",
+      "D",
+      "D"
+    ]
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "id": "retry-skips-non-retryable-error",
+  "level": "resilient",
+  "spec": "10.1",
+  "description": "An error whose code is non-retryable ends the activity at once.",
+  "workflow": {
+    "id": "eccb6858-5838-58f4-aeb1-7e758cdaae3d",
+    "name": "retry-skips-non-retryable-error",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "552a7f45-3fe4-5c58-9e4d-cef678d28e7d",
+        "name": "A",
+        "role_id": "68bbf03e-8505-5984-88d8-48ebaee214a9",
+        "actor_type": "application",
+        "retry": {
+          "max_attempts": 5,
+          "initial_delay": "PT0S",
+          "jitter": false
+        }
+      },
+      {
+        "id": "35386795-1649-524e-9ce5-f2968355667d",
+        "name": "B",
+        "role_id": "68bbf03e-8505-5984-88d8-48ebaee214a9",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "4a4fd2a0-a4ba-5989-89c3-4d6f2c4e46c1",
+        "source_id": "552a7f45-3fe4-5c58-9e4d-cef678d28e7d",
+        "target_id": "35386795-1649-524e-9ce5-f2968355667d"
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "error": "bad input",
+      "code": "VALIDATION_ERROR"
+    }
+  },
+  "expect": {
+    "status": "failed",
+    "visited": [
+      "A"
+    ]
+  }
+}

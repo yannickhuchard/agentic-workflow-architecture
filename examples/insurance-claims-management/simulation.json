@@ -1,0 +1,29 @@
+{
+  "AI Claim Assessment & Valuation": {
+    "output": {
+      "claim_amount": 4200,
+      "fraud_score": 12,
+      "confidence_score": 0.93,
+      "has_exception": false,
+      "approved": true
+    }
+  },
+  "Human Review - Exceptions & Fraud": {
+    "output": {
+      "claim_amount": 4200,
+      "fraud_score": 12,
+      "confidence_score": 0.93,
+      "has_exception": false,
+      "approved": true
+    }
+  },
+  "Human Review - High Value Claims": {
+    "output": {
+      "claim_amount": 4200,
+      "fraud_score": 12,
+      "confidence_score": 0.93,
+      "has_exception": false,
+      "approved": true
+    }
+  }
+}

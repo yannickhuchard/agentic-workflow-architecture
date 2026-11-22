@@ -2,6 +2,7 @@
   "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
   "name": "Customer Feedback Analysis",
   "version": "1.0.0",
+  "awa_version": "1.1",
   "description": "AI analyzes sentiment and a Human reviews high-priority items.",
   "activities": [
     {
@@ -38,6 +39,12 @@
       "source_id": "4859f5b6-7359-455b-99d7-83214b7e199d",
       "target_id": "a2a2a2a2-a2a2-4a2a-a2a2-a2a2a2a2a2a2",
       "condition": "sentiment_score < 0.3"
+    },
+    {
+      "id": "e2e2e2e2-e2e2-4e2e-a2e2-e2e2e2e2e2e2",
+      "source_id": "4859f5b6-7359-455b-99d7-83214b7e199d",
+      "target_id": "e0e0e0e0-e0e0-4e0e-a0e0-e0e0e0e0e0e0",
+      "is_default": true
     }
   ],
   "contexts": [
@@ -46,6 +53,14 @@
       "name": "Customer Data",
       "type": "data",
       "sync_pattern": "shared_state"
+    }
+  ],
+  "events": [
+    {
+      "id": "e0e0e0e0-e0e0-4e0e-a0e0-e0e0e0e0e0e0",
+      "name": "No action needed",
+      "event_type": "end",
+      "description": "Feedback that is not negative needs no review."
     }
   ]
 }

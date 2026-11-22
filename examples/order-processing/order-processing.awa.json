@@ -4,11 +4,11 @@
     "name": "Order Processing with AI Agents",
     "version": "1.0.0",
     "description": "AI-assisted order fulfillment workflow demonstrating multi-agent collaboration with shared context",
-    "owner_id": "user-123",
-    "organization_id": "org-456",
+    "owner_id": "98e2bc06-847f-50db-8e76-7dc6a71acce7",
+    "organization_id": "e3b55880-c4e9-5727-824b-99daa0974691",
     "contexts": [
         {
-            "id": "ctx-order-data",
+            "id": "8bcac4ae-ee97-5aa1-b475-b4e9557caf73",
             "name": "Order Data",
             "description": "Shared order information accessible by all agents",
             "type": "data",
@@ -50,7 +50,7 @@
             }
         },
         {
-            "id": "ctx-agent-memory",
+            "id": "07a98ce1-2d73-5c96-94f1-b250695503d1",
             "name": "Agent Memory",
             "description": "Shared memory for agent reasoning and notes",
             "type": "memory",
@@ -60,26 +60,26 @@
     ],
     "activities": [
         {
-            "id": "act-receive-order",
+            "id": "63efd122-12b0-5522-8499-8823700d5c3f",
             "name": "Receive Order",
             "description": "AI agent receives and parses incoming order from customer. Validates basic structure and records in shared context.",
-            "role_id": "role-customer-service-agent",
+            "role_id": "38586c56-7bd6-57ba-9ae8-d54ecdf5d25d",
             "actor_type": "ai_agent",
             "context_bindings": [
                 {
-                    "context_id": "ctx-order-data",
+                    "context_id": "8bcac4ae-ee97-5aa1-b475-b4e9557caf73",
                     "access_mode": "write",
                     "required": true
                 },
                 {
-                    "context_id": "ctx-agent-memory",
+                    "context_id": "07a98ce1-2d73-5c96-94f1-b250695503d1",
                     "access_mode": "read_write",
                     "required": false
                 }
             ],
             "programs": [
                 {
-                    "id": "prog-parse-order",
+                    "id": "b22d9d19-0801-5799-ab65-b1e9d2f6b32d",
                     "name": "Parse Order",
                     "language": "mcp_tool",
                     "mcp_server": "order-tools",
@@ -94,7 +94,7 @@
             ],
             "access_rights": [
                 {
-                    "id": "ar-read-customer-db",
+                    "id": "4310c1f3-e032-513f-a913-8b6f26d74bd2",
                     "name": "Read Customer Database",
                     "direction": "requires",
                     "resource_type": "database",
@@ -108,26 +108,26 @@
             }
         },
         {
-            "id": "act-validate-order",
+            "id": "fc92a434-4e5e-51e8-bc43-bdfd9d0c63d2",
             "name": "Validate Order",
             "description": "Validation agent checks order against business rules, inventory availability, and fraud detection.",
-            "role_id": "role-validation-agent",
+            "role_id": "91379331-f5b0-5c19-84a3-8b856427bc3b",
             "actor_type": "ai_agent",
             "context_bindings": [
                 {
-                    "context_id": "ctx-order-data",
+                    "context_id": "8bcac4ae-ee97-5aa1-b475-b4e9557caf73",
                     "access_mode": "read",
                     "required": true
                 },
                 {
-                    "context_id": "ctx-agent-memory",
+                    "context_id": "07a98ce1-2d73-5c96-94f1-b250695503d1",
                     "access_mode": "read_write",
                     "required": false
                 }
             ],
             "access_rights": [
                 {
-                    "id": "ar-read-inventory",
+                    "id": "b5e8842e-d5ba-5e25-885e-4012cd81db7a",
                     "name": "Read Inventory",
                     "direction": "requires",
                     "resource_type": "api",
@@ -135,7 +135,7 @@
                     "permission": "read"
                 },
                 {
-                    "id": "ar-fraud-check",
+                    "id": "91b9f8ae-aa3d-55b2-8423-4bc9c8d04226",
                     "name": "Fraud Detection API",
                     "direction": "requires",
                     "resource_type": "api",
@@ -149,23 +149,23 @@
             }
         },
         {
-            "id": "act-check-inventory",
+            "id": "a057c5df-23f0-5530-9e63-e2226b75b7d0",
             "name": "Check Inventory",
             "description": "System integration to verify stock levels",
-            "role_id": "role-system",
-            "actor_type": "program",
-            "system_id": "sys-erp",
-            "endpoint_id": "ep-inventory-check",
+            "role_id": "116e5286-7eed-5f77-800b-d2ea85e8a60a",
+            "actor_type": "application",
+            "system_id": "512bd927-789e-53c1-9914-36769dd57edc",
+            "endpoint_id": "b8dc01f3-ac02-5603-ab6f-fdcb6b6f91f6",
             "context_bindings": [
                 {
-                    "context_id": "ctx-order-data",
+                    "context_id": "8bcac4ae-ee97-5aa1-b475-b4e9557caf73",
                     "access_mode": "read_write",
                     "required": true
                 }
             ],
             "access_rights": [
                 {
-                    "id": "ar-erp-inventory",
+                    "id": "35f3bba9-d336-55a0-b4be-5c6cce35d8fa",
                     "name": "ERP Inventory Access",
                     "direction": "requires",
                     "resource_type": "system",
@@ -175,19 +175,19 @@
             ]
         },
         {
-            "id": "act-human-approval",
+            "id": "87b0088c-7e14-5c60-93c7-b732f1d3a1d9",
             "name": "Manual Approval",
             "description": "Human supervisor reviews high-value or flagged orders",
-            "role_id": "role-supervisor",
+            "role_id": "734c985d-0ca8-557f-8575-26b19aa9d9c5",
             "actor_type": "human",
             "context_bindings": [
                 {
-                    "context_id": "ctx-order-data",
+                    "context_id": "8bcac4ae-ee97-5aa1-b475-b4e9557caf73",
                     "access_mode": "read_write",
                     "required": true
                 },
                 {
-                    "context_id": "ctx-agent-memory",
+                    "context_id": "07a98ce1-2d73-5c96-94f1-b250695503d1",
                     "access_mode": "read",
                     "required": false
                 }
@@ -200,21 +200,21 @@
             }
         },
         {
-            "id": "act-fulfill-order",
+            "id": "ecf1db83-2ef8-5c5c-9d0a-66e79ecd9375",
             "name": "Fulfill Order",
             "description": "AI agent coordinates order fulfillment with warehouse robots",
-            "role_id": "role-fulfillment-agent",
+            "role_id": "5c1ef60f-7e4d-593e-9a9d-b8be38193a8b",
             "actor_type": "ai_agent",
             "context_bindings": [
                 {
-                    "context_id": "ctx-order-data",
+                    "context_id": "8bcac4ae-ee97-5aa1-b475-b4e9557caf73",
                     "access_mode": "read_write",
                     "required": true
                 }
             ],
             "access_rights": [
                 {
-                    "id": "ar-warehouse-control",
+                    "id": "dfdc4d34-f34e-5707-919e-95e025673b9f",
                     "name": "Warehouse Robot Control",
                     "direction": "requires",
                     "resource_type": "service",
@@ -224,15 +224,15 @@
             ]
         },
         {
-            "id": "act-robot-pick",
+            "id": "4788ef53-a99e-5183-a125-d404085d9ce6",
             "name": "Robot Picking",
             "description": "Warehouse robot picks items from shelves",
-            "role_id": "role-warehouse-robot",
+            "role_id": "d16b7093-adf6-5152-8136-cd3ebde93e35",
             "actor_type": "robot",
-            "machine_id": "machine-picker-01",
+            "machine_id": "828b9227-e7b9-5415-97f5-540571bdcca7",
             "context_bindings": [
                 {
-                    "context_id": "ctx-order-data",
+                    "context_id": "8bcac4ae-ee97-5aa1-b475-b4e9557caf73",
                     "access_mode": "read",
                     "required": true
                 }
@@ -243,21 +243,21 @@
             }
         },
         {
-            "id": "act-notify-customer",
+            "id": "e6264dee-bc73-57f3-87f2-fc058767050d",
             "name": "Notify Customer",
             "description": "AI agent generates and sends personalized order confirmation",
-            "role_id": "role-notification-agent",
+            "role_id": "9027160c-833a-540f-9147-31c011907e7f",
             "actor_type": "ai_agent",
             "context_bindings": [
                 {
-                    "context_id": "ctx-order-data",
+                    "context_id": "8bcac4ae-ee97-5aa1-b475-b4e9557caf73",
                     "access_mode": "read",
                     "required": true
                 }
             ],
             "access_rights": [
                 {
-                    "id": "ar-send-email",
+                    "id": "f780c9a6-01b2-595e-8576-d94b6aee0743",
                     "name": "Email Service",
                     "direction": "requires",
                     "resource_type": "service",
@@ -269,70 +269,70 @@
     ],
     "edges": [
         {
-            "id": "edge-1",
-            "source_id": "act-receive-order",
-            "target_id": "act-validate-order",
+            "id": "82bf9adf-d13f-5338-80c1-755f3bd9c61c",
+            "source_id": "63efd122-12b0-5522-8499-8823700d5c3f",
+            "target_id": "fc92a434-4e5e-51e8-bc43-bdfd9d0c63d2",
             "source_type": "activity",
             "target_type": "activity"
         },
         {
-            "id": "edge-2",
-            "source_id": "act-validate-order",
-            "target_id": "act-check-inventory",
+            "id": "0f827aef-9ee9-5afa-9b4c-20701911be52",
+            "source_id": "fc92a434-4e5e-51e8-bc43-bdfd9d0c63d2",
+            "target_id": "a057c5df-23f0-5530-9e63-e2226b75b7d0",
             "source_type": "activity",
             "target_type": "activity",
             "condition": "validation_passed == true"
         },
         {
-            "id": "edge-3",
-            "source_id": "act-check-inventory",
-            "target_id": "decision-high-value",
+            "id": "74976d3a-0b57-5548-a0e0-074f25629a57",
+            "source_id": "a057c5df-23f0-5530-9e63-e2226b75b7d0",
+            "target_id": "2a097412-8b7d-5097-85d1-ced98e8dbbf2",
             "source_type": "activity",
             "target_type": "decision"
         },
         {
-            "id": "edge-4",
-            "source_id": "decision-high-value",
-            "target_id": "act-human-approval",
+            "id": "74915110-21fe-5321-bda3-604923d5d716",
+            "source_id": "2a097412-8b7d-5097-85d1-ced98e8dbbf2",
+            "target_id": "87b0088c-7e14-5c60-93c7-b732f1d3a1d9",
             "source_type": "decision",
             "target_type": "activity",
             "label": "High Value"
         },
         {
-            "id": "edge-5",
-            "source_id": "decision-high-value",
-            "target_id": "act-fulfill-order",
+            "id": "0a64d35c-caec-5048-a311-3f1f8c968573",
+            "source_id": "2a097412-8b7d-5097-85d1-ced98e8dbbf2",
+            "target_id": "ecf1db83-2ef8-5c5c-9d0a-66e79ecd9375",
             "source_type": "decision",
             "target_type": "activity",
             "is_default": true,
             "label": "Standard"
         },
         {
-            "id": "edge-6",
-            "source_id": "act-human-approval",
-            "target_id": "act-fulfill-order",
+            "id": "fd18f312-4497-58cd-a373-eaba13ff0910",
+            "source_id": "87b0088c-7e14-5c60-93c7-b732f1d3a1d9",
+            "target_id": "ecf1db83-2ef8-5c5c-9d0a-66e79ecd9375",
             "source_type": "activity",
             "target_type": "activity",
             "condition": "approved == true"
         },
         {
-            "id": "edge-7",
-            "source_id": "act-fulfill-order",
-            "target_id": "act-robot-pick",
+            "id": "10d7418f-8d4c-5719-bfbf-f00fd29bbbc2",
+            "source_id": "ecf1db83-2ef8-5c5c-9d0a-66e79ecd9375",
+            "target_id": "4788ef53-a99e-5183-a125-d404085d9ce6",
             "source_type": "activity",
             "target_type": "activity"
         },
         {
-            "id": "edge-8",
-            "source_id": "act-robot-pick",
-            "target_id": "act-notify-customer",
+            "id": "7a650c60-c56a-518f-b228-4a510887a1af",
+            "source_id": "4788ef53-a99e-5183-a125-d404085d9ce6",
+            "target_id": "e6264dee-bc73-57f3-87f2-fc058767050d",
             "source_type": "activity",
             "target_type": "activity"
         }
     ],
     "decision_nodes": [
         {
-            "id": "decision-high-value",
+            "id": "2a097412-8b7d-5097-85d1-ced98e8dbbf2",
             "name": "High Value Check",
             "description": "Route high-value orders to human approval",
             "decision_table": {
@@ -366,7 +366,7 @@
                         "output_entries": [
                             true
                         ],
-                        "output_edge_id": "edge-4"
+                        "output_edge_id": "74915110-21fe-5321-bda3-604923d5d716"
                     },
                     {
                         "description": "Flagged orders need approval",
@@ -377,7 +377,7 @@
                         "output_entries": [
                             true
                         ],
-                        "output_edge_id": "edge-4"
+                        "output_edge_id": "74915110-21fe-5321-bda3-604923d5d716"
                     },
                     {
                         "description": "Standard orders proceed",
@@ -388,11 +388,11 @@
                         "output_entries": [
                             false
                         ],
-                        "output_edge_id": "edge-5"
+                        "output_edge_id": "0a64d35c-caec-5048-a311-3f1f8c968573"
                     }
                 ]
             },
-            "default_output_edge_id": "edge-5"
+            "default_output_edge_id": "0a64d35c-caec-5048-a311-3f1f8c968573"
         }
     ],
     "sla": {

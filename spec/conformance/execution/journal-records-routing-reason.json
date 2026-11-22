@@ -1,0 +1,67 @@
+{
+  "id": "journal-records-routing-reason",
+  "level": "recorded",
+  "spec": "9.3",
+  "description": "token.moved says which edge was taken and why.",
+  "workflow": {
+    "id": "a6cbeda4-e67d-574c-b8f3-f1a6d4b991c3",
+    "name": "journal-records-routing-reason",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "6721c491-e642-535a-b0c6-a05834af8550",
+        "name": "A",
+        "role_id": "601c7777-528f-591d-ac0e-726a38795df3",
+        "actor_type": "application"
+      },
+      {
+        "id": "51d7c4b1-8114-5c38-8b93-fd62a611fde9",
+        "name": "B",
+        "role_id": "601c7777-528f-591d-ac0e-726a38795df3",
+        "actor_type": "application"
+      },
+      {
+        "id": "0c4f55fa-c501-5e5a-af03-5950b7177cb8",
+        "name": "C",
+        "role_id": "601c7777-528f-591d-ac0e-726a38795df3",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "0c20a198-2216-5fba-901c-c46950ac9196",
+        "source_id": "6721c491-e642-535a-b0c6-a05834af8550",
+        "target_id": "51d7c4b1-8114-5c38-8b93-fd62a611fde9",
+        "condition": "x > 1"
+      },
+      {
+        "id": "3bfdb75f-91c9-5505-81e6-79ff49f4ece0",
+        "source_id": "6721c491-e642-535a-b0c6-a05834af8550",
+        "target_id": "0c4f55fa-c501-5e5a-af03-5950b7177cb8",
+        "is_default": true
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "output": {
+        "x": 0
+      }
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "journal": [
+      "token.moved"
+    ],
+    "journal_contains": [
+      {
+        "type": "token.moved",
+        "data": {
+          "reason": "default"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "id": "journal-records-failure",
+  "level": "recorded",
+  "spec": "9.3",
+  "description": "A failed run ends with token.failed then run.failed, carrying the error.",
+  "workflow": {
+    "id": "67bf6a99-f0f6-5e74-b7de-64c3981a65d8",
+    "name": "journal-records-failure",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "3a5c0dd4-d6ab-5ef4-9f50-dc13b8c88fde",
+        "name": "A",
+        "role_id": "4142d685-168e-54d8-855c-7c31bbff0d1c",
+        "actor_type": "application"
+      }
+    ],
+    "edges": []
+  },
+  "actors": {
+    "A": {
+      "error": "boom"
+    }
+  },
+  "expect": {
+    "status": "failed",
+    "journal": [
+      "activity.started",
+      "activity.failed",
+      "token.failed",
+      "run.failed"
+    ],
+    "journal_contains": [
+      {
+        "type": "activity.failed",
+        "data": {
+          "error": {
+            "message": "boom"
+          }
+        }
+      }
+    ]
+  }
+}

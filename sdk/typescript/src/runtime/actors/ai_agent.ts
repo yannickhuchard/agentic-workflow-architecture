@@ -1,21 +1,29 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { ChatMessage, ModelRegistry, ModelRouter, GoogleModelProvider, RouteAttempt } from '../models';
+import { ActorContext } from './actor';
 import { Activity, Role } from '../../types';
 import { Actor } from './actor';
 
 export class AIAgent implements Actor {
-    private genAI: GoogleGenerativeAI;
+    private models: ModelRegistry;
+    private router: ModelRouter;
     private role?: Role;
     private defaultModelId: string;
     private simulate: boolean;
 
-    constructor(apiKey: string, role?: Role, defaultModelId: string = 'gemini-3.1-flash', simulate: boolean = false) {
-        this.genAI = new GoogleGenerativeAI(apiKey);
+    /**
+     * @param apiKey Gemini API key. Used only when no model registry is given.
+     * @param models Registry of model providers. If absent, a registry holding
+     *               the Google provider is created from `apiKey`.
+     */
+    constructor(apiKey: string, role?: Role, defaultModelId: string = 'gemini-3.1-flash', simulate: boolean = false, models?: ModelRegistry) {
+        this.models = models || new ModelRegistry().register(new GoogleModelProvider(apiKey));
+        this.router = new ModelRouter(this.models);
         this.role = role;
         this.defaultModelId = defaultModelId;
         this.simulate = simulate;
     }
 
-    async execute(activity: Activity, inputs: Record<string, unknown>): Promise<Record<string, unknown>> {
+    async execute(activity: Activity, inputs: Record<string, unknown>, context?: ActorContext): Promise<Record<string, unknown>> {
         console.log(`[AIAgent] Executing activity: ${activity.name} (${activity.id})`);
 
         if (this.simulate) {
@@ -29,32 +37,56 @@ export class AIAgent implements Actor {
             };
         }
 
-        // Resolve model ID: Role config > constructor default > fallback
-        const modelId = this.role?.ai_model_config?.model_id || this.defaultModelId;
-        const model = this.genAI.getGenerativeModel({ model: modelId });
+        // Resolve the model reference: role > engine default
+        const modelRef = this.role?.ai_model_config?.model_id || this.defaultModelId;
 
-        const systemPrompt = this.generateSystemPrompt(activity);
+        const systemPrompt = this.generateSystemPrompt(activity, !!context?.tools?.specs.length);
         const userMessage = this.generateUserMessage(activity, inputs);
+        const temperature = this.role?.ai_model_config?.temperature ?? 0.2;
+        const tools = context?.tools;
 
         try {
-            // Retrieve config from role if available, otherwise default
-            const generationConfig = {
-                temperature: this.role?.ai_model_config?.temperature ?? 0.7,
-                maxOutputTokens: this.role?.ai_model_config?.max_tokens ?? 1024,
-            };
+            // The conversation: the model may ask for tools any number of times
+            // before it answers. Every tool call goes through the engine's runner.
+            const messages: ChatMessage[] = [{ role: 'system', content: systemPrompt }, { role: 'user', content: userMessage }];
+            const usage = { input_tokens: 0, output_tokens: 0 };
+            let route: RouteAttempt[] = [];
+            let routed;
 
-            const result = await model.generateContent({
-                contents: [
-                    { role: 'user', parts: [{ text: systemPrompt + "\n\n" + userMessage }] }
-                ],
-                generationConfig
-            });
+            for (;;) {
+                routed = await this.router.generate(modelRef, {
+                    // A single turn is sent as system + prompt, the simplest form a
+                    // provider can receive; the message list is used once there are tool results.
+                    ...(messages.length === 2 ? { system: systemPrompt, prompt: userMessage } : { messages }),
+                    ...(tools?.specs.length ? { tools: tools.specs } : {}),
+                    temperature,
+                    max_output_tokens: this.role?.ai_model_config?.max_tokens ?? 1024,
+                });
+                usage.input_tokens += routed.response.usage.input_tokens;
+                usage.output_tokens += routed.response.usage.output_tokens;
+                route = routed.route;
 
-            const responseText = result.response.text();
+                const calls = routed.response.tool_calls || [];
+                if (!tools || calls.length === 0) break;
+
+                messages.push({ role: 'assistant', content: routed.response.text, tool_calls: calls, provider_state: routed.response.provider_state });
+                for (const call of calls) {
+                    const result = await tools.call(call.name, call.arguments, call.id);
+                    messages.push({ role: 'tool', tool_call_id: call.id, name: call.name, content: result.content });
+                    if (!result.ok && (result.result as { code?: string })?.code === 'TOOL_BUDGET_EXCEEDED') {
+                        throw Object.assign(new Error((result.result as { error: string }).error), { code: 'TOOL_BUDGET_EXCEEDED' });
+                    }
+                }
+            }
+
+            const resolved = routed.model;
+            const response = { text: routed.response.text, usage };
+            const responseText = response.text;
 
             // Attempt to parse JSON if the response looks like JSON
             const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-            let output = responseText;
+            let output: unknown = responseText;
+            let reasoning: unknown;
             if (jsonMatch) {
                 try {
                     output = JSON.parse(jsonMatch[0]);
@@ -63,23 +95,40 @@ export class AIAgent implements Actor {
                 }
             }
 
+            // The agent was asked for { reasoning, output }. Separate the two so the
+            // engine can journal the reasoning and pass only the output downstream.
+            if (output && typeof output === 'object' && 'reasoning' in output && 'output' in output) {
+                reasoning = (output as { reasoning: unknown }).reasoning;
+                output = (output as { output: unknown }).output;
+            }
+
             return {
                 output,
+                ...(reasoning && typeof reasoning === 'object' ? { _reasoning: reasoning } : {}),
+                _model: {
+                    id: resolved.model,
+                    provider: resolved.provider.id,
+                    requested: modelRef,
+                    ...(resolved.tier ? { tier: resolved.tier } : {}),
+                    source: this.role?.ai_model_config?.model_id ? 'role' : 'engine_default',
+                    temperature,
+                    route,
+                },
                 status: 'complex_completed',
-                usage: {
-                    input_tokens: result.response.usageMetadata?.promptTokenCount || 0,
-                    output_tokens: result.response.usageMetadata?.candidatesTokenCount || 0,
-                }
+                usage: response.usage
             };
 
 
         } catch (error: unknown) {
             console.error('[AIAgent] Execution failed:', error);
-            throw new Error(`AIAgent execution failed: ${error instanceof Error ? error.message : String(error)}`);
+            const code = (error as { code?: unknown })?.code;
+            throw Object.assign(
+                new Error(`AIAgent execution failed: ${error instanceof Error ? error.message : String(error)}`),
+                typeof code === 'string' ? { code } : {});
         }
     }
 
-    private generateSystemPrompt(activity: Activity): string {
+    private generateSystemPrompt(activity: Activity, hasTools = false): string {
         const lines: string[] = [];
 
         // 1. Role Identity
@@ -101,8 +150,20 @@ export class AIAgent implements Actor {
             lines.push(`Description: ${activity.description}`);
         }
 
+        if (activity.procedure) {
+            lines.push(`Procedure: ${activity.procedure}`);
+        }
+
+        if (hasTools) {
+            lines.push('\nYou have tools. Call them when you need facts or need something done; do not guess what a tool could tell you.');
+            lines.push('When you have what you need, give your final answer in the format below.');
+        }
+
         // 3. Output Format Instruction
-        lines.push('\nPlease provide your output in a structured JSON format if the activity implies structured data, otherwise provide a clear textual response.');
+        lines.push('\nRespond with a single JSON object that has exactly two properties:');
+        lines.push('- "reasoning": an object with "plan" (array of the steps you took), "rationale" (why this result is right),');
+        lines.push('  "alternatives_considered" (array of approaches you rejected and why) and "confidence" (number from 0 to 1).');
+        lines.push('- "output": the result of the activity. Use a JSON object if the activity implies structured data, otherwise a string.');
 
         return lines.join('\n');
     }
@@ -125,6 +186,16 @@ export class AIAgent implements Actor {
             if (!key.startsWith('_')) {
                 displayInputs[key] = value;
             }
+        }
+
+        // Reviewed knowledge from earlier runs of this activity
+        if (Array.isArray(inputs._knowledge) && inputs._knowledge.length > 0) {
+            lines.push('## Knowledge from earlier runs');
+            lines.push('Use this where it helps. It describes what worked and what was rejected before.\n');
+            for (const entry of inputs._knowledge as { title: string; guidance: string }[]) {
+                lines.push(`- ${entry.title}: ${entry.guidance}`);
+            }
+            lines.push('');
         }
 
         lines.push('## Input Context');

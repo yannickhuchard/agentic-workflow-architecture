@@ -1,0 +1,52 @@
+{
+  "id": "parallel-split-without-join",
+  "level": "flow",
+  "spec": "13.1",
+  "description": "Without a join, each branch runs to its own end and the run completes when all have.",
+  "workflow": {
+    "id": "f5e1cfc8-b786-513c-8099-50c689000c96",
+    "name": "parallel-split-without-join",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "41ede3ef-5a2e-5ea4-a501-d30354f0f39e",
+        "name": "A",
+        "role_id": "4a934ab0-b818-58c1-b8ad-7df750a82ff4",
+        "actor_type": "application"
+      },
+      {
+        "id": "3b8de270-9dc0-5848-bade-bfee067d3349",
+        "name": "B",
+        "role_id": "4a934ab0-b818-58c1-b8ad-7df750a82ff4",
+        "actor_type": "application"
+      },
+      {
+        "id": "2c6a02c7-0f1c-5d60-aa06-952e61ed36be",
+        "name": "C",
+        "role_id": "4a934ab0-b818-58c1-b8ad-7df750a82ff4",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "9c3f4270-e3f6-59d4-84a8-1c0bb4710dda",
+        "source_id": "41ede3ef-5a2e-5ea4-a501-d30354f0f39e",
+        "target_id": "3b8de270-9dc0-5848-bade-bfee067d3349"
+      },
+      {
+        "id": "9f858df3-0e7f-5f6c-bb3e-8ba4ebc126a8",
+        "source_id": "41ede3ef-5a2e-5ea4-a501-d30354f0f39e",
+        "target_id": "2c6a02c7-0f1c-5d60-aa06-952e61ed36be"
+      }
+    ]
+  },
+  "expect": {
+    "status": "completed",
+    "visited_unordered": [
+      "A",
+      "B",
+      "C"
+    ]
+  }
+}

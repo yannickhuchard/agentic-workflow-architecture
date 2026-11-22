@@ -1,0 +1,114 @@
+{
+  "id": "decision-collect-lists-outputs",
+  "level": "decision",
+  "spec": "5.5.2",
+  "description": "Hit policy 'collect': each output is the list of the matching rules' values, in rule order; the first matching rule that names an edge routes.",
+  "workflow": {
+    "id": "1b39f486-bb86-5c7a-b5cb-abbe5fe9596a",
+    "name": "decision-collect-lists-outputs",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "1e98149c-7991-58c2-8c58-641f7b50362a",
+        "name": "A",
+        "role_id": "3b21f38b-27c7-538f-be47-ba666fe73198",
+        "actor_type": "application"
+      },
+      {
+        "id": "df4db73f-a54c-597d-91cd-13375152bab3",
+        "name": "Next",
+        "role_id": "3b21f38b-27c7-538f-be47-ba666fe73198",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "696904eb-6077-5087-93ba-aadb8311d7e7",
+        "source_id": "1e98149c-7991-58c2-8c58-641f7b50362a",
+        "target_id": "1c8fd777-d1fd-5c96-a8b8-fa312ec6875a"
+      },
+      {
+        "id": "8c0c1fed-8322-5238-948d-ef57ea76c9f1",
+        "source_id": "1c8fd777-d1fd-5c96-a8b8-fa312ec6875a",
+        "target_id": "df4db73f-a54c-597d-91cd-13375152bab3"
+      }
+    ],
+    "decision_nodes": [
+      {
+        "id": "1c8fd777-d1fd-5c96-a8b8-fa312ec6875a",
+        "name": "D",
+        "decision_table": {
+          "hit_policy": "collect",
+          "inputs": [
+            {
+              "name": "amount",
+              "type": "number"
+            },
+            {
+              "name": "country",
+              "type": "string"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "flags",
+              "type": "string"
+            }
+          ],
+          "rules": [
+            {
+              "input_entries": [
+                "> 1000",
+                "-"
+              ],
+              "output_entries": [
+                "large-amount"
+              ],
+              "output_edge_id": "8c0c1fed-8322-5238-948d-ef57ea76c9f1"
+            },
+            {
+              "input_entries": [
+                "-",
+                "in(\"XX\", \"YY\")"
+              ],
+              "output_entries": [
+                "high-risk-country"
+              ]
+            },
+            {
+              "input_entries": [
+                "< 0",
+                "-"
+              ],
+              "output_entries": [
+                "negative"
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "output": {
+        "amount": 5000,
+        "country": "XX"
+      }
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "A",
+      "Next"
+    ],
+    "data": {
+      "flags": [
+        "large-amount",
+        "high-risk-country"
+      ]
+    }
+  }
+}

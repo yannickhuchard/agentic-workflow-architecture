@@ -1,0 +1,75 @@
+{
+  "id": "contract-schema-violation-fails",
+  "level": "contract",
+  "spec": "11.2",
+  "description": "An outcome that does not validate against output_schema is rejected.",
+  "workflow": {
+    "id": "b46c8b86-9ff9-533f-b142-4225da9113d9",
+    "name": "contract-schema-violation-fails",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "2cbea5ac-4ab6-5ead-9c43-30237fe8a49e",
+        "name": "A",
+        "role_id": "7c0f289e-a61e-594d-a27d-a8a329c200d3",
+        "actor_type": "application",
+        "outcome_contract": {
+          "output_schema": {
+            "type": "object",
+            "required": [
+              "amount",
+              "currency"
+            ],
+            "properties": {
+              "amount": {
+                "type": "number",
+                "minimum": 0
+              },
+              "currency": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 3
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "c213e019-63d5-503d-8c15-dd02fe92e417",
+        "name": "B",
+        "role_id": "7c0f289e-a61e-594d-a27d-a8a329c200d3",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "a02a7d5c-f668-57af-bd59-4c3ceb65e9ea",
+        "source_id": "2cbea5ac-4ab6-5ead-9c43-30237fe8a49e",
+        "target_id": "c213e019-63d5-503d-8c15-dd02fe92e417"
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "output": {
+        "amount": "a lot"
+      }
+    }
+  },
+  "expect": {
+    "status": "failed",
+    "visited": [
+      "A"
+    ],
+    "error_matches": "Outcome contract violated",
+    "journal_contains": [
+      {
+        "type": "contract.checked",
+        "data": {
+          "passed": false
+        }
+      }
+    ]
+  }
+}

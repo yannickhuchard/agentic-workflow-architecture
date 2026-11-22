@@ -1,0 +1,56 @@
+{
+  "id": "start-and-end-events",
+  "level": "flow",
+  "spec": "13.4",
+  "description": "A run starts at the start event, and a token that reaches an end event completes.",
+  "workflow": {
+    "id": "85abf6b9-586c-584e-80b4-f18d9c060777",
+    "name": "start-and-end-events",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "1e59ba5a-7936-554e-a882-cf7fd8765978",
+        "name": "Orphan",
+        "role_id": "0e90ac67-a32e-5b7d-a800-83be0c0a34d7",
+        "actor_type": "application"
+      },
+      {
+        "id": "4cd135f4-2b73-58cc-8f64-6588abb2cf01",
+        "name": "A",
+        "role_id": "0e90ac67-a32e-5b7d-a800-83be0c0a34d7",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "fb71a02b-3548-55f2-9d1a-4ea00f5278ed",
+        "source_id": "800e2031-e40a-5c44-a989-583e58f5eca9",
+        "target_id": "4cd135f4-2b73-58cc-8f64-6588abb2cf01"
+      },
+      {
+        "id": "3ed239fa-a1ed-5791-b77e-9efa893b7e06",
+        "source_id": "4cd135f4-2b73-58cc-8f64-6588abb2cf01",
+        "target_id": "50ae2a37-1878-5858-8330-f32092ccdb7e"
+      }
+    ],
+    "events": [
+      {
+        "id": "800e2031-e40a-5c44-a989-583e58f5eca9",
+        "name": "Begin",
+        "event_type": "start"
+      },
+      {
+        "id": "50ae2a37-1878-5858-8330-f32092ccdb7e",
+        "name": "Done",
+        "event_type": "end"
+      }
+    ]
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "A"
+    ]
+  }
+}

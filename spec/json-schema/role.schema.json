@@ -48,7 +48,7 @@
             "properties": {
                 "model_id": {
                     "type": "string",
-                    "description": "AI model identifier"
+                    "description": "Model reference: \"tier:<name>\" (recommended), \"<provider>:<model>\", or \"<model>\" for the deployment's default provider"
                 },
                 "temperature": {
                     "type": "number",

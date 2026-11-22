@@ -1,0 +1,82 @@
+{
+  "id": "contract-holds",
+  "level": "contract",
+  "spec": "11.2",
+  "description": "An outcome that satisfies the schema and every postcondition is accepted.",
+  "workflow": {
+    "id": "9f4fabe7-38de-55b2-a2e3-17315cc0de72",
+    "name": "contract-holds",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "e565eebc-325f-5323-aaa8-099a414492ed",
+        "name": "A",
+        "role_id": "7fe3b0d5-cb7a-51cb-9c22-8f67d80f351b",
+        "actor_type": "application",
+        "outcome_contract": {
+          "output_schema": {
+            "type": "object",
+            "required": [
+              "amount",
+              "currency"
+            ],
+            "properties": {
+              "amount": {
+                "type": "number",
+                "minimum": 0
+              },
+              "currency": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 3
+              }
+            }
+          },
+          "postconditions": [
+            {
+              "name": "capped",
+              "expression": "amount <= 1000"
+            }
+          ]
+        }
+      },
+      {
+        "id": "e95883f4-cf3d-577d-888c-00f7f6ce0196",
+        "name": "B",
+        "role_id": "7fe3b0d5-cb7a-51cb-9c22-8f67d80f351b",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "15c95d9d-12b7-5425-98d2-9c902f0987f0",
+        "source_id": "e565eebc-325f-5323-aaa8-099a414492ed",
+        "target_id": "e95883f4-cf3d-577d-888c-00f7f6ce0196"
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "output": {
+        "amount": 250,
+        "currency": "EUR"
+      }
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "A",
+      "B"
+    ],
+    "journal_contains": [
+      {
+        "type": "contract.checked",
+        "data": {
+          "passed": true
+        }
+      }
+    ]
+  }
+}

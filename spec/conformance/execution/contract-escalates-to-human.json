@@ -1,0 +1,78 @@
+{
+  "id": "contract-escalates-to-human",
+  "level": "contract",
+  "spec": "11.5",
+  "description": "With on_violation 'escalate_human', a rejected outcome is handed to a human, whose decision is accepted if it satisfies the contract.",
+  "workflow": {
+    "id": "77fb6475-a5b0-58c5-b950-4a51530453af",
+    "name": "contract-escalates-to-human",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "9352292a-b22b-5c69-8e8e-94332f3cfa0e",
+        "name": "Assess",
+        "role_id": "430477d9-8900-5646-a170-4e47af0de0ec",
+        "actor_type": "ai_agent",
+        "outcome_contract": {
+          "postconditions": [
+            {
+              "name": "decided",
+              "expression": "decision exists"
+            }
+          ],
+          "budgets": {
+            "max_attempts": 1
+          },
+          "on_violation": "escalate_human"
+        }
+      },
+      {
+        "id": "782e7091-b9e9-57df-bed2-49e0dd20b415",
+        "name": "B",
+        "role_id": "430477d9-8900-5646-a170-4e47af0de0ec",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "ef4e5d16-ef22-54a1-a83c-8021b2c4dac5",
+        "source_id": "9352292a-b22b-5c69-8e8e-94332f3cfa0e",
+        "target_id": "782e7091-b9e9-57df-bed2-49e0dd20b415"
+      }
+    ]
+  },
+  "actors": {
+    "Assess": {
+      "attempts": [
+        {
+          "output": {
+            "note": "unsure"
+          }
+        },
+        {
+          "output": {
+            "decision": "approve"
+          }
+        }
+      ]
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "Assess",
+      "Assess",
+      "B"
+    ],
+    "data": {
+      "decision": "approve"
+    },
+    "journal": [
+      "contract.checked",
+      "contract.escalated",
+      "contract.checked",
+      "activity.completed"
+    ]
+  }
+}

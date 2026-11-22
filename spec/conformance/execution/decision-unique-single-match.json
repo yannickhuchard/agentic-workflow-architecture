@@ -1,0 +1,104 @@
+{
+  "id": "decision-unique-single-match",
+  "level": "decision",
+  "spec": "5.5.2",
+  "description": "Hit policy 'unique': when exactly one rule matches, it decides, wherever it is in the table.",
+  "workflow": {
+    "id": "4727511a-f1a0-539c-a5bf-36823ee19579",
+    "name": "decision-unique-single-match",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "101f6916-5578-510b-ba54-a1068c7e84a0",
+        "name": "A",
+        "role_id": "9d57a035-58f6-5902-91a7-0cea4b9ecf4d",
+        "actor_type": "application"
+      },
+      {
+        "id": "a8d4b402-1b27-54cc-8d6e-97f9f36fb0f2",
+        "name": "Low",
+        "role_id": "9d57a035-58f6-5902-91a7-0cea4b9ecf4d",
+        "actor_type": "application"
+      },
+      {
+        "id": "d626c335-3dfb-5b92-b477-cb238cffc656",
+        "name": "High",
+        "role_id": "9d57a035-58f6-5902-91a7-0cea4b9ecf4d",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "b3f42c5b-fafb-5cf7-b915-2176504141d7",
+        "source_id": "101f6916-5578-510b-ba54-a1068c7e84a0",
+        "target_id": "6819c383-47c9-5b5e-b532-8e48534411ec"
+      },
+      {
+        "id": "a70f291d-12fd-5e4a-8c43-a94f24c3a187",
+        "source_id": "6819c383-47c9-5b5e-b532-8e48534411ec",
+        "target_id": "a8d4b402-1b27-54cc-8d6e-97f9f36fb0f2"
+      },
+      {
+        "id": "c1477542-e095-5d43-8164-29b71a4f9efb",
+        "source_id": "6819c383-47c9-5b5e-b532-8e48534411ec",
+        "target_id": "d626c335-3dfb-5b92-b477-cb238cffc656"
+      }
+    ],
+    "decision_nodes": [
+      {
+        "id": "6819c383-47c9-5b5e-b532-8e48534411ec",
+        "name": "D",
+        "decision_table": {
+          "hit_policy": "unique",
+          "inputs": [
+            {
+              "name": "amount",
+              "type": "number"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "route",
+              "type": "string"
+            }
+          ],
+          "rules": [
+            {
+              "input_entries": [
+                "< 100"
+              ],
+              "output_entries": [
+                "low"
+              ],
+              "output_edge_id": "a70f291d-12fd-5e4a-8c43-a94f24c3a187"
+            },
+            {
+              "input_entries": [
+                ">= 100"
+              ],
+              "output_entries": [
+                "high"
+              ],
+              "output_edge_id": "c1477542-e095-5d43-8164-29b71a4f9efb"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "output": {
+        "amount": 500
+      }
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "A",
+      "High"
+    ]
+  }
+}

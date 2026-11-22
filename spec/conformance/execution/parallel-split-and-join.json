@@ -1,0 +1,91 @@
+{
+  "id": "parallel-split-and-join",
+  "level": "flow",
+  "spec": "13.1",
+  "description": "Several unconditional edges split the token; a node with join 'all' waits for every branch, merges their data and runs once.",
+  "workflow": {
+    "id": "e74d46bb-d6a3-57ba-9386-c423fe6b3c6c",
+    "name": "parallel-split-and-join",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "25b94e99-9236-5386-9bbd-470c053d75cb",
+        "name": "A",
+        "role_id": "44d584f6-70ca-590b-9550-387a8978f5e7",
+        "actor_type": "application"
+      },
+      {
+        "id": "0117bd4a-18d8-5ac2-9a8e-e492a2dcc0fb",
+        "name": "B",
+        "role_id": "44d584f6-70ca-590b-9550-387a8978f5e7",
+        "actor_type": "application"
+      },
+      {
+        "id": "df92092a-62ba-5352-a039-86cbb7fb9627",
+        "name": "C",
+        "role_id": "44d584f6-70ca-590b-9550-387a8978f5e7",
+        "actor_type": "application"
+      },
+      {
+        "id": "3edfa46b-1b8f-5c2e-87b5-32afde85ac71",
+        "name": "D",
+        "role_id": "44d584f6-70ca-590b-9550-387a8978f5e7",
+        "actor_type": "application",
+        "join": "all"
+      }
+    ],
+    "edges": [
+      {
+        "id": "42fad14e-b48e-5646-859c-fcbea7278269",
+        "source_id": "25b94e99-9236-5386-9bbd-470c053d75cb",
+        "target_id": "0117bd4a-18d8-5ac2-9a8e-e492a2dcc0fb"
+      },
+      {
+        "id": "a1e27a97-322e-5d22-86d9-2a9505937e8f",
+        "source_id": "25b94e99-9236-5386-9bbd-470c053d75cb",
+        "target_id": "df92092a-62ba-5352-a039-86cbb7fb9627"
+      },
+      {
+        "id": "282e14b6-bb8d-50ad-960f-42255d8a4ea6",
+        "source_id": "0117bd4a-18d8-5ac2-9a8e-e492a2dcc0fb",
+        "target_id": "3edfa46b-1b8f-5c2e-87b5-32afde85ac71"
+      },
+      {
+        "id": "baf24643-8ce2-5e4c-8037-7aa70da2eb9a",
+        "source_id": "df92092a-62ba-5352-a039-86cbb7fb9627",
+        "target_id": "3edfa46b-1b8f-5c2e-87b5-32afde85ac71"
+      }
+    ]
+  },
+  "actors": {
+    "B": {
+      "output": {
+        "b": 1
+      }
+    },
+    "C": {
+      "output": {
+        "c": 2
+      }
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited_unordered": [
+      "A",
+      "B",
+      "C",
+      "D"
+    ],
+    "data": {
+      "b": 1,
+      "c": 2
+    },
+    "journal": [
+      "token.created",
+      "token.joined",
+      "run.completed"
+    ]
+  }
+}

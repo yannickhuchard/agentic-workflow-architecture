@@ -1,0 +1,34 @@
+{
+  "id": "invalid-duplicate-id",
+  "description": "Node identifiers must be unique.",
+  "valid": false,
+  "stage": "integrity",
+  "error_code": "duplicate_id",
+  "document": {
+    "id": "10781616-a025-51a6-8491-135c8e42501a",
+    "name": "invalid-duplicate-id",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "54ba100d-760e-5150-ae27-02a9dc6e0c62",
+        "name": "A",
+        "role_id": "a1817647-8024-5bf5-876a-47b3f1006c39",
+        "actor_type": "application"
+      },
+      {
+        "id": "54ba100d-760e-5150-ae27-02a9dc6e0c62",
+        "name": "B",
+        "role_id": "a1817647-8024-5bf5-876a-47b3f1006c39",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "b248c98b-e846-5972-9b6e-0d573ee5a90a",
+        "source_id": "54ba100d-760e-5150-ae27-02a9dc6e0c62",
+        "target_id": "54ba100d-760e-5150-ae27-02a9dc6e0c62"
+      }
+    ]
+  }
+}

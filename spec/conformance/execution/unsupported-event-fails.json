@@ -1,0 +1,52 @@
+{
+  "id": "unsupported-event-fails",
+  "level": "flow",
+  "spec": "13.4",
+  "description": "A token that reaches an event the engine cannot execute fails; it is not waved through.",
+  "workflow": {
+    "id": "699f02a9-be74-500d-bfbf-07a3294eb9d2",
+    "name": "unsupported-event-fails",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "001d31ed-b712-5290-a38e-6fd54b7fd5eb",
+        "name": "A",
+        "role_id": "9731f352-ef0e-5382-a02a-8b82fd244c19",
+        "actor_type": "application"
+      },
+      {
+        "id": "68480c57-c9b4-51a7-adc6-d02cd7e195b5",
+        "name": "B",
+        "role_id": "9731f352-ef0e-5382-a02a-8b82fd244c19",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "ee04c209-2ada-596e-b389-69bad9177d8d",
+        "source_id": "001d31ed-b712-5290-a38e-6fd54b7fd5eb",
+        "target_id": "6f31ad0e-47d1-5539-99b6-f6d239d92867"
+      },
+      {
+        "id": "33a16339-6570-5887-90ab-b633144fba25",
+        "source_id": "6f31ad0e-47d1-5539-99b6-f6d239d92867",
+        "target_id": "68480c57-c9b4-51a7-adc6-d02cd7e195b5"
+      }
+    ],
+    "events": [
+      {
+        "id": "6f31ad0e-47d1-5539-99b6-f6d239d92867",
+        "name": "Await payment",
+        "event_type": "message"
+      }
+    ]
+  },
+  "expect": {
+    "status": "failed",
+    "visited": [
+      "A"
+    ],
+    "error_matches": "cannot execute"
+  }
+}

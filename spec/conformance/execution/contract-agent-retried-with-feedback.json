@@ -1,0 +1,70 @@
+{
+  "id": "contract-agent-retried-with-feedback",
+  "level": "contract",
+  "spec": "11.3",
+  "description": "An ai_agent whose outcome violates the contract is executed again, up to budgets.max_attempts.",
+  "workflow": {
+    "id": "8b343a40-5512-5d7f-9686-e21d5a98d1c1",
+    "name": "contract-agent-retried-with-feedback",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "58345877-a7d8-51a7-870a-0d67949f371e",
+        "name": "A",
+        "role_id": "74c47ee0-cf72-534c-905a-d9735402717e",
+        "actor_type": "ai_agent",
+        "outcome_contract": {
+          "postconditions": [
+            {
+              "name": "has-summary",
+              "expression": "summary exists"
+            }
+          ],
+          "budgets": {
+            "max_attempts": 3
+          }
+        }
+      },
+      {
+        "id": "c89d8f13-22ca-54d3-ba2a-431fc09f7b7f",
+        "name": "B",
+        "role_id": "74c47ee0-cf72-534c-905a-d9735402717e",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "45ce447e-20fa-5013-babc-c3adee60ed0c",
+        "source_id": "58345877-a7d8-51a7-870a-0d67949f371e",
+        "target_id": "c89d8f13-22ca-54d3-ba2a-431fc09f7b7f"
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "attempts": [
+        {
+          "output": {}
+        },
+        {
+          "output": {}
+        },
+        {
+          "output": {
+            "summary": "s"
+          }
+        }
+      ]
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "A",
+      "A",
+      "A",
+      "B"
+    ]
+  }
+}

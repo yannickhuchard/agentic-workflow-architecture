@@ -4,9 +4,10 @@
  * Supports AI-as-judge, schema-only validation, and custom verification modes.
  */
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { createHash } from 'crypto';
+import { ModelRegistry, GoogleModelProvider } from './models';
+import { hash_payload } from './journal';
 import { v4 as uuidv4 } from 'uuid';
+import { evaluate_expression } from './expression';
 import {
     Activity,
     VerificationPolicy,
@@ -26,6 +27,8 @@ export interface VerificationEngineConfig {
     verbose?: boolean;
     /** Run in simulation mode (mocks all verifications as pass) */
     simulate?: boolean;
+    /** Registry of model providers. If absent, the Google provider is used with gemini_api_key. */
+    models?: ModelRegistry;
 }
 
 /** Internal result from judging a single attempt */
@@ -92,9 +95,8 @@ export class VerificationEngine {
                     judgeResult = this.verify_with_schema(policy, output);
                     break;
                 case 'custom':
-                    // Custom mode: treat as schema_only fallback for now
-                    judgeResult = this.verify_with_schema(policy, output);
-                    break;
+                    // Fail closed: never substitute a weaker check for the one requested
+                    throw new Error('Verification mode "custom" has no registered verifier');
                 default:
                     throw new Error(`Unknown verification mode: ${policy.mode}`);
             }
@@ -130,35 +132,32 @@ export class VerificationEngine {
         inputs: Record<string, unknown>,
         output: Record<string, unknown>
     ): Promise<JudgeResult> {
-        if (!this.config.gemini_api_key) {
+        const models = this.config.models?.has_providers()
+            ? this.config.models
+            : this.config.gemini_api_key
+                ? new ModelRegistry().register(new GoogleModelProvider(this.config.gemini_api_key))
+                : undefined;
+        if (!models) {
             throw new Error('Gemini API key required for AI judge verification mode');
         }
 
-        // Resolve judge model: policy override > global default > hardcoded fallback
-        const modelId = policy.judge_model_id !== 'gemini-3-flash-preview' 
-            ? policy.judge_model_id 
-            : (this.config.default_model_id || 'gemini-3-flash-preview');
-            
-        const genAI = new GoogleGenerativeAI(this.config.gemini_api_key);
-        const model = genAI.getGenerativeModel({ model: modelId });
+        // Resolve the judge model reference: policy > engine default
+        const modelRef = policy.judge_model_id || this.config.default_model_id || 'gemini-3-flash-preview';
+        const resolved = models.resolve(modelRef);
 
         const prompt = this.generate_judge_prompt(policy.criteria, activity, inputs, output);
 
-        this.log(`Calling AI judge (model: ${modelId}, criteria: ${policy.criteria.length})`);
+        this.log(`Calling AI judge (model: ${resolved.ref}, criteria: ${policy.criteria.length})`);
 
-        const result = await model.generateContent({
-            contents: [{ role: 'user', parts: [{ text: prompt }] }],
-            generationConfig: {
-                temperature: policy.judge_temperature,
-                maxOutputTokens: 2048,
-            },
+        const response = await resolved.provider.generate({
+            model: resolved.model,
+            prompt,
+            temperature: policy.judge_temperature,
+            max_output_tokens: 2048,
         });
 
-        const responseText = result.response.text();
-        const judgeTokens = {
-            input: result.response.usageMetadata?.promptTokenCount || 0,
-            output: result.response.usageMetadata?.candidatesTokenCount || 0,
-        };
+        const responseText = response.text;
+        const judgeTokens = { input: response.usage.input_tokens, output: response.usage.output_tokens };
 
         // Parse the judge's structured response
         const criteriaResults = this.parse_judge_response(responseText, policy.criteria);
@@ -193,11 +192,9 @@ export class VerificationEngine {
                     passed = false;
                 }
             } else {
-                // Without expression, check if output is non-empty as a basic check
-                passed = output !== null && output !== undefined && Object.keys(output).length > 0;
-                evidence = passed
-                    ? 'Output is present and non-empty'
-                    : 'Output is empty or null';
+                // Fail closed: a criterion that cannot be checked deterministically is not met
+                passed = false;
+                evidence = 'Criterion has no expression; schema_only mode cannot evaluate it';
             }
 
             criteriaResults.push({
@@ -212,42 +209,9 @@ export class VerificationEngine {
         return this.compute_verdict(criteriaResults, policy);
     }
 
-    /**
-     * Evaluate a simple expression against the output
-     * Supports: "key exists", "key == value", "key != value", "typeof key == type"
-     */
+    /** Evaluate an AWA condition expression against the output */
     private evaluate_expression(expression: string, output: Record<string, unknown>): boolean {
-        // "key exists" — check if a key is present in the output
-        const existsMatch = expression.match(/^(\S+)\s+exists$/);
-        if (existsMatch) {
-            return existsMatch[1] in output;
-        }
-
-        // "typeof key == type" — check type of key
-        const typeofMatch = expression.match(/^typeof\s+(\S+)\s*==\s*(\S+)$/);
-        if (typeofMatch) {
-            const [, key, expectedType] = typeofMatch;
-            return typeof output[key] === expectedType;
-        }
-
-        // "key == value" — equality check
-        const eqMatch = expression.match(/^(\S+)\s*==\s*(.+)$/);
-        if (eqMatch) {
-            const [, key, val] = eqMatch;
-            const compareVal = val.trim().replace(/^["']|["']$/g, '');
-            return String(output[key]) === compareVal;
-        }
-
-        // "key != value" — inequality check
-        const neqMatch = expression.match(/^(\S+)\s*!=\s*(.+)$/);
-        if (neqMatch) {
-            const [, key, val] = neqMatch;
-            const compareVal = val.trim().replace(/^["']|["']$/g, '');
-            return String(output[key]) !== compareVal;
-        }
-
-        // Default: treat as key existence check
-        return expression in output && Boolean(output[expression]);
+        return evaluate_expression(expression, output);
     }
 
     /**
@@ -413,8 +377,7 @@ Respond ONLY with a valid JSON object, no markdown formatting.`;
      * Compute SHA-256 hash of the output for tamper-proof verification records
      */
     public compute_output_hash(output: Record<string, unknown>): string {
-        const canonical = JSON.stringify(output, Object.keys(output).sort());
-        return createHash('sha256').update(canonical).digest('hex');
+        return hash_payload(output);
     }
 
     /**

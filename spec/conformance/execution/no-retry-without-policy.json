@@ -1,0 +1,51 @@
+{
+  "id": "no-retry-without-policy",
+  "level": "resilient",
+  "spec": "10.1",
+  "description": "Without a retry policy an activity is executed once.",
+  "workflow": {
+    "id": "70da22db-e63d-506f-aca0-36d21ccfcafb",
+    "name": "no-retry-without-policy",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "544e3441-e4c6-56d2-8d97-a40f21ea1be0",
+        "name": "A",
+        "role_id": "c12d4c7d-d464-5307-94c5-3a5c33c484e5",
+        "actor_type": "application"
+      },
+      {
+        "id": "8a9c3a37-f306-5e4b-be74-805e7cd7d002",
+        "name": "B",
+        "role_id": "c12d4c7d-d464-5307-94c5-3a5c33c484e5",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "1db1c9cc-1c21-5c4e-8335-aa3d6ed89539",
+        "source_id": "544e3441-e4c6-56d2-8d97-a40f21ea1be0",
+        "target_id": "8a9c3a37-f306-5e4b-be74-805e7cd7d002"
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "attempts": [
+        {
+          "error": "timeout"
+        },
+        {
+          "output": {}
+        }
+      ]
+    }
+  },
+  "expect": {
+    "status": "failed",
+    "visited": [
+      "A"
+    ]
+  }
+}

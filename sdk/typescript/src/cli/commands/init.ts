@@ -15,6 +15,7 @@ export const initCommand = new Command('init')
         const managerRoleId = uuidv4();
         const criterionId = uuidv4();
         const edgeId = uuidv4();
+        const endEventId = uuidv4();
         const contextId = uuidv4();
 
         const workflowTemplate = {
@@ -57,6 +58,20 @@ export const initCommand = new Command('init')
                     source_id: analyzeActivityId,
                     target_id: reviewActivityId,
                     condition: "sentiment_score < 0.3"
+                },
+                {
+                    // Without a default, feedback that is not negative would have no route and the run would fail
+                    id: uuidv4(),
+                    source_id: analyzeActivityId,
+                    target_id: endEventId,
+                    is_default: true
+                }
+            ],
+            events: [
+                {
+                    id: endEventId,
+                    name: "No action needed",
+                    event_type: "end"
                 }
             ],
             contexts: [

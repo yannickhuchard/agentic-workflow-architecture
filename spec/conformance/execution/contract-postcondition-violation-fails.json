@@ -1,0 +1,55 @@
+{
+  "id": "contract-postcondition-violation-fails",
+  "level": "contract",
+  "spec": "11.2",
+  "description": "An outcome for which a postcondition is false is rejected.",
+  "workflow": {
+    "id": "38ab4d19-3eaf-56ae-9099-e2c435541e29",
+    "name": "contract-postcondition-violation-fails",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "e877db78-2ef0-53ff-9e2a-8087b31a5ead",
+        "name": "A",
+        "role_id": "4332cd6a-7843-5a64-8ee0-d8e1175b2e53",
+        "actor_type": "application",
+        "outcome_contract": {
+          "postconditions": [
+            {
+              "name": "capped",
+              "expression": "amount <= 1000"
+            }
+          ]
+        }
+      },
+      {
+        "id": "f090ed97-6e9d-5de6-9eaf-fec74998f44f",
+        "name": "B",
+        "role_id": "4332cd6a-7843-5a64-8ee0-d8e1175b2e53",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "837b046d-1219-5374-b2be-07bc82b1a57b",
+        "source_id": "e877db78-2ef0-53ff-9e2a-8087b31a5ead",
+        "target_id": "f090ed97-6e9d-5de6-9eaf-fec74998f44f"
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "output": {
+        "amount": 5000
+      }
+    }
+  },
+  "expect": {
+    "status": "failed",
+    "visited": [
+      "A"
+    ],
+    "error_matches": "capped"
+  }
+}

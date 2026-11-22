@@ -1,0 +1,32 @@
+{
+  "id": "invalid-missing-version",
+  "description": "'version' is required.",
+  "valid": false,
+  "stage": "schema",
+  "document": {
+    "id": "dcdb47dd-9d24-5a8e-bc58-d89aae4caf50",
+    "name": "invalid-missing-version",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "c882ac4d-df15-53a6-ac71-0b3f021af49d",
+        "name": "A",
+        "role_id": "918abe1b-8da9-59de-a5e5-a2ae6b283b51",
+        "actor_type": "application"
+      },
+      {
+        "id": "aba949d2-f4fe-5f61-840d-fcc9df8f7ed0",
+        "name": "B",
+        "role_id": "918abe1b-8da9-59de-a5e5-a2ae6b283b51",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "15dba4bd-e297-518b-98b8-736b7e55ab96",
+        "source_id": "c882ac4d-df15-53a6-ac71-0b3f021af49d",
+        "target_id": "aba949d2-f4fe-5f61-840d-fcc9df8f7ed0"
+      }
+    ]
+  }
+}

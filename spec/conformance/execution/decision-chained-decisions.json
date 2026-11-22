@@ -1,0 +1,178 @@
+{
+  "id": "decision-chained-decisions",
+  "level": "decision",
+  "spec": "5.5.3",
+  "description": "One decision can feed another directly: the second reads what the first derived.",
+  "workflow": {
+    "id": "5ffc21e3-38ec-5fe8-914d-61b70afa60e9",
+    "name": "decision-chained-decisions",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "9a9268c4-13ea-5834-8a7f-d447ce1dafd2",
+        "name": "A",
+        "role_id": "84d3a7f0-97af-5f9b-8345-9a0e47423654",
+        "actor_type": "application"
+      },
+      {
+        "id": "934f7289-7742-5b81-884b-ca180425cf21",
+        "name": "Approve",
+        "role_id": "84d3a7f0-97af-5f9b-8345-9a0e47423654",
+        "actor_type": "application"
+      },
+      {
+        "id": "cd866155-ffc1-5748-beea-a5b4391431dc",
+        "name": "Refer",
+        "role_id": "84d3a7f0-97af-5f9b-8345-9a0e47423654",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "f0b6eacf-eea9-5c5c-8d7c-30cf46f0583e",
+        "source_id": "9a9268c4-13ea-5834-8a7f-d447ce1dafd2",
+        "target_id": "c20f0960-e4aa-5e14-b23e-cf74d79c6f10"
+      },
+      {
+        "id": "2aad53c2-501a-5deb-9165-6bb6bbb86185",
+        "source_id": "c20f0960-e4aa-5e14-b23e-cf74d79c6f10",
+        "target_id": "91be3a83-deb1-52d9-8575-7d4c8c2f856a"
+      },
+      {
+        "id": "b16034eb-953b-5de8-8364-14a2e3c79631",
+        "source_id": "91be3a83-deb1-52d9-8575-7d4c8c2f856a",
+        "target_id": "934f7289-7742-5b81-884b-ca180425cf21"
+      },
+      {
+        "id": "7dc43db1-5247-5538-a125-ec6a646ba086",
+        "source_id": "91be3a83-deb1-52d9-8575-7d4c8c2f856a",
+        "target_id": "cd866155-ffc1-5748-beea-a5b4391431dc"
+      }
+    ],
+    "decision_nodes": [
+      {
+        "id": "c20f0960-e4aa-5e14-b23e-cf74d79c6f10",
+        "name": "Band",
+        "decision_table": {
+          "hit_policy": "first",
+          "inputs": [
+            {
+              "name": "score",
+              "type": "number"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "band",
+              "type": "string"
+            }
+          ],
+          "rules": [
+            {
+              "input_entries": [
+                ">= 700"
+              ],
+              "output_entries": [
+                "A"
+              ],
+              "output_edge_id": "2aad53c2-501a-5deb-9165-6bb6bbb86185"
+            },
+            {
+              "input_entries": [
+                "[600..700)"
+              ],
+              "output_entries": [
+                "B"
+              ],
+              "output_edge_id": "2aad53c2-501a-5deb-9165-6bb6bbb86185"
+            },
+            {
+              "input_entries": [
+                "-"
+              ],
+              "output_entries": [
+                "C"
+              ],
+              "output_edge_id": "2aad53c2-501a-5deb-9165-6bb6bbb86185"
+            }
+          ]
+        }
+      },
+      {
+        "id": "91be3a83-deb1-52d9-8575-7d4c8c2f856a",
+        "name": "Outcome",
+        "decision_table": {
+          "hit_policy": "first",
+          "inputs": [
+            {
+              "name": "band",
+              "type": "string"
+            },
+            {
+              "name": "amount",
+              "type": "number"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "route",
+              "type": "string"
+            }
+          ],
+          "rules": [
+            {
+              "input_entries": [
+                "\"A\"",
+                "-"
+              ],
+              "output_entries": [
+                "approve"
+              ],
+              "output_edge_id": "b16034eb-953b-5de8-8364-14a2e3c79631"
+            },
+            {
+              "input_entries": [
+                "\"B\"",
+                "< 5000"
+              ],
+              "output_entries": [
+                "approve"
+              ],
+              "output_edge_id": "b16034eb-953b-5de8-8364-14a2e3c79631"
+            },
+            {
+              "input_entries": [
+                "-",
+                "-"
+              ],
+              "output_entries": [
+                "refer"
+              ],
+              "output_edge_id": "7dc43db1-5247-5538-a125-ec6a646ba086"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "output": {
+        "score": 640,
+        "amount": 9000
+      }
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "A",
+      "Refer"
+    ],
+    "data": {
+      "band": "B",
+      "route": "refer"
+    }
+  }
+}

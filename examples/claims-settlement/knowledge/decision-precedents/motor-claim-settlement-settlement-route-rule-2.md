@@ -1,0 +1,66 @@
+---
+type: Decision Precedent
+title: "Settlement route: rule 2 routes to Reserve funds"
+description: Inputs that matched rule 2 of "Settlement route" and were routed to "Reserve funds".
+resource: urn:awa:workflow:42ddec2f-18d0-5b06-837b-bf1e9c8cecdb:node:1a533839-b043-5ff9-86e4-1bfe726fa52f
+tags:
+  - decision
+  - motor-claim-settlement
+status: draft
+generated:
+  by: agent:awa-distiller
+  at: "2026-11-22T11:47:09.658Z"
+sources:
+  - id: run-ed673f09
+    resource: urn:awa:run:ed673f09-082b-45a0-aa9b-a2a68db5cb50
+    title: Run ed673f09-082b-45a0-aa9b-a2a68db5cb50, journal events 45
+    last_modified: "2026-11-22T11:47:03.573Z"
+    x-awa-event-seqs:
+      - 45
+  - id: run-c068c94e
+    resource: urn:awa:run:c068c94e-ded1-4189-a248-2b1224d44ffc
+    title: Run c068c94e-ded1-4189-a248-2b1224d44ffc, journal events 45
+    last_modified: "2026-11-22T11:47:09.658Z"
+    x-awa-event-seqs:
+      - 45
+x-awa-entry-type: decision_precedent
+x-awa-observations: 2
+x-awa-scope:
+  workflow_id: 42ddec2f-18d0-5b06-837b-bf1e9c8cecdb
+  workflow_name: Motor Claim Settlement
+  node_id: 1a533839-b043-5ff9-86e4-1bfe726fa52f
+  node_name: Settlement route
+x-awa-counts:
+  occurrences: 2
+x-awa-latest:
+  rule: 2
+  input_entries:
+    - < 0.3
+    - < 5000
+  inputs:
+    fraud_score: 0.12
+    estimated_cost: 3200
+  route: Reserve funds
+x-awa-created-at: "2026-11-22T11:47:03.573Z"
+---
+
+# Settlement route: rule 2 routes to Reserve funds
+
+Matched 2 time(s) across 2 run(s).
+
+Rule entries: `< 0.3`, `< 5000`.
+
+Most recent inputs:
+
+```json
+{
+  "fraud_score": 0.12,
+  "estimated_cost": 3200
+}
+```
+
+Routed to **Reserve funds**.
+
+## Related
+
+- [Settlement route: default routes to Adjuster review](/decision-precedents/motor-claim-settlement-settlement-route-default.md)

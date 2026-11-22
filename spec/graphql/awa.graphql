@@ -147,6 +147,15 @@ type Activity {
   is_expandable: Boolean!
   expansion_workflow_id: UUID
   expansion_workflow: Workflow
+  # AWA 1.1
+  procedure: String
+  verification: JSON
+  retry: RetryPolicy
+  outcome_contract: OutcomeContract
+  join: JoinMode!
+  compensation_activity: Activity
+  tools: [Tool!]!
+  knowledge: JSON
 }
 
 type Edge {
@@ -304,7 +313,10 @@ type DecisionNode {
   id: UUID!
   name: String!
   description: String
-  decision_table: DecisionTable!
+  """A node has a table or an external engine, and may add a model for what those leave undecided"""
+  decision_table: DecisionTable
+  decision_engine: DecisionEngineBinding
+  decision_model: DecisionModel
   default_output_edge_id: UUID
 }
 
@@ -328,6 +340,8 @@ type DecisionRule {
   input_entries: [String!]!
   output_entries: [JSON!]!
   output_edge_id: UUID
+  """For hit policy PRIORITY: the matching rule with the highest value decides"""
+  priority: Float
 }
 
 type SLA {
@@ -584,4 +598,210 @@ type Subscription {
   workflowUpdated(workflow_id: UUID!): Workflow!
   contextUpdated(context_id: UUID!): Context!
   activityCompleted(workflow_id: UUID!): Activity!
+}
+
+
+# ============================================================================
+# AWA 1.1
+# Informative projection of the JSON Schemas in spec/json-schema, which are
+# normative.
+# ============================================================================
+
+enum JoinMode {
+  any
+  all
+}
+
+enum TraceLevel {
+  execution
+  reasoning
+  meta
+}
+
+enum RunStatus {
+  running
+  waiting_human
+  completed
+  failed
+}
+
+enum ToolBindingKind {
+  http
+  command
+  jsonrpc
+  grpc
+  mcp
+  function
+}
+
+enum KnowledgeType {
+  strategy
+  failure_pattern
+  decision_precedent
+  lesson
+}
+
+enum KnowledgeStatus {
+  draft
+  reviewed
+  deprecated
+}
+
+type RetryPolicy {
+  max_attempts: Int
+  initial_delay: Duration
+  max_delay: Duration
+  backoff_multiplier: Float
+  jitter: Boolean
+  non_retryable_errors: [String!]
+}
+
+type Postcondition {
+  name: String!
+  description: String
+  expression: String!
+}
+
+type Budgets {
+  max_attempts: Int
+  max_duration: Duration
+  max_tokens: Int
+  max_tool_calls: Int
+}
+
+type OutcomeContract {
+  output_schema: JSON
+  postconditions: [Postcondition!]!
+  budgets: Budgets
+  """fail or escalate_human"""
+  on_violation: String!
+}
+
+type Tool {
+  name: String!
+  description: String
+  """JSON Schema of the arguments"""
+  parameters: JSON
+  binding_kind: ToolBindingKind!
+  """What runs: method and URL, command and arguments, endpoint and method, server and tool, or function name"""
+  binding: JSON!
+  documentation: String
+  timeout: Duration
+}
+
+type DecisionOption {
+  id: String!
+  description: String
+  output_edge_id: UUID!
+}
+
+type DecisionEngineBinding {
+  name: String!
+  ruleset: String
+  options: [DecisionOption!]!
+  inputs: [String!]
+  config: JSON
+}
+
+type DecisionModel {
+  """Model reference: tier:<name>, <provider>:<model> or <model>"""
+  model: String
+  instructions: String!
+  options: [DecisionOption!]!
+  inputs: [String!]
+  strategy: String
+  min_confidence: Float!
+  votes: Int!
+  output: String
+}
+
+type Run {
+  id: UUID!
+  workflow: Workflow!
+  status: RunStatus!
+  started_at: DateTime!
+  ended_at: DateTime
+  """The journal of the run, in sequence order. afterSeq returns only later events."""
+  events(afterSeq: Int, types: [String!], level: TraceLevel): [JournalEvent!]!
+  """Every tool call of the run, with the link to what ran"""
+  tool_calls: [ToolCall!]!
+}
+
+type JournalEvent {
+  spec_version: String!
+  id: UUID!
+  run_id: UUID!
+  seq: Int!
+  time: DateTime!
+  type: String!
+  level: TraceLevel!
+  workflow_id: UUID!
+  token_id: UUID
+  node_id: UUID
+  node_name: String
+  attempt: Int
+  data: JSON!
+}
+
+type ToolCall {
+  call_id: String!
+  tool: String!
+  """The API, command or remote procedure that ran"""
+  link: String!
+  binding_kind: ToolBindingKind!
+  node_id: UUID!
+  node_name: String
+  attempt: Int
+  invoked_at: DateTime!
+  finished_at: DateTime
+  succeeded: Boolean
+  status: String
+  duration_ms: Int
+  error: String
+  arguments: JSON
+  result: JSON
+}
+
+type KnowledgeSource {
+  run_id: UUID!
+  event_seqs: [Int!]!
+  observed_at: DateTime!
+}
+
+type KnowledgeEntry {
+  id: String!
+  type: KnowledgeType!
+  title: String!
+  description: String!
+  tags: [String!]!
+  workflow_id: UUID
+  node_id: UUID
+  node_name: String
+  status: KnowledgeStatus!
+  observations: Int!
+  counts: JSON!
+  latest: JSON!
+  sources: [KnowledgeSource!]!
+  reviewed_by: String
+  reviewed_at: DateTime
+  superseded_by: String
+  created_at: DateTime!
+  updated_at: DateTime!
+}
+
+extend type Query {
+  run(id: UUID!): Run
+  runs(workflow_id: UUID, status: RunStatus, limit: Int = 20): [Run!]!
+  knowledgeEntry(id: String!): KnowledgeEntry
+  knowledgeEntries(workflow_id: UUID, node_id: UUID, type: KnowledgeType, status: KnowledgeStatus): [KnowledgeEntry!]!
+}
+
+extend type Mutation {
+  reviewKnowledgeEntry(id: String!, reviewer: String!): KnowledgeEntry!
+  deprecateKnowledgeEntry(id: String!, superseded_by: String): KnowledgeEntry!
+}
+
+extend type Subscription {
+  """The journal of a run, live. Replays from afterSeq, then delivers new events as they are recorded."""
+  runEvents(run_id: UUID!, afterSeq: Int): JournalEvent!
 }

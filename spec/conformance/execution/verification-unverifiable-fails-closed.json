@@ -1,0 +1,58 @@
+{
+  "id": "verification-unverifiable-fails-closed",
+  "level": "verified",
+  "spec": "7",
+  "description": "A criterion that cannot be evaluated is not met. Verification never passes by default.",
+  "workflow": {
+    "id": "b0dafb55-117b-5439-81a0-38a382465811",
+    "name": "verification-unverifiable-fails-closed",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "5b846afc-5996-5085-9404-b70f33a92209",
+        "name": "A",
+        "role_id": "9ae69c7d-7228-5b9f-a0af-1757e154635e",
+        "actor_type": "application",
+        "verification": {
+          "mode": "schema_only",
+          "max_retries": 0,
+          "criteria": [
+            {
+              "id": "7329ea1d-2407-5682-b6f7-666d0a0e76b4",
+              "name": "looks-right",
+              "description": "looks-right",
+              "type": "format"
+            }
+          ]
+        }
+      },
+      {
+        "id": "4366043b-9578-5429-b022-52c46b8975b8",
+        "name": "B",
+        "role_id": "9ae69c7d-7228-5b9f-a0af-1757e154635e",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "10a82fa4-8a0c-5818-aeca-5f3d834e4deb",
+        "source_id": "5b846afc-5996-5085-9404-b70f33a92209",
+        "target_id": "4366043b-9578-5429-b022-52c46b8975b8"
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "output": {
+        "total": 12
+      }
+    }
+  },
+  "expect": {
+    "status": "failed",
+    "visited": [
+      "A"
+    ]
+  }
+}

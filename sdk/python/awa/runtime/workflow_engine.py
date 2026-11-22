@@ -39,6 +39,7 @@ from awa.runtime.context_manager import ContextManager
 from awa.runtime.actors import SoftwareAgent, AIAgent, HumanAgent, RobotAgent
 from awa.runtime.decision_evaluator import DecisionEvaluator
 from awa.validator import validate_workflow_integrity
+from awa.runtime.expression import evaluate_expression
 
 
 class EngineStatus(str, Enum):
@@ -96,8 +97,11 @@ class WorkflowEngine:
         self._start_activity = self._find_start_activity()
         
         # Validate workflow
-        if not validate_workflow_integrity(workflow):
-            raise ValueError("Invalid workflow definition")
+        integrity = validate_workflow_integrity(workflow)
+        if not integrity.valid:
+            raise ValueError(
+                "Invalid workflow definition: " + ", ".join(e.message for e in integrity.errors)
+            )
     
     @property
     def status(self) -> EngineStatus:
@@ -170,11 +174,18 @@ class WorkflowEngine:
             while self._has_active_tokens():
                 self._execute_step()
             
-            self._status = EngineStatus.COMPLETED
+            # Run outcome: completed only if every token completed.
+            statuses = {t.status for t in self._tokens.values()}
+            if TokenStatus.WAITING in statuses:
+                self._status = EngineStatus.WAITING_HUMAN
+            elif TokenStatus.FAILED in statuses:
+                self._status = EngineStatus.FAILED
+            else:
+                self._status = EngineStatus.COMPLETED
             self._finalize_execution(start_time)
             
             return {
-                "status": "completed",
+                "status": self._status.value,
                 "tokens": [t.to_dict() for t in self._tokens.values()],
                 "contexts": self._context_manager.get_all_data()
             }
@@ -241,7 +252,7 @@ class WorkflowEngine:
                         token.set_data("_waiting_since", end_time.isoformat())
                         continue
 
-                    next_node = self._find_next_node(str(activity.id))
+                    next_node = self._find_next_node(str(activity.id), token.context_data)
                     if next_node:
                         token.move(str(next_node), analytics=analytics)
                     else:
@@ -256,6 +267,7 @@ class WorkflowEngine:
                         "error_rate": 1.0
                     }
                     token.update_status(TokenStatus.FAILED, analytics=analytics)
+                    token.set_data("_error", str(e))
                     if self.verbose:
                         print(f"[Engine] Activity Failed: {activity.name} - {str(e)}")
                 continue
@@ -266,19 +278,24 @@ class WorkflowEngine:
                 if self.verbose:
                     print(f"[Engine] Evaluating Decision: {decision.name}")
                 
-                edge_id = self._decision_evaluator.evaluate(
-                    decision, 
-                    token.context_data
-                )
-                
-                if edge_id:
-                    next_node = self._find_target_by_edge(str(edge_id))
-                    if next_node:
-                        token.move(str(next_node))
-                    else:
-                        token.update_status(TokenStatus.FAILED)
+                try:
+                    result = self._decision_evaluator.decide(decision, token.context_data)
+                except Exception as error:
+                    # A hit-policy conflict is a defect in the table: fail, do not take the default edge
+                    token.update_status(TokenStatus.FAILED)
+                    token.set_data("_error", str(error))
+                    token.set_data("_error_code", getattr(error, "code", "DECISION_CONFLICT"))
+                    continue
+
+                # The outputs become token data, so a later decision or condition can use them
+                token.merge_data({k: v for k, v in result.outputs.items() if not k.startswith("_")})
+
+                next_node = self._find_target_by_edge(result.output_edge_id) if result.output_edge_id else None
+                if next_node:
+                    token.move(str(next_node))
                 else:
                     token.update_status(TokenStatus.FAILED)
+                    token.set_data("_error", "No matching decision rule and no default path")
                 continue
             
             # Unknown node
@@ -298,12 +315,27 @@ class WorkflowEngine:
         
         return {"_completed": True}
     
-    def _find_next_node(self, source_id: str) -> str | None:
-        """Find next node ID via edges"""
-        for edge in self.workflow.edges:
-            if str(edge.source_id) == str(source_id):
+    def _find_next_node(self, source_id: str, data: dict[str, Any] | None = None) -> str | None:
+        """
+        Select the next node (spec: "Routing").
+        Conditional edges are evaluated in document order and the first true
+        one wins; otherwise the default edge; otherwise the first unconditional
+        edge. Returns None when the node has no outgoing edges. Raises
+        ValueError when edges exist but none can be taken.
+        """
+        edges = [e for e in self.workflow.edges if str(e.source_id) == str(source_id)]
+        if not edges:
+            return None
+        for edge in edges:
+            if edge.condition and evaluate_expression(edge.condition, data or {}):
                 return str(edge.target_id)
-        return None
+        for edge in edges:
+            if edge.is_default:
+                return str(edge.target_id)
+        for edge in edges:
+            if not edge.condition:
+                return str(edge.target_id)
+        raise ValueError("No route: no edge condition matched and no default edge is defined")
 
     def _find_target_by_edge(self, edge_id: str) -> str | None:
         """Find target node ID for a given edge ID"""

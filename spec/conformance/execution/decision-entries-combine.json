@@ -1,0 +1,111 @@
+{
+  "id": "decision-entries-combine",
+  "level": "decision",
+  "spec": "5.5.1",
+  "description": "An entry may list alternatives separated by commas, and may negate a list with not(...).",
+  "workflow": {
+    "id": "0e1fb4fa-9f07-5074-b389-5f3e7245405e",
+    "name": "decision-entries-combine",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "bce0d6b5-1567-5cce-afb1-4b644a103c5f",
+        "name": "A",
+        "role_id": "79b01702-a109-5dd6-8c05-d34bb316c427",
+        "actor_type": "application"
+      },
+      {
+        "id": "97a0737e-3107-55e3-afbd-e978cf867f19",
+        "name": "Eu",
+        "role_id": "79b01702-a109-5dd6-8c05-d34bb316c427",
+        "actor_type": "application"
+      },
+      {
+        "id": "331a3cdf-4f76-51ef-8a14-874bfa2ddf41",
+        "name": "Other",
+        "role_id": "79b01702-a109-5dd6-8c05-d34bb316c427",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "e3d131cf-3f50-5e3f-b3df-25c835516192",
+        "source_id": "bce0d6b5-1567-5cce-afb1-4b644a103c5f",
+        "target_id": "7836ce34-450d-5ddc-a8d9-0a6c6b589f97"
+      },
+      {
+        "id": "7364ed0b-aa29-5335-8787-c2116d96dbf5",
+        "source_id": "7836ce34-450d-5ddc-a8d9-0a6c6b589f97",
+        "target_id": "97a0737e-3107-55e3-afbd-e978cf867f19"
+      },
+      {
+        "id": "ad8a8096-30ea-58bf-97ce-64331cc2616c",
+        "source_id": "7836ce34-450d-5ddc-a8d9-0a6c6b589f97",
+        "target_id": "331a3cdf-4f76-51ef-8a14-874bfa2ddf41"
+      }
+    ],
+    "decision_nodes": [
+      {
+        "id": "7836ce34-450d-5ddc-a8d9-0a6c6b589f97",
+        "name": "D",
+        "decision_table": {
+          "hit_policy": "first",
+          "inputs": [
+            {
+              "name": "country",
+              "type": "string"
+            },
+            {
+              "name": "age",
+              "type": "number"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "route",
+              "type": "string"
+            }
+          ],
+          "rules": [
+            {
+              "input_entries": [
+                "\"FR\", \"DE\", \"LU\"",
+                "not(< 18, > 99)"
+              ],
+              "output_entries": [
+                "eu"
+              ],
+              "output_edge_id": "7364ed0b-aa29-5335-8787-c2116d96dbf5"
+            },
+            {
+              "input_entries": [
+                "-",
+                "-"
+              ],
+              "output_entries": [
+                "other"
+              ],
+              "output_edge_id": "ad8a8096-30ea-58bf-97ce-64331cc2616c"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "output": {
+        "country": "LU",
+        "age": 40
+      }
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "A",
+      "Eu"
+    ]
+  }
+}

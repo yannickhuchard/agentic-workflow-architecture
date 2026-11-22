@@ -5,8 +5,9 @@ import { serveCommand } from './commands/serve';
 import { taskCommand } from './commands/task';
 import { initCommand } from './commands/init';
 import { generateCommand } from './commands/generate';
+import { recipeCommand } from './commands/recipe';
+import { knowledgeCommand } from './commands/knowledge';
 
-// @ts-ignore
 import { version } from '../../package.json';
 
 const program = new Command();
@@ -21,5 +22,7 @@ program.addCommand(serveCommand);
 program.addCommand(taskCommand);
 program.addCommand(initCommand);
 program.addCommand(generateCommand);
+program.addCommand(recipeCommand);
+program.addCommand(knowledgeCommand);
 
 program.parse(process.argv);

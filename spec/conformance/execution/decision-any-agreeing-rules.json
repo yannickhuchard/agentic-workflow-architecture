@@ -1,0 +1,121 @@
+{
+  "id": "decision-any-agreeing-rules",
+  "level": "decision",
+  "spec": "5.5.2",
+  "description": "Hit policy 'any': several rules may match if they give the same result.",
+  "workflow": {
+    "id": "b67c4217-64c5-5c88-a23f-7e9c97a0c703",
+    "name": "decision-any-agreeing-rules",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "800dd50d-fb0a-5073-a0c0-a027560f9194",
+        "name": "A",
+        "role_id": "38930fc1-dc8f-5f86-bb5f-d0ba54f6a2c7",
+        "actor_type": "application"
+      },
+      {
+        "id": "94de055d-29bf-5b14-873b-2475944d1b7d",
+        "name": "Review",
+        "role_id": "38930fc1-dc8f-5f86-bb5f-d0ba54f6a2c7",
+        "actor_type": "application"
+      },
+      {
+        "id": "cab0765e-a2fe-5f28-b4e2-5698cb1d8b83",
+        "name": "Pay",
+        "role_id": "38930fc1-dc8f-5f86-bb5f-d0ba54f6a2c7",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "b3b82541-e3e8-5439-a346-32354b501f7b",
+        "source_id": "800dd50d-fb0a-5073-a0c0-a027560f9194",
+        "target_id": "6c82174c-80a4-5dc3-b035-9d33e6da7d17"
+      },
+      {
+        "id": "cf1bce17-7e58-552c-88fc-b721d0b286ec",
+        "source_id": "6c82174c-80a4-5dc3-b035-9d33e6da7d17",
+        "target_id": "94de055d-29bf-5b14-873b-2475944d1b7d"
+      },
+      {
+        "id": "a5305467-fc17-55eb-8daf-81b352edd7e2",
+        "source_id": "6c82174c-80a4-5dc3-b035-9d33e6da7d17",
+        "target_id": "cab0765e-a2fe-5f28-b4e2-5698cb1d8b83"
+      }
+    ],
+    "decision_nodes": [
+      {
+        "id": "6c82174c-80a4-5dc3-b035-9d33e6da7d17",
+        "name": "D",
+        "decision_table": {
+          "hit_policy": "any",
+          "inputs": [
+            {
+              "name": "amount",
+              "type": "number"
+            },
+            {
+              "name": "flagged",
+              "type": "boolean"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "route",
+              "type": "string"
+            }
+          ],
+          "rules": [
+            {
+              "input_entries": [
+                "> 1000",
+                "-"
+              ],
+              "output_entries": [
+                "review"
+              ],
+              "output_edge_id": "cf1bce17-7e58-552c-88fc-b721d0b286ec"
+            },
+            {
+              "input_entries": [
+                "-",
+                "true"
+              ],
+              "output_entries": [
+                "review"
+              ],
+              "output_edge_id": "cf1bce17-7e58-552c-88fc-b721d0b286ec"
+            },
+            {
+              "input_entries": [
+                "<= 1000",
+                "false"
+              ],
+              "output_entries": [
+                "pay"
+              ],
+              "output_edge_id": "a5305467-fc17-55eb-8daf-81b352edd7e2"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "output": {
+        "amount": 5000,
+        "flagged": true
+      }
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "A",
+      "Review"
+    ]
+  }
+}

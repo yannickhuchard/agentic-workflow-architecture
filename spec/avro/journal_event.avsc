@@ -1,0 +1,21 @@
+{
+  "type": "record",
+  "name": "JournalEvent",
+  "namespace": "io.awa.schema",
+  "doc": "One entry in the append-only execution journal of a run (AWA specification section 9). Informative projection of spec/json-schema/journal-event.schema.json. Use run_id as the message key so that the events of a run stay in order.",
+  "fields": [
+    { "name": "spec_version", "type": "string", "doc": "Version of the AWA specification the event conforms to, e.g. 1.1" },
+    { "name": "id", "type": { "type": "string", "logicalType": "uuid" } },
+    { "name": "run_id", "type": { "type": "string", "logicalType": "uuid" } },
+    { "name": "seq", "type": "int", "doc": "Position in the run, starting at 1, with no gaps" },
+    { "name": "time", "type": { "type": "long", "logicalType": "timestamp-millis" } },
+    { "name": "type", "type": "string", "doc": "Event type, e.g. run.started, activity.completed, decision.evaluated, tool.invoked, reasoning.recorded" },
+    { "name": "level", "type": { "type": "enum", "name": "TraceLevel", "symbols": ["execution", "reasoning", "meta"] }, "default": "execution" },
+    { "name": "workflow_id", "type": { "type": "string", "logicalType": "uuid" } },
+    { "name": "token_id", "type": ["null", { "type": "string", "logicalType": "uuid" }], "default": null },
+    { "name": "node_id", "type": ["null", { "type": "string", "logicalType": "uuid" }], "default": null },
+    { "name": "node_name", "type": ["null", "string"], "default": null },
+    { "name": "attempt", "type": ["null", "int"], "default": null },
+    { "name": "data", "type": "string", "doc": "Event-specific payload, JSON-encoded. Its shape per event type is defined in the specification." }
+  ]
+}

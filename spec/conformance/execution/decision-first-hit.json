@@ -1,0 +1,116 @@
+{
+  "id": "decision-first-hit",
+  "level": "decision",
+  "spec": "5.5",
+  "description": "A decision table with hit policy 'first' routes along the edge of the first matching rule.",
+  "workflow": {
+    "id": "eb477329-6b04-53f6-90c0-447e414572d9",
+    "name": "decision-first-hit",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "35ac5580-370b-5de8-868b-a7c91664be67",
+        "name": "A",
+        "role_id": "a26619eb-dd5d-5d1e-888f-1b55e78cc0fc",
+        "actor_type": "application"
+      },
+      {
+        "id": "6c63f7b2-77cf-56b2-9912-ec39fd337fb7",
+        "name": "Low",
+        "role_id": "a26619eb-dd5d-5d1e-888f-1b55e78cc0fc",
+        "actor_type": "application"
+      },
+      {
+        "id": "b9b71a2e-24de-5dd3-bce6-eeee231e84ac",
+        "name": "High",
+        "role_id": "a26619eb-dd5d-5d1e-888f-1b55e78cc0fc",
+        "actor_type": "application"
+      },
+      {
+        "id": "12903ab5-2fa3-5bc7-9619-7e9a659ead41",
+        "name": "Manual",
+        "role_id": "a26619eb-dd5d-5d1e-888f-1b55e78cc0fc",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "622819e6-8c69-52b0-8c51-b09b06c00a56",
+        "source_id": "35ac5580-370b-5de8-868b-a7c91664be67",
+        "target_id": "ac9a6366-9e05-5234-bd03-ebe27262d24f"
+      },
+      {
+        "id": "28033563-7063-53f5-b8b4-77a2e1c3d084",
+        "source_id": "ac9a6366-9e05-5234-bd03-ebe27262d24f",
+        "target_id": "6c63f7b2-77cf-56b2-9912-ec39fd337fb7"
+      },
+      {
+        "id": "1435a291-7baf-5bcb-b944-11e8a43da117",
+        "source_id": "ac9a6366-9e05-5234-bd03-ebe27262d24f",
+        "target_id": "b9b71a2e-24de-5dd3-bce6-eeee231e84ac"
+      },
+      {
+        "id": "de413f7b-a44a-557e-8fa5-56581b9f80be",
+        "source_id": "ac9a6366-9e05-5234-bd03-ebe27262d24f",
+        "target_id": "12903ab5-2fa3-5bc7-9619-7e9a659ead41"
+      }
+    ],
+    "decision_nodes": [
+      {
+        "id": "ac9a6366-9e05-5234-bd03-ebe27262d24f",
+        "name": "Risk",
+        "decision_table": {
+          "hit_policy": "first",
+          "inputs": [
+            {
+              "name": "amount",
+              "type": "number"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "route",
+              "type": "string"
+            }
+          ],
+          "rules": [
+            {
+              "input_entries": [
+                "< 1000"
+              ],
+              "output_entries": [
+                "Low"
+              ],
+              "output_edge_id": "28033563-7063-53f5-b8b4-77a2e1c3d084"
+            },
+            {
+              "input_entries": [
+                ">= 1000"
+              ],
+              "output_entries": [
+                "High"
+              ],
+              "output_edge_id": "1435a291-7baf-5bcb-b944-11e8a43da117"
+            }
+          ]
+        },
+        "default_output_edge_id": "de413f7b-a44a-557e-8fa5-56581b9f80be"
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "output": {
+        "amount": 5000
+      }
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "A",
+      "High"
+    ]
+  }
+}

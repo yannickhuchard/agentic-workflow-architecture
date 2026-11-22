@@ -1,0 +1,47 @@
+{
+  "id": "journal-sequence",
+  "level": "recorded",
+  "spec": "9.3",
+  "description": "A run is journalled as an ordered sequence of events from run.started to run.completed.",
+  "workflow": {
+    "id": "9df20b75-b563-5490-ad54-ece883610299",
+    "name": "journal-sequence",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "45aeeac5-f6c9-5468-905b-106b6db78e9c",
+        "name": "A",
+        "role_id": "b716dbc0-8878-5ad7-99cb-fb4a9626929e",
+        "actor_type": "application"
+      },
+      {
+        "id": "d5136af2-df39-5ede-924e-f729ad20e240",
+        "name": "B",
+        "role_id": "b716dbc0-8878-5ad7-99cb-fb4a9626929e",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "d97df858-315d-5df8-8430-61a56d6e23cd",
+        "source_id": "45aeeac5-f6c9-5468-905b-106b6db78e9c",
+        "target_id": "d5136af2-df39-5ede-924e-f729ad20e240"
+      }
+    ]
+  },
+  "expect": {
+    "status": "completed",
+    "journal": [
+      "run.started",
+      "token.created",
+      "activity.started",
+      "activity.completed",
+      "token.moved",
+      "activity.started",
+      "activity.completed",
+      "token.completed",
+      "run.completed"
+    ]
+  }
+}

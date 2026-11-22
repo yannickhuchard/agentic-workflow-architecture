@@ -1,0 +1,38 @@
+{
+  "id": "invalid-timer-duration",
+  "description": "A timer event needs an ISO 8601 duration.",
+  "valid": false,
+  "stage": "integrity",
+  "error_code": "invalid_timer",
+  "document": {
+    "id": "d5ef778e-a5e6-5eb0-acec-113c8efd79c6",
+    "name": "invalid-timer-duration",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "d81ecd9e-1f22-5f98-af39-77e28ecf0bfd",
+        "name": "A",
+        "role_id": "14f18448-c664-5759-86ed-dd55aa8403cd",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "4ea96bd7-2681-5734-848b-a0e4482909a8",
+        "source_id": "d81ecd9e-1f22-5f98-af39-77e28ecf0bfd",
+        "target_id": "2004962c-6ba8-54b0-8e07-6be000daa5d3"
+      }
+    ],
+    "events": [
+      {
+        "id": "2004962c-6ba8-54b0-8e07-6be000daa5d3",
+        "name": "Wait",
+        "event_type": "timer",
+        "event_definition": {
+          "duration": "soon"
+        }
+      }
+    ]
+  }
+}

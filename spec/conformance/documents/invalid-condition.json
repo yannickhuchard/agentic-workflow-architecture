@@ -1,0 +1,35 @@
+{
+  "id": "invalid-condition",
+  "description": "An edge condition must be a valid condition expression.",
+  "valid": false,
+  "stage": "integrity",
+  "error_code": "invalid_expression",
+  "document": {
+    "id": "11f3e96e-025b-5314-b705-476776c457e6",
+    "name": "invalid-condition",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "51a124e5-3811-5318-b360-1c864f1e0525",
+        "name": "A",
+        "role_id": "ce36118f-626f-5e5e-a1c6-3ff9f5c14ef4",
+        "actor_type": "application"
+      },
+      {
+        "id": "e0450a90-5fdf-54a1-97c3-82d56a4509f9",
+        "name": "B",
+        "role_id": "ce36118f-626f-5e5e-a1c6-3ff9f5c14ef4",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "7dc25541-0ccc-5fcd-b4f5-bd5a67985c2a",
+        "source_id": "51a124e5-3811-5318-b360-1c864f1e0525",
+        "target_id": "e0450a90-5fdf-54a1-97c3-82d56a4509f9",
+        "condition": "amount >> 3"
+      }
+    ]
+  }
+}

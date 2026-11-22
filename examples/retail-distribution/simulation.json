@@ -1,0 +1,18 @@
+{
+  "Check Inventory Availability": {
+    "output": {
+      "credit_approved": true,
+      "risk_score": 12,
+      "stock_available": true,
+      "partial_fulfillment": false
+    }
+  },
+  "Validate Customer Credit": {
+    "output": {
+      "credit_approved": true,
+      "risk_score": 12,
+      "stock_available": true,
+      "partial_fulfillment": false
+    }
+  }
+}

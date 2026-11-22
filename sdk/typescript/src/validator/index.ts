@@ -4,6 +4,9 @@
 
 import { WorkflowSchema, ActivitySchema, ContextSchema, type Workflow, type Activity, type Context } from '../types';
 import type { ZodError } from 'zod';
+import { validate_expression } from '../runtime/expression';
+import { parse_iso_duration } from '../runtime/duration_utils';
+import { validate_unary_tests } from '../runtime/unary_test';
 
 export interface ValidationResult {
     valid: boolean;
@@ -65,6 +68,17 @@ export function parse_workflow(data: unknown): Workflow {
 }
 
 /**
+ * Parse an AWA document. Accepts both forms defined by the specification:
+ * a bare workflow object, or an envelope `{ "workflow": { ... } }`.
+ */
+export function parse_document(data: unknown): Workflow {
+    if (data && typeof data === 'object' && 'workflow' in data && !('activities' in data)) {
+        return WorkflowSchema.parse((data as { workflow: unknown }).workflow);
+    }
+    return WorkflowSchema.parse(data);
+}
+
+/**
  * Parse and validate an activity, throwing on error
  */
 export function parse_activity(data: unknown): Activity {
@@ -118,6 +132,124 @@ export function validate_workflow_integrity(workflow: Workflow): ValidationResul
                     message: `Context '${binding.context_id}' not found`,
                     code: 'invalid_reference',
                 });
+            }
+        }
+    }
+
+    // Node and edge identifiers must be unique within the workflow
+    const seen = new Set<string>();
+    const all_ids = [
+        ...workflow.activities.map(a => a.id),
+        ...workflow.events.map(e => e.id),
+        ...workflow.decision_nodes.map(d => d.id),
+        ...workflow.edges.map(e => e.id),
+    ];
+    for (const id of all_ids) {
+        if (seen.has(id)) {
+            errors.push({ path: `[${id}]`, message: `Duplicate identifier '${id}'`, code: 'duplicate_id' });
+        }
+        seen.add(id);
+    }
+
+    // Edge conditions must be valid expressions; at most one default edge per source
+    const default_count = new Map<string, number>();
+    for (const edge of workflow.edges) {
+        if (edge.condition) {
+            const check = validate_expression(edge.condition);
+            if (!check.valid) {
+                errors.push({ path: `edges[${edge.id}].condition`, message: check.error || 'Invalid condition', code: 'invalid_expression' });
+            }
+        }
+        if (edge.is_default) {
+            default_count.set(edge.source_id, (default_count.get(edge.source_id) || 0) + 1);
+        }
+    }
+    for (const [source_id, count] of default_count) {
+        if (count > 1) {
+            errors.push({ path: `edges[source=${source_id}]`, message: `Node '${source_id}' has ${count} default edges; at most one is allowed`, code: 'multiple_default_edges' });
+        }
+    }
+
+    // Postconditions must be valid expressions
+    for (const activity of workflow.activities) {
+        for (const condition of activity.outcome_contract?.postconditions || []) {
+            const check = validate_expression(condition.expression);
+            if (!check.valid) {
+                errors.push({ path: `activities[${activity.id}].outcome_contract.postconditions[${condition.name}]`, message: check.error || 'Invalid postcondition', code: 'invalid_expression' });
+            }
+        }
+    }
+
+    // Compensation handlers must exist and stand outside the normal flow
+    const activity_ids = new Set(workflow.activities.map(a => a.id));
+    const targeted = new Set(workflow.edges.map(e => e.target_id));
+    for (const activity of workflow.activities) {
+        const handler_id = activity.compensation?.activity_id;
+        if (!handler_id) continue;
+        if (!activity_ids.has(handler_id)) {
+            errors.push({ path: `activities[${activity.id}].compensation`, message: `Compensation activity '${handler_id}' not found`, code: 'invalid_reference' });
+        } else if (targeted.has(handler_id) || handler_id === activity.id) {
+            errors.push({ path: `activities[${activity.id}].compensation`, message: `Compensation activity '${handler_id}' must not be the target of an edge`, code: 'invalid_compensation' });
+        }
+    }
+
+    // Timer events need a duration the engine can wait for
+    for (const event of workflow.events) {
+        if (event.event_type !== 'timer') continue;
+        try {
+            parse_iso_duration(String(event.event_definition?.duration));
+        } catch {
+            errors.push({ path: `events[${event.id}].event_definition.duration`, message: `Timer event '${event.name}' needs an ISO 8601 duration of weeks, days, hours, minutes or seconds`, code: 'invalid_timer' });
+        }
+    }
+
+    // Tool names are unique within an activity; decision options are unique within a decision
+    for (const activity of workflow.activities) {
+        const names = (activity.tools || []).map(t => t.name);
+        for (const name of new Set(names.filter((n, i) => names.indexOf(n) !== i))) {
+            errors.push({ path: `activities[${activity.id}].tools`, message: `Duplicate tool name '${name}'`, code: 'duplicate_id' });
+        }
+    }
+    // Decision tables: every entry parses, and every rule has one entry per column
+    for (const decision of workflow.decision_nodes) {
+        const table = decision.decision_table;
+        if (!table) continue;
+        table.rules.forEach((rule, index) => {
+            const where = `decision_nodes[${decision.id}].decision_table.rules[${index}]`;
+            if (rule.input_entries.length !== table.inputs.length) {
+                errors.push({ path: where, message: `Rule ${index + 1} of '${decision.name}' has ${rule.input_entries.length} input entries for ${table.inputs.length} input columns`, code: 'invalid_rule' });
+            }
+            if (rule.output_entries.length !== table.outputs.length) {
+                errors.push({ path: where, message: `Rule ${index + 1} of '${decision.name}' has ${rule.output_entries.length} output entries for ${table.outputs.length} output columns`, code: 'invalid_rule' });
+            }
+            for (const entry of rule.input_entries) {
+                const check = validate_unary_tests(entry);
+                if (!check.valid) errors.push({ path: where, message: check.error || 'Invalid entry', code: 'invalid_expression' });
+            }
+        });
+    }
+    for (const decision of workflow.decision_nodes) {
+        const ids = (decision.decision_model?.options || []).map(o => o.id);
+        for (const id of new Set(ids.filter((n, i) => ids.indexOf(n) !== i))) {
+            errors.push({ path: `decision_nodes[${decision.id}].decision_model.options`, message: `Duplicate option '${id}'`, code: 'duplicate_id' });
+        }
+    }
+
+    // Decision rules must route to edges that leave the decision node
+    const edge_by_id = new Map(workflow.edges.map(e => [e.id, e]));
+    for (const decision of workflow.decision_nodes) {
+        const refs = [
+            decision.default_output_edge_id,
+            ...(decision.decision_table?.rules || []).map(r => r.output_edge_id),
+            ...(decision.decision_model?.options || []).map(o => o.output_edge_id),
+            ...(decision.decision_engine?.options || []).map(o => o.output_edge_id),
+        ].filter((id): id is string => !!id);
+        for (const ref of refs) {
+            const target = edge_by_id.get(ref);
+            if (!target) {
+                errors.push({ path: `decision_nodes[${decision.id}]`, message: `Output edge '${ref}' not found`, code: 'invalid_reference' });
+            } else if (target.source_id !== decision.id) {
+                errors.push({ path: `decision_nodes[${decision.id}]`, message: `Output edge '${ref}' does not leave this decision node`, code: 'invalid_reference' });
             }
         }
     }

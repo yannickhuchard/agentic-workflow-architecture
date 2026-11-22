@@ -1,0 +1,71 @@
+{
+  "id": "invalid-decision-entry",
+  "description": "A decision table entry must be a valid unary test.",
+  "valid": false,
+  "stage": "integrity",
+  "error_code": "invalid_expression",
+  "document": {
+    "id": "e4710717-1a4a-50c9-a3eb-28c57c0b7980",
+    "name": "invalid-decision-entry",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "3b909632-ffbc-5c98-ba7f-cbf62399626e",
+        "name": "A",
+        "role_id": "9a12c293-7cce-5d51-9d7c-33d56529d057",
+        "actor_type": "application"
+      },
+      {
+        "id": "758cfafb-7d03-5b5f-9bd5-d22eda9bbfe6",
+        "name": "B",
+        "role_id": "9a12c293-7cce-5d51-9d7c-33d56529d057",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "9f994a2a-cba0-5bb2-98ab-7fd60c0e870b",
+        "source_id": "3b909632-ffbc-5c98-ba7f-cbf62399626e",
+        "target_id": "ec0a2dbf-e680-5c1e-b9bd-7c2dfe3257b0"
+      },
+      {
+        "id": "637889ec-283e-50b6-99a7-e0f243e1189c",
+        "source_id": "ec0a2dbf-e680-5c1e-b9bd-7c2dfe3257b0",
+        "target_id": "758cfafb-7d03-5b5f-9bd5-d22eda9bbfe6"
+      }
+    ],
+    "decision_nodes": [
+      {
+        "id": "ec0a2dbf-e680-5c1e-b9bd-7c2dfe3257b0",
+        "name": "D",
+        "decision_table": {
+          "hit_policy": "first",
+          "inputs": [
+            {
+              "name": "x",
+              "type": "number"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "route",
+              "type": "string"
+            }
+          ],
+          "rules": [
+            {
+              "input_entries": [
+                "[1.."
+              ],
+              "output_entries": [
+                "B"
+              ],
+              "output_edge_id": "637889ec-283e-50b6-99a7-e0f243e1189c"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
