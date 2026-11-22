@@ -63,6 +63,26 @@ describe('Journey API', () => {
         expect((await call('GET', '/transitions')).body).toEqual([]);
     });
 
+    it('reports the measures of what was recorded, as data and for a metrics system', async () => {
+        const report = await (await fetch(`${base}/api/v1/measures`)).json() as any;
+        expect(report.journeys[0]).toMatchObject({ name: 'Policy Purchase', measures: { 'journey.started': { value: 1, n: 1 }, 'journey.completion_rate': { value: 1, n: 1 }, 'journey.goal_attainment': { value: 1 } } });
+        expect(report.workflows[0].measures['workflow.success_rate']).toEqual({ value: 1, n: 1 });
+        expect(report.workflows[0].measures['workflow.tool_failure_rate']).toEqual({ value: null, n: 0 });   // no tool was called: no rate, not zero
+        const none = await (await fetch(`${base}/api/v1/measures?from=2999-01-01T00:00:00Z`)).json() as any;
+        expect(none.journeys[0].measures['journey.completion_rate']).toEqual({ value: null, n: 0 });
+        expect((await fetch(`${base}/api/v1/measures?from=yesterday`)).status).toBe(400);
+
+        const scraped = await fetch(`${base}/api/v1/measures?format=openmetrics`);
+        expect(scraped.headers.get('content-type')).toContain('application/openmetrics-text');
+        const text = await scraped.text();
+        expect(text).toContain('# TYPE awa_journey_completion_rate gauge');
+        expect(text).toContain('awa_journey_completion_rate{journey="Policy Purchase"} 1');
+        expect(text).not.toContain('awa_workflow_tool_failure_rate');
+        expect(text.endsWith('# EOF\n')).toBe(true);
+        const definitions = await (await fetch(`${base}/api/v1/measures/definitions`)).json() as any[];
+        expect(definitions.find(d => d.id === 'workflow.first_pass_yield')).toMatchObject({ unit: 'ratio', better: 'higher' });
+    });
+
     it('lets time pass on request', async () => {
         await call('POST', '/events', { type: 'quote.requested', data: { customer_id: 'c-2' } });
         const later = await call('POST', '/tick', { at: new Date(Date.now() + 8 * 24 * 3600 * 1000).toISOString() });

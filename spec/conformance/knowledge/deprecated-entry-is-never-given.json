@@ -1,0 +1,126 @@
+{
+  "id": "deprecated-entry-is-never-given",
+  "level": "knowledge",
+  "spec": "15.4",
+  "description": "A deprecated entry is not given to an actor, even by a binding that admits drafts.",
+  "workflow": {
+    "id": "efb775bd-2be8-5e24-ba04-1e30800db35f",
+    "name": "deprecated-entry-is-never-given",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "d8305bac-bce3-5ef2-a190-477ad9799642",
+        "name": "Price order",
+        "role_id": "d3e360f3-12c3-518f-9149-ca5e81bdfa23",
+        "actor_type": "ai_agent",
+        "outcome_contract": {
+          "postconditions": [
+            {
+              "name": "Total is a number",
+              "expression": "typeof total == number"
+            }
+          ],
+          "budgets": {
+            "max_attempts": 3
+          }
+        },
+        "knowledge": {
+          "min_status": "draft"
+        }
+      },
+      {
+        "id": "b5e2659f-5026-51ca-948d-0926dc31c6e6",
+        "name": "Ship",
+        "role_id": "d3e360f3-12c3-518f-9149-ca5e81bdfa23",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "1bbf2ced-264b-5175-8e6a-c3d4bea640de",
+        "source_id": "d8305bac-bce3-5ef2-a190-477ad9799642",
+        "target_id": "b5e2659f-5026-51ca-948d-0926dc31c6e6"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "run": "first",
+      "actors": {
+        "Price order": {
+          "output": {
+            "total": 40
+          },
+          "reasoning": {
+            "plan": [
+              "look up the price list",
+              "sum the lines"
+            ],
+            "rationale": "Prices come from the list, not from memory.",
+            "alternatives_considered": [
+              "estimate"
+            ],
+            "confidence": 0.9
+          }
+        }
+      },
+      "expect": {
+        "status": "completed"
+      }
+    },
+    {
+      "ingest": "first"
+    },
+    {
+      "review": {
+        "type": "strategy",
+        "node": "Price order"
+      },
+      "by": "ana"
+    },
+    {
+      "deprecate": {
+        "type": "strategy",
+        "node": "Price order"
+      }
+    },
+    {
+      "run": "second",
+      "actors": {
+        "Price order": {
+          "output": {
+            "total": 40
+          },
+          "reasoning": {
+            "plan": [
+              "look up the price list",
+              "sum the lines"
+            ],
+            "rationale": "Prices come from the list, not from memory.",
+            "alternatives_considered": [
+              "estimate"
+            ],
+            "confidence": 0.9
+          }
+        }
+      },
+      "expect": {
+        "status": "completed",
+        "given": {
+          "Price order": []
+        }
+      }
+    }
+  ],
+  "expect": {
+    "entry_count": 1,
+    "entries": [
+      {
+        "type": "strategy",
+        "node": "Price order",
+        "status": "deprecated"
+      }
+    ]
+  }
+}

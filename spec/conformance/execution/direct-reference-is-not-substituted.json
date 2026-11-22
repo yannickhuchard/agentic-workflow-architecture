@@ -1,0 +1,152 @@
+{
+  "id": "direct-reference-is-not-substituted",
+  "level": "routing",
+  "spec": "12.3",
+  "description": "A model named directly has one candidate. When its provider fails no other model is substituted, although another provider could have served.",
+  "workflow": {
+    "id": "512cf8a1-8ab0-5483-9bcc-e0753dd9fb0c",
+    "name": "direct-reference-is-not-substituted",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "c819d774-0c6e-5024-830e-7ac423e76981",
+        "name": "Intake",
+        "role_id": "f51d2c1c-9c35-5fd4-86da-2cd0c6601ea5",
+        "actor_type": "application"
+      },
+      {
+        "id": "5b590932-459a-5c4d-b3b2-c4978e1fad3b",
+        "name": "Pay",
+        "role_id": "f51d2c1c-9c35-5fd4-86da-2cd0c6601ea5",
+        "actor_type": "application"
+      },
+      {
+        "id": "6e9fbe4a-c396-5e44-878c-8c5799233b24",
+        "name": "Review",
+        "role_id": "f51d2c1c-9c35-5fd4-86da-2cd0c6601ea5",
+        "actor_type": "application"
+      },
+      {
+        "id": "d25f6b1e-d0aa-52c9-b269-1b5b55e84ff0",
+        "name": "Manual",
+        "role_id": "f51d2c1c-9c35-5fd4-86da-2cd0c6601ea5",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "7a164aa3-ade4-50c2-8d7f-eb788df5231d",
+        "source_id": "c819d774-0c6e-5024-830e-7ac423e76981",
+        "target_id": "d9db4645-e049-5f95-8224-02a73f98edbe"
+      },
+      {
+        "id": "1c548615-0225-5a06-89cc-8a5e3a8bbb32",
+        "source_id": "d9db4645-e049-5f95-8224-02a73f98edbe",
+        "target_id": "5b590932-459a-5c4d-b3b2-c4978e1fad3b"
+      },
+      {
+        "id": "8bf0c0f5-6d3f-56a3-bf2b-4e0a9b2c54ba",
+        "source_id": "d9db4645-e049-5f95-8224-02a73f98edbe",
+        "target_id": "6e9fbe4a-c396-5e44-878c-8c5799233b24"
+      },
+      {
+        "id": "5a92f9d2-00d1-5312-be38-02e8d7fdd3a7",
+        "source_id": "d9db4645-e049-5f95-8224-02a73f98edbe",
+        "target_id": "d25f6b1e-d0aa-52c9-b269-1b5b55e84ff0"
+      }
+    ],
+    "decision_nodes": [
+      {
+        "id": "d9db4645-e049-5f95-8224-02a73f98edbe",
+        "name": "Triage",
+        "description": "Route the claim.",
+        "decision_model": {
+          "model": "primary:alpha",
+          "instructions": "Pay simple claims. Send anything unusual to review.",
+          "options": [
+            {
+              "id": "pay",
+              "description": "Simple and covered",
+              "output_edge_id": "1c548615-0225-5a06-89cc-8a5e3a8bbb32"
+            },
+            {
+              "id": "review",
+              "description": "Unusual or unclear",
+              "output_edge_id": "8bf0c0f5-6d3f-56a3-bf2b-4e0a9b2c54ba"
+            }
+          ],
+          "inputs": [
+            "amount"
+          ]
+        },
+        "default_output_edge_id": "5a92f9d2-00d1-5312-be38-02e8d7fdd3a7"
+      }
+    ]
+  },
+  "actors": {
+    "Intake": {
+      "output": {
+        "amount": 900
+      }
+    }
+  },
+  "model": {
+    "providers": [
+      {
+        "id": "primary",
+        "error": "connection refused"
+      },
+      {
+        "id": "backup",
+        "replies": [
+          {
+            "option": "review",
+            "confidence": 0.9,
+            "rationale": "Because."
+          }
+        ]
+      }
+    ],
+    "tiers": {
+      "fast": [
+        "backup:beta"
+      ]
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "Intake",
+      "Manual"
+    ],
+    "provider_calls": {
+      "primary": 1,
+      "backup": 0
+    },
+    "journal_contains": [
+      {
+        "type": "decision.evaluated",
+        "node_name": "Triage",
+        "data": {
+          "method": "default"
+        }
+      }
+    ],
+    "journal_mentions": [
+      {
+        "event": {
+          "type": "meta.recorded",
+          "node_name": "Triage",
+          "data": {
+            "subject": "model_route"
+          }
+        },
+        "mentions": [
+          "primary",
+          "alpha"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,169 @@
+{
+  "id": "reviewed-entries-are-given-first",
+  "level": "knowledge",
+  "spec": "15.4",
+  "description": "Matching entries are given reviewed first, then by observations: a reviewed failure pattern seen once comes before a draft strategy seen twice.",
+  "workflow": {
+    "id": "a3f9e98e-a0ff-5528-9cec-ec149d067673",
+    "name": "reviewed-entries-are-given-first",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "afaec678-c8a2-5dbd-91f7-1c5b0be5d3ed",
+        "name": "Price order",
+        "role_id": "a90fdd2e-fa65-5676-a06b-382a2702b2ee",
+        "actor_type": "ai_agent",
+        "outcome_contract": {
+          "postconditions": [
+            {
+              "name": "Total is a number",
+              "expression": "typeof total == number"
+            }
+          ],
+          "budgets": {
+            "max_attempts": 3
+          }
+        },
+        "knowledge": {
+          "min_status": "draft"
+        }
+      },
+      {
+        "id": "151caff4-85db-50dc-bfba-4fe2a6f1322b",
+        "name": "Ship",
+        "role_id": "a90fdd2e-fa65-5676-a06b-382a2702b2ee",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "d0af5c16-9f29-5190-99ac-83814f331046",
+        "source_id": "afaec678-c8a2-5dbd-91f7-1c5b0be5d3ed",
+        "target_id": "151caff4-85db-50dc-bfba-4fe2a6f1322b"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "run": "first",
+      "actors": {
+        "Price order": {
+          "attempts": [
+            {
+              "output": {
+                "total": "forty"
+              },
+              "reasoning": {
+                "plan": [
+                  "estimate"
+                ],
+                "rationale": "From memory.",
+                "confidence": 0.3
+              }
+            },
+            {
+              "output": {
+                "total": 40
+              },
+              "reasoning": {
+                "plan": [
+                  "look up the price list",
+                  "sum the lines"
+                ],
+                "rationale": "Prices come from the list, not from memory.",
+                "alternatives_considered": [
+                  "estimate"
+                ],
+                "confidence": 0.9
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "status": "completed"
+      }
+    },
+    {
+      "ingest": "first"
+    },
+    {
+      "run": "second",
+      "actors": {
+        "Price order": {
+          "output": {
+            "total": 40
+          },
+          "reasoning": {
+            "plan": [
+              "look up the price list",
+              "sum the lines"
+            ],
+            "rationale": "Prices come from the list, not from memory.",
+            "alternatives_considered": [
+              "estimate"
+            ],
+            "confidence": 0.9
+          }
+        }
+      },
+      "expect": {
+        "status": "completed"
+      }
+    },
+    {
+      "ingest": "second"
+    },
+    {
+      "review": {
+        "type": "failure_pattern",
+        "node": "Price order"
+      },
+      "by": "ana"
+    },
+    {
+      "run": "third",
+      "actors": {
+        "Price order": {
+          "output": {
+            "total": 40
+          },
+          "reasoning": {
+            "plan": [
+              "look up the price list",
+              "sum the lines"
+            ],
+            "rationale": "Prices come from the list, not from memory.",
+            "alternatives_considered": [
+              "estimate"
+            ],
+            "confidence": 0.9
+          }
+        }
+      },
+      "expect": {
+        "status": "completed",
+        "given": {
+          "Price order": [
+            {
+              "type": "failure_pattern",
+              "node": "Price order",
+              "status": "reviewed",
+              "observations": 1
+            },
+            {
+              "type": "strategy",
+              "node": "Price order",
+              "status": "draft",
+              "observations": 2
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "expect": {
+    "entry_count": 2
+  }
+}

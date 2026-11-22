@@ -1,0 +1,156 @@
+{
+  "id": "different-failures-are-different-entries",
+  "level": "knowledge",
+  "spec": "15.2",
+  "description": "A failure pattern is identified by the terms it failed, not by the run. Two runs that fail different terms of the same activity yield two failure patterns, while the strategy they share compounds.",
+  "workflow": {
+    "id": "21b4dbec-706d-5693-9344-4b4ed7d221aa",
+    "name": "different-failures-are-different-entries",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "97745a83-8bb1-5dbe-956c-db9dca096d79",
+        "name": "Price order",
+        "role_id": "5ccc780b-2bc0-5908-8632-ef4ea2479f3b",
+        "actor_type": "ai_agent",
+        "outcome_contract": {
+          "postconditions": [
+            {
+              "name": "Total is a number",
+              "expression": "typeof total == number"
+            },
+            {
+              "name": "Currency is stated",
+              "expression": "currency exists"
+            }
+          ],
+          "budgets": {
+            "max_attempts": 3
+          }
+        },
+        "knowledge": {}
+      },
+      {
+        "id": "f44f9a16-c003-50b8-b7d3-8b3f191ae88a",
+        "name": "Ship",
+        "role_id": "5ccc780b-2bc0-5908-8632-ef4ea2479f3b",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "c6a686e7-6b53-55e3-8493-a9078f0fe083",
+        "source_id": "97745a83-8bb1-5dbe-956c-db9dca096d79",
+        "target_id": "f44f9a16-c003-50b8-b7d3-8b3f191ae88a"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "run": "first",
+      "actors": {
+        "Price order": {
+          "attempts": [
+            {
+              "output": {
+                "total": "forty",
+                "currency": "EUR"
+              },
+              "reasoning": {
+                "plan": [
+                  "estimate"
+                ],
+                "rationale": "From memory.",
+                "confidence": 0.3
+              }
+            },
+            {
+              "output": {
+                "total": 40,
+                "currency": "EUR"
+              },
+              "reasoning": {
+                "plan": [
+                  "look up the price list",
+                  "sum the lines"
+                ],
+                "rationale": "Prices come from the list, not from memory.",
+                "alternatives_considered": [
+                  "estimate"
+                ],
+                "confidence": 0.9
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "status": "completed"
+      }
+    },
+    {
+      "ingest": "first"
+    },
+    {
+      "run": "second",
+      "actors": {
+        "Price order": {
+          "attempts": [
+            {
+              "output": {
+                "total": 40
+              },
+              "reasoning": {
+                "plan": [
+                  "estimate"
+                ],
+                "rationale": "From memory.",
+                "confidence": 0.3
+              }
+            },
+            {
+              "output": {
+                "total": 40,
+                "currency": "EUR"
+              },
+              "reasoning": {
+                "plan": [
+                  "look up the price list",
+                  "sum the lines"
+                ],
+                "rationale": "Prices come from the list, not from memory.",
+                "alternatives_considered": [
+                  "estimate"
+                ],
+                "confidence": 0.9
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "status": "completed"
+      }
+    },
+    {
+      "ingest": "second"
+    }
+  ],
+  "expect": {
+    "entry_count": 3,
+    "entries": [
+      {
+        "type": "strategy",
+        "node": "Price order",
+        "observations": 2
+      },
+      {
+        "type": "failure_pattern",
+        "node": "Price order",
+        "observations": 1,
+        "count": 2
+      }
+    ]
+  }
+}

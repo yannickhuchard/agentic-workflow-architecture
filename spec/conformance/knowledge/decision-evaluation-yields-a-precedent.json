@@ -1,0 +1,157 @@
+{
+  "id": "decision-evaluation-yields-a-precedent",
+  "level": "knowledge",
+  "spec": "15.1",
+  "description": "A decision evaluation is distilled into a decision precedent about the decision node. A run that matches another rule yields another precedent.",
+  "workflow": {
+    "id": "01ae0ffd-e446-5fe1-b9bd-9e7db58f426d",
+    "name": "decision-evaluation-yields-a-precedent",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "45727323-33ab-5d84-9dea-a68938fa4f73",
+        "name": "Intake",
+        "role_id": "5ef4d33e-c3e9-56c4-9e00-d1093a8ea2da",
+        "actor_type": "application"
+      },
+      {
+        "id": "3a75c03a-f153-51b7-9b48-c3b24ab1e860",
+        "name": "Pay",
+        "role_id": "5ef4d33e-c3e9-56c4-9e00-d1093a8ea2da",
+        "actor_type": "application"
+      },
+      {
+        "id": "1eb462d5-eb0a-53d9-a7a1-dedc686490ae",
+        "name": "Review",
+        "role_id": "5ef4d33e-c3e9-56c4-9e00-d1093a8ea2da",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "4d97ae70-7c73-54f3-b5c1-36508ab05890",
+        "source_id": "45727323-33ab-5d84-9dea-a68938fa4f73",
+        "target_id": "06a6070d-e96f-55fe-aca8-dda85a835b8f"
+      },
+      {
+        "id": "b19f08c7-3790-52f0-ab37-e42c194a137d",
+        "source_id": "06a6070d-e96f-55fe-aca8-dda85a835b8f",
+        "target_id": "3a75c03a-f153-51b7-9b48-c3b24ab1e860"
+      },
+      {
+        "id": "97a00b17-520e-5ab6-96e7-0b863ff99076",
+        "source_id": "06a6070d-e96f-55fe-aca8-dda85a835b8f",
+        "target_id": "1eb462d5-eb0a-53d9-a7a1-dedc686490ae"
+      }
+    ],
+    "decision_nodes": [
+      {
+        "id": "06a6070d-e96f-55fe-aca8-dda85a835b8f",
+        "name": "Route",
+        "decision_table": {
+          "hit_policy": "first",
+          "inputs": [
+            {
+              "name": "amount",
+              "type": "number"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "route",
+              "type": "string"
+            }
+          ],
+          "rules": [
+            {
+              "input_entries": [
+                "< 100"
+              ],
+              "output_entries": [
+                "Pay"
+              ],
+              "output_edge_id": "b19f08c7-3790-52f0-ab37-e42c194a137d"
+            },
+            {
+              "input_entries": [
+                "-"
+              ],
+              "output_entries": [
+                "Review"
+              ],
+              "output_edge_id": "97a00b17-520e-5ab6-96e7-0b863ff99076"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "steps": [
+    {
+      "run": "small",
+      "actors": {
+        "Intake": {
+          "output": {
+            "amount": 40
+          }
+        }
+      },
+      "expect": {
+        "status": "completed"
+      }
+    },
+    {
+      "ingest": "small"
+    },
+    {
+      "run": "small again",
+      "actors": {
+        "Intake": {
+          "output": {
+            "amount": 60
+          }
+        }
+      },
+      "expect": {
+        "status": "completed"
+      }
+    },
+    {
+      "ingest": "small again"
+    },
+    {
+      "run": "large",
+      "actors": {
+        "Intake": {
+          "output": {
+            "amount": 900
+          }
+        }
+      },
+      "expect": {
+        "status": "completed"
+      }
+    },
+    {
+      "ingest": "large"
+    }
+  ],
+  "expect": {
+    "entry_count": 2,
+    "entries": [
+      {
+        "type": "decision_precedent",
+        "node": "Route",
+        "status": "draft",
+        "observations": 2
+      },
+      {
+        "type": "decision_precedent",
+        "node": "Route",
+        "status": "draft",
+        "observations": 1
+      }
+    ]
+  }
+}

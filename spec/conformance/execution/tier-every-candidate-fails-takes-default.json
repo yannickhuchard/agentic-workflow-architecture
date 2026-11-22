@@ -1,0 +1,151 @@
+{
+  "id": "tier-every-candidate-fails-takes-default",
+  "level": "routing",
+  "spec": "12.5",
+  "description": "When no candidate serves the request the router fails with the whole route. At a decision that is no decision: the token takes the default edge, and the route naming every candidate that failed is journalled.",
+  "workflow": {
+    "id": "24d55f9a-2733-5ee9-ba12-aee2b4982fc4",
+    "name": "tier-every-candidate-fails-takes-default",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "4a7b13ac-9f13-5f02-8fe0-b782bafd7abc",
+        "name": "Intake",
+        "role_id": "bce19e4e-1c7e-5b5f-806e-51fdec1314a8",
+        "actor_type": "application"
+      },
+      {
+        "id": "1fea6511-46c2-53e5-80c0-8bad67e3b930",
+        "name": "Pay",
+        "role_id": "bce19e4e-1c7e-5b5f-806e-51fdec1314a8",
+        "actor_type": "application"
+      },
+      {
+        "id": "31b6a8d5-57c3-58d8-b479-61dfc16a3432",
+        "name": "Review",
+        "role_id": "bce19e4e-1c7e-5b5f-806e-51fdec1314a8",
+        "actor_type": "application"
+      },
+      {
+        "id": "3dbbad11-83a9-5b52-9f61-ec8b2292b45c",
+        "name": "Manual",
+        "role_id": "bce19e4e-1c7e-5b5f-806e-51fdec1314a8",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "9e6159bf-91a1-5fae-86ea-115e4e22a7e9",
+        "source_id": "4a7b13ac-9f13-5f02-8fe0-b782bafd7abc",
+        "target_id": "9d4451bf-c6e4-544b-8d0a-d28b03a7b2e6"
+      },
+      {
+        "id": "44c264f5-b8a3-5ba6-9d39-d91411f73b1c",
+        "source_id": "9d4451bf-c6e4-544b-8d0a-d28b03a7b2e6",
+        "target_id": "1fea6511-46c2-53e5-80c0-8bad67e3b930"
+      },
+      {
+        "id": "4e84d424-4d4f-5470-b2b2-3faff605304f",
+        "source_id": "9d4451bf-c6e4-544b-8d0a-d28b03a7b2e6",
+        "target_id": "31b6a8d5-57c3-58d8-b479-61dfc16a3432"
+      },
+      {
+        "id": "3fc29f3a-930d-5794-acc8-b44066a52267",
+        "source_id": "9d4451bf-c6e4-544b-8d0a-d28b03a7b2e6",
+        "target_id": "3dbbad11-83a9-5b52-9f61-ec8b2292b45c"
+      }
+    ],
+    "decision_nodes": [
+      {
+        "id": "9d4451bf-c6e4-544b-8d0a-d28b03a7b2e6",
+        "name": "Triage",
+        "description": "Route the claim.",
+        "decision_model": {
+          "model": "tier:fast",
+          "instructions": "Pay simple claims. Send anything unusual to review.",
+          "options": [
+            {
+              "id": "pay",
+              "description": "Simple and covered",
+              "output_edge_id": "44c264f5-b8a3-5ba6-9d39-d91411f73b1c"
+            },
+            {
+              "id": "review",
+              "description": "Unusual or unclear",
+              "output_edge_id": "4e84d424-4d4f-5470-b2b2-3faff605304f"
+            }
+          ],
+          "inputs": [
+            "amount"
+          ]
+        },
+        "default_output_edge_id": "3fc29f3a-930d-5794-acc8-b44066a52267"
+      }
+    ]
+  },
+  "actors": {
+    "Intake": {
+      "output": {
+        "amount": 900
+      }
+    }
+  },
+  "model": {
+    "providers": [
+      {
+        "id": "primary",
+        "error": "quota exhausted",
+        "code": "RATE_LIMITED"
+      },
+      {
+        "id": "backup",
+        "error": "connection refused"
+      }
+    ],
+    "tiers": {
+      "fast": [
+        "primary:alpha",
+        "backup:beta"
+      ]
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "Intake",
+      "Manual"
+    ],
+    "model_calls": 2,
+    "provider_calls": {
+      "primary": 1,
+      "backup": 1
+    },
+    "journal_contains": [
+      {
+        "type": "decision.evaluated",
+        "node_name": "Triage",
+        "data": {
+          "method": "default"
+        }
+      }
+    ],
+    "journal_mentions": [
+      {
+        "event": {
+          "type": "meta.recorded",
+          "node_name": "Triage",
+          "data": {
+            "subject": "model_route"
+          }
+        },
+        "mentions": [
+          "primary",
+          "alpha",
+          "backup",
+          "beta"
+        ]
+      }
+    ]
+  }
+}

@@ -19,15 +19,17 @@ import { parse_iso_duration } from '../src/runtime/duration_utils';
 import { FunctionModelProvider } from '../src/runtime/models';
 import { AwaRuntime, InMemoryRuntimeStore } from '../src/runtime/runtime';
 import { JourneyDefinitionSchema } from '../src/runtime/journey';
+import { compute_measures } from '../src/runtime/kpi';
 import { InMemoryJournalStore } from '../src/runtime/journal';
 import { counterfactual_replay } from '../src/runtime/counterfactual';
+import { KnowledgeBase, KnowledgeEntry } from '../src/runtime/knowledge';
 
 const ROOT = path.resolve(__dirname, '../../..');
 const CONFORMANCE = path.join(ROOT, 'spec/conformance');
 const SCHEMAS = path.join(ROOT, 'spec/json-schema');
 
 /** Conformance levels this implementation claims. */
-const CLAIMED_LEVELS = new Set(['core', 'decision', 'verified', 'resilient', 'recorded', 'contract', 'flow', 'events', 'tools', 'model_decision', 'journeys', 'replay']);
+const CLAIMED_LEVELS = new Set(['core', 'decision', 'verified', 'resilient', 'recorded', 'contract', 'flow', 'events', 'tools', 'model_decision', 'journeys', 'replay', 'routing', 'knowledge', 'measures']);
 
 const read = (file: string) => JSON.parse(fs.readFileSync(file, 'utf-8'));
 const list = (dir: string) => fs.readdirSync(dir).filter(f => f.endsWith('.json')).sort().map(f => path.join(dir, f));
@@ -46,15 +48,20 @@ type ActorScript = {
     calls?: { tool: string; arguments?: Record<string, unknown> }[];
     /** How long the activity takes on the case's clock, as a duration */
     takes?: string;
+    /** The actor's own account of how it worked, reported with its result */
+    reasoning?: Record<string, unknown>;
 };
 
 class ConformanceActor implements Actor {
     public visited: string[] = [];
+    /** The ids of the knowledge entries the actor was handed, one list per execution */
+    public given: { activity: string; ids: string[] }[] = [];
     private counts = new Map<string, number>();
     constructor(private scripts: Record<string, ActorScript> = {}, private spend: (ms: number) => void = () => { }) { }
 
-    async execute(activity: Activity, _inputs?: Record<string, unknown>, context?: { tools?: { call: (name: string, args: Record<string, unknown>) => Promise<unknown> } }): Promise<Record<string, unknown>> {
+    async execute(activity: Activity, inputs?: Record<string, unknown>, context?: { tools?: { call: (name: string, args: Record<string, unknown>) => Promise<unknown> } }): Promise<Record<string, unknown>> {
         this.visited.push(activity.name);
+        this.given.push({ activity: activity.name, ids: ((inputs?._knowledge as { id: string }[] | undefined) || []).map(k => k.id) });
         const n = (this.counts.get(activity.name) || 0) + 1;
         this.counts.set(activity.name, n);
         let script = this.scripts[activity.name] || {};
@@ -63,8 +70,41 @@ class ConformanceActor implements Actor {
         if (script.takes) this.spend(parse_iso_duration(script.takes));
         for (const call of script.calls || []) await context!.tools!.call(call.tool, call.arguments || {});
         if (script.error) throw Object.assign(new Error(script.error), script.code ? { code: script.code } : {});
-        return script.output || {};
+        return { ...(script.output || {}), ...(script.reasoning ? { _reasoning: script.reasoning } : {}) };
     }
+}
+
+type ModelReply = { option?: string; confidence?: number; rationale?: string; text?: string; error?: string; code?: string };
+type ModelScript = {
+    replies?: ModelReply[];
+    providers?: { id: string; replies?: ModelReply[]; error?: string; code?: string }[];
+    tiers?: Record<string, string[]>;
+};
+
+/**
+ * Scripted model providers. Each call to a provider takes its next reply; the
+ * last repeats. A provider scripted with an `error` fails every call.
+ * The short form, `replies` alone, is one provider that every standard tier maps to.
+ */
+function scripted_models(script: ModelScript) {
+    const calls: Record<string, number> = {};
+    const provider = (id: string, replies: ModelReply[]) => {
+        calls[id] = 0;
+        return new FunctionModelProvider(id, () => {
+            const reply = replies[Math.min(calls[id]++, replies.length - 1)];
+            if (!reply) throw new Error(`the case scripts no reply for provider "${id}"`);
+            if (reply.error) throw Object.assign(new Error(reply.error), reply.code ? { code: reply.code } : {});
+            return reply.text ?? JSON.stringify(reply);
+        });
+    };
+    const options: Pick<WorkflowEngineOptions, 'model_providers' | 'default_model_provider' | 'model_tiers'> = script.providers
+        ? {
+            model_providers: script.providers.map(p => provider(p.id, p.error ? [{ error: p.error, code: p.code }] : p.replies || [])),
+            default_model_provider: script.providers[0].id,
+            model_tiers: script.tiers || {},
+        }
+        : { model_providers: [provider('conformance', script.replies || [])], model_tiers: { fast: 'conformance:model', balanced: 'conformance:model', reasoning: 'conformance:model' } };
+    return { options, calls, total: () => Object.values(calls).reduce((a, b) => a + b, 0) };
 }
 
 function is_subset(expected: unknown, actual: unknown): boolean {
@@ -127,19 +167,12 @@ describe('Conformance: execution', () => {
         run(`[${c.level}] ${c.id}: ${c.description}`, async () => {
             expect(validate_schema(c.workflow), JSON.stringify(validate_schema.errors)).toBe(true);
             const actor = new ConformanceActor(c.actors);
-            // A scripted model: each call takes the next reply; the last repeats
-            let model_calls = 0;
-            const replies: { option?: string; confidence?: number; rationale?: string; text?: string; error?: string }[] = c.model?.replies || [];
-            const model = new FunctionModelProvider('conformance', () => {
-                const reply = replies[Math.min(model_calls++, replies.length - 1)];
-                if (reply.error) throw new Error(reply.error);
-                return reply.text ?? JSON.stringify(reply);
-            });
+            const models = scripted_models(c.model || {});
             const options: WorkflowEngineOptions = {
                 actors: { application: actor, ai_agent: actor, human: actor, robot: actor },
                 execution_logger: silent_logger,
                 ...(c.tools ? { tools: { handlers: Object.fromEntries(Object.entries(c.tools as Record<string, { result?: unknown; error?: string }>).map(([name, script]) => [name, () => { if (script.error) throw new Error(script.error); return script.result; }])) } } : {}),
-                ...(c.model ? { model_providers: [model], model_tiers: { fast: 'conformance:model', balanced: 'conformance:model', reasoning: 'conformance:model' } } : {}),
+                ...(c.model ? models.options : {}),
                 ...(c.options || {}),
             };
             const engine = new WorkflowEngine(parse_document(c.workflow), options);
@@ -183,7 +216,12 @@ describe('Conformance: execution', () => {
             }
             for (const type of c.expect.journal_excludes || []) expect(events.map(e => e.type)).not.toContain(type);
             for (const [type, n] of Object.entries(c.expect.journal_count || {})) expect(events.filter(e => e.type === type).length, `count of ${type}`).toBe(n);
-            if (c.expect.model_calls !== undefined) expect(model_calls, 'calls to the model').toBe(c.expect.model_calls);
+            for (const wanted of c.expect.journal_mentions || []) {
+                expect(events.some(e => is_subset(wanted.event, e) && wanted.mentions.every((text: string) => JSON.stringify(e.data).includes(text))),
+                    `no event matching ${JSON.stringify(wanted.event)} mentions ${wanted.mentions.join(', ')}`).toBe(true);
+            }
+            if (c.expect.model_calls !== undefined) expect(models.total(), 'calls to the model').toBe(c.expect.model_calls);
+            for (const [id, n] of Object.entries(c.expect.provider_calls || {})) expect(models.calls[id], `calls to provider ${id}`).toBe(n);
             if (c.expect.error_matches) {
                 const errors = engine.getTokens().map(t => String(t.getData('_error') || ''));
                 expect(errors.some(e => new RegExp(c.expect.error_matches).test(e)), errors.join(' | ')).toBe(true);
@@ -301,6 +339,121 @@ describe('Conformance: counterfactual replay', () => {
             if (c.expect.unrecorded !== undefined) expect(report.unrecorded.length, report.unrecorded.join('; ')).toBe(c.expect.unrecorded);
             if (c.expect.divergence_after) expect(report.divergence?.after).toBe(c.expect.divergence_after);
             if (c.expect.error_matches) expect(events.some(e => new RegExp(c.expect.error_matches).test(JSON.stringify(e.data))), 'no event carries the expected error').toBe(true);
+        });
+    }
+});
+
+describe('Conformance: knowledge', () => {
+    type Wanted = { type?: string; node?: string; status?: string; observations?: number; sources?: number; reviewed_by?: string; count?: number };
+    const matches = (wanted: Wanted, entry: KnowledgeEntry | undefined) => !!entry
+        && (wanted.type === undefined || entry.type === wanted.type)
+        && (wanted.node === undefined || entry.scope.node_name === wanted.node)
+        && (wanted.status === undefined || entry.status === wanted.status)
+        && (wanted.observations === undefined || entry.observations === wanted.observations)
+        && (wanted.sources === undefined || entry.sources.length === wanted.sources)
+        && (wanted.reviewed_by === undefined || (entry.reviewed_by === wanted.reviewed_by && !!entry.reviewed_at));
+    const shown = (entries: (KnowledgeEntry | undefined)[]) => JSON.stringify(entries.map(e => e && { type: e.type, node: e.scope.node_name, status: e.status, observations: e.observations, sources: e.sources.length }));
+
+    for (const file of list(path.join(CONFORMANCE, 'knowledge'))) {
+        const c = read(file);
+        const run = CLAIMED_LEVELS.has(c.level) ? it : it.skip;
+        run(`[${c.level}] ${c.id}: ${c.description}`, async () => {
+            expect(validate_schema(c.workflow), JSON.stringify(validate_schema.errors)).toBe(true);
+            const workflow = parse_document(c.workflow);
+            const knowledge = new KnowledgeBase();
+            const journals = new Map<string, Awaited<ReturnType<WorkflowEngine['getEvents']>>>();
+            /** The one entry a step names */
+            const one = (wanted: Wanted) => {
+                const found = knowledge.list().filter(e => matches(wanted, e));
+                expect(found.length, `entries matching ${JSON.stringify(wanted)} among ${shown(knowledge.list())}`).toBe(1);
+                return found[0];
+            };
+
+            for (const step of c.steps) {
+                if (step.ingest) {
+                    expect(journals.has(step.ingest), `run "${step.ingest}" has been performed`).toBe(true);
+                    knowledge.ingest(workflow, journals.get(step.ingest)!);
+                } else if (step.review) {
+                    knowledge.review(one(step.review).id, step.by);
+                } else if (step.deprecate) {
+                    knowledge.deprecate(one(step.deprecate).id);
+                } else {
+                    // A run draws on the knowledge base as it stands; it is not ingested until a step says so
+                    const actor = new ConformanceActor(step.actors);
+                    const engine = new WorkflowEngine(workflow, {
+                        actors: { application: actor, ai_agent: actor, human: actor, robot: actor },
+                        knowledge, execution_logger: silent_logger, sleep: async () => { },
+                    });
+                    await engine.start(step.input || {});
+                    expect(await engine.run(), `status of run "${step.run}"`).toBe(step.expect.status);
+                    const events = await engine.getEvents();
+                    journals.set(step.run, events);
+                    for (const [name, wanted] of Object.entries((step.expect.given || {}) as Record<string, Wanted[]>)) {
+                        const executions = actor.given.filter(g => g.activity === name);
+                        expect(executions.length, `executions of ${name} in run "${step.run}"`).toBeGreaterThan(0);
+                        for (const execution of executions) {
+                            const entries = execution.ids.map(id => knowledge.get(id));
+                            expect(entries.length === wanted.length && wanted.every((w, i) => matches(w, entries[i])),
+                                `${name} in run "${step.run}" was given ${shown(entries)}, expected ${JSON.stringify(wanted)}`).toBe(true);
+                        }
+                    }
+                    for (const wanted of step.expect.journal_contains || []) {
+                        expect(events.some(e => is_subset(wanted, e)), `no event of run "${step.run}" matches ${JSON.stringify(wanted)}`).toBe(true);
+                    }
+                }
+            }
+
+            const all = knowledge.list();
+            if (c.expect.entry_count !== undefined) expect(all.length, shown(all)).toBe(c.expect.entry_count);
+            for (const wanted of (c.expect.entries || []) as Wanted[]) {
+                expect(all.filter(e => matches(wanted, e)).length, `entries matching ${JSON.stringify(wanted)} among ${shown(all)}`).toBe(wanted.count ?? 1);
+            }
+            // Every entry is traceable: each source names a run that was ingested and events of its journal (15.2)
+            for (const entry of all) for (const source of entry.sources) {
+                const journal = [...journals.values()].find(events => events[0]?.run_id === source.run_id);
+                expect(journal, `${entry.id} cites run ${source.run_id}`).toBeDefined();
+                expect(source.event_seqs.length, `${entry.id} cites events`).toBeGreaterThan(0);
+                for (const seq of source.event_seqs) expect(journal!.some(e => e.seq === seq), `${entry.id} cites event ${seq}`).toBe(true);
+            }
+        });
+    }
+});
+
+describe('Conformance: measures', () => {
+    const dir = path.join(CONFORMANCE, 'measures');
+    const same = (got: unknown, want: unknown) => (want === null ? got === null : typeof got === 'number' && Math.abs(got - (want as number)) < 1e-9);
+    for (const file of fs.readdirSync(dir).filter(f => f.endsWith('.json')).sort()) {
+        const c = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf-8'));
+        const run = CLAIMED_LEVELS.has(c.level) ? it : it.skip;
+        run(`${c.id}: ${c.description}`, () => {
+            const report = compute_measures(c.recorded, c.options) as any;
+            const measures = (where: string, got: Record<string, { value: number | null }>, want: Record<string, number | null>) => {
+                for (const [id, value] of Object.entries(want)) expect(same(got[id]?.value, value), `${where} ${id}: got ${got[id]?.value}, expected ${value}`).toBe(true);
+            };
+            if (c.expect.currency) expect(report.currency).toBe(c.expect.currency);
+            for (const j of c.expect.journeys || []) {
+                const got = report.journeys.find((x: any) => x.name === j.name);
+                expect(got, `journey ${j.name}`).toBeDefined();
+                measures(j.name, got.measures, j.measures || {});
+                for (const s of j.stages || []) {
+                    const stage = got.stages.find((x: any) => x.stage_id === s.stage_id);
+                    expect(stage, `stage ${s.stage_id}`).toBeDefined();
+                    if ('owner' in s) expect(stage.owner).toBe(s.owner);
+                    measures(`${j.name} / ${s.stage_id}`, stage.measures, s.measures);
+                }
+                if (j.channels) expect(got.channels).toEqual(j.channels);
+                if (j.artefacts) expect(got.artefacts).toEqual(j.artefacts);
+            }
+            for (const w of c.expect.workflows || []) {
+                const got = report.workflows.find((x: any) => x.name === w.name);
+                expect(got, `workflow ${w.name}`).toBeDefined();
+                measures(w.name, got.measures, w.measures || {});
+                for (const a of w.activities || []) measures(`${w.name} / ${a.name}`, got.activities.find((x: any) => x.name === a.name).measures, a.measures);
+            }
+            if (c.expect.attention) {
+                expect(report.attention).toHaveLength(c.expect.attention.length);
+                c.expect.attention.forEach((want: any, i: number) => expect(report.attention[i]).toMatchObject(want));
+            }
         });
     }
 });

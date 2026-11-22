@@ -1,0 +1,144 @@
+{
+  "id": "colon-without-registered-provider-is-a-model-name",
+  "level": "routing",
+  "spec": "12.1",
+  "description": "The part before the first colon is a provider only if one is registered under that name. Otherwise the whole string is a model name of the default provider.",
+  "workflow": {
+    "id": "dc57ae2e-0eab-5d4b-97cd-47a8bd4137cd",
+    "name": "colon-without-registered-provider-is-a-model-name",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "f7b517c1-e2ec-5fcc-b640-cfaffcd385c9",
+        "name": "Intake",
+        "role_id": "2d5ce164-75a1-5f45-b993-de52e03aa00c",
+        "actor_type": "application"
+      },
+      {
+        "id": "9b429bb9-ad10-54a1-a959-7c6473026d86",
+        "name": "Pay",
+        "role_id": "2d5ce164-75a1-5f45-b993-de52e03aa00c",
+        "actor_type": "application"
+      },
+      {
+        "id": "ca72360a-5716-540f-9b66-3ad263f1f603",
+        "name": "Review",
+        "role_id": "2d5ce164-75a1-5f45-b993-de52e03aa00c",
+        "actor_type": "application"
+      },
+      {
+        "id": "148c92c8-ad73-5eb9-9336-af9cba947ae0",
+        "name": "Manual",
+        "role_id": "2d5ce164-75a1-5f45-b993-de52e03aa00c",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "80ee0db6-5af9-55a8-93a6-fd30235c05bb",
+        "source_id": "f7b517c1-e2ec-5fcc-b640-cfaffcd385c9",
+        "target_id": "d8ba9a45-8146-5f51-bc95-b5f65eb04670"
+      },
+      {
+        "id": "f4e10b69-d549-58c3-9cad-da8e92134ff4",
+        "source_id": "d8ba9a45-8146-5f51-bc95-b5f65eb04670",
+        "target_id": "9b429bb9-ad10-54a1-a959-7c6473026d86"
+      },
+      {
+        "id": "3c3be3de-58dd-5594-90a3-0f7317ace8c6",
+        "source_id": "d8ba9a45-8146-5f51-bc95-b5f65eb04670",
+        "target_id": "ca72360a-5716-540f-9b66-3ad263f1f603"
+      },
+      {
+        "id": "a2a6f879-5a99-50fb-b058-afcdd481280f",
+        "source_id": "d8ba9a45-8146-5f51-bc95-b5f65eb04670",
+        "target_id": "148c92c8-ad73-5eb9-9336-af9cba947ae0"
+      }
+    ],
+    "decision_nodes": [
+      {
+        "id": "d8ba9a45-8146-5f51-bc95-b5f65eb04670",
+        "name": "Triage",
+        "description": "Route the claim.",
+        "decision_model": {
+          "model": "ft:custom",
+          "instructions": "Pay simple claims. Send anything unusual to review.",
+          "options": [
+            {
+              "id": "pay",
+              "description": "Simple and covered",
+              "output_edge_id": "f4e10b69-d549-58c3-9cad-da8e92134ff4"
+            },
+            {
+              "id": "review",
+              "description": "Unusual or unclear",
+              "output_edge_id": "3c3be3de-58dd-5594-90a3-0f7317ace8c6"
+            }
+          ],
+          "inputs": [
+            "amount"
+          ]
+        },
+        "default_output_edge_id": "a2a6f879-5a99-50fb-b058-afcdd481280f"
+      }
+    ]
+  },
+  "actors": {
+    "Intake": {
+      "output": {
+        "amount": 900
+      }
+    }
+  },
+  "model": {
+    "providers": [
+      {
+        "id": "primary",
+        "replies": [
+          {
+            "option": "review",
+            "confidence": 0.9,
+            "rationale": "Because."
+          }
+        ]
+      },
+      {
+        "id": "backup",
+        "replies": [
+          {
+            "option": "pay",
+            "confidence": 0.9,
+            "rationale": "Because."
+          }
+        ]
+      }
+    ]
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "Intake",
+      "Review"
+    ],
+    "provider_calls": {
+      "primary": 1,
+      "backup": 0
+    },
+    "journal_mentions": [
+      {
+        "event": {
+          "type": "meta.recorded",
+          "node_name": "Triage",
+          "data": {
+            "subject": "model_selection"
+          }
+        },
+        "mentions": [
+          "primary",
+          "ft:custom"
+        ]
+      }
+    ]
+  }
+}

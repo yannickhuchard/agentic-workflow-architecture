@@ -1,0 +1,119 @@
+{
+  "id": "draft-is-given-when-the-binding-admits-it",
+  "level": "knowledge",
+  "spec": "15.4",
+  "description": "A binding with min_status draft also admits unreviewed entries.",
+  "workflow": {
+    "id": "ededc3b2-96b5-5abe-a775-55805cb19292",
+    "name": "draft-is-given-when-the-binding-admits-it",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "feb2dc15-88c4-5b6c-af88-443adc2d6d94",
+        "name": "Price order",
+        "role_id": "403d8ffa-ffc9-54c4-bf0f-bd85c3ac421d",
+        "actor_type": "ai_agent",
+        "outcome_contract": {
+          "postconditions": [
+            {
+              "name": "Total is a number",
+              "expression": "typeof total == number"
+            }
+          ],
+          "budgets": {
+            "max_attempts": 3
+          }
+        },
+        "knowledge": {
+          "min_status": "draft"
+        }
+      },
+      {
+        "id": "426eb941-a927-541f-95da-03c1afd1a5b6",
+        "name": "Ship",
+        "role_id": "403d8ffa-ffc9-54c4-bf0f-bd85c3ac421d",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "c6698ece-4414-5638-bc8e-6f185f899ad9",
+        "source_id": "feb2dc15-88c4-5b6c-af88-443adc2d6d94",
+        "target_id": "426eb941-a927-541f-95da-03c1afd1a5b6"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "run": "first",
+      "actors": {
+        "Price order": {
+          "output": {
+            "total": 40
+          },
+          "reasoning": {
+            "plan": [
+              "look up the price list",
+              "sum the lines"
+            ],
+            "rationale": "Prices come from the list, not from memory.",
+            "alternatives_considered": [
+              "estimate"
+            ],
+            "confidence": 0.9
+          }
+        }
+      },
+      "expect": {
+        "status": "completed"
+      }
+    },
+    {
+      "ingest": "first"
+    },
+    {
+      "run": "second",
+      "actors": {
+        "Price order": {
+          "output": {
+            "total": 40
+          },
+          "reasoning": {
+            "plan": [
+              "look up the price list",
+              "sum the lines"
+            ],
+            "rationale": "Prices come from the list, not from memory.",
+            "alternatives_considered": [
+              "estimate"
+            ],
+            "confidence": 0.9
+          }
+        }
+      },
+      "expect": {
+        "status": "completed",
+        "given": {
+          "Price order": [
+            {
+              "type": "strategy",
+              "node": "Price order",
+              "status": "draft"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "expect": {
+    "entry_count": 1,
+    "entries": [
+      {
+        "type": "strategy",
+        "node": "Price order",
+        "status": "draft"
+      }
+    ]
+  }
+}

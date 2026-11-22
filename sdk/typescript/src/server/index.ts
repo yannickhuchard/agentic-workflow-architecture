@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { workflowRouter } from './routes/workflows';
 import { humanTaskRouter } from './routes/human_tasks';
-import { journeyRouter } from './routes/journeys';
+import { journeyRouter, measuresRouter } from './routes/journeys';
 import {
     create_auth_middleware,
     create_rate_limiter,
@@ -65,6 +65,7 @@ export const createServer = (config: ServerConfig = {}) => {
     app.use('/api/v1/workflows', workflowRouter);
     app.use('/api/v1/tasks', humanTaskRouter);
     app.use('/api/v1/journeys', journeyRouter);
+    app.use('/api/v1/measures', measuresRouter);
 
     // Health check (always public)
     app.get('/health', (req, res) => {

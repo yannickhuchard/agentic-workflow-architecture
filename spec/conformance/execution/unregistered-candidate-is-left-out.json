@@ -1,0 +1,140 @@
+{
+  "id": "unregistered-candidate-is-left-out",
+  "level": "routing",
+  "spec": "12.5",
+  "description": "A candidate whose provider is not registered in this deployment is left out of the route, so one tier map serves deployments with different providers.",
+  "workflow": {
+    "id": "da80a7fc-bba9-5188-b5aa-ed1640720852",
+    "name": "unregistered-candidate-is-left-out",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "7ab5cff6-eb0f-52fb-b577-83857da91cae",
+        "name": "Intake",
+        "role_id": "9f7ba2a6-e38a-5eba-968f-02fc46f4e0fb",
+        "actor_type": "application"
+      },
+      {
+        "id": "801d7990-3863-5915-b948-8510435ddabb",
+        "name": "Pay",
+        "role_id": "9f7ba2a6-e38a-5eba-968f-02fc46f4e0fb",
+        "actor_type": "application"
+      },
+      {
+        "id": "b9674717-b6db-5b10-b6c5-6c93c38995d4",
+        "name": "Review",
+        "role_id": "9f7ba2a6-e38a-5eba-968f-02fc46f4e0fb",
+        "actor_type": "application"
+      },
+      {
+        "id": "ea32f448-5438-513b-94d6-17bcbbfc9035",
+        "name": "Manual",
+        "role_id": "9f7ba2a6-e38a-5eba-968f-02fc46f4e0fb",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "358dae99-e990-5dcd-ab3f-ed64473545b2",
+        "source_id": "7ab5cff6-eb0f-52fb-b577-83857da91cae",
+        "target_id": "e568a98a-306a-5cdc-9561-6f479eada7b7"
+      },
+      {
+        "id": "3efd0110-71c8-5caf-8e9f-d4c185032d01",
+        "source_id": "e568a98a-306a-5cdc-9561-6f479eada7b7",
+        "target_id": "801d7990-3863-5915-b948-8510435ddabb"
+      },
+      {
+        "id": "0e8b89a9-7cfa-592f-97dd-df1d9298ad54",
+        "source_id": "e568a98a-306a-5cdc-9561-6f479eada7b7",
+        "target_id": "b9674717-b6db-5b10-b6c5-6c93c38995d4"
+      },
+      {
+        "id": "87785bbd-c01d-59a7-9d4c-6b560a6249e5",
+        "source_id": "e568a98a-306a-5cdc-9561-6f479eada7b7",
+        "target_id": "ea32f448-5438-513b-94d6-17bcbbfc9035"
+      }
+    ],
+    "decision_nodes": [
+      {
+        "id": "e568a98a-306a-5cdc-9561-6f479eada7b7",
+        "name": "Triage",
+        "description": "Route the claim.",
+        "decision_model": {
+          "model": "tier:fast",
+          "instructions": "Pay simple claims. Send anything unusual to review.",
+          "options": [
+            {
+              "id": "pay",
+              "description": "Simple and covered",
+              "output_edge_id": "3efd0110-71c8-5caf-8e9f-d4c185032d01"
+            },
+            {
+              "id": "review",
+              "description": "Unusual or unclear",
+              "output_edge_id": "0e8b89a9-7cfa-592f-97dd-df1d9298ad54"
+            }
+          ],
+          "inputs": [
+            "amount"
+          ]
+        },
+        "default_output_edge_id": "87785bbd-c01d-59a7-9d4c-6b560a6249e5"
+      }
+    ]
+  },
+  "actors": {
+    "Intake": {
+      "output": {
+        "amount": 900
+      }
+    }
+  },
+  "model": {
+    "providers": [
+      {
+        "id": "local",
+        "replies": [
+          {
+            "option": "review",
+            "confidence": 0.9,
+            "rationale": "Because."
+          }
+        ]
+      }
+    ],
+    "tiers": {
+      "fast": [
+        "cloud:big",
+        "local:small"
+      ]
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "Intake",
+      "Review"
+    ],
+    "provider_calls": {
+      "local": 1
+    },
+    "journal_mentions": [
+      {
+        "event": {
+          "type": "meta.recorded",
+          "node_name": "Triage",
+          "data": {
+            "subject": "model_selection"
+          }
+        },
+        "mentions": [
+          "local",
+          "small",
+          "fast"
+        ]
+      }
+    ]
+  }
+}

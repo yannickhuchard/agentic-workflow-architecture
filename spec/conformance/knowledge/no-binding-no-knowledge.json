@@ -1,0 +1,117 @@
+{
+  "id": "no-binding-no-knowledge",
+  "level": "knowledge",
+  "spec": "15.4",
+  "description": "An activity without a knowledge binding receives no knowledge, although a reviewed entry about it exists.",
+  "workflow": {
+    "id": "e753ce93-e9dc-5685-bde1-53ace272f370",
+    "name": "no-binding-no-knowledge",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "21a66be5-63f1-5d68-937f-501d6b77dfb2",
+        "name": "Price order",
+        "role_id": "504ef092-679f-5956-9e20-16f0029a049f",
+        "actor_type": "ai_agent",
+        "outcome_contract": {
+          "postconditions": [
+            {
+              "name": "Total is a number",
+              "expression": "typeof total == number"
+            }
+          ],
+          "budgets": {
+            "max_attempts": 3
+          }
+        }
+      },
+      {
+        "id": "adc9ead4-6e45-5369-8bad-80e8c1d7c737",
+        "name": "Ship",
+        "role_id": "504ef092-679f-5956-9e20-16f0029a049f",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "157c8203-a6be-59ec-a446-a1bba8cedd23",
+        "source_id": "21a66be5-63f1-5d68-937f-501d6b77dfb2",
+        "target_id": "adc9ead4-6e45-5369-8bad-80e8c1d7c737"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "run": "first",
+      "actors": {
+        "Price order": {
+          "output": {
+            "total": 40
+          },
+          "reasoning": {
+            "plan": [
+              "look up the price list",
+              "sum the lines"
+            ],
+            "rationale": "Prices come from the list, not from memory.",
+            "alternatives_considered": [
+              "estimate"
+            ],
+            "confidence": 0.9
+          }
+        }
+      },
+      "expect": {
+        "status": "completed"
+      }
+    },
+    {
+      "ingest": "first"
+    },
+    {
+      "review": {
+        "type": "strategy",
+        "node": "Price order"
+      },
+      "by": "ana"
+    },
+    {
+      "run": "second",
+      "actors": {
+        "Price order": {
+          "output": {
+            "total": 40
+          },
+          "reasoning": {
+            "plan": [
+              "look up the price list",
+              "sum the lines"
+            ],
+            "rationale": "Prices come from the list, not from memory.",
+            "alternatives_considered": [
+              "estimate"
+            ],
+            "confidence": 0.9
+          }
+        }
+      },
+      "expect": {
+        "status": "completed",
+        "given": {
+          "Price order": []
+        }
+      }
+    }
+  ],
+  "expect": {
+    "entry_count": 1,
+    "entries": [
+      {
+        "type": "strategy",
+        "node": "Price order",
+        "status": "reviewed"
+      }
+    ]
+  }
+}

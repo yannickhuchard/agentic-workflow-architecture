@@ -1,0 +1,184 @@
+{
+  "id": "tier-falls-back-to-next-candidate",
+  "level": "routing",
+  "spec": "12.5",
+  "description": "When the first candidate's provider fails, the router tries the next in the tier's list and stops at the one that serves. The model that actually served is journalled as the selection, and the fallback as a model_route naming the candidate that failed.",
+  "workflow": {
+    "id": "66770c53-cd29-5670-9768-2683da23f47a",
+    "name": "tier-falls-back-to-next-candidate",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "ea875954-bb1a-520c-995c-2f57a5a3a99f",
+        "name": "Intake",
+        "role_id": "682a5782-7653-5197-a691-f93aa9b23dd4",
+        "actor_type": "application"
+      },
+      {
+        "id": "3e9a80d7-9669-5d30-bfd9-b08deeab0d3b",
+        "name": "Pay",
+        "role_id": "682a5782-7653-5197-a691-f93aa9b23dd4",
+        "actor_type": "application"
+      },
+      {
+        "id": "2e31163e-dcda-580d-8fc5-a0a1f0fe4c88",
+        "name": "Review",
+        "role_id": "682a5782-7653-5197-a691-f93aa9b23dd4",
+        "actor_type": "application"
+      },
+      {
+        "id": "17005b21-b219-5c3f-8d3a-0d1d6e504913",
+        "name": "Manual",
+        "role_id": "682a5782-7653-5197-a691-f93aa9b23dd4",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "021e2c65-d9d7-59de-9245-e2b910b3324d",
+        "source_id": "ea875954-bb1a-520c-995c-2f57a5a3a99f",
+        "target_id": "95f6cb5e-b279-57f4-8114-0afaaed877a2"
+      },
+      {
+        "id": "67bb2445-6f60-53af-b17c-156dc9a0e456",
+        "source_id": "95f6cb5e-b279-57f4-8114-0afaaed877a2",
+        "target_id": "3e9a80d7-9669-5d30-bfd9-b08deeab0d3b"
+      },
+      {
+        "id": "484320e4-db23-592a-b89b-4e312efab9a2",
+        "source_id": "95f6cb5e-b279-57f4-8114-0afaaed877a2",
+        "target_id": "2e31163e-dcda-580d-8fc5-a0a1f0fe4c88"
+      },
+      {
+        "id": "b3bc2a91-ed5d-5921-a7c2-6bea58a82d69",
+        "source_id": "95f6cb5e-b279-57f4-8114-0afaaed877a2",
+        "target_id": "17005b21-b219-5c3f-8d3a-0d1d6e504913"
+      }
+    ],
+    "decision_nodes": [
+      {
+        "id": "95f6cb5e-b279-57f4-8114-0afaaed877a2",
+        "name": "Triage",
+        "description": "Route the claim.",
+        "decision_model": {
+          "model": "tier:fast",
+          "instructions": "Pay simple claims. Send anything unusual to review.",
+          "options": [
+            {
+              "id": "pay",
+              "description": "Simple and covered",
+              "output_edge_id": "67bb2445-6f60-53af-b17c-156dc9a0e456"
+            },
+            {
+              "id": "review",
+              "description": "Unusual or unclear",
+              "output_edge_id": "484320e4-db23-592a-b89b-4e312efab9a2"
+            }
+          ],
+          "inputs": [
+            "amount"
+          ]
+        },
+        "default_output_edge_id": "b3bc2a91-ed5d-5921-a7c2-6bea58a82d69"
+      }
+    ]
+  },
+  "actors": {
+    "Intake": {
+      "output": {
+        "amount": 900
+      }
+    }
+  },
+  "model": {
+    "providers": [
+      {
+        "id": "primary",
+        "error": "quota exhausted",
+        "code": "RATE_LIMITED"
+      },
+      {
+        "id": "backup",
+        "replies": [
+          {
+            "option": "review",
+            "confidence": 0.9,
+            "rationale": "Because."
+          }
+        ]
+      },
+      {
+        "id": "last",
+        "replies": [
+          {
+            "option": "pay",
+            "confidence": 0.9,
+            "rationale": "Because."
+          }
+        ]
+      }
+    ],
+    "tiers": {
+      "fast": [
+        "primary:alpha",
+        "backup:beta",
+        "last:gamma"
+      ]
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "Intake",
+      "Review"
+    ],
+    "model_calls": 2,
+    "provider_calls": {
+      "primary": 1,
+      "backup": 1,
+      "last": 0
+    },
+    "journal_contains": [
+      {
+        "type": "decision.evaluated",
+        "node_name": "Triage",
+        "data": {
+          "method": "model",
+          "model": {
+            "option": "review"
+          }
+        }
+      }
+    ],
+    "journal_mentions": [
+      {
+        "event": {
+          "type": "meta.recorded",
+          "node_name": "Triage",
+          "data": {
+            "subject": "model_selection"
+          }
+        },
+        "mentions": [
+          "backup",
+          "beta",
+          "fast"
+        ]
+      },
+      {
+        "event": {
+          "type": "meta.recorded",
+          "node_name": "Triage",
+          "data": {
+            "subject": "model_route"
+          }
+        },
+        "mentions": [
+          "primary",
+          "alpha"
+        ]
+      }
+    ]
+  }
+}

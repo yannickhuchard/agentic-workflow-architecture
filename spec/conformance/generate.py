@@ -722,6 +722,215 @@ def model_decision_cases() -> list[Case]:
 
 
 # ---------------------------------------------------------------------------
+# Model routing (section 12)
+# ---------------------------------------------------------------------------
+
+def routing_cases() -> list[Case]:
+    cases = []
+
+    def routed(case_id, spec, description, model="tier:fast", default=True):
+        c = Case(case_id, "routing", spec, description)
+        c.act("Intake").act("Pay").act("Review").act("Manual").edge("Intake", "Triage")
+        c.edge("Triage", "Pay").edge("Triage", "Review").edge("Triage", "Manual")
+        node = {"id": c.u("Triage"), "name": "Triage", "description": "Route the claim.",
+                "decision_model": {"model": model, "instructions": "Pay simple claims. Send anything unusual to review.",
+                                   "options": [{"id": "pay", "description": "Simple and covered", "output_edge_id": c.u("Triage->Pay")},
+                                               {"id": "review", "description": "Unusual or unclear", "output_edge_id": c.u("Triage->Review")}],
+                                   "inputs": ["amount"]}}
+        if default:
+            node["default_output_edge_id"] = c.u("Triage->Manual")
+        c.decisions.append(node)
+        c.actors = {"Intake": {"output": {"amount": 900}}}
+        return c
+    serves = lambda provider, option: {"id": provider, "replies": [{"option": option, "confidence": 0.9, "rationale": "Because."}]}
+    fails = lambda provider, error, code=None: {"id": provider, "error": error, **({"code": code} if code else {})}
+    selection = lambda *names: {"event": {"type": "meta.recorded", "node_name": "Triage", "data": {"subject": "model_selection"}}, "mentions": list(names)}
+    route = lambda *names: {"event": {"type": "meta.recorded", "node_name": "Triage", "data": {"subject": "model_route"}}, "mentions": list(names)}
+
+    c = routed("tier-first-candidate-serves", "12.5", "A tier maps to an ordered list of models. The first candidate is called; while it serves, no other is. The journal names the provider, the model and the tier.")
+    c.model = {"providers": [serves("primary", "review"), serves("backup", "pay")], "tiers": {"fast": ["primary:alpha", "backup:beta"]}}
+    c.expect = {"status": "completed", "visited": ["Intake", "Review"], "model_calls": 1, "provider_calls": {"primary": 1, "backup": 0},
+                "journal": ["meta.recorded", "decision.evaluated"],
+                "journal_contains": [{"type": "decision.evaluated", "node_name": "Triage", "data": {"method": "model", "model": {"option": "review"}}}],
+                "journal_mentions": [selection("primary", "alpha", "fast")]}
+    cases.append(c)
+
+    c = routed("tier-falls-back-to-next-candidate", "12.5", "When the first candidate's provider fails, the router tries the next in the tier's list and stops at the one that serves. The model that actually served is journalled as the selection, and the fallback as a model_route naming the candidate that failed.")
+    c.model = {"providers": [fails("primary", "quota exhausted", "RATE_LIMITED"), serves("backup", "review"), serves("last", "pay")],
+               "tiers": {"fast": ["primary:alpha", "backup:beta", "last:gamma"]}}
+    c.expect = {"status": "completed", "visited": ["Intake", "Review"], "model_calls": 2, "provider_calls": {"primary": 1, "backup": 1, "last": 0},
+                "journal_contains": [{"type": "decision.evaluated", "node_name": "Triage", "data": {"method": "model", "model": {"option": "review"}}}],
+                "journal_mentions": [selection("backup", "beta", "fast"), route("primary", "alpha")]}
+    cases.append(c)
+
+    c = routed("tier-every-candidate-fails-takes-default", "12.5", "When no candidate serves the request the router fails with the whole route. At a decision that is no decision: the token takes the default edge, and the route naming every candidate that failed is journalled.")
+    c.model = {"providers": [fails("primary", "quota exhausted", "RATE_LIMITED"), fails("backup", "connection refused")],
+               "tiers": {"fast": ["primary:alpha", "backup:beta"]}}
+    c.expect = {"status": "completed", "visited": ["Intake", "Manual"], "model_calls": 2, "provider_calls": {"primary": 1, "backup": 1},
+                "journal_contains": [{"type": "decision.evaluated", "node_name": "Triage", "data": {"method": "default"}}],
+                "journal_mentions": [route("primary", "alpha", "backup", "beta")]}
+    cases.append(c)
+
+    c = routed("tier-every-candidate-fails-without-default", "12.5", "When no candidate serves and the decision has no default edge, the token fails with NO_ROUTE. The engine does not pick an option for the model.", default=False)
+    c.model = {"providers": [fails("primary", "quota exhausted", "RATE_LIMITED"), fails("backup", "connection refused")],
+               "tiers": {"fast": ["primary:alpha", "backup:beta"]}}
+    c.expect = {"status": "failed", "visited": ["Intake"], "provider_calls": {"primary": 1, "backup": 1},
+                "journal_contains": [{"type": "decision.evaluated", "node_name": "Triage", "data": {"method": "none"}},
+                                     {"type": "token.failed", "data": {"error": {"code": "NO_ROUTE"}}}],
+                "journal_mentions": [route("primary", "alpha", "backup", "beta")]}
+    cases.append(c)
+
+    c = routed("invalid-request-stops-the-route", "12.5", "A provider that rejects the request as invalid ends the route: the request would be invalid for the next candidate too, so it is not tried.")
+    c.model = {"providers": [fails("primary", "the request is malformed", "VALIDATION_ERROR"), serves("backup", "review")],
+               "tiers": {"fast": ["primary:alpha", "backup:beta"]}}
+    c.expect = {"status": "completed", "visited": ["Intake", "Manual"], "provider_calls": {"primary": 1, "backup": 0},
+                "journal_contains": [{"type": "decision.evaluated", "node_name": "Triage", "data": {"method": "default"}}],
+                "journal_mentions": [route("primary", "alpha")]}
+    cases.append(c)
+
+    c = routed("unregistered-candidate-is-left-out", "12.5", "A candidate whose provider is not registered in this deployment is left out of the route, so one tier map serves deployments with different providers.")
+    c.model = {"providers": [serves("local", "review")], "tiers": {"fast": ["cloud:big", "local:small"]}}
+    c.expect = {"status": "completed", "visited": ["Intake", "Review"], "provider_calls": {"local": 1},
+                "journal_mentions": [selection("local", "small", "fast")]}
+    cases.append(c)
+
+    c = routed("direct-reference-names-provider-and-model", "12.1", "A reference of the form <provider>:<model> names a specific model of a registered provider. It has one candidate; no tier and no other provider is involved.", model="backup:beta")
+    c.model = {"providers": [serves("primary", "pay"), serves("backup", "review")], "tiers": {"fast": ["primary:alpha"]}}
+    c.expect = {"status": "completed", "visited": ["Intake", "Review"], "provider_calls": {"primary": 0, "backup": 1},
+                "journal_mentions": [selection("backup", "beta")]}
+    cases.append(c)
+
+    c = routed("direct-reference-is-not-substituted", "12.3", "A model named directly has one candidate. When its provider fails no other model is substituted, although another provider could have served.", model="primary:alpha")
+    c.model = {"providers": [fails("primary", "connection refused"), serves("backup", "review")], "tiers": {"fast": ["backup:beta"]}}
+    c.expect = {"status": "completed", "visited": ["Intake", "Manual"], "provider_calls": {"primary": 1, "backup": 0},
+                "journal_contains": [{"type": "decision.evaluated", "node_name": "Triage", "data": {"method": "default"}}],
+                "journal_mentions": [route("primary", "alpha")]}
+    cases.append(c)
+
+    c = routed("bare-model-name-uses-default-provider", "12.1", "A reference with no provider is a model of the engine's default provider.", model="alpha")
+    c.model = {"providers": [serves("primary", "review"), serves("backup", "pay")]}
+    c.expect = {"status": "completed", "visited": ["Intake", "Review"], "provider_calls": {"primary": 1, "backup": 0},
+                "journal_mentions": [selection("primary", "alpha")]}
+    cases.append(c)
+
+    c = routed("colon-without-registered-provider-is-a-model-name", "12.1", "The part before the first colon is a provider only if one is registered under that name. Otherwise the whole string is a model name of the default provider.", model="ft:custom")
+    c.model = {"providers": [serves("primary", "review"), serves("backup", "pay")]}
+    c.expect = {"status": "completed", "visited": ["Intake", "Review"], "provider_calls": {"primary": 1, "backup": 0},
+                "journal_mentions": [selection("primary", "ft:custom")]}
+    cases.append(c)
+
+    c = routed("deployment-defined-tier", "12.2", "A deployment may define tiers beyond the three standard ones, and a tier may map to a single model.", model="tier:legal")
+    c.model = {"providers": [serves("primary", "pay"), serves("backup", "review")], "tiers": {"fast": ["primary:alpha"], "legal": ["backup:beta"]}}
+    c.expect = {"status": "completed", "visited": ["Intake", "Review"], "provider_calls": {"primary": 0, "backup": 1},
+                "journal_mentions": [selection("backup", "beta", "legal")]}
+    cases.append(c)
+    return cases
+
+
+# ---------------------------------------------------------------------------
+# Knowledge (section 15)
+# ---------------------------------------------------------------------------
+
+def knowledge_cases() -> list[dict]:
+    cases = []
+    TERM = {"name": "Total is a number", "expression": "typeof total == number"}
+    good = {"output": {"total": 40}, "reasoning": {"plan": ["look up the price list", "sum the lines"], "rationale": "Prices come from the list, not from memory.",
+                                                   "alternatives_considered": ["estimate"], "confidence": 0.9}}
+    bad = {"output": {"total": "forty"}, "reasoning": {"plan": ["estimate"], "rationale": "From memory.", "confidence": 0.3}}
+    clean, corrected = {"Price order": good}, {"Price order": {"attempts": [bad, good]}}
+    strategy = {"type": "strategy", "node": "Price order"}
+    failure = {"type": "failure_pattern", "node": "Price order"}
+
+    def orders(case_id, binding={}, terms=(TERM,)):
+        """An AI agent prices an order under a contract; an application ships it."""
+        c = Case(case_id, "knowledge", "15", "")
+        extra = {} if binding is None else {"knowledge": binding}
+        c.act("Price order", "ai_agent", outcome_contract={"postconditions": list(terms), "budgets": {"max_attempts": 3}}, **extra)
+        c.act("Ship").edge("Price order", "Ship")
+        return c.build()["workflow"]
+    def run(name, actors, **expect):
+        return {"run": name, "actors": actors, "expect": {"status": "completed", **expect}}
+    def review(entry, by="ana"):
+        return {"review": entry, "by": by}
+    def emit(case_id, spec, description, steps, expect, workflow=None):
+        cases.append({"id": case_id, "level": "knowledge", "spec": spec, "description": description,
+                      "workflow": workflow or orders(case_id), "steps": steps, "expect": expect})
+
+    emit("accepted-outcome-yields-a-strategy", "15.1", "The reasoning an AI agent reported with an accepted outcome is distilled into a strategy about that activity. A new entry is a draft, with one observation and its run as the source.",
+         [run("first", clean), {"ingest": "first"}],
+         {"entry_count": 1, "entries": [{**strategy, "status": "draft", "observations": 1, "sources": 1}]})
+
+    emit("rejected-attempt-yields-a-failure-pattern", "15.1", "An attempt whose outcome was rejected, followed by one that was accepted, yields a failure pattern beside the strategy. Both are about the activity.",
+         [run("first", corrected), {"ingest": "first"}],
+         {"entry_count": 2, "entries": [{**strategy, "status": "draft", "observations": 1}, {**failure, "status": "draft", "observations": 1, "sources": 1}]})
+
+    emit("ingesting-a-run-twice-counts-it-once", "15.3", "Ingesting is idempotent: a run that was already ingested changes nothing.",
+         [run("first", corrected), {"ingest": "first"}, {"ingest": "first"}],
+         {"entry_count": 2, "entries": [{**strategy, "observations": 1, "sources": 1}, {**failure, "observations": 1, "sources": 1}]})
+
+    emit("second-run-adds-an-observation", "15.3", "A second run that exhibits the same patterns produces the same ids: each entry gains an observation and a source, and no entry is created.",
+         [run("first", corrected), {"ingest": "first"}, run("second", corrected), {"ingest": "second"}],
+         {"entry_count": 2, "entries": [{**strategy, "status": "draft", "observations": 2, "sources": 2}, {**failure, "status": "draft", "observations": 2, "sources": 2}]})
+
+    two_terms = (TERM, {"name": "Currency is stated", "expression": "currency exists"})
+    priced = {"output": {"total": 40, "currency": "EUR"}, "reasoning": good["reasoning"]}
+    emit("different-failures-are-different-entries", "15.2", "A failure pattern is identified by the terms it failed, not by the run. Two runs that fail different terms of the same activity yield two failure patterns, while the strategy they share compounds.",
+         [run("first", {"Price order": {"attempts": [{"output": {"total": "forty", "currency": "EUR"}, "reasoning": bad["reasoning"]}, priced]}}), {"ingest": "first"},
+          run("second", {"Price order": {"attempts": [{"output": {"total": 40}, "reasoning": bad["reasoning"]}, priced]}}), {"ingest": "second"}],
+         {"entry_count": 3, "entries": [{**strategy, "observations": 2}, {**failure, "observations": 1, "count": 2}]},
+         workflow=orders("different-failures-are-different-entries", terms=two_terms))
+
+    emit("unreviewed-entry-is-not-given-reviewed-is", "15.4", "A draft entry is not given to an actor. Once a person has reviewed it, the actor of the activity it is about is given it, and the journal records knowledge.retrieved listing it. The review records who made it.",
+         [run("first", clean), {"ingest": "first"},
+          run("before review", clean, given={"Price order": []}),
+          review(strategy),
+          run("after review", clean, given={"Price order": [{**strategy, "status": "reviewed"}]},
+              journal_contains=[{"type": "knowledge.retrieved", "node_name": "Price order", "data": {"entries": [{"type": "strategy", "status": "reviewed", "observations": 1}]}}])],
+         {"entry_count": 1, "entries": [{**strategy, "status": "reviewed", "observations": 1, "reviewed_by": "ana"}]})
+
+    emit("draft-is-given-when-the-binding-admits-it", "15.4", "A binding with min_status draft also admits unreviewed entries.",
+         [run("first", clean), {"ingest": "first"}, run("second", clean, given={"Price order": [{**strategy, "status": "draft"}]})],
+         {"entry_count": 1, "entries": [{**strategy, "status": "draft"}]},
+         workflow=orders("draft-is-given-when-the-binding-admits-it", binding={"min_status": "draft"}))
+
+    emit("reviewed-entry-stays-reviewed-as-evidence-accrues", "15.3", "Evidence from a later run adds to a reviewed entry without changing its status.",
+         [run("first", clean), {"ingest": "first"}, review(strategy), run("second", clean), {"ingest": "second"}],
+         {"entry_count": 1, "entries": [{**strategy, "status": "reviewed", "observations": 2, "sources": 2, "reviewed_by": "ana"}]})
+
+    emit("deprecated-entry-is-never-given", "15.4", "A deprecated entry is not given to an actor, even by a binding that admits drafts.",
+         [run("first", clean), {"ingest": "first"}, review(strategy), {"deprecate": strategy}, run("second", clean, given={"Price order": []})],
+         {"entry_count": 1, "entries": [{**strategy, "status": "deprecated"}]},
+         workflow=orders("deprecated-entry-is-never-given", binding={"min_status": "draft"}))
+
+    emit("no-binding-no-knowledge", "15.4", "An activity without a knowledge binding receives no knowledge, although a reviewed entry about it exists.",
+         [run("first", clean), {"ingest": "first"}, review(strategy), run("second", clean, given={"Price order": []})],
+         {"entry_count": 1, "entries": [{**strategy, "status": "reviewed"}]},
+         workflow=orders("no-binding-no-knowledge", binding=None))
+
+    emit("reviewed-entries-are-given-first", "15.4", "Matching entries are given reviewed first, then by observations: a reviewed failure pattern seen once comes before a draft strategy seen twice.",
+         [run("first", corrected), {"ingest": "first"}, run("second", clean), {"ingest": "second"}, review(failure),
+          run("third", clean, given={"Price order": [{**failure, "status": "reviewed", "observations": 1}, {**strategy, "status": "draft", "observations": 2}]})],
+         {"entry_count": 2},
+         workflow=orders("reviewed-entries-are-given-first", binding={"min_status": "draft"}))
+
+    emit("failed-run-yields-a-lesson", "15.1", "A run that fails yields a lesson. The errored attempt that caused it is also a failure pattern about its activity.",
+         [{"run": "first", "actors": {**clean, "Ship": {"error": "carrier unavailable", "code": "UNAVAILABLE"}}, "expect": {"status": "failed"}}, {"ingest": "first"}],
+         {"entry_count": 3, "entries": [{**strategy, "observations": 1}, {"type": "failure_pattern", "node": "Ship", "status": "draft", "observations": 1},
+                                        {"type": "lesson", "status": "draft", "observations": 1, "sources": 1}]})
+
+    c = Case("decision-evaluation-yields-a-precedent", "knowledge", "15.1", "")
+    c.act("Intake").act("Pay").act("Review").edge("Intake", "Route").edge("Route", "Pay").edge("Route", "Review")
+    c.decision("Route", "first", [("amount", "number")], [(["< 100"], "Pay"), (["-"], "Review")])
+    emit(c.id, "15.1", "A decision evaluation is distilled into a decision precedent about the decision node. A run that matches another rule yields another precedent.",
+         [run("small", {"Intake": {"output": {"amount": 40}}}), {"ingest": "small"}, run("small again", {"Intake": {"output": {"amount": 60}}}), {"ingest": "small again"},
+          run("large", {"Intake": {"output": {"amount": 900}}}), {"ingest": "large"}],
+         {"entry_count": 2, "entries": [{"type": "decision_precedent", "node": "Route", "status": "draft", "observations": 2},
+                                        {"type": "decision_precedent", "node": "Route", "status": "draft", "observations": 1}]},
+         workflow=c.build()["workflow"])
+    return cases
+
+
+# ---------------------------------------------------------------------------
 # Counterfactual replay (section 20)
 # ---------------------------------------------------------------------------
 
@@ -1176,18 +1385,145 @@ def write(path: pathlib.Path, data: dict) -> None:
     path.write_text(json.dumps(data, indent=2) + "\n")
 
 
+def measure_cases() -> list[dict]:
+    """Level `measures` (section 21): what was recorded, and the values that follow from it by the rules of 21.2 to 21.5."""
+    day = lambda d, hm: f"2026-01-{d:02d}T{hm}:00.000Z"
+    seq = iter(range(1, 10_000))
+
+    def ev(type_, time, **rest):
+        return {"type": type_, "time": time, "seq": next(seq), **rest}
+
+    pack, approve, wait, route_ = "pack", "approve", "paid", "route"
+    r1 = {"run_id": "r1", "workflow_id": "fulfil", "stage_id": "placed", "events": [
+        ev("run.started", day(5, "09:00"), data={"workflow_name": "Fulfil"}),
+        ev("activity.started", day(5, "09:00"), node_id=pack, node_name="Pack", data={"actor_type": "ai_agent"}),
+        ev("activity.completed", day(5, "09:10"), node_id=pack, node_name="Pack", data={"actor_type": "ai_agent", "duration_ms": 600000, "usage": {"input_tokens": 100, "output_tokens": 20}}),
+        ev("event.waiting", day(5, "09:10"), node_id=wait, node_name="Paid"),
+        ev("event.received", day(5, "09:40"), node_id=wait, node_name="Paid"),
+        ev("run.completed", day(5, "10:00"), data={"cost": 0.02, "currency": "EUR", "input_tokens": 100, "output_tokens": 20}),
+    ]}
+    r2 = {"run_id": "r2", "workflow_id": "fulfil", "stage_id": "placed", "events": [
+        ev("run.started", day(6, "09:00"), data={"workflow_name": "Fulfil"}),
+        ev("activity.started", day(6, "09:00"), node_id=pack, node_name="Pack", data={"actor_type": "ai_agent"}),
+        ev("activity.failed", day(6, "09:01"), node_id=pack, node_name="Pack", data={"duration_ms": 60000, "error": {"code": "TIMEOUT", "message": "too slow"}}),
+        ev("activity.retry_scheduled", day(6, "09:01"), node_id=pack, node_name="Pack", data={"next_attempt": 2}),
+        ev("activity.started", day(6, "09:02"), node_id=pack, node_name="Pack", data={"actor_type": "ai_agent"}),
+        ev("tool.invoked", day(6, "09:03"), node_id=pack, data={"tool": "label"}),
+        ev("tool.completed", day(6, "09:03"), node_id=pack, data={"tool": "label", "duration_ms": 5}),
+        ev("tool.invoked", day(6, "09:04"), node_id=pack, data={"tool": "label"}),
+        ev("tool.failed", day(6, "09:04"), node_id=pack, data={"tool": "label"}),
+        ev("activity.completed", day(6, "09:11"), node_id=pack, node_name="Pack", data={"actor_type": "ai_agent", "duration_ms": 540000, "usage": {"input_tokens": 300, "output_tokens": 40}}),
+        ev("decision.evaluated", day(6, "09:11"), node_id=route_, node_name="Route", data={"method": "table", "used_default": False}),
+        ev("decision.evaluated", day(6, "09:11"), node_id=route_, node_name="Route", data={"method": "model", "used_default": False}),
+        ev("activity.started", day(6, "09:12"), node_id=approve, node_name="Approve", data={"actor_type": "human"}),
+        ev("token.waiting", day(6, "09:12"), node_id=approve, data={"reason": "human_task"}),
+        ev("token.resumed", day(6, "10:12"), node_id=approve, data={"waited_ms": 3600000}),
+        ev("activity.completed", day(6, "10:22"), node_id=approve, node_name="Approve", data={"actor_type": "human", "duration_ms": 600000}),
+        ev("run.completed", day(6, "12:00"), data={"cost": 0.04, "currency": "EUR", "input_tokens": 300, "output_tokens": 40}),
+    ]}
+    r3 = {"run_id": "r3", "workflow_id": "fulfil", "stage_id": "placed", "events": [
+        ev("run.started", day(7, "09:00"), data={"workflow_name": "Fulfil"}),
+        ev("event.waiting", day(7, "09:05"), node_id=wait, node_name="Paid"),
+        ev("event.timed_out", day(7, "10:00"), node_id=wait, node_name="Paid"),
+        ev("run.cancelled", day(7, "10:00"), data={"reason": "journey abandoned"}),
+    ]}
+    r4 = {"run_id": "r4", "workflow_id": "fulfil", "stage_id": "placed", "events": [
+        ev("run.started", day(8, "09:00"), data={"workflow_name": "Fulfil"}),
+    ]}
+
+    def instance(key, status, d, ended, history, goals, mood, events, stage, stalled=False):
+        i = {"id": f"i-{key}", "journey_id": "order", "subject_key": key, "status": status, "stage_id": stage, "stage_entered_at": history[-1]["entered_at"],
+             "stalled": stalled, "started_at": day(d, "09:00"), "goals_reached": goals, "stage_history": history,
+             "events": [{"type": "journey.started", "time": day(d, "09:00"), "stage_id": "placed", "data": {"sentiment": 0}}] + events}
+        if ended: i["ended_at"] = ended
+        if mood is not None: i["sentiment"] = mood
+        return i
+    visit = lambda stage, a, b=None: {"stage_id": stage, "entered_at": a, **({"left_at": b} if b else {})}
+    touch = lambda t, channel, direction, artefacts=(): {"type": "journey.touchpoint", "time": t, "data": {"channel": channel, "direction": direction, "technology": "Shop", "artefacts": [{"kind": k} for k in artefacts]}}
+    mood = lambda t, basis: {"type": "journey.sentiment_changed", "time": t, "data": {"basis": basis}}
+    stall = lambda t: {"type": "journey.stalled", "time": t, "stage_id": "placed", "data": {"stage_name": "Placed", "max_duration": "P1D", "owner": "Sales desk"}}
+
+    a = instance("a", "completed", 5, day(5, "11:00"), [visit("placed", day(5, "09:00"), day(5, "10:00")), visit("delivered", day(5, "10:00"), day(5, "11:00"))], ["delivered"], 1,
+                 [touch(day(5, "09:00"), "web", "inbound"), touch(day(5, "10:00"), "email", "outbound", ["receipt"]), mood(day(5, "11:00"), "measured")], "delivered")
+    b = instance("b", "completed", 6, day(6, "15:00"), [visit("placed", day(6, "09:00"), day(6, "12:00")), visit("delivered", day(6, "12:00"), day(6, "15:00"))], ["delivered"], 2,
+                 [touch(day(6, "09:00"), "web", "inbound"), stall(day(6, "11:00")), mood(day(6, "15:00"), "inferred")], "delivered")
+    c = instance("c", "abandoned", 7, day(7, "10:00"), [visit("placed", day(7, "09:00"), day(7, "10:00"))], [], -1,
+                 [touch(day(7, "09:00"), "phone", "inbound"), mood(day(7, "10:00"), "inferred")], "placed")
+    d = instance("d", "active", 8, None, [visit("placed", day(8, "09:00"))], [], 0, [stall(day(9, "09:00"))], "placed", stalled=True)
+
+    recorded = {
+        "as_of": day(10, "09:00"),
+        "workflows": [{"id": "fulfil", "name": "Fulfil", "activities": [{"id": pack, "name": "Pack", "actor_type": "ai_agent"}, {"id": approve, "name": "Approve", "actor_type": "human"}]}],
+        "journeys": [{
+            "definition": {"id": "order", "name": "Order", "stages": [{"id": "placed", "name": "Placed", "max_duration": "P1D", "owner": "Sales desk"}, {"id": "delivered", "name": "Delivered"}],
+                           "goals": [{"id": "delivered", "name": "Delivered"}], "sentiment": {"min": -2, "max": 2, "initial": 0}},
+            "instances": [{"instance": a, "runs": [r1]}, {"instance": b, "runs": [r2]}, {"instance": c, "runs": [r3]}, {"instance": d, "runs": [r4]}],
+        }],
+        "transitions": [],
+    }
+    H = 3600000
+    whole = {
+        "id": "measures-from-a-small-record", "level": "measures", "spec": "21",
+        "description": "Four journeys of one kind and their four runs: two completed, one abandoned, one stalled. Every value follows from the record by the rules of section 21; a measure with nothing to be computed from has no value.",
+        "recorded": recorded, "options": {},
+        "expect": {
+            "currency": "EUR",
+            "journeys": [{"name": "Order", "measures": {
+                "journey.started": 4, "journey.active": 1, "journey.completion_rate": 0.5, "journey.abandonment_rate": 0.25,
+                "journey.stall_rate": 0.5, "journey.stalled_now": 1, "journey.goal_attainment": 0.5,
+                "journey.duration_median_ms": 2 * H, "journey.duration_p90_ms": 6 * H,
+                "journey.mood_end": 2 / 3, "journey.mood_change": 2 / 3, "journey.mood_measured_share": 1 / 3,
+                "journey.touchpoints_per_journey": 1, "journey.runs_per_journey": 1, "journey.cost_per_journey": 0.015},
+                "stages": [
+                    {"stage_id": "placed", "owner": "Sales desk", "measures": {"stage.entered": 4, "stage.conversion": 0.5, "stage.duration_median_ms": H, "stage.breach_rate": 0.5, "stage.active": 1, "stage.stalled_now": 1, "stage.abandoned": 1}},
+                    {"stage_id": "delivered", "measures": {"stage.entered": 2, "stage.conversion": 1, "stage.duration_median_ms": H, "stage.breach_rate": 0, "stage.active": 0, "stage.stalled_now": 0, "stage.abandoned": 0}}],
+                "channels": [{"channel": "web", "touchpoints": 2, "inbound": 2, "outbound": 0}, {"channel": "email", "touchpoints": 1, "inbound": 0, "outbound": 1}, {"channel": "phone", "touchpoints": 1, "inbound": 1, "outbound": 0}],
+                "artefacts": [{"kind": "receipt", "count": 1}]}],
+            "workflows": [{"name": "Fulfil", "measures": {
+                "workflow.runs": 4, "workflow.in_progress": 1, "workflow.success_rate": 2 / 3, "workflow.failure_rate": 0, "workflow.cancel_rate": 1 / 3,
+                "workflow.first_pass_yield": 1 / 3, "workflow.lead_time_median_ms": H, "workflow.lead_time_p90_ms": 3 * H,
+                "workflow.process_time_median_ms": 600000, "workflow.flow_efficiency": 0.1,
+                "workflow.event_wait_median_ms": 1800000, "workflow.event_timeout_rate": 0.5, "workflow.human_wait_median_ms": H,
+                "workflow.automation_rate": 2 / 3, "workflow.retries": 1, "workflow.dead_letters": 0, "workflow.compensations": 0,
+                "workflow.tool_calls": 2, "workflow.tool_failure_rate": 0.5, "workflow.contract_pass_rate": None, "workflow.verification_pass_rate": None,
+                "workflow.decisions": 2, "workflow.decision_default_rate": 0, "workflow.model_decision_share": 0.5,
+                "workflow.input_tokens": 400, "workflow.output_tokens": 60, "workflow.cost": 0.06, "workflow.cost_per_run": 0.02},
+                "activities": [
+                    {"name": "Pack", "measures": {"activity.attempts": 3, "activity.failure_rate": 1 / 3, "activity.duration_median_ms": 540000, "activity.tokens": 460}},
+                    {"name": "Approve", "measures": {"activity.attempts": 1, "activity.failure_rate": 0, "activity.duration_median_ms": 600000}}]}],
+            "attention": [{"subject_key": "d", "stage_id": "placed", "owner": "Sales desk", "waiting_ms": 48 * H}],
+        },
+    }
+    later = {
+        "id": "measures-over-a-period", "level": "measures", "spec": "21.1",
+        "description": "The same record, keeping what started on or after 7 January: one abandoned journey and one stalled. Rates are over what is kept; a median over nothing has no value.",
+        "recorded": recorded, "options": {"from": day(7, "00:00")},
+        "expect": {
+            "journeys": [{"name": "Order", "measures": {"journey.started": 2, "journey.completion_rate": 0, "journey.abandonment_rate": 0.5, "journey.stall_rate": 0.5,
+                                                         "journey.duration_median_ms": None, "journey.mood_end": -1, "journey.goal_attainment": 0}}],
+            "workflows": [{"name": "Fulfil", "measures": {"workflow.runs": 2, "workflow.in_progress": 1, "workflow.success_rate": 0, "workflow.cancel_rate": 1,
+                                                           "workflow.event_wait_median_ms": None, "workflow.event_timeout_rate": 1, "workflow.automation_rate": None}}],
+        },
+    }
+    return [whole, later]
+
+
 def main() -> None:
-    for folder in ("execution", "documents", "journeys", "replay"):
+    for folder in ("execution", "documents", "journeys", "replay", "knowledge", "measures"):
         (ROOT / folder).mkdir(exist_ok=True)
         for old in (ROOT / folder).glob("*.json"):
             old.unlink()
-    execution = execution_cases() + tool_cases() + model_decision_cases()
+    execution = execution_cases() + tool_cases() + model_decision_cases() + routing_cases()
     for case in execution:
         write(ROOT / "execution" / f"{case.id}.json", case.build())
     for case in journey_cases():
         write(ROOT / "journeys" / f"{case['id']}.json", case)
     for case in replay_cases():
         write(ROOT / "replay" / f"{case['id']}.json", case)
+    for case in knowledge_cases():
+        write(ROOT / "knowledge" / f"{case['id']}.json", case)
+    for case in measure_cases():
+        write(ROOT / "measures" / f"{case['id']}.json", case)
     for doc in document_cases():
         write(ROOT / "documents" / f"{doc['id']}.json", doc)
     tests = unary_tests()
@@ -1195,7 +1531,7 @@ def main() -> None:
     exprs = expressions()
     write(ROOT / "expressions.json", exprs)
     print(f"wrote {len(exprs['cases']) + len(exprs['invalid'])} expression tests")
-    print(f"wrote {len(journey_cases())} journey cases and {len(replay_cases())} replay cases")
+    print(f"wrote {len(journey_cases())} journey cases, {len(replay_cases())} replay cases and {len(knowledge_cases())} knowledge cases")
     print(f"wrote {len(execution)} execution cases, {len(document_cases())} document cases "
           f"and {len(tests['cases']) + len(tests['invalid'])} unary tests")
 

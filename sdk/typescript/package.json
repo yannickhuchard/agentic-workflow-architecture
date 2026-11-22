@@ -24,6 +24,7 @@
         "lint": "eslint src/",
         "test": "vitest run",
         "typecheck": "tsc --noEmit -p tsconfig.src.json",
+        "build:measures": "esbuild src/runtime/kpi.ts --bundle --format=iife --global-name=AWA_MEASURES --target=es2019 --banner:js=\"// Generated from sdk/typescript/src/runtime/kpi.ts by npm run build:measures. Do not edit.\" --outfile=../../tools/visualization/awa-kpis.js --log-level=warning",
         "prepublishOnly": "npm run build"
     },
     "files": [

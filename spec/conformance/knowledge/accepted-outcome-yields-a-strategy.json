@@ -1,0 +1,86 @@
+{
+  "id": "accepted-outcome-yields-a-strategy",
+  "level": "knowledge",
+  "spec": "15.1",
+  "description": "The reasoning an AI agent reported with an accepted outcome is distilled into a strategy about that activity. A new entry is a draft, with one observation and its run as the source.",
+  "workflow": {
+    "id": "2e1546ec-7ee7-5ef1-a308-5afeb989d7ec",
+    "name": "accepted-outcome-yields-a-strategy",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "6c6e97a8-bcd6-5601-a0fa-d7b1e027e5d0",
+        "name": "Price order",
+        "role_id": "212994b3-0cea-53c7-a70a-e439b6cbaa20",
+        "actor_type": "ai_agent",
+        "outcome_contract": {
+          "postconditions": [
+            {
+              "name": "Total is a number",
+              "expression": "typeof total == number"
+            }
+          ],
+          "budgets": {
+            "max_attempts": 3
+          }
+        },
+        "knowledge": {}
+      },
+      {
+        "id": "14f2a7a6-6c7a-5147-9586-b789ab1d6733",
+        "name": "Ship",
+        "role_id": "212994b3-0cea-53c7-a70a-e439b6cbaa20",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "239265c8-c3a4-5826-89de-19dc00920824",
+        "source_id": "6c6e97a8-bcd6-5601-a0fa-d7b1e027e5d0",
+        "target_id": "14f2a7a6-6c7a-5147-9586-b789ab1d6733"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "run": "first",
+      "actors": {
+        "Price order": {
+          "output": {
+            "total": 40
+          },
+          "reasoning": {
+            "plan": [
+              "look up the price list",
+              "sum the lines"
+            ],
+            "rationale": "Prices come from the list, not from memory.",
+            "alternatives_considered": [
+              "estimate"
+            ],
+            "confidence": 0.9
+          }
+        }
+      },
+      "expect": {
+        "status": "completed"
+      }
+    },
+    {
+      "ingest": "first"
+    }
+  ],
+  "expect": {
+    "entry_count": 1,
+    "entries": [
+      {
+        "type": "strategy",
+        "node": "Price order",
+        "status": "draft",
+        "observations": 1,
+        "sources": 1
+      }
+    ]
+  }
+}

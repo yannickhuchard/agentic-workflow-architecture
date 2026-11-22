@@ -1,0 +1,100 @@
+{
+  "id": "failed-run-yields-a-lesson",
+  "level": "knowledge",
+  "spec": "15.1",
+  "description": "A run that fails yields a lesson. The errored attempt that caused it is also a failure pattern about its activity.",
+  "workflow": {
+    "id": "32f56d29-235b-5142-9875-cbb09b7d5f60",
+    "name": "failed-run-yields-a-lesson",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "a147bd2a-dbc9-5110-9653-68ad63bbdbb9",
+        "name": "Price order",
+        "role_id": "8a04e796-d87c-5260-8a03-0359635f05f1",
+        "actor_type": "ai_agent",
+        "outcome_contract": {
+          "postconditions": [
+            {
+              "name": "Total is a number",
+              "expression": "typeof total == number"
+            }
+          ],
+          "budgets": {
+            "max_attempts": 3
+          }
+        },
+        "knowledge": {}
+      },
+      {
+        "id": "4f081293-480c-5f6d-b6e3-f84f4c7f69a2",
+        "name": "Ship",
+        "role_id": "8a04e796-d87c-5260-8a03-0359635f05f1",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "82632a5f-8c5b-5ffa-a578-b7593c967198",
+        "source_id": "a147bd2a-dbc9-5110-9653-68ad63bbdbb9",
+        "target_id": "4f081293-480c-5f6d-b6e3-f84f4c7f69a2"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "run": "first",
+      "actors": {
+        "Price order": {
+          "output": {
+            "total": 40
+          },
+          "reasoning": {
+            "plan": [
+              "look up the price list",
+              "sum the lines"
+            ],
+            "rationale": "Prices come from the list, not from memory.",
+            "alternatives_considered": [
+              "estimate"
+            ],
+            "confidence": 0.9
+          }
+        },
+        "Ship": {
+          "error": "carrier unavailable",
+          "code": "UNAVAILABLE"
+        }
+      },
+      "expect": {
+        "status": "failed"
+      }
+    },
+    {
+      "ingest": "first"
+    }
+  ],
+  "expect": {
+    "entry_count": 3,
+    "entries": [
+      {
+        "type": "strategy",
+        "node": "Price order",
+        "observations": 1
+      },
+      {
+        "type": "failure_pattern",
+        "node": "Ship",
+        "status": "draft",
+        "observations": 1
+      },
+      {
+        "type": "lesson",
+        "status": "draft",
+        "observations": 1,
+        "sources": 1
+      }
+    ]
+  }
+}
