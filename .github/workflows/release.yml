@@ -47,6 +47,7 @@ jobs:
           npm run typecheck
           npx vitest run
           npm run build
+          mkdir -p "$RUNNER_TEMP/release"
           npm pack --pack-destination "$RUNNER_TEMP/release"
 
       - name: The packed npm package, installed in an empty project
