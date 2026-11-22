@@ -111,6 +111,8 @@ npx awa run workflow.awa.json --providers google,ollama,embedded --journal run.j
 | `ollama` | A running [Ollama](https://ollama.com); `OLLAMA_BASE_URL` if not on localhost |
 | `embedded` | `npm install @huggingface/transformers`. Runs a small open-source model in-process: no server, no key |
 
+Small embedded models follow a reply format well and judge poorly. [`docs/embedded-models.md`](docs/embedded-models.md) has measurements and advice on where to use them.
+
 Turn the journal into a recipe, and into knowledge:
 
 ```bash

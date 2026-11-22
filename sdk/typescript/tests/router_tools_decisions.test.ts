@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import http from 'http';
+import { createRequire } from 'module';
 import type { AddressInfo } from 'net';
 import { v4 as uuidv4 } from 'uuid';
 import { WorkflowEngine } from '../src/runtime/workflow_engine';
@@ -189,7 +190,9 @@ describe('Provider adapters', () => {
         expect(seen).toHaveLength(2); // the model is loaded once and reused
     });
 
-    it('embedded: says what to install when the optional runtime is missing', async () => {
+    // Only meaningful where the optional runtime is absent, as it is in CI
+    const runtime_installed = (() => { try { createRequire(import.meta.url).resolve('@huggingface/transformers'); return true; } catch { return false; } })();
+    (runtime_installed ? it.skip : it)('embedded: says what to install when the optional runtime is missing', async () => {
         await expect(new EmbeddedModelProvider().generate({ model: 'default', prompt: 'x' }))
             .rejects.toThrow(/@huggingface\/transformers/);
     });
@@ -455,7 +458,8 @@ describe('Model decisions', () => {
         expect(request.json).toBe(true);
         expect(request.temperature).toBe(0);
         expect(request.prompt).toContain('- pay: Simple and covered');
-        expect(request.prompt).toContain('"amount": 900');
+        expect(request.prompt).toContain('- amount: 900');
+        expect(request.prompt).toMatch(/Reply with JSON like \{"option": "<pay or review>"/);
 
         expect(r.events.find(e => e.type === 'reasoning.recorded')!.data).toMatchObject({ source: 'decision_model', rationale: 'Roof damage needs an inspection.' });
         expect(r.events.find(e => e.type === 'meta.recorded' && e.data.subject === 'model_selection')!.data.decision).toBe('Use model acme:small');

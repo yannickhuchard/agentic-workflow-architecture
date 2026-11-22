@@ -34,26 +34,28 @@ export interface ModelDecision {
     usage: { input_tokens: number; output_tokens: number };
 }
 
+/**
+ * The prompt is shaped for small models as much as large ones: short, the
+ * facts as plain lines, and the exact reply shape, naming the option ids,
+ * as the last thing the model reads. Measured on sub-1B embedded models, an
+ * abstract description of the reply format made them echo the facts instead.
+ */
 export function decision_prompt(node: DecisionNode, model: DecisionModel, inputs: Record<string, unknown>): { system: string; prompt: string } {
-    const system = [
-        'You decide which route a workflow takes. Choose exactly one of the listed options.',
-        'Reply with a single JSON object and nothing else, with these properties:',
-        '- "option": the id of the option you choose, copied exactly',
-        '- "confidence": a number from 0 to 1',
-        '- "rationale": one or two sentences saying why',
-    ].join('\n');
+    const fact = (value: unknown) => (value !== null && typeof value === 'object' ? JSON.stringify(value) : String(value));
+    const ids = model.options.map(option => option.id);
+    const system = 'You decide which route a workflow takes. Choose exactly one of the listed options.';
     const prompt = [
         `Decision: ${node.name}`,
         ...(node.description ? [node.description] : []),
-        '',
-        'Instructions:',
         model.instructions,
         '',
         'Options:',
         ...model.options.map(option => `- ${option.id}: ${option.description}`),
         '',
         'Facts:',
-        JSON.stringify(inputs, null, 2),
+        ...Object.entries(inputs).filter(([, value]) => value !== undefined).map(([key, value]) => `- ${key}: ${fact(value)}`),
+        '',
+        `Reply with JSON like {"option": "<${ids.join(' or ')}>", "confidence": <0 to 1>, "rationale": "<one sentence>"}.`,
     ].join('\n');
     return { system, prompt };
 }

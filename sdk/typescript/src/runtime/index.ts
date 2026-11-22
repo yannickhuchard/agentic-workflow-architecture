@@ -13,3 +13,4 @@ export * from './outcome_contract';
 export * from './recipe';
 export * from './knowledge';
 export * from './tools';
+export * from './decision_model';

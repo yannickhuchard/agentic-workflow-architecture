@@ -9,19 +9,19 @@ tags:
 status: draft
 generated:
   by: agent:awa-distiller
-  at: "2026-11-21T23:07:24.294Z"
+  at: "2026-11-22T09:55:14.226Z"
 sources:
-  - id: run-5bdc86c3
-    resource: urn:awa:run:5bdc86c3-9735-40a4-865b-6a71c26fecc2
-    title: Run 5bdc86c3-9735-40a4-865b-6a71c26fecc2, journal events 60, 62
-    last_modified: "2026-11-21T23:07:11.460Z"
+  - id: run-2cf36b19
+    resource: urn:awa:run:2cf36b19-3139-447a-bf48-2dc43b243516
+    title: Run 2cf36b19-3139-447a-bf48-2dc43b243516, journal events 60, 62
+    last_modified: "2026-11-22T09:55:01.394Z"
     x-awa-event-seqs:
       - 60
       - 62
-  - id: run-a56272e2
-    resource: urn:awa:run:a56272e2-d388-466a-9a7c-ea26e04c035d
-    title: Run a56272e2-d388-466a-9a7c-ea26e04c035d, journal events 65, 67
-    last_modified: "2026-11-21T23:07:24.294Z"
+  - id: run-148f2184
+    resource: urn:awa:run:148f2184-e25a-495a-bcf3-97181d4cc29d
+    title: Run 148f2184-e25a-495a-bcf3-97181d4cc29d, journal events 65, 67
+    last_modified: "2026-11-22T09:55:14.226Z"
     x-awa-event-seqs:
       - 65
       - 67
@@ -44,7 +44,7 @@ x-awa-latest:
   rationale: A settlement notice should lead with the result.
   confidence: 0.95
   model: tier:balanced
-x-awa-created-at: "2026-11-21T23:07:11.460Z"
+x-awa-created-at: "2026-11-22T09:55:01.394Z"
 ---
 
 # How to notify claimant

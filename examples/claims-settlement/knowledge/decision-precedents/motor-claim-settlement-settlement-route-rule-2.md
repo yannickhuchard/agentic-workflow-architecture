@@ -9,18 +9,18 @@ tags:
 status: draft
 generated:
   by: agent:awa-distiller
-  at: "2026-11-21T23:07:17.510Z"
+  at: "2026-11-22T09:55:07.459Z"
 sources:
-  - id: run-5bdc86c3
-    resource: urn:awa:run:5bdc86c3-9735-40a4-865b-6a71c26fecc2
-    title: Run 5bdc86c3-9735-40a4-865b-6a71c26fecc2, journal events 45
-    last_modified: "2026-11-21T23:07:11.460Z"
+  - id: run-2cf36b19
+    resource: urn:awa:run:2cf36b19-3139-447a-bf48-2dc43b243516
+    title: Run 2cf36b19-3139-447a-bf48-2dc43b243516, journal events 45
+    last_modified: "2026-11-22T09:55:01.394Z"
     x-awa-event-seqs:
       - 45
-  - id: run-a49c556e
-    resource: urn:awa:run:a49c556e-fd4b-4da5-9fcb-569a922e0859
-    title: Run a49c556e-fd4b-4da5-9fcb-569a922e0859, journal events 45
-    last_modified: "2026-11-21T23:07:17.510Z"
+  - id: run-3c8b8cc4
+    resource: urn:awa:run:3c8b8cc4-0f7f-4944-8761-324d412b3e1c
+    title: Run 3c8b8cc4-0f7f-4944-8761-324d412b3e1c, journal events 45
+    last_modified: "2026-11-22T09:55:07.459Z"
     x-awa-event-seqs:
       - 45
 x-awa-entry-type: decision_precedent
@@ -41,7 +41,7 @@ x-awa-latest:
     fraud_score: 0.12
     estimated_cost: 3200
   route: Reserve funds
-x-awa-created-at: "2026-11-21T23:07:11.460Z"
+x-awa-created-at: "2026-11-22T09:55:01.394Z"
 ---
 
 # Settlement route: rule 2 routes to Reserve funds

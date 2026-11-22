@@ -10,24 +10,24 @@ tags:
 status: draft
 generated:
   by: agent:awa-distiller
-  at: "2026-11-21T23:07:24.294Z"
+  at: "2026-11-22T09:55:14.226Z"
 sources:
-  - id: run-5bdc86c3
-    resource: urn:awa:run:5bdc86c3-9735-40a4-865b-6a71c26fecc2
-    title: Run 5bdc86c3-9735-40a4-865b-6a71c26fecc2, journal events 32
-    last_modified: "2026-11-21T23:07:11.460Z"
+  - id: run-2cf36b19
+    resource: urn:awa:run:2cf36b19-3139-447a-bf48-2dc43b243516
+    title: Run 2cf36b19-3139-447a-bf48-2dc43b243516, journal events 32
+    last_modified: "2026-11-22T09:55:01.394Z"
     x-awa-event-seqs:
       - 32
-  - id: run-a49c556e
-    resource: urn:awa:run:a49c556e-fd4b-4da5-9fcb-569a922e0859
-    title: Run a49c556e-fd4b-4da5-9fcb-569a922e0859, journal events 32
-    last_modified: "2026-11-21T23:07:17.510Z"
+  - id: run-3c8b8cc4
+    resource: urn:awa:run:3c8b8cc4-0f7f-4944-8761-324d412b3e1c
+    title: Run 3c8b8cc4-0f7f-4944-8761-324d412b3e1c, journal events 32
+    last_modified: "2026-11-22T09:55:07.459Z"
     x-awa-event-seqs:
       - 32
-  - id: run-a56272e2
-    resource: urn:awa:run:a56272e2-d388-466a-9a7c-ea26e04c035d
-    title: Run a56272e2-d388-466a-9a7c-ea26e04c035d, journal events 32
-    last_modified: "2026-11-21T23:07:24.294Z"
+  - id: run-148f2184
+    resource: urn:awa:run:148f2184-e25a-495a-bcf3-97181d4cc29d
+    title: Run 148f2184-e25a-495a-bcf3-97181d4cc29d, journal events 32
+    last_modified: "2026-11-22T09:55:14.226Z"
     x-awa-event-seqs:
       - 32
 x-awa-entry-type: failure_pattern
@@ -45,7 +45,7 @@ x-awa-latest:
   terms: []
   message: Fraud scoring service timed out
   resolution: retry
-x-awa-created-at: "2026-11-21T23:07:11.460Z"
+x-awa-created-at: "2026-11-22T09:55:01.394Z"
 ---
 
 # Check fraud signals: timeout

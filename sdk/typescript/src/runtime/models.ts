@@ -479,6 +479,11 @@ type TextGenerator = (messages: { role: string; content: string }[], options: Re
  * Runs ONNX models with Transformers.js. Install the optional dependency
  * `@huggingface/transformers`; the model weights are downloaded on first use
  * and cached, or read from `local_path` for air-gapped deployments.
+ *
+ * The default model is the smallest that follows a reply format reliably
+ * (about 390 MB of weights, 1 GB of memory, under a second per decision on
+ * four CPU cores). Models this small format answers correctly but judge
+ * poorly; see docs/embedded-models.md for measurements and larger choices.
  */
 export class EmbeddedModelProvider implements ModelProvider {
     static readonly DEFAULT_MODEL = 'HuggingFaceTB/SmolLM2-360M-Instruct';
@@ -531,7 +536,9 @@ export class EmbeddedModelProvider implements ModelProvider {
         const turns = request_messages(request)
             .filter((m): m is Extract<ChatMessage, { role: 'system' | 'user' }> | Extract<ChatMessage, { role: 'assistant' }> => m.role !== 'tool')
             .map(m => ({ role: m.role, content: m.content }));
-        if (request.json) {
+        // Small models follow a concrete reply shape far better than a second, generic
+        // instruction, so the hint is added only when the prompt does not already ask for JSON
+        if (request.json && !/json/i.test(turns[turns.length - 1].content)) {
             turns[turns.length - 1].content += '\n\nReply with a single JSON object and nothing else.';
         }
         const temperature = request.temperature ?? 0;
@@ -580,15 +587,22 @@ export class FunctionModelProvider implements ModelProvider {
 }
 
 /**
- * Model names for the standard tiers, per provider, as published in
- * November 2026. Model line-ups change often: treat these as a starting
- * point and set your own with `model_tiers`.
+ * Model names for the standard tiers, per provider, as of November 2026.
+ * Model line-ups change often: treat these as a starting point and set your
+ * own with `model_tiers`.
+ *
+ * - openai: from OpenAI's models page (Astra "most capable", Sol "everyday
+ *   work", Luna "most efficient ... high-volume").
+ * - google: from secondary listings of the Gemini 4 and 3.x families; not
+ *   checked against Google's own page.
+ * - ollama: widely available open-source models; pull them first.
+ * - embedded: see docs/embedded-models.md for what each size can do.
  */
 export const TIER_PRESETS: Record<string, Record<(typeof STANDARD_TIERS)[number], string>> = {
     google: { reasoning: 'google:gemini-4-hydrogen', balanced: 'google:gemini-3.8-flash', fast: 'google:gemini-3.5-flash-lite' },
-    openai: { reasoning: 'openai:gpt-6.2-astra', balanced: 'openai:gpt-6.1-terra', fast: 'openai:gpt-6-luna' },
+    openai: { reasoning: 'openai:gpt-6.2-astra', balanced: 'openai:gpt-6.2-sol', fast: 'openai:gpt-6-luna' },
     ollama: { reasoning: 'ollama:qwen3:14b', balanced: 'ollama:phi4-mini', fast: 'ollama:gemma3:1b' },
-    embedded: { reasoning: 'embedded:default', balanced: 'embedded:default', fast: 'embedded:default' },
+    embedded: { reasoning: 'embedded:HuggingFaceTB/SmolLM2-1.7B-Instruct', balanced: 'embedded:HuggingFaceTB/SmolLM2-1.7B-Instruct', fast: 'embedded:default' },
 };
 
 /**

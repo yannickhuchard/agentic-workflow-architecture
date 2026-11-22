@@ -638,7 +638,9 @@ A deployment that must keep working without its cloud provider maps each tier to
 
 An engine MUST be usable with open-source models only, with no proprietary provider registered.
 
-The `embedded` provider runs a small model in the engine's process: no server, no key, and no data leaves the machine. The reference SDK uses ONNX models through Transformers.js (an optional dependency), by default a model of a few hundred million parameters with 4-bit weights, and can load weights from a local directory for use without network access. An embedded model suits the simple, high-volume calls of a workflow: classification, routing decisions (section 16) and judging. It does not call tools, so the router never selects it for a request that carries them.
+The `embedded` provider runs a small model in the engine's process: no server, no key, and no data leaves the machine. The reference SDK uses ONNX models through Transformers.js (an optional dependency), by default a model of a few hundred million parameters with 4-bit weights, and can load weights from a local directory for use without network access. An embedded model keeps a workflow running when no other model is reachable, and suits simple, high-volume calls. It does not call tools, so the router never selects it for a request that carries them.
+
+Small models follow a reply format more reliably than they judge. In the reference implementation's measurements (`docs/embedded-models.md`), models under one billion parameters always returned a valid option and chose correctly no more often than chance. A deployment SHOULD therefore place an embedded model last in a tier, and SHOULD pair model decisions made by one with `min_confidence` and a default edge that leads to a person (section 16).
 
 ## 13. Flow control
 
