@@ -1,0 +1,58 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://awa.io/schema/journey-event.schema.json",
+    "title": "Journey Event",
+    "description": "One entry in the record of a journey. run_id links the entry to that run's own journal.",
+    "type": "object",
+    "required": [
+        "spec_version",
+        "journey_instance_id",
+        "journey_id",
+        "seq",
+        "time",
+        "type",
+        "data"
+    ],
+    "properties": {
+        "spec_version": {
+            "type": "string"
+        },
+        "journey_instance_id": {
+            "type": "string"
+        },
+        "journey_id": {
+            "$ref": "awa.schema.json#/$defs/uuid"
+        },
+        "seq": {
+            "type": "integer",
+            "minimum": 1
+        },
+        "time": {
+            "$ref": "awa.schema.json#/$defs/datetime_tz"
+        },
+        "type": {
+            "type": "string",
+            "enum": [
+                "journey.started",
+                "journey.event_received",
+                "journey.stage_entered",
+                "journey.stage_completed",
+                "journey.stalled",
+                "journey.run_started",
+                "journey.run_ended",
+                "journey.goal_reached",
+                "journey.completed",
+                "journey.abandoned"
+            ]
+        },
+        "stage_id": {
+            "type": "string"
+        },
+        "run_id": {
+            "$ref": "awa.schema.json#/$defs/uuid"
+        },
+        "data": {
+            "type": "object"
+        }
+    }
+}

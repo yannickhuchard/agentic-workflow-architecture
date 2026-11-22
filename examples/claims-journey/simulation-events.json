@@ -1,0 +1,14 @@
+[
+  {
+    "type": "documents.uploaded",
+    "data": {
+      "documents": 3
+    }
+  },
+  {
+    "type": "survey.answered",
+    "data": {
+      "satisfaction": 5
+    }
+  }
+]

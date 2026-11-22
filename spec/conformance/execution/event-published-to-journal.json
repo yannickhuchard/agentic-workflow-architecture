@@ -1,0 +1,78 @@
+{
+  "id": "event-published-to-journal",
+  "level": "events",
+  "spec": "18.4",
+  "description": "A message event in publish mode records the event, with the listed data only, and the token continues.",
+  "workflow": {
+    "id": "31f427c6-d5e0-596b-aa76-cbbdf1ffaf1b",
+    "name": "event-published-to-journal",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "3a5c577e-6cfc-5dbe-ba5c-c0547ee742fb",
+        "name": "Settle",
+        "role_id": "386e9c6e-ce61-56ac-b760-bf7534399cd2",
+        "actor_type": "application"
+      },
+      {
+        "id": "f487c365-9bd3-532c-85c2-b3abed5ce22f",
+        "name": "Close",
+        "role_id": "386e9c6e-ce61-56ac-b760-bf7534399cd2",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "0e482cbd-9a88-5208-8a65-ddbc9e75900c",
+        "source_id": "3a5c577e-6cfc-5dbe-ba5c-c0547ee742fb",
+        "target_id": "05d10758-d078-581d-9e92-af5ecc2cccfc"
+      },
+      {
+        "id": "6bebafce-2b43-5e42-8b89-3fed8e876dd2",
+        "source_id": "05d10758-d078-581d-9e92-af5ecc2cccfc",
+        "target_id": "f487c365-9bd3-532c-85c2-b3abed5ce22f"
+      }
+    ],
+    "events": [
+      {
+        "id": "05d10758-d078-581d-9e92-af5ecc2cccfc",
+        "name": "Settled",
+        "event_type": "message",
+        "event_definition": {
+          "name": "claim.settled",
+          "mode": "publish",
+          "data": [
+            "claim_id"
+          ]
+        }
+      }
+    ]
+  },
+  "actors": {
+    "Settle": {
+      "output": {
+        "claim_id": "C-9",
+        "internal": "x"
+      }
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "Settle",
+      "Close"
+    ],
+    "journal_contains": [
+      {
+        "type": "event.published",
+        "data": {
+          "name": "claim.settled",
+          "data": {
+            "claim_id": "C-9"
+          }
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "id": "invalid-event-without-name",
+  "description": "A message or signal event must name its event.",
+  "valid": false,
+  "stage": "integrity",
+  "error_code": "invalid_event",
+  "document": {
+    "id": "8209ce34-01f7-5726-9202-953246ba7176",
+    "name": "invalid-event-without-name",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "d47e5bc6-1677-5b02-9c71-fa236bd230bc",
+        "name": "A",
+        "role_id": "f14e0e36-a135-5b84-9ee5-ca3b85bc5642",
+        "actor_type": "application"
+      },
+      {
+        "id": "6685fdee-89e5-5462-a451-dbb922d8a6d9",
+        "name": "B",
+        "role_id": "f14e0e36-a135-5b84-9ee5-ca3b85bc5642",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "a976b1bb-f6f9-573e-8d2a-0d929dce3d84",
+        "source_id": "d47e5bc6-1677-5b02-9c71-fa236bd230bc",
+        "target_id": "f284193d-91ba-5360-8a78-404681104d9f"
+      },
+      {
+        "id": "71db2f66-4eb5-5eca-909d-01046087f9d4",
+        "source_id": "f284193d-91ba-5360-8a78-404681104d9f",
+        "target_id": "6685fdee-89e5-5462-a451-dbb922d8a6d9"
+      }
+    ],
+    "events": [
+      {
+        "id": "f284193d-91ba-5360-8a78-404681104d9f",
+        "name": "Wait",
+        "event_type": "message"
+      }
+    ]
+  }
+}

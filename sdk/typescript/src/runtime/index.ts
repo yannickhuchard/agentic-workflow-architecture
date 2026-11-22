@@ -19,3 +19,4 @@ export * from './decision_engine';
 export * from './business_event';
 export * from './journey';
 export * from './runtime';
+export * from './counterfactual';

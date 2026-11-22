@@ -1,0 +1,107 @@
+{
+  "id": "event-wait-and-receive",
+  "level": "events",
+  "spec": "18.2",
+  "description": "A token at a message event waits; an event with the right name and correlation continues it, and the event's data joins the token's data.",
+  "workflow": {
+    "id": "8c3851a1-b2bd-554a-ad27-b22335772fa4",
+    "name": "event-wait-and-receive",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "86c33752-165d-50ab-8e42-bd408ebfc8b1",
+        "name": "Ask",
+        "role_id": "b78431fb-4399-5d16-ad33-5dbe26001db6",
+        "actor_type": "application"
+      },
+      {
+        "id": "8d54166c-ef81-571b-8c7c-a0f13b851310",
+        "name": "Yes",
+        "role_id": "b78431fb-4399-5d16-ad33-5dbe26001db6",
+        "actor_type": "application"
+      },
+      {
+        "id": "be0bd107-1097-5c62-9819-eab1b266c3ae",
+        "name": "No",
+        "role_id": "b78431fb-4399-5d16-ad33-5dbe26001db6",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "9567d507-658c-5f0e-8d4a-08fb77f9414f",
+        "source_id": "86c33752-165d-50ab-8e42-bd408ebfc8b1",
+        "target_id": "2a0efaec-9c88-54f0-b974-99c484ec0af3"
+      },
+      {
+        "id": "825d1644-9612-5a4f-ae5e-20de05080c7c",
+        "source_id": "2a0efaec-9c88-54f0-b974-99c484ec0af3",
+        "target_id": "8d54166c-ef81-571b-8c7c-a0f13b851310",
+        "condition": "answer == yes"
+      },
+      {
+        "id": "06fd5ef7-094a-570f-91d4-a197e44d0ffd",
+        "source_id": "2a0efaec-9c88-54f0-b974-99c484ec0af3",
+        "target_id": "be0bd107-1097-5c62-9819-eab1b266c3ae",
+        "is_default": true
+      }
+    ],
+    "events": [
+      {
+        "id": "2a0efaec-9c88-54f0-b974-99c484ec0af3",
+        "name": "Reply",
+        "event_type": "message",
+        "event_definition": {
+          "name": "customer.replied",
+          "correlation_key": "case_id"
+        }
+      }
+    ]
+  },
+  "actors": {
+    "Ask": {
+      "output": {
+        "case_id": "C-1"
+      }
+    }
+  },
+  "deliver": [
+    {
+      "event": {
+        "type": "customer.replied",
+        "data": {
+          "case_id": "OTHER",
+          "answer": "no"
+        }
+      },
+      "resumes": 0
+    },
+    {
+      "event": {
+        "type": "customer.replied",
+        "data": {
+          "case_id": "C-1",
+          "answer": "yes"
+        }
+      },
+      "resumes": 1
+    }
+  ],
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "Ask",
+      "Yes"
+    ],
+    "data": {
+      "answer": "yes"
+    },
+    "journal": [
+      "event.waiting",
+      "run.waiting",
+      "event.received",
+      "run.completed"
+    ]
+  }
+}

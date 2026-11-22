@@ -1,0 +1,79 @@
+{
+  "id": "event-received-in-time-skips-timeout-edge",
+  "level": "events",
+  "spec": "18.3",
+  "description": "An event that arrives in time continues along the ordinary edge only.",
+  "workflow": {
+    "id": "94551a67-2984-542b-9b61-e87a318109e4",
+    "name": "event-received-in-time-skips-timeout-edge",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "8e6a55a8-264b-50ad-817a-9772c793cb58",
+        "name": "Ask",
+        "role_id": "2a7f7077-5c02-546e-be88-95e1f3ff56b2",
+        "actor_type": "application"
+      },
+      {
+        "id": "258d0fd8-11a1-536b-ac0a-d7e1fcf8b325",
+        "name": "Proceed",
+        "role_id": "2a7f7077-5c02-546e-be88-95e1f3ff56b2",
+        "actor_type": "application"
+      },
+      {
+        "id": "839b8051-b643-5221-97a9-7b9c07143ba8",
+        "name": "Chase",
+        "role_id": "2a7f7077-5c02-546e-be88-95e1f3ff56b2",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "7acb4b3f-f614-5a55-b842-754e164e1807",
+        "source_id": "8e6a55a8-264b-50ad-817a-9772c793cb58",
+        "target_id": "eab0c0f6-876d-5211-ae20-090eabe3109a"
+      },
+      {
+        "id": "ec8c2240-a702-52a1-a5ee-c03f234d7f43",
+        "source_id": "eab0c0f6-876d-5211-ae20-090eabe3109a",
+        "target_id": "258d0fd8-11a1-536b-ac0a-d7e1fcf8b325"
+      },
+      {
+        "id": "19bf55c4-529a-59ea-a50d-70336ac01795",
+        "source_id": "eab0c0f6-876d-5211-ae20-090eabe3109a",
+        "target_id": "839b8051-b643-5221-97a9-7b9c07143ba8"
+      }
+    ],
+    "events": [
+      {
+        "id": "eab0c0f6-876d-5211-ae20-090eabe3109a",
+        "name": "Reply",
+        "event_type": "message",
+        "event_definition": {
+          "name": "customer.replied",
+          "timeout": "P3D",
+          "timeout_edge_id": "19bf55c4-529a-59ea-a50d-70336ac01795"
+        }
+      }
+    ]
+  },
+  "deliver": [
+    {
+      "event": {
+        "type": "customer.replied"
+      },
+      "resumes": 1
+    }
+  ],
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "Ask",
+      "Proceed"
+    ],
+    "not_visited": [
+      "Chase"
+    ]
+  }
+}

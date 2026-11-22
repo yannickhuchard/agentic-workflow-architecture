@@ -81,6 +81,30 @@ workflowRouter.post('/run', async (req, res) => {
     }
 });
 
+// Deliver a business event (CloudEvents 1.0 JSON) to the runs this server is hosting.
+// Runs waiting for an event of this type, with matching correlation, continue.
+workflowRouter.post('/events', async (req, res) => {
+    const event = req.body;
+    if (!event || typeof event.type !== 'string' || typeof event.id !== 'string') {
+        return res.status(400).json({ error: 'A CloudEvents event with "id" and "type" is required' });
+    }
+    const resumed: string[] = [];
+    for (const engine of runs.values()) {
+        if (await engine.deliverEvent({ specversion: '1.0', source: '/http', ...event }) > 0) {
+            resumed.push(engine.getRunId());
+            // Continue the run in the background, as for a newly started one
+            (async () => {
+                try {
+                    while (engine.getStatus() === 'running') await engine.runStep();
+                } catch (err) {
+                    console.error(`Run ${engine.getRunId()} failed after event ${event.id}:`, err);
+                }
+            })();
+        }
+    }
+    res.status(202).json({ event_id: event.id, resumed_runs: resumed });
+});
+
 // Status of a run
 workflowRouter.get('/runs/:runId', (req, res) => {
     const engine = runs.get(req.params.runId);

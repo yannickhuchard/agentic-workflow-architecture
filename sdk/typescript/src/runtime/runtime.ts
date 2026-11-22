@@ -180,7 +180,9 @@ export class AwaRuntime {
             let instance = this.find_journey_instance(definition.id, subject_key);
             const triggers = definition.triggers.filter(t => t.event === event.type);
             const exit = definition.exits.find(e => e.event === event.type);
-            if (!triggers.length && !exit) continue;
+            // An event about a subject already on its journey is part of that journey's story,
+            // whether or not a rule reacts to it
+            if (!triggers.length && !exit && !instance) continue;
 
             if (!instance) {
                 if (!triggers.some(t => t.starts_journey)) continue;

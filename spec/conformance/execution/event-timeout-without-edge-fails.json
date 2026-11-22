@@ -1,0 +1,61 @@
+{
+  "id": "event-timeout-without-edge-fails",
+  "level": "events",
+  "spec": "18.3",
+  "description": "A wait that runs out with no timeout edge fails the token.",
+  "workflow": {
+    "id": "68b1aa77-47f9-51c5-b837-5323ac0a2869",
+    "name": "event-timeout-without-edge-fails",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "fb91a432-7650-59c4-9bfc-42d55a678671",
+        "name": "Ask",
+        "role_id": "d90bfe78-4f43-5f97-a557-96bc140b2ca0",
+        "actor_type": "application"
+      },
+      {
+        "id": "048d0c77-1fef-58e7-a9b5-ab872702bbae",
+        "name": "Proceed",
+        "role_id": "d90bfe78-4f43-5f97-a557-96bc140b2ca0",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "d6ca07db-6882-5e33-9d55-ca467f16d01b",
+        "source_id": "fb91a432-7650-59c4-9bfc-42d55a678671",
+        "target_id": "325f00ea-7ad5-54d5-b44d-12b115527a0e"
+      },
+      {
+        "id": "ab80fe47-5b8d-5471-9e2c-af0701df4a97",
+        "source_id": "325f00ea-7ad5-54d5-b44d-12b115527a0e",
+        "target_id": "048d0c77-1fef-58e7-a9b5-ab872702bbae"
+      }
+    ],
+    "events": [
+      {
+        "id": "325f00ea-7ad5-54d5-b44d-12b115527a0e",
+        "name": "Reply",
+        "event_type": "message",
+        "event_definition": {
+          "name": "customer.replied",
+          "timeout": "PT1H"
+        }
+      }
+    ]
+  },
+  "deliver": [
+    {
+      "expire": true
+    }
+  ],
+  "expect": {
+    "status": "failed",
+    "visited": [
+      "Ask"
+    ],
+    "error_matches": "customer.replied"
+  }
+}

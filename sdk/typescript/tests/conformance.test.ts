@@ -12,6 +12,7 @@ import { parse_document, validate_workflow_integrity } from '../src/validator';
 import { Activity } from '../src/types';
 import { Actor } from '../src/runtime/actors/actor';
 import { silent_logger } from './helpers';
+import { business_event } from '../src/runtime/business_event';
 import { evaluate_unary_tests, validate_unary_tests } from '../src/runtime/unary_test';
 import { evaluate_expression, validate_expression } from '../src/runtime/expression';
 
@@ -20,7 +21,7 @@ const CONFORMANCE = path.join(ROOT, 'spec/conformance');
 const SCHEMAS = path.join(ROOT, 'spec/json-schema');
 
 /** Conformance levels this implementation claims. */
-const CLAIMED_LEVELS = new Set(['core', 'decision', 'verified', 'resilient', 'recorded', 'contract', 'flow']);
+const CLAIMED_LEVELS = new Set(['core', 'decision', 'verified', 'resilient', 'recorded', 'contract', 'flow', 'events']);
 
 const read = (file: string) => JSON.parse(fs.readFileSync(file, 'utf-8'));
 const list = (dir: string) => fs.readdirSync(dir).filter(f => f.endsWith('.json')).sort().map(f => path.join(dir, f));
@@ -119,7 +120,18 @@ describe('Conformance: execution', () => {
             };
             const engine = new WorkflowEngine(parse_document(c.workflow), options);
             await engine.start(c.input || {});
-            const status = await engine.run();
+            let status = await engine.run();
+
+            // Steps performed while the run waits: deliver a business event, or let its waits time out
+            for (const step of c.deliver || []) {
+                if (step.expire) {
+                    await engine.expireEvents(Number.MAX_SAFE_INTEGER);
+                } else {
+                    const resumed = await engine.deliverEvent({ specversion: '1.0', id: step.event.id || `evt-${Math.random()}`, source: '/conformance', type: step.event.type, data: step.event.data || {} });
+                    if (step.resumes !== undefined) expect(resumed, `tokens resumed by ${step.event.type}`).toBe(step.resumes);
+                }
+                status = await engine.run();
+            }
 
             expect(status).toBe(c.expect.status);
             if (c.expect.visited) expect(actor.visited).toEqual(c.expect.visited);
@@ -174,10 +186,12 @@ describe('Published examples run in simulation', () => {
         .map(dir => path.join(ROOT, 'examples', dir))
         .filter(dir => list(dir).some(f => f.endsWith('.awa.json')));
 
-    for (const dir of dirs) {
-        const file = list(dir).find(f => f.endsWith('.awa.json'))!;
+    for (const dir of dirs) for (const file of list(dir).filter(f => f.endsWith('.awa.json'))) {
         it(`${path.relative(ROOT, file)} completes`, async () => {
             const fixture = path.join(dir, 'simulation.json');
+            // Business events a workflow waits for (spec 18.3), delivered while it waits
+            const events_file = path.join(dir, 'simulation-events.json');
+            const events: Array<{ type: string; data?: Record<string, unknown> }> = fs.existsSync(events_file) ? read(events_file) : [];
             const engine = new WorkflowEngine(parse_document(read(file)), {
                 simulate: true,
                 simulated_outputs: fs.existsSync(fixture) ? read(fixture) : undefined,
@@ -185,7 +199,14 @@ describe('Published examples run in simulation', () => {
                 sleep: async () => { },
             });
             await engine.start();
-            expect(await engine.run()).toBe('completed');
+            let status = await engine.run();
+            for (let round = 0; status === 'waiting_event' && round < 10; round++) {
+                let resumed = 0;
+                for (const event of events) resumed += await engine.deliverEvent(business_event(event.type, event.data || {}, { id: `sim-${round}-${event.type}` }));
+                if (!resumed && !(await engine.expireEvents(Number.MAX_SAFE_INTEGER))) break;
+                status = await engine.run();
+            }
+            expect(status).toBe('completed');
         }, 30000);
     }
 });

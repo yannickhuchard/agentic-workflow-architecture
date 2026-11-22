@@ -38,7 +38,7 @@
       {
         "id": "6f31ad0e-47d1-5539-99b6-f6d239d92867",
         "name": "Await payment",
-        "event_type": "message"
+        "event_type": "conditional"
       }
     ]
   },

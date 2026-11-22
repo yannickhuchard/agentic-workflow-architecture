@@ -103,6 +103,11 @@ export interface WorkflowEngineOptions {
     event_sink?: EventSink;
     /** The current time in milliseconds. Tests replace it to move time forward. */
     now?: () => number;
+    /**
+     * Supplies a model decision without calling a model. Counterfactual replay uses it
+     * to replay recorded decisions. Returning undefined lets the model decide.
+     */
+    model_decision_override?: (decision: DecisionNode) => { option?: string; confidence?: number } | undefined;
     /** External decision engines that decision nodes may consult, by name */
     decision_engines?: Record<string, DecisionEngine>;
     /** How the tools declared on activities are executed, and what they are allowed to do */
@@ -229,7 +234,7 @@ export class WorkflowEngine {
         this.simulate = options.simulate || false;
         this.runId = options.run_id || randomUUID();
         this.journalStore = options.journal || new InMemoryJournalStore();
-        this.journal = new JournalWriter(this.runId, workflowDef.id, this.journalStore, options.journal_payloads || 'full');
+        this.journal = new JournalWriter(this.runId, workflowDef.id, this.journalStore, options.journal_payloads || 'full', 0, options.now);
         this.deadLetterQueue = options.dead_letter_queue || new DeadLetterQueue(new Logger({ output: () => { } }));
         this.sleep = options.sleep || (ms => new Promise(resolve => setTimeout(resolve, ms)));
         this.tokens = [];
@@ -258,7 +263,7 @@ export class WorkflowEngine {
         });
 
         this.executionStats = {
-            startTime: new Date(),
+            startTime: new Date(this.now()),
             stepsCount: 0,
             inputTokens: 0,
             outputTokens: 0,
@@ -334,7 +339,7 @@ export class WorkflowEngine {
             ...initialData,
             _workflow_id: this.workflow.id,
             _workflow_name: this.workflow.name,
-            _started_at: new Date().toISOString()
+            _started_at: new Date(this.now()).toISOString()
         };
 
         const token = new Token(startNodeId, tokenData, undefined, this.workflow.id);
@@ -354,7 +359,7 @@ export class WorkflowEngine {
 
         this.log(`Started workflow "${this.workflow.name}" with token ${token.id}`);
 
-        this.executionStats.startTime = new Date(); // Reset start time on actual start
+        this.executionStats.startTime = new Date(this.now()); // Reset start time on actual start
         return token.id;
     }
 
@@ -433,7 +438,7 @@ export class WorkflowEngine {
         const compensation = failed ? await this.compensate() : undefined;
         this.status = failed ? 'failed' : 'completed';
 
-        const durationMs = Date.now() - this.executionStats.startTime.getTime();
+        const durationMs = this.now() - this.executionStats.startTime.getTime();
         this.record({
             type: failed ? 'run.failed' : 'run.completed',
             data: {
@@ -549,7 +554,7 @@ export class WorkflowEngine {
             engine_status: this.status,
             tokens: this.tokens.map(serialize_token),
             contexts: this.contextManager.snapshot(),
-            checkpoint_at: new Date().toISOString(),
+            checkpoint_at: new Date(this.now()).toISOString(),
             metadata: {
                 run_id: this.runId,
                 journal_seq: this.journal.last_seq,
@@ -582,7 +587,7 @@ export class WorkflowEngine {
         };
         const engine = new WorkflowEngine(workflowDef, { ...options, run_id: meta.run_id || options.run_id });
         engine.journal = new JournalWriter(
-            engine.runId, workflowDef.id, engine.journalStore, options.journal_payloads || 'full', meta.journal_seq || 0);
+            engine.runId, workflowDef.id, engine.journalStore, options.journal_payloads || 'full', meta.journal_seq || 0, options.now);
         engine.tokens = state.tokens.map(t => deserialize_token(t, state.workflow_id));
         engine.contextManager.restore(state.contexts);
         engine.completedActivities = meta.completed_activities || [];
@@ -635,7 +640,7 @@ export class WorkflowEngine {
             return;
         }
 
-        const startTime = new Date();
+        const startTime = new Date(this.now());
 
         try {
             const actor = this.createActor(activity);
@@ -672,7 +677,7 @@ export class WorkflowEngine {
 
             const { output, verificationRecords, attempts } = await this.executeActivity(token, actor, activity, inputs);
 
-            const endTime = new Date();
+            const endTime = new Date(this.now());
             const processTime = calculate_duration(startTime, endTime);
             const analytics: Analytics = {
                 process_time: processTime,
@@ -723,7 +728,7 @@ export class WorkflowEngine {
             await this.advanceToken(token, currentNodeId, analytics);
         } catch (error: unknown) {
             const analytics: Analytics = {
-                process_time: calculate_duration(startTime, new Date()),
+                process_time: calculate_duration(startTime, new Date(this.now())),
                 waste_categories: ['defects' as WasteCategory],
                 error_rate: 1,
             };
@@ -765,13 +770,13 @@ export class WorkflowEngine {
                         this.failToken(token, new ActivityError(`Timer "${event.name}": ${error_info(error).message}`, 'VALIDATION_ERROR'));
                         return;
                     }
-                    const dueAt = new Date(Date.now() + durationMs).toISOString();
+                    const dueAt = new Date(this.now() + durationMs).toISOString();
                     token.setData(dueKey, dueAt);
                     this.record({ type: 'timer.started', ...ref, data: { duration: event.event_definition?.duration, duration_ms: durationMs, due_at: dueAt } });
                     return;
                 }
 
-                const remaining = new Date(due).getTime() - Date.now();
+                const remaining = new Date(due).getTime() - this.now();
                 if (remaining > 0) await this.sleep(remaining);
                 const { [dueKey]: _fired, ...rest } = token.contextData;
                 token.contextData = rest;
@@ -1000,7 +1005,7 @@ export class WorkflowEngine {
 
         for (;;) {
             attempt++;
-            const attemptStart = Date.now();
+            const attemptStart = this.now();
             this.record({
                 type: 'activity.started', ...ref, attempt,
                 data: {
@@ -1036,7 +1041,7 @@ export class WorkflowEngine {
                     && !(info.code && retry.non_retryable_errors?.includes(info.code));
                 this.record({
                     type: 'activity.failed', ...ref, attempt,
-                    data: { error: { message: info.message, code: info.code }, retryable, duration_ms: Date.now() - attemptStart },
+                    data: { error: { message: info.message, code: info.code }, retryable, duration_ms: this.now() - attemptStart },
                 });
 
                 if (!retryable) {
@@ -1093,7 +1098,7 @@ export class WorkflowEngine {
                     const canRetry = !overBudget && activity.actor_type === 'ai_agent' && attempt < violationCap;
                     this.record({
                         type: 'activity.failed', ...ref, attempt,
-                        data: { error: { message, code: 'CONTRACT_VIOLATION' }, retryable: canRetry, duration_ms: Date.now() - attemptStart },
+                        data: { error: { message, code: 'CONTRACT_VIOLATION' }, retryable: canRetry, duration_ms: this.now() - attemptStart },
                     });
                     if (!canRetry) {
                         return reject('CONTRACT_VIOLATION', message, { _contract_violations: violations });
@@ -1130,7 +1135,7 @@ export class WorkflowEngine {
                     criteria_results: [],
                     overall_score: 0,
                     feedback: `Verification engine error: ${error_info(verificationError).message}`,
-                    verified_at: new Date().toISOString(),
+                    verified_at: new Date(this.now()).toISOString(),
                     duration_ms: 0,
                     output_hash: this.verificationEngine.compute_output_hash(outcome),
                 };
@@ -1164,7 +1169,7 @@ export class WorkflowEngine {
                 const violation = { kind: 'budget' as const, name: 'max_tokens', message: `max_tokens: ${tokensUsed} tokens used including verification, the budget is ${budgets.max_tokens}` };
                 const message = `Outcome contract violated: ${violation.message}`;
                 this.record({ type: 'contract.checked', ...ref, attempt, data: { passed: false, violations: [violation], tokens_used: tokensUsed, output_hash: hash_payload(outcome) } });
-                this.record({ type: 'activity.failed', ...ref, attempt, data: { error: { message, code: 'CONTRACT_VIOLATION' }, retryable: false, duration_ms: Date.now() - attemptStart } });
+                this.record({ type: 'activity.failed', ...ref, attempt, data: { error: { message, code: 'CONTRACT_VIOLATION' }, retryable: false, duration_ms: this.now() - attemptStart } });
                 return reject('CONTRACT_VIOLATION', message, { _contract_violations: [violation] });
             }
 
@@ -1183,7 +1188,7 @@ export class WorkflowEngine {
 
             this.record({
                 type: 'activity.failed', ...ref, attempt,
-                data: { error: { message, code: 'VERIFICATION_FAILED' }, retryable: canRetry, duration_ms: Date.now() - attemptStart },
+                data: { error: { message, code: 'VERIFICATION_FAILED' }, retryable: canRetry, duration_ms: this.now() - attemptStart },
             });
 
             if (!canRetry) {
@@ -1383,7 +1388,7 @@ export class WorkflowEngine {
             const facts = external.inputs
                 ? Object.fromEntries(external.inputs.map(name => [name, token.contextData[name]]))
                 : public_payload(token.contextData);
-            const started = Date.now();
+            const started = this.now();
             engineData = { name: external.name, ruleset: external.ruleset };
             try {
                 const decided = await engine.decide({
@@ -1392,7 +1397,7 @@ export class WorkflowEngine {
                 });
                 const option = external.options.find(o => o.id === decided.option);
                 engineData = {
-                    ...engineData, option: decided.option, fired_rules: decided.fired_rules, explanation: decided.explanation, duration_ms: Date.now() - started,
+                    ...engineData, option: decided.option, fired_rules: decided.fired_rules, explanation: decided.explanation, duration_ms: this.now() - started,
                     ...(decided.option && !option ? { no_decision_reason: `"${decided.option}" is not one of the options` } : {}),
                     ...(!decided.option ? { no_decision_reason: 'the engine returned no option' } : {}),
                 };
@@ -1402,19 +1407,20 @@ export class WorkflowEngine {
                     outputs = { ...(decided.outputs || {}) };
                 }
             } catch (error: unknown) {
-                engineData = { ...engineData, no_decision_reason: `the engine failed: ${error_info(error).message}`, duration_ms: Date.now() - started };
+                engineData = { ...engineData, no_decision_reason: `the engine failed: ${error_info(error).message}`, duration_ms: this.now() - started };
             }
         }
 
         // --- decision model ----------------------------------------------
         if (!edgeId && model) {
-            const scripted = this.simulate ? this.options.simulated_outputs?.[decision.name]?.output : undefined;
+            const scripted = (this.simulate ? this.options.simulated_outputs?.[decision.name]?.output : undefined)
+                ?? (this.options.model_decision_override?.(decision) as Record<string, unknown> | undefined);
             const decided = scripted
                 ? {
                     option: model.options.find(o => o.id === scripted.option)?.id,
                     edge_id: model.options.find(o => o.id === scripted.option)?.output_edge_id,
                     confidence: scripted.confidence as number | undefined,
-                    rationale: 'Simulated decision',
+                    rationale: this.simulate ? 'Simulated decision' : 'Decision supplied without calling a model',
                     reason: model.options.some(o => o.id === scripted.option) ? undefined : `"${scripted.option}" is not one of the options`,
                     votes: [], route: [] as RouteAttempt[], usage: { input_tokens: 0, output_tokens: 0 }, model: undefined,
                 }
@@ -1699,8 +1705,8 @@ export class WorkflowEngine {
 
         if (waitingSince) {
             const since = new Date(waitingSince as string);
-            waitedMs = Date.now() - since.getTime();
-            analytics = { wait_time: calculate_duration(since, new Date()), waste_categories: ['waiting' as WasteCategory] };
+            waitedMs = this.now() - since.getTime();
+            analytics = { wait_time: calculate_duration(since, new Date(this.now())), waste_categories: ['waiting' as WasteCategory] };
         }
 
         token.mergeActivityOutput(token.activityId, output);
@@ -1802,7 +1808,7 @@ export class WorkflowEngine {
 
     private async finalizeExecution() {
         if (this.status === 'completed' || this.status === 'failed') {
-            const endTime = new Date();
+            const endTime = new Date(this.now());
             const durationMs = endTime.getTime() - this.executionStats.startTime.getTime();
 
             const metrics: ExecutionMetrics = {

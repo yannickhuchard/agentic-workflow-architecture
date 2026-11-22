@@ -165,6 +165,8 @@ export class JournalWriter {
         private store: JournalStore,
         private payload_mode: PayloadMode = 'full',
         start_seq = 0,
+        /** The clock events are stamped with. Defaults to the system clock. */
+        private now: () => number = Date.now,
     ) {
         this.seq = start_seq;
     }
@@ -189,7 +191,7 @@ export class JournalWriter {
             id: randomUUID(),
             run_id: this.run_id,
             seq: ++this.seq,
-            time: new Date().toISOString(),
+            time: new Date(this.now()).toISOString(),
             type: input.type,
             level: input.level || 'execution',
             workflow_id: this.workflow_id,

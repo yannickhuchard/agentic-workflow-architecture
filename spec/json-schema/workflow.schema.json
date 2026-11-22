@@ -202,7 +202,7 @@
                 },
                 "event_definition": {
                     "type": "object",
-                    "description": "Type-specific settings. For timer events: { \"duration\": \"<ISO 8601 duration>\" }"
+                    "description": "Type-specific settings. timer: { \"duration\": \"<ISO 8601 duration>\" }. start: optionally { \"name\": \"<event type>\" }, so that a business event of that type starts a run. message and signal: { \"name\": \"<event type>\", \"mode\": \"wait\" | \"publish\", \"correlation_key\": \"<property>\", \"timeout\": \"<duration>\", \"timeout_edge_id\": \"<edge>\", \"data\": [\"<property>\", ...] }. See specification section 18."
                 },
                 "join": {
                     "type": "string",

@@ -1,0 +1,103 @@
+{
+  "id": "event-redelivery-ignored",
+  "level": "events",
+  "spec": "18.2",
+  "description": "An event id a run has consumed is ignored when delivered again.",
+  "workflow": {
+    "id": "9fc0652f-d393-5af4-b7d6-57be98c3e3e4",
+    "name": "event-redelivery-ignored",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "71451bd0-99bd-5d98-8c88-8e787a99bfd5",
+        "name": "A",
+        "role_id": "3472d537-6935-5af2-9c5b-e2bfab0ae7cf",
+        "actor_type": "application"
+      },
+      {
+        "id": "b9a8a0d8-645d-5765-a120-1c00b07d55c7",
+        "name": "B",
+        "role_id": "3472d537-6935-5af2-9c5b-e2bfab0ae7cf",
+        "actor_type": "application"
+      },
+      {
+        "id": "39a154be-0175-5772-b9d2-dd4c4c0c7951",
+        "name": "C",
+        "role_id": "3472d537-6935-5af2-9c5b-e2bfab0ae7cf",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "5909cbf6-428f-5fd0-98f9-476069df82fb",
+        "source_id": "71451bd0-99bd-5d98-8c88-8e787a99bfd5",
+        "target_id": "bd0c839e-3740-5091-93e6-822757ca38e7"
+      },
+      {
+        "id": "749b95b7-108b-5430-b4a2-fc6d07c929af",
+        "source_id": "bd0c839e-3740-5091-93e6-822757ca38e7",
+        "target_id": "b9a8a0d8-645d-5765-a120-1c00b07d55c7"
+      },
+      {
+        "id": "36d6c240-9dd3-5234-a701-a563a2aa10c1",
+        "source_id": "b9a8a0d8-645d-5765-a120-1c00b07d55c7",
+        "target_id": "4dd39b22-b2d4-584f-8d8b-04e142f1943c"
+      },
+      {
+        "id": "14aa596b-a193-5422-b84e-0ee4101f3ec3",
+        "source_id": "4dd39b22-b2d4-584f-8d8b-04e142f1943c",
+        "target_id": "39a154be-0175-5772-b9d2-dd4c4c0c7951"
+      }
+    ],
+    "events": [
+      {
+        "id": "bd0c839e-3740-5091-93e6-822757ca38e7",
+        "name": "First",
+        "event_type": "message",
+        "event_definition": {
+          "name": "ping"
+        }
+      },
+      {
+        "id": "4dd39b22-b2d4-584f-8d8b-04e142f1943c",
+        "name": "Second",
+        "event_type": "message",
+        "event_definition": {
+          "name": "ping"
+        }
+      }
+    ]
+  },
+  "deliver": [
+    {
+      "event": {
+        "id": "evt-1",
+        "type": "ping"
+      },
+      "resumes": 1
+    },
+    {
+      "event": {
+        "id": "evt-1",
+        "type": "ping"
+      },
+      "resumes": 0
+    },
+    {
+      "event": {
+        "id": "evt-2",
+        "type": "ping"
+      },
+      "resumes": 1
+    }
+  ],
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "A",
+      "B",
+      "C"
+    ]
+  }
+}
