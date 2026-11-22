@@ -75,7 +75,7 @@ awa journey list --stalled
 awa journey export -o portfolio.json
 ```
 
-The exported file opens in the journey view. `awa serve` with `AWA_DATA_DIR` offers the same over HTTP, and `journey.html?live=http://localhost:3000` follows it as journeys progress.
+The exported file opens in the journey view, and in the measures page [`tools/visualization/dashboard.html`](tools/visualization/dashboard.html): who is stuck and whose it is, what became of each journey, how each workflow's runs went, with every number opening the customers behind it. `awa measures` prints the same measures (specification section 21) and `GET /api/v1/measures?format=openmetrics` gives them to a metrics system. `awa serve` with `AWA_DATA_DIR` offers the same over HTTP, and `journey.html?live=http://localhost:3000` follows it as journeys progress.
 
 To ask what a recorded run would have done under a different model or rule:
 
