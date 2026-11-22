@@ -1,0 +1,85 @@
+{
+  "id": "breach-with-fail-stops-retries",
+  "level": "service_levels",
+  "spec": "23.3",
+  "description": "The time of an activity counts across its attempts. With breach action fail, an activity past its longest time is not tried again: it fails with SLA_BREACH.",
+  "workflow": {
+    "id": "cdc88756-dece-51b9-8cc6-2bc6fd1cada7",
+    "name": "breach-with-fail-stops-retries",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "c9203488-ed05-5ac9-a11d-6435e8e4b5af",
+        "name": "A",
+        "role_id": "4a00a098-7eae-59ec-b507-a14d76613f5e",
+        "actor_type": "application",
+        "sla": {
+          "max_time": "PT1H",
+          "escalation_policy": {
+            "breach_action": "fail"
+          }
+        },
+        "retry": {
+          "max_attempts": 3,
+          "initial_delay": "PT0S"
+        }
+      },
+      {
+        "id": "157977af-6446-55ee-84e4-535425264a66",
+        "name": "B",
+        "role_id": "4a00a098-7eae-59ec-b507-a14d76613f5e",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "f10b93c0-b63c-57dd-bde2-23f469fad47a",
+        "source_id": "c9203488-ed05-5ac9-a11d-6435e8e4b5af",
+        "target_id": "157977af-6446-55ee-84e4-535425264a66"
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "attempts": [
+        {
+          "error": "upstream unavailable",
+          "takes": "PT2H"
+        },
+        {
+          "output": {
+            "done": true
+          }
+        }
+      ]
+    }
+  },
+  "clock": "2026-01-05T09:00:00.000Z",
+  "expect": {
+    "status": "failed",
+    "visited": [
+      "A"
+    ],
+    "journal_count": {
+      "activity.started": 1
+    },
+    "journal_contains": [
+      {
+        "type": "sla.breached",
+        "data": {
+          "scope": "activity",
+          "action": "fail"
+        }
+      },
+      {
+        "type": "token.failed",
+        "data": {
+          "error": {
+            "code": "SLA_BREACH"
+          }
+        }
+      }
+    ]
+  }
+}

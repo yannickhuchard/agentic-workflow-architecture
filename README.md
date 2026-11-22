@@ -34,11 +34,14 @@ AWA 1.1 is a specification with a reference implementation and a conformance sui
 | **Model routing** | Models named by capability tier (`tier:reasoning`, `tier:fast`). One router resolves a tier to Google, OpenAI, any open-source model server, or a small model embedded in the engine, and falls back down the list when a provider fails | Section 12 |
 | **Model decisions** | A decision node can be decided by a model, within options the workflow enumerates; a table can decide the anticipated cases first | Section 16 |
 | **Tools** | Agents call HTTP APIs, commands, JSON-RPC, gRPC and MCP tools. Every call is journalled: which tool, when, arguments, result, and a link to what ran | Section 17 |
+| **Contexts** | What activities share beside the data that flows: an activity is given the contexts it is bound to read and no other, and a write needs a binding that allows it. "This agent cannot read the fraud signals" is a property of the document that the engine upholds | Section 22 |
+| **Service levels** | The time work takes, waits and retries included, compared with what was promised: warnings and breaches are recorded, and work still waited for can be made to fail | Section 23 |
 | **Journal** | An append-only record of every run at three levels: execution, the actor's reasoning, and the engine's own decisions | Section 9 |
 | **Explanation** | A replay you can scrub through, and a recipe that explains how to rebuild the workflow from scratch | Section 14 |
 | **Business events** | Workflows publish business events and wait for them, in CloudEvents form, with correlation and a deadline that has its own path. A run that waits two weeks costs nothing while it waits | Section 18 |
 | **Journeys** | The layer above workflows: the stages a customer or an order passes through, which workflows serve each stage, goals and exits. Linked to every run by `run_id`. A journey also records its touchpoints (channel, technology, and what changes hands: contract, attestation, invoice, receipt, certificate), an estimate of the customer's mood that always says whether it was measured or inferred, and how customers move from one journey to the next | Section 19 |
 | **Counterfactual replay** | Re-run a recorded run with another model, prompt, contract or rule while the rest of the world is held as recorded, and get a regression report | Section 20 |
+| **Measures** | 56 measures of journeys, stages, workflows and activities, computed from the record, each with the number it was computed over: completion, where customers leave, right first time, work against waiting, cost. Also in the OpenMetrics format | Section 21 |
 | **Knowledge** | Strategies, failure patterns and lessons distilled from runs, compounding over time, reviewed by people, exported as an Open Knowledge Format bundle | Section 15 |
 
 The full text is in [`docs/specification.md`](docs/specification.md). What it means to implement AWA is defined by the cases in [`spec/conformance`](spec/conformance).
@@ -47,8 +50,8 @@ The full text is in [`docs/specification.md`](docs/specification.md). What it me
 
 | SDK | Conformance levels |
 |---|---|
-| TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `flow`, `events`, `model_decision`, `tools`, `journeys`, `replay`, plus recipe, knowledge and model routing |
-| Python | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `flow`, `events` |
+| TypeScript (reference) | Every level (18), plus the recipe, Open Knowledge Format exchange, model providers for Google, OpenAI, Ollama and an embedded model, and the views |
+| Python | Every level (18): the same engine rules, tools, model routing, journeys, measures, replay, contexts and service levels. Its built-in AI agent calls no model (supply your own actor or an OpenAI-compatible provider); no recipe, no Open Knowledge Format exchange |
 | Java | Data model only |
 
 ### See a run
@@ -109,42 +112,30 @@ It runs today in development mode (ChatGPT developer mode, or any MCP client, ov
 
 ---
 
-## Quick Start (TypeScript)
+## Quick start
 
-### 1. Install
+### TypeScript
 
 ```bash
-npm install -g agentic-workflow-architecture
+npm install agentic-workflow-architecture
 ```
 
-### 2. Define and Run
+Run a workflow in simulation: no model, tool or person is called, activities return what the script says, and the journal records the run.
+
+```bash
+npx awa run examples/claims-settlement/claims-settlement.awa.json --simulate --outputs examples/claims-settlement/simulation.json --journal run.journal.jsonl
+```
 
 ```typescript
-import { WorkflowEngine, workflow } from 'agentic-workflow-architecture';
+import { WorkflowEngine, parse_document } from 'agentic-workflow-architecture';
 
-const orderProcess = workflow('Order Fulfillment', '1.0.0')
-  .addActivity({
-    name: 'Analyze Data',
-    role_id: 'ai-analyst',
-    actor_type: 'ai_agent'
-  })
-  .build();
-
-const engine = new WorkflowEngine(orderProcess, {
-  gemini_api_key: process.env.GEMINI_API_KEY,
-  default_ai_model_id: 'gemini-3-flash-preview' // Documentation-verified default
-});
-
-await engine.run();
+const engine = new WorkflowEngine(parse_document(document), { simulate: true, simulated_outputs });
+await engine.start({ claim_id: 'C-1' });
+const status = await engine.run();          // completed, failed, waiting_event, waiting_human
+const journal = await engine.getEvents();
 ```
 
-Run from the command line, keeping the journal:
-
-```bash
-npx awa run workflow.awa.json --journal run.journal.jsonl --key YOUR_GEMINI_API_KEY
-```
-
-Choose model providers, in order of preference. Each tier falls back down the list, so this run keeps working on a local model if the cloud one fails:
+With real models, choose providers in order of preference. Each tier falls back down the list, so this run keeps working on a local model if the cloud one fails:
 
 ```bash
 npx awa run workflow.awa.json --providers google,ollama,embedded --journal run.journal.jsonl
@@ -169,88 +160,104 @@ npx awa recipe workflow.awa.json run.journal.jsonl -o RECIPE.md
 npx awa knowledge ingest workflow.awa.json run.journal.jsonl
 ```
 
+### Python
+
+```bash
+pip install agentic-workflow-architecture
+```
+
+The distribution is named `agentic-workflow-architecture`; the package you import, and the command, are `awa`. (The PyPI project named `awa` is unrelated.)
+
+```python
+from awa.runtime.workflow_engine import WorkflowEngine
+from awa.runtime.kpi import compute_measures
+```
+
+See [`sdk/python/README.md`](sdk/python/README.md) for what the Python SDK covers.
+
 ---
 
 ## Architecture
 
-AWA is built on a modular architecture designed for scalability and observability.
-
 ```mermaid
 graph TD
-    User["User / Client"] --> API["Operational API"]
-    API --> Engine["Workflow Engine"]
-    
-    subgraph "Execution Layer"
-        Engine --> Human["Human Task Queue"]
-        Engine --> AI["AI Agent Runner"]
-        Engine --> Robot["Robot Simulator"]
-        Engine --> App["App/System Runner"]
+    Events["Business events"] --> Host["Host: journeys and runs"]
+    Client["Client / CLI / assistant"] --> API["HTTP interface, MCP server"]
+    API --> Host
+    Host --> Engine["Workflow engine"]
+
+    subgraph "Who does the work"
+        Engine --> Human["People"]
+        Engine --> AI["AI agents"]
+        Engine --> Robot["Robots"]
+        Engine --> App["Applications"]
     end
-    
-    subgraph "Intelligence"
-        AI --> LLM["Model providers (by tier)"]
-        AI --> Tools["MCP Tools"]
+
+    subgraph "What agents are given"
+        AI --> LLM["Models, by capability tier"]
+        AI --> Tools["Tools, through one runner"]
+        Engine --> Contexts["Contexts, by binding"]
     end
-    
-    subgraph "Persistence & Analytics"
+
+    subgraph "What is kept"
         Engine --> Journal[("Execution journal")]
-        Engine --> DB[("Checkpoints")]
-        Engine --> VSM["VSM Analytics"]
-        Journal --> Replay["Replay"]
+        Host --> Record[("Journey records")]
+        Engine --> State[("Checkpoints")]
+    end
+
+    subgraph "What is made of it"
+        Journal --> Replay["Replay and counterfactual replay"]
         Journal --> Recipe["Recipe"]
-        Journal --> KB["Knowledge base (OKF)"]
+        Journal --> KB["Knowledge"]
+        Journal --> Measures["Measures"]
+        Record --> Measures
+        Record --> Views["Journey view, measures page"]
         KB --> AI
     end
 ```
 
 ---
 
-## Project Structure
-
-The repository is organized into SDKs, Specifications, and Applications.
+## Project structure
 
 | Directory | Description |
 |-----------|-------------|
-| `sdk/typescript` | Core **TypeScript SDK** and CLI tools. |
-| `sdk/python` | **Python SDK** for data science and AI engineers. |
-| `apps/kanban-web` | **Kanban Web App** (Next.js) for human task management. |
-| `spec/json-schema` | Normative JSON Schemas. |
-| `spec/conformance` | Language-neutral conformance cases. |
-| `spec/` (other) | Informative projections: OpenAPI, GraphQL, Avro, DDL. |
-| `docs/specification.md` | The specification. |
-| `tools/visualization` | Replay and diagram viewers. |
-| `examples/` | End-to-end examples (Insurance, Retail, Banking). |
+| `docs/specification.md` | The specification |
+| `spec/json-schema` | Normative JSON Schemas |
+| `spec/conformance` | Language-neutral conformance cases, by level |
+| `spec/` (other) | Informative projections: OpenAPI, GraphQL, Avro, DDL |
+| `sdk/typescript` | The reference implementation and the `awa` command |
+| `sdk/python` | The Python SDK |
+| `tools/visualization` | Run replay, journey view, measures page |
+| `apps/mcp-server`, `plugins/awa` | The MCP server with embedded views, and its packaging as a ChatGPT plugin |
+| `apps/kanban-web` | A Kanban board (Next.js) for human tasks |
+| `examples/` | Examples. Start with `claims-settlement` and `claims-journey` |
+| `docs/ux` | The research behind the journey view and the measures page |
 
 ---
 
-## Kanban Web Application
+## Kanban web application
 
-AWA includes a modern **Kanban Web Application** for managing human tasks. It provides:
-
-- **Real-time Updates**: Tasks appear instantly as agents assign them.
-- **Rich Task Details**: View full context, actor metadata, and input/output data in a responsive modal.
-- **Visual Cues**: Distinct visual styles for tasks created by AI Agents, Robots, or Systems.
-
-To use the Kanban app, clone the repository and run it locally:
+A Kanban board for the human tasks of running workflows: tasks appear as agents assign them, with their context and the actor that created them.
 
 ```bash
 git clone https://github.com/yannickhuchard/agentic-workflow-architecture.git
-cd agentic-workflow-architecture/apps/kanban-web
-npm install
-npm run dev
-# Open http://localhost:3000
+```
+
+```bash
+cd agentic-workflow-architecture/apps/kanban-web && npm install && npm run dev
 ```
 
 ---
 
-## Documentation & Resources
+## Documentation
 
-- **[Specification](docs/specification.md)**: The normative text.
-- **[Conformance suite](spec/conformance/README.md)**: How to test an implementation.
-- **[Skill Definition](skills/agentic-workflow-architecture/SKILL.md)**: Guide for AI assistants (describes 1.0; not yet updated for 1.1).
-- **[CLI Guide](sdk/typescript/docs/cli-guide.md)**: Command-line reference.
-- **[API Reference](sdk/typescript/docs/operational-api.md)**: REST API documentation.
-- **[Examples](examples/)**: Start with [claims-settlement](examples/claims-settlement/), which shows most of 1.1.
+- **[Specification](docs/specification.md)**: the normative text.
+- **[Conformance suite](spec/conformance/README.md)**: how to test an implementation.
+- **Guides**: [getting started](docs/getting-started.html), [developers](docs/developer-guide.html), [data model](docs/data-model-guide.html), [process owners](docs/abpm-guide.html), [architects](docs/architect-guide.html).
+- **[Skill](skills/agentic-workflow-architecture/SKILL.md)**: AWA for AI coding assistants.
+- **[Examples](examples/)**: start with [claims-settlement](examples/claims-settlement/) for one workflow and [claims-journey](examples/claims-journey/) for journeys.
+- **[Release notes](release_notes.md)**.
 
 ---
 

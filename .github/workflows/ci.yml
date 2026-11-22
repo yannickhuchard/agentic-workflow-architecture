@@ -24,6 +24,18 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npx vitest run
+      # The package as someone installs it: built, packed, installed in an empty project with no database
+      # client generated, then loaded both ways and run. A package that only works in this repository fails here.
+      - run: npm run build && npm pack --pack-destination "$RUNNER_TEMP"
+      - name: Install the packed package in an empty project and use it
+        working-directory: ${{ runner.temp }}
+        run: |
+          mkdir consumer && cd consumer && npm init -y > /dev/null
+          npm install ../agentic-workflow-architecture-*.tgz
+          node -e "const a = require('agentic-workflow-architecture'); if (typeof a.WorkflowEngine !== 'function' || !require('fs').existsSync(a.view_directory() + '/dashboard.html')) process.exit(1)"
+          node --input-type=module -e "import { AwaRuntime, compute_measures } from 'agentic-workflow-architecture'; if (typeof AwaRuntime !== 'function' || typeof compute_measures !== 'function') process.exit(1)"
+          npx awa run "$GITHUB_WORKSPACE/examples/claims-settlement/claims-settlement.awa.json" --simulate --outputs "$GITHUB_WORKSPACE/examples/claims-settlement/simulation.json" | grep "status: completed"
+          npx awa measures --list | grep -q "journey.completion_rate"
 
   python:
     name: Python SDK and conformance
@@ -38,6 +50,15 @@ jobs:
           python-version: "3.12"
       - run: pip install -e ".[dev,web]"
       - run: pytest -q
+      # The distribution as someone installs it: built, installed in an empty environment, imported and run
+      - run: |
+          pip install build
+          python -m build
+          python -m venv "$RUNNER_TEMP/consumer"
+          "$RUNNER_TEMP/consumer/bin/pip" install dist/*.whl
+          cd "$RUNNER_TEMP"
+          consumer/bin/python -c "import awa; from awa.runtime.kpi import MEASURES; assert len(MEASURES) > 50"
+          consumer/bin/awa measures --list | grep -q "journey.completion_rate"
 
   conformance-cases:
     name: Conformance cases are up to date

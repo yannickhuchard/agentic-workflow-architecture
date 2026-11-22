@@ -1,0 +1,90 @@
+{
+  "id": "context-write-without-binding-is-denied",
+  "level": "contexts",
+  "spec": "22.3",
+  "description": "An activity bound only to read a context cannot write to it: the activity fails with CONTEXT_ACCESS_DENIED and the context keeps its value.",
+  "workflow": {
+    "id": "66b0024b-48e5-506f-bf24-593fd1be51d2",
+    "name": "context-write-without-binding-is-denied",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "9a6de48e-6b11-5231-aaf9-bb6a5eeccc37",
+        "name": "A",
+        "role_id": "2b5a49ad-3477-5b12-8652-615ba2299f0e",
+        "actor_type": "application",
+        "context_bindings": [
+          {
+            "context_id": "dc1faeb5-d20b-56f8-bd0f-0b5c94425f59",
+            "access_mode": "read"
+          }
+        ]
+      },
+      {
+        "id": "49043584-c9b4-5c78-bc84-858ebb18c150",
+        "name": "B",
+        "role_id": "2b5a49ad-3477-5b12-8652-615ba2299f0e",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "c214bde2-1da7-5f9d-b34e-e0c1d86e1801",
+        "source_id": "9a6de48e-6b11-5231-aaf9-bb6a5eeccc37",
+        "target_id": "49043584-c9b4-5c78-bc84-858ebb18c150"
+      }
+    ],
+    "contexts": [
+      {
+        "id": "dc1faeb5-d20b-56f8-bd0f-0b5c94425f59",
+        "name": "Order",
+        "type": "data",
+        "sync_pattern": "shared_state",
+        "initial_value": {
+          "total": 150
+        }
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "contexts": {
+        "Order": {
+          "total": 0
+        }
+      }
+    }
+  },
+  "expect": {
+    "status": "failed",
+    "visited": [
+      "A"
+    ],
+    "contexts": {
+      "Order": {
+        "total": 150
+      }
+    },
+    "journal_contains": [
+      {
+        "type": "context.denied",
+        "node_name": "A",
+        "data": {
+          "context_name": "Order"
+        }
+      },
+      {
+        "type": "token.failed",
+        "data": {
+          "error": {
+            "code": "CONTEXT_ACCESS_DENIED"
+          }
+        }
+      }
+    ],
+    "journal_excludes": [
+      "context.written"
+    ]
+  }
+}

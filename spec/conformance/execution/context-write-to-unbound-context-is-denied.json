@@ -1,0 +1,67 @@
+{
+  "id": "context-write-to-unbound-context-is-denied",
+  "level": "contexts",
+  "spec": "22.3",
+  "description": "A context the activity has no binding to cannot be written, even though the workflow declares it.",
+  "workflow": {
+    "id": "b9fca0b4-50b6-54e1-8b06-978646d3adfb",
+    "name": "context-write-to-unbound-context-is-denied",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "e56a0a11-6174-5923-b51a-7c453646c54f",
+        "name": "A",
+        "role_id": "f6cf282e-b7aa-5a24-9355-b262acac68ba",
+        "actor_type": "application",
+        "context_bindings": [
+          {
+            "context_id": "c099fb27-16f5-5e56-9309-e478ca60e2d9",
+            "access_mode": "write"
+          }
+        ]
+      }
+    ],
+    "edges": [],
+    "contexts": [
+      {
+        "id": "c099fb27-16f5-5e56-9309-e478ca60e2d9",
+        "name": "Order",
+        "type": "data",
+        "sync_pattern": "shared_state"
+      },
+      {
+        "id": "dcf0bcdd-3a08-5473-8671-3c35e3e623af",
+        "name": "Ledger",
+        "type": "data",
+        "sync_pattern": "shared_state"
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "contexts": {
+        "Ledger": {
+          "entry": 1
+        }
+      }
+    }
+  },
+  "expect": {
+    "status": "failed",
+    "visited": [
+      "A"
+    ],
+    "contexts": {},
+    "journal_contains": [
+      {
+        "type": "token.failed",
+        "data": {
+          "error": {
+            "code": "CONTEXT_ACCESS_DENIED"
+          }
+        }
+      }
+    ]
+  }
+}

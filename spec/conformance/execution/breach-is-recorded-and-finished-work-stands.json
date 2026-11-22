@@ -1,0 +1,73 @@
+{
+  "id": "breach-is-recorded-and-finished-work-stands",
+  "level": "service_levels",
+  "spec": "23.3",
+  "description": "Work that finished after its longest time is recorded as a breach. It is not undone, whatever the breach action: the run goes on with its output.",
+  "workflow": {
+    "id": "0c8c138b-8067-5a7c-8ead-e4f2f30e99cc",
+    "name": "breach-is-recorded-and-finished-work-stands",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "7a2df026-d244-5ee1-8a52-aa0d4f20d8d4",
+        "name": "A",
+        "role_id": "8be3cfa6-8aa3-50aa-b3be-057febb7882d",
+        "actor_type": "application",
+        "sla": {
+          "max_time": "PT4H",
+          "escalation_policy": {
+            "breach_action": "fail"
+          }
+        }
+      },
+      {
+        "id": "1ee1ac69-b764-5998-832c-fe7afe23edb2",
+        "name": "B",
+        "role_id": "8be3cfa6-8aa3-50aa-b3be-057febb7882d",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "e8ff6f7a-1246-5599-800f-adb00343469d",
+        "source_id": "7a2df026-d244-5ee1-8a52-aa0d4f20d8d4",
+        "target_id": "1ee1ac69-b764-5998-832c-fe7afe23edb2"
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "takes": "PT5H",
+      "output": {
+        "done": true
+      }
+    }
+  },
+  "clock": "2026-01-05T09:00:00.000Z",
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "A",
+      "B"
+    ],
+    "data": {
+      "done": true
+    },
+    "journal_contains": [
+      {
+        "type": "sla.breached",
+        "node_name": "A",
+        "data": {
+          "scope": "activity",
+          "elapsed_ms": 18000000,
+          "max_time": "PT4H",
+          "action": "fail"
+        }
+      }
+    ],
+    "journal_count": {
+      "sla.breached": 1
+    }
+  }
+}

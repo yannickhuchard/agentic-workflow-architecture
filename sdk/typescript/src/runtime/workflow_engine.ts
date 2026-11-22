@@ -4,9 +4,9 @@
  */
 
 import { randomUUID } from 'crypto';
-import { UUID, Workflow, Activity, Edge, Role, DecisionNode, Event as WorkflowEvent } from '../types';
+import { UUID, Workflow, Activity, Edge, Role, DecisionNode, Event as WorkflowEvent, Context } from '../types';
 import { Token } from './token';
-import { ContextManager } from './context_manager';
+import { ContextManager, ContextError } from './context_manager';
 import { ExecutionLogger, ExecutionMetrics, get_execution_logger } from './execution_logger';
 import { validate_workflow_integrity } from '../validator';
 import { Actor } from './actors/actor';
@@ -124,6 +124,8 @@ export interface WorkflowEngineOptions {
 
 export interface SimulatedOutput {
     output?: Record<string, unknown>;
+    /** What the activity writes to contexts, by context name (spec 22.3). It needs a binding that allows writing, as any activity does. */
+    contexts?: Record<string, unknown>;
     error?: string;
     code?: string;
     attempts?: SimulatedOutput[];
@@ -155,7 +157,10 @@ interface AwaitedEvent {
 }
 
 /** Error codes that are never retried, whatever the retry policy says */
-const NEVER_RETRIED = new Set(['VERIFICATION_FAILED', 'CONTRACT_VIOLATION', 'NO_ROUTE']);
+const NEVER_RETRIED = new Set(['VERIFICATION_FAILED', 'CONTRACT_VIOLATION', 'NO_ROUTE', 'SLA_BREACH', 'CONTEXT_MISSING', 'CONTEXT_ACCESS_DENIED', 'CONTEXT_INVALID', 'CONTEXT_NOT_FOUND']);
+/** Access modes that let an activity read a context, and those that let it write (22.2) */
+const CAN_READ = new Set(['read', 'read_write', 'subscribe']);
+const CAN_WRITE = new Set(['write', 'read_write', 'publish']);
 
 class ActivityError extends Error {
     constructor(message: string, public readonly code: string, public readonly details?: Record<string, unknown>) {
@@ -193,6 +198,8 @@ export class WorkflowEngine {
     private eventMap: Map<UUID, WorkflowEvent> = new Map();
     private incomingEdges: Map<UUID, Edge[]> = new Map(); // Target ID -> Edges
     /** Activities whose outcome was accepted, in order of completion. Drives compensation. */
+    /** Service level warnings and breaches already recorded, so that each is recorded once */
+    private slaRecorded = new Set<string>();
     private completedActivities: { activity_id: UUID; token_id: UUID; output: Record<string, unknown> }[] = [];
     /** Ids of the business events this run has consumed, so that a redelivery is ignored */
     private deliveredEvents = new Set<string>();
@@ -441,6 +448,8 @@ export class WorkflowEngine {
         this.status = failed ? 'failed' : 'completed';
 
         const durationMs = this.now() - this.executionStats.startTime.getTime();
+        // A run that ended late is recorded as late; what it did is not undone (23.3)
+        this.serviceLevel('workflow', this.workflow.sla, durationMs, {}, 'workflow');
         this.record({
             type: failed ? 'run.failed' : 'run.completed',
             data: {
@@ -562,6 +571,8 @@ export class WorkflowEngine {
                 journal_seq: this.journal.last_seq,
                 completed_activities: this.completedActivities,
                 delivered_events: [...this.deliveredEvents],
+                sla_recorded: [...this.slaRecorded],
+                context_times: this.contextManager.snapshot_times(),
                 stats: { ...this.executionStats, startTime: this.executionStats.startTime.toISOString() },
             },
         };
@@ -591,12 +602,15 @@ export class WorkflowEngine {
             run_id?: UUID; journal_seq?: number; stats?: Record<string, unknown>;
             completed_activities?: WorkflowEngine['completedActivities'];
             delivered_events?: string[];
+            sla_recorded?: string[];
+            context_times?: Record<string, number>;
         };
         const engine = new WorkflowEngine(workflowDef, { ...options, run_id: meta.run_id || options.run_id });
         engine.journal = new JournalWriter(
             engine.runId, workflowDef.id, engine.journalStore, options.journal_payloads || 'full', Math.max(meta.journal_seq || 0, options.journal_tail_seq || 0), options.now);
         engine.tokens = state.tokens.map(t => deserialize_token(t, state.workflow_id));
-        engine.contextManager.restore(state.contexts);
+        engine.contextManager.restore(state.contexts, meta.context_times);
+        engine.slaRecorded = new Set(meta.sla_recorded || []);
         engine.completedActivities = meta.completed_activities || [];
         engine.deliveredEvents = new Set(meta.delivered_events || []);
         if (meta.stats) {
@@ -680,6 +694,14 @@ export class WorkflowEngine {
                 _idempotency_key: `${this.runId}:${token.id}:${activity.id}:${visit}`,
             };
 
+            // The service level of an activity counts from the moment the token reaches it, waits and retries included
+            const enteredKey = `_entered_at:${activity.id}`;
+            if (!token.getData(enteredKey)) token.setData(enteredKey, new Date(this.now()).toISOString());
+
+            // An activity is given the contexts it is bound to read, and no other (spec 22.2)
+            const given = this.readContexts(token, activity);
+            if (given) (inputs as Record<string, unknown>)._contexts = given;
+
             // Knowledge from earlier runs, if the activity asks for it (spec 15.4)
             if (this.options.knowledge && activity.knowledge) {
                 const entries = this.options.knowledge.retrieve(this.workflow, activity, activity.knowledge);
@@ -710,6 +732,7 @@ export class WorkflowEngine {
             if (output._requires_human_action && this.options.wait_for_human_tasks) {
                 analytics.waste_categories?.push('waiting' as WasteCategory);
                 token.updateStatus('waiting', analytics);
+                delete output._contexts;
                 token.mergeActivityOutput(activity.id, { ...output, _waiting_since: endTime.toISOString() });
                 this.record({
                     type: 'token.waiting', token_id: token.id, ...this.nodeRef(activity.id),
@@ -718,6 +741,12 @@ export class WorkflowEngine {
                 this.log(`Token paused waiting for human task ${output._human_task_id}`);
                 return;
             }
+
+            // What the activity wrote to contexts is checked against its bindings before anything else counts
+            this.writeContexts(token, activity, output);
+            delete output._context_writes;
+            delete output._contexts;                     // an actor that echoes its input must not carry contexts into the token's data
+            this.closeServiceLevel(token, activity);
 
             token.mergeActivityOutput(activity.id, {
                 ...output,
@@ -940,6 +969,182 @@ export class WorkflowEngine {
         return due.length ? Math.min(...due) : undefined;
     }
 
+    // ---------------------------------------------------------------- contexts (spec 22)
+
+    /** The contexts an activity is bound to read, by name. Fails the activity when a required one has no value. */
+    private readContexts(token: Token, activity: Activity): Record<string, unknown> | undefined {
+        const bindings = activity.context_bindings || [];
+        if (bindings.length === 0) return undefined;
+        const given: Record<string, unknown> = {};
+        const seen: Record<string, unknown>[] = [];
+        for (const binding of bindings) {
+            if (!CAN_READ.has(binding.access_mode)) continue;
+            const context = this.contextManager.getContextDefinition(binding.context_id);
+            if (!context) throw new ActivityError(`Activity "${activity.name}" binds a context the workflow does not declare (${binding.context_id})`, 'CONTEXT_NOT_FOUND');
+            let value = this.contextManager.get(binding.context_id, this.now());
+            if (value !== undefined && value !== null && binding.transforms?.on_read) value = resolve_path(value, binding.transforms.on_read);
+            const present = value !== undefined && value !== null;
+            seen.push({ context_id: context.id, context_name: context.name, access_mode: binding.access_mode, present, ...(present ? { value_hash: hash_payload(value) } : {}) });
+            if (!present && binding.required !== false) {
+                this.record({ type: 'context.read', token_id: token.id, ...this.nodeRef(activity.id), data: { contexts: seen } });
+                throw new ActivityError(`Activity "${activity.name}" requires context "${context.name}", which has no value`, 'CONTEXT_MISSING');
+            }
+            if (present) given[context.name] = JSON.parse(JSON.stringify(value));
+        }
+        if (seen.length > 0) this.record({ type: 'context.read', token_id: token.id, ...this.nodeRef(activity.id), data: { contexts: seen } });
+        return given;
+    }
+
+    /**
+     * Apply what an activity wrote to contexts (`_context_writes` in its output, by context name).
+     * Every write needs a binding that allows writing; one that does not, or a value the
+     * context's schema refuses, fails the activity and nothing is written.
+     */
+    private writeContexts(token: Token, activity: Activity, output: Record<string, unknown>): void {
+        const writes = output._context_writes;
+        if (writes === undefined) return;
+        const ref = { token_id: token.id, ...this.nodeRef(activity.id) };
+        if (typeof writes !== 'object' || writes === null || Array.isArray(writes)) {
+            throw new ActivityError(`Activity "${activity.name}" returned _context_writes that is not an object keyed by context name`, 'CONTEXT_INVALID');
+        }
+        const by_name = new Map(this.contextManager.list().map(c => [c.name, c]));
+        const plan: { context: Context; binding: Activity['context_bindings'][number]; value: unknown }[] = [];
+        for (const [name, value] of Object.entries(writes as Record<string, unknown>)) {
+            const context = by_name.get(name);
+            const binding = context && (activity.context_bindings || []).find(b => b.context_id === context.id && CAN_WRITE.has(b.access_mode));
+            if (!context || !binding) {
+                const reason = !context ? 'the workflow declares no such context' : 'the activity has no binding that allows writing to it';
+                this.record({ type: 'context.denied', ...ref, data: { context_name: name, ...(context ? { context_id: context.id } : {}), reason } });
+                throw new ActivityError(`Activity "${activity.name}" wrote to context "${name}": ${reason}`, 'CONTEXT_ACCESS_DENIED');
+            }
+            plan.push({ context, binding, value });
+        }
+        const before = this.contextManager.snapshot();
+        const before_times = this.contextManager.snapshot_times();
+        const written: Record<string, unknown>[] = [];
+        try {
+            for (const { context, binding, value } of plan) {
+                let next = value;
+                if (binding.transforms?.on_write) {
+                    // The value is placed at a path within the context's value
+                    const whole = JSON.parse(JSON.stringify(this.contextManager.get(context.id, this.now()) ?? {}));
+                    if (typeof whole !== 'object' || whole === null || Array.isArray(whole)) throw new ContextError(`Context "${context.name}" does not hold an object: nothing can be written at "${binding.transforms.on_write}"`, 'CONTEXT_INVALID');
+                    const parts = binding.transforms.on_write.split('.');
+                    let at = whole as Record<string, unknown>;
+                    for (const part of parts.slice(0, -1)) {
+                        if (typeof at[part] !== 'object' || at[part] === null) at[part] = {};
+                        at = at[part] as Record<string, unknown>;
+                    }
+                    at[parts[parts.length - 1]] = value;
+                    this.contextManager.set(context.id, whole, this.now());
+                    next = whole;
+                } else {
+                    next = this.contextManager.write(context.id, value, this.now());
+                }
+                written.push({ context_id: context.id, context_name: context.name, sync_pattern: context.sync_pattern, access_mode: binding.access_mode, value_hash: hash_payload(next) });
+            }
+        } catch (error) {
+            this.contextManager.replace(before, before_times);              // all of an activity's writes, or none
+            if (error instanceof ContextError) {
+                this.record({ type: 'context.denied', ...ref, data: { reason: error.message } });
+                throw new ActivityError(error.message, error.code);
+            }
+            throw error;
+        }
+        for (const data of written) this.record({ type: 'context.written', ...ref, data });
+    }
+
+    // ---------------------------------------------------------------- service levels (spec 23)
+
+    /**
+     * Compare the time taken with a service level and record, once each, a warning and a breach.
+     * Returns 'breached' when the longest time allowed has passed.
+     */
+    private serviceLevel(scope: 'activity' | 'workflow', sla: Activity['sla'], elapsedMs: number, ref: Record<string, unknown>, key: string): { state: 'ok' | 'warning' | 'breached'; action: string; recorded: number } {
+        const nothing = { state: 'ok' as const, action: 'record', recorded: 0 };
+        if (!sla) return nothing;
+        const duration = (text?: string) => { if (!text) return undefined; try { return parse_iso_duration(text); } catch { return undefined; } };
+        const max = duration(sla.max_time);
+        const policy = sla.escalation_policy;
+        const warn_text = policy?.warning_threshold || sla.target_time;
+        const warn = duration(warn_text);
+        const action = policy?.breach_action || 'record';
+        const notify = policy?.notify_roles?.length ? { notify_roles: policy.notify_roles } : {};
+        const named = sla.name ? { name: sla.name } : {};
+        let recorded = 0;
+        const once = (kind: string, event: () => void) => { if (!this.slaRecorded.has(`${key}:${kind}`)) { this.slaRecorded.add(`${key}:${kind}`); event(); recorded++; } };
+        if (warn !== undefined && elapsedMs > warn && (max === undefined || elapsedMs <= max)) {
+            once('warning', () => this.record({ type: 'sla.warning', ...ref, data: { scope, ...named, elapsed_ms: elapsedMs, threshold: warn_text, threshold_ms: warn, ...(policy?.warning_action ? { action: policy.warning_action } : {}), ...notify } }));
+        }
+        if (max !== undefined && elapsedMs > max) {
+            once('breached', () => this.record({ type: 'sla.breached', ...ref, data: { scope, ...named, elapsed_ms: elapsedMs, max_time: sla.max_time, max_time_ms: max, action, ...notify } }));
+            return { state: 'breached', action, recorded };
+        }
+        return { state: recorded ? 'warning' : 'ok', action, recorded };
+    }
+
+    private activityElapsed(token: Token, activity: Activity, now = this.now()): { elapsed: number; key: string } {
+        const entered = token.getData(`_entered_at:${activity.id}`) as string | undefined;
+        return { elapsed: entered ? now - new Date(entered).getTime() : 0, key: `activity:${token.id}:${activity.id}:${entered || ''}` };
+    }
+
+    /** The activity is done: record how it stood against its service level. Work that finished late stands. */
+    private closeServiceLevel(token: Token, activity: Activity): void {
+        const { elapsed, key } = this.activityElapsed(token, activity);
+        this.serviceLevel('activity', activity.sla, elapsed, { token_id: token.id, ...this.nodeRef(activity.id) }, key);
+        const { [`_entered_at:${activity.id}`]: _entered, ...rest } = token.contextData;
+        token.contextData = rest;
+    }
+
+    /** Before another attempt: an activity past its longest time, whose breach action is `fail`, is not tried again */
+    private failIfOverdue(token: Token, activity: Activity): void {
+        const { elapsed, key } = this.activityElapsed(token, activity);
+        const level = this.serviceLevel('activity', activity.sla, elapsed, { token_id: token.id, ...this.nodeRef(activity.id) }, key);
+        if (level.state === 'breached' && level.action === 'fail') {
+            throw new ActivityError(`Activity "${activity.name}" passed its service level of ${activity.sla?.max_time} and is not tried again`, 'SLA_BREACH');
+        }
+    }
+
+    /**
+     * Compare work that is waiting with its service levels (spec 23.2): activities waiting for a
+     * person, and the run as a whole. Warnings and breaches are recorded once. Where the breach
+     * action is `fail`, the waiting token fails with SLA_BREACH. Call run() afterwards when
+     * `failed` is not zero. A host calls this on its schedule, as it calls expireEvents.
+     */
+    public async checkServiceLevels(now: number = this.now()): Promise<{ warnings: number; breaches: number; failed: number }> {
+        const result = { warnings: 0, breaches: 0, failed: 0 };
+        if (['completed', 'failed', 'cancelled', 'idle'].includes(this.status)) return result;
+        const before = this.slaRecorded.size;
+        const count = (level: { state: string; recorded: number }) => { if (level.state === 'breached' && level.recorded) result.breaches++; };
+        for (const token of this.tokens.filter(t => t.status === 'waiting')) {
+            const activity = this.activityMap.get(token.activityId);
+            if (!activity?.sla) continue;
+            const { elapsed, key } = this.activityElapsed(token, activity, now);
+            const level = this.serviceLevel('activity', activity.sla, elapsed, { token_id: token.id, ...this.nodeRef(activity.id) }, key);
+            count(level);
+            if (level.state === 'breached' && level.action === 'fail') {
+                this.failToken(token, new ActivityError(`Activity "${activity.name}" passed its service level of ${activity.sla.max_time} while waiting`, 'SLA_BREACH'));
+                result.failed++;
+            }
+        }
+        const run = this.serviceLevel('workflow', this.workflow.sla, now - this.executionStats.startTime.getTime(), {}, 'workflow');
+        count(run);
+        if (run.state === 'breached' && run.action === 'fail' && result.failed === 0) {
+            const open = this.tokens.find(t => t.status === 'waiting' || t.status === 'active' || t.status === 'joining');
+            if (open) {
+                this.failToken(open, new ActivityError(`The run passed its service level of ${this.workflow.sla?.max_time}`, 'SLA_BREACH'));
+                result.failed++;
+            }
+        }
+        result.warnings = this.slaRecorded.size - before - result.breaches;
+        if (result.failed > 0) {
+            if (this.status === 'waiting_event' || this.status === 'waiting_human') this.status = 'running';
+            await this.settle();
+        }
+        if (this.slaRecorded.size !== before || result.failed > 0) await this.saveCheckpoint();
+        return result;
+    }
+
     /**
      * Time out the event waits whose deadline has passed (spec 18.3). The token
      * takes the event's timeout edge; an event without one fails the token.
@@ -985,6 +1190,9 @@ export class WorkflowEngine {
             ...(info.stack && !(error instanceof ActivityError) ? { _stack: info.stack } : {}),
             ...(details || {}),
         });
+        // Whatever the failure carried, contexts are not part of the run's data (22.2)
+        const { _contexts: _given, _context_writes: _written, ...kept } = token.contextData;
+        token.contextData = kept;
         this.record({
             type: 'token.failed', token_id: token.id, ...this.nodeRef(token.activityId),
             data: { error: { message: info.message, code: info.code } },
@@ -1070,6 +1278,9 @@ export class WorkflowEngine {
                 const raw = await this.withTimeout(
                     actor.execute(activity, { ...currentInputs, _attempt: attempt }, context), timeoutMs, activity.name);
                 output = this.extractTraces(raw, ref, attempt);
+                // An actor that echoes what it was given must not carry contexts anywhere a result goes:
+                // not into the token's data, and not into the details of a rejected outcome
+                delete output._contexts;
             } catch (error: unknown) {
                 errors++;
                 const info = error_info(error);
@@ -1092,6 +1303,7 @@ export class WorkflowEngine {
                     throw error;
                 }
 
+                this.failIfOverdue(token, activity);
                 const delay = calculate_retry_delay(retry, errors - 1);
                 this.record({ type: 'activity.retry_scheduled', ...ref, attempt, data: { delay_ms: delay, next_attempt: attempt + 1 } });
                 this.record({
@@ -1104,6 +1316,8 @@ export class WorkflowEngine {
                     },
                 });
                 await this.sleep(delay);
+                // The delay counts too: an activity whose longest time ran out while it waited to be tried again is not tried
+                this.failIfOverdue(token, activity);
                 continue;
             }
 
@@ -1700,7 +1914,7 @@ export class WorkflowEngine {
                     const attempt = Number(inputs._attempt) || 1;
                     const step = scripted.attempts ? scripted.attempts[Math.min(attempt, scripted.attempts.length) - 1] : scripted;
                     if (step.error) throw Object.assign(new Error(step.error), step.code ? { code: step.code } : {});
-                    return { ...(step.output || {}), _simulated: true };
+                    return { ...(step.output || {}), ...(step.contexts ? { _context_writes: step.contexts } : {}), _simulated: true };
                 },
             };
         }
@@ -1748,12 +1962,16 @@ export class WorkflowEngine {
             analytics = { wait_time: calculate_duration(since, new Date(this.now())), waste_categories: ['waiting' as WasteCategory] };
         }
 
+        const resumed = this.activityMap.get(token.activityId);
+        const ref = { token_id: token.id, ...this.nodeRef(token.activityId) };
+        token.updateStatus('active', analytics);
+        this.record({ type: 'token.resumed', ...ref, data: { waited_ms: waitedMs } });
+        output = { ...output };
+        const context_writes = output._context_writes;
+        delete output._context_writes;
+        delete output._contexts;
         token.mergeActivityOutput(token.activityId, output);
         token.mergeData({ _human_task_status: 'completed', _requires_human_action: false });
-        token.updateStatus('active', analytics);
-
-        const ref = { token_id: token.id, ...this.nodeRef(token.activityId) };
-        this.record({ type: 'token.resumed', ...ref, data: { waited_ms: waitedMs } });
 
         // The deterministic terms of an outcome contract bind human decisions too
         const contract = this.activityMap.get(token.activityId)?.outcome_contract;
@@ -1767,6 +1985,18 @@ export class WorkflowEngine {
                 this.failToken(token, new ActivityError(
                     `Outcome contract violated by the human decision: ${violations.map(v => v.message).join('; ')}`,
                     'CONTRACT_VIOLATION', { _contract_violations: violations }));
+                await this.settle();
+                await this.saveCheckpoint();
+                return false;
+            }
+        }
+        // A person's answer may write to contexts under the same bindings as any actor's, once it is accepted (22.3)
+        if (resumed) {
+            try {
+                if (context_writes !== undefined) this.writeContexts(token, resumed, { _context_writes: context_writes });
+                this.closeServiceLevel(token, resumed);
+            } catch (error) {
+                this.failToken(token, error);
                 await this.settle();
                 await this.saveCheckpoint();
                 return false;
@@ -1798,7 +2028,13 @@ export class WorkflowEngine {
     }
 
     public getContext(contextId: UUID): unknown {
-        return this.contextManager.get(contextId);
+        return this.contextManager.get(contextId, this.now());
+    }
+
+    /** The value of every context that has one, by context name */
+    public getContexts(): Record<string, unknown> {
+        const now = this.now();
+        return Object.fromEntries(this.contextManager.list().map(c => [c.name, this.contextManager.get(c.id, now)] as const).filter(([, value]) => value !== undefined));
     }
 
     public getTokens(): Token[] {

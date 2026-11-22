@@ -1,0 +1,73 @@
+{
+  "id": "contexts-stay-out-of-the-run-data",
+  "level": "contexts",
+  "spec": "22.2",
+  "description": "A context is not part of the data that flows along edges: an activity without a binding cannot reach it through the run's data, and routing does not see it.",
+  "workflow": {
+    "id": "552c653a-fc52-5de6-a57f-ef0659f7b56d",
+    "name": "contexts-stay-out-of-the-run-data",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "c2168567-65a5-52a7-b094-1582e7835632",
+        "name": "A",
+        "role_id": "e68e83da-22de-5093-a529-115b32e28616",
+        "actor_type": "application",
+        "context_bindings": [
+          {
+            "context_id": "04440e36-7532-5582-b1ec-911470588570",
+            "access_mode": "read"
+          }
+        ]
+      },
+      {
+        "id": "b0b6f8f4-d003-5d73-81a2-19bd6d2240fc",
+        "name": "B",
+        "role_id": "e68e83da-22de-5093-a529-115b32e28616",
+        "actor_type": "application"
+      },
+      {
+        "id": "8d75e096-8841-5b8e-8781-d7125b128804",
+        "name": "C",
+        "role_id": "e68e83da-22de-5093-a529-115b32e28616",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "a4541e20-d309-58a4-b3e5-4000de642375",
+        "source_id": "c2168567-65a5-52a7-b094-1582e7835632",
+        "target_id": "b0b6f8f4-d003-5d73-81a2-19bd6d2240fc",
+        "condition": "_contexts exists"
+      },
+      {
+        "id": "4964aa37-4bd0-5352-908f-8e37512961b6",
+        "source_id": "c2168567-65a5-52a7-b094-1582e7835632",
+        "target_id": "8d75e096-8841-5b8e-8781-d7125b128804",
+        "is_default": true
+      }
+    ],
+    "contexts": [
+      {
+        "id": "04440e36-7532-5582-b1ec-911470588570",
+        "name": "Secret",
+        "type": "data",
+        "sync_pattern": "shared_state",
+        "initial_value": {
+          "limit": 5
+        }
+      }
+    ]
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "A",
+      "C"
+    ],
+    "given_contexts": {
+      "C": null
+    }
+  }
+}

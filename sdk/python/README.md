@@ -5,8 +5,10 @@ Python SDK for Agentic Workflow Architecture (AWA).
 ## Installation
 
 ```bash
-pip install awa
+pip install agentic-workflow-architecture
 ```
+
+The distribution is named `agentic-workflow-architecture`; the package you import, and the command, are `awa`. Do not install the unrelated PyPI project named `awa`.
 
 ## Usage
 
@@ -33,5 +35,270 @@ print(result)
 
 - **Built-in VSM & Analytics**: Real-time tracking of DOWNTIME waste (Waiting, Defects) and process metrics.
 - **Fluent Builder API**: Construct complex workflows with a clean Pythonic interface.
-- **Gemini AI Integration**: First-class support for AI agents.
+- **AI agents**: activities done by an AI agent go through the actor you supply, or through a model provider you register. The built-in AI agent is a placeholder that calls no model.
 - **REST API Support**: Optional server mode via FastAPI.
+
+## Conformance
+
+The Python SDK passes every case of every conformance level of the specification (`docs/specification.md`, section 2.1): `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts` and `service_levels`. No case is skipped. Run them with `pytest tests/test_conformance.py -rs`.
+
+What it still lacks compared with the TypeScript reference implementation, none of which belongs to a conformance level:
+
+- **An AI agent that calls a model.** The built-in `AIAgent` is a placeholder that returns no business data. Give the engine your own actor in `options["actors"]["ai_agent"]`; it reads `_contexts`, `_knowledge` and `_verification_feedback` from the token's data. Model decisions at decision nodes do call the registered model providers.
+- **The Open Knowledge Format exchange** (specification 15.5). A knowledge base is saved and loaded as JSON, in the form the reference writes with `to_json`; it is not exported as, or imported from, an OKF bundle.
+- **The recipe** (14.1) and the visual replay (14.2).
+- **Model providers** for Google and for embedded models, and `tier_fallbacks`. `OpenAICompatibleModelProvider`, `ollama_provider` and `FunctionModelProvider` are available.
+- **Commands**: `awa knowledge`, `awa recipe`, `awa generate`, `awa init` and `awa task`; `awa measures --html`; and, for `awa replay`, a live replay (see below).
+
+## Tools, model routing and model decisions
+
+The levels `tools` (specification section 17), `model_decision` (section 16) and `routing` (section 12).
+
+### Tools
+
+An activity lists its tools in `tools`. Every call goes through one `ToolRunner`, which refuses an unknown tool and a call beyond `budgets.max_tool_calls` (16 if the activity sets none), validates the arguments against the tool's `parameters`, applies the deployment's permissions, runs the binding under the tool's `timeout`, and journals `tool.invoked` followed by `tool.completed` or `tool.failed`, each with the link to what ran. A refused or failed call is returned to the actor as a result; it does not raise.
+
+```python
+from awa.runtime import WorkflowEngine
+
+class Lookup:
+    # An actor whose execute() takes a third parameter is given the context of the attempt
+    def execute(self, activity, token, context):
+        found = context.tools.call("policy", {"id": token.get_data("policy_id")})
+        return {"covered": found.ok and found.result["active"]}
+
+engine = WorkflowEngine(workflow, options={
+    "actors": {"application": Lookup()},
+    "tools": {
+        "handlers": {"policy": lambda args: {"active": True}},  # bindings of kind "function"
+        "allow_commands": ["/usr/bin/jq"],                      # default: no command may run
+        "allowed_hosts": ["api.example.com"],                   # default: any host
+        "secrets": {"API_KEY": "..."},                          # for {{secret:API_KEY}} in headers; never journalled
+    },
+})
+```
+
+| Binding | Runs | Notes |
+|---|---|---|
+| `function` | A handler from `tools.handlers` | |
+| `http` | An HTTP request, with the standard library | Only `http` and `https` URLs. Redirects are followed only to allowed hosts |
+| `jsonrpc` | A JSON-RPC 2.0 call over HTTP | |
+| `command` | A program, without a shell | Refused unless `allow_commands` is `True` or lists the program |
+| `mcp`, `grpc` | An executor from `tools.executors` | Without one the call fails with `VALIDATION_ERROR` |
+
+The output of a command and the body of an HTTP response are limited to `max_output_bytes` (4 MiB by default); a longer one fails the call. A handler that is still running at the timeout cannot be interrupted in Python: the call fails with `TIMEOUT` and the handler's result is ignored. In simulation mode no binding runs: the call is journalled with `simulated: true` and returns `tools.simulated_results[<tool name>]`.
+
+The built-in `AIAgent` actor does not call tools on its own; an actor you supply calls them through `context.tools`.
+
+### Model references and routing
+
+The engine calls a model itself at decision nodes that carry a `decision_model`. A model reference is `tier:<name>`, `<provider>:<model>`, or a bare model name of the default provider. All calls go through one router: it lists the candidates of the reference, leaves out those whose provider is not registered, calls the first, falls back to the next when a provider fails, and stops when a provider rejects the request as invalid. The model that served is journalled as `meta.recorded` with subject `model_selection`, and any route other than "first candidate used" with subject `model_route`.
+
+```python
+from awa.runtime import FunctionModelProvider, OpenAICompatibleModelProvider, WorkflowEngine
+
+engine = WorkflowEngine(workflow, options={
+    "model_providers": [
+        OpenAICompatibleModelProvider("gateway", "https://llm.example.com/v1", api_key="..."),
+        OpenAICompatibleModelProvider("local", "http://localhost:11434/v1"),
+    ],
+    "default_model_provider": "gateway",          # the first registered, if absent
+    "model_tiers": {"fast": ["gateway:<model name>", "local:<model name>"]},
+    "default_ai_model_id": "tier:fast",           # used where a decision names no model; "tier:balanced" if absent
+})
+```
+
+A provider is any object with an `id`, a `supports_tools` flag and `generate(request) -> ModelResponse`. `FunctionModelProvider` wraps a function, for tests and deterministic stand-ins. `OpenAICompatibleModelProvider` reaches any server exposing `chat/completions` and uses only the standard library. No vendor SDK is required.
+
+### Model decisions
+
+A decision node with a `decision_model` lets a model choose among the options the workflow enumerates. With `strategy: table_first` (the default when the node also has a table or an external engine) the model is asked only when no rule decides. A reply is a valid vote only if it names exactly one offered option; with `votes` above 1 the option with a strict majority of all votes decides; a confidence below `min_confidence`, or unstated when one is required, is no decision. On no decision the token takes `default_output_edge_id`, or fails with `NO_ROUTE`. `decision.evaluated` records the method, the votes and the token usage.
+
+`model_decision_override` (a callable taking the decision node) supplies a decision without calling a model. In simulation mode no model is called; `simulated_outputs[<node name>]["output"]` scripts the decision.
+
+External decision engines (specification 5.5.4) are registered by name in `decision_engines`: a callable, or an object with `decide(request)`, that returns `{"option": ..., "outputs": ..., "explanation": ..., "fired_rules": ...}`.
+
+## Contexts and service levels
+
+The levels `contexts` (specification section 22) and `service_levels` (section 23). `tests/test_contexts_service_levels.py` covers what the cases cannot reach: the time to live of a transient context, `transforms`, writes made by a person completing a task, a person's task that outlasts its service level, checkpoints, and the host's tick.
+
+### Contexts
+
+An activity reaches a context only through a binding. While its actor executes, the token's data holds `_contexts`: the value of each context the activity is bound to read (`read`, `read_write`, `subscribe`), by context name, and no other. An activity with no binding has no `_contexts`. An actor writes by returning `_context_writes`, an object keyed by context name; the engine applies it once the outcome is accepted, as the context's `sync_pattern` says. Neither property stays in the token's data, so contexts do not travel along edges and conditions do not see them.
+
+```python
+class Assessor:
+    def execute(self, activity, token):
+        order = token.get_data("_contexts")["Order"]          # bound with access_mode read
+        return {"score": 7, "_context_writes": {"Findings": {"damage": "rear bumper"}}}   # bound with write
+
+engine = WorkflowEngine(workflow, options={"actors": {"ai_agent": Assessor()}})
+engine.run({"claim": 1})
+engine.get_contexts()        # {"Order": {...}, "Findings": {"damage": "rear bumper"}}: every context that has a value, by name
+```
+
+A required context with no value fails the activity with `CONTEXT_MISSING` before its actor is called. A write with no binding that allows it fails with `CONTEXT_ACCESS_DENIED`, and one the context's `schema` refuses with `CONTEXT_INVALID`; the writes of one activity are applied together or not at all. None of these errors is retried. The journal records `context.read`, `context.written` and `context.denied`, with hashes, never values. A person's answer given to `resume_token` may carry `_context_writes` under the same bindings. Context values, and when each was last written, are part of a checkpoint.
+
+`ContextManager` now holds one value per context and has the interface of the reference: `get`, `set`, `write`, `list`, `snapshot`, `restore`. Its earlier key-value methods (`read`, `read_value`, `merge`, `clear`, `check_access`) are gone; the engine never called them.
+
+### Service levels
+
+An activity's or a workflow's `sla` is compared with the time the work takes: when an activity's outcome is accepted, before another attempt follows an error, when the run ends, and whenever the host calls `check_service_levels()`. The engine journals `sla.warning` and `sla.breached`, each once for a visit of a token to an activity and once for a run. Work that finished late stands. With `breach_action: fail`, work that is not finished fails with `SLA_BREACH`: an activity is not tried again, and a waiting token or run fails when the host checks.
+
+```python
+engine.check_service_levels()        # {"warnings": 0, "breaches": 1, "failed": 1}; call engine.run() when failed is not zero
+```
+
+`AwaRuntime.tick()` checks the service levels of every run it hosts, on the schedule on which it lets event waits run out. What was already recorded is part of a checkpoint, so a recovered run does not record it twice.
+
+## Knowledge
+
+The level `knowledge` (specification 15.1 to 15.4). `tests/test_knowledge.py` fixes the contents of `counts` and `latest` and the `types`, `tags` and `max_entries` of a binding.
+
+```python
+from awa import KnowledgeBase
+
+knowledge = KnowledgeBase.load("knowledge.json")              # empty when the file does not exist
+knowledge.ingest(workflow, engine.get_events())               # counted once per run, however often it is ingested
+knowledge.review("strategies/claims-assess-damage", "ana")    # only a person makes an entry reviewed
+knowledge.deprecate("failure-patterns/...")                   # never given to an actor again
+knowledge.save("knowledge.json")
+
+engine = WorkflowEngine(workflow, options={"knowledge": knowledge, "learn": True})
+```
+
+`distill(workflow, events)` derives candidate entries from one journal without calling a model: a `strategy` from the reasoning reported with an accepted outcome, a `failure_pattern` from each rejected or errored attempt, a `decision_precedent` from each decision evaluation, and a `lesson` from a failed run. Each cites the journal events it came from. An activity with a `knowledge` binding is given the matching entries about it in the token's data, as `_knowledge` (`id`, `type`, `title`, `guidance`): reviewed entries first, then by observations, never a deprecated one, and a draft only when the binding sets `min_status: draft`. The engine journals `knowledge.retrieved`. With `learn`, the run's journal is ingested when the run ends.
+
+## Counterfactual replay
+
+The level `replay` (specification section 20). `tests/test_counterfactual.py` covers the replay of tool results, business events, timeouts, model decisions and time.
+
+```python
+from awa import counterfactual_replay, render_counterfactual_report
+
+replay = counterfactual_replay(workflow, baseline_events, candidate=changed_workflow, ai="recorded")
+replay.status                      # the status of the candidate run
+replay.report["regressions"]       # a run that completed and no longer does, and every regressed node
+replay.report["nodes"]             # each with a verdict: same, changed, improved, regressed, only_baseline, only_candidate
+print(render_counterfactual_report(replay.report))
+```
+
+The run's input, the results of applications, robots and people, tool results (matched by tool and arguments), the business events received, timeouts and the passing of time are taken from the baseline journal. Something the baseline never did fails with `REPLAY_UNRECORDED` and is listed in `report["unrecorded"]`; nothing is invented and no tool is called. With `ai="recorded"` the outputs of AI agents and model decisions are replayed too. With `ai="live"` (the default) they run again: give the actor that performs the AI agents in `engine={"actors": {"ai_agent": ...}}`, and the model providers for model decisions; a live replay without that actor is refused, because the built-in AI agent calls no model. A journal recorded with payload mode `hash` or `none` is refused.
+
+```
+awa replay claim.awa.json run.journal.jsonl [--candidate changed.awa.json] [--json] [-o report.md] [--journal-out candidate.jsonl]
+```
+
+The command replays recorded AI outputs (`ai: "recorded"`), so it tests a changed contract, criterion, table or edge without a model. It exits with status 2 when the candidate regresses, 1 on an error, and 0 otherwise. The reference command's `--ai live`, `--providers` and `--key` options are not available: a live replay is made in code.
+
+## Business events, journeys and measures
+
+The levels `journeys` (specification section 19) and `measures` (section 21). The cases are run by `tests/test_conformance.py`; `tests/test_journeys_measures.py` covers what the cases cannot reach: recovery from files by a second host, the lock on a runtime directory, duplicate event ids, the form of an export, the command line and the HTTP routes.
+
+### A host for journeys
+
+`AwaRuntime` hosts runs and the journeys they belong to, and is the one place business events enter. For every event it accepts it records the event on the journeys it concerns, delivers it to the runs that wait for it, creates and moves journeys, and starts the workflows they name, in the order section 19.5 gives.
+
+```python
+from awa import AwaRuntime, business_event
+
+runtime = AwaRuntime()
+runtime.register_workflow(claim_workflow)      # a Workflow, or its document as a dict
+runtime.register_journey(claim_journey)        # a journey document; its workflows must be registered first
+
+result = runtime.publish(business_event("claim.submitted", {"customer_id": "c-1"}))
+# {"accepted": True, "resumed_runs": [], "started_runs": ["..."], "journeys": ["..."]}
+
+runtime.tick()                                  # deadlines that have passed take effect; stages outstayed are marked stalled
+instance = runtime.list_journey_instances()[0]  # status, stage_id, stalled, sentiment, goals_reached, runs, events
+runtime.analytics(claim_journey["id"])          # the funnel, stage by stage (19.6)
+runtime.transitions()                           # how subjects move from one journey to the next (19.7)
+portfolio = runtime.export_portfolio()          # everything recorded, as JSON
+```
+
+A journey instance and the events of its record are plain dicts in the form of `spec/json-schema/journey-event.schema.json`. `run_id` links a journey event to the journal of the run. `export_portfolio()` has the same form as the reference implementation's export, so `tools/visualization/journey.html` and `dashboard.html` open it.
+
+Options: `engine` (options for every run, see `WorkflowEngine`), `now` (a clock in milliseconds, for tests) and `store`.
+
+### A host that restarts
+
+With a store, the host saves its state after every operation: journey instances, the state of every run, the ids of the events it has accepted, and events runs have published that it has not yet accepted. Journals are written before the state is saved. Another process registers the same definitions and calls `recover()`.
+
+```python
+from awa import AwaRuntime, FileRuntimeStore
+from awa.runtime import FileJournalStore
+
+def host():
+    runtime = AwaRuntime(store=FileRuntimeStore("state/runtime.json"), engine={"journal": FileJournalStore("state/journals")})
+    return runtime.register_workflow(claim_workflow).register_journey(claim_journey)
+
+host().publish(event)          # one process
+second = host()                # another, later
+second.recover()               # {"instances": 1, "runs": 1, "continued": []}
+```
+
+Each run continues under its `run_id`, its journal going on at the next `seq` with `run.resumed`. An event accepted before the restart is not accepted again. `recover()` raises, and changes nothing, when a saved run names a workflow, or a saved instance a journey, that is not registered.
+
+`open_runtime_directory(directory)` keeps everything in one directory (`definitions/`, `runtime.json`, `journals/`) and holds it with `runtime.lock`, a file naming the process. A second process is refused while the first holds the directory; a lock left by a process that no longer exists is taken over. The runtime returned is a context manager, and `close()` releases the lock. On Windows a lock that was left behind is not taken over: delete `runtime.lock` once the process is known to be gone.
+
+```python
+from awa import open_runtime_directory
+from awa.runtime import add_definition
+
+add_definition(".awa", workflow_document)
+add_definition(".awa", journey_document)
+with open_runtime_directory(".awa") as runtime:
+    runtime.publish(event)
+```
+
+### Measures
+
+`compute_measures(record, options)` computes every measure of section 21 from an export; `MEASURES` lists them with their definitions; `measures_to_openmetrics(report)` gives the OpenMetrics text. A measure is `{"value": ..., "n": ...}`, and `value` is `None` when there is nothing to compute it from. The report validates against `spec/json-schema/measure-report.schema.json`.
+
+```python
+from awa import compute_measures, measures_to_openmetrics
+
+report = compute_measures(runtime.export_portfolio(), {"from": "2026-01-01T00:00:00Z", "to": "2026-04-01T00:00:00Z"})
+report["journeys"][0]["measures"]["journey.completion_rate"]   # {"value": 0.5, "n": 2}
+print(measures_to_openmetrics(report))
+```
+
+`options` may also give `journey_id` and `workflow_id`. A test compares the report for `examples/claims-journey/journeys.json` with the reference implementation's, number by number, when Node and the built TypeScript SDK are present.
+
+### Command line
+
+```
+awa journey add --dir .awa claim.awa.json claim.journey.json
+awa journey publish --dir .awa claim.submitted -d '{"customer_id": "c-1"}' [--id evt-1] [--source /crm]
+awa journey tick --dir .awa [--at 2026-06-01T00:00:00Z]
+awa journey resume --dir .awa <run_id> <token_id> -d '{"approved": true}'
+awa journey list --dir .awa [--stalled]
+awa journey show --dir .awa <subject key or instance id> [--json]
+awa journey analytics --dir .awa
+awa journey export --dir .awa [-o journeys.json]
+
+awa measures --dir .awa                # as text
+awa measures --file journeys.json --json [--from <instant>] [--to <instant>] [--journey <id>] [--workflow <id>]
+awa measures --dir .awa --openmetrics
+awa measures --list
+```
+
+`publish`, `tick` and `resume` accept `-s/--simulate` with `--outputs <file>`: activities then call no model, tool or person and return what the file gives under their name. The reference command's `--html` option (the measures page as one file) is not available in this SDK.
+
+### HTTP
+
+`awa serve` also offers, behind the same authentication as the other routes:
+
+| Route | Purpose |
+|---|---|
+| `POST /api/v1/journeys/definitions` | Register a workflow or a journey |
+| `GET /api/v1/journeys` | Journeys with their analytics |
+| `POST /api/v1/journeys/events` | Accept a business event (`type`, optionally `id`, `source`, `subject`, `data`) |
+| `POST /api/v1/journeys/tick` | Let time pass (`{"at": "<instant>"}` optional) |
+| `POST /api/v1/journeys/runs/{run_id}/tokens/{token_id}/resume` | Complete a human task |
+| `GET /api/v1/journeys/instances`, `/instances/{id}` | Instances (`journey_id`, `subject`, `stalled`), and one with its record and journals |
+| `GET /api/v1/journeys/transitions`, `/portfolio` | Movement between journeys; the full export |
+| `GET /api/v1/measures` | The report (`from`, `to`, `journey_id`, `workflow_id`); `format=openmetrics` for the text format |
+| `GET /api/v1/measures/definitions` | The measures and their definitions |
+
+With `AWA_DATA_DIR` set the server keeps a runtime directory there and survives a restart; without it journeys live in the process. `AWA_SIMULATE=1` and `AWA_SIMULATED_OUTPUTS=<file>` simulate activities as on the command line.

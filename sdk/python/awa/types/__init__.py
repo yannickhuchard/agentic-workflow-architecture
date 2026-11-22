@@ -7,7 +7,7 @@ from enum import Enum
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # ============================================================================
@@ -283,6 +283,51 @@ class VerificationPolicy(BaseModel):
     pass_threshold: float = Field(default=0.9, ge=0, le=1)
 
 
+class ToolBinding(BaseModel):
+    """
+    What a tool runs (specification 17.2). `kind` says which of the other
+    fields apply: http (method, url, headers), command (command, args),
+    jsonrpc (endpoint, method), grpc (endpoint, service, method),
+    mcp (server, tool) or function (name).
+    """
+    kind: Literal["http", "command", "jsonrpc", "grpc", "mcp", "function"]
+    method: str | None = None
+    url: str | None = None
+    headers: dict[str, str] | None = None
+    command: str | None = None
+    args: list[str] | None = None
+    endpoint: str | None = None
+    service: str | None = None
+    server: str | None = None
+    tool: str | None = None
+    name: str | None = None
+
+    @model_validator(mode="after")
+    def _fields_of_kind(self) -> "ToolBinding":
+        required = {
+            "http": ("url",), "command": ("command",), "jsonrpc": ("endpoint", "method"),
+            "grpc": ("endpoint", "service", "method"), "mcp": ("server", "tool"), "function": ("name",),
+        }[self.kind]
+        missing = [name for name in required if getattr(self, name) is None]
+        if missing:
+            raise ValueError(f'A "{self.kind}" binding needs {", ".join(missing)}')
+        if self.kind == "http":
+            self.method = (self.method or "GET").upper()
+            if self.method not in ("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"):
+                raise ValueError(f'Unsupported HTTP method "{self.method}"')
+        return self
+
+
+class ToolDefinition(BaseModel):
+    """A function an actor may call while performing an activity (specification 17.1)"""
+    name: str = Field(pattern=r"^[A-Za-z_][A-Za-z0-9_-]{0,63}$")
+    description: str | None = None
+    parameters: dict[str, Any] | None = None
+    binding: ToolBinding
+    documentation: str | None = None
+    timeout: str | None = None
+
+
 class Postcondition(BaseModel):
     id: UUID | None = None
     name: str
@@ -310,6 +355,14 @@ class Compensation(BaseModel):
     activity_id: UUID
 
 
+class KnowledgeBinding(BaseModel):
+    """Which knowledge entries an activity's actor is given when it executes (specification 15.4)"""
+    types: list[Literal["strategy", "failure_pattern", "decision_precedent", "lesson"]] | None = None
+    tags: list[str] | None = None
+    max_entries: int | None = Field(default=None, ge=1, le=20)
+    min_status: Literal["draft", "reviewed"] | None = None
+
+
 class Activity(BaseModel):
     id: UUID
     name: str
@@ -333,7 +386,9 @@ class Activity(BaseModel):
     retry: RetryPolicy | None = None
     verification: VerificationPolicy | None = None
     outcome_contract: OutcomeContract | None = None
+    tools: list[ToolDefinition] = Field(default_factory=list)
     compensation: Compensation | None = None
+    knowledge: KnowledgeBinding | None = None
     join: Literal["any", "all"] = "any"
 
 
@@ -380,11 +435,48 @@ class DecisionTable(BaseModel):
     rules: list[DecisionRule]
 
 
+class DecisionOption(BaseModel):
+    """One of the only decisions a model, or an external engine, may make"""
+    id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,64}$")
+    description: str | None = None
+    output_edge_id: UUID
+
+
+class DecisionModel(BaseModel):
+    """A language model that decides at a decision node, within enumerated options (specification 16.1)"""
+    model: str | None = None
+    instructions: str
+    options: list[DecisionOption] = Field(min_length=2)
+    inputs: list[str] | None = None
+    strategy: Literal["table_first", "model"] | None = None
+    min_confidence: float = Field(default=0, ge=0, le=1)
+    output: str | None = Field(default=None, pattern=r"^[A-Za-z]\w*$")
+    votes: int = Field(default=1, ge=1, le=9)
+    temperature: float | None = Field(default=None, ge=0, le=2)
+
+    @model_validator(mode="after")
+    def _options_are_described(self) -> "DecisionModel":
+        if any(option.description is None for option in self.options):
+            raise ValueError("Every option of a decision model needs a description")
+        return self
+
+
+class DecisionEngineBinding(BaseModel):
+    """An external decision engine consulted instead of a table (specification 5.5.4)"""
+    name: str
+    ruleset: str | None = None
+    options: list[DecisionOption] = Field(min_length=1)
+    inputs: list[str] | None = None
+    config: dict[str, Any] | None = None
+
+
 class DecisionNode(BaseModel):
     id: UUID
     name: str
     description: str | None = None
     decision_table: DecisionTable | None = None
+    decision_engine: DecisionEngineBinding | None = None
+    decision_model: DecisionModel | None = None
     default_output_edge_id: UUID | None = None
 
 

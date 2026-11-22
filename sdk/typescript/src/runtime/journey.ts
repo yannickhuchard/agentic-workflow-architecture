@@ -249,8 +249,11 @@ export function apply_sentiment(definition: JourneyDefinition, instance: Journey
         const previous: number = instance.sentiment;
         let value: number;
         if (rule.measure) {
-            const raw = Number(resolve_path(occasion.data || {}, rule.measure.path));
-            if (Number.isNaN(raw)) continue;
+            // What the subject said must be a number, or text that is one: nothing, true or an empty answer is not a measurement
+            const said = resolve_path(occasion.data || {}, rule.measure.path);
+            if (typeof said !== 'number' && !(typeof said === 'string' && said.trim() !== '')) continue;
+            const raw = Number(said);
+            if (!Number.isFinite(raw)) continue;
             const [low, high] = rule.measure.from;
             value = sentiment.min + (raw - low) / (high - low) * (sentiment.max - sentiment.min);
         } else {

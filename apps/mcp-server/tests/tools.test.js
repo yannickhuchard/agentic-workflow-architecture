@@ -318,3 +318,22 @@ test('show_dashboard: measures of the example, of a simulation and of a portfoli
     const not = await call(client, 'show_dashboard', { portfolio: { hello: 1 } });
     assert.equal(not.isError, true); assert.match(text_of(not), /not a journey portfolio export/);
 });
+
+test('simulate_workflow: context bindings are enforced; a script may write contexts, and a missing one is explained', async t => {
+    const client = await connect(t);
+    const orders = read('examples/order-processing/order-processing.awa.json');
+    const scripted = await call(client, 'simulate_workflow', { workflow: orders, simulated_outputs: read('examples/order-processing/simulation.json') });
+    assert.equal(scripted.structuredContent.status, 'completed');
+    const journal = scripted._meta.awa.journal.map(e => e.type);
+    assert.ok(journal.includes('context.written') && journal.includes('context.read'));
+    // Without the script that writes the order, the activity that must read it cannot start
+    const outputs = read('examples/order-processing/simulation.json');
+    delete outputs['Receive Order'];
+    const bare = await call(client, 'simulate_workflow', { workflow: orders, simulated_outputs: outputs });
+    assert.equal(bare.structuredContent.status, 'failed');
+    assert.equal(bare.structuredContent.failures[0].code, 'CONTEXT_MISSING');
+    assert.match(bare.structuredContent.context_hint, /initial_value/);
+    // A write the bindings do not allow is refused by the engine, in a simulation as anywhere
+    const denied = await call(client, 'simulate_workflow', { workflow: orders, simulated_outputs: { ...read('examples/order-processing/simulation.json'), 'Notify Customer': { contexts: { 'Order Data': { status: 'tampered' } } } } });
+    assert.equal(denied.structuredContent.failures[0].code, 'CONTEXT_ACCESS_DENIED');
+});

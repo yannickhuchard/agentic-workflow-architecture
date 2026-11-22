@@ -1,0 +1,64 @@
+{
+  "id": "run-breach-is-recorded-at-the-end",
+  "level": "service_levels",
+  "spec": "23.4",
+  "description": "A workflow's service level counts from the start of the run. A run that ends late is recorded as breached before its end is recorded.",
+  "workflow": {
+    "id": "2b96cbec-f805-5902-889f-39b85605a7a4",
+    "name": "run-breach-is-recorded-at-the-end",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "aa17b02e-d38e-5b7c-9f02-0e655db0aa80",
+        "name": "A",
+        "role_id": "5a70fbff-a4c0-58b0-bf26-8008f13dcf94",
+        "actor_type": "application"
+      },
+      {
+        "id": "c307b8ce-2d72-58fc-a84e-57edd44b7793",
+        "name": "B",
+        "role_id": "5a70fbff-a4c0-58b0-bf26-8008f13dcf94",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "18bd1875-4c53-5477-b8e5-d60f7a672b05",
+        "source_id": "aa17b02e-d38e-5b7c-9f02-0e655db0aa80",
+        "target_id": "c307b8ce-2d72-58fc-a84e-57edd44b7793"
+      }
+    ],
+    "sla": {
+      "name": "Claim settled",
+      "max_time": "PT1H"
+    }
+  },
+  "actors": {
+    "A": {
+      "takes": "PT40M"
+    },
+    "B": {
+      "takes": "PT40M"
+    }
+  },
+  "clock": "2026-01-05T09:00:00.000Z",
+  "expect": {
+    "status": "completed",
+    "journal": [
+      "sla.breached",
+      "run.completed"
+    ],
+    "journal_contains": [
+      {
+        "type": "sla.breached",
+        "data": {
+          "scope": "workflow",
+          "name": "Claim settled",
+          "elapsed_ms": 4800000,
+          "max_time": "PT1H"
+        }
+      }
+    ]
+  }
+}

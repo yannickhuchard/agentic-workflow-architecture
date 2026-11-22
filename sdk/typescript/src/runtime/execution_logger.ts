@@ -23,11 +23,15 @@ export interface ExecutionLogger {
 }
 
 export class PrismaExecutionLogger implements ExecutionLogger {
-    private prisma: PrismaClient;
+    private client?: PrismaClient;
 
-    constructor() {
-        const url = process.env.AWA_DATABASE_URL;
-        this.prisma = new PrismaClient(url ? { datasources: { db: { url } } } : undefined);
+    /** Created when first used, so that loading the SDK never needs a database */
+    private get prisma(): PrismaClient {
+        if (!this.client) {
+            const url = process.env.AWA_DATABASE_URL;
+            this.client = new PrismaClient(url ? { datasources: { db: { url } } } : undefined);
+        }
+        return this.client;
     }
 
     async log_execution(metrics: ExecutionMetrics): Promise<void> {

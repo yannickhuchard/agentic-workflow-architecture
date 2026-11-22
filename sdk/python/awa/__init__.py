@@ -20,9 +20,14 @@ from awa.types import (
     Event,
     Context,
     ContextBinding,
+    KnowledgeBinding,
     AccessRight,
     DecisionNode,
     DecisionTable,
+    DecisionModel,
+    DecisionOption,
+    ToolDefinition,
+    ToolBinding,
     Role,
     System,
     Machine,
@@ -53,7 +58,19 @@ from awa.runtime import (
     EngineStatus,
     TaskService,
     ExecutionService,
+    ToolRunner,
+    ToolOptions,
+    ModelRegistry,
+    ModelRouter,
+    FunctionModelProvider,
+    OpenAICompatibleModelProvider,
 )
+from awa.runtime.business_event import business_event
+from awa.runtime.journey import JourneyDefinition, parse_journey
+from awa.runtime.runtime_host import AwaRuntime, InMemoryRuntimeStore, FileRuntimeStore, open_runtime_directory
+from awa.runtime.kpi import MEASURES, compute_measures, measures_to_openmetrics
+from awa.runtime.knowledge import KnowledgeBase
+from awa.runtime.counterfactual import counterfactual_replay, render_counterfactual_report
 
 __version__ = "2.0.0"
 __all__ = [
@@ -79,6 +96,10 @@ __all__ = [
     "AccessRight",
     "DecisionNode",
     "DecisionTable",
+    "DecisionModel",
+    "DecisionOption",
+    "ToolDefinition",
+    "ToolBinding",
     "Role",
     "System",
     "Machine",
@@ -109,5 +130,28 @@ __all__ = [
     "EngineStatus",
     "TaskService",
     "ExecutionService",
+    # Tools and model binding
+    "ToolRunner",
+    "ToolOptions",
+    "ModelRegistry",
+    "ModelRouter",
+    "FunctionModelProvider",
+    "OpenAICompatibleModelProvider",
+    # Knowledge and counterfactual replay
+    "KnowledgeBase",
+    "KnowledgeBinding",
+    "counterfactual_replay",
+    "render_counterfactual_report",
+    # Business events, journeys and measures
+    "business_event",
+    "JourneyDefinition",
+    "parse_journey",
+    "AwaRuntime",
+    "InMemoryRuntimeStore",
+    "FileRuntimeStore",
+    "open_runtime_directory",
+    "MEASURES",
+    "compute_measures",
+    "measures_to_openmetrics",
 ]
 

@@ -1,164 +1,97 @@
-# AWA TypeScript SDK
+# Agentic Workflow Architecture: TypeScript SDK
 
-The official TypeScript SDK for the Agentic Workflow Architecture (AWA).
+The reference implementation of [AWA 1.1](https://github.com/yannickhuchard/agentic-workflow-architecture/blob/main/docs/specification.md), an open specification for business workflows in which AI agents, people, robots and applications work side by side. The guiding principle is **fixed outcome, free strategy**: an agent may reach a result by different means each time, so AWA fixes what must be true of the result, records how it was reached, and refuses results it cannot verify.
 
-## Installation
-
-### Global Installation (Recommended for CLI)
-
-```bash
-npm install -g agentic-workflow-architecture
-```
-
-After installation, the `awa` command will be available globally:
-
-```bash
-awa --version
-```
-
-### Project Installation
+## Install
 
 ```bash
 npm install agentic-workflow-architecture
 ```
 
-### Development from Source
+Node 20 or later. The package gives a library (CommonJS and ES modules, with types) and the `awa` command.
+
+## Run a workflow
 
 ```bash
-cd sdk/typescript
-npm install
-npm run build
-npm link
+npx awa run workflow.awa.json --simulate --outputs simulation.json --journal run.jsonl
 ```
 
-## Quick Start
-
-### Using the CLI
-
-Create a workflow file `hello.awa.json`:
-
-```json
-{
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "name": "Hello World",
-  "version": "1.0.0",
-  "activities": [
-    {
-      "id": "550e8400-e29b-41d4-a716-446655440001",
-      "name": "Greet",
-      "actor_type": "application",
-      "role_id": "550e8400-e29b-41d4-a716-446655440003",
-      "inputs": [],
-      "outputs": []
-    }
-  ],
-  "edges": [],
-  "roles": [
-    {
-      "id": "550e8400-e29b-41d4-a716-446655440003",
-      "name": "System",
-      "actor_type": "application"
-    }
-  ],
-  "contexts": []
-}
-```
-
-Run it:
-
-```bash
-awa run hello.awa.json
-```
-
-### Using Programmatically
+`--simulate` calls no model, tool or person: activities return what `--outputs` scripts and nothing otherwise. The journal is the append-only record of the run.
 
 ```typescript
-import { WorkflowEngine, parse_workflow } from 'agentic-workflow-architecture';
-import fs from 'fs/promises';
+import { WorkflowEngine, parse_document } from 'agentic-workflow-architecture';
 
-// Load and parse workflow
-const content = await fs.readFile('workflow.awa.json', 'utf-8');
-const workflow = parse_workflow(JSON.parse(content));
-
-// Initialize engine
-const engine = new WorkflowEngine(workflow, {
-  geminiApiKey: process.env.GEMINI_API_KEY
-});
-
-// Execute workflow
-await engine.start();
-while (engine.getStatus() === 'running') {
-  await engine.runStep();
-}
-
-console.log('Workflow completed!');
+const engine = new WorkflowEngine(parse_document(document), { simulate: true, simulated_outputs });
+await engine.start({ claim_id: 'C-1' });
+const status = await engine.run();          // completed, failed, waiting_event, waiting_human
+const events = await engine.getEvents();    // the journal
 ```
 
-## Features
+## What it does
 
-- **Workflow Runtime**: Execute AWA workflows with a robust engine
-- **Workflow Builder**: Fluent API to construct workflows programmatically
-- **Validation**: Validate workflow schemas against the AWA specification
-- **CLI Tool**: Command-line interface for running workflows
-- **REST API**: HTTP server for triggering workflows remotely
-- **VSM & Analytics**: Real-time tracking of DOWNTIME waste and process metrics
-- **Cost Tracking**: Track execution costs for AI tokens, human time, and robot operations
+| | |
+|---|---|
+| Flow | Sequence, conditions, decision tables, parallel split and join, timers, compensation |
+| Outcome contracts | Output schema, postconditions, budgets, escalation to a person; checked deterministically, failing closed |
+| Resilience | Retry with backoff, dead letters, checkpoints, recovery in another process |
+| Models | References by capability tier, a router with ordered fallbacks, model decisions within enumerated options |
+| Tools | HTTP, command, JSON-RPC, gRPC and MCP bindings through one runner that refuses, bounds and journals every call |
+| Contexts | An activity is given the contexts it is bound to read and no other; a write needs a binding that allows it |
+| Service levels | Time taken, waits and retries included, compared with what was promised; warnings and breaches journalled |
+| Business events | Publish and wait for events in CloudEvents form, with correlation and deadlines |
+| Journeys | `AwaRuntime` hosts the journeys of customers across workflows, keeps its state and recovers in another process |
+| Measures | `compute_measures`, `awa measures`: 56 measures of journeys and workflows, each with the number it was computed over |
+| Replay | `awa replay`: re-run a recorded run under a changed model, prompt or rule and get a regression report |
+| Knowledge, recipe | `awa knowledge`, `awa recipe`: what runs taught, and how to rebuild a workflow from its journal |
 
-## CLI Commands
+It passes every level of the conformance suite in [`spec/conformance`](https://github.com/yannickhuchard/agentic-workflow-architecture/tree/main/spec/conformance).
 
-### Run a Workflow
+## Journeys and measures
 
 ```bash
-# Basic execution
-awa run workflow.awa.json
-
-# With verbose output
-awa run workflow.awa.json --verbose
-
-# With API key for AI agents
-awa run workflow.awa.json --key YOUR_GEMINI_API_KEY
+npx awa journey add intake.awa.json claim.journey.json
 ```
-
-### Start API Server
 
 ```bash
-# Default port (3000)
-awa serve
-
-# Custom port
-awa serve --port 8080
+npx awa journey publish claim.submitted -d '{"customer_id":"c-1"}'
 ```
-
-Then trigger workflows via HTTP:
 
 ```bash
-curl -X POST http://localhost:3000/api/v1/workflows/run \
-  -H "Content-Type: application/json" \
-  -d '{"filePath": "./workflow.awa.json"}'
+npx awa measures --html measures.html
 ```
 
-## Documentation
+The last command writes the measures page as one file to open in a browser. `npx awa serve` offers the same page and the journey view under `/views`, the measures under `/api/v1/measures`, and `?format=openmetrics` for a metrics system.
 
-- **[CLI Guide](./docs/cli-guide.md)** - Complete installation and usage guide with examples
-- **[Operational API](./docs/operational-api.md)** - REST API documentation
-- **[AWA Specification](../../spec)** - Full schema definitions
+## Commands
 
-## Examples
+`awa run`, `awa journey`, `awa measures`, `awa replay`, `awa recipe`, `awa knowledge`, `awa serve`, `awa task`. Each has `--help`.
 
-Check out the `examples` folder for sample workflows:
+## The task database
+
+Workflows, journeys, measures and replay need no database. Human tasks kept in a database (`awa task`, the tasks API of `awa serve`) use SQLite through Prisma, whose client is generated once after installing:
 
 ```bash
-# Simple sequential workflow
-awa run ../../examples/bank-account-opening/workflow.awa.json
-
-# AI-powered workflow
-awa run ../../examples/skills-demonstration/scenario.awa.json --verbose
+npx prisma@6 generate --schema node_modules/agentic-workflow-architecture/prisma/schema.prisma
 ```
 
-## Environment Variables
+```bash
+npx prisma@6 db push --schema node_modules/agentic-workflow-architecture/prisma/schema.prisma
+```
 
-- `GEMINI_API_KEY` - Required for workflows using AI agents
+By default the database file sits beside that schema, inside `node_modules`, and is lost when the package is reinstalled: for anything you want to keep, set `AWA_DATABASE_URL` (for example `file:/var/lib/awa/awa.db`) and create its tables there.
 
-## License
+## Changes in 2.0.0
 
-Apache-2.0
+2.0.0 implements AWA 1.1 and breaks with 1.x where 1.x was wrong:
+
+- A run with a failed token is `failed`. A choice with no true condition and no default edge fails with `NO_ROUTE` instead of taking the first edge.
+- Verification and outcome contracts fail closed: an output that cannot be verified is rejected.
+- Several unconditional edges from one node are a parallel split.
+- Context bindings are enforced: a workflow that binds a required context nothing has written fails with `CONTEXT_MISSING`.
+- Simulated activities return no business data unless scripted.
+
+The full list is in the [release notes](https://github.com/yannickhuchard/agentic-workflow-architecture/blob/main/release_notes.md).
+
+## Links
+
+[Specification](https://github.com/yannickhuchard/agentic-workflow-architecture/blob/main/docs/specification.md) · [Examples](https://github.com/yannickhuchard/agentic-workflow-architecture/tree/main/examples) · [Repository](https://github.com/yannickhuchard/agentic-workflow-architecture) · Apache-2.0

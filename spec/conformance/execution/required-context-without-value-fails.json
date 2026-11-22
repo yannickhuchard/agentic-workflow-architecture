@@ -1,0 +1,63 @@
+{
+  "id": "required-context-without-value-fails",
+  "level": "contexts",
+  "spec": "22.2",
+  "description": "A binding is required unless it says otherwise. When a required context has no value the activity fails with CONTEXT_MISSING before its actor is called.",
+  "workflow": {
+    "id": "6f44cc4a-bce1-5aae-8e89-41beedb06192",
+    "name": "required-context-without-value-fails",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "01018de1-943a-5f87-b869-bad83d3d906e",
+        "name": "A",
+        "role_id": "bdd52f10-0bc6-583a-b21d-9e70f3cbc8bf",
+        "actor_type": "application",
+        "context_bindings": [
+          {
+            "context_id": "31c9e2c9-5615-50cd-87c6-99263c3f107c",
+            "access_mode": "read"
+          }
+        ]
+      }
+    ],
+    "edges": [],
+    "contexts": [
+      {
+        "id": "31c9e2c9-5615-50cd-87c6-99263c3f107c",
+        "name": "Order",
+        "type": "data",
+        "sync_pattern": "shared_state"
+      }
+    ]
+  },
+  "expect": {
+    "status": "failed",
+    "visited": [],
+    "journal_contains": [
+      {
+        "type": "token.failed",
+        "data": {
+          "error": {
+            "code": "CONTEXT_MISSING"
+          }
+        }
+      },
+      {
+        "type": "context.read",
+        "data": {
+          "contexts": [
+            {
+              "context_name": "Order",
+              "present": false
+            }
+          ]
+        }
+      }
+    ],
+    "journal_excludes": [
+      "activity.started"
+    ]
+  }
+}

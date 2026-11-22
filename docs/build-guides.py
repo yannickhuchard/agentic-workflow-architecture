@@ -137,7 +137,7 @@ page("installation-guide.html", "Installation", "What you need, how to build, an
       ("python", "Python SDK", f'''
 <p>Python 3.10 or later.</p>
 {code("cd sdk/python\npip install -e '.[dev,web]'\npytest -q")}
-<p>The Python SDK runs workflows with the journal, retry, checkpoints, contracts, verification, parallel flow, timers, compensation and business events. It does not yet have model routing, tools, journeys or replay.</p>'''),
+<p>The Python SDK passes every conformance level, as the reference does: the engine rules, tools, model routing and model decisions, journeys, measures, replay, contexts and service levels. Install it with <code>pip install agentic-workflow-architecture</code>; the package you import is <code>awa</code>. Its built-in AI agent calls no model: supply your own actor, or an OpenAI-compatible provider. It has no recipe and no Open Knowledge Format exchange.</p>'''),
       ("models", "Model providers", f'''
 <p>Activities name a capability tier (<code>tier:fast</code>, <code>tier:balanced</code>, <code>tier:reasoning</code>), not a vendor. A deployment maps each tier to providers in order of preference; when one fails the next is tried.</p>
 {table(["Provider", "Needs"], [["google", "<code>GEMINI_API_KEY</code>"], ["openai", "<code>OPENAI_API_KEY</code>"], ["ollama", "A running Ollama; <code>OLLAMA_BASE_URL</code> if not on localhost"],
@@ -220,6 +220,28 @@ awa journey show c-1
 awa journey export -o portfolio.json
 """)}
 <p>A journey may also declare its touchpoints, what changes hands and how mood is estimated; see the <a href="data-model-guide.html#journeys">data model</a>. Only one process at a time may hold a runtime directory: a second is refused while the first is alive, and talks to it over HTTP instead.</p>'''),
+      ("contexts", "Contexts and service levels", f'''
+<p>A context is something activities share beside the data that flows along edges. An activity reaches one only through a binding, and the engine upholds it: the actor is given the contexts it is bound to read and no other, and a write needs a binding that allows it and must match the context's schema.</p>
+{code("""
+{{
+  "contexts": [{{ "id": "...", "name": "Order", "type": "data", "sync_pattern": "shared_state", "schema": {{ "type": "object", "required": ["total"] }} }}],
+  "activities": [
+    {{ "name": "Receive order", "context_bindings": [{{ "context_id": "...", "access_mode": "write" }}] }},
+    {{ "name": "Price order",   "context_bindings": [{{ "context_id": "...", "access_mode": "read" }}] }}
+  ]
+}}
+""", "json")}
+{code("""
+// In an actor: what it was given, and what it writes
+const order = inputs._contexts.Order;                      // only contexts bound for reading
+return {{ priced: true, _context_writes: {{ Order: {{ ...order, total: 240 }} }} }};
+""", "typescript")}
+<p>A required context that nothing has written fails the activity with <code>CONTEXT_MISSING</code> before its actor is called; a write without a binding fails with <code>CONTEXT_ACCESS_DENIED</code>. <code>shared_state</code> replaces the value, <code>blackboard</code> merges into it, <code>event_sourcing</code> and <code>message_passing</code> append. In a simulation, script the writes: <code>{{"Receive order": {{"contexts": {{"Order": {{"total": 240}}}}}}}}</code>.</p>
+<p>A service level (<code>sla</code> on an activity or a workflow) is compared with the time the work takes, waits and retries included. Past <code>target_time</code> the engine journals <code>sla.warning</code>, past <code>max_time</code> <code>sla.breached</code>, once each. Work that finished late stands. With <code>escalation_policy.breach_action: "fail"</code>, work still waited for fails with <code>SLA_BREACH</code>. A host checks waiting work whenever it lets time pass:</p>
+{code("""
+await runtime.tick();                       // event deadlines and service levels of what is waiting
+await engine.checkServiceLevels();          // the same for one engine: {{ warnings, breaches, failed }}
+""", "typescript")}'''),
       ("measures", "Measures", f'''
 <p>Specification section 21 fixes what is measured of journeys, stages, workflows and activities, so that two implementations report the same numbers from the same record. A measure is a value and the number it was computed over; it has no value, rather than zero, when there is nothing to compute it from.</p>
 {code("""

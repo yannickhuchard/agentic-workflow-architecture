@@ -1,0 +1,82 @@
+{
+  "id": "context-schema-refuses-a-write",
+  "level": "contexts",
+  "spec": "22.3",
+  "description": "A value that does not match the context's schema is not written: the activity fails with CONTEXT_INVALID.",
+  "workflow": {
+    "id": "611cb33f-963a-5e2d-81d5-1752b73b2782",
+    "name": "context-schema-refuses-a-write",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "db8fc739-0e0c-5ece-b95d-c4301049d837",
+        "name": "A",
+        "role_id": "9347f4bf-0d02-5547-afc2-10f57bff23e1",
+        "actor_type": "application",
+        "context_bindings": [
+          {
+            "context_id": "bbde8665-46b4-53e6-a676-f8af7824e1f2",
+            "access_mode": "read_write"
+          }
+        ]
+      }
+    ],
+    "edges": [],
+    "contexts": [
+      {
+        "id": "bbde8665-46b4-53e6-a676-f8af7824e1f2",
+        "name": "Order",
+        "type": "data",
+        "sync_pattern": "shared_state",
+        "schema": {
+          "type": "object",
+          "required": [
+            "total"
+          ],
+          "properties": {
+            "total": {
+              "type": "number"
+            }
+          }
+        },
+        "initial_value": {
+          "total": 1
+        }
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "contexts": {
+        "Order": {
+          "total": "many"
+        }
+      }
+    }
+  },
+  "expect": {
+    "status": "failed",
+    "visited": [
+      "A"
+    ],
+    "contexts": {
+      "Order": {
+        "total": 1
+      }
+    },
+    "journal_contains": [
+      {
+        "type": "token.failed",
+        "data": {
+          "error": {
+            "code": "CONTEXT_INVALID"
+          }
+        }
+      }
+    ],
+    "journal_excludes": [
+      "context.written"
+    ]
+  }
+}

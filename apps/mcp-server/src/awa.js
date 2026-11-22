@@ -240,6 +240,7 @@ export function run_summary(workflow, run) {
         cost,
         ...(run.stopped ? { stopped: run.stopped } : {}),
         ...(run.commands_not_called.length ? { commands_not_called: run.commands_not_called } : {}),
+        ...(failures.some(f => f.code === 'CONTEXT_MISSING') ? { context_hint: 'An activity is bound to read a context that nothing has written. Give the context an initial_value, or script the activity that writes it: simulated_outputs: { "<activity name>": { "contexts": { "<context name>": { ... } } } }.' } : {}),
         ...(needs_outputs ? { hint: 'Simulated activities return no business data unless you supply it. Pass simulated_outputs: { "<activity name>": { "output": { ... } } } with the fields the conditions, decision tables or outcome contracts read, then simulate again.' } : {}),
     };
 }

@@ -29,6 +29,8 @@ This document is normative. Where it and an SDK disagree, this document is right
 19. [Journeys](#19-journeys)
 20. [Counterfactual replay](#20-counterfactual-replay)
 21. [Measures](#21-measures)
+22. [Contexts](#22-contexts)
+23. [Service levels](#23-service-levels)
 
 ## 1. Scope
 
@@ -67,6 +69,8 @@ An implementation claims one or more levels. Each level has cases in `spec/confo
 | `journeys` | Hosts journeys: stages, triggers, exits, touchpoints, mood, several journeys, and a host that restarts | 19 |
 | `replay` | Replays a recorded run under a changed workflow or model and reports the difference | 20 |
 | `measures` | Computes the measures of journeys and workflows from what was recorded | 21 |
+| `contexts` | Gives an activity the contexts it is bound to and no other, and refuses writes its bindings do not allow | 22 |
+| `service_levels` | Compares the time work takes with what was promised, and records warnings and breaches | 23 |
 
 An implementation MUST NOT claim a level unless it passes every case tagged with that level. It MUST report the cases it skips; it MUST NOT silently omit them.
 
@@ -74,8 +78,8 @@ An implementation MUST NOT claim a level unless it passes every case tagged with
 
 | SDK | Levels claimed |
 |---|---|
-| TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay` |
-| Python | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `flow`, `events` |
+| TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels` |
+| Python | every level: `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`. Without a built-in AI agent that calls a model, the recipe, or Open Knowledge Format exchange |
 | Java | none (data model only) |
 
 ### 2.3 Versions
@@ -390,7 +394,7 @@ The JSON Schemas are authoritative for field names and types. This section summa
 | `events` | Event[] | Events |
 | `decision_nodes` | DecisionNode[] | Decision tables |
 | `contexts` | Context[] | Shared contexts |
-| `sla` | SLA | Service level agreement |
+| `sla` | SLA | Service level of the run as a whole (section 23) |
 | `analytics` | Analytics | Value stream metrics |
 
 ### 8.2 Activity
@@ -404,7 +408,7 @@ The JSON Schemas are authoritative for field names and types. This section summa
 | `role_id` | UUID | Role that performs it |
 | `actor_type` | enum | `human`, `ai_agent`, `robot`, `application` |
 | `inputs`, `outputs` | DataObject[] | Declared data, each optionally with a JSON Schema |
-| `context_bindings` | ContextBinding[] | Contexts the activity reads or writes |
+| `context_bindings` | ContextBinding[] | Contexts the activity reads or writes (section 22) |
 | `access_rights` | AccessRight[] | Permissions required or provisioned |
 | `programs` | Program[] | Executable code or tools |
 | `controls` | Control[] | Governance policies |
@@ -417,7 +421,7 @@ The JSON Schemas are authoritative for field names and types. This section summa
 | `verification` | VerificationPolicy | Acceptance criteria (section 7) |
 | `retry` | RetryPolicy | What to do when the actor raises an error (section 10) |
 | `outcome_contract` | OutcomeContract | What must be true of the outcome (section 11) |
-| `sla` | SLA | Activity-level SLA |
+| `sla` | SLA | Activity-level service level (section 23) |
 | `analytics` | Analytics | Activity-level metrics |
 
 ### 8.3 Edge
@@ -530,6 +534,9 @@ An engine MUST NOT alter or remove an event once written.
 | `token.cancelled` | execution | A token is withdrawn because the run failed | `reason` |
 | `timer.started`, `timer.fired` | execution | A token reaches a timer event; the timer elapses | `duration`, `due_at` |
 | `event.published` | execution | A token passes a publishing event (18.2) | `event_id`, `name`, `source`, `data`, `delivered` |
+| `context.read` | execution | An activity is given the contexts it is bound to read (22.2) | `contexts`: for each, `context_id`, `context_name`, `access_mode`, `present`, `value_hash` |
+| `context.written`, `context.denied` | execution | A write to a context is applied, or refused (22.3) | `context_name`, `sync_pattern`, `access_mode`, `value_hash`; or `reason` |
+| `sla.warning`, `sla.breached` | execution | Work passed the point of warning, or its longest time (23.2) | `scope`, `elapsed_ms`, `threshold` or `max_time`, `action`, `name`, `notify_roles` |
 | `event.waiting` | execution | A token is held at a waiting event (18.3) | `name`, `correlation_key`, `correlation_value`, `due_at` |
 | `event.received` | execution | A business event released a held token | `event_id`, `name`, `source`, `data` |
 | `event.timed_out` | execution | The deadline of a waiting event passed | `name`, `due_at` |
@@ -692,7 +699,7 @@ A deployment MAY define further tiers. A tier MUST map to a model, not to anothe
 
 When an AI agent executes an activity the model reference is, in order: the one named by the activity's role; otherwise the engine default. For a judge it is the policy's `judge_model_id`; otherwise the engine default.
 
-A reference that cannot be resolved (an unmapped tier, or no provider) is an error with code `VALIDATION_ERROR`. An engine MUST NOT substitute another model silently.
+A reference that cannot be resolved (an unmapped tier, or no provider) is an error with code `VALIDATION_ERROR`. An engine MUST NOT substitute another model silently. At a decision node the error is a vote that cannot be cast: it is invalid (16.3), so the decision falls to its default edge or fails with `NO_ROUTE`.
 
 The engine MUST journal each resolution as a `meta.recorded` event with subject `model_selection`, giving the provider, the model, the tier if one was used, and why that reference applied.
 
@@ -1008,7 +1015,7 @@ An engine MUST implement `http`, `jsonrpc`, `command` and `function`. It MAY imp
 
 For each call, in this order, the engine MUST:
 
-1. Refuse an unknown tool (`UNKNOWN_TOOL`) and a call beyond `budgets.max_tool_calls` (`TOOL_BUDGET_EXCEEDED`).
+1. Refuse an unknown tool (`UNKNOWN_TOOL`) and a call beyond `budgets.max_tool_calls` (`TOOL_BUDGET_EXCEEDED`). Every call counts toward the budget, refused ones included.
 2. Validate the arguments against `parameters`, and refuse invalid ones (`VALIDATION_ERROR`). Nothing runs.
 3. Apply the deployment's permissions (17.4), and refuse what they forbid (`PERMISSION_DENIED`).
 4. Record `tool.invoked`.
@@ -1025,6 +1032,9 @@ A workflow document can name any URL or program. What may actually run is for th
 
 - `command` bindings MUST NOT run unless the deployment allows commands, either all or a named list. The default is to allow none.
 - A deployment MAY restrict `http` and `jsonrpc` bindings to a list of hosts.
+- `http` and `jsonrpc` bindings reach `http` and `https` addresses only. Any other scheme (a file, a data URL) is refused with `VALIDATION_ERROR` before anything is called.
+- A redirect is a call to another address: each hop is held to the list of hosts, and a hop to a host not on it is refused with `PERMISSION_DENIED`. Headers set by the binding, which may carry secrets, MUST NOT be sent on to a different origin.
+- An engine MUST bound what a call may return, and fail a call whose reply is larger. The reference bound is 4 MiB, configurable by the deployment.
 
 ### 17.5 Record
 
@@ -1036,7 +1046,7 @@ A workflow document can name any URL or program. What may actually run is for th
 
 Each event carries the `time` it was recorded, the `node_id` of the activity and the `attempt` it belongs to, so every call can be placed exactly in the run. `call_id` ties the events of one call together. Tool events fall between the `activity.started` of their attempt and the event that ends it.
 
-Arguments and results follow the payload mode (9.4). The `link` is never hashed or omitted: which interface was called is always on record, even when what was sent is not.
+Arguments and results follow the payload mode (9.4). The `link` is never hashed or omitted: which interface was called is always on record, even when what was sent is not. Unless the mode is `full`, the link and the binding are recorded as declared, with their placeholders, and not as filled: an argument that became part of an address or of a command line is still an argument.
 
 In simulation an engine MUST NOT run bindings. It records the call with `simulated: true` and returns a result the deployment scripted.
 
@@ -1240,7 +1250,7 @@ A journey MAY estimate how its subject feels. The estimate is a number on a scal
 
 | Basis | Meaning |
 |---|---|
-| `measured` | The subject said so. The rule reads a value from an event (`measure.path`), given on the scale `measure.from`, and maps it onto the journey's scale. The estimate is set to it |
+| `measured` | The subject said so. The rule reads a value from an event (`measure.path`), given on the scale `measure.from`, and maps it onto the journey's scale. The estimate is set to it. A value that is not a number, or text that is one, is no measurement: the rule makes no change |
 | `inferred` | The journey's authors assumed so. The rule moves the estimate by `change` |
 
 A rule applies `on` one kind of occasion, optionally narrowed:
@@ -1388,6 +1398,7 @@ A median is the nearest-rank 50th percentile: of *n* values in ascending order, 
 | `workflow.human_wait_median_ms` | `waited_ms` of `token.resumed` |
 | `workflow.automation_rate` | `activity.completed` whose actor is not `human` over all `activity.completed` |
 | `workflow.retries`, `workflow.dead_letters`, `workflow.compensations`, `workflow.tool_calls`, `workflow.decisions` | Counts of `activity.retry_scheduled`, `activity.dead_lettered`, `activity.compensated`, `tool.invoked`, `decision.evaluated` |
+| `workflow.sla_warnings`, `workflow.sla_breaches` | Counts of `sla.warning` and `sla.breached` (section 23) |
 | `workflow.tool_failure_rate` | `tool.failed` over `tool.completed` plus `tool.failed` |
 | `workflow.contract_pass_rate`, `workflow.verification_pass_rate` | `contract.checked` that passed; `verification.completed` with verdict `pass`; each over all of its kind |
 | `workflow.decision_default_rate`, `workflow.model_decision_share` | Decisions that took the default edge; decisions whose method is `model`; over all decisions |
@@ -1410,6 +1421,103 @@ Measures say what happened. They do not say why, and a rate over a handful of jo
 ### 21.7 Conformance
 
 Level `measures` has its own cases, in `spec/conformance/measures/` (Appendix A): a record, the options of a report, and the values that follow.
+
+## 22. Contexts
+
+A **context** is something the activities of a run share beside the data that flows along edges: an order, a blackboard of findings, a log. A workflow declares its contexts; an activity reaches one only through a **binding**. This section fixes what a binding lets an activity see and do, so that "this agent cannot read the fraud signals" is a property of the document that an engine upholds, not a convention.
+
+### 22.1 Declaration
+
+A context has an `id`, a `name` unique in the workflow, a `sync_pattern`, and optionally a `schema` (a JSON Schema), an `initial_value`, and a `lifecycle` with a `ttl`. A context without an `initial_value` has no value until something is written to it. A context whose `lifecycle` is `transient` and which has a `ttl` has no value once that long has passed since it was last written.
+
+Every `context_id` of a binding MUST name a context the workflow declares; a document where one does not is invalid.
+
+### 22.2 Reading
+
+An activity's `context_bindings` each name a context and an `access_mode`. The modes `read`, `read_write` and `subscribe` let the activity read.
+
+Before an actor is called, the engine MUST give it the value of each context it is bound to read, by context name, apart from the run's data, and MUST NOT give it any other context. An activity with no binding is given no context. A context is not part of the run's data: conditions (section 6) do not see it, and it does not travel along edges.
+
+A binding is required unless it says `required: false`. When a context the activity is required to read has no value, the activity fails with `CONTEXT_MISSING` before its actor is called; this error is not retried. A context that is not required and has no value is left out.
+
+A binding's `transforms.on_read`, a path (6.2), selects the part of the value the activity is given.
+
+Each time an activity is given contexts the engine journals `context.read`, listing for each context bound for reading its `context_id`, `context_name`, the `access_mode`, whether it was `present`, and a hash of the value given.
+
+### 22.3 Writing
+
+The modes `write`, `read_write` and `publish` let the activity write. An actor returns what it writes with its result, by context name. The engine applies it once the activity's outcome is accepted (section 11), according to the context's `sync_pattern`:
+
+| `sync_pattern` | A write |
+|---|---|
+| `shared_state` | Replaces the value |
+| `blackboard` | Must be an object; its properties are added to the value, replacing those of the same name. A later writer does not erase an earlier one |
+| `message_passing`, `event_sourcing` | Is appended: the context's value is the list of what was written, in order |
+
+A binding's `transforms.on_write`, a path, places what is written at that path within the value instead.
+
+A write is refused, and the activity fails without being retried, when:
+
+- the workflow declares no context of that name, or the activity has no binding to it that allows writing: `CONTEXT_ACCESS_DENIED`;
+- the context has a `schema` and the result does not match it: `CONTEXT_INVALID`. For the appending patterns the schema describes one entry; for the others, the value after the write.
+
+The writes of one activity are applied together or not at all. The engine journals `context.written` for each write applied, with the context, its `sync_pattern`, the `access_mode` and a hash of the value afterwards, and `context.denied` for a write refused, with the reason.
+
+Context values are part of the state a run is recovered from (10.3).
+
+### 22.4 Conformance
+
+Level `contexts` has execution cases (Appendix A) in which actors are scripted to write contexts, and which state what each actor must have been given and what each context holds at the end. The time to live of a transient context, `transforms`, and writes made by a person completing a task are fixed by `sdk/typescript/tests/contexts_service_levels.test.ts`.
+
+What this level does not do: `visibility` beyond the workflow, and `access_rights` on external resources, remain descriptive. An engine at this level controls what it hands to an actor; it cannot control what an actor reaches by other means.
+
+## 23. Service levels
+
+An activity or a workflow may carry a **service level** (`sla`): how long the work should take and the longest it may take. An outcome contract's `max_duration` (11.4) bounds one attempt and interrupts it. A service level is about the promise made to whoever is waiting: it counts everything, waits and retries included, and it mostly observes.
+
+### 23.1 Terms
+
+| Property | Meaning |
+|---|---|
+| `target_time` | A duration (13.5). Past it, the work is late against its target |
+| `max_time` | A duration. Past it, the service level is breached |
+| `escalation_policy.warning_threshold` | A duration that takes the place of `target_time` as the point of warning |
+| `escalation_policy.warning_action` | Carried by the warning. Its meaning is the host's |
+| `escalation_policy.breach_action` | `record`, the default, or `fail` (23.3). Any other value is carried by the record and treated as `record` |
+| `escalation_policy.notify_roles` | Roles to tell, carried by the records. Telling them is the host's work |
+| `name` | Carried by the records |
+
+### 23.2 What is measured, and when
+
+For an activity, time counts from the moment a token reaches it until its outcome is accepted: every attempt, the delays between attempts, and any wait for a person. For a workflow, time counts from `run.started`.
+
+The engine compares the time taken with the service level:
+
+- when an activity's outcome is accepted, before another attempt is scheduled, and again once the delay before that attempt has passed;
+- when the run ends, before `run.completed` or `run.failed` is recorded;
+- when the host asks it to check the work that is waiting. A host of runs that wait MUST ask on a schedule, as it lets event waits run out (18.3).
+
+Past the point of warning and short of `max_time`, the engine journals `sla.warning` once, with `scope` (`activity` or `workflow`), `elapsed_ms`, the `threshold` and, where given, the `name`, the warning `action` and `notify_roles`. Past `max_time` it journals `sla.breached` once, with `scope`, `elapsed_ms`, `max_time`, the `action` and, where given, `name` and `notify_roles`. Each is recorded once for a visit of a token to an activity, and once for a run.
+
+### 23.3 Breach
+
+Work that finished late stands. The engine MUST NOT undo or reject an accepted outcome because it came after `max_time`, whatever the breach action: the breach is recorded and the run goes on.
+
+With `breach_action: fail`, work that is *not* finished stops being waited for:
+
+- an activity past its `max_time` is not tried again: it fails with `SLA_BREACH`;
+- a token waiting at an activity past its `max_time` fails with `SLA_BREACH` when the host checks;
+- a run past its workflow's `max_time` that is still running or waiting fails when the host checks: one of its unfinished tokens fails with `SLA_BREACH`, and the run ends as any run with a failed token does (5.7).
+
+`SLA_BREACH` is never retried.
+
+### 23.4 What a service level is not
+
+`metrics` of a service level name targets for measures (section 21). They are informative here: an engine does not evaluate them. Warnings and breaches are counted by the measures `workflow.sla_warnings` and `workflow.sla_breaches`.
+
+### 23.5 Conformance
+
+Level `service_levels` has execution cases (Appendix A) that run on a clock: actors take scripted time, and the case moves the clock and asks the engine to check what is waiting. A person's task that outlasts its service level is fixed by `sdk/typescript/tests/contexts_service_levels.test.ts`.
 
 ## Appendix A. Conformance suite
 
@@ -1461,6 +1569,8 @@ A runner replaces every actor with one that follows `actors`, runs the workflow,
 An actor script MAY give `takes`, a duration by which the activity moves the clock. `expect` gives `instance_count`, `transitions`, and `instances`: each names a `journey` and optionally a `subject_key`, and may state `status`, `stage_id`, `stalled`, `sentiment`, `goals_reached`, `runs` (their statuses in order), `data` (a subset), `events` (types in this order, others allowed between), `events_exact`, `events_count`, `events_contain` (partial events; `has` lists paths that must be present) and `run_journal` (types in order in the journal of the first run).
 
 **Replay cases** (`replay/*.json`) each give a `workflow`, `input` and `actors` that produce the baseline run; optionally a `candidate` workflow; `ai` (`recorded` or `live`); and for `live`, `candidate_actors` for the AI agents. `expect` gives `baseline_status`, `candidate_status`, `same_path`, `verdicts` by node name (20.3), `regressions` or `regressions_at_least`, `unrecorded` (how many situations had no recording), `divergence_after`, and `error_matches`.
+
+Execution cases at levels `contexts` and `service_levels` add: in an actor's script, `contexts`, what the actor writes by context name, and `takes`, the time the execution takes; `clock`, the instant at which the case's clock starts, on which the engine and the actors then run; in `deliver`, the steps `{"advance": <duration>}`, which moves the clock, and `{"check_service_levels": true, "expect": {warnings, breaches, failed}}`, which asks the engine to check the work that is waiting (23.2) and states how many it newly recorded and how many tokens it failed; in `expect`, `given_contexts`, for each activity named the contexts its actor was given at its last execution (`null` for none at all), and `contexts`, the value of every context that has one when the case ends.
 
 **Measure cases** (`measures/*.json`) each give `recorded`, what the measures are computed from in the form a host exports (journeys with their instances and the journals of their runs), the `options` of the report (21.1), and `expect`: for journeys, stages, workflows and activities named, the value of each measure listed, `null` meaning no value; and where given the channels, artefacts, currency and the list of what needs attention. Numbers are compared to within 1e-9.
 
@@ -1514,3 +1624,5 @@ Runners: `sdk/typescript/tests/conformance.test.ts`, `sdk/python/tests/test_conf
 - Conformance levels `routing` (section 12) and `knowledge` (section 15), each with language-neutral cases.
 - A stage may name its `owner`, carried by `journey.stalled`; a host holds its saved state exclusively (19.2, 19.10).
 - Measures of journeys and workflows, computed from the record, with conformance level `measures` (section 21).
+- Context bindings are enforced: an activity is given the contexts it is bound to read and no other, and a write needs a binding that allows it (section 22, level `contexts`). **A workflow that binds a required context nothing has written now fails with `CONTEXT_MISSING`** where it used to run.
+- Service levels are compared with the time work takes, and warnings and breaches are journalled; `breach_action: fail` stops work that is still waited for (section 23, level `service_levels`).
