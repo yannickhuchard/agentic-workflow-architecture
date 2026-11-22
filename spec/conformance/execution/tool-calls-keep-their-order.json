@@ -1,0 +1,111 @@
+{
+  "id": "tool-calls-keep-their-order",
+  "level": "tools",
+  "spec": "17.5",
+  "description": "Several calls in one activity are recorded in the order they were made, each tied together by its call_id.",
+  "workflow": {
+    "id": "7d0fcd18-c555-5b88-96cd-c63d99f3d1c3",
+    "name": "tool-calls-keep-their-order",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "b078519b-85a4-5830-a797-bfb1493cf0ce",
+        "name": "A",
+        "role_id": "bcbd251a-0f09-52c2-849b-5ef221740e27",
+        "actor_type": "application",
+        "tools": [
+          {
+            "name": "first",
+            "description": "The first tool",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "q": {
+                  "type": "string"
+                }
+              }
+            },
+            "binding": {
+              "kind": "function",
+              "name": "first"
+            }
+          },
+          {
+            "name": "second",
+            "description": "The second tool",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "q": {
+                  "type": "string"
+                }
+              }
+            },
+            "binding": {
+              "kind": "function",
+              "name": "second"
+            }
+          }
+        ]
+      }
+    ],
+    "edges": []
+  },
+  "actors": {
+    "A": {
+      "calls": [
+        {
+          "tool": "first",
+          "arguments": {
+            "q": "a"
+          }
+        },
+        {
+          "tool": "second",
+          "arguments": {
+            "q": "b"
+          }
+        }
+      ],
+      "output": {}
+    }
+  },
+  "tools": {
+    "first": {
+      "result": 1
+    },
+    "second": {
+      "result": 2
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "journal": [
+      "tool.invoked",
+      "tool.completed",
+      "tool.invoked",
+      "tool.completed"
+    ],
+    "journal_contains": [
+      {
+        "type": "tool.completed",
+        "data": {
+          "tool": "first",
+          "result": 1
+        }
+      },
+      {
+        "type": "tool.completed",
+        "data": {
+          "tool": "second",
+          "result": 2
+        }
+      }
+    ],
+    "journal_count": {
+      "tool.invoked": 2,
+      "tool.completed": 2
+    }
+  }
+}

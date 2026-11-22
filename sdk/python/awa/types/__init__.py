@@ -4,7 +4,7 @@ AWA Types - Pydantic models for all AWA entities
 
 from datetime import datetime
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -250,6 +250,66 @@ class Analytics(BaseModel):
     process_cycle_efficiency: float | None = None
 
 
+class RetryPolicy(BaseModel):
+    """What the engine does when the actor raises an error (specification 10.1)"""
+    max_attempts: int | None = Field(default=None, ge=1, le=20)
+    initial_delay: str | None = None
+    max_delay: str | None = None
+    backoff_multiplier: float | None = Field(default=None, ge=1)
+    jitter: bool | None = None
+    non_retryable_errors: list[str] | None = None
+
+
+class VerificationCriterion(BaseModel):
+    id: UUID
+    name: str
+    description: str
+    type: Literal["completeness", "accuracy", "format", "compliance", "custom"]
+    expression: str | None = None
+    weight: float = Field(default=1, ge=0, le=1)
+    required: bool = True
+
+
+class VerificationPolicy(BaseModel):
+    """Acceptance verification applied to an activity's output (specification 7)"""
+    enabled: bool = True
+    mode: Literal["ai_judge", "schema_only", "custom"] = "ai_judge"
+    criteria: list[VerificationCriterion] = Field(min_length=1)
+    max_retries: int = Field(default=3, ge=0, le=10)
+    retry_with_feedback: bool = True
+    output_schema: dict[str, Any] | None = None
+    judge_model_id: str | None = None
+    judge_temperature: float = Field(default=0.1, ge=0, le=1)
+    pass_threshold: float = Field(default=0.9, ge=0, le=1)
+
+
+class Postcondition(BaseModel):
+    id: UUID | None = None
+    name: str
+    description: str | None = None
+    expression: str
+
+
+class ContractBudgets(BaseModel):
+    max_attempts: int | None = Field(default=None, ge=1, le=50)
+    max_duration: str | None = None
+    max_tokens: int | None = Field(default=None, ge=1)
+    max_tool_calls: int | None = Field(default=None, ge=0)
+
+
+class OutcomeContract(BaseModel):
+    """What must be true of an activity's outcome (specification 11)"""
+    output_schema: dict[str, Any] | None = None
+    postconditions: list[Postcondition] = Field(default_factory=list)
+    budgets: ContractBudgets | None = None
+    on_violation: Literal["fail", "escalate_human"] = "fail"
+
+
+class Compensation(BaseModel):
+    """The activity that undoes this one if the run later fails (specification 13.6)"""
+    activity_id: UUID
+
+
 class Activity(BaseModel):
     id: UUID
     name: str
@@ -270,6 +330,11 @@ class Activity(BaseModel):
     analytics: Analytics | None = None
     is_expandable: bool = False
     expansion_workflow_id: UUID | None = None
+    retry: RetryPolicy | None = None
+    verification: VerificationPolicy | None = None
+    outcome_contract: OutcomeContract | None = None
+    compensation: Compensation | None = None
+    join: Literal["any", "all"] = "any"
 
 
 class Edge(BaseModel):
@@ -289,6 +354,7 @@ class Event(BaseModel):
     description: str | None = None
     event_type: str
     event_definition: dict[str, Any] | None = None
+    join: Literal["any", "all"] = "any"
 
 
 class TableColumn(BaseModel):
@@ -455,6 +521,23 @@ class WorkflowExecution(BaseModel):
     steps_count: int = 0
     user_id: str | None = None
     metadata: dict[str, Any] | None = None
+
+
+class JournalEvent(BaseModel):
+    """One entry in the append-only execution journal of a run (specification 9.1)"""
+    spec_version: str
+    id: UUID
+    run_id: UUID
+    seq: int = Field(ge=1)
+    time: datetime
+    type: str
+    level: Literal["execution", "reasoning", "meta"] = "execution"
+    workflow_id: UUID
+    token_id: UUID | None = None
+    node_id: UUID | None = None
+    node_name: str | None = None
+    attempt: int | None = Field(default=None, ge=1)
+    data: dict[str, Any] = Field(default_factory=dict)
 
 
 # ============================================================================

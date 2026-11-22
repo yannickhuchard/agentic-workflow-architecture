@@ -108,6 +108,7 @@ def validate_workflow_integrity(workflow: Workflow) -> ValidationResult:
                 )
 
     # Imported here: the runtime package itself imports this module
+    from awa.runtime.duration import parse_iso_duration
     from awa.runtime.expression import ExpressionError, evaluate_expression
     from awa.runtime.unary_test import validate_unary_tests
 
@@ -135,6 +136,60 @@ def validate_workflow_integrity(workflow: Workflow) -> ValidationResult:
         if count > 1:
             add(f"edges[source={source_id}]", f"Node '{source_id}' has {count} default edges; at most one is allowed",
                 "multiple_default_edges")
+
+    # Postconditions are valid expressions (specification 11.2)
+    for activity in workflow.activities:
+        for condition in (activity.outcome_contract.postconditions if activity.outcome_contract else []):
+            try:
+                evaluate_expression(condition.expression, {})
+            except ExpressionError as error:
+                add(f"activities[{activity.id}].outcome_contract.postconditions[{condition.name}]", str(error),
+                    "invalid_expression")
+
+    # Compensation handlers exist and stand outside the normal flow (specification 13.6)
+    activity_ids = {a.id for a in workflow.activities}
+    targeted = {e.target_id for e in workflow.edges}
+    for activity in workflow.activities:
+        if not activity.compensation:
+            continue
+        handler_id = activity.compensation.activity_id
+        where = f"activities[{activity.id}].compensation"
+        if handler_id not in activity_ids:
+            add(where, f"Compensation activity '{handler_id}' not found", "invalid_reference")
+        elif handler_id in targeted or handler_id == activity.id:
+            add(where, f"Compensation activity '{handler_id}' must not be the target of an edge", "invalid_compensation")
+
+    # Timer events need a duration the engine can wait for (specification 13.5)
+    for event in workflow.events:
+        if event.event_type != "timer":
+            continue
+        try:
+            parse_iso_duration((event.event_definition or {}).get("duration"))
+        except ValueError:
+            add(f"events[{event.id}].event_definition.duration",
+                f"Timer event '{event.name}' needs an ISO 8601 duration of weeks, days, hours, minutes or seconds",
+                "invalid_timer")
+
+    # Message and signal events name the event; a wait's timeout is a duration
+    # and its timeout edge leaves the event (specification 18)
+    for event in workflow.events:
+        if event.event_type not in ("message", "signal"):
+            continue
+        definition = event.event_definition or {}
+        where = f"events[{event.id}].event_definition"
+        if not isinstance(definition.get("name"), str) or not definition.get("name"):
+            add(f"{where}.name", f"Event '{event.name}' must name the event it waits for or publishes", "invalid_event")
+        if definition.get("timeout") is not None:
+            try:
+                parse_iso_duration(definition["timeout"])
+            except ValueError:
+                add(f"{where}.timeout", f"Event '{event.name}' has a timeout that is not an ISO 8601 duration",
+                    "invalid_event")
+        if definition.get("timeout_edge_id") is not None:
+            timeout_edge = next((e for e in workflow.edges if str(e.id) == str(definition["timeout_edge_id"])), None)
+            if timeout_edge is None or timeout_edge.source_id != event.id:
+                add(f"{where}.timeout_edge_id", f"The timeout edge of event '{event.name}' must be an edge that leaves it",
+                    "invalid_reference")
 
     # Decision tables: rule width, entries, and edges that leave the node
     edges_by_id = {edge.id: edge for edge in workflow.edges}

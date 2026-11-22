@@ -49,3 +49,31 @@ jobs:
           python-version: "3.12"
       - run: python3 spec/conformance/generate.py
       - run: git diff --exit-code spec/conformance
+
+  journey-view:
+    name: Journey view in a browser
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: sdk/typescript/package-lock.json
+      - run: npm ci && npx prisma generate && npm run build
+        working-directory: sdk/typescript
+      - run: npm install --no-save --no-package-lock playwright@1 && npx playwright install --with-deps chromium
+      - run: node examples/claims-journey/make-journeys.mjs && node examples/claims-journey/make-story.mjs
+      - run: node tools/visualization/journey.check.mjs
+      - run: node examples/claims-journey/persona-walkthrough.mjs
+
+  guides:
+    name: Guides are up to date
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python3 docs/build-guides.py
+      - run: git diff --exit-code docs

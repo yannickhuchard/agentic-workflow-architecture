@@ -22,6 +22,8 @@ servers:
     description: Local development
 
 tags:
+  - name: journeys
+    description: Business events, journeys and their records (specification sections 18 and 19)
   - name: runs
     description: Running workflows and reading their execution journal
   - name: workflows
@@ -501,6 +503,206 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /journeys/definitions:
+    post:
+      tags: [journeys]
+      summary: Register a workflow or a journey
+      description: A journey is checked against the workflows it names, so register those first.
+      operationId: registerDefinition
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/Workflow'
+                - $ref: '#/components/schemas/JourneyDefinition'
+      responses:
+        '201':
+          description: Registered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  kind: { type: string, enum: [workflow, journey] }
+                  id: { type: string, format: uuid }
+                  name: { type: string }
+        '400':
+          description: The document is not a valid workflow or journey
+
+  /journeys:
+    get:
+      tags: [journeys]
+      summary: The journeys, each with its funnel
+      operationId: listJourneys
+      responses:
+        '200':
+          description: Journeys
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: string, format: uuid }
+                    name: { type: string }
+                    version: { type: string }
+                    description: { type: string }
+                    stages: { type: array, items: { type: object, properties: { id: { type: string }, name: { type: string } } } }
+                    analytics: { $ref: '#/components/schemas/JourneyAnalytics' }
+
+  /journeys/events:
+    post:
+      tags: [journeys]
+      summary: Take in a business event
+      description: |
+        The event wakes the runs that wait for it, starts the journeys and workflows it triggers and
+        moves the journeys it concerns. An `id` already taken in has no further effect: the response
+        then has `accepted: false`.
+      operationId: publishBusinessEvent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BusinessEvent'
+      responses:
+        '202':
+          description: What the event did
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublishResult'
+        '400':
+          description: The event has no type
+
+  /journeys/tick:
+    post:
+      tags: [journeys]
+      summary: Let time pass
+      description: Deadlines that have run out take effect; journeys that have outstayed a stage are marked stalled. A host calls this on a schedule.
+      operationId: tick
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                at: { type: string, format: date-time, description: Act as if it were this time. Default now }
+      responses:
+        '200':
+          description: What changed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  timed_out_runs: { type: array, items: { type: string, format: uuid } }
+                  stalled_journeys: { type: array, items: { type: string, format: uuid } }
+
+  /journeys/instances:
+    get:
+      tags: [journeys]
+      summary: Journey instances
+      operationId: listJourneyInstances
+      parameters:
+        - { name: journey_id, in: query, schema: { type: string, format: uuid } }
+        - { name: subject, in: query, description: Only the journeys of this subject key, schema: { type: string } }
+        - { name: stalled, in: query, description: Only those that need someone to act, schema: { type: boolean } }
+      responses:
+        '200':
+          description: Instances, without their records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/JourneyInstanceSummary'
+
+  /journeys/instances/{instance_id}:
+    get:
+      tags: [journeys]
+      summary: One journey with its whole record and the journal of each of its runs
+      operationId: getJourneyInstance
+      parameters:
+        - { name: instance_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: The journey bundle
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  definition: { $ref: '#/components/schemas/JourneyDefinition' }
+                  instance: { type: object, description: The instance with its events }
+                  workflows: { type: array, items: { $ref: '#/components/schemas/Workflow' } }
+                  runs:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        run_id: { type: string, format: uuid }
+                        workflow_id: { type: string, format: uuid }
+                        stage_id: { type: string }
+                        events: { type: array, items: { $ref: '#/components/schemas/JournalEvent' } }
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /journeys/transitions:
+    get:
+      tags: [journeys]
+      summary: How subjects move from one journey to the next
+      operationId: listJourneyTransitions
+      responses:
+        '200':
+          description: For each ordered pair of journeys, how many subjects went from the first to the second
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    from: { type: string, format: uuid }
+                    to: { type: string, format: uuid }
+                    count: { type: integer }
+                    subjects: { type: array, items: { type: string } }
+
+  /journeys/portfolio:
+    get:
+      tags: [journeys]
+      summary: Everything recorded about every journey
+      description: The form tools/visualization/journey.html loads. Polling it shows journeys as they progress.
+      operationId: getPortfolio
+      responses:
+        '200':
+          description: Definitions, instances, run journals, workflows and transitions
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /journeys/runs/{run_id}/tokens/{token_id}/resume:
+    post:
+      tags: [journeys]
+      summary: Complete a task a run of a journey is waiting on a person for
+      operationId: resumeJourneyRun
+      parameters:
+        - $ref: '#/components/parameters/RunId'
+        - { name: token_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, description: What the person decided }
+      responses:
+        '200':
+          description: Resumed
+        '404':
+          description: No such waiting task
+
 components:
   parameters:
     RunId:
@@ -547,9 +749,81 @@ components:
             $ref: '#/components/schemas/Error'
 
   schemas:
+    BusinessEvent:
+      description: A statement that something happened, with the attributes of CloudEvents 1.0 (specification 18.1).
+      type: object
+      required: [type]
+      properties:
+        specversion: { type: string, const: '1.0' }
+        id: { type: string, description: Generated when absent. The same id twice has no further effect }
+        source: { type: string }
+        type: { type: string, example: documents.uploaded }
+        subject: { type: string }
+        time: { type: string, format: date-time }
+        data: { type: object }
+    PublishResult:
+      type: object
+      properties:
+        event_id: { type: string }
+        accepted: { type: boolean }
+        resumed_runs: { type: array, items: { type: string, format: uuid } }
+        started_runs: { type: array, items: { type: string, format: uuid } }
+        journeys: { type: array, items: { type: string, format: uuid } }
+    JourneyDefinition:
+      description: See spec/json-schema/journey.schema.json, which is normative.
+      type: object
+      required: [id, name, version, subject, stages]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        version: { type: string }
+        subject: { type: object, properties: { name: { type: string }, key: { type: string } } }
+        stages: { type: array, items: { type: object } }
+        triggers: { type: array, items: { type: object } }
+        goals: { type: array, items: { type: object } }
+        exits: { type: array, items: { type: object } }
+        artefacts: { type: array, items: { type: object } }
+        touchpoints: { type: array, items: { type: object } }
+        sentiment: { type: object }
+    JourneyInstanceSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        journey_id: { type: string, format: uuid }
+        subject_key: { type: string }
+        status: { type: string, enum: [active, completed, abandoned] }
+        stalled: { type: boolean }
+        stage_id: { type: string }
+        goals_reached: { type: array, items: { type: string } }
+        sentiment: { type: number, description: The current estimate of the subject's mood }
+        started_at: { type: string, format: date-time }
+        ended_at: { type: string, format: date-time }
+        runs: { type: array, items: { type: object } }
+    JourneyAnalytics:
+      type: object
+      properties:
+        total: { type: integer }
+        completed: { type: integer }
+        abandoned: { type: integer }
+        active: { type: integer }
+        goals: { type: object, additionalProperties: { type: integer } }
+        stages:
+          type: array
+          items:
+            type: object
+            properties:
+              stage_id: { type: string }
+              stage_name: { type: string }
+              entered: { type: integer }
+              completed: { type: integer }
+              active: { type: integer }
+              stalled: { type: integer }
+              abandoned: { type: integer }
+              median_duration_ms: { type: number }
+              conversion: { type: number }
     RunStatus:
       type: string
-      enum: [running, waiting_human, completed, failed]
+      enum: [running, waiting_human, waiting_event, completed, failed, cancelled]
 
     Run:
       type: object

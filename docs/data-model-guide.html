@@ -1,221 +1,42 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Data Model & Concepts | AWA Documentation</title>
+    <title>Data model | AWA</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&display=swap"
-        rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css">
     <link rel="stylesheet" href="style.css">
+    <style>table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.92em; } th, td { text-align: left; vertical-align: top; padding: 8px 12px; border-bottom: 1px solid rgba(128,128,128,.25); } th { font-weight: 600; }</style>
 </head>
-
 <body>
-    <button class="theme-toggle" title="Toggle Theme">☀️</button>
+    <button class="theme-toggle" title="Toggle theme" aria-label="Toggle theme">&#9728;</button>
     <div class="app-container">
-        <!-- Sidebar -->
         <aside class="sidebar">
-            <div class="logo">
-                <div class="logo-icon"></div>
-                <span>AWA</span>
-            </div>
-
-            <div class="search-container">
-                <span class="search-icon">🔍</span>
-                <input type="text" class="search-input" placeholder="Search guides...">
-            </div>
-
-            <div class="nav-section">
-                <div class="nav-section-title">Getting Started</div>
-                <ul class="nav-links">
-                    <li><a href="getting-started.html" class="nav-link">Introduction</a></li>
-                    <li><a href="installation-guide.html" class="nav-link">Installation Guide</a></li>
-                </ul>
-            </div>
-
-            <div class="nav-section">
-                <div class="nav-section-title">Developer Guides</div>
-                <ul class="nav-links">
-                    <li><a href="developer-guide.html" class="nav-link">Reference Material</a></li>
-                    <li><a href="data-model-guide.html" class="nav-link active">Data Model & Concepts</a></li>
-                </ul>
-            </div>
-
-            <div class="nav-section">
-                <div class="nav-section-title">Theory & Business</div>
-                <ul class="nav-links">
-                    <li><a href="abpm-guide.html" class="nav-link">Agentic BPM</a></li>
-                    <li><a href="architect-guide.html" class="nav-link">Architect Guide</a></li>
-                </ul>
-            </div>
-
-            <div class="nav-section">
-                <div class="nav-section-title">Playground</div>
-                <ul class="nav-links">
-                    <li><a href="playground.html" class="nav-link">Interactive Sandbox</a></li>
-                </ul>
-            </div>
+            <div class="logo"><div class="logo-icon"></div><span>AWA</span></div>
+            <div class="search-container"><input type="text" class="search-input" placeholder="Search guides..." aria-label="Search guides"></div>
+            <div class="nav-section"><div class="nav-section-title">Start</div><ul class="nav-links"><li><a href="getting-started.html" class="nav-link">Introduction</a></li><li><a href="installation-guide.html" class="nav-link">Installation</a></li></ul></div><div class="nav-section"><div class="nav-section-title">Build</div><ul class="nav-links"><li><a href="developer-guide.html" class="nav-link">Developer guide</a></li><li><a href="data-model-guide.html" class="nav-link active">Data model</a></li><li><a href="#workflow" class="nav-link" style="padding-left:28px;font-size:0.85em">Workflow</a></li><li><a href="#activity" class="nav-link" style="padding-left:28px;font-size:0.85em">What an activity can carry</a></li><li><a href="#run" class="nav-link" style="padding-left:28px;font-size:0.85em">Run</a></li><li><a href="#journeys" class="nav-link" style="padding-left:28px;font-size:0.85em">Journey</a></li><li><a href="#formats" class="nav-link" style="padding-left:28px;font-size:0.85em">Formats</a></li></ul></div><div class="nav-section"><div class="nav-section-title">Design</div><ul class="nav-links"><li><a href="abpm-guide.html" class="nav-link">For process owners</a></li><li><a href="architect-guide.html" class="nav-link">For architects</a></li></ul></div><div class="nav-section"><div class="nav-section-title">See</div><ul class="nav-links"><li><a href="playground.html" class="nav-link">Playground</a></li><li><a href="../tools/visualization/journey.html" class="nav-link">Journey view</a></li><li><a href="../tools/visualization/replay.html" class="nav-link">Run replay</a></li></ul></div>
         </aside>
-
-        <!-- Main Content -->
         <main class="main-content">
             <header class="content-header">
-                <span class="badge">Architecture</span>
-                <h1 class="hero-title">Core Data Model & Concepts</h1>
-                <p class="hero-desc">A deep dive into the AWA ontology. Understand every entity, its purpose, and how to
-                    model high-performance agentic workflows.</p>
+                <span class="badge">Specification 1.1 &middot; SDK 2.0.0</span>
+                <h1 class="hero-title">Data model</h1>
+                <p class="hero-desc">The things AWA names, what each is for, and where each is defined. The JSON Schemas in spec/json-schema are normative; OpenAPI, GraphQL, Avro and the PostgreSQL DDL are projections of them.</p>
             </header>
-
-            <section id="workflow">
-                <h2>1. The Workflow</h2>
-                <p>The <code>Workflow</code> is the root entity. It defines the boundaries of a specific business
-                    process, its versioning, and its high-level objectives.</p>
-                <div class="card">
-                    <h4>Best Usage:</h4>
-                    <p>Keep workflows focused on a single outcome (e.g., "Claims Settlement" rather than "Insurance
-                        Operations"). Use semantic versioning (e.g., <code>1.2.0</code>) to manage evolution.</p>
-                </div>
-            </section>
-
-            <section id="activities">
-                <h2>2. Activities & Units of Work</h2>
-                <p>An <code>Activity</code> represents a single logical step in the process. Unlike traditional BPM, AWA
-                    activities are strictly typed by their intended performer.</p>
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Concept</th>
-                                <th>Description</th>
-                                <th>Best Practice</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td><strong>Activity</strong></td>
-                                <td>A task performed by an actor.</td>
-                                <td>Atomic, idempotent where possible, with clear procedures.</td>
-                            </tr>
-                            <tr>
-                                <td><strong>Decision</strong></td>
-                                <td>A gateway for routing based on logic.</td>
-                                <td>Use for branching. Map logic to specific queryable context fields.</td>
-                            </tr>
-                            <tr>
-                                <td><strong>Event</strong></td>
-                                <td>Tiggers or milestones.</td>
-                                <td>Use <code>evt-start</code> and <code>evt-end</code> to demarcate boundaries.</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-
-            <section id="actors">
-                <h2>3. Actors & Roles</h2>
-                <p>The performant heart of AWA. We distinguish between <strong>Who</strong> (Role) and
-                    <strong>What</strong> (Actor Type).
-                </p>
-                <div class="card-grid">
-                    <div class="card">
-                        <h3>ai_agent</h3>
-                        <p>Autonomous LLM-driven entities. Best for cognition, triage, and extraction.</p>
-                    </div>
-                    <div class="card">
-                        <h3>human</h3>
-                        <p>Human collaborators. Best for oversight, exception handling, and high-value authorization.
-                        </p>
-                    </div>
-                    <div class="card">
-                        <h3>application</h3>
-                        <p>Traditional software systems. Best for integrations, batch jobs, and deterministic tasks.</p>
-                    </div>
-                </div>
-            </section>
-
-            <section id="contexts">
-                <h2>4. Contextual State</h2>
-                <p>The <code>Context</code> is how data flows. Instead of complex message payloads, actors interact with
-                    shared context variables.</p>
-                <div class="info-box">
-                    <strong>Sync Pattern: Shared State</strong> is the most common. It allows multiple agents to
-                    contribute to a single "source of truth" (like a claim record) as the workflow progresses.
-                </div>
-                <h4>Usage Best Practice:</h4>
-                <ul style="margin-left: 1.5rem; color: var(--text-muted)">
-                    <li><strong>Minimalism</strong>: Don't put everything in one context. Group by functional area
-                        (e.g., <code>customer_data</code>, <code>claim_data</code>).</li>
-                    <li><strong>Access Control</strong>: Always define <code>AccessRights</code> (read/write) per
-                        activity to prevent context corruption.</li>
-                </ul>
-            </section>
-
-            <section id="edges">
-                <h2>5. Edges & Transfer Types</h2>
-                <p>Edges connect activities. In AWA, edges also describe the <strong>Nature of Handoff</strong> via
-                    <code>transfer_type</code>.
-                </p>
-                <ul class="list-premium" style="list-style: none">
-                    <li
-                        style="margin-bottom: 1rem; padding: 1rem; background: rgba(255,255,255,0.03); border-radius: 8px;">
-                        <strong>integration_flow</strong>: System-to-system or AI-to-System. Automated and
-                        instantaneous.
-                    </li>
-                    <li
-                        style="margin-bottom: 1rem; padding: 1rem; background: rgba(255,255,255,0.03); border-radius: 8px;">
-                        <strong>manual_work</strong>: Human-to-Human or Human-to-AI. Higher latency, requires
-                        monitoring.
-                    </li>
-                    <li style="padding: 1rem; background: rgba(255,255,255,0.03); border-radius: 8px;">
-                        <strong>notification</strong>: Asynchronous inform-only handoffs.
-                    </li>
-                </ul>
-            </section>
-
-            <section id="metrics">
-                <h2>6. Execution Metrics (Performance)</h2>
-                <p>Data concepts for time and efficiency.</p>
-                <div class="card">
-                    <ul>
-                        <li><strong>duration_ms</strong>: The "Design-Time" expected duration.</li>
-                        <li><strong>bottleneck_threshold_ms</strong>: The "Tolerance" before a waste category is
-                            triggered.</li>
-                    </ul>
-                    <p style="margin-top: 1rem;"><strong>Tip:</strong> Always set thresholds. This fuels the 3D
-                        visualization's glowing bottleneck indicators.</p>
-                </div>
-            </section>
-
-            <section id="auxiliary">
-                <h2>7. Auxiliary Concepts</h2>
-                <div class="card-grid">
-                    <div class="card">
-                        <h3>Technology</h3>
-                        <p>Describes the underlying stack (e.g., <code>database</code>, <code>rest_api</code>) used by
-                            actors.</p>
-                    </div>
-                    <div class="card">
-                        <h3>Collection</h3>
-                        <p>A group of related workflows, providing a catalog-level view of processes.</p>
-                    </div>
-                    <div class="card">
-                        <h3>SLA</h3>
-                        <p>Service Level Agreements that define the bound for acceptable performance.</p>
-                    </div>
-                </div>
-            </section>
-
-            <div class="footer">
-                &copy; 2026 Agentic Workflow Architecture Group. Released under Apache 2.0 License.
-            </div>
+            <section id="workflow"><h2>Workflow</h2><div style="overflow-x:auto"><table><tr><th>Thing</th><th>What it is</th></tr><tr><td>Workflow</td><td>Activities, edges, decision nodes, events and roles, with an <code>awa_version</code></td></tr><tr><td>Activity</td><td>One unit of work, performed by one kind of actor: <code>human</code>, <code>ai_agent</code>, <code>robot</code> or <code>application</code></td></tr><tr><td>Edge</td><td>Where a token may go next. With a <code>condition</code> it is a choice; several edges without one are a parallel split</td></tr><tr><td>Decision node</td><td>A choice made by a decision table, an external rule engine, a model within listed options, or a table first and a model for what no rule covers</td></tr><tr><td>Event</td><td><code>start</code>, <code>end</code>, <code>timer</code>, and <code>message</code> or <code>signal</code>, which publish a business event or wait for one</td></tr><tr><td>Role</td><td>Who performs activities; for an AI role, which model, named by capability tier</td></tr></table></div></section><section id="activity"><h2>What an activity can carry</h2><div style="overflow-x:auto"><table><tr><th>Property</th><th>Purpose</th></tr><tr><td><code>outcome_contract</code></td><td>What must be true of the result: schema, postconditions, budgets, what to do on a violation</td></tr><tr><td><code>verification</code></td><td>Acceptance criteria judged by schema, by a model or by a custom check; fails closed</td></tr><tr><td><code>retry</code></td><td>How often and how patiently to try again</td></tr><tr><td><code>compensation</code></td><td>The activity that undoes this one if the run later fails or is cancelled</td></tr><tr><td><code>tools</code></td><td>The tools the actor may call, each with a binding</td></tr><tr><td><code>knowledge</code></td><td>Whether reviewed knowledge from earlier runs is given to the actor</td></tr><tr><td><code>join</code></td><td><code>all</code> to wait for every incoming branch</td></tr></table></div></section><section id="run"><h2>Run</h2><div style="overflow-x:auto"><table><tr><th>Thing</th><th>What it is</th></tr><tr><td>Run</td><td>One execution of a workflow. Status: <code>running</code>, <code>waiting_human</code>, <code>waiting_event</code>, <code>completed</code>, <code>failed</code>, <code>cancelled</code></td></tr><tr><td>Token</td><td>A position in the run. A parallel split makes more; a join merges them</td></tr><tr><td>Journal event</td><td>One entry in the run's append-only record. Schema: <code>journal-event.schema.json</code></td></tr><tr><td>Checkpoint</td><td>The state from which another process can continue the run</td></tr></table></div></section><section id="journeys"><h2>Journey</h2><div style="overflow-x:auto"><table><tr><th>Thing</th><th>What it is</th></tr><tr><td>Business event</td><td>A statement that something happened, in CloudEvents 1.0 form. Its <code>type</code> is the name workflows and journeys refer to</td></tr><tr><td>Journey</td><td>Stages a subject passes through, the workflows that serve each, triggers, goals and exits</td></tr><tr><td>Journey instance</td><td>One subject on one journey, with its record. Joined to its runs by <code>run_id</code> and to the subject's other journeys by the subject key</td></tr><tr><td>Artefact</td><td>A kind of thing that changes hands, as the business names it: contract, attestation, invoice, receipt, certificate. A business concept, not a file format</td></tr><tr><td>Touchpoint</td><td>A moment of contact: party, direction, channel, technology, and the artefacts exchanged. Realised by an event, an activity or a tool call</td></tr><tr><td>Mood</td><td>An estimate that changes only by declared rules. Every change is recorded as <code>measured</code> (the subject said so) or <code>inferred</code> (the authors assumed so)</td></tr></table></div>
+<pre><code class="language-json">&quot;artefacts&quot;:   [{ &quot;id&quot;: &quot;insurance-contract&quot;, &quot;name&quot;: &quot;Insurance contract&quot;, &quot;kind&quot;: &quot;contract&quot; }],
+&quot;touchpoints&quot;: [{ &quot;id&quot;: &quot;contract-signed&quot;, &quot;name&quot;: &quot;Signs the contract&quot;, &quot;direction&quot;: &quot;inbound&quot;, &quot;channel&quot;: &quot;web&quot;,
+                  &quot;technology&quot;: &quot;E-signature service&quot;, &quot;on&quot;: { &quot;event&quot;: &quot;contract.signed&quot; },
+                  &quot;exchanges&quot;: [{ &quot;artefact&quot;: &quot;insurance-contract&quot;, &quot;reference&quot;: &quot;contract_id&quot; }] }],
+&quot;sentiment&quot;:   { &quot;rules&quot;: [{ &quot;on&quot;: &quot;waited&quot;, &quot;longer_than&quot;: &quot;P2D&quot;, &quot;change&quot;: -1, &quot;reason&quot;: &quot;waited more than two days&quot; },
+                           { &quot;on&quot;: &quot;event&quot;, &quot;event&quot;: &quot;survey.answered&quot;, &quot;measure&quot;: { &quot;path&quot;: &quot;satisfaction&quot;, &quot;from&quot;: [1, 5] } }] }</code></pre></section><section id="formats"><h2>Formats</h2><div style="overflow-x:auto"><table><tr><th>Format</th><th>File</th><th>Status</th></tr><tr><td>JSON Schema</td><td><code>spec/json-schema/</code></td><td>Normative</td></tr><tr><td>OpenAPI 3.1</td><td><code>spec/openapi/awa-api.yaml</code></td><td>Describes the reference HTTP interface</td></tr><tr><td>GraphQL</td><td><code>spec/graphql/awa.graphql</code></td><td>Informative</td></tr><tr><td>Avro</td><td><code>spec/avro/</code></td><td>Informative; for journals and events on a stream</td></tr><tr><td>PostgreSQL DDL</td><td><code>spec/ddl/awa.postgresql.sql</code></td><td>Informative; loads into PostgreSQL 16</td></tr></table></div></section>
+            <section><p style="opacity:.7;font-size:.9em">The normative text is the <a href="https://github.com/yannickhuchard/agentic-workflow-architecture/blob/main/docs/specification.md">specification</a>. Where this guide and the specification disagree, the specification is right.</p></section>
         </main>
     </div>
-
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
     <script src="main.js"></script>
+    <script>hljs.highlightAll();</script>
 </body>
-
 </html>

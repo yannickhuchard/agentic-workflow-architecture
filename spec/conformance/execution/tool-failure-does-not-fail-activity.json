@@ -1,0 +1,95 @@
+{
+  "id": "tool-failure-does-not-fail-activity",
+  "level": "tools",
+  "spec": "17.3",
+  "description": "A call that fails is journalled as tool.failed and returned to the actor; it does not fail the activity by itself.",
+  "workflow": {
+    "id": "47ee10a2-0add-572d-8a35-b4a7c32be7ae",
+    "name": "tool-failure-does-not-fail-activity",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "8ea7bb33-ef90-514e-b117-0813d7ac611c",
+        "name": "A",
+        "role_id": "efcb89f4-cf9a-5fd5-86be-366e92f84cbb",
+        "actor_type": "application",
+        "tools": [
+          {
+            "name": "lookup",
+            "description": "The lookup tool",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "q": {
+                  "type": "string"
+                }
+              }
+            },
+            "binding": {
+              "kind": "function",
+              "name": "lookup"
+            }
+          }
+        ]
+      },
+      {
+        "id": "b6a1fb01-a72b-5ad5-ac82-a6e1be551e33",
+        "name": "B",
+        "role_id": "efcb89f4-cf9a-5fd5-86be-366e92f84cbb",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "0ab9f086-57c7-5715-bc62-3fdd81e8e545",
+        "source_id": "8ea7bb33-ef90-514e-b117-0813d7ac611c",
+        "target_id": "b6a1fb01-a72b-5ad5-ac82-a6e1be551e33"
+      }
+    ]
+  },
+  "actors": {
+    "A": {
+      "calls": [
+        {
+          "tool": "lookup",
+          "arguments": {
+            "q": "x"
+          }
+        }
+      ],
+      "output": {
+        "done": true
+      }
+    }
+  },
+  "tools": {
+    "lookup": {
+      "error": "backend down"
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "A",
+      "B"
+    ],
+    "journal": [
+      "tool.invoked",
+      "tool.failed",
+      "activity.completed"
+    ],
+    "journal_contains": [
+      {
+        "type": "tool.failed",
+        "data": {
+          "tool": "lookup",
+          "invoked": true,
+          "error": {
+            "message": "backend down"
+          }
+        }
+      }
+    ]
+  }
+}

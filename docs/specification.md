@@ -59,6 +59,10 @@ An implementation claims one or more levels. Each level has cases in `spec/confo
 | `contract` | Enforces outcome contracts, budgets and escalation | 11 |
 | `flow` | Parallel split and join, events, timers and compensation | 13 |
 | `events` | Publishes business events and holds tokens until one arrives or a deadline passes | 18 |
+| `model_decision` | Lets a model decide at a decision node, within enumerated options | 16 |
+| `tools` | Runs tool calls through one runner that refuses, records and bounds them | 17 |
+| `journeys` | Hosts journeys: stages, triggers, exits, touchpoints, mood, several journeys, and a host that restarts | 19 |
+| `replay` | Replays a recorded run under a changed workflow or model and reports the difference | 20 |
 
 An implementation MUST NOT claim a level unless it passes every case tagged with that level. It MUST report the cases it skips; it MUST NOT silently omit them.
 
@@ -66,8 +70,8 @@ An implementation MUST NOT claim a level unless it passes every case tagged with
 
 | SDK | Levels claimed |
 |---|---|
-| TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `flow`, `events` |
-| Python | `core`, `decision`, and `document` except the two rules about features it does not execute (compensation, timers) |
+| TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `flow`, `events`, `model_decision`, `tools`, `journeys`, `replay` |
+| Python | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `flow`, `events` |
 | Java | none (data model only) |
 
 ### 2.3 Versions
@@ -1032,7 +1036,7 @@ A recipe (14.1) lists every tool with its binding among the prerequisites, and u
 
 ### 17.6 Conformance
 
-Sections 16 and 17 are not yet covered by the language-neutral conformance suite. The reference implementation's behaviour is fixed by `sdk/typescript/tests/router_tools_decisions.test.ts`.
+Level `tools` covers 17.3 to 17.5, and level `model_decision` covers section 16. Their cases are execution cases (Appendix A) with a scripted `tools` or `model`. Bindings other than `function`, and agents that choose their own tool calls, are fixed by `sdk/typescript/tests/router_tools_decisions.test.ts`.
 
 ## 18. Business events
 
@@ -1246,9 +1250,26 @@ With `carry_over` (the default), an instance begins at the estimate with which t
 
 A view of a journey MUST let a reader tell a measured value from an inferred one.
 
-### 19.10 Conformance
+### 19.10 A host that restarts
 
-Journeys have no language-neutral cases yet. The reference behaviour is fixed by `sdk/typescript/tests/events_journeys.test.ts`.
+A journey lasts longer than a process. A host at level `journeys` MUST be able to stop and be started again, in another process, without losing or repeating anything. To that end it keeps, durably:
+
+- every journey instance with its record;
+- for every run, the state from which the run can be continued (10.3), and which instance it belongs to;
+- the `id` of every business event it has accepted;
+- the events runs have published that it has not yet accepted.
+
+It MUST save this after each operation it performs for the outside world (accepting an event, letting time pass, completing a human task), and MUST have written the journals of the runs concerned first: the saved state never refers to a journal position that is not on record.
+
+On starting again, once the workflows and journeys are registered, the host recovers: instances are as they were; each run is continued from its saved state under its `run_id`, its journal going on at the next `seq` with `run.resumed`; a run that was in the middle of an activity performs it again (activities are executed at least once, 10.3); a recovered run reports to its journey as before. An event accepted before the restart is not accepted again. A deadline fixed before the restart passes at the time it was fixed for.
+
+A host that cannot recover a run, because its workflow is no longer registered, MUST refuse to start rather than drop the run.
+
+The reference host keeps this in a **runtime directory**: `definitions/` holding the workflows and journeys, `runtime.json` holding the state above, `journals/` holding one journal per run. `awa journey` and the HTTP interface under `/journeys` both work on such a directory, so a command, a server and a scheduled job can each open it, do one thing and leave it for the next.
+
+### 19.11 Conformance
+
+Level `journeys` has its own cases, in `spec/conformance/journeys/` (Appendix A).
 
 ## 20. Counterfactual replay
 
@@ -1290,7 +1311,7 @@ It names the first point at which the paths diverge. A run that was `completed` 
 
 ### 20.4 Conformance
 
-Counterfactual replay is an artefact derived from the journal, like the recipe (14.1). It has no conformance level. The reference behaviour is fixed by `sdk/typescript/tests/counterfactual.test.ts`.
+Level `replay` has its own cases, in `spec/conformance/replay/` (Appendix A). Replay of tool results, of business events and of timeouts is fixed by `sdk/typescript/tests/counterfactual.test.ts`.
 
 ## Appendix A. Conformance suite
 
@@ -1310,6 +1331,9 @@ Counterfactual replay is an artefact derived from the journal, like the recipe (
 | `input` | Data the run starts with |
 | `actors` | What each activity returns, keyed by activity name: `output`, or `error` (optionally with an error `code`), or `attempts` (a list of those, one per execution; the last repeats) |
 | `deliver` | Business events to deliver after the run settles, in order (18.5) |
+| `tools` | For level `tools`: what each `function` tool returns, by name: `result`, or `error` |
+| `model` | For level `model_decision`: `replies`, one per call to the model, the last repeating. Each is a vote (`option`, `confidence`, `rationale`), a raw `text`, or an `error` |
+| `actors.<name>.calls` | Tool calls the actor makes, in order, before it returns its output |
 | `expect.status` | The run status |
 | `expect.visited` | Activity names in execution order, one entry per execution |
 | `expect.visited_unordered` | The same, where parallel branches make the order unspecified |
@@ -1318,8 +1342,24 @@ Counterfactual replay is an artefact derived from the journal, like the recipe (
 | `expect.error_matches` | A regular expression some token's `_error` must match |
 | `expect.journal` | Event types that must appear in the journal in this order; other events may come between them |
 | `expect.journal_contains` | Partial events, each of which some journal event must contain |
+| `expect.journal_excludes` | Event types that must not appear |
+| `expect.journal_count` | For an event type, exactly how many times it must appear |
+| `expect.model_calls` | Exactly how many times the model must have been called |
 
 A runner replaces every actor with one that follows `actors`, runs the workflow, and compares. An activity not listed in `actors` returns an empty object.
+
+**Journey cases** (`journeys/*.json`) each give `workflows`, `journeys`, `actors` as above, a `start` time for the case's clock, and `steps` performed in order:
+
+| Step | Meaning |
+|---|---|
+| `{"publish": {"type", "data", "id"}}` | The host accepts this business event. `expect.accepted` says whether it must be |
+| `{"advance": "P3D"}` | The clock moves forward by this duration |
+| `{"tick": true}` | The host lets time pass. `expect.timed_out_runs` says how many waits must run out |
+| `{"restart": true}` | The host is discarded and a new one recovers from what the first one kept (19.10) |
+
+An actor script MAY give `takes`, a duration by which the activity moves the clock. `expect` gives `instance_count`, `transitions`, and `instances`: each names a `journey` and optionally a `subject_key`, and may state `status`, `stage_id`, `stalled`, `sentiment`, `goals_reached`, `runs` (their statuses in order), `data` (a subset), `events` (types in this order, others allowed between), `events_exact`, `events_count`, `events_contain` (partial events; `has` lists paths that must be present) and `run_journal` (types in order in the journal of the first run).
+
+**Replay cases** (`replay/*.json`) each give a `workflow`, `input` and `actors` that produce the baseline run; optionally a `candidate` workflow; `ai` (`recorded` or `live`); and for `live`, `candidate_actors` for the AI agents. `expect` gives `baseline_status`, `candidate_status`, `same_path`, `verdicts` by node name (20.3), `regressions` or `regressions_at_least`, `unrecorded` (how many situations had no recording), `divergence_after`, and `error_matches`.
 
 Runners: `sdk/typescript/tests/conformance.test.ts`, `sdk/python/tests/test_conformance.py`.
 
@@ -1351,3 +1391,5 @@ Runners: `sdk/typescript/tests/conformance.test.ts`, `sdk/python/tests/test_conf
 - Journeys: stages, triggers, goals and exits over business events, linked to runs by `run_id` (section 19).
 - Counterfactual replay of a recorded run under a changed model, prompt, contract or rule (section 20).
 - Journeys declare touchpoints (channel, technology, what changes hands as business artefacts) and an estimate of the subject's mood whose every change is marked measured or inferred; a subject's journeys are joined by subject key and business events (19.7 to 19.9).
+- Conformance levels `model_decision`, `tools`, `journeys` and `replay`, each with language-neutral cases.
+- A host of journeys keeps its state durably and recovers after a restart (19.10).

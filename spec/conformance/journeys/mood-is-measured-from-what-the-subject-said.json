@@ -1,0 +1,144 @@
+{
+  "id": "mood-is-measured-from-what-the-subject-said",
+  "level": "journeys",
+  "spec": "19.9",
+  "description": "A rule with measure reads a value from the event, maps it from its own scale onto the journey's, and sets the estimate to it. The change is recorded as measured.",
+  "start": "2026-01-05T09:00:00Z",
+  "workflows": [
+    {
+      "id": "25af9454-14da-581e-bcb3-ad86a189e4b0",
+      "name": "Claim",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "ce4a6132-fab1-5ae7-b65d-1227e86012da",
+          "name": "Register",
+          "role_id": "53468978-0f56-5db0-8728-e1cc65f30d90",
+          "actor_type": "application"
+        },
+        {
+          "id": "d00892f0-078e-5b18-b733-0a4ad9946e40",
+          "name": "Settle",
+          "role_id": "53468978-0f56-5db0-8728-e1cc65f30d90",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "930b5f12-50ff-59a8-8378-63905c7b2b5c",
+          "source_id": "ce4a6132-fab1-5ae7-b65d-1227e86012da",
+          "target_id": "9e473bd3-b2c4-5bb0-a352-2cbef2039a8c"
+        },
+        {
+          "id": "1bd616f1-4c43-514e-9b38-641978ade2b6",
+          "source_id": "9e473bd3-b2c4-5bb0-a352-2cbef2039a8c",
+          "target_id": "d00892f0-078e-5b18-b733-0a4ad9946e40"
+        }
+      ],
+      "events": [
+        {
+          "id": "9e473bd3-b2c4-5bb0-a352-2cbef2039a8c",
+          "name": "Documents",
+          "event_type": "message",
+          "event_definition": {
+            "name": "documents.uploaded",
+            "correlation_key": "customer_id"
+          }
+        }
+      ]
+    }
+  ],
+  "journeys": [
+    {
+      "id": "726a0fd1-ea37-5662-9bef-020830db5060",
+      "name": "Claim",
+      "version": "1.0.0",
+      "subject": {
+        "name": "customer",
+        "key": "customer_id"
+      },
+      "stages": [
+        {
+          "id": "open",
+          "name": "Open",
+          "workflows": [
+            "25af9454-14da-581e-bcb3-ad86a189e4b0"
+          ],
+          "complete_when": "paid == true",
+          "transitions": []
+        }
+      ],
+      "triggers": [
+        {
+          "event": "claim.submitted",
+          "starts_journey": true,
+          "start_workflow": "25af9454-14da-581e-bcb3-ad86a189e4b0"
+        }
+      ],
+      "sentiment": {
+        "rules": [
+          {
+            "on": "event",
+            "event": "survey.answered",
+            "measure": {
+              "path": "satisfaction",
+              "from": [
+                1,
+                5
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "actors": {
+    "Register": {
+      "output": {
+        "claim_id": "CLM-1"
+      }
+    },
+    "Settle": {
+      "output": {
+        "paid": true
+      }
+    }
+  },
+  "steps": [
+    {
+      "publish": {
+        "type": "claim.submitted",
+        "data": {
+          "customer_id": "c-1"
+        }
+      }
+    },
+    {
+      "publish": {
+        "type": "survey.answered",
+        "data": {
+          "customer_id": "c-1",
+          "satisfaction": 2
+        }
+      }
+    }
+  ],
+  "expect": {
+    "instances": [
+      {
+        "journey": "Claim",
+        "sentiment": -1,
+        "events_contain": [
+          {
+            "type": "journey.sentiment_changed",
+            "data": {
+              "value": -1,
+              "basis": "measured"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

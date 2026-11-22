@@ -1,0 +1,117 @@
+{
+  "id": "replay-live-ai-improves",
+  "level": "replay",
+  "spec": "20.1",
+  "description": "With live AI, agents run again under the candidate while everything else is held as recorded. An agent that is accepted in fewer attempts has improved.",
+  "workflow": {
+    "id": "860bb52c-b144-5a0f-9194-ebd0725a915b",
+    "name": "replay-live-ai-improves",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "ada217a3-c2b6-5889-8dd3-2d52333fda9c",
+        "name": "Collect",
+        "role_id": "24532367-56f5-5b19-b3ac-bbe6c4b23c11",
+        "actor_type": "application"
+      },
+      {
+        "id": "dddceadc-21b0-5ab1-b034-8e77633837f3",
+        "name": "Assess",
+        "role_id": "24532367-56f5-5b19-b3ac-bbe6c4b23c11",
+        "actor_type": "ai_agent",
+        "outcome_contract": {
+          "postconditions": [
+            {
+              "name": "Has a score",
+              "expression": "score exists"
+            }
+          ]
+        },
+        "retry": {
+          "max_attempts": 3,
+          "initial_delay": "PT0S"
+        }
+      },
+      {
+        "id": "2531629d-bf65-5653-ab9f-ecc679e502ed",
+        "name": "Approve",
+        "role_id": "24532367-56f5-5b19-b3ac-bbe6c4b23c11",
+        "actor_type": "application"
+      },
+      {
+        "id": "61e86d80-975f-5d34-bcf9-4fee174f710f",
+        "name": "Escalate",
+        "role_id": "24532367-56f5-5b19-b3ac-bbe6c4b23c11",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "7375bffa-4163-52bd-89fa-19a6d8c4b365",
+        "source_id": "ada217a3-c2b6-5889-8dd3-2d52333fda9c",
+        "target_id": "dddceadc-21b0-5ab1-b034-8e77633837f3"
+      },
+      {
+        "id": "99cca618-8fea-5c59-9be6-a782cfc8baa7",
+        "source_id": "dddceadc-21b0-5ab1-b034-8e77633837f3",
+        "target_id": "2531629d-bf65-5653-ab9f-ecc679e502ed",
+        "condition": "score >= 5"
+      },
+      {
+        "id": "f59dd5fb-17c1-5025-9f88-9b27b7fc0eff",
+        "source_id": "dddceadc-21b0-5ab1-b034-8e77633837f3",
+        "target_id": "61e86d80-975f-5d34-bcf9-4fee174f710f",
+        "is_default": true
+      }
+    ]
+  },
+  "input": {
+    "claim": 1
+  },
+  "actors": {
+    "Collect": {
+      "output": {
+        "documents": 3
+      }
+    },
+    "Assess": {
+      "attempts": [
+        {
+          "output": {
+            "note": "no score"
+          }
+        },
+        {
+          "output": {
+            "score": 7
+          }
+        }
+      ]
+    },
+    "Approve": {
+      "output": {
+        "approved": true
+      }
+    }
+  },
+  "ai": "live",
+  "candidate_actors": {
+    "Assess": {
+      "output": {
+        "score": 7
+      }
+    }
+  },
+  "expect": {
+    "baseline_status": "completed",
+    "candidate_status": "completed",
+    "same_path": true,
+    "verdicts": {
+      "Collect": "same",
+      "Assess": "improved",
+      "Approve": "same"
+    },
+    "regressions": 0
+  }
+}

@@ -1,210 +1,46 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Getting Started | AWA Documentation</title>
+    <title>Workflows where the outcome is fixed and the strategy is free | AWA</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&display=swap"
-        rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css">
     <link rel="stylesheet" href="style.css">
+    <style>table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.92em; } th, td { text-align: left; vertical-align: top; padding: 8px 12px; border-bottom: 1px solid rgba(128,128,128,.25); } th { font-weight: 600; }</style>
 </head>
-
 <body>
-    <button class="theme-toggle" title="Toggle Theme">☀️</button>
-
+    <button class="theme-toggle" title="Toggle theme" aria-label="Toggle theme">&#9728;</button>
     <div class="app-container">
-        <!-- Sidebar -->
         <aside class="sidebar">
-            <div class="logo">
-                <div class="logo-icon"></div>
-                <span>AWA</span>
-            </div>
-
-            <div class="search-container">
-                <span class="search-icon">🔍</span>
-                <input type="text" class="search-input" placeholder="Search guides...">
-            </div>
-
-            <div class="nav-section">
-                <div class="nav-section-title">Getting Started</div>
-                <ul class="nav-links">
-                    <li><a href="getting-started.html" class="nav-link active">Introduction</a></li>
-                    <li><a href="installation-guide.html" class="nav-link">Installation Guide</a></li>
-                    <li><a href="#quick-install" class="nav-link">Quick Installation</a></li>
-                    <li><a href="#hello-world" class="nav-link">Hello World</a></li>
-                    <li><a href="#personas" class="nav-link">Who is this for?</a></li>
-                </ul>
-            </div>
-
-            <div class="nav-section">
-                <div class="nav-section-title">Developer Guides</div>
-                <ul class="nav-links">
-                    <li><a href="developer-guide.html" class="nav-link">Reference Material</a></li>
-                    <li><a href="data-model-guide.html" class="nav-link">Data Model & Concepts</a></li>
-                </ul>
-            </div>
-
-            <div class="nav-section">
-                <div class="nav-section-title">Theory & Business</div>
-                <ul class="nav-links">
-                    <li><a href="abpm-guide.html" class="nav-link">Agentic BPM</a></li>
-                    <li><a href="architect-guide.html" class="nav-link">Architect Guide</a></li>
-                </ul>
-            </div>
-
-            <div class="nav-section">
-                <div class="nav-section-title">Playground</div>
-                <ul class="nav-links">
-                    <li><a href="playground.html" class="nav-link">Interactive Sandbox</a></li>
-                </ul>
-            </div>
+            <div class="logo"><div class="logo-icon"></div><span>AWA</span></div>
+            <div class="search-container"><input type="text" class="search-input" placeholder="Search guides..." aria-label="Search guides"></div>
+            <div class="nav-section"><div class="nav-section-title">Start</div><ul class="nav-links"><li><a href="getting-started.html" class="nav-link active">Introduction</a></li><li><a href="#what" class="nav-link" style="padding-left:28px;font-size:0.85em">What AWA is</a></li><li><a href="#layers" class="nav-link" style="padding-left:28px;font-size:0.85em">What it gives you</a></li><li><a href="#first-run" class="nav-link" style="padding-left:28px;font-size:0.85em">A first run</a></li><li><a href="#who" class="nav-link" style="padding-left:28px;font-size:0.85em">Where to go next</a></li><li><a href="installation-guide.html" class="nav-link">Installation</a></li></ul></div><div class="nav-section"><div class="nav-section-title">Build</div><ul class="nav-links"><li><a href="developer-guide.html" class="nav-link">Developer guide</a></li><li><a href="data-model-guide.html" class="nav-link">Data model</a></li></ul></div><div class="nav-section"><div class="nav-section-title">Design</div><ul class="nav-links"><li><a href="abpm-guide.html" class="nav-link">For process owners</a></li><li><a href="architect-guide.html" class="nav-link">For architects</a></li></ul></div><div class="nav-section"><div class="nav-section-title">See</div><ul class="nav-links"><li><a href="playground.html" class="nav-link">Playground</a></li><li><a href="../tools/visualization/journey.html" class="nav-link">Journey view</a></li><li><a href="../tools/visualization/replay.html" class="nav-link">Run replay</a></li></ul></div>
         </aside>
-
-        <!-- Main Content -->
         <main class="main-content">
             <header class="content-header">
-                <span class="badge">Version 1.2.0</span>
-                <h1 class="hero-title">Step into the future of AI-Native Workflows.</h1>
-                <p class="hero-desc">Agentic Workflow Architecture (AWA) is the industry standard for designing,
-                    querying, and visualizing processes meant for AI Agents and human collaboration.</p>
+                <span class="badge">Specification 1.1 &middot; SDK 2.0.0</span>
+                <h1 class="hero-title">Workflows where the outcome is fixed and the strategy is free</h1>
+                <p class="hero-desc">AWA is a specification for workflows carried out by AI agents, people, robots and applications together. An agent may reach a result by different means each time, so AWA fixes what must be true of the result, records how it was reached, and refuses results it cannot verify.</p>
             </header>
-
-            <section id="introduction">
-                <h2>Why AWA?</h2>
-                <p>Traditional BPMN was built for humans and brittle software systems. In the era of LLMs and autonomous
-                    agents, we need a specification that is <strong>queryable</strong>, <strong>context-aware</strong>,
-                    and <strong>outcome-focused</strong>.</p>
-
-                <div class="card-grid">
-                    <div class="card">
-                        <div class="card-icon">🤖</div>
-                        <h3>Built for Agents</h3>
-                        <p>Native support for actor types including <code>ai_agent</code>, <code>robot</code>, and
-                            <code>application</code>.
-                        </p>
-                    </div>
-                    <div class="card">
-                        <div class="card-icon">🔍</div>
-                        <h3>Queryable Specs</h3>
-                        <p>Ask complex questions: "Which activities require write access to the order context?"</p>
-                    </div>
-                    <div class="card">
-                        <div class="card-icon">⚡</div>
-                        <h3>High Performance</h3>
-                        <p>Designed for event-streaming (Avro) and highly scalable databases (PostgreSQL/Datastore).</p>
-                    </div>
-                </div>
-            </section>
-
-            <section id="personas">
-                <h2>Designed for Collaborative Ecosystems</h2>
-                <p>AWA bridges the gap between different stakeholders in an AI-driven enterprise.</p>
-
-                <div class="card-grid">
-                    <div class="card">
-                        <h4>Architects</h4>
-                        <p>Define high-level <strong>Reference Architectures</strong> and governance models that scale
-                            with multi-agent systems.</p>
-                    </div>
-                    <div class="card">
-                        <h4>Developers</h4>
-                        <p>Use robust <strong>SDKs</strong> and typed <strong>Schemas</strong> to build workflows that
-                            are both human-readable and machine-executable.</p>
-                    </div>
-                    <div class="card">
-                        <h4>BPM Managers</h4>
-                        <p>Map <strong>Value Streams</strong> and identify <strong>DOWNTIME</strong> waste directly
-                            within the process visualization.</p>
-                    </div>
-                </div>
-            </section>
-
-            <section id="quick-install">
-                <h2>Quick Installation</h2>
-                <p>AWA provides lightweight SDKs for the most popular development environments.</p>
-
-                <div class="code-tabs">
-                    <div class="tabs-header">
-                        <button class="tab-btn active" data-lang="ts">TypeScript</button>
-                        <button class="tab-btn" data-lang="py">Python</button>
-                        <button class="tab-btn" data-lang="java">Java</button>
-                    </div>
-                    <div class="tab-content active" data-lang="ts">
-                        <pre><code class="language-bash">npm install @awa/sdk</code></pre>
-                    </div>
-                    <div class="tab-content" data-lang="py">
-                        <pre><code class="language-bash">pip install awa-sdk</code></pre>
-                    </div>
-                    <div class="tab-content" data-lang="java">
-                        <pre><code class="language-xml">&lt;dependency&gt;
-  &lt;groupId&gt;io.awa&lt;/groupId&gt;
-  &lt;artifactId&gt;awa-sdk&lt;/artifactId&gt;
-  &lt;version&gt;1.2.0&lt;/version&gt;
-&lt;/dependency&gt;</code></pre>
-                    </div>
-                </div>
-            </section>
-
-            <section id="hello-world">
-                <h2>Hello World</h2>
-                <p>Creating your first Agentic Workflow takes less than 20 lines of code.</p>
-
-                <div class="code-tabs">
-                    <div class="tabs-header">
-                        <button class="tab-btn active" data-lang="ts">TypeScript</button>
-                        <button class="tab-btn" data-lang="py">Python</button>
-                    </div>
-                    <div class="tab-content active" data-lang="ts">
-                        <pre><code class="language-typescript">import { workflow } from '@awa/sdk';
-
-const helloAWA = workflow('Greeting Process', '1.0.0')
-  .description('A simple AI greeting flow')
-  .activity('Generate Greeting', {
-    actor_type: 'ai_agent',
-    role_id: 'copywriter',
-    procedure: 'Greet the user in a friendly manner'
-  })
-  .edge('START', 'Generate Greeting')
-  .build();
-
-console.log(JSON.stringify(helloAWA, null, 2));</code></pre>
-                    </div>
-                    <div class="tab-content" data-lang="py">
-                        <pre><code class="language-python">from awa import workflow, ActorType
-
-hello_awa = (
-    workflow("Greeting Process", "1.0.0")
-    .description("A simple AI greeting flow")
-    .activity("Generate Greeting", 
-              actor_type=ActorType.AI_AGENT,
-              role_id="copywriter",
-              procedure="Greet the user in a friendly manner")
-    .edge("START", "Generate Greeting")
-    .build()
-)</code></pre>
-                    </div>
-                </div>
-
-                <div class="info-box">
-                    <strong>Pro Tip:</strong> Use the <code>awa-viz.js</code> library to instantly visualize this
-                    workflow in 2D or 3D.
-                </div>
-            </section>
-
-            <div class="footer">
-                &copy; 2026 Agentic Workflow Architecture Group. Released under Apache 2.0 License.
-            </div>
+            <section id="what"><h2>What AWA is</h2>
+<p>Three things, kept apart on purpose:</p>
+<div class="card-grid"><div class="card"><h3>A specification</h3><p>Version 1.1. Twenty sections saying what a workflow document means and what an engine must do with it. Written with MUST and MAY.</p></div><div class="card"><h3>A conformance suite</h3><p>Language-neutral cases: a workflow, scripted actors, the outcome an engine must produce. An implementation claims a level only if it passes every case at that level.</p></div><div class="card"><h3>Reference implementations</h3><p>TypeScript SDK 2.0.0 passes every level. The Python SDK passes the engine levels. Java has the data model only.</p></div></div>
+<p>The specification and the SDKs are versioned separately: the specification says what a document means, an SDK version says what its API promises.</p></section><section id="layers"><h2>What it gives you</h2><div style="overflow-x:auto"><table><tr><th>Layer</th><th>In one sentence</th></tr><tr><td>Document</td><td>A workflow as JSON: activities, actors, roles, edges, decision tables, events.</td></tr><tr><td>Flow</td><td>Sequence, conditional routing, parallel split and join, timers, compensation, cancellation.</td></tr><tr><td>Decisions</td><td>Decision tables with a specified entry language and strict hit policies; a model may decide, within options the workflow lists.</td></tr><tr><td>Outcome contracts</td><td>Per activity: output schema, postconditions, budgets, escalation to a person. Checked deterministically, failing closed.</td></tr><tr><td>Resilience</td><td>Retry with backoff, dead letters, checkpoints, recovery in another process, idempotency keys.</td></tr><tr><td>Journal</td><td>An append-only record of every run: what happened, the actor's reasoning, the engine's own decisions.</td></tr><tr><td>Tools</td><td>HTTP, command, JSON-RPC, gRPC, MCP and function calls, each journalled with a link to what ran.</td></tr><tr><td>Business events</td><td>Workflows publish events and wait for them, with correlation and a deadline that has its own path.</td></tr><tr><td>Journeys</td><td>The life of a customer across several workflows: stages, goals, touchpoints, what changes hands, and an estimate of mood that always says whether it was measured or inferred.</td></tr><tr><td>Explanation</td><td>A replay, a recipe that explains how to rebuild the workflow, and counterfactual replay: what would this run have done under another model or rule?</td></tr><tr><td>Knowledge</td><td>Strategies and failure patterns distilled from runs, reviewed by people, exported as an Open Knowledge Format bundle.</td></tr></table></div></section><section id="first-run"><h2>A first run</h2>
+<p>From a clone of the repository, with Node.js 20 or later:</p>
+<pre><code class="language-bash">cd sdk/typescript &amp;&amp; npm install &amp;&amp; npm run build</code></pre>
+<p>Run an example without any API key. <code>--simulate</code> replaces models and tools; <code>--outputs</code> says what each activity returns:</p>
+<pre><code class="language-bash">node sdk/typescript/dist/cli/index.js run examples/claims-settlement/claims-settlement.awa.json --simulate --outputs examples/claims-settlement/simulation.json --journal run.journal.jsonl</code></pre>
+<p>Then turn the journal into a document that explains how to build that workflow from scratch:</p>
+<pre><code class="language-bash">node sdk/typescript/dist/cli/index.js recipe examples/claims-settlement/claims-settlement.awa.json run.journal.jsonl -o RECIPE.md</code></pre>
+<p>To see a run, open <a href="../tools/visualization/replay.html">the run replay</a>. To see six customers through a year of journeys, open <a href="../tools/visualization/journey.html">the journey view</a>.</p></section><section id="who"><h2>Where to go next</h2><div class="card-grid"><div class="card"><h3>You write software</h3><p>The <a href="developer-guide.html">developer guide</a>: engine, journal, contracts, events, journeys, tools, the HTTP interface.</p></div><div class="card"><h3>You own a process</h3><p>The guide <a href="abpm-guide.html">for process owners</a>: what you can fix, what you can see, how to change a model safely.</p></div><div class="card"><h3>You design the system</h3><p>The guide <a href="architect-guide.html">for architects</a>: layers, durability, conformance levels, and what AWA does not enforce.</p></div></div></section>
+            <section><p style="opacity:.7;font-size:.9em">The normative text is the <a href="https://github.com/yannickhuchard/agentic-workflow-architecture/blob/main/docs/specification.md">specification</a>. Where this guide and the specification disagree, the specification is right.</p></section>
         </main>
     </div>
-
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
     <script src="main.js"></script>
     <script>hljs.highlightAll();</script>
 </body>
-
 </html>

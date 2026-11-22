@@ -25,6 +25,7 @@ classifiers = [
 ]
 dependencies = [
     "pydantic>=2.0.0",
+    "jsonschema>=4.18.0",  # outcome contracts with an output_schema cannot be checked without it
 ]
 
 [project.optional-dependencies]
@@ -32,8 +33,12 @@ dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
     "httpx>=0.27.0",  # the API tests use the framework test client, which needs an HTTP client
+    "jsonschema>=4.18.0",  # outcome contract schemas, and journal events in the conformance tests
     "mypy>=1.0.0",
     "ruff>=0.1.0",
+]
+contracts = [
+    "jsonschema>=4.18.0",  # checks outcome_contract.output_schema; without it such a contract fails closed
 ]
 ai = [
     "google-generativeai>=0.3.0",

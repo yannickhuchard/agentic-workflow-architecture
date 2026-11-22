@@ -38,7 +38,17 @@ The picture at any position is computed from the journal events up to that posit
 
 ## Journeys
 
-`journey.html` is a single file with no dependencies. Open it in a browser. It reads `journey-story.js` beside it, which `examples/claims-journey/make-story.mjs` writes from the journey records the SDK produces.
+`journey.html` needs no build step and no network. Open it in a browser: it shows the sample (`journey-story.js`, six customers through three journeys).
+
+To see your own journeys:
+
+| How | What |
+|---|---|
+| "Open a record", or drop a file on the page | The file written by `awa journey export`, or by `GET /api/v1/journeys/portfolio` |
+| `journey.html?data=<url>` | The same, from an address |
+| `journey.html?live=http://localhost:3000` | Follows an AWA server: the view updates as journeys progress, and a reader at the latest moment stays there |
+
+`journey-story-builder.js` turns a record into what the view plays. It works on any record; an example may pass it hand-made workflow layouts and sentences for its own events, as `examples/claims-journey/make-story.mjs` does. `journey.check.mjs` checks the view in a browser (needs Playwright).
 
 | Height | Shows | Go down by | 
 |---|---|---|

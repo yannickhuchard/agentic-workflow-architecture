@@ -227,6 +227,9 @@ button:focus-visible, input:focus-visible { outline: 2px solid #a5b4fc; outline-
     <div style="width:1px;height:22px;background:rgba(255,255,255,.16)"></div>
     <nav id="crumbs" aria-label="Where you are" style="display:flex;align-items:center;gap:6px"></nav>
     <div style="flex:1"></div>
+    <div id="source" style="font-size:12px;color:var(--mute);white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis"></div>
+    <button class="crumb" id="b-open" style="border-color:rgba(255,255,255,.16)" title="Open a record: the file written by awa journey export, or by GET /api/v1/journeys/portfolio">Open a record</button>
+    <input id="file" type="file" accept=".json,application/json" hidden>
     <div id="switch" class="seg-ctl" role="group" aria-label="Journey"></div>
   </div>
   <div class="layer" id="L0"><div class="scene"></div></div>
@@ -249,17 +252,17 @@ button:focus-visible, input:focus-visible { outline: 2px solid #a5b4fc; outline-
       <div id="count" class="mono" style="flex:none;width:76px;text-align:right;font-size:13px;color:#cbd5e1"></div>
     </div>
   </div>
-  <div id="none" hidden>No story data. Run <span class="mono">&nbsp;node examples/claims-journey/make-story.mjs&nbsp;</span> to write journey-story.js beside this file.</div>
+  <div id="none" hidden></div>
 </div>
+<script src="journey-story-builder.js"></script>
 <script src="journey-story.js"></script>
 <script>
 (() => {
 'use strict';
-const S = window.AWA_STORY;
+let S = window.AWA_STORY;
 const $ = id => document.getElementById(id);
 const fit = () => { const k = Math.min(innerWidth / 1440, innerHeight / 900); $('fit').style.transform = `translate(${(innerWidth - 1440 * k) / 2}px, ${(innerHeight - 900 * k) / 2}px) scale(${k})`; };
 addEventListener('resize', fit); fit();
-if (!S) { $('none').hidden = false; return; }
 
 const DAY = 86400000, r = Math.round;
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -436,6 +439,9 @@ scenes.run = () => {
       <button class="crumb" style="border-color:rgba(255,255,255,.16)" data-up="1">Back to ${esc(c.name)}</button>
       <div class="hd" style="font-size:22px;font-weight:600;white-space:nowrap">${esc(run.name)}</div>
       <div class="sub" style="font-size:14px;flex:1 1 auto">serving the stage &ldquo;${esc(stage ? stage.name : '')}&rdquo; of the ${esc(J().name)} journey</div><div class="chip" id="runchip"></div></div>`;
+    // A workflow wider or taller than the stage is shown smaller, never cut off
+    const fit = Math.min(1, 1384 / W.width, 330 / W.height);
+    h += `<div style="position:absolute;left:0;top:0;width:1440px;height:420px;transform:scale(${fit.toFixed(3)});transform-origin:720px 242px">`;
     W.edges.forEach((e, ei) => {
         e.segs.forEach((sg, si) => {
             const hz = sg.dir === 'r' || sg.dir === 'l';
@@ -449,6 +455,7 @@ scenes.run = () => {
         else if (n.kind === 'event') h += `<div class="nd evt m-${n.mode}" data-n="${i}" data-base="nd evt m-${n.mode}" style="${box}"><span class="ev-in"></span></div><div class="nl" style="left:${gx + n.x + n.w / 2}px;top:${gy + n.y + n.h + 5}px"><span>${esc(n.name)}</span></div>`;
         else h += `<div class="nd dec" data-n="${i}" data-base="nd dec" style="${box}"></div><div class="nl dl" style="left:${gx + n.x + n.w - 10}px;top:${gy + n.y - 14}px"><span>${esc(n.name)}</span></div>`;
     });
+    h += `</div>`;
     const swatch = (css, t) => `<div class="lg" style="font-size:12px"><span style="width:18px;height:12px;border-radius:3px;${css}"></span>${t}</div>`;
     return h + `<div style="position:absolute;left:28px;top:424px;width:1384px;display:flex;gap:16px">
       <div class="pn" style="flex:0 0 560px"><div class="pt" style="color:var(--mute)">The story so far</div><div id="script" style="display:flex;flex-direction:column;gap:2px"></div></div>
@@ -536,7 +543,7 @@ function told() {
     if (st.level === 'atlas') {
         const c = S.customers[p];
         const life = c.life.map(l => { const x = S.journeys[l.j].instances[l.i]; return `${S.journeys[l.j].name}: ${x.ending.label.toLowerCase()}, ${moodWord(x.mood_end)}`; }).join('. ');
-        return { when: `Customer ${p + 1} of ${S.customers.length}`, cap: `${c.name}. ${c.persona} ${life}.`, facts: [['Insures', 'a ' + c.vehicle], ['Journeys', String(c.life.length)]] };
+        return { when: `Customer ${p + 1} of ${S.customers.length}`, cap: `${c.name}. ${c.persona ? c.persona + ' ' : ''}${life}.`, facts: [...(c.vehicle ? [['Insures', 'a ' + c.vehicle]] : []), ['Journeys', String(c.life.length)]] };
     }
     if (st.level === 'journey') { const m = J().all[p]; return { when: m.when, cap: m.cap, facts: [['Journey', J().name], ['Customer', J().instances[m.c].name]] }; }
     if (st.level === 'run') { const s = R().steps[p]; return { when: s.when, cap: s.cap, facts: [['Workflow', R().name], ['Customer', I().name], ...(s.link ? [['Link', s.link]] : [])] }; }
@@ -670,13 +677,64 @@ document.addEventListener('keydown', e => {
 let acc = 0;
 setInterval(() => { if (!st.playing) return; acc += 200 * (st.fast ? 2.4 : 1); if (acc >= 2200) { acc = 0; move(1, true); } }, 200);
 
+// ---------------------------------------------------------------- where the record comes from
+const message = text => { $('none').textContent = text; $('none').hidden = !text; };
+/** Show a record: a story as the builder makes it, or the portfolio a host exports, which is built into one here */
+function show(data, source, keep) {
+    const story = data && data.journeys && data.journeys[0] && data.journeys[0].instances[0] && data.journeys[0].instances[0].beats ? data : window.AWA_build_story(data);
+    if (!story.journeys.length) { message('This record holds no journey yet.'); return; }
+    // Following a live record: a reader at the latest moment stays at the latest moment
+    const following = keep && S && st.level !== 'atlas' && pos() === count() - 1;
+    S = story;
+    for (const level of LEVELS) delete built[level];
+    if (!keep) Object.assign(st, { level: 'atlas', j: 0, i: 0, r: 0, ip: 0, ia: 0, ib: 0, ic: 0, playing: false });
+    st.j = Math.min(st.j, S.journeys.length - 1); st.i = Math.min(st.i, J().instances.length - 1);
+    if (st.level === 'run' && !I().runs.length) st.level = 'story';
+    if (following) st[KEY[st.level]] = count() - 1;
+    $('source').textContent = source || '';
+    message('');
+    render();
+}
+async function fetch_record(url) {
+    const response = await fetch(url, { headers: { accept: 'application/json' } });
+    if (!response.ok) throw new Error(`${url} answered ${response.status}`);
+    return response.json();
+}
+$('b-open').onclick = () => $('file').click();
+$('file').onchange = async e => {
+    const file = e.target.files[0]; if (!file) return;
+    try { show(JSON.parse(await file.text()), file.name); } catch (error) { message(`${file.name} is not a journey record: ${error.message}`); }
+};
+addEventListener('dragover', e => e.preventDefault());
+addEventListener('drop', async e => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0]; if (!file) return;
+    try { show(JSON.parse(await file.text()), file.name); } catch (error) { message(`${file.name} is not a journey record: ${error.message}`); }
+});
+
 // A link carries the place: #level/journey/instance/run/position
-const parts = location.hash.slice(1).split('/');
-if (LEVELS.includes(parts[0])) {
+const place = () => {
+    const parts = location.hash.slice(1).split('/');
+    if (!S || !LEVELS.includes(parts[0])) return;
     const [level, j, i, rr, p] = [parts[0], ...parts.slice(1).map(Number)];
     if (S.journeys[j] && S.journeys[j].instances[i || 0]) Object.assign(st, { level, j, i: i || 0, r: rr || 0, [KEY[level]]: p || 0 });
-}
-render();
+};
+// ?data=<url> shows that record. ?live=<server> follows a host: its journeys as they progress.
+const query = new URLSearchParams(location.search);
+if (query.get('live')) {
+    const url = query.get('live').replace(/\/$/, '') + '/api/v1/journeys/portfolio';
+    let last = '';
+    const poll = async () => {
+        try {
+            const text = JSON.stringify(await fetch_record(url));
+            if (text !== last) { const first = !last; last = text; show(JSON.parse(text), `live \u00b7 ${new Date().toLocaleTimeString()}`, !first); }
+        } catch (error) { if (!last) message(`Cannot reach ${url}: ${error.message}`); else $('source').textContent = 'live \u00b7 connection lost'; }
+    };
+    poll(); setInterval(poll, 3000);
+} else if (query.get('data')) {
+    fetch_record(query.get('data')).then(data => { show(data, query.get('data')); }).catch(error => message(`Cannot load ${query.get('data')}: ${error.message}`));
+} else if (S) { place(); $('source').textContent = 'sample: six customers, three journeys'; render(); }
+else message('No record loaded. Use "Open a record", drop a file here, or run node examples/claims-journey/make-story.mjs for the sample.');
 })();
 </script>
 </body>

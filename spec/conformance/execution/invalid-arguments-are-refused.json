@@ -1,0 +1,81 @@
+{
+  "id": "invalid-arguments-are-refused",
+  "level": "tools",
+  "spec": "17.3",
+  "description": "Arguments that do not match the tool's parameters are refused; nothing runs.",
+  "workflow": {
+    "id": "34facb7c-5c30-52b0-afc8-5aafcab9509b",
+    "name": "invalid-arguments-are-refused",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "db8a9f90-88e9-5fbf-8c0d-35c0f268d1ac",
+        "name": "A",
+        "role_id": "eab15729-f59d-5060-8950-37e73c8901a4",
+        "actor_type": "application",
+        "tools": [
+          {
+            "name": "lookup",
+            "description": "The lookup tool",
+            "parameters": {
+              "type": "object",
+              "required": [
+                "q"
+              ],
+              "properties": {
+                "q": {
+                  "type": "string"
+                }
+              }
+            },
+            "binding": {
+              "kind": "function",
+              "name": "lookup"
+            }
+          }
+        ]
+      }
+    ],
+    "edges": []
+  },
+  "actors": {
+    "A": {
+      "calls": [
+        {
+          "tool": "lookup",
+          "arguments": {
+            "q": 42
+          }
+        }
+      ],
+      "output": {}
+    }
+  },
+  "tools": {
+    "lookup": {
+      "result": {
+        "found": true
+      }
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "journal_contains": [
+      {
+        "type": "tool.failed",
+        "data": {
+          "tool": "lookup",
+          "invoked": false,
+          "error": {
+            "code": "VALIDATION_ERROR"
+          }
+        }
+      }
+    ],
+    "journal_excludes": [
+      "tool.invoked",
+      "tool.completed"
+    ]
+  }
+}

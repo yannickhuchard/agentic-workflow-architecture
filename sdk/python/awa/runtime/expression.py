@@ -208,3 +208,9 @@ class _Parser:
 def evaluate_expression(expression: str, data: dict[str, Any]) -> bool:
     """Evaluate a condition expression. Raises ExpressionError if it is not valid ACEL."""
     return bool(_Parser(_tokenize(expression), expression, data).parse())
+
+
+def resolve_path(data: dict[str, Any], path: str, default: Any = None) -> Any:
+    """The value at a dotted path in the data, or `default` when the path leads nowhere"""
+    value = _resolve(data, path)
+    return default if value is _MISSING else value

@@ -565,6 +565,11 @@ export class WorkflowEngine {
         };
     }
 
+    /** Wait until every journal event recorded so far has reached the journal store */
+    public async flush(): Promise<void> {
+        await this.journal.flush();
+    }
+
     private async saveCheckpoint(): Promise<void> {
         if (!this.options.checkpoint) return;
         await this.journal.flush();

@@ -621,8 +621,10 @@ enum TraceLevel {
 enum RunStatus {
   running
   waiting_human
+  waiting_event
   completed
   failed
+  cancelled
 }
 
 enum ToolBindingKind {
@@ -804,4 +806,121 @@ extend type Mutation {
 extend type Subscription {
   """The journal of a run, live. Replays from afterSeq, then delivers new events as they are recorded."""
   runEvents(run_id: UUID!, afterSeq: Int): JournalEvent!
+}
+
+# ---------------------------------------------------------------------------
+# Business events and journeys (specification sections 18 and 19)
+# ---------------------------------------------------------------------------
+
+enum JourneyStatus { active completed abandoned }
+enum TouchpointDirection { inbound outbound }
+enum SentimentBasis { measured inferred }
+
+"""A statement that something happened, in CloudEvents 1.0 form"""
+input BusinessEventInput {
+  id: String
+  source: String
+  type: String!
+  subject: String
+  time: DateTime
+  data: JSON
+}
+
+type PublishResult {
+  event_id: String!
+  """False when the event id had been taken in before; nothing else happened"""
+  accepted: Boolean!
+  resumed_runs: [UUID!]!
+  started_runs: [UUID!]!
+  journeys: [UUID!]!
+}
+
+type JourneyStage { id: String! name: String! description: String max_duration: String }
+
+type JourneyArtefact {
+  id: String!
+  name: String!
+  """A business concept, not a file format: contract, attestation, invoice, receipt, certificate, ..."""
+  kind: String!
+  description: String
+}
+
+type Touchpoint {
+  id: String!
+  name: String!
+  party: String!
+  direction: TouchpointDirection!
+  channel: String!
+  technology: String
+  artefacts: [JourneyArtefact!]!
+}
+
+type StageAnalytics {
+  stage_id: String!
+  stage_name: String!
+  entered: Int!
+  completed: Int!
+  active: Int!
+  stalled: Int!
+  abandoned: Int!
+  median_duration_ms: Float
+  conversion: Float
+}
+
+type Journey {
+  id: UUID!
+  name: String!
+  version: String!
+  description: String
+  stages: [JourneyStage!]!
+  artefacts: [JourneyArtefact!]!
+  touchpoints: [Touchpoint!]!
+  """The whole definition, as in spec/json-schema/journey.schema.json"""
+  definition: JSON!
+  funnel: [StageAnalytics!]!
+  instances(status: JourneyStatus, stalled: Boolean, subject: String): [JourneyInstance!]!
+}
+
+type JourneyEvent {
+  seq: Int!
+  time: DateTime!
+  type: String!
+  stage_id: String
+  """The run concerned: the link from the journey's record into that run's journal"""
+  run: Run
+  data: JSON!
+}
+
+type JourneyInstance {
+  id: UUID!
+  journey: Journey!
+  subject_key: String!
+  status: JourneyStatus!
+  stalled: Boolean!
+  stage_id: String!
+  goals_reached: [String!]!
+  """The current estimate of the subject's mood. Each change in events says whether it was measured or inferred."""
+  sentiment: Float
+  started_at: DateTime!
+  ended_at: DateTime
+  runs: [Run!]!
+  events(type: String): [JourneyEvent!]!
+}
+
+type JourneyTransition { from: Journey! to: Journey! count: Int! subjects: [String!]! }
+
+extend type Query {
+  journey(id: UUID!): Journey
+  journeys: [Journey!]!
+  journeyInstance(id: UUID!): JourneyInstance
+  """Every journey of one subject, in order of their start"""
+  subjectJourneys(subject_key: String!): [JourneyInstance!]!
+  journeyTransitions: [JourneyTransition!]!
+}
+
+extend type Mutation {
+  """Take in a business event: it wakes waiting runs, starts journeys and moves them on. The same id twice has no further effect."""
+  publishEvent(event: BusinessEventInput!): PublishResult!
+  """Let time pass: deadlines that have run out take effect, journeys that outstayed a stage are marked stalled"""
+  tick(at: DateTime): JSON!
 }

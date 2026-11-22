@@ -239,5 +239,10 @@ The walkthrough found a defect the unit tests had not: an event announced by a w
 
 `tools/visualization/journey.html`: one file, no build step, no network. Four heights (atlas, one journey on calendar time, one customer's journey as a blueprint, one run), the journey switch and customer arrows, a caption for every moment, play, step and scrub, links that carry the place. Covers R1 to R15. It reads `journey-story.js`, written by `examples/claims-journey/make-story.mjs` from any journey record the SDK produces.
 
-Not built: live journeys (the view replays what was recorded), loading a record chosen by the user, and everything under 8 and 10.5.
+Since the second round it also opens any record, from a file, an address, or live from a server whose journeys are still moving; a reader at the latest moment stays at the latest moment as the record grows. Workflows without a hand-made layout are laid out by rule. `tools/visualization/journey.check.mjs` checks all of this in a browser, and runs in CI.
 
+Not built: everything under 8 and 10.5, in particular an atlas for more than a handful of customers and journeys.
+
+## 12. Testing with people
+
+Not done. [`usability-test-kit.md`](usability-test-kit.md) holds the session script, the seven task cards, the observation sheet and how to read the results. The findings belong here.

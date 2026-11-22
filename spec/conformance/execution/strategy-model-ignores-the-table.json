@@ -1,0 +1,138 @@
+{
+  "id": "strategy-model-ignores-the-table",
+  "level": "model_decision",
+  "spec": "16.2",
+  "description": "With strategy model, the model decides even where a rule would match.",
+  "workflow": {
+    "id": "bd5340e3-3e13-5ba5-ab1f-fa104dafe5a3",
+    "name": "strategy-model-ignores-the-table",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "4f828c6e-e7a5-5355-a902-832f5524347b",
+        "name": "Intake",
+        "role_id": "6d0abd1f-38f9-5caf-940a-07165c1d0b42",
+        "actor_type": "application"
+      },
+      {
+        "id": "d8625c17-1a6a-54f0-bad2-872d7318b673",
+        "name": "Pay",
+        "role_id": "6d0abd1f-38f9-5caf-940a-07165c1d0b42",
+        "actor_type": "application"
+      },
+      {
+        "id": "89883b11-59f3-568d-b81d-c687068c16d6",
+        "name": "Review",
+        "role_id": "6d0abd1f-38f9-5caf-940a-07165c1d0b42",
+        "actor_type": "application"
+      },
+      {
+        "id": "9aabfa47-812b-597e-8a2b-9c3d97a488e9",
+        "name": "Manual",
+        "role_id": "6d0abd1f-38f9-5caf-940a-07165c1d0b42",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "aa565dc4-457e-55ba-b926-a9b34a21fc0c",
+        "source_id": "4f828c6e-e7a5-5355-a902-832f5524347b",
+        "target_id": "2b03833c-bb98-5e48-92ac-f5ff01e1e301"
+      },
+      {
+        "id": "54d99d88-0a01-514a-b727-af7758bbb21c",
+        "source_id": "2b03833c-bb98-5e48-92ac-f5ff01e1e301",
+        "target_id": "d8625c17-1a6a-54f0-bad2-872d7318b673"
+      },
+      {
+        "id": "81a10114-789d-5e67-a732-853c4cd96103",
+        "source_id": "2b03833c-bb98-5e48-92ac-f5ff01e1e301",
+        "target_id": "89883b11-59f3-568d-b81d-c687068c16d6"
+      },
+      {
+        "id": "b7202235-9c78-5541-9299-3331bb19d04e",
+        "source_id": "2b03833c-bb98-5e48-92ac-f5ff01e1e301",
+        "target_id": "9aabfa47-812b-597e-8a2b-9c3d97a488e9"
+      }
+    ],
+    "decision_nodes": [
+      {
+        "id": "2b03833c-bb98-5e48-92ac-f5ff01e1e301",
+        "name": "Triage",
+        "description": "Route the claim.",
+        "decision_model": {
+          "model": "tier:fast",
+          "instructions": "Pay simple claims. Send anything unusual to review.",
+          "options": [
+            {
+              "id": "pay",
+              "description": "Simple and covered",
+              "output_edge_id": "54d99d88-0a01-514a-b727-af7758bbb21c"
+            },
+            {
+              "id": "review",
+              "description": "Unusual or unclear",
+              "output_edge_id": "81a10114-789d-5e67-a732-853c4cd96103"
+            }
+          ],
+          "inputs": [
+            "amount"
+          ],
+          "strategy": "model"
+        },
+        "decision_table": {
+          "hit_policy": "first",
+          "inputs": [
+            {
+              "name": "amount",
+              "type": "number"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "route",
+              "type": "string"
+            }
+          ],
+          "rules": [
+            {
+              "input_entries": [
+                "< 100"
+              ],
+              "output_entries": [
+                "pay"
+              ],
+              "output_edge_id": "54d99d88-0a01-514a-b727-af7758bbb21c"
+            }
+          ]
+        },
+        "default_output_edge_id": "b7202235-9c78-5541-9299-3331bb19d04e"
+      }
+    ]
+  },
+  "actors": {
+    "Intake": {
+      "output": {
+        "amount": 40
+      }
+    }
+  },
+  "model": {
+    "replies": [
+      {
+        "option": "review",
+        "confidence": 0.9,
+        "rationale": "Because."
+      }
+    ]
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "Intake",
+      "Review"
+    ],
+    "model_calls": 1
+  }
+}

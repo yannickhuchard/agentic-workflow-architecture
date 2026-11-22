@@ -1,0 +1,67 @@
+{
+  "id": "command-needs-permission",
+  "level": "tools",
+  "spec": "17.4",
+  "description": "A command binding does not run unless the deployment allows commands. The default is to allow none.",
+  "workflow": {
+    "id": "af3d6329-33cd-5f80-a9f3-077ce833bfd4",
+    "name": "command-needs-permission",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "95e96f1c-f5f8-58fa-855c-37defb83a075",
+        "name": "A",
+        "role_id": "5f19e967-87ab-5757-93db-fbf51d7ebefc",
+        "actor_type": "application",
+        "tools": [
+          {
+            "name": "shell",
+            "description": "Run a program",
+            "parameters": {
+              "type": "object",
+              "properties": {}
+            },
+            "binding": {
+              "kind": "command",
+              "command": "echo",
+              "args": [
+                "hello"
+              ]
+            }
+          }
+        ]
+      }
+    ],
+    "edges": []
+  },
+  "actors": {
+    "A": {
+      "calls": [
+        {
+          "tool": "shell",
+          "arguments": {}
+        }
+      ],
+      "output": {}
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "journal_contains": [
+      {
+        "type": "tool.failed",
+        "data": {
+          "tool": "shell",
+          "invoked": false,
+          "error": {
+            "code": "PERMISSION_DENIED"
+          }
+        }
+      }
+    ],
+    "journal_excludes": [
+      "tool.invoked"
+    ]
+  }
+}

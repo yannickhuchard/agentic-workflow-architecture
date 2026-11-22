@@ -1,0 +1,122 @@
+{
+  "id": "below-min-confidence-is-no-decision",
+  "level": "model_decision",
+  "spec": "16.3",
+  "description": "A decision whose confidence is below min_confidence is no decision.",
+  "workflow": {
+    "id": "9b5fce2f-28df-5e9e-af53-2c6267bc4041",
+    "name": "below-min-confidence-is-no-decision",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "a9805938-36ba-58a2-b99f-966387a520c1",
+        "name": "Intake",
+        "role_id": "d60a0090-8ccc-5b20-8c2b-b9e4b108a666",
+        "actor_type": "application"
+      },
+      {
+        "id": "6673bcad-ca41-53ca-9adf-ec99cde5f579",
+        "name": "Pay",
+        "role_id": "d60a0090-8ccc-5b20-8c2b-b9e4b108a666",
+        "actor_type": "application"
+      },
+      {
+        "id": "ba97e428-684c-5084-939e-811605e2e49f",
+        "name": "Review",
+        "role_id": "d60a0090-8ccc-5b20-8c2b-b9e4b108a666",
+        "actor_type": "application"
+      },
+      {
+        "id": "568ae01b-296e-5480-8b0f-56bc0941a7d2",
+        "name": "Manual",
+        "role_id": "d60a0090-8ccc-5b20-8c2b-b9e4b108a666",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "ef54254d-fd05-5d16-b110-4891facdc98a",
+        "source_id": "a9805938-36ba-58a2-b99f-966387a520c1",
+        "target_id": "ce64b0e5-18ad-532d-94ee-0aa3ceaac7d4"
+      },
+      {
+        "id": "c149b2be-5584-517f-bf90-0adf77a7a88d",
+        "source_id": "ce64b0e5-18ad-532d-94ee-0aa3ceaac7d4",
+        "target_id": "6673bcad-ca41-53ca-9adf-ec99cde5f579"
+      },
+      {
+        "id": "4a892f7a-ece7-59a9-b9ec-67d2952dc597",
+        "source_id": "ce64b0e5-18ad-532d-94ee-0aa3ceaac7d4",
+        "target_id": "ba97e428-684c-5084-939e-811605e2e49f"
+      },
+      {
+        "id": "9ea6f87c-5000-5f8d-9bd4-05c4ad5934c8",
+        "source_id": "ce64b0e5-18ad-532d-94ee-0aa3ceaac7d4",
+        "target_id": "568ae01b-296e-5480-8b0f-56bc0941a7d2"
+      }
+    ],
+    "decision_nodes": [
+      {
+        "id": "ce64b0e5-18ad-532d-94ee-0aa3ceaac7d4",
+        "name": "Triage",
+        "description": "Route the claim.",
+        "decision_model": {
+          "model": "tier:fast",
+          "instructions": "Pay simple claims. Send anything unusual to review.",
+          "options": [
+            {
+              "id": "pay",
+              "description": "Simple and covered",
+              "output_edge_id": "c149b2be-5584-517f-bf90-0adf77a7a88d"
+            },
+            {
+              "id": "review",
+              "description": "Unusual or unclear",
+              "output_edge_id": "4a892f7a-ece7-59a9-b9ec-67d2952dc597"
+            }
+          ],
+          "inputs": [
+            "amount"
+          ],
+          "min_confidence": 0.7
+        },
+        "default_output_edge_id": "9ea6f87c-5000-5f8d-9bd4-05c4ad5934c8"
+      }
+    ]
+  },
+  "actors": {
+    "Intake": {
+      "output": {
+        "amount": 900
+      }
+    }
+  },
+  "model": {
+    "replies": [
+      {
+        "option": "pay",
+        "confidence": 0.5,
+        "rationale": "Because."
+      }
+    ]
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "Intake",
+      "Manual"
+    ],
+    "journal_contains": [
+      {
+        "type": "decision.evaluated",
+        "data": {
+          "method": "default",
+          "model": {
+            "min_confidence": 0.7
+          }
+        }
+      }
+    ]
+  }
+}

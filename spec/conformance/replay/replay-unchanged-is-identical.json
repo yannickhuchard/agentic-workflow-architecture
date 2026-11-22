@@ -1,0 +1,90 @@
+{
+  "id": "replay-unchanged-is-identical",
+  "level": "replay",
+  "spec": "20.1",
+  "description": "Replaying a run with nothing changed and AI outputs recorded reproduces it: same status, same path, every node the same.",
+  "workflow": {
+    "id": "8975a3fd-cae8-534e-802c-7cfbcf27b00d",
+    "name": "replay-unchanged-is-identical",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "d120f225-8f7d-5797-bd62-84821dfa1734",
+        "name": "Collect",
+        "role_id": "4ca2d862-3eab-5a55-a844-986c625390d5",
+        "actor_type": "application"
+      },
+      {
+        "id": "1d6de1f9-b4d8-5c22-8604-0e33a87b6936",
+        "name": "Assess",
+        "role_id": "4ca2d862-3eab-5a55-a844-986c625390d5",
+        "actor_type": "ai_agent"
+      },
+      {
+        "id": "392e56d5-51b9-5b87-a73d-dd918bc53597",
+        "name": "Approve",
+        "role_id": "4ca2d862-3eab-5a55-a844-986c625390d5",
+        "actor_type": "application"
+      },
+      {
+        "id": "d3fcd16d-4368-586c-a8b6-96148b81788a",
+        "name": "Escalate",
+        "role_id": "4ca2d862-3eab-5a55-a844-986c625390d5",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "5336bb66-fc3a-537b-b97e-b97e2d2441a8",
+        "source_id": "d120f225-8f7d-5797-bd62-84821dfa1734",
+        "target_id": "1d6de1f9-b4d8-5c22-8604-0e33a87b6936"
+      },
+      {
+        "id": "b270f44f-42ca-5575-9ee5-cd53e6e1a81a",
+        "source_id": "1d6de1f9-b4d8-5c22-8604-0e33a87b6936",
+        "target_id": "392e56d5-51b9-5b87-a73d-dd918bc53597",
+        "condition": "score >= 5"
+      },
+      {
+        "id": "5c24b269-05a9-542b-a419-ee47d894c906",
+        "source_id": "1d6de1f9-b4d8-5c22-8604-0e33a87b6936",
+        "target_id": "d3fcd16d-4368-586c-a8b6-96148b81788a",
+        "is_default": true
+      }
+    ]
+  },
+  "input": {
+    "claim": 1
+  },
+  "actors": {
+    "Collect": {
+      "output": {
+        "documents": 3
+      }
+    },
+    "Assess": {
+      "output": {
+        "score": 7
+      }
+    },
+    "Approve": {
+      "output": {
+        "approved": true
+      }
+    }
+  },
+  "ai": "recorded",
+  "expect": {
+    "baseline_status": "completed",
+    "candidate_status": "completed",
+    "same_path": true,
+    "regressions": 0,
+    "verdicts": {
+      "Collect": "same",
+      "Assess": "same",
+      "Approve": "same"
+    },
+    "unrecorded": 0
+  }
+}

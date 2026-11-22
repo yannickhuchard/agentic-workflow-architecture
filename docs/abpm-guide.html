@@ -1,159 +1,46 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Agentic BPM Guide | AWA Documentation</title>
+    <title>For process owners | AWA</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&display=swap"
-        rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css">
     <link rel="stylesheet" href="style.css">
+    <style>table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.92em; } th, td { text-align: left; vertical-align: top; padding: 8px 12px; border-bottom: 1px solid rgba(128,128,128,.25); } th { font-weight: 600; }</style>
 </head>
-
 <body>
-    <button class="theme-toggle" title="Toggle Theme">☀️</button>
+    <button class="theme-toggle" title="Toggle theme" aria-label="Toggle theme">&#9728;</button>
     <div class="app-container">
-        <!-- Sidebar -->
         <aside class="sidebar">
-            <div class="logo">
-                <div class="logo-icon"></div>
-                <span>AWA</span>
-            </div>
-
-            <div class="search-container">
-                <span class="search-icon">🔍</span>
-                <input type="text" class="search-input" placeholder="Search guides...">
-            </div>
-
-            <div class="nav-section">
-                <div class="nav-section-title">Getting Started</div>
-                <ul class="nav-links">
-                    <li><a href="getting-started.html" class="nav-link">Introduction</a></li>
-                    <li><a href="installation-guide.html" class="nav-link">Installation Guide</a></li>
-                </ul>
-            </div>
-
-            <div class="nav-section">
-                <div class="nav-section-title">Developer Guides</div>
-                <ul class="nav-links">
-                    <li><a href="developer-guide.html" class="nav-link">Reference Material</a></li>
-                    <li><a href="data-model-guide.html" class="nav-link">Data Model & Concepts</a></li>
-                </ul>
-            </div>
-
-            <div class="nav-section">
-                <div class="nav-section-title">Theory & Business</div>
-                <ul class="nav-links">
-                    <li><a href="abpm-guide.html" class="nav-link active">Agentic BPM</a></li>
-                    <li><a href="architect-guide.html" class="nav-link">Architect Guide</a></li>
-                    <li><a href="#vsm" class="nav-link">Value Streams (VSM)</a></li>
-                    <li><a href="#governance" class="nav-link">Security & Governance</a></li>
-                </ul>
-            </div>
-
-            <div class="nav-section">
-                <div class="nav-section-title">Playground</div>
-                <ul class="nav-links">
-                    <li><a href="playground.html" class="nav-link">Interactive Sandbox</a></li>
-                </ul>
-            </div>
+            <div class="logo"><div class="logo-icon"></div><span>AWA</span></div>
+            <div class="search-container"><input type="text" class="search-input" placeholder="Search guides..." aria-label="Search guides"></div>
+            <div class="nav-section"><div class="nav-section-title">Start</div><ul class="nav-links"><li><a href="getting-started.html" class="nav-link">Introduction</a></li><li><a href="installation-guide.html" class="nav-link">Installation</a></li></ul></div><div class="nav-section"><div class="nav-section-title">Build</div><ul class="nav-links"><li><a href="developer-guide.html" class="nav-link">Developer guide</a></li><li><a href="data-model-guide.html" class="nav-link">Data model</a></li></ul></div><div class="nav-section"><div class="nav-section-title">Design</div><ul class="nav-links"><li><a href="abpm-guide.html" class="nav-link active">For process owners</a></li><li><a href="#principle" class="nav-link" style="padding-left:28px;font-size:0.85em">Fix the outcome, free the strategy</a></li><li><a href="#decide" class="nav-link" style="padding-left:28px;font-size:0.85em">Decisions you can read</a></li><li><a href="#journeys" class="nav-link" style="padding-left:28px;font-size:0.85em">The customer's journey, not just your process</a></li><li><a href="#stalled" class="nav-link" style="padding-left:28px;font-size:0.85em">Knowing who is stuck</a></li><li><a href="#change" class="nav-link" style="padding-left:28px;font-size:0.85em">Changing a model or a rule</a></li><li><a href="#waste" class="nav-link" style="padding-left:28px;font-size:0.85em">Where the time goes</a></li><li><a href="architect-guide.html" class="nav-link">For architects</a></li></ul></div><div class="nav-section"><div class="nav-section-title">See</div><ul class="nav-links"><li><a href="playground.html" class="nav-link">Playground</a></li><li><a href="../tools/visualization/journey.html" class="nav-link">Journey view</a></li><li><a href="../tools/visualization/replay.html" class="nav-link">Run replay</a></li></ul></div>
         </aside>
-
-        <!-- Main Content -->
         <main class="main-content">
             <header class="content-header">
-                <span class="badge">Business Strategy</span>
-                <h1 class="hero-title">Agentic BPM Guide</h1>
-                <p class="hero-desc">Transforming business processes from human-centric to agent-orchestrated value
-                    streams.</p>
+                <span class="badge">Specification 1.1 &middot; SDK 2.0.0</span>
+                <h1 class="hero-title">For process owners</h1>
+                <p class="hero-desc">What changes when part of your process is done by an AI agent, what you can still fix, and what you can see.</p>
             </header>
-
-            <section id="abpm">
-                <h2>The Shift to Agentic BPM</h2>
-                <p>Traditional Business Process Management (BPM) focuses on control flow. <strong>Agentic BPM</strong>
-                    focuses on outcome autonomy and shared context.</p>
-
-                <div class="card">
-                    <ul class="list-premium" style="list-style: none">
-                        <li style="margin-bottom: 1.5rem; padding: 1rem; border-bottom: 1px solid var(--border)">
-                            <strong style="color: var(--primary)">Contextual Awareness</strong>: Agents read and mutate
-                            a shared <code>context</code> to make informed decisions.
-                        </li>
-                        <li style="margin-bottom: 1.5rem; padding: 1rem; border-bottom: 1px solid var(--border)">
-                            <strong style="color: var(--primary)">Dynamic Routing</strong>: Gates are powered by AI
-                            logic and queryable state.
-                        </li>
-                        <li style="padding: 1rem">
-                            <strong style="color: var(--primary)">Hybrid Collaboration</strong>: Seamlessly model
-                            handovers between <code>human</code>, <code>ai_agent</code>, and <code>application</code>.
-                        </li>
-                    </ul>
-                </div>
-            </section>
-
-            <section id="vsm">
-                <h2>Value Stream Mapping (VSM)</h2>
-                <p>For **BPM Managers**, AWA provides a quantitative way to map process efficiency across AI and Human
-                    actors.</p>
-
-                <div class="card">
-                    <h3>The AWA VSM Methodology</h3>
-                    <ol style="margin-left: 2rem; color: var(--text-muted)">
-                        <li><strong>Identify Actors</strong>: Tag every activity with the correct
-                            <code>actor_type</code>.
-                        </li>
-                        <li><strong>Set Thresholds</strong>: Define <code>bottleneck_threshold_ms</code> based on SLA
-                            requirements.</li>
-                        <li><strong>Analyze Transfer</strong>: Use <code>transfer_type</code> to identify friction
-                            points between silos.</li>
-                        <li><strong>Waste Heatmap</strong>: Use the 3D visualization to see "Heat" where AI agents are
-                            over-processing context.</li>
-                    </ol>
-                </div>
-
-                <div class="waste-grid">
-                    <div class="waste-card">
-                        <h4>AI Defects</h4>
-                        <p>Identify hallucinations or retries in the event log.</p>
-                    </div>
-                    <div class="waste-card">
-                        <h4>Agent Waiting</h4>
-                        <p>High latency in LLM API calls or human approvals.</p>
-                    </div>
-                </div>
-            </section>
-
-            <section id="governance">
-                <h2>Security, Governance & Compliance</h2>
-                <p>For **GRC Officers**, AWA offers declarative safety controls.</p>
-                <div class="card-grid">
-                    <div class="card">
-                        <h3>Least Privilege Context</h3>
-                        <p>Explicitly define <code>read</code>, <code>write</code>, or <code>read_write</code> access on
-                            every workflow context.</p>
-                    </div>
-                    <div class="card">
-                        <h3>Audit-by-Design</h3>
-                        <p>AWA schemas map directly to immutable event logs (Avro), ensuring a perfect audit trail of
-                            agent decisions.</p>
-                    </div>
-                    <div class="card">
-                        <h3>Role-Based Boundaries</h3>
-                        <p>Link <code>role_id</code> to corporate IAM systems to enforce cross-actor permissions.</p>
-                    </div>
-                </div>
-            </section>
-
-            <div class="footer">
-                &copy; 2026 Agentic Workflow Architecture Group. Released under Apache 2.0 License.
-            </div>
+            <section id="principle"><h2>Fix the outcome, free the strategy</h2>
+<p>A person follows a procedure. A program follows it exactly. An AI agent reaches the result its own way, and not the same way twice. Writing a longer procedure does not change that.</p>
+<p>So AWA asks you for something else: say what must be true of the result. The estimate is a number. It is within the adjuster's authority. Every damaged part is priced. The agent is then free in how it gets there, and a result that does not meet what you said is refused, retried, or handed to a person. You decide which.</p></section><section id="decide"><h2>Decisions you can read</h2>
+<p>Routine cases are decided by a table you can read and sign off: rows of conditions, one outcome each, and a declared policy for what happens when two rows match. The cases no row covers can go to a model, which may only choose among options you listed. If its answer is not one of them, or it is not confident enough, the case takes the default path. The engine never invents a route.</p></section><section id="journeys"><h2>The customer's journey, not just your process</h2>
+<p>A customer does not experience a process. They experience a year: they buy, they claim, they renew. A journey in AWA is that year, made of stages with a time allowed for each, goals, and the ways a customer can leave.</p>
+<p>It records where the customer and your organisation meet, over which channel and system, and what changed hands: the contract, the invoice, the receipt, the certificate. It also carries an estimate of how the customer feels. That estimate is the one thing here that could mislead, so every point on it says whether the customer told you (a survey answer) or whether a rule of yours assumed it (a long wait is felt). A view of a journey has to show the difference.</p>
+<p>Why look at several journeys at once: in the example, a claim is paid in full and its journey completes. The three-day wait in the middle shows up five months later, in another journey, as a policy that is not renewed.</p>
+<p><a href="../tools/visualization/journey.html">Open the journey view.</a></p></section><section id="stalled"><h2>Knowing who is stuck</h2>
+<p>A stage that lasts longer than you allowed is marked stalled. So is a stage whose workflow failed. A stalled journey is not a failed one: it is a customer nobody is working for, and a reason for a person to look. <code>awa journey list --stalled</code> lists them.</p></section><section id="change"><h2>Changing a model or a rule</h2>
+<p>Before you change a model, a prompt, a contract or a decision rule, replay your recorded runs under the change. Everything else is held as it was recorded. You get, per run and per step: the same, changed, improved, regressed. A run that used to complete and no longer does is a regression, and the command says so with its exit status.</p></section><section id="waste"><h2>Where the time goes</h2>
+<p>The engine measures process time, waiting time and lead time per step, and classifies waste by the DOWNTIME categories. In a journey most of the time is waiting, and most of that is waiting for the customer or for a person: the view states those gaps in words rather than drawing them to scale.</p></section>
+            <section><p style="opacity:.7;font-size:.9em">The normative text is the <a href="https://github.com/yannickhuchard/agentic-workflow-architecture/blob/main/docs/specification.md">specification</a>. Where this guide and the specification disagree, the specification is right.</p></section>
         </main>
     </div>
-
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
     <script src="main.js"></script>
+    <script>hljs.highlightAll();</script>
 </body>
-
 </html>

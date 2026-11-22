@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { v4 as uuidv4 } from 'uuid';
 import { WorkflowEngine } from '../src/runtime/workflow_engine';
-import { AwaRuntime } from '../src/runtime/runtime';
+import { AwaRuntime, InMemoryRuntimeStore, FileRuntimeStore } from '../src/runtime/runtime';
+import os from 'os';
+import fs from 'fs';
+import path from 'path';
 import { BusinessEvent, business_event } from '../src/runtime/business_event';
 import { JourneyDefinitionSchema, validate_journey } from '../src/runtime/journey';
 import { InMemoryPersistenceAdapter } from '../src/runtime/persistence';
@@ -479,5 +482,72 @@ describe('Several journeys, touchpoints and mood (spec 19.7 to 19.9)', () => {
         const { claims } = setup();
         const broken = { ...claims, touchpoints: [{ ...claims.touchpoints[0], exchanges: [{ artefact: 'no-such-thing' }] }], sentiment: { ...claims.sentiment!, rules: [{ on: 'touchpoint' as const, touchpoint: 'nowhere', change: 1 }, { on: 'waited' as const, change: -1 }] } };
         expect(validate_journey(broken).map(e => e.message)).toEqual(["Artefact 'no-such-thing' not found", "Touchpoint 'nowhere' not found", 'A "waited" rule needs longer_than']);
+    });
+});
+
+describe('A host that restarts (spec 19.10)', () => {
+    function definitions() {
+        const ask = activity('Request documents'); const settle = activity('Settle claim');
+        const upload = ev('Documents uploaded', 'message', { name: 'documents.uploaded', correlation_key: 'customer_id', timeout: 'P5D' });
+        const claim = workflow([ask, settle], [edge(ask, upload), edge(upload, settle)], { name: 'Claim', events: [upload] });
+        const journey = JourneyDefinitionSchema.parse({
+            id: uuidv4(), name: 'Claim', version: '1.0.0', subject: { name: 'customer', key: 'customer_id' },
+            stages: [{ id: 'open', name: 'Open', workflows: [claim.id], complete_when: 'paid == true', transitions: [] }],
+            triggers: [{ event: 'claim.submitted', starts_journey: true, start_workflow: claim.id }],
+            goals: [{ id: 'paid', name: 'Paid', expression: 'paid == true' }],
+            touchpoints: [{ id: 'settled', name: 'Is told', direction: 'outbound', channel: 'email', on: { activity: 'Settle claim' } }],
+        });
+        return { claim, journey };
+    }
+    const host = (d: ReturnType<typeof definitions>, store: InMemoryRuntimeStore | FileRuntimeStore, journal: InMemoryJournalStore) => {
+        const s = scripted({ 'Request documents': { asked: true }, 'Settle claim': { paid: true } });
+        return new AwaRuntime({ store, engine: { actors: s.actors, journal, ...quiet } }).register_workflow(d.claim).register_journey(d.journey);
+    };
+
+    it('carries a waiting journey over to another process, which finishes it', async () => {
+        const d = definitions(), store = new InMemoryRuntimeStore(), journal = new InMemoryJournalStore();
+        const first = host(d, store, journal);
+        const submitted = business_event('claim.submitted', { customer_id: 'c-9' });
+        await first.publish(submitted);
+        expect(first.list_journey_instances()[0].runs[0].status).toBe('waiting_event');
+
+        // The first process is gone. A second one registers the same definitions and recovers.
+        const second = host(d, store, journal);
+        expect(await second.recover()).toMatchObject({ instances: 1, runs: 1, continued: [] });
+        const instance = second.list_journey_instances()[0];
+        expect(instance).toMatchObject({ status: 'active', subject_key: 'c-9' });
+        expect((await second.publish(submitted)).accepted).toBe(false);          // an event taken in before the restart is not taken in twice
+
+        const result = await second.publish(business_event('documents.uploaded', { customer_id: 'c-9' }));
+        expect(result.resumed_runs).toHaveLength(1);
+        expect(instance.status).toBe('completed');
+        expect(instance.goals_reached).toEqual(['paid']);
+        // The recovered run still reports to its journey, and its journal is one unbroken record
+        expect(instance.events.some(e => e.type === 'journey.touchpoint' && e.data.touchpoint_id === 'settled')).toBe(true);
+        const events = (await second.export_journey(instance.id)).runs[0].events;
+        expect(events.map(e => e.seq)).toEqual(events.map((_, i) => i + 1));
+        expect(events.map(e => e.type)).toEqual(expect.arrayContaining(['run.started', 'event.waiting', 'run.resumed', 'event.received', 'run.completed']));
+    });
+
+    it('keeps its state in a file, and a deadline still passes after the restart', async () => {
+        const d = definitions(), journal = new InMemoryJournalStore();
+        const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'awa-runtime-')), 'state', 'runtime.json');
+        await host(d, new FileRuntimeStore(file), journal).publish(business_event('claim.submitted', { customer_id: 'c-3' }));
+        expect(JSON.parse(fs.readFileSync(file, 'utf-8'))).toMatchObject({ version: '1', instances: [{ subject_key: 'c-3' }], runs: [{ workflow_id: d.claim.id }] });
+
+        const second = host(d, new FileRuntimeStore(file), journal);
+        await second.recover();
+        const later = await second.tick(Date.now() + 6 * 24 * 3600 * 1000);
+        expect(later.timed_out_runs).toHaveLength(1);                            // no timeout edge: the run fails, and the journey stalls
+        expect(second.list_journey_instances()[0].stalled).toBe(true);
+        const portfolio = await second.export_portfolio();
+        expect(portfolio.journeys[0].instances[0].runs[0].events.at(-1)!.type).toBe('run.failed');
+        expect(await new FileRuntimeStore(path.join(path.dirname(file), 'none.json')).load()).toBeNull();
+    });
+
+    it('refuses to recover a run whose workflow is not registered', async () => {
+        const d = definitions(), store = new InMemoryRuntimeStore(), journal = new InMemoryJournalStore();
+        await host(d, store, journal).publish(business_event('claim.submitted', { customer_id: 'c-1' }));
+        await expect(new AwaRuntime({ store }).recover()).rejects.toThrow(/is not registered/);
     });
 });

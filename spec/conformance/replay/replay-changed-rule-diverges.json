@@ -1,0 +1,140 @@
+{
+  "id": "replay-changed-rule-diverges",
+  "level": "replay",
+  "spec": "20.2",
+  "description": "A changed routing rule sends the candidate to an activity the baseline never performed. There is no recording to replay: the step fails with REPLAY_UNRECORDED and is listed. Nothing is invented.",
+  "workflow": {
+    "id": "c2a4f593-cddf-5ae7-be42-99cc17b940b8",
+    "name": "replay-changed-rule-diverges",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "4dca53c6-d8f4-5cef-bf33-7b96853a15ed",
+        "name": "Collect",
+        "role_id": "42551672-a0d0-5981-81af-47a2f6a04d9d",
+        "actor_type": "application"
+      },
+      {
+        "id": "36c060ce-c0ec-55f2-a1f0-1a2aaa76c77f",
+        "name": "Assess",
+        "role_id": "42551672-a0d0-5981-81af-47a2f6a04d9d",
+        "actor_type": "ai_agent"
+      },
+      {
+        "id": "5f95727d-e6cd-5c13-a990-0d189cb84127",
+        "name": "Approve",
+        "role_id": "42551672-a0d0-5981-81af-47a2f6a04d9d",
+        "actor_type": "application"
+      },
+      {
+        "id": "3e43528e-5713-53ab-b353-ce83c47cd856",
+        "name": "Escalate",
+        "role_id": "42551672-a0d0-5981-81af-47a2f6a04d9d",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "4182c0fd-d2e7-547d-85e9-dd9271a36906",
+        "source_id": "4dca53c6-d8f4-5cef-bf33-7b96853a15ed",
+        "target_id": "36c060ce-c0ec-55f2-a1f0-1a2aaa76c77f"
+      },
+      {
+        "id": "c25929b3-03dd-58c3-8e66-6ddb85acb6f9",
+        "source_id": "36c060ce-c0ec-55f2-a1f0-1a2aaa76c77f",
+        "target_id": "5f95727d-e6cd-5c13-a990-0d189cb84127",
+        "condition": "score >= 5"
+      },
+      {
+        "id": "d581c7ca-263f-521c-9f46-0f3c788630d9",
+        "source_id": "36c060ce-c0ec-55f2-a1f0-1a2aaa76c77f",
+        "target_id": "3e43528e-5713-53ab-b353-ce83c47cd856",
+        "is_default": true
+      }
+    ]
+  },
+  "input": {
+    "claim": 1
+  },
+  "actors": {
+    "Collect": {
+      "output": {
+        "documents": 3
+      }
+    },
+    "Assess": {
+      "output": {
+        "score": 7
+      }
+    },
+    "Approve": {
+      "output": {
+        "approved": true
+      }
+    }
+  },
+  "ai": "recorded",
+  "candidate": {
+    "id": "c2a4f593-cddf-5ae7-be42-99cc17b940b8",
+    "name": "replay-changed-rule-diverges",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "4dca53c6-d8f4-5cef-bf33-7b96853a15ed",
+        "name": "Collect",
+        "role_id": "42551672-a0d0-5981-81af-47a2f6a04d9d",
+        "actor_type": "application"
+      },
+      {
+        "id": "36c060ce-c0ec-55f2-a1f0-1a2aaa76c77f",
+        "name": "Assess",
+        "role_id": "42551672-a0d0-5981-81af-47a2f6a04d9d",
+        "actor_type": "ai_agent"
+      },
+      {
+        "id": "5f95727d-e6cd-5c13-a990-0d189cb84127",
+        "name": "Approve",
+        "role_id": "42551672-a0d0-5981-81af-47a2f6a04d9d",
+        "actor_type": "application"
+      },
+      {
+        "id": "3e43528e-5713-53ab-b353-ce83c47cd856",
+        "name": "Escalate",
+        "role_id": "42551672-a0d0-5981-81af-47a2f6a04d9d",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "4182c0fd-d2e7-547d-85e9-dd9271a36906",
+        "source_id": "4dca53c6-d8f4-5cef-bf33-7b96853a15ed",
+        "target_id": "36c060ce-c0ec-55f2-a1f0-1a2aaa76c77f"
+      },
+      {
+        "id": "c25929b3-03dd-58c3-8e66-6ddb85acb6f9",
+        "source_id": "36c060ce-c0ec-55f2-a1f0-1a2aaa76c77f",
+        "target_id": "5f95727d-e6cd-5c13-a990-0d189cb84127",
+        "condition": "score >= 8"
+      },
+      {
+        "id": "d581c7ca-263f-521c-9f46-0f3c788630d9",
+        "source_id": "36c060ce-c0ec-55f2-a1f0-1a2aaa76c77f",
+        "target_id": "3e43528e-5713-53ab-b353-ce83c47cd856",
+        "is_default": true
+      }
+    ]
+  },
+  "expect": {
+    "baseline_status": "completed",
+    "candidate_status": "failed",
+    "same_path": false,
+    "verdicts": {
+      "Approve": "only_baseline"
+    },
+    "unrecorded": 1,
+    "divergence_after": "Assess",
+    "error_matches": "not performed in the recorded run"
+  }
+}

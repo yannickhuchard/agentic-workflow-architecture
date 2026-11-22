@@ -1,0 +1,190 @@
+{
+  "id": "announced-event-starts-the-next-journey",
+  "level": "journeys",
+  "spec": "19.7",
+  "description": "An event a run publishes is accepted by the host like any other, after the run's end is recorded and before what follows from it. Here it begins the subject's next journey, which starts at the mood the last one left, and the movement between journeys is counted.",
+  "start": "2026-01-05T09:00:00Z",
+  "workflows": [
+    {
+      "id": "fd1d9e16-5593-52c9-a731-3856ca7270e7",
+      "name": "Claim",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "722c54ff-1f95-575b-b1c0-b3d95e021649",
+          "name": "Settle",
+          "role_id": "46fab6db-97ac-5723-91ca-ae662ff20188",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "8196f564-fa33-5858-a4bb-1957550378ea",
+          "source_id": "722c54ff-1f95-575b-b1c0-b3d95e021649",
+          "target_id": "600747ba-e04d-595c-a24e-fadd0e5a3f1f"
+        }
+      ],
+      "events": [
+        {
+          "id": "600747ba-e04d-595c-a24e-fadd0e5a3f1f",
+          "name": "Settled",
+          "event_type": "message",
+          "event_definition": {
+            "name": "claim.settled",
+            "mode": "publish",
+            "data": [
+              "customer_id",
+              "paid"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "aaaeda1b-1f2e-531c-80ab-88d14e9bb91b",
+      "name": "Aftercare",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "daa90785-dc02-558d-b100-94215ed1c0cc",
+          "name": "Ask",
+          "role_id": "586bd443-83d5-5715-b0c7-4e483d67321f",
+          "actor_type": "application"
+        }
+      ],
+      "edges": []
+    }
+  ],
+  "journeys": [
+    {
+      "id": "07b0b29e-ddc2-5a66-bade-cc39cbe5f7af",
+      "name": "Claim",
+      "version": "1.0.0",
+      "subject": {
+        "name": "customer",
+        "key": "customer_id"
+      },
+      "stages": [
+        {
+          "id": "open",
+          "name": "Open",
+          "workflows": [
+            "fd1d9e16-5593-52c9-a731-3856ca7270e7"
+          ],
+          "complete_when": "paid == true",
+          "transitions": []
+        }
+      ],
+      "triggers": [
+        {
+          "event": "claim.submitted",
+          "starts_journey": true,
+          "start_workflow": "fd1d9e16-5593-52c9-a731-3856ca7270e7"
+        }
+      ],
+      "sentiment": {
+        "rules": [
+          {
+            "on": "event",
+            "event": "claim.submitted",
+            "change": -1,
+            "reason": "has had an accident"
+          }
+        ]
+      }
+    },
+    {
+      "id": "bec3182d-dd95-596b-9a58-156fc2c2247b",
+      "name": "Aftercare",
+      "version": "1.0.0",
+      "subject": {
+        "name": "customer",
+        "key": "customer_id"
+      },
+      "stages": [
+        {
+          "id": "asked",
+          "name": "Asked",
+          "workflows": [
+            "aaaeda1b-1f2e-531c-80ab-88d14e9bb91b"
+          ],
+          "complete_when": "asked == true",
+          "transitions": []
+        }
+      ],
+      "triggers": [
+        {
+          "event": "claim.settled",
+          "starts_journey": true,
+          "start_workflow": "aaaeda1b-1f2e-531c-80ab-88d14e9bb91b"
+        }
+      ],
+      "sentiment": {
+        "rules": []
+      }
+    }
+  ],
+  "actors": {
+    "Settle": {
+      "output": {
+        "paid": true
+      }
+    },
+    "Ask": {
+      "output": {
+        "asked": true
+      }
+    }
+  },
+  "steps": [
+    {
+      "publish": {
+        "type": "claim.submitted",
+        "data": {
+          "customer_id": "c-1"
+        }
+      }
+    }
+  ],
+  "expect": {
+    "instance_count": 2,
+    "instances": [
+      {
+        "journey": "Claim",
+        "status": "completed",
+        "sentiment": -1,
+        "events": [
+          "journey.run_ended",
+          "journey.event_received",
+          "journey.stage_completed",
+          "journey.completed"
+        ]
+      },
+      {
+        "journey": "Aftercare",
+        "status": "completed",
+        "sentiment": -1,
+        "events_contain": [
+          {
+            "type": "journey.started",
+            "has": [
+              "data.sentiment_carried_from"
+            ],
+            "data": {
+              "sentiment": -1
+            }
+          }
+        ]
+      }
+    ],
+    "transitions": [
+      {
+        "from": "Claim",
+        "to": "Aftercare",
+        "count": 1
+      }
+    ]
+  }
+}

@@ -1,0 +1,164 @@
+{
+  "id": "mood-moves-by-inferred-rule",
+  "level": "journeys",
+  "spec": "19.9",
+  "description": "A rule with change moves the estimate, and the change is recorded as inferred with the rule's reason.",
+  "start": "2026-01-05T09:00:00Z",
+  "workflows": [
+    {
+      "id": "e263321c-6553-53bd-9ced-f5a3259317cb",
+      "name": "Claim",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "b7a61253-4cf9-53a2-9274-aef59ca0b8e6",
+          "name": "Register",
+          "role_id": "0ed511c6-c2c0-58e6-8eff-745148e41c3a",
+          "actor_type": "application"
+        },
+        {
+          "id": "00a6e872-ebc3-5b38-a93c-6c7999f3d739",
+          "name": "Settle",
+          "role_id": "0ed511c6-c2c0-58e6-8eff-745148e41c3a",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "71985d3c-0e1b-5437-88a4-1c13679ed49f",
+          "source_id": "b7a61253-4cf9-53a2-9274-aef59ca0b8e6",
+          "target_id": "437ab35b-b831-508b-859e-2c74cdfa2ee4"
+        },
+        {
+          "id": "718fa49b-8b84-52ce-a186-448c2bae5fab",
+          "source_id": "437ab35b-b831-508b-859e-2c74cdfa2ee4",
+          "target_id": "00a6e872-ebc3-5b38-a93c-6c7999f3d739"
+        }
+      ],
+      "events": [
+        {
+          "id": "437ab35b-b831-508b-859e-2c74cdfa2ee4",
+          "name": "Documents",
+          "event_type": "message",
+          "event_definition": {
+            "name": "documents.uploaded",
+            "correlation_key": "customer_id"
+          }
+        }
+      ]
+    }
+  ],
+  "journeys": [
+    {
+      "id": "2e42210b-0892-5b6c-8f26-67af7fb6a396",
+      "name": "Claim",
+      "version": "1.0.0",
+      "subject": {
+        "name": "customer",
+        "key": "customer_id"
+      },
+      "stages": [
+        {
+          "id": "open",
+          "name": "Open",
+          "workflows": [
+            "e263321c-6553-53bd-9ced-f5a3259317cb"
+          ],
+          "complete_when": "paid == true",
+          "transitions": []
+        }
+      ],
+      "triggers": [
+        {
+          "event": "claim.submitted",
+          "starts_journey": true,
+          "start_workflow": "e263321c-6553-53bd-9ced-f5a3259317cb"
+        }
+      ],
+      "goals": [
+        {
+          "id": "paid",
+          "name": "Paid",
+          "expression": "paid == true"
+        }
+      ],
+      "sentiment": {
+        "rules": [
+          {
+            "on": "event",
+            "event": "claim.submitted",
+            "change": -1,
+            "reason": "has had an accident"
+          },
+          {
+            "on": "goal_reached",
+            "goal": "paid",
+            "change": 1.5,
+            "reason": "has been paid"
+          }
+        ]
+      }
+    }
+  ],
+  "actors": {
+    "Register": {
+      "output": {
+        "claim_id": "CLM-1"
+      }
+    },
+    "Settle": {
+      "output": {
+        "paid": true
+      }
+    }
+  },
+  "steps": [
+    {
+      "publish": {
+        "type": "claim.submitted",
+        "data": {
+          "customer_id": "c-1"
+        }
+      }
+    },
+    {
+      "publish": {
+        "type": "documents.uploaded",
+        "data": {
+          "customer_id": "c-1"
+        }
+      }
+    }
+  ],
+  "expect": {
+    "instances": [
+      {
+        "journey": "Claim",
+        "sentiment": 0.5,
+        "events_count": {
+          "journey.sentiment_changed": 2
+        },
+        "events_contain": [
+          {
+            "type": "journey.sentiment_changed",
+            "data": {
+              "value": -1,
+              "previous": 0,
+              "basis": "inferred",
+              "reason": "has had an accident"
+            }
+          },
+          {
+            "type": "journey.sentiment_changed",
+            "data": {
+              "value": 0.5,
+              "previous": -1,
+              "basis": "inferred"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -75,6 +75,9 @@ class Case:
             case["actors"] = self.actors
         if getattr(self, "deliver", None):
             case["deliver"] = self.deliver
+        for extra in ("tools", "model"):
+            if getattr(self, extra, None):
+                case[extra] = getattr(self, extra)
         case["expect"] = self.expect
         return case
 
@@ -546,6 +549,467 @@ def execution_cases() -> list[Case]:
     return cases
 
 
+# ---------------------------------------------------------------------------
+# Tools (section 17) and model decisions (section 16)
+# ---------------------------------------------------------------------------
+
+def tool_cases() -> list[Case]:
+    cases = []
+
+    def tool(name, **extra):
+        return {"name": name, "description": f"The {name} tool", "parameters": {"type": "object", "properties": {"q": {"type": "string"}}},
+                "binding": {"kind": "function", "name": name}, **extra}
+
+    c = Case("tool-call-is-journalled", "tools", "17.3", "A tool call is recorded before it runs and when it returns, with the link to what ran, between the start and the end of its activity.")
+    c.act("A", tools=[tool("lookup")])
+    c.actors = {"A": {"calls": [{"tool": "lookup", "arguments": {"q": "POL-1"}}], "output": {"done": True}}}
+    c.tools = {"lookup": {"result": {"found": True}}}
+    c.expect = {"status": "completed", "journal": ["activity.started", "tool.invoked", "tool.completed", "activity.completed"],
+                "journal_contains": [{"type": "tool.invoked", "node_name": "A", "data": {"tool": "lookup", "link": "function:lookup", "arguments": {"q": "POL-1"}}},
+                                     {"type": "tool.completed", "node_name": "A", "data": {"tool": "lookup", "link": "function:lookup", "result": {"found": True}}}]}
+    cases.append(c)
+
+    c = Case("tool-failure-does-not-fail-activity", "tools", "17.3", "A call that fails is journalled as tool.failed and returned to the actor; it does not fail the activity by itself.")
+    c.act("A", tools=[tool("lookup")]).act("B").edge("A", "B")
+    c.actors = {"A": {"calls": [{"tool": "lookup", "arguments": {"q": "x"}}], "output": {"done": True}}}
+    c.tools = {"lookup": {"error": "backend down"}}
+    c.expect = {"status": "completed", "visited": ["A", "B"], "journal": ["tool.invoked", "tool.failed", "activity.completed"],
+                "journal_contains": [{"type": "tool.failed", "data": {"tool": "lookup", "invoked": True, "error": {"message": "backend down"}}}]}
+    cases.append(c)
+
+    c = Case("unknown-tool-is-refused", "tools", "17.3", "A call to a tool the activity does not declare is refused before anything runs.")
+    c.act("A", tools=[tool("lookup")])
+    c.actors = {"A": {"calls": [{"tool": "delete_everything", "arguments": {}}], "output": {}}}
+    c.tools = {"lookup": {"result": {}}, "delete_everything": {"result": {"deleted": True}}}
+    c.expect = {"status": "completed", "journal_contains": [{"type": "tool.failed", "data": {"tool": "delete_everything", "invoked": False, "error": {"code": "UNKNOWN_TOOL"}}}],
+                "journal_excludes": ["tool.invoked", "tool.completed"]}
+    cases.append(c)
+
+    c = Case("invalid-arguments-are-refused", "tools", "17.3", "Arguments that do not match the tool's parameters are refused; nothing runs.")
+    c.act("A", tools=[tool("lookup", parameters={"type": "object", "required": ["q"], "properties": {"q": {"type": "string"}}})])
+    c.actors = {"A": {"calls": [{"tool": "lookup", "arguments": {"q": 42}}], "output": {}}}
+    c.tools = {"lookup": {"result": {"found": True}}}
+    c.expect = {"status": "completed", "journal_contains": [{"type": "tool.failed", "data": {"tool": "lookup", "invoked": False, "error": {"code": "VALIDATION_ERROR"}}}],
+                "journal_excludes": ["tool.invoked", "tool.completed"]}
+    cases.append(c)
+
+    c = Case("tool-call-budget-is-enforced", "tools", "17.3", "A call beyond the activity's budget of tool calls is refused.")
+    c.act("A", tools=[tool("lookup")], outcome_contract={"postconditions": [], "budgets": {"max_tool_calls": 1}})
+    c.actors = {"A": {"calls": [{"tool": "lookup", "arguments": {"q": "1"}}, {"tool": "lookup", "arguments": {"q": "2"}}], "output": {}}}
+    c.tools = {"lookup": {"result": {"found": True}}}
+    c.expect = {"status": "completed", "journal": ["tool.invoked", "tool.completed", "tool.failed"],
+                "journal_contains": [{"type": "tool.failed", "data": {"invoked": False, "error": {"code": "TOOL_BUDGET_EXCEEDED"}}}],
+                "journal_count": {"tool.invoked": 1}}
+    cases.append(c)
+
+    c = Case("command-needs-permission", "tools", "17.4", "A command binding does not run unless the deployment allows commands. The default is to allow none.")
+    c.act("A", tools=[{"name": "shell", "description": "Run a program", "parameters": {"type": "object", "properties": {}}, "binding": {"kind": "command", "command": "echo", "args": ["hello"]}}])
+    c.actors = {"A": {"calls": [{"tool": "shell", "arguments": {}}], "output": {}}}
+    c.expect = {"status": "completed", "journal_contains": [{"type": "tool.failed", "data": {"tool": "shell", "invoked": False, "error": {"code": "PERMISSION_DENIED"}}}],
+                "journal_excludes": ["tool.invoked"]}
+    cases.append(c)
+
+    c = Case("two-tools-same-name-rejected-call-order-kept", "tools", "17.5", "Several calls in one activity are recorded in the order they were made, each tied together by its call_id.")
+    c.act("A", tools=[tool("first"), tool("second")])
+    c.actors = {"A": {"calls": [{"tool": "first", "arguments": {"q": "a"}}, {"tool": "second", "arguments": {"q": "b"}}], "output": {}}}
+    c.tools = {"first": {"result": 1}, "second": {"result": 2}}
+    c.expect = {"status": "completed", "journal": ["tool.invoked", "tool.completed", "tool.invoked", "tool.completed"],
+                "journal_contains": [{"type": "tool.completed", "data": {"tool": "first", "result": 1}}, {"type": "tool.completed", "data": {"tool": "second", "result": 2}}],
+                "journal_count": {"tool.invoked": 2, "tool.completed": 2}}
+    c.id = "tool-calls-keep-their-order"
+    cases.append(c)
+    return cases
+
+
+def model_decision_cases() -> list[Case]:
+    cases = []
+
+    def triage(case_id, spec, description, table=False, default=True, **model):
+        c = Case(case_id, "model_decision", spec, description)
+        c.act("Intake").act("Pay").act("Review").act("Manual").edge("Intake", "Triage")
+        c.edge("Triage", "Pay").edge("Triage", "Review").edge("Triage", "Manual")
+        node = {"id": c.u("Triage"), "name": "Triage", "description": "Route the claim.",
+                "decision_model": {"model": "tier:fast", "instructions": "Pay simple claims. Send anything unusual to review.",
+                                   "options": [{"id": "pay", "description": "Simple and covered", "output_edge_id": c.u("Triage->Pay")},
+                                               {"id": "review", "description": "Unusual or unclear", "output_edge_id": c.u("Triage->Review")}],
+                                   "inputs": ["amount"], **model}}
+        if table:
+            node["decision_table"] = {"hit_policy": "first", "inputs": [{"name": "amount", "type": "number"}], "outputs": [{"name": "route", "type": "string"}],
+                                      "rules": [{"input_entries": ["< 100"], "output_entries": ["pay"], "output_edge_id": c.u("Triage->Pay")}]}
+        if default:
+            node["default_output_edge_id"] = c.u("Triage->Manual")
+        c.decisions.append(node)
+        c.actors = {"Intake": {"output": {"amount": 900}}}
+        return c
+    vote = lambda option, confidence=0.9: {"option": option, "confidence": confidence, "rationale": "Because."}
+
+    c = triage("model-chooses-an-option", "16.4", "The model picks one of the enumerated options and the token takes that option's edge. The decision, its rationale and the model that served are journalled.")
+    c.model = {"replies": [vote("review", 0.82)]}
+    c.expect = {"status": "completed", "visited": ["Intake", "Review"], "model_calls": 1,
+                "journal": ["meta.recorded", "reasoning.recorded", "decision.evaluated"],
+                "journal_contains": [{"type": "decision.evaluated", "node_name": "Triage", "data": {"method": "model", "model": {"option": "review", "confidence": 0.82}}},
+                                     {"type": "reasoning.recorded", "data": {"source": "decision_model", "rationale": "Because."}},
+                                     {"type": "meta.recorded", "data": {"subject": "model_selection"}}]}
+    cases.append(c)
+
+    c = triage("table-first-rule-decides-without-model", "16.2", "With table_first, a rule that matches decides and no model is called.", table=True)
+    c.actors = {"Intake": {"output": {"amount": 40}}}
+    c.model = {"replies": [vote("review")]}
+    c.expect = {"status": "completed", "visited": ["Intake", "Pay"], "model_calls": 0, "journal_contains": [{"type": "decision.evaluated", "data": {"method": "table"}}]}
+    cases.append(c)
+
+    c = triage("table-first-asks-model-when-no-rule-matches", "16.2", "With table_first, the model is asked only for the cases no rule covers.", table=True)
+    c.model = {"replies": [vote("review")]}
+    c.expect = {"status": "completed", "visited": ["Intake", "Review"], "model_calls": 1, "journal_contains": [{"type": "decision.evaluated", "data": {"method": "model"}}]}
+    cases.append(c)
+
+    c = triage("strategy-model-ignores-the-table", "16.2", "With strategy model, the model decides even where a rule would match.", table=True, strategy="model")
+    c.actors = {"Intake": {"output": {"amount": 40}}}
+    c.model = {"replies": [vote("review")]}
+    c.expect = {"status": "completed", "visited": ["Intake", "Review"], "model_calls": 1}
+    cases.append(c)
+
+    c = triage("option-not-offered-is-no-decision", "16.3", "A reply naming an option that was not offered is an invalid vote. The token takes the default edge; the engine never invents a route.")
+    c.model = {"replies": [vote("refund")]}
+    c.expect = {"status": "completed", "visited": ["Intake", "Manual"], "journal_contains": [{"type": "decision.evaluated", "data": {"method": "default"}}]}
+    cases.append(c)
+
+    c = triage("no-decision-without-default-fails", "16.4", "On no decision, a node without a default edge fails its token with NO_ROUTE.", default=False)
+    c.model = {"replies": [vote("refund")]}
+    c.expect = {"status": "failed", "visited": ["Intake"], "error_matches": "no default path", "journal_contains": [{"type": "decision.evaluated", "data": {"method": "none"}}]}
+    cases.append(c)
+
+    c = triage("below-min-confidence-is-no-decision", "16.3", "A decision whose confidence is below min_confidence is no decision.", min_confidence=0.7)
+    c.model = {"replies": [vote("pay", 0.5)]}
+    c.expect = {"status": "completed", "visited": ["Intake", "Manual"], "journal_contains": [{"type": "decision.evaluated", "data": {"method": "default", "model": {"min_confidence": 0.7}}}]}
+    cases.append(c)
+
+    c = triage("unreachable-model-is-no-decision", "16.3", "A model that cannot be reached casts an invalid vote; the run does not fail for it when a default edge exists.")
+    c.model = {"replies": [{"error": "connection refused"}]}
+    c.expect = {"status": "completed", "visited": ["Intake", "Manual"]}
+    cases.append(c)
+
+    c = triage("loose-reply-names-one-option", "16.3", "A reply that is not JSON still counts if exactly one option id appears in it. Such a vote has no confidence.")
+    c.model = {"replies": [{"text": "I would send this one to review."}]}
+    c.expect = {"status": "completed", "visited": ["Intake", "Review"]}
+    cases.append(c)
+
+    c = triage("loose-reply-without-confidence-fails-min-confidence", "16.3", "A vote with no stated confidence is no decision when min_confidence is above 0.", min_confidence=0.5)
+    c.model = {"replies": [{"text": "review"}]}
+    c.expect = {"status": "completed", "visited": ["Intake", "Manual"]}
+    cases.append(c)
+
+    c = triage("reply-naming-two-options-is-invalid", "16.3", "A reply in which more than one option id appears is an invalid vote.")
+    c.model = {"replies": [{"text": "Either pay or review would do."}]}
+    c.expect = {"status": "completed", "visited": ["Intake", "Manual"]}
+    cases.append(c)
+
+    c = triage("majority-of-votes-decides", "16.3", "With several votes, the option with a strict majority of all votes cast is the decision.", votes=3)
+    c.model = {"replies": [vote("review"), vote("pay"), vote("review")]}
+    c.expect = {"status": "completed", "visited": ["Intake", "Review"], "model_calls": 3}
+    cases.append(c)
+
+    c = triage("no-majority-is-no-decision", "16.3", "Invalid votes count among the votes cast: one vote each for two options and one invalid vote give no strict majority.", votes=3)
+    c.model = {"replies": [vote("review"), vote("pay"), {"text": "I cannot tell."}]}
+    c.expect = {"status": "completed", "visited": ["Intake", "Manual"], "model_calls": 3}
+    cases.append(c)
+
+    c = triage("chosen-option-is-written-to-data", "16.1", "With output, the id of the chosen option is written to the token's data for later nodes.", output="route")
+    c.model = {"replies": [vote("pay")]}
+    c.expect = {"status": "completed", "visited": ["Intake", "Pay"], "data": {"route": "pay"}}
+    cases.append(c)
+    return cases
+
+
+# ---------------------------------------------------------------------------
+# Counterfactual replay (section 20)
+# ---------------------------------------------------------------------------
+
+def replay_cases() -> list[dict]:
+    cases = []
+
+    def flow(case_id):
+        c = Case(case_id, "replay", "20", "")
+        c.act("Collect").act("Assess", "ai_agent").act("Approve").act("Escalate")
+        c.edge("Collect", "Assess").edge("Assess", "Approve", condition="score >= 5").edge("Assess", "Escalate", is_default=True)
+        return c
+    def emit(case_id, spec, description, baseline, candidate=None, ai="recorded", candidate_actors=None, expect=None):
+        case = {"id": case_id, "level": "replay", "spec": spec, "description": description, "workflow": baseline.build()["workflow"], "input": {"claim": 1},
+                "actors": baseline.actors, "ai": ai}
+        if candidate is not None:
+            case["candidate"] = candidate
+        if candidate_actors:
+            case["candidate_actors"] = candidate_actors
+        case["expect"] = expect
+        cases.append(case)
+    world = {"Collect": {"output": {"documents": 3}}, "Assess": {"output": {"score": 7}}, "Approve": {"output": {"approved": True}}}
+
+    b = flow("replay-unchanged-is-identical"); b.actors = world
+    emit(b.id, "20.1", "Replaying a run with nothing changed and AI outputs recorded reproduces it: same status, same path, every node the same.", b,
+         expect={"baseline_status": "completed", "candidate_status": "completed", "same_path": True, "regressions": 0,
+                 "verdicts": {"Collect": "same", "Assess": "same", "Approve": "same"}, "unrecorded": 0})
+
+    b = flow("replay-tightened-contract-regresses"); b.actors = world
+    cand = flow(b.id); cand.activities[1]["outcome_contract"] = {"postconditions": [{"name": "High confidence", "expression": "score >= 9"}], "on_violation": "fail"}
+    emit(b.id, "20.3", "A contract tightened in the candidate is tested against the recorded AI output, with no model at all. The node that no longer passes is a regression, and so is the run.", b,
+         candidate=cand.build()["workflow"],
+         expect={"baseline_status": "completed", "candidate_status": "failed", "verdicts": {"Collect": "same", "Assess": "regressed"}, "regressions_at_least": 1, "unrecorded": 0})
+
+    b = flow("replay-changed-rule-diverges"); b.actors = world
+    cand = flow(b.id); cand.edges[1]["condition"] = "score >= 8"
+    emit(b.id, "20.2", "A changed routing rule sends the candidate to an activity the baseline never performed. There is no recording to replay: the step fails with REPLAY_UNRECORDED and is listed. Nothing is invented.", b,
+         candidate=cand.build()["workflow"],
+         expect={"baseline_status": "completed", "candidate_status": "failed", "same_path": False, "verdicts": {"Approve": "only_baseline"}, "unrecorded": 1,
+                 "divergence_after": "Assess", "error_matches": "not performed in the recorded run"})
+
+    b = flow("replay-live-ai-improves")
+    b.activities[1]["outcome_contract"] = {"postconditions": [{"name": "Has a score", "expression": "score exists"}]}
+    b.activities[1]["retry"] = {"max_attempts": 3, "initial_delay": "PT0S"}
+    b.actors = {**world, "Assess": {"attempts": [{"output": {"note": "no score"}}, {"output": {"score": 7}}]}}
+    emit(b.id, "20.1", "With live AI, agents run again under the candidate while everything else is held as recorded. An agent that is accepted in fewer attempts has improved.", b,
+         ai="live", candidate_actors={"Assess": {"output": {"score": 7}}},
+         expect={"baseline_status": "completed", "candidate_status": "completed", "same_path": True, "verdicts": {"Collect": "same", "Assess": "improved", "Approve": "same"}, "regressions": 0})
+
+    b = flow("replay-live-ai-regresses"); b.actors = world
+    emit(b.id, "20.3", "With live AI, an agent whose output now routes the run elsewhere changes the path; a run that was completed and is not any more is a regression.", b,
+         ai="live", candidate_actors={"Assess": {"error": "model returned nothing usable"}},
+         expect={"baseline_status": "completed", "candidate_status": "failed", "verdicts": {"Assess": "regressed"}, "regressions_at_least": 1})
+    return cases
+
+
+# ---------------------------------------------------------------------------
+# Journeys (section 19)
+# ---------------------------------------------------------------------------
+
+def journey_cases() -> list[dict]:
+    cases = []
+    START = "2026-01-05T09:00:00Z"
+
+    class J:
+        def __init__(self, case_id, spec, description):
+            self.id, self.spec, self.description = case_id, spec, description
+            self.workflows, self.journeys, self.actors, self.steps, self.expect = [], [], {}, [], {}
+        def workflow(self, name, build):
+            c = Case(f"{self.id}:{name}", "journeys", self.spec, "")
+            build(c)
+            wf = c.build()["workflow"]; wf["name"] = name
+            self.workflows.append(wf)
+            return wf["id"]
+        def journey(self, name, stages, triggers, **extra):
+            j = {"id": uid(self.id, f"journey:{name}"), "name": name, "version": "1.0.0", "subject": {"name": "customer", "key": "customer_id"},
+                 "stages": stages, "triggers": triggers, **extra}
+            self.journeys.append(j)
+            return j
+        def publish(self, type, data=None, **extra):
+            self.steps.append({"publish": {"type": type, "data": {"customer_id": "c-1", **(data or {})}, **extra}})
+            return self
+        def advance(self, duration): self.steps.append({"advance": duration}); return self
+        def tick(self): self.steps.append({"tick": True}); return self
+        def restart(self): self.steps.append({"restart": True}); return self
+        def emit(self):
+            case = {"id": self.id, "level": "journeys", "spec": self.spec, "description": self.description, "start": START,
+                    "workflows": self.workflows, "journeys": self.journeys}
+            if self.actors: case["actors"] = self.actors
+            case["steps"] = self.steps; case["expect"] = self.expect
+            cases.append(case)
+
+    def claim(j, wait=True, timeout=None, timeout_to=None):
+        """A claim workflow: register, then wait for documents, then settle."""
+        def build(c):
+            c.act("Register").act("Settle")
+            if wait:
+                definition = {"name": "documents.uploaded", "correlation_key": "customer_id"}
+                if timeout: definition["timeout"] = timeout
+                if timeout_to:
+                    c.act(timeout_to); definition["timeout_edge_id"] = c.u(f"Documents->{timeout_to}")
+                c.event("Documents", "message", **definition)
+                c.edge("Register", "Documents").edge("Documents", "Settle")
+                if timeout_to: c.edge("Documents", timeout_to)
+            else:
+                c.edge("Register", "Settle")
+        return j.workflow("Claim", build)
+    one_stage = lambda wf, **extra: [{"id": "open", "name": "Open", "workflows": [wf], "complete_when": "paid == true", "transitions": [], **extra}]
+    starts = lambda wf: [{"event": "claim.submitted", "starts_journey": True, "start_workflow": wf}]
+    PAID = {"Register": {"output": {"claim_id": "CLM-1"}}, "Settle": {"output": {"paid": True}}}
+
+    j = J("journey-starts-on-trigger", "19.3", "A trigger with starts_journey creates an instance in the first stage for a subject that has none, and starts the workflow it names. The run belongs to the journey.")
+    wf = claim(j); j.journey("Claim", one_stage(wf), starts(wf)); j.actors = PAID
+    j.publish("claim.submitted")
+    j.expect = {"instances": [{"journey": "Claim", "subject_key": "c-1", "status": "active", "stage_id": "open", "runs": ["waiting_event"],
+                               "events": ["journey.started", "journey.stage_entered", "journey.event_received", "journey.run_started"]}]}
+    j.emit()
+
+    j = J("journey-completes-when-stage-condition-holds", "19.2", "A run's business data becomes the journey's data when the run ends. A stage completes when its condition holds, and a stage with empty transitions completes the journey.")
+    wf = claim(j); j.journey("Claim", one_stage(wf), starts(wf), goals=[{"id": "paid", "name": "Paid", "expression": "paid == true"}]); j.actors = PAID
+    j.publish("claim.submitted").publish("documents.uploaded")
+    j.expect = {"instances": [{"journey": "Claim", "status": "completed", "goals_reached": ["paid"], "runs": ["completed"],
+                               "events": ["journey.run_ended", "journey.goal_reached", "journey.stage_completed", "journey.completed"]}]}
+    j.emit()
+
+    j = J("journey-record-is-in-causal-order", "19.5", "A business event is recorded on the journey before anything reacts to it: the event that wakes a run precedes that run's end.")
+    wf = claim(j); j.journey("Claim", one_stage(wf), starts(wf)); j.actors = PAID
+    j.publish("claim.submitted").publish("documents.uploaded")
+    j.expect = {"instances": [{"journey": "Claim", "events_exact": ["journey.started", "journey.stage_entered", "journey.event_received", "journey.run_started",
+                                                                    "journey.event_received", "journey.run_ended", "journey.stage_completed", "journey.completed"]}]}
+    j.emit()
+
+    j = J("journey-moves-through-stages", "19.2", "Without transitions a completed stage leads to the next in the list; entering a stage starts the workflow it names with the journey's data.")
+    wf = claim(j, wait=False)
+    survey = j.workflow("Survey", lambda c: c.act("Ask"))
+    j.journey("Claim", [{"id": "open", "name": "Open", "workflows": [wf], "complete_when": "paid == true"},
+                        {"id": "asked", "name": "Asked", "on_enter": {"start_workflow": survey}, "complete_when": "asked == true", "transitions": []}], starts(wf))
+    j.actors = {**PAID, "Ask": {"output": {"asked": True}}}
+    j.publish("claim.submitted")
+    j.expect = {"instances": [{"journey": "Claim", "status": "completed", "stage_id": "asked", "runs": ["completed", "completed"],
+                               "events": ["journey.stage_completed", "journey.stage_entered", "journey.run_started", "journey.run_ended", "journey.stage_completed", "journey.completed"]}]}
+    j.emit()
+
+    j = J("journey-transition-by-condition", "19.2", "With transitions, the first whose condition is true names the next stage; failing that, the default.")
+    wf = claim(j, wait=False)
+    j.journey("Claim", [{"id": "open", "name": "Open", "workflows": [wf], "complete_when": "claim_id exists",
+                         "transitions": [{"to": "fast", "condition": "amount < 100"}, {"to": "slow", "is_default": True}]},
+                        {"id": "fast", "name": "Fast"}, {"id": "slow", "name": "Slow"}], starts(wf))
+    j.actors = {"Register": {"output": {"claim_id": "CLM-1", "amount": 900}}}
+    j.publish("claim.submitted")
+    j.expect = {"instances": [{"journey": "Claim", "status": "active", "stage_id": "slow"}]}
+    j.emit()
+
+    j = J("journey-exit-abandons-and-cancels-runs", "19.5", "An exit event ends the journey with the outcome it names, and the runs still under way for it are cancelled: a customer who has left is not sent a reminder.")
+    wf = claim(j); j.journey("Claim", one_stage(wf), starts(wf), exits=[{"event": "claim.withdrawn", "outcome": "abandoned", "reason": "Withdrawn"}]); j.actors = PAID
+    j.publish("claim.submitted").publish("claim.withdrawn")
+    j.expect = {"instances": [{"journey": "Claim", "status": "abandoned", "runs": ["cancelled"],
+                               "events": ["journey.event_received", "journey.run_ended", "journey.abandoned"],
+                               "events_contain": [{"type": "journey.run_ended", "data": {"status": "cancelled"}}, {"type": "journey.abandoned", "data": {"reason": "Withdrawn"}}]}]}
+    j.emit()
+
+    j = J("journey-stalls-when-stage-outlasts-its-limit", "19.2", "A stage that lasts longer than its max_duration is stalled. It is recorded once.")
+    wf = claim(j); j.journey("Claim", one_stage(wf, max_duration="P2D"), starts(wf)); j.actors = PAID
+    j.publish("claim.submitted").advance("P3D").tick().advance("P1D").tick()
+    j.expect = {"instances": [{"journey": "Claim", "status": "active", "stalled": True, "events_count": {"journey.stalled": 1},
+                               "events_contain": [{"type": "journey.stalled", "data": {"max_duration": "P2D"}}]}]}
+    j.emit()
+
+    j = J("journey-stalls-at-once-when-a-run-fails", "19.5", "A run that fails marks its stage stalled at once, with the run's id. The journey itself does not fail.")
+    wf = claim(j, wait=False); j.journey("Claim", one_stage(wf), starts(wf)); j.actors = {"Register": {"error": "claims system down"}}
+    j.publish("claim.submitted")
+    j.expect = {"instances": [{"journey": "Claim", "status": "active", "stalled": True, "runs": ["failed"], "events": ["journey.run_ended", "journey.stalled"],
+                               "events_contain": [{"type": "journey.run_ended", "data": {"status": "failed"}}]}]}
+    j.emit()
+
+    j = J("journey-deadline-takes-planned-path", "18.3", "When the host lets time pass, a wait whose deadline has run out takes its timeout edge, and the journey learns what that path established.")
+    wf = claim(j, timeout="P5D", timeout_to="Close"); j.journey("Claim", one_stage(wf), starts(wf)); j.actors = {**PAID, "Close": {"output": {"closed": True}}}
+    j.publish("claim.submitted").advance("P6D").tick()
+    j.expect = {"instances": [{"journey": "Claim", "status": "active", "runs": ["completed"], "data": {"closed": True}}]}
+    j.emit()
+
+    j = J("journey-ignores-duplicate-event", "19.5", "An event id the host has already accepted has no further effect.")
+    wf = claim(j); j.journey("Claim", one_stage(wf), starts(wf)); j.actors = PAID
+    j.publish("claim.submitted", id="evt-1").publish("claim.submitted", id="evt-1")
+    j.steps[1]["expect"] = {"accepted": False}
+    j.expect = {"instances": [{"journey": "Claim", "events_count": {"journey.event_received": 1, "journey.run_started": 1}}], "instance_count": 1}
+    j.emit()
+
+    j = J("journey-untouched-by-event-that-does-not-concern-it", "19.5", "An event whose type the journey does not name, and none of its workflows waits for, leaves no trace on it.")
+    wf = claim(j); j.journey("Claim", one_stage(wf), starts(wf)); j.actors = PAID
+    j.publish("claim.submitted").publish("newsletter.opened")
+    j.expect = {"instances": [{"journey": "Claim", "events_count": {"journey.event_received": 1}}]}
+    j.emit()
+
+    j = J("journey-subjects-are-kept-apart", "19.1", "Events with different values of the subject key belong to different instances.")
+    wf = claim(j); j.journey("Claim", one_stage(wf), starts(wf)); j.actors = PAID
+    j.publish("claim.submitted").publish("claim.submitted", {"customer_id": "c-2"}).publish("documents.uploaded", {"customer_id": "c-2"})
+    j.expect = {"instance_count": 2, "instances": [{"journey": "Claim", "subject_key": "c-1", "status": "active"}, {"journey": "Claim", "subject_key": "c-2", "status": "completed"}]}
+    j.emit()
+
+    # ---- touchpoints and what changes hands (19.8) ----
+    TOUCH = dict(artefacts=[{"id": "claim-form", "name": "Claim form", "kind": "form"}, {"id": "receipt", "name": "Payment receipt", "kind": "receipt"}],
+                 touchpoints=[{"id": "reported", "name": "Reports the claim", "direction": "inbound", "channel": "web", "technology": "Customer portal", "on": {"event": "claim.submitted"}, "exchanges": [{"artefact": "claim-form"}]},
+                              {"id": "settled", "name": "Is told the claim is settled", "direction": "outbound", "channel": "email", "technology": "Email gateway", "on": {"activity": "Settle"},
+                               "exchanges": [{"artefact": "receipt", "reference": "receipt_id"}]}])
+    j = J("journey-records-touchpoints", "19.8", "A touchpoint is recorded when its occasion occurs, with party, direction, channel, technology and what changed hands. One realised by a run carries that run's id; a reference identifies the particular document.")
+    wf = claim(j, wait=False); j.journey("Claim", one_stage(wf), starts(wf), **TOUCH)
+    j.actors = {"Register": {"output": {"claim_id": "CLM-1"}}, "Settle": {"output": {"paid": True, "receipt_id": "RC-7"}}}
+    j.publish("claim.submitted")
+    j.expect = {"instances": [{"journey": "Claim", "events": ["journey.event_received", "journey.touchpoint", "journey.run_started", "journey.touchpoint", "journey.run_ended"],
+                               "events_count": {"journey.touchpoint": 2},
+                               "events_contain": [{"type": "journey.touchpoint", "data": {"touchpoint_id": "reported", "party": "subject", "direction": "inbound", "channel": "web", "technology": "Customer portal",
+                                                                                         "artefacts": [{"id": "claim-form", "name": "Claim form", "kind": "form"}]}},
+                                                  {"type": "journey.touchpoint", "has": ["run_id"], "data": {"touchpoint_id": "settled", "direction": "outbound",
+                                                                                                            "artefacts": [{"id": "receipt", "name": "Payment receipt", "kind": "receipt", "reference": "RC-7"}]}}]}]}
+    j.emit()
+
+    # ---- mood (19.9) ----
+    def mood(rules, **extra): return {"sentiment": {"rules": rules, **extra}}
+    j = J("mood-moves-by-inferred-rule", "19.9", "A rule with change moves the estimate, and the change is recorded as inferred with the rule's reason.")
+    wf = claim(j); j.journey("Claim", one_stage(wf), starts(wf), goals=[{"id": "paid", "name": "Paid", "expression": "paid == true"}],
+                             **mood([{"on": "event", "event": "claim.submitted", "change": -1, "reason": "has had an accident"}, {"on": "goal_reached", "goal": "paid", "change": 1.5, "reason": "has been paid"}]))
+    j.actors = PAID
+    j.publish("claim.submitted").publish("documents.uploaded")
+    j.expect = {"instances": [{"journey": "Claim", "sentiment": 0.5, "events_count": {"journey.sentiment_changed": 2},
+                               "events_contain": [{"type": "journey.sentiment_changed", "data": {"value": -1, "previous": 0, "basis": "inferred", "reason": "has had an accident"}},
+                                                  {"type": "journey.sentiment_changed", "data": {"value": 0.5, "previous": -1, "basis": "inferred"}}]}]}
+    j.emit()
+
+    j = J("mood-is-measured-from-what-the-subject-said", "19.9", "A rule with measure reads a value from the event, maps it from its own scale onto the journey's, and sets the estimate to it. The change is recorded as measured.")
+    wf = claim(j); j.journey("Claim", one_stage(wf), starts(wf), **mood([{"on": "event", "event": "survey.answered", "measure": {"path": "satisfaction", "from": [1, 5]}}]))
+    j.actors = PAID
+    j.publish("claim.submitted").publish("survey.answered", {"satisfaction": 2})
+    j.expect = {"instances": [{"journey": "Claim", "sentiment": -1, "events_contain": [{"type": "journey.sentiment_changed", "data": {"value": -1, "basis": "measured"}}]}]}
+    j.emit()
+
+    j = J("mood-stays-within-its-scale", "19.9", "The estimate is kept within the journey's scale.")
+    wf = claim(j); j.journey("Claim", one_stage(wf), starts(wf), **mood([{"on": "event", "event": "claim.submitted", "change": -5, "reason": "very bad news"}], min=-2, max=2))
+    j.actors = PAID
+    j.publish("claim.submitted")
+    j.expect = {"instances": [{"journey": "Claim", "sentiment": -2}]}
+    j.emit()
+
+    j = J("mood-feels-a-wait-at-the-reply", "19.9", "The waited rule applies when an outbound touchpoint reaches the subject more than longer_than after the subject last acted, having heard nothing since.")
+    wf = claim(j)
+    j.journey("Claim", one_stage(wf), starts(wf), **mood([{"on": "waited", "longer_than": "P2D", "change": -1, "reason": "waited more than two days"}]),
+              touchpoints=[{"id": "uploaded", "name": "Uploads documents", "direction": "inbound", "channel": "web", "on": {"event": "documents.uploaded"}},
+                           {"id": "settled", "name": "Is told", "direction": "outbound", "channel": "email", "on": {"activity": "Settle"}}])
+    j.actors = {"Register": {"output": {}}, "Settle": {"output": {"paid": True}, "takes": "P3D"}}
+    j.publish("claim.submitted").publish("documents.uploaded")
+    j.expect = {"instances": [{"journey": "Claim", "sentiment": -1, "events": ["journey.sentiment_changed", "journey.touchpoint"],
+                               "events_contain": [{"type": "journey.sentiment_changed", "data": {"on": "waited", "basis": "inferred", "value": -1}}]}]}
+    j.emit()
+
+    # ---- several journeys (19.7) ----
+    j = J("announced-event-starts-the-next-journey", "19.7", "An event a run publishes is accepted by the host like any other, after the run's end is recorded and before what follows from it. Here it begins the subject's next journey, which starts at the mood the last one left, and the movement between journeys is counted.")
+    def build(c):
+        c.act("Settle").event("Settled", "message", name="claim.settled", mode="publish", data=["customer_id", "paid"]).edge("Settle", "Settled")
+    wf = j.workflow("Claim", build)
+    care = j.workflow("Aftercare", lambda c: c.act("Ask"))
+    j.journey("Claim", one_stage(wf), starts(wf), **mood([{"on": "event", "event": "claim.submitted", "change": -1, "reason": "has had an accident"}]))
+    j.journey("Aftercare", [{"id": "asked", "name": "Asked", "workflows": [care], "complete_when": "asked == true", "transitions": []}],
+              [{"event": "claim.settled", "starts_journey": True, "start_workflow": care}], **mood([]))
+    j.actors = {"Settle": {"output": {"paid": True}}, "Ask": {"output": {"asked": True}}}
+    j.publish("claim.submitted")
+    j.expect = {"instance_count": 2,
+                "instances": [{"journey": "Claim", "status": "completed", "sentiment": -1, "events": ["journey.run_ended", "journey.event_received", "journey.stage_completed", "journey.completed"]},
+                              {"journey": "Aftercare", "status": "completed", "sentiment": -1, "events_contain": [{"type": "journey.started", "has": ["data.sentiment_carried_from"], "data": {"sentiment": -1}}]}],
+                "transitions": [{"from": "Claim", "to": "Aftercare", "count": 1}]}
+    j.emit()
+
+    # ---- a host that restarts (19.11) ----
+    j = J("journey-survives-a-restart", "19.10", "A host that stops and starts again carries on: the journey and its waiting run are as they were, an event accepted before the restart is not accepted again, and the run's journal continues without a gap.")
+    wf = claim(j); j.journey("Claim", one_stage(wf), starts(wf)); j.actors = PAID
+    j.publish("claim.submitted", id="evt-1").restart().publish("claim.submitted", id="evt-1").publish("documents.uploaded")
+    j.steps[2]["expect"] = {"accepted": False}
+    j.expect = {"instance_count": 1, "instances": [{"journey": "Claim", "status": "completed", "runs": ["completed"], "run_journal": ["run.started", "event.waiting", "run.resumed", "event.received", "run.completed"]}]}
+    j.emit()
+
+    j = J("deadline-passes-after-a-restart", "19.10", "A deadline fixed before a restart still passes after it, at the time it was fixed for.")
+    wf = claim(j, timeout="P5D", timeout_to="Close"); j.journey("Claim", one_stage(wf), starts(wf)); j.actors = {**PAID, "Close": {"output": {"closed": True}}}
+    j.publish("claim.submitted").advance("P4D").restart().tick().advance("P2D").tick()
+    j.steps[3]["expect"] = {"timed_out_runs": 0}
+    j.steps[5]["expect"] = {"timed_out_runs": 1}
+    j.expect = {"instances": [{"journey": "Claim", "runs": ["completed"], "data": {"closed": True}}]}
+    j.emit()
+    return cases
+
+
 def document_cases() -> list[dict]:
     def base(case_id: str) -> Case:
         c = Case(case_id, "document", "4", "")
@@ -713,12 +1177,17 @@ def write(path: pathlib.Path, data: dict) -> None:
 
 
 def main() -> None:
-    for folder in ("execution", "documents"):
+    for folder in ("execution", "documents", "journeys", "replay"):
         (ROOT / folder).mkdir(exist_ok=True)
         for old in (ROOT / folder).glob("*.json"):
             old.unlink()
-    for case in execution_cases():
+    execution = execution_cases() + tool_cases() + model_decision_cases()
+    for case in execution:
         write(ROOT / "execution" / f"{case.id}.json", case.build())
+    for case in journey_cases():
+        write(ROOT / "journeys" / f"{case['id']}.json", case)
+    for case in replay_cases():
+        write(ROOT / "replay" / f"{case['id']}.json", case)
     for doc in document_cases():
         write(ROOT / "documents" / f"{doc['id']}.json", doc)
     tests = unary_tests()
@@ -726,7 +1195,8 @@ def main() -> None:
     exprs = expressions()
     write(ROOT / "expressions.json", exprs)
     print(f"wrote {len(exprs['cases']) + len(exprs['invalid'])} expression tests")
-    print(f"wrote {len(execution_cases())} execution cases, {len(document_cases())} document cases "
+    print(f"wrote {len(journey_cases())} journey cases and {len(replay_cases())} replay cases")
+    print(f"wrote {len(execution)} execution cases, {len(document_cases())} document cases "
           f"and {len(tests['cases']) + len(tests['invalid'])} unary tests")
 
 

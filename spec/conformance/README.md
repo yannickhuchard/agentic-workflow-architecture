@@ -6,12 +6,14 @@ Language-neutral test cases that define what it means to implement AWA. The rule
 |---|---|
 | `documents/` | Documents that must be accepted or rejected, and at which validation stage |
 | `execution/` | Workflows with scripted actors and the outcome an engine must produce |
+| `journeys/` | Journeys with their workflows, the events a host is given step by step, and what the journeys must then record |
+| `replay/` | A recorded run, a change, and what a counterfactual replay must report |
 | `expressions.json` | Condition expressions, the data they are evaluated against, and their results |
 | `unary-tests.json` | Decision table entries, values, and whether each value satisfies the entry |
 
 Each execution case is tagged with a conformance level. An implementation claims a level only if it passes every case at that level, and reports the cases it skips.
 
-Levels: `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `flow`, `events`. Cases at level `events` carry a `deliver` list: business events to deliver, or deadlines to let pass, once the run has settled.
+Levels: `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `flow`, `events`, `model_decision`, `tools`, `journeys`, `replay`. Cases at level `events` carry a `deliver` list: business events to deliver, or deadlines to let pass, once the run has settled.
 
 ## Running
 

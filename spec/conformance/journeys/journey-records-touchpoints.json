@@ -1,0 +1,187 @@
+{
+  "id": "journey-records-touchpoints",
+  "level": "journeys",
+  "spec": "19.8",
+  "description": "A touchpoint is recorded when its occasion occurs, with party, direction, channel, technology and what changed hands. One realised by a run carries that run's id; a reference identifies the particular document.",
+  "start": "2026-01-05T09:00:00Z",
+  "workflows": [
+    {
+      "id": "b45edfe3-105b-5f8e-8d6f-7ce2ede06e7e",
+      "name": "Claim",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "09d388bc-51e1-5c17-92fe-7b3a6afaf41d",
+          "name": "Register",
+          "role_id": "de7fb1b5-e880-57c9-acb7-0d8e867dbc87",
+          "actor_type": "application"
+        },
+        {
+          "id": "59384aad-1f58-5246-8e01-9217e2c11e1e",
+          "name": "Settle",
+          "role_id": "de7fb1b5-e880-57c9-acb7-0d8e867dbc87",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "8cfd7172-f991-5022-b613-df5c0173b225",
+          "source_id": "09d388bc-51e1-5c17-92fe-7b3a6afaf41d",
+          "target_id": "59384aad-1f58-5246-8e01-9217e2c11e1e"
+        }
+      ]
+    }
+  ],
+  "journeys": [
+    {
+      "id": "c3dcab5a-0669-5a4f-9d7b-0645ef7a676b",
+      "name": "Claim",
+      "version": "1.0.0",
+      "subject": {
+        "name": "customer",
+        "key": "customer_id"
+      },
+      "stages": [
+        {
+          "id": "open",
+          "name": "Open",
+          "workflows": [
+            "b45edfe3-105b-5f8e-8d6f-7ce2ede06e7e"
+          ],
+          "complete_when": "paid == true",
+          "transitions": []
+        }
+      ],
+      "triggers": [
+        {
+          "event": "claim.submitted",
+          "starts_journey": true,
+          "start_workflow": "b45edfe3-105b-5f8e-8d6f-7ce2ede06e7e"
+        }
+      ],
+      "artefacts": [
+        {
+          "id": "claim-form",
+          "name": "Claim form",
+          "kind": "form"
+        },
+        {
+          "id": "receipt",
+          "name": "Payment receipt",
+          "kind": "receipt"
+        }
+      ],
+      "touchpoints": [
+        {
+          "id": "reported",
+          "name": "Reports the claim",
+          "direction": "inbound",
+          "channel": "web",
+          "technology": "Customer portal",
+          "on": {
+            "event": "claim.submitted"
+          },
+          "exchanges": [
+            {
+              "artefact": "claim-form"
+            }
+          ]
+        },
+        {
+          "id": "settled",
+          "name": "Is told the claim is settled",
+          "direction": "outbound",
+          "channel": "email",
+          "technology": "Email gateway",
+          "on": {
+            "activity": "Settle"
+          },
+          "exchanges": [
+            {
+              "artefact": "receipt",
+              "reference": "receipt_id"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "actors": {
+    "Register": {
+      "output": {
+        "claim_id": "CLM-1"
+      }
+    },
+    "Settle": {
+      "output": {
+        "paid": true,
+        "receipt_id": "RC-7"
+      }
+    }
+  },
+  "steps": [
+    {
+      "publish": {
+        "type": "claim.submitted",
+        "data": {
+          "customer_id": "c-1"
+        }
+      }
+    }
+  ],
+  "expect": {
+    "instances": [
+      {
+        "journey": "Claim",
+        "events": [
+          "journey.event_received",
+          "journey.touchpoint",
+          "journey.run_started",
+          "journey.touchpoint",
+          "journey.run_ended"
+        ],
+        "events_count": {
+          "journey.touchpoint": 2
+        },
+        "events_contain": [
+          {
+            "type": "journey.touchpoint",
+            "data": {
+              "touchpoint_id": "reported",
+              "party": "subject",
+              "direction": "inbound",
+              "channel": "web",
+              "technology": "Customer portal",
+              "artefacts": [
+                {
+                  "id": "claim-form",
+                  "name": "Claim form",
+                  "kind": "form"
+                }
+              ]
+            }
+          },
+          {
+            "type": "journey.touchpoint",
+            "has": [
+              "run_id"
+            ],
+            "data": {
+              "touchpoint_id": "settled",
+              "direction": "outbound",
+              "artefacts": [
+                {
+                  "id": "receipt",
+                  "name": "Payment receipt",
+                  "kind": "receipt",
+                  "reference": "RC-7"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

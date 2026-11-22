@@ -1,0 +1,56 @@
+{
+  "type": "record",
+  "name": "BusinessEvent",
+  "namespace": "io.awa.schema",
+  "doc": "A statement that something happened in the business, with the attributes of CloudEvents 1.0 (AWA specification section 18.1). Use the subject key as the message key so that the events of one subject stay in order.",
+  "fields": [
+    {
+      "name": "specversion",
+      "type": "string",
+      "default": "1.0"
+    },
+    {
+      "name": "id",
+      "type": "string",
+      "doc": "A consumer that sees the same id twice ignores the second"
+    },
+    {
+      "name": "source",
+      "type": "string"
+    },
+    {
+      "name": "type",
+      "type": "string",
+      "doc": "What happened, e.g. documents.uploaded. The name workflows and journeys refer to"
+    },
+    {
+      "name": "subject",
+      "type": [
+        "null",
+        "string"
+      ],
+      "default": null
+    },
+    {
+      "name": "time",
+      "type": [
+        "null",
+        {
+          "type": "long",
+          "logicalType": "timestamp-millis"
+        }
+      ],
+      "default": null
+    },
+    {
+      "name": "datacontenttype",
+      "type": "string",
+      "default": "application/json"
+    },
+    {
+      "name": "data",
+      "type": "string",
+      "doc": "The details, JSON-encoded"
+    }
+  ]
+}

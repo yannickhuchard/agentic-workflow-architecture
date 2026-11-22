@@ -1,183 +1,60 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Installation Guide | AWA Documentation</title>
+    <title>Installation | AWA</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&display=swap"
-        rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css">
     <link rel="stylesheet" href="style.css">
+    <style>table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.92em; } th, td { text-align: left; vertical-align: top; padding: 8px 12px; border-bottom: 1px solid rgba(128,128,128,.25); } th { font-weight: 600; }</style>
 </head>
-
 <body>
-    <button class="theme-toggle" title="Toggle Theme">☀️</button>
-
+    <button class="theme-toggle" title="Toggle theme" aria-label="Toggle theme">&#9728;</button>
     <div class="app-container">
-        <!-- Sidebar -->
         <aside class="sidebar">
-            <div class="logo">
-                <div class="logo-icon"></div>
-                <span>AWA</span>
-            </div>
-
-            <div class="search-container">
-                <span class="search-icon">🔍</span>
-                <input type="text" class="search-input" placeholder="Search guides...">
-            </div>
-
-            <div class="nav-section">
-                <div class="nav-section-title">Getting Started</div>
-                <ul class="nav-links">
-                    <li><a href="getting-started.html" class="nav-link">Introduction</a></li>
-                    <li><a href="installation-guide.html" class="nav-link active">Installation Guide</a></li>
-                </ul>
-            </div>
-
-            <div class="nav-section">
-                <div class="nav-section-title">Developer Guides</div>
-                <ul class="nav-links">
-                    <li><a href="developer-guide.html" class="nav-link">Reference Material</a></li>
-                    <li><a href="data-model-guide.html" class="nav-link">Data Model & Concepts</a></li>
-                </ul>
-            </div>
-
-            <div class="nav-section">
-                <div class="nav-section-title">Theory & Business</div>
-                <ul class="nav-links">
-                    <li><a href="abpm-guide.html" class="nav-link">Agentic BPM</a></li>
-                    <li><a href="architect-guide.html" class="nav-link">Architect Guide</a></li>
-                </ul>
-            </div>
-
-            <div class="nav-section">
-                <div class="nav-section-title">Playground</div>
-                <ul class="nav-links">
-                    <li><a href="playground.html" class="nav-link">Interactive Sandbox</a></li>
-                </ul>
-            </div>
+            <div class="logo"><div class="logo-icon"></div><span>AWA</span></div>
+            <div class="search-container"><input type="text" class="search-input" placeholder="Search guides..." aria-label="Search guides"></div>
+            <div class="nav-section"><div class="nav-section-title">Start</div><ul class="nav-links"><li><a href="getting-started.html" class="nav-link">Introduction</a></li><li><a href="installation-guide.html" class="nav-link active">Installation</a></li><li><a href="#typescript" class="nav-link" style="padding-left:28px;font-size:0.85em">TypeScript SDK and the command line</a></li><li><a href="#python" class="nav-link" style="padding-left:28px;font-size:0.85em">Python SDK</a></li><li><a href="#models" class="nav-link" style="padding-left:28px;font-size:0.85em">Model providers</a></li><li><a href="#server" class="nav-link" style="padding-left:28px;font-size:0.85em">The HTTP interface</a></li><li><a href="#check" class="nav-link" style="padding-left:28px;font-size:0.85em">Check conformance</a></li></ul></div><div class="nav-section"><div class="nav-section-title">Build</div><ul class="nav-links"><li><a href="developer-guide.html" class="nav-link">Developer guide</a></li><li><a href="data-model-guide.html" class="nav-link">Data model</a></li></ul></div><div class="nav-section"><div class="nav-section-title">Design</div><ul class="nav-links"><li><a href="abpm-guide.html" class="nav-link">For process owners</a></li><li><a href="architect-guide.html" class="nav-link">For architects</a></li></ul></div><div class="nav-section"><div class="nav-section-title">See</div><ul class="nav-links"><li><a href="playground.html" class="nav-link">Playground</a></li><li><a href="../tools/visualization/journey.html" class="nav-link">Journey view</a></li><li><a href="../tools/visualization/replay.html" class="nav-link">Run replay</a></li></ul></div>
         </aside>
-
-        <!-- Main Content -->
         <main class="main-content">
             <header class="content-header">
-                <span class="badge">Setup & Deployment</span>
-                <h1 class="hero-title">Installation & Environment Setup</h1>
-                <p class="hero-desc">Complete guide to installing AWA SDKs, visualization engines, and setting up the
-                    infrastructure for your agentic workflows.</p>
+                <span class="badge">Specification 1.1 &middot; SDK 2.0.0</span>
+                <h1 class="hero-title">Installation</h1>
+                <p class="hero-desc">What you need, how to build, and how to check that your installation behaves as the specification says.</p>
             </header>
-
-            <section id="sdk-installation">
-                <h2>1. SDK Installation</h2>
-                <p>AWA provides native SDKs for the three most common enterprise environments. Choose your stack below
-                    to get started.</p>
-
-                <div class="code-tabs">
-                    <div class="tabs-header">
-                        <button class="tab-btn active" data-lang="ts">TypeScript / Node.js</button>
-                        <button class="tab-btn" data-lang="py">Python</button>
-                        <button class="tab-btn" data-lang="java">Java / Maven</button>
-                    </div>
-                    <div class="tab-content active" data-lang="ts">
-                        <pre><code class="language-bash"># Install the core AWA SDK
-npm install @awa/sdk
-
-# Optional: Install the visualization layer
-npm install @awa/viz</code></pre>
-                    </div>
-                    <div class="tab-content" data-lang="py">
-                        <pre><code class="language-bash"># Basic SDK
-pip install awa-sdk
-
-# With Google Cloud Datastore support
-pip install "awa-sdk[datastore]"</code></pre>
-                    </div>
-                    <div class="tab-content" data-lang="java">
-                        <pre><code class="language-xml">&lt;!-- Add to your pom.xml --&gt;
-&lt;dependency&gt;
-    &lt;groupId&gt;io.awa&lt;/groupId&gt;
-    &lt;artifactId&gt;awa-sdk&lt;/artifactId&gt;
-    &lt;version&gt;1.2.0&lt;/version&gt;
-&lt;/dependency&gt;</code></pre>
-                    </div>
-                </div>
-            </section>
-
-            <section id="visualization-setup">
-                <h2>2. Visualization Setup</h2>
-                <p>The <code>awa-viz.js</code> library allows you to render your workflows in any web-based environment.
-                    It supports both 2D (ReactFlow) and 3D (Babylon.js) views.</p>
-
-                <div class="card">
-                    <h4>Direct Inclusion (UMD)</h4>
-                    <p>For simple projects or documentation portals, include the dependencies via CDN:</p>
-                    <pre><code class="language-html">&lt;!-- React & ReactDOM --&gt;
-&lt;script src="https://unpkg.com/react@18/umd/react.production.min.js"&gt;&lt;/script&gt;
-&lt;script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"&gt;&lt;/script&gt;
-
-&lt;!-- ReactFlow (2D) --&gt;
-&lt;script src="https://cdn.jsdelivr.net/npm/reactflow@11/dist/umd/index.min.js"&gt;&lt;/script&gt;
-
-&lt;!-- Babylon.js (3D) --&gt;
-&lt;script src="https://cdn.babylonjs.com/babylon.js"&gt;&lt;/script&gt;
-
-&lt;!-- AWA Viz --&gt;
-&lt;script src="path/to/awa-viz.js"&gt;&lt;/script&gt;</code></pre>
-                </div>
-            </section>
-
-            <section id="infrastructure">
-                <h2>3. Infrastructure & Database</h2>
-                <p>AWA is database-agnostic but provides optimized connectors for high-performance systems.</p>
-
-                <div class="card-grid">
-                    <div class="card">
-                        <h3>Firebase / Datastore</h3>
-                        <p>Recommended for serverless architectures. Use the Google Cloud Datastore client for
-                            production scale.</p>
-                    </div>
-                    <div class="card">
-                        <h3>PostgreSQL</h3>
-                        <p>Standard relational backend. Use our provided DDL scripts to initialize your tables.</p>
-                    </div>
-                </div>
-
-                <h4>Backend Configuration:</h4>
-                <div class="card">
-                    <pre><code class="language-json">{
-  "AWA_DB_MODE": "datastore",
-  "AWA_PROJECT_ID": "your-project-id",
-  "AWA_METRICS_ENABLED": "true"
-}</code></pre>
-                </div>
-            </section>
-
-            <section id="schema-management">
-                <h2>4. Schema Management</h2>
-                <p>AWA is built on top of high-performance schema definition languages.</p>
-
-                <div class="card">
-                    <ul>
-                        <li><strong>Protobuf</strong>: Binary serialization for high-speed agent communication.</li>
-                        <li><strong>Avro</strong>: Schema-evolution friendly format for big data lakes.</li>
-                        <li><strong>OpenAPI</strong>: Industry standard for RESTful API documentation.</li>
-                    </ul>
-                </div>
-            </section>
-
-            <div class="footer">
-                &copy; 2026 Agentic Workflow Architecture Group. Released under Apache 2.0 License.
-            </div>
+            <section id="typescript"><h2>TypeScript SDK and the command line</h2>
+<p>Node.js 20 or later.</p>
+<pre><code class="language-bash">git clone https://github.com/yannickhuchard/agentic-workflow-architecture.git
+cd agentic-workflow-architecture/sdk/typescript
+npm install
+npm run build</code></pre>
+<p>The command line is then <code>node dist/cli/index.js</code>, or <code>awa</code> after <code>npm link</code>.</p>
+<p>The package name on npm is <code>agentic-workflow-architecture</code>. Check which version is published before relying on it: what this guide describes is SDK 2.0.0.</p>
+<div style="overflow-x:auto"><table><tr><th>Command</th><th>What it does</th></tr><tr><td><code>awa run</code></td><td>Run a workflow file; keep its journal and checkpoints</td></tr><tr><td><code>awa journey</code></td><td>Journeys kept in a runtime directory: add definitions, take in events, let time pass, list, show, export</td></tr><tr><td><code>awa replay</code></td><td>Counterfactual replay of a recorded run</td></tr><tr><td><code>awa recipe</code></td><td>Compile a workflow and a journal into a build-from-scratch recipe</td></tr><tr><td><code>awa knowledge</code></td><td>Distil, review and exchange knowledge from journals</td></tr><tr><td><code>awa serve</code></td><td>The HTTP interface</td></tr><tr><td><code>awa task</code></td><td>Human tasks: list, assign, complete</td></tr><tr><td><code>awa init</code>, <code>awa generate</code></td><td>Start a project; draft a workflow from a description</td></tr></table></div></section><section id="python"><h2>Python SDK</h2>
+<p>Python 3.10 or later.</p>
+<pre><code class="language-bash">cd sdk/python
+pip install -e &#x27;.[dev,web]&#x27;
+pytest -q</code></pre>
+<p>The Python SDK runs workflows with the journal, retry, checkpoints, contracts, verification, parallel flow, timers, compensation and business events. It does not yet have model routing, tools, journeys or replay.</p></section><section id="models"><h2>Model providers</h2>
+<p>Activities name a capability tier (<code>tier:fast</code>, <code>tier:balanced</code>, <code>tier:reasoning</code>), not a vendor. A deployment maps each tier to providers in order of preference; when one fails the next is tried.</p>
+<div style="overflow-x:auto"><table><tr><th>Provider</th><th>Needs</th></tr><tr><td>google</td><td><code>GEMINI_API_KEY</code></td></tr><tr><td>openai</td><td><code>OPENAI_API_KEY</code></td></tr><tr><td>ollama</td><td>A running Ollama; <code>OLLAMA_BASE_URL</code> if not on localhost</td></tr><tr><td>embedded</td><td><code>npm install @huggingface/transformers</code>. A small open-source model in-process: no server, no key</td></tr></table></div>
+<pre><code class="language-bash">awa run workflow.awa.json --providers google,ollama,embedded --journal run.journal.jsonl</code></pre>
+<p>Small embedded models follow a reply format well and judge poorly. Measurements are in <a href="https://github.com/yannickhuchard/agentic-workflow-architecture/blob/main/docs/embedded-models.md">embedded-models.md</a>.</p></section><section id="server"><h2>The HTTP interface</h2>
+<pre><code class="language-bash">AWA_DATA_DIR=./.awa awa serve --port 3000 --api-key mykey:admin</code></pre>
+<div style="overflow-x:auto"><table><tr><th>Variable</th><th>Effect</th></tr><tr><td><code>AWA_DATA_DIR</code></td><td>Journeys, their runs and journals are kept in this directory and survive a restart. Without it they live in the process</td></tr><tr><td><code>AWA_WORKFLOWS_DIR</code></td><td>The only directory from which <code>POST /workflows/run</code> will run a file</td></tr><tr><td><code>AWA_SIMULATE=1</code>, <code>AWA_SIMULATED_OUTPUTS</code></td><td>Run activities without calling models or tools</td></tr><tr><td><code>JWT_SECRET</code></td><td>Accept signed tokens as well as API keys</td></tr></table></div>
+<p>The interface is described in <a href="https://github.com/yannickhuchard/agentic-workflow-architecture/blob/main/spec/openapi/awa-api.yaml">spec/openapi/awa-api.yaml</a>.</p></section><section id="check"><h2>Check conformance</h2>
+<p>The conformance suite is what "implements AWA" means. Run it against either SDK:</p>
+<pre><code class="language-bash">cd sdk/typescript &amp;&amp; npx vitest run tests/conformance.test.ts</code></pre>
+<pre><code class="language-bash">cd sdk/python &amp;&amp; pytest tests/test_conformance.py -rs</code></pre>
+<p>Cases at levels an SDK does not claim are reported as skipped, never hidden.</p></section>
+            <section><p style="opacity:.7;font-size:.9em">The normative text is the <a href="https://github.com/yannickhuchard/agentic-workflow-architecture/blob/main/docs/specification.md">specification</a>. Where this guide and the specification disagree, the specification is right.</p></section>
         </main>
     </div>
-
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
     <script src="main.js"></script>
     <script>hljs.highlightAll();</script>
 </body>
-
 </html>

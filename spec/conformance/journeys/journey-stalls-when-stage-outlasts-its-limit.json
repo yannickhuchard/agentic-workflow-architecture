@@ -1,0 +1,136 @@
+{
+  "id": "journey-stalls-when-stage-outlasts-its-limit",
+  "level": "journeys",
+  "spec": "19.2",
+  "description": "A stage that lasts longer than its max_duration is stalled. It is recorded once.",
+  "start": "2026-01-05T09:00:00Z",
+  "workflows": [
+    {
+      "id": "05cfc8bf-1536-565d-90c4-d46cf2744534",
+      "name": "Claim",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "5f307bb4-bf85-5172-8171-3509ea0bf3b5",
+          "name": "Register",
+          "role_id": "198c9004-d087-5368-a42e-cdaf156aa6bb",
+          "actor_type": "application"
+        },
+        {
+          "id": "5c368df1-e98b-5663-b21c-9c6492a7192c",
+          "name": "Settle",
+          "role_id": "198c9004-d087-5368-a42e-cdaf156aa6bb",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "6b946599-72cd-5760-ad20-277a67e1812f",
+          "source_id": "5f307bb4-bf85-5172-8171-3509ea0bf3b5",
+          "target_id": "69bb5847-55fa-54f0-b35f-3511d1b6075a"
+        },
+        {
+          "id": "11a6e7eb-9fc5-5c83-9524-d3f7d7f88a6b",
+          "source_id": "69bb5847-55fa-54f0-b35f-3511d1b6075a",
+          "target_id": "5c368df1-e98b-5663-b21c-9c6492a7192c"
+        }
+      ],
+      "events": [
+        {
+          "id": "69bb5847-55fa-54f0-b35f-3511d1b6075a",
+          "name": "Documents",
+          "event_type": "message",
+          "event_definition": {
+            "name": "documents.uploaded",
+            "correlation_key": "customer_id"
+          }
+        }
+      ]
+    }
+  ],
+  "journeys": [
+    {
+      "id": "84590417-d671-5d2d-a791-f9d2157082b4",
+      "name": "Claim",
+      "version": "1.0.0",
+      "subject": {
+        "name": "customer",
+        "key": "customer_id"
+      },
+      "stages": [
+        {
+          "id": "open",
+          "name": "Open",
+          "workflows": [
+            "05cfc8bf-1536-565d-90c4-d46cf2744534"
+          ],
+          "complete_when": "paid == true",
+          "transitions": [],
+          "max_duration": "P2D"
+        }
+      ],
+      "triggers": [
+        {
+          "event": "claim.submitted",
+          "starts_journey": true,
+          "start_workflow": "05cfc8bf-1536-565d-90c4-d46cf2744534"
+        }
+      ]
+    }
+  ],
+  "actors": {
+    "Register": {
+      "output": {
+        "claim_id": "CLM-1"
+      }
+    },
+    "Settle": {
+      "output": {
+        "paid": true
+      }
+    }
+  },
+  "steps": [
+    {
+      "publish": {
+        "type": "claim.submitted",
+        "data": {
+          "customer_id": "c-1"
+        }
+      }
+    },
+    {
+      "advance": "P3D"
+    },
+    {
+      "tick": true
+    },
+    {
+      "advance": "P1D"
+    },
+    {
+      "tick": true
+    }
+  ],
+  "expect": {
+    "instances": [
+      {
+        "journey": "Claim",
+        "status": "active",
+        "stalled": true,
+        "events_count": {
+          "journey.stalled": 1
+        },
+        "events_contain": [
+          {
+            "type": "journey.stalled",
+            "data": {
+              "max_duration": "P2D"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

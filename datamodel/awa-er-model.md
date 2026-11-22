@@ -446,6 +446,13 @@ erDiagram
 | **Verification Criterion** | Single testable acceptance condition | Defined by Verification Policy |
 | **Verification Record** | Provable evidence of verification result | References Activity, contains Criterion Results |
 
+| **Business Event** | A statement that something happened (CloudEvents 1.0) | Wakes Runs, starts and moves Journey Instances |
+| **Journey** | Stages a subject passes through, with triggers, goals, exits, artefacts, touchpoints and mood rules | Names Workflows per Stage |
+| **Journey Instance** | One subject on one Journey | Belongs to Journey, has Journey Events, started Runs (via `run_id`) |
+| **Journey Event** | One entry in the append-only record of a Journey Instance | References Journey Instance, optionally a Run |
+| **Artefact** | A kind of thing that changes hands: contract, attestation, invoice, receipt, certificate | Defined by Journey, exchanged at Touchpoints |
+| **Touchpoint** | A moment of contact, with party, direction, channel and technology | Defined by Journey, realised by a Business Event, an Activity or a Tool |
+
 ---
 
 ## Notes

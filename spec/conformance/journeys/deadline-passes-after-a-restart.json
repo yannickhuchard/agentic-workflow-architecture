@@ -1,0 +1,155 @@
+{
+  "id": "deadline-passes-after-a-restart",
+  "level": "journeys",
+  "spec": "19.10",
+  "description": "A deadline fixed before a restart still passes after it, at the time it was fixed for.",
+  "start": "2026-01-05T09:00:00Z",
+  "workflows": [
+    {
+      "id": "183ed5f0-5f14-5d90-9a47-c32b0dfd26e3",
+      "name": "Claim",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "51973ae8-c536-5571-b6fa-031e9490d97a",
+          "name": "Register",
+          "role_id": "e7c21f2f-a914-5587-8d0f-0cf1aec2817d",
+          "actor_type": "application"
+        },
+        {
+          "id": "89743a58-9b5b-56f5-9444-f30b339321e6",
+          "name": "Settle",
+          "role_id": "e7c21f2f-a914-5587-8d0f-0cf1aec2817d",
+          "actor_type": "application"
+        },
+        {
+          "id": "31f3df86-0351-551a-8d9d-a738a253be24",
+          "name": "Close",
+          "role_id": "e7c21f2f-a914-5587-8d0f-0cf1aec2817d",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "38a214aa-6332-5524-bc38-80c55d8077db",
+          "source_id": "51973ae8-c536-5571-b6fa-031e9490d97a",
+          "target_id": "0ee3a10b-d410-5d3e-906f-421fa5513f3d"
+        },
+        {
+          "id": "a670dc64-a772-5b9e-a5fc-f2e1c1b15826",
+          "source_id": "0ee3a10b-d410-5d3e-906f-421fa5513f3d",
+          "target_id": "89743a58-9b5b-56f5-9444-f30b339321e6"
+        },
+        {
+          "id": "970f0f94-6f7f-5a5a-b099-59e7a406ed2d",
+          "source_id": "0ee3a10b-d410-5d3e-906f-421fa5513f3d",
+          "target_id": "31f3df86-0351-551a-8d9d-a738a253be24"
+        }
+      ],
+      "events": [
+        {
+          "id": "0ee3a10b-d410-5d3e-906f-421fa5513f3d",
+          "name": "Documents",
+          "event_type": "message",
+          "event_definition": {
+            "name": "documents.uploaded",
+            "correlation_key": "customer_id",
+            "timeout": "P5D",
+            "timeout_edge_id": "970f0f94-6f7f-5a5a-b099-59e7a406ed2d"
+          }
+        }
+      ]
+    }
+  ],
+  "journeys": [
+    {
+      "id": "3d005bd8-e19d-5392-ba19-def08861a217",
+      "name": "Claim",
+      "version": "1.0.0",
+      "subject": {
+        "name": "customer",
+        "key": "customer_id"
+      },
+      "stages": [
+        {
+          "id": "open",
+          "name": "Open",
+          "workflows": [
+            "183ed5f0-5f14-5d90-9a47-c32b0dfd26e3"
+          ],
+          "complete_when": "paid == true",
+          "transitions": []
+        }
+      ],
+      "triggers": [
+        {
+          "event": "claim.submitted",
+          "starts_journey": true,
+          "start_workflow": "183ed5f0-5f14-5d90-9a47-c32b0dfd26e3"
+        }
+      ]
+    }
+  ],
+  "actors": {
+    "Register": {
+      "output": {
+        "claim_id": "CLM-1"
+      }
+    },
+    "Settle": {
+      "output": {
+        "paid": true
+      }
+    },
+    "Close": {
+      "output": {
+        "closed": true
+      }
+    }
+  },
+  "steps": [
+    {
+      "publish": {
+        "type": "claim.submitted",
+        "data": {
+          "customer_id": "c-1"
+        }
+      }
+    },
+    {
+      "advance": "P4D"
+    },
+    {
+      "restart": true
+    },
+    {
+      "tick": true,
+      "expect": {
+        "timed_out_runs": 0
+      }
+    },
+    {
+      "advance": "P2D"
+    },
+    {
+      "tick": true,
+      "expect": {
+        "timed_out_runs": 1
+      }
+    }
+  ],
+  "expect": {
+    "instances": [
+      {
+        "journey": "Claim",
+        "runs": [
+          "completed"
+        ],
+        "data": {
+          "closed": true
+        }
+      }
+    ]
+  }
+}

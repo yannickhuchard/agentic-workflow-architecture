@@ -9,6 +9,9 @@ from .workflow_engine import WorkflowEngine, EngineStatus
 from .logger import Logger, get_logger, create_logger_from_env
 from .retry import RetryConfig, DeadLetterQueue, get_dead_letter_queue, with_retry
 from .services.task_service import TaskService, ExecutionService
+from .journal import JournalWriter, InMemoryJournalStore, FileJournalStore, parse_journal
+from .checkpoint import InMemoryCheckpointStore, FileCheckpointStore
+from .verification import VerificationEngine
 
 __all__ = [
     "Token",
@@ -25,4 +28,11 @@ __all__ = [
     "with_retry",
     "TaskService",
     "ExecutionService",
+    "JournalWriter",
+    "InMemoryJournalStore",
+    "FileJournalStore",
+    "parse_journal",
+    "InMemoryCheckpointStore",
+    "FileCheckpointStore",
+    "VerificationEngine",
 ]

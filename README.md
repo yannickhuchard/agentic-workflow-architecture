@@ -47,8 +47,8 @@ The full text is in [`docs/specification.md`](docs/specification.md). What it me
 
 | SDK | Conformance levels |
 |---|---|
-| TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `flow`, `events`, plus recipe, replay, counterfactual replay, journeys, knowledge, model routing, model decisions and tools |
-| Python | `core`, `decision`, and `document` except two rules about features it does not execute |
+| TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `flow`, `events`, `model_decision`, `tools`, `journeys`, `replay`, plus recipe, knowledge and model routing |
+| Python | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `flow`, `events` |
 | Java | Data model only |
 
 ### See a run
@@ -56,6 +56,26 @@ The full text is in [`docs/specification.md`](docs/specification.md). What it me
 Open [`tools/visualization/replay.html`](tools/visualization/replay.html) in a browser and pick a sample run, or read the [recipe](examples/claims-settlement/RECIPE.md) and the [knowledge bundle](examples/claims-settlement/knowledge/index.md) produced from the same run.
 
 To see journeys, open [`tools/visualization/journey.html`](tools/visualization/journey.html): six customers through a year with an insurer (buying a policy, claiming on it, renewing it), from an atlas of the journeys down to the workflow run behind any moment. The data comes from [`examples/claims-journey`](examples/claims-journey); the reasoning behind the view is in [`docs/ux/journey-visualisation-research.md`](docs/ux/journey-visualisation-research.md).
+
+Journeys outlive the process that touches them. Each of these commands is a separate process working on the same runtime directory:
+
+```bash
+awa journey add intake.awa.json claim.journey.json
+```
+
+```bash
+awa journey publish claim.submitted -d '{"customer_id":"c-1"}'
+```
+
+```bash
+awa journey list --stalled
+```
+
+```bash
+awa journey export -o portfolio.json
+```
+
+The exported file opens in the journey view. `awa serve` with `AWA_DATA_DIR` offers the same over HTTP, and `journey.html?live=http://localhost:3000` follows it as journeys progress.
 
 To ask what a recorded run would have done under a different model or rule:
 

@@ -1,0 +1,91 @@
+{
+  "id": "replay-live-ai-regresses",
+  "level": "replay",
+  "spec": "20.3",
+  "description": "With live AI, an agent whose output now routes the run elsewhere changes the path; a run that was completed and is not any more is a regression.",
+  "workflow": {
+    "id": "5c174113-b178-528b-b4f6-cc40a2e33a42",
+    "name": "replay-live-ai-regresses",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "8bf5d967-a800-5ddf-af06-976bef4f0278",
+        "name": "Collect",
+        "role_id": "430c4a91-058a-532c-ba24-a612c64ce3c5",
+        "actor_type": "application"
+      },
+      {
+        "id": "f02bb1fb-9f77-522e-b41e-256ab214c546",
+        "name": "Assess",
+        "role_id": "430c4a91-058a-532c-ba24-a612c64ce3c5",
+        "actor_type": "ai_agent"
+      },
+      {
+        "id": "adacc0f5-5136-5479-a7a3-28ef2dda9725",
+        "name": "Approve",
+        "role_id": "430c4a91-058a-532c-ba24-a612c64ce3c5",
+        "actor_type": "application"
+      },
+      {
+        "id": "20a8f4b9-30a5-5c7a-bfbb-81068c15df4a",
+        "name": "Escalate",
+        "role_id": "430c4a91-058a-532c-ba24-a612c64ce3c5",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "750f3a3b-36c3-5b36-a388-5b1e53233c1a",
+        "source_id": "8bf5d967-a800-5ddf-af06-976bef4f0278",
+        "target_id": "f02bb1fb-9f77-522e-b41e-256ab214c546"
+      },
+      {
+        "id": "09f39a67-60de-5428-85b8-74c2e07726db",
+        "source_id": "f02bb1fb-9f77-522e-b41e-256ab214c546",
+        "target_id": "adacc0f5-5136-5479-a7a3-28ef2dda9725",
+        "condition": "score >= 5"
+      },
+      {
+        "id": "a35bfd5c-9f6e-5ec3-8618-c8795c561a90",
+        "source_id": "f02bb1fb-9f77-522e-b41e-256ab214c546",
+        "target_id": "20a8f4b9-30a5-5c7a-bfbb-81068c15df4a",
+        "is_default": true
+      }
+    ]
+  },
+  "input": {
+    "claim": 1
+  },
+  "actors": {
+    "Collect": {
+      "output": {
+        "documents": 3
+      }
+    },
+    "Assess": {
+      "output": {
+        "score": 7
+      }
+    },
+    "Approve": {
+      "output": {
+        "approved": true
+      }
+    }
+  },
+  "ai": "live",
+  "candidate_actors": {
+    "Assess": {
+      "error": "model returned nothing usable"
+    }
+  },
+  "expect": {
+    "baseline_status": "completed",
+    "candidate_status": "failed",
+    "verdicts": {
+      "Assess": "regressed"
+    },
+    "regressions_at_least": 1
+  }
+}
