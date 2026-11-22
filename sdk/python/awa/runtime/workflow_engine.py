@@ -895,6 +895,8 @@ class WorkflowEngine:
                 }, level="meta")
                 if delay > 0:
                     self._sleep(delay)
+                # The delay counts too: an activity whose longest time ran out while it waited to be tried again is not tried
+                self._fail_if_overdue(token, activity)
                 continue
 
             # A human task that is still pending is not an outcome yet. The token is

@@ -1493,7 +1493,7 @@ For an activity, time counts from the moment a token reaches it until its outcom
 
 The engine compares the time taken with the service level:
 
-- when an activity's outcome is accepted, and before another attempt is scheduled;
+- when an activity's outcome is accepted, before another attempt is scheduled, and again once the delay before that attempt has passed;
 - when the run ends, before `run.completed` or `run.failed` is recorded;
 - when the host asks it to check the work that is waiting. A host of runs that wait MUST ask on a schedule, as it lets event waits run out (18.3).
 

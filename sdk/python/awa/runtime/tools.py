@@ -16,6 +16,7 @@ import subprocess
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
 from typing import Any, Callable
@@ -247,6 +248,12 @@ def _parse(text: str) -> Any:
         return text  # not JSON: keep the text
 
 
+def _origin(url: str) -> tuple[str, str, int | None]:
+    parts = urllib.parse.urlsplit(url)
+    default = {"http": 80, "https": 443}.get(parts.scheme)
+    return (parts.scheme, (parts.hostname or "").lower(), parts.port or default)
+
+
 class _CheckedRedirects(urllib.request.HTTPRedirectHandler):
     """Follows redirects only to hosts the deployment allows, so a permitted host cannot hand the call on"""
 
@@ -257,7 +264,16 @@ class _CheckedRedirects(urllib.request.HTTPRedirectHandler):
         host = _host(newurl)
         if self.allowed_hosts is not None and host not in self.allowed_hosts:
             raise ToolError(f'This deployment does not allow calls to host "{host}" (redirected)', "PERMISSION_DENIED")
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
+        redirected = super().redirect_request(req, fp, code, msg, headers, newurl)
+        # Headers set by the binding may carry secrets: they do not follow a redirect to another origin (17.4)
+        if redirected is not None and _origin(newurl) != _origin(req.full_url):
+            for name in list(redirected.headers):
+                if name.lower() not in ("accept", "content-type"):
+                    del redirected.headers[name]
+            for name in list(redirected.unredirected_hdrs):
+                if name.lower() not in ("accept", "content-type", "host"):
+                    del redirected.unredirected_hdrs[name]
+        return redirected
 
 
 def _send(method: str, url: str, headers: dict[str, str], body: str | None, context: ToolCallContext) -> tuple[int, str]:

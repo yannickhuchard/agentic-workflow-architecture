@@ -439,3 +439,19 @@ def test_a_host_checks_service_levels_each_time_it_lets_time_pass():
     measures = report["workflows"][0]["measures"]
     assert measures["workflow.sla_breaches"] == {"value": 1, "n": 1}
     assert measures["workflow.failure_rate"]["value"] == 1
+
+
+def test_the_delay_before_a_retry_counts_toward_the_service_level():
+    # The first attempt fails within the hour; the delay before the second runs past it
+    actors = Clocked({"Call": {"error": "upstream unavailable", "takes": 10 * 60_000}})
+    document = workflow([activity("Call", sla={"max_time": "PT1H", "escalation_policy": {"breach_action": "fail"}},
+                                  retry={"max_attempts": 3, "initial_delay": "PT2H"})])
+
+    def wait(ms):
+        actors.now += 2 * HOUR
+
+    engine = actors.engine(document, sleep=wait)
+    assert engine.run()["status"] == "failed"
+    assert actors.calls == ["Call"]                       # not tried again after its longest time had passed
+    failed = journal(engine, "token.failed")[0]
+    assert failed["data"]["error"]["code"] == "SLA_BREACH"

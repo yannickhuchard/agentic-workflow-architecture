@@ -1190,6 +1190,9 @@ export class WorkflowEngine {
             ...(info.stack && !(error instanceof ActivityError) ? { _stack: info.stack } : {}),
             ...(details || {}),
         });
+        // Whatever the failure carried, contexts are not part of the run's data (22.2)
+        const { _contexts: _given, _context_writes: _written, ...kept } = token.contextData;
+        token.contextData = kept;
         this.record({
             type: 'token.failed', token_id: token.id, ...this.nodeRef(token.activityId),
             data: { error: { message: info.message, code: info.code } },
@@ -1275,6 +1278,9 @@ export class WorkflowEngine {
                 const raw = await this.withTimeout(
                     actor.execute(activity, { ...currentInputs, _attempt: attempt }, context), timeoutMs, activity.name);
                 output = this.extractTraces(raw, ref, attempt);
+                // An actor that echoes what it was given must not carry contexts anywhere a result goes:
+                // not into the token's data, and not into the details of a rejected outcome
+                delete output._contexts;
             } catch (error: unknown) {
                 errors++;
                 const info = error_info(error);
@@ -1310,6 +1316,8 @@ export class WorkflowEngine {
                     },
                 });
                 await this.sleep(delay);
+                // The delay counts too: an activity whose longest time ran out while it waited to be tried again is not tried
+                this.failIfOverdue(token, activity);
                 continue;
             }
 

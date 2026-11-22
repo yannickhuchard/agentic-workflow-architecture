@@ -967,3 +967,16 @@ def test_an_engine_that_is_not_registered_fails_the_token():
     status, visited, engine = run_triage(triage_workflow(engine=True, use_model=False))
     assert status == "failed" and visited == ["Intake"]
     assert engine.tokens[0].get_data("_error_code") == "VALIDATION_ERROR"
+
+
+def test_headers_that_may_carry_secrets_do_not_follow_a_redirect_to_another_origin(server, other_server):
+    server.redirect_to = other_server.base + "/landed"
+    tools, _ = runner([tool("bounce", ToolBinding(kind="http", url=server.base + "/redirect",
+                                                  headers={"x-api-key": "{{secret:KEY}}", "authorization": "Bearer {{secret:KEY}}"}))],
+                      {"secrets": {"KEY": "s3cret"}})
+    assert tools.call("bounce").ok
+    first = {k.lower(): v for k, v in server.seen[-1]["headers"].items()}
+    second = {k.lower(): v for k, v in other_server.seen[-1]["headers"].items()}
+    assert first["x-api-key"] == "s3cret" and first["authorization"] == "Bearer s3cret"
+    assert "x-api-key" not in second and "authorization" not in second
+    assert "s3cret" not in json.dumps(second)

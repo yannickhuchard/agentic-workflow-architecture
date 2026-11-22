@@ -74,6 +74,18 @@ describe('Contexts', () => {
         expect(JSON.stringify(events.find(e => e.type === 'context.read'))).not.toContain('do-not-leak');     // a hash, not the value
     });
 
+    it('does not leave contexts in a failed token when a rejected result echoed them', async () => {
+        const secret = context('Secret', { initial_value: { key: 'do-not-leak' } });
+        const a = activity('Use', { context_bindings: [{ context_id: secret.id, access_mode: 'read' }], outcome_contract: { postconditions: [{ name: 'Done', expression: 'done == true' }], budgets: { max_attempts: 1 } } });
+        const { options } = clocked();
+        options.actors.application = { execute: async (_a: unknown, inputs?: Record<string, unknown>) => ({ ...inputs, done: false }) } as any;
+        const engine = new WorkflowEngine(workflow([a], [], { contexts: [secret] }), options);
+        await engine.start();
+        expect(await engine.run()).toBe('failed');
+        expect(JSON.stringify(engine.getTokens().map(t => t.contextData))).not.toContain('do-not-leak');
+        expect(JSON.stringify(engine.snapshot().tokens)).not.toContain('do-not-leak');
+    });
+
     it('keeps context values and service level records across a checkpoint', async () => {
         const order = context('Order');
         const a = activity('Write', { context_bindings: [{ context_id: order.id, access_mode: 'write' }] });
@@ -105,6 +117,18 @@ describe('Service levels', () => {
         const events = await engine.getEvents();
         expect(events.filter(e => e.type.startsWith('sla.')).map(e => e.type)).toEqual(['sla.warning', 'sla.breached']);
         expect(events.find(e => e.type === 'token.failed')?.data).toMatchObject({ error: { code: 'SLA_BREACH' } });
+    });
+
+    it('counts the delay before a retry: an activity whose time ran out while waiting to be tried again is not tried', async () => {
+        const a = activity('Call', { sla: { max_time: 'PT1H', escalation_policy: { breach_action: 'fail' } }, retry: { max_attempts: 3, initial_delay: 'PT2H' } });
+        const { clock, options } = clocked();
+        let calls = 0;
+        options.actors.application = { execute: async () => { calls++; clock.now += 10 * 60_000; throw new Error('upstream unavailable'); } } as any;
+        const engine = new WorkflowEngine(workflow([a], []), { ...options, sleep: async () => { clock.now += 2 * HOUR; } });
+        await engine.start();
+        expect(await engine.run()).toBe('failed');
+        expect(calls).toBe(1);
+        expect((await engine.getEvents()).find(e => e.type === 'token.failed')?.data).toMatchObject({ error: { code: 'SLA_BREACH' } });
     });
 
     it('lets a person finish late when the breach action is not fail, and records it', async () => {
