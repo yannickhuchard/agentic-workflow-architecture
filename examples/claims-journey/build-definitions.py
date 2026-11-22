@@ -235,9 +235,9 @@ write("motor-claim.journey.json", {
     "subject": {"name": "customer", "key": "customer_id"},
     "stages": [
         {"id": "reported", "name": "Reported", "description": "The claim is registered and its documents collected.",
-         "workflows": [intake["id"]], "complete_when": "documents_complete == true", "max_duration": "P7D"},
+         "workflows": [intake["id"]], "complete_when": "documents_complete == true", "max_duration": "P7D", "owner": "Claims intake desk"},
         {"id": "settled", "name": "Assessed and settled", "description": "The damage is assessed, the claim is routed, and the customer is paid.",
-         "on_enter": {"start_workflow": settlement["id"]}, "complete_when": "paid exists", "max_duration": "P10D"},
+         "on_enter": {"start_workflow": settlement["id"]}, "complete_when": "paid exists", "max_duration": "P10D", "owner": "Claims adjusters"},
         {"id": "followed-up", "name": "Followed up", "description": "The customer is asked how it went.",
          "on_enter": {"start_workflow": follow["id"]}, "complete_when": "followed_up == true", "max_duration": "P21D", "transitions": []},
     ],
@@ -289,7 +289,7 @@ write("policy-renewal.journey.json", {
     "description": "The month before a policy ends: offer, payment, and a renewed policy or a lapsed one.",
     "subject": {"name": "customer", "key": "customer_id"},
     "stages": [
-        {"id": "offered", "name": "Offered", "description": "The renewal terms are set and sent; the customer decides.", "workflows": [renewal["id"]], "complete_when": "renewal_paid == true", "max_duration": "P35D"},
+        {"id": "offered", "name": "Offered", "description": "The renewal terms are set and sent; the customer decides.", "workflows": [renewal["id"]], "complete_when": "renewal_paid == true", "max_duration": "P35D", "owner": "Retention team"},
         {"id": "renewed", "name": "Renewed", "description": "The new certificate is issued.", "workflows": [renewal["id"]], "complete_when": "renewed == true", "max_duration": "P2D", "transitions": []},
     ],
     "triggers": [{"event": "renewal.due", "starts_journey": True, "start_workflow": renewal["id"]}],

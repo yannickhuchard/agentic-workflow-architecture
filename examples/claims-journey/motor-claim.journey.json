@@ -17,7 +17,8 @@
         "e87dd0a6-317a-518b-99d6-58a87908b388"
       ],
       "complete_when": "documents_complete == true",
-      "max_duration": "P7D"
+      "max_duration": "P7D",
+      "owner": "Claims intake desk"
     },
     {
       "id": "settled",
@@ -27,7 +28,8 @@
         "start_workflow": "42ddec2f-18d0-5b06-837b-bf1e9c8cecdb"
       },
       "complete_when": "paid exists",
-      "max_duration": "P10D"
+      "max_duration": "P10D",
+      "owner": "Claims adjusters"
     },
     {
       "id": "followed-up",
