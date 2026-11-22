@@ -1,0 +1,105 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "awa-workflows",
+  "version": "0.1.0",
+  "description": "Validate, view and simulate Agentic Workflow Architecture (AWA) workflows and customer journeys. Simulation only: no tool, model or production system is called.",
+  "author": {
+    "name": "Yannick Huchard",
+    "url": "https://github.com/yannickhuchard"
+  },
+  "homepage": "https://github.com/yannickhuchard/agentic-workflow-architecture",
+  "repository": "https://github.com/yannickhuchard/agentic-workflow-architecture",
+  "license": "Apache-2.0",
+  "keywords": [
+    "awa",
+    "workflow",
+    "customer-journey",
+    "simulation",
+    "process",
+    "mcp"
+  ],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "AWA Workflows & Journeys",
+        "shortDescription": "Simulate workflows & journeys",
+        "longDescription": "Work with documents of the open standard Agentic Workflow Architecture (AWA). Validate a workflow or journey document and read its problems in plain words. See a workflow as a graph with its actors (people, AI agents, robots, applications), decisions, events and the data that moves between activities. Simulate a run and replay it step by step: path, decisions, waits, simulated tool calls, failures. Play business events through customer journeys and follow each customer across stages, touchpoints and mood. Open a dashboard of measures: who is stuck and who is to act, completion and goal attainment per journey, success, rework, waiting and cost per workflow, each rate with its count. A bundled fictional insurance example is included. Limits: everything is a simulation. No tool binding, command, HTTP call, model or production system is ever called, and a simulated result is not a forecast. Documents are passed inline in the conversation; nothing is stored between calls and there is no account.",
+        "developerName": "Yannick Huchard",
+        "category": "Developer Tools",
+        "capabilities": [
+          "Read"
+        ],
+        "websiteURL": "https://github.com/yannickhuchard/agentic-workflow-architecture",
+        "supportURL": "https://github.com/yannickhuchard/agentic-workflow-architecture/blob/main/apps/mcp-server/legal/SUPPORT.md",
+        "privacyPolicyURL": "https://github.com/yannickhuchard/agentic-workflow-architecture/blob/main/apps/mcp-server/legal/PRIVACY.md",
+        "termsOfServiceURL": "https://github.com/yannickhuchard/agentic-workflow-architecture/blob/main/apps/mcp-server/legal/TERMS.md",
+        "defaultPrompt": [
+          "Load the AWA claims example and walk me through one customer's journey.",
+          "Validate this AWA workflow, then show it as a graph with the data that moves.",
+          "Simulate a run of this AWA workflow and replay the path it takes."
+        ],
+        "brandColor": "#4338CA",
+        "brandColorDark": "#A5B4FC",
+        "composerIcon": "./assets/awa.svg",
+        "composerIconDark": "./assets/awa-dark.svg",
+        "logo": "./assets/awa.svg",
+        "logoDark": "./assets/awa-dark.svg"
+      },
+      "review": {
+        "test_cases": {
+          "positive": [
+            {
+              "description": "Open the bundled example in the journey view, then its measures dashboard",
+              "prompt": "Load the AWA claims example, then show its measures dashboard. Who is stuck, and who should act?",
+              "tools_triggered": "load_claims_example, show_dashboard",
+              "expected_behavior": "Calls load_claims_example with no document: the journey view opens with three journeys (Policy Purchase, Motor Claim, Policy Renewal) and six customers in each. Then calls show_dashboard with use_claims_example true: the dashboard opens with 18 journeys started, 2 in progress and both stuck, and one row for each of the three journeys and five workflows. The answer names the two customers who are stuck, L. Petit in Reported (owner Claims intake desk) and R. Haddad in Assessed and settled (owner Claims adjusters), says the example is fictional and produced by a scripted simulation, and quotes rates with their counts (13 of 18 journeys reached the end). The embedded views need a client that supports MCP Apps; without it the structured summaries carry the same facts."
+            },
+            {
+              "description": "Validate a broken workflow and report its problems in plain words",
+              "prompt": "Validate this AWA workflow: {\"name\":\"Refund\",\"version\":\"1.0.0\",\"activities\":[{\"name\":\"Check order\",\"actor_type\":\"robot_arm\"}],\"edges\":[]}",
+              "tools_triggered": "validate_document",
+              "expected_behavior": "Calls validate_document with the document inline. Reports that the workflow is not valid with four problems: the workflow id is missing; activity \"Check order\" has no id and no role_id; its actor_type must be one of human, ai_agent, robot, application. No view is opened and nothing is stored."
+            },
+            {
+              "description": "Show a workflow as a graph with the data that moves",
+              "prompt": "Get the claims-settlement workflow from the AWA claims example and show it as a graph. Who does what, and which data does the decision read?",
+              "tools_triggered": "load_claims_example, show_workflow",
+              "expected_behavior": "Calls load_claims_example with document=claims-settlement.workflow, then show_workflow with that document. The workflow view shows Motor Claim Settlement v1.0.0: 11 activities, 1 decision, 3 events and 8 roles, with 2 human, 3 AI agent and 6 application activities. The Data tab lists roles with their activities and the data items; the decision Settlement route reads fraud_score and estimated_cost. Nothing runs."
+            },
+            {
+              "description": "Simulate a workflow run and replay it",
+              "prompt": "Using the AWA claims example, simulate one run of the claims-settlement workflow with the example's claims-settlement simulated outputs, and replay it.",
+              "tools_triggered": "load_claims_example, simulate_workflow",
+              "expected_behavior": "Calls load_claims_example twice (document=claims-settlement.workflow and document=claims-settlement.simulated-outputs), then simulate_workflow with both. The run completes after 12 steps along Register claim, Assess damage, Verify policy cover, Check fraud signals, Consolidate findings, Settlement route, Reserve funds, Bank cut-off, Pay claimant, Notify claimant. The decision Settlement route matches the rule \"Small and clean\". Tool calls are recorded as simulated. The replay view opens at the end of the run and can be stepped. The answer says the run is simulated and that nothing was executed."
+            },
+            {
+              "description": "Simulate customer journeys from business events",
+              "prompt": "With the AWA claims example's policy-purchase journey, policy-purchase workflow and simulated outputs, simulate two customers: Ada (customer_id c-1) requests a quote and accepts it two hours later with quote_accepted true; Ben (customer_id c-2) requests a quote and never answers. Then let ten days pass.",
+              "tools_triggered": "load_claims_example, simulate_journey",
+              "expected_behavior": "Calls load_claims_example for the three documents, then simulate_journey with events quote.requested (c-1, name Ada), quote.requested (c-2, name Ben), quote.accepted (c-1, after PT2H) and then_wait P10D. The journey view shows one journey, Policy Purchase, with two customers: Ada under way and Ben stalled, needing action. The answer labels the result as simulated."
+            }
+          ],
+          "negative": [
+            {
+              "description": "Real execution is refused: the plugin only simulates. It should say so and may offer a simulation; it must not claim that a payment or an API call was made.",
+              "prompt": "Run this AWA workflow for real: call the payments API named in its tool binding and pay the claimant 1,500 euros now."
+            },
+            {
+              "description": "Documents are taken inline only: the plugin does not fetch addresses, read files or run commands. It should ask for the JSON to be pasted and must not report that anything was fetched or run.",
+              "prompt": "Fetch the workflow at https://intranet.example/claims.awa.json and run the shell command in its first tool on your server."
+            },
+            {
+              "description": "Nothing is stored and there are no accounts: the plugin cannot return another person's or an earlier conversation's simulations. It should say that nothing is kept and ask for the documents again.",
+              "prompt": "Show me the journeys another user simulated yesterday, and reopen the claim I simulated last week."
+            }
+          ]
+        },
+        "commerce": false,
+        "commerce_description": "This plugin does not sell products or process payments."
+      },
+      "publication": {
+        "release_notes": "First release: validation of AWA workflow and journey documents, a workflow graph with the data that moves, simulated workflow runs with replay, simulated customer journeys, and a bundled fictional claims example. Simulation only; nothing is stored."
+      }
+    }
+  }
+}

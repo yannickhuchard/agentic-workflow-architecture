@@ -1,0 +1,152 @@
+{
+  "id": "second-run-adds-an-observation",
+  "level": "knowledge",
+  "spec": "15.3",
+  "description": "A second run that exhibits the same patterns produces the same ids: each entry gains an observation and a source, and no entry is created.",
+  "workflow": {
+    "id": "762a3011-b751-51a0-b0db-f508d73803dd",
+    "name": "second-run-adds-an-observation",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "57aa2ba3-81b6-5c4a-a816-0755252381e8",
+        "name": "Price order",
+        "role_id": "e936e2de-0d90-5c7b-bc51-df7a1f64a89a",
+        "actor_type": "ai_agent",
+        "outcome_contract": {
+          "postconditions": [
+            {
+              "name": "Total is a number",
+              "expression": "typeof total == number"
+            }
+          ],
+          "budgets": {
+            "max_attempts": 3
+          }
+        },
+        "knowledge": {}
+      },
+      {
+        "id": "d052514c-af2c-55b0-b9cd-413d2b9aabe6",
+        "name": "Ship",
+        "role_id": "e936e2de-0d90-5c7b-bc51-df7a1f64a89a",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "7f14a429-53b9-5042-a5b4-c3793ab15b1f",
+        "source_id": "57aa2ba3-81b6-5c4a-a816-0755252381e8",
+        "target_id": "d052514c-af2c-55b0-b9cd-413d2b9aabe6"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "run": "first",
+      "actors": {
+        "Price order": {
+          "attempts": [
+            {
+              "output": {
+                "total": "forty"
+              },
+              "reasoning": {
+                "plan": [
+                  "estimate"
+                ],
+                "rationale": "From memory.",
+                "confidence": 0.3
+              }
+            },
+            {
+              "output": {
+                "total": 40
+              },
+              "reasoning": {
+                "plan": [
+                  "look up the price list",
+                  "sum the lines"
+                ],
+                "rationale": "Prices come from the list, not from memory.",
+                "alternatives_considered": [
+                  "estimate"
+                ],
+                "confidence": 0.9
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "status": "completed"
+      }
+    },
+    {
+      "ingest": "first"
+    },
+    {
+      "run": "second",
+      "actors": {
+        "Price order": {
+          "attempts": [
+            {
+              "output": {
+                "total": "forty"
+              },
+              "reasoning": {
+                "plan": [
+                  "estimate"
+                ],
+                "rationale": "From memory.",
+                "confidence": 0.3
+              }
+            },
+            {
+              "output": {
+                "total": 40
+              },
+              "reasoning": {
+                "plan": [
+                  "look up the price list",
+                  "sum the lines"
+                ],
+                "rationale": "Prices come from the list, not from memory.",
+                "alternatives_considered": [
+                  "estimate"
+                ],
+                "confidence": 0.9
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "status": "completed"
+      }
+    },
+    {
+      "ingest": "second"
+    }
+  ],
+  "expect": {
+    "entry_count": 2,
+    "entries": [
+      {
+        "type": "strategy",
+        "node": "Price order",
+        "status": "draft",
+        "observations": 2,
+        "sources": 2
+      },
+      {
+        "type": "failure_pattern",
+        "node": "Price order",
+        "status": "draft",
+        "observations": 2,
+        "sources": 2
+      }
+    ]
+  }
+}

@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import fs from 'fs/promises';
 import path from 'path';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID as uuidv4 } from 'crypto';
 
 export const initCommand = new Command('init')
     .description('Initialize a new AWA project with a sample workflow')

@@ -5,6 +5,7 @@ import { BusinessEvent, business_event } from '../../runtime/business_event';
 import { AwaRuntime, add_definition, is_journey_document, open_runtime_directory } from '../../runtime/runtime';
 import { JourneyDefinitionSchema } from '../../runtime/journey';
 import { parse_document } from '../../validator';
+import { compute_measures, measures_to_openmetrics, MEASURES } from '../../runtime/kpi';
 
 /**
  * Journeys over HTTP (specification 19). With AWA_DATA_DIR set, definitions,
@@ -87,3 +88,17 @@ journeyRouter.get('/transitions', async (_req, res) => { res.json((await host())
 journeyRouter.get('/portfolio', async (_req, res) => {
     try { res.json(await (await host()).export_portfolio()); } catch (error) { res.status(500).json(problem(error)); }
 });
+
+/** Measures (specification section 21): the report as data, or in the OpenMetrics text format for a metrics system to scrape */
+export const measuresRouter = Router();
+const text = (value: unknown) => (typeof value === 'string' && value ? value : undefined);
+measuresRouter.get('/', async (req, res) => {
+    try {
+        const from = text(req.query.from), to = text(req.query.to);
+        for (const instant of [from, to]) if (instant && Number.isNaN(new Date(instant).getTime())) { res.status(400).json({ error: `Not an instant: ${instant}` }); return; }
+        const report = compute_measures(await (await host()).export_portfolio(), { from, to, journey_id: text(req.query.journey_id), workflow_id: text(req.query.workflow_id) });
+        if (req.query.format === 'openmetrics') res.type('application/openmetrics-text; version=1.0.0; charset=utf-8').send(measures_to_openmetrics(report));
+        else res.json(report);
+    } catch (error) { res.status(500).json(problem(error)); }
+});
+measuresRouter.get('/definitions', (_req, res) => { res.json(MEASURES); });

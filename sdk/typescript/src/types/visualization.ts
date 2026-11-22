@@ -87,8 +87,8 @@ export const NodeMaterial3DSchema = z.object({
 export type NodeMaterial3D = z.infer<typeof NodeMaterial3DSchema>;
 
 export const NodePosition2DSchema = z.object({
-    id: z.string().uuid().optional(),
-    node_id: z.string().uuid(),
+    id: z.guid().optional(),
+    node_id: z.guid(),
     node_type: z.enum(['activity', 'event', 'decision']),
     position: Vector2DSchema,
     width: z.number().min(0).optional(),
@@ -101,8 +101,8 @@ export const NodePosition2DSchema = z.object({
 export type NodePosition2D = z.infer<typeof NodePosition2DSchema>;
 
 export const NodePosition3DSchema = z.object({
-    id: z.string().uuid().optional(),
-    node_id: z.string().uuid(),
+    id: z.guid().optional(),
+    node_id: z.guid(),
     node_type: z.enum(['activity', 'event', 'decision']),
     position: Vector3DSchema,
     rotation: QuaternionSchema.optional(),
@@ -127,8 +127,8 @@ export const EdgeStyleSchema = z.object({
 export type EdgeStyle = z.infer<typeof EdgeStyleSchema>;
 
 export const EdgeRoutingSchema = z.object({
-    id: z.string().uuid().optional(),
-    edge_id: z.string().uuid(),
+    id: z.guid().optional(),
+    edge_id: z.guid(),
     curve_type: CurveType.default('bezier'),
     control_points_2d: z.array(Vector2DSchema).optional(),
     control_points_3d: z.array(Vector3DSchema).optional(),
@@ -143,15 +143,15 @@ export type EdgeRouting = z.infer<typeof EdgeRoutingSchema>;
 // ============================================================================
 
 export const LaneSchema = z.object({
-    id: z.string().uuid(),
+    id: z.guid(),
     name: z.string(),
     label: z.string().optional(),
     description: z.string().optional(),
     orientation: LaneOrientation.default('horizontal'),
     order_index: z.number().int().optional(),
-    node_ids: z.array(z.string().uuid()).default([]),
-    role_id: z.string().uuid().optional(),
-    organization_id: z.string().uuid().optional(),
+    node_ids: z.array(z.guid()).default([]),
+    role_id: z.guid().optional(),
+    organization_id: z.guid().optional(),
     color: ColorSchema.optional(),
     collapsed: z.boolean().default(false),
 });
@@ -168,7 +168,7 @@ export const AutoLayoutConfigSchema = z.object({
     rank_spacing: z.number().min(0).default(100),
     edge_spacing: z.number().min(0).default(10),
     align: z.enum(['ul', 'ur', 'dl', 'dr']).optional(),
-    elk_options: z.record(z.unknown()).optional(),
+    elk_options: z.record(z.string(), z.unknown()).optional(),
     respect_lanes: z.boolean().default(true),
 });
 export type AutoLayoutConfig = z.infer<typeof AutoLayoutConfigSchema>;
@@ -234,8 +234,8 @@ export type ThemeConfig = z.infer<typeof ThemeConfigSchema>;
 // ============================================================================
 
 export const VisualizationConfigSchema = z.object({
-    id: z.string().uuid(),
-    workflow_id: z.string().uuid(),
+    id: z.guid(),
+    workflow_id: z.guid(),
     name: z.string().optional(),
     description: z.string().optional(),
     is_default: z.boolean().default(false),
@@ -250,7 +250,7 @@ export const VisualizationConfigSchema = z.object({
     camera_3d: CameraSettings3DSchema.optional(),
     animation: AnimationConfigSchema.optional(),
     theme: ThemeConfigSchema.optional(),
-    metadata: z.record(z.unknown()).optional(),
+    metadata: z.record(z.string(), z.unknown()).optional(),
     created_at: z.string().datetime().optional(),
     updated_at: z.string().datetime().optional(),
 });

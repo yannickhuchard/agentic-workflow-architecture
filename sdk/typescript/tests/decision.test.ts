@@ -9,7 +9,7 @@ import {
     DecisionEvaluator
 } from '../src/runtime/decision_evaluator';
 import { DecisionNode, DecisionTable, DecisionModelSchema, DecisionNodeSchema } from '../src/types';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID as uuidv4 } from 'crypto';
 
 // Helper to create a decision node
 function createDecisionNode(

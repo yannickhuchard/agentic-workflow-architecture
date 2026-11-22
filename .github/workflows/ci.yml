@@ -51,7 +51,7 @@ jobs:
       - run: git diff --exit-code spec/conformance
 
   journey-view:
-    name: Journey view in a browser
+    name: Journey view and measures page in a browser
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -65,7 +65,31 @@ jobs:
       - run: npm install --no-save --no-package-lock playwright@1 && npx playwright install --with-deps chromium
       - run: node examples/claims-journey/make-journeys.mjs && node examples/claims-journey/make-story.mjs
       - run: node tools/visualization/journey.check.mjs
+      - run: npm run build:measures && git diff --exit-code ../../tools/visualization/awa-kpis.js
+        working-directory: sdk/typescript
+      - run: node tools/visualization/dashboard.check.mjs
       - run: node examples/claims-journey/persona-walkthrough.mjs
+
+  mcp-server:
+    name: MCP server, widgets and plugin package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            sdk/typescript/package-lock.json
+            apps/mcp-server/package-lock.json
+      - run: npm ci && npx prisma generate && npm run build
+        working-directory: sdk/typescript
+      - run: node examples/claims-journey/make-journeys.mjs && node examples/claims-journey/make-story.mjs
+      - run: npm ci && npm test && npm run plugin:check
+        working-directory: apps/mcp-server
+      - run: npm install --no-save --no-package-lock playwright@1 && npx playwright install --with-deps chromium
+      - run: NODE_PATH=$PWD/node_modules npm run verify
+        working-directory: apps/mcp-server
 
   guides:
     name: Guides are up to date

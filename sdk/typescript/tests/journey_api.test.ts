@@ -63,6 +63,26 @@ describe('Journey API', () => {
         expect((await call('GET', '/transitions')).body).toEqual([]);
     });
 
+    it('reports the measures of what was recorded, as data and for a metrics system', async () => {
+        const report = await (await fetch(`${base}/api/v1/measures`)).json() as any;
+        expect(report.journeys[0]).toMatchObject({ name: 'Policy Purchase', measures: { 'journey.started': { value: 1, n: 1 }, 'journey.completion_rate': { value: 1, n: 1 }, 'journey.goal_attainment': { value: 1 } } });
+        expect(report.workflows[0].measures['workflow.success_rate']).toEqual({ value: 1, n: 1 });
+        expect(report.workflows[0].measures['workflow.tool_failure_rate']).toEqual({ value: null, n: 0 });   // no tool was called: no rate, not zero
+        const none = await (await fetch(`${base}/api/v1/measures?from=2999-01-01T00:00:00Z`)).json() as any;
+        expect(none.journeys[0].measures['journey.completion_rate']).toEqual({ value: null, n: 0 });
+        expect((await fetch(`${base}/api/v1/measures?from=yesterday`)).status).toBe(400);
+
+        const scraped = await fetch(`${base}/api/v1/measures?format=openmetrics`);
+        expect(scraped.headers.get('content-type')).toContain('application/openmetrics-text');
+        const text = await scraped.text();
+        expect(text).toContain('# TYPE awa_journey_completion_rate gauge');
+        expect(text).toContain('awa_journey_completion_rate{journey="Policy Purchase"} 1');
+        expect(text).not.toContain('awa_workflow_tool_failure_rate');
+        expect(text.endsWith('# EOF\n')).toBe(true);
+        const definitions = await (await fetch(`${base}/api/v1/measures/definitions`)).json() as any[];
+        expect(definitions.find(d => d.id === 'workflow.first_pass_yield')).toMatchObject({ unit: 'ratio', better: 'higher' });
+    });
+
     it('lets time pass on request', async () => {
         await call('POST', '/events', { type: 'quote.requested', data: { customer_id: 'c-2' } });
         const later = await call('POST', '/tick', { at: new Date(Date.now() + 8 * 24 * 3600 * 1000).toISOString() });
@@ -93,5 +113,57 @@ describe('A runtime directory', () => {
         expect(events.map(e => e.seq)).toEqual(events.map((_, i) => i + 1));
         expect(events.filter(e => e.type === 'run.resumed').length).toBeGreaterThanOrEqual(2);
         expect(fs.readdirSync(path.join(dir, 'journals'))).toHaveLength(1);
+    });
+
+    it('is held by one host at a time, and a lock left by a dead process is taken over', async () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'awa-lock-'));
+        await add_definition(dir, read('policy-purchase.awa.json'));
+        // Another live process holds it: this test's parent
+        fs.writeFileSync(path.join(dir, 'runtime.lock'), String(process.ppid));
+        await expect(open_runtime_directory(dir, { engine })).rejects.toThrow(/in use by process/);
+        // A process that no longer exists left its lock behind
+        fs.writeFileSync(path.join(dir, 'runtime.lock'), '2147483646');
+        const runtime = await open_runtime_directory(dir, { engine });
+        expect(fs.readFileSync(path.join(dir, 'runtime.lock'), 'utf-8')).toBe(String(process.pid));
+        await runtime.close();
+        expect(fs.existsSync(path.join(dir, 'runtime.lock'))).toBe(false);
+
+        // Closing twice is safe: the second call must not take away the lock a later opening holds
+        const later = await open_runtime_directory(dir, { engine });
+        await runtime.close();
+        expect(fs.readFileSync(path.join(dir, 'runtime.lock'), 'utf-8')).toBe(String(process.pid));
+        await later.close();
+        expect(fs.existsSync(path.join(dir, 'runtime.lock'))).toBe(false);
+
+        // A lock that names no process is not taken for one left behind: it may be a lock being written by something else
+        fs.writeFileSync(path.join(dir, 'runtime.lock'), '');
+        await expect(open_runtime_directory(dir, { engine })).rejects.toThrow(/names no process/);
+        expect(fs.readdirSync(dir).filter(f => f.startsWith('runtime.lock'))).toEqual(['runtime.lock']);      // nothing written aside is left
+    });
+});
+
+describe('The views that come with the SDK', () => {
+    it('writes the measures page as one file that carries the record and cannot be broken out of', async () => {
+        const { measures_page, view_directory } = await import('../src/runtime/views');
+        expect(fs.existsSync(path.join(view_directory(), 'journey.html'))).toBe(true);
+        const record = { as_of: '2026-01-01T00:00:00Z', journeys: [{ definition: { id: 'j', name: '</script><script>alert(1)</script>', stages: [] }, instances: [] }] };
+        const page = measures_page(record, { source: '</script>' });
+        expect(page).not.toContain('src="awa-kpis.js"');
+        expect(page).not.toContain('</script><script>alert(1)');
+        expect(page).toContain('\\u003c/script>\\u003cscript>alert(1)');
+        expect(page.match(/<script>/g)).toHaveLength(3);          // the measures, the record, the page's own
+        expect(page.match(/<\/script>/g)).toHaveLength(3);
+    });
+
+    it('is served by the server', async () => {
+        const server = createServer({ request_logging: false }).listen(0);
+        await new Promise(resolve => server.once('listening', resolve));
+        const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+        const page = await fetch(`${base}/views/dashboard.html`);
+        expect(page.status).toBe(200);
+        expect(page.headers.get('content-type')).toContain('text/html');
+        expect((await fetch(`${base}/views/awa-kpis.js`)).status).toBe(200);
+        expect((await fetch(`${base}/views/../package.json`)).status).toBe(404);
+        await new Promise(resolve => server.close(resolve));
     });
 });

@@ -64,7 +64,7 @@ export type ToolRequirementType = z.infer<typeof ToolRequirementType>;
 // COMMON TYPES
 // ============================================================================
 
-export const UUID = z.string().uuid();
+export const UUID = z.guid();
 export type UUID = z.infer<typeof UUID>;
 
 export const Duration = z.string().regex(/^P(?:\d+Y)?(?:\d+M)?(?:\d+W)?(?:\d+D)?(?:T(?:\d+H)?(?:\d+M)?(?:\d+(?:\.\d+)?S)?)?$/);
@@ -100,7 +100,7 @@ export type ToolRequirement = z.infer<typeof ToolRequirementSchema>;
 export const DataObjectSchema = z.object({
     name: z.string(),
     description: z.string().optional(),
-    schema: z.record(z.unknown()).optional(),
+    schema: z.record(z.string(), z.unknown()).optional(),
     required: z.boolean().default(true),
 });
 export type DataObject = z.infer<typeof DataObjectSchema>;
@@ -157,7 +157,7 @@ export const AccessRightSchema = z.object({
     resource_id: z.string().optional(),
     permission: Permission,
     scope: z.string().optional(),
-    conditions: z.record(z.unknown()).optional(),
+    conditions: z.record(z.string(), z.unknown()).optional(),
 });
 export type AccessRight = z.infer<typeof AccessRightSchema>;
 
@@ -166,7 +166,7 @@ export const ContextSchema = z.object({
     name: z.string(),
     description: z.string().optional(),
     type: ContextType,
-    schema: z.record(z.unknown()).optional(),
+    schema: z.record(z.string(), z.unknown()).optional(),
     initial_value: z.unknown().optional(),
     sync_pattern: SyncPattern,
     visibility: Visibility.default('workflow'),
@@ -248,7 +248,7 @@ export const VerificationPolicySchema = z.object({
     criteria: z.array(VerificationCriterionSchema).min(1),
     max_retries: z.number().int().min(0).max(10).default(3),
     retry_with_feedback: z.boolean().default(true),
-    output_schema: z.record(z.unknown()).optional(),
+    output_schema: z.record(z.string(), z.unknown()).optional(),
     judge_model_id: z.string().optional(),
     judge_temperature: z.number().min(0).max(1).default(0.1),
     pass_threshold: z.number().min(0).max(1).default(0.9),
@@ -301,7 +301,7 @@ export const ToolBindingSchema = z.discriminatedUnion('kind', [
         kind: z.literal('http'),
         method: z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD']).default('GET'),
         url: z.string(),
-        headers: z.record(z.string()).optional(),
+        headers: z.record(z.string(), z.string()).optional(),
     }),
     z.object({ kind: z.literal('command'), command: z.string(), args: z.array(z.string()).optional() }),
     z.object({ kind: z.literal('jsonrpc'), endpoint: z.string().url(), method: z.string() }),
@@ -314,7 +314,7 @@ export type ToolBinding = z.infer<typeof ToolBindingSchema>;
 export const ToolDefinitionSchema = z.object({
     name: z.string().regex(/^[A-Za-z_][A-Za-z0-9_-]{0,63}$/),
     description: z.string().optional(),
-    parameters: z.record(z.unknown()).optional(),
+    parameters: z.record(z.string(), z.unknown()).optional(),
     binding: ToolBindingSchema,
     documentation: z.string().url().optional(),
     timeout: Duration.optional(),
@@ -333,7 +333,7 @@ export const PostconditionSchema = z.object({
 export type Postcondition = z.infer<typeof PostconditionSchema>;
 
 export const OutcomeContractSchema = z.object({
-    output_schema: z.record(z.unknown()).optional(),
+    output_schema: z.record(z.string(), z.unknown()).optional(),
     postconditions: z.array(PostconditionSchema).default([]),
     budgets: z.object({
         max_attempts: z.number().int().min(1).max(50).optional(),
@@ -406,7 +406,7 @@ export const EventSchema = z.object({
     name: z.string(),
     description: z.string().optional(),
     event_type: z.string(),
-    event_definition: z.record(z.unknown()).optional(),
+    event_definition: z.record(z.string(), z.unknown()).optional(),
     join: JoinMode.optional(),
 });
 export type Event = z.infer<typeof EventSchema>;
@@ -472,7 +472,7 @@ export const DecisionEngineBindingSchema = z.object({
     options: z.array(z.object({ id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/), description: z.string().optional(), output_edge_id: UUID })).min(1),
     /** Token data properties the engine is given. Default: all. */
     inputs: z.array(z.string()).optional(),
-    config: z.record(z.unknown()).optional(),
+    config: z.record(z.string(), z.unknown()).optional(),
 });
 export type DecisionEngineBinding = z.infer<typeof DecisionEngineBindingSchema>;
 
@@ -528,7 +528,7 @@ export const WorkflowSchema = z.object({
     contexts: z.array(ContextSchema).default([]),
     sla: SLASchema.optional(),
     analytics: AnalyticsSchema.optional(),
-    metadata: z.record(z.unknown()).optional(),
+    metadata: z.record(z.string(), z.unknown()).optional(),
     created_at: DateTimeTz.optional(),
     updated_at: DateTimeTz.optional(),
 });
@@ -557,7 +557,7 @@ export const SystemSchema = z.object({
     type: z.enum(['erp', 'crm', 'hrm', 'scm', 'custom', 'saas', 'database', 'messaging', 'storage']),
     description: z.string().optional(),
     base_url: z.string().url().optional(),
-    auth_config: z.record(z.unknown()).optional(),
+    auth_config: z.record(z.string(), z.unknown()).optional(),
 });
 export type System = z.infer<typeof SystemSchema>;
 
@@ -581,8 +581,8 @@ export const EndpointSchema = z.object({
     method: z.enum(['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'GRPC', 'WEBSOCKET', 'GRAPHQL']).optional(),
     auth_type: z.enum(['none', 'api_key', 'oauth2', 'jwt', 'basic', 'mtls']).optional(),
     openapi_ref: z.string().optional(),
-    request_schema: z.record(z.unknown()).optional(),
-    response_schema: z.record(z.unknown()).optional(),
+    request_schema: z.record(z.string(), z.unknown()).optional(),
+    response_schema: z.record(z.string(), z.unknown()).optional(),
 });
 export type Endpoint = z.infer<typeof EndpointSchema>;
 
@@ -616,14 +616,14 @@ export const HumanTaskSchema = z.object({
     creator_type: ActorType.optional(),
     assigner_id: z.string().optional(),
     assigner_type: ActorType.optional(),
-    inputs: z.record(z.unknown()),
-    outputs: z.record(z.unknown()).optional(),
+    inputs: z.record(z.string(), z.unknown()),
+    outputs: z.record(z.string(), z.unknown()).optional(),
     created_at: DateTimeTz,
     updated_at: DateTimeTz,
     due_at: DateTimeTz.optional(),
     completed_at: DateTimeTz.optional(),
     description: z.string().optional(),
-    form_schema: z.record(z.unknown()).optional(),
+    form_schema: z.record(z.string(), z.unknown()).optional(),
     tags: z.array(z.string()).optional(),
 });
 export type HumanTask = z.infer<typeof HumanTaskSchema>;

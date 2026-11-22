@@ -75,7 +75,7 @@ awa journey list --stalled
 awa journey export -o portfolio.json
 ```
 
-The exported file opens in the journey view. `awa serve` with `AWA_DATA_DIR` offers the same over HTTP, and `journey.html?live=http://localhost:3000` follows it as journeys progress.
+The exported file opens in the journey view, and in the measures page [`tools/visualization/dashboard.html`](tools/visualization/dashboard.html): who is stuck and whose it is, what became of each journey, how each workflow's runs went, with every number opening the customers behind it. `awa measures` prints the same measures (specification section 21) and `GET /api/v1/measures?format=openmetrics` gives them to a metrics system. `awa serve` with `AWA_DATA_DIR` offers the same over HTTP, and `journey.html?live=http://localhost:3000` follows it as journeys progress.
 
 To ask what a recorded run would have done under a different model or rule:
 
@@ -84,6 +84,20 @@ awa replay workflow.awa.json run.jsonl --candidate changed.awa.json --ai recorde
 ```
 
 ---
+
+## In ChatGPT and other assistants
+
+[`apps/mcp-server`](apps/mcp-server) is an MCP server with embedded views (MCP Apps), packaged as a ChatGPT plugin in [`plugins/awa`](plugins/awa). In a conversation it validates a workflow or journey document, shows a workflow as a graph with the data that moves, simulates a run and replays it, plays business events through customer journeys, and opens the measures dashboard. It simulates only: no tool, command, model or production system named by a document is ever called, and nothing is kept between calls.
+
+```bash
+cd sdk/typescript && npm install && npm run build
+```
+
+```bash
+cd apps/mcp-server && npm install && npm start
+```
+
+It runs today in development mode (ChatGPT developer mode, or any MCP client, over `http://127.0.0.1:8787/mcp` or stdio). [`apps/mcp-server/SUBMISSION.md`](apps/mcp-server/SUBMISSION.md) lists what is ready for the store and what only the owner can do: hosting, domain verification, the demo recording and the submission itself.
 
 ## Other features
 

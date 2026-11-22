@@ -115,6 +115,10 @@
                 }
               }
             }
+          },
+          "owner": {
+            "type": "string",
+            "description": "Who must act when the journey stalls in this stage: a team, a role or a person"
           }
         }
       }

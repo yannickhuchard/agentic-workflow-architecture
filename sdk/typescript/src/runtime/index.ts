@@ -20,3 +20,5 @@ export * from './business_event';
 export * from './journey';
 export * from './runtime';
 export * from './counterfactual';
+export * from './kpi';
+export * from './views';

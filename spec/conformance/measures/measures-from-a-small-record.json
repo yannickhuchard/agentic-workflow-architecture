@@ -1,0 +1,735 @@
+{
+  "id": "measures-from-a-small-record",
+  "level": "measures",
+  "spec": "21",
+  "description": "Four journeys of one kind and their four runs: two completed, one abandoned, one stalled. Every value follows from the record by the rules of section 21; a measure with nothing to be computed from has no value.",
+  "recorded": {
+    "as_of": "2026-01-10T09:00:00.000Z",
+    "workflows": [
+      {
+        "id": "fulfil",
+        "name": "Fulfil",
+        "activities": [
+          {
+            "id": "pack",
+            "name": "Pack",
+            "actor_type": "ai_agent"
+          },
+          {
+            "id": "approve",
+            "name": "Approve",
+            "actor_type": "human"
+          }
+        ]
+      }
+    ],
+    "journeys": [
+      {
+        "definition": {
+          "id": "order",
+          "name": "Order",
+          "stages": [
+            {
+              "id": "placed",
+              "name": "Placed",
+              "max_duration": "P1D",
+              "owner": "Sales desk"
+            },
+            {
+              "id": "delivered",
+              "name": "Delivered"
+            }
+          ],
+          "goals": [
+            {
+              "id": "delivered",
+              "name": "Delivered"
+            }
+          ],
+          "sentiment": {
+            "min": -2,
+            "max": 2,
+            "initial": 0
+          }
+        },
+        "instances": [
+          {
+            "instance": {
+              "id": "i-a",
+              "journey_id": "order",
+              "subject_key": "a",
+              "status": "completed",
+              "stage_id": "delivered",
+              "stage_entered_at": "2026-01-05T10:00:00.000Z",
+              "stalled": false,
+              "started_at": "2026-01-05T09:00:00.000Z",
+              "goals_reached": [
+                "delivered"
+              ],
+              "stage_history": [
+                {
+                  "stage_id": "placed",
+                  "entered_at": "2026-01-05T09:00:00.000Z",
+                  "left_at": "2026-01-05T10:00:00.000Z"
+                },
+                {
+                  "stage_id": "delivered",
+                  "entered_at": "2026-01-05T10:00:00.000Z",
+                  "left_at": "2026-01-05T11:00:00.000Z"
+                }
+              ],
+              "events": [
+                {
+                  "type": "journey.started",
+                  "time": "2026-01-05T09:00:00.000Z",
+                  "stage_id": "placed",
+                  "data": {
+                    "sentiment": 0
+                  }
+                },
+                {
+                  "type": "journey.touchpoint",
+                  "time": "2026-01-05T09:00:00.000Z",
+                  "data": {
+                    "channel": "web",
+                    "direction": "inbound",
+                    "technology": "Shop",
+                    "artefacts": []
+                  }
+                },
+                {
+                  "type": "journey.touchpoint",
+                  "time": "2026-01-05T10:00:00.000Z",
+                  "data": {
+                    "channel": "email",
+                    "direction": "outbound",
+                    "technology": "Shop",
+                    "artefacts": [
+                      {
+                        "kind": "receipt"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "type": "journey.sentiment_changed",
+                  "time": "2026-01-05T11:00:00.000Z",
+                  "data": {
+                    "basis": "measured"
+                  }
+                }
+              ],
+              "ended_at": "2026-01-05T11:00:00.000Z",
+              "sentiment": 1
+            },
+            "runs": [
+              {
+                "run_id": "r1",
+                "workflow_id": "fulfil",
+                "stage_id": "placed",
+                "events": [
+                  {
+                    "type": "run.started",
+                    "time": "2026-01-05T09:00:00.000Z",
+                    "seq": 1,
+                    "data": {
+                      "workflow_name": "Fulfil"
+                    }
+                  },
+                  {
+                    "type": "activity.started",
+                    "time": "2026-01-05T09:00:00.000Z",
+                    "seq": 2,
+                    "node_id": "pack",
+                    "node_name": "Pack",
+                    "data": {
+                      "actor_type": "ai_agent"
+                    }
+                  },
+                  {
+                    "type": "activity.completed",
+                    "time": "2026-01-05T09:10:00.000Z",
+                    "seq": 3,
+                    "node_id": "pack",
+                    "node_name": "Pack",
+                    "data": {
+                      "actor_type": "ai_agent",
+                      "duration_ms": 600000,
+                      "usage": {
+                        "input_tokens": 100,
+                        "output_tokens": 20
+                      }
+                    }
+                  },
+                  {
+                    "type": "event.waiting",
+                    "time": "2026-01-05T09:10:00.000Z",
+                    "seq": 4,
+                    "node_id": "paid",
+                    "node_name": "Paid"
+                  },
+                  {
+                    "type": "event.received",
+                    "time": "2026-01-05T09:40:00.000Z",
+                    "seq": 5,
+                    "node_id": "paid",
+                    "node_name": "Paid"
+                  },
+                  {
+                    "type": "run.completed",
+                    "time": "2026-01-05T10:00:00.000Z",
+                    "seq": 6,
+                    "data": {
+                      "cost": 0.02,
+                      "currency": "EUR",
+                      "input_tokens": 100,
+                      "output_tokens": 20
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "instance": {
+              "id": "i-b",
+              "journey_id": "order",
+              "subject_key": "b",
+              "status": "completed",
+              "stage_id": "delivered",
+              "stage_entered_at": "2026-01-06T12:00:00.000Z",
+              "stalled": false,
+              "started_at": "2026-01-06T09:00:00.000Z",
+              "goals_reached": [
+                "delivered"
+              ],
+              "stage_history": [
+                {
+                  "stage_id": "placed",
+                  "entered_at": "2026-01-06T09:00:00.000Z",
+                  "left_at": "2026-01-06T12:00:00.000Z"
+                },
+                {
+                  "stage_id": "delivered",
+                  "entered_at": "2026-01-06T12:00:00.000Z",
+                  "left_at": "2026-01-06T15:00:00.000Z"
+                }
+              ],
+              "events": [
+                {
+                  "type": "journey.started",
+                  "time": "2026-01-06T09:00:00.000Z",
+                  "stage_id": "placed",
+                  "data": {
+                    "sentiment": 0
+                  }
+                },
+                {
+                  "type": "journey.touchpoint",
+                  "time": "2026-01-06T09:00:00.000Z",
+                  "data": {
+                    "channel": "web",
+                    "direction": "inbound",
+                    "technology": "Shop",
+                    "artefacts": []
+                  }
+                },
+                {
+                  "type": "journey.stalled",
+                  "time": "2026-01-06T11:00:00.000Z",
+                  "stage_id": "placed",
+                  "data": {
+                    "stage_name": "Placed",
+                    "max_duration": "P1D",
+                    "owner": "Sales desk"
+                  }
+                },
+                {
+                  "type": "journey.sentiment_changed",
+                  "time": "2026-01-06T15:00:00.000Z",
+                  "data": {
+                    "basis": "inferred"
+                  }
+                }
+              ],
+              "ended_at": "2026-01-06T15:00:00.000Z",
+              "sentiment": 2
+            },
+            "runs": [
+              {
+                "run_id": "r2",
+                "workflow_id": "fulfil",
+                "stage_id": "placed",
+                "events": [
+                  {
+                    "type": "run.started",
+                    "time": "2026-01-06T09:00:00.000Z",
+                    "seq": 7,
+                    "data": {
+                      "workflow_name": "Fulfil"
+                    }
+                  },
+                  {
+                    "type": "activity.started",
+                    "time": "2026-01-06T09:00:00.000Z",
+                    "seq": 8,
+                    "node_id": "pack",
+                    "node_name": "Pack",
+                    "data": {
+                      "actor_type": "ai_agent"
+                    }
+                  },
+                  {
+                    "type": "activity.failed",
+                    "time": "2026-01-06T09:01:00.000Z",
+                    "seq": 9,
+                    "node_id": "pack",
+                    "node_name": "Pack",
+                    "data": {
+                      "duration_ms": 60000,
+                      "error": {
+                        "code": "TIMEOUT",
+                        "message": "too slow"
+                      }
+                    }
+                  },
+                  {
+                    "type": "activity.retry_scheduled",
+                    "time": "2026-01-06T09:01:00.000Z",
+                    "seq": 10,
+                    "node_id": "pack",
+                    "node_name": "Pack",
+                    "data": {
+                      "next_attempt": 2
+                    }
+                  },
+                  {
+                    "type": "activity.started",
+                    "time": "2026-01-06T09:02:00.000Z",
+                    "seq": 11,
+                    "node_id": "pack",
+                    "node_name": "Pack",
+                    "data": {
+                      "actor_type": "ai_agent"
+                    }
+                  },
+                  {
+                    "type": "tool.invoked",
+                    "time": "2026-01-06T09:03:00.000Z",
+                    "seq": 12,
+                    "node_id": "pack",
+                    "data": {
+                      "tool": "label"
+                    }
+                  },
+                  {
+                    "type": "tool.completed",
+                    "time": "2026-01-06T09:03:00.000Z",
+                    "seq": 13,
+                    "node_id": "pack",
+                    "data": {
+                      "tool": "label",
+                      "duration_ms": 5
+                    }
+                  },
+                  {
+                    "type": "tool.invoked",
+                    "time": "2026-01-06T09:04:00.000Z",
+                    "seq": 14,
+                    "node_id": "pack",
+                    "data": {
+                      "tool": "label"
+                    }
+                  },
+                  {
+                    "type": "tool.failed",
+                    "time": "2026-01-06T09:04:00.000Z",
+                    "seq": 15,
+                    "node_id": "pack",
+                    "data": {
+                      "tool": "label"
+                    }
+                  },
+                  {
+                    "type": "activity.completed",
+                    "time": "2026-01-06T09:11:00.000Z",
+                    "seq": 16,
+                    "node_id": "pack",
+                    "node_name": "Pack",
+                    "data": {
+                      "actor_type": "ai_agent",
+                      "duration_ms": 540000,
+                      "usage": {
+                        "input_tokens": 300,
+                        "output_tokens": 40
+                      }
+                    }
+                  },
+                  {
+                    "type": "decision.evaluated",
+                    "time": "2026-01-06T09:11:00.000Z",
+                    "seq": 17,
+                    "node_id": "route",
+                    "node_name": "Route",
+                    "data": {
+                      "method": "table",
+                      "used_default": false
+                    }
+                  },
+                  {
+                    "type": "decision.evaluated",
+                    "time": "2026-01-06T09:11:00.000Z",
+                    "seq": 18,
+                    "node_id": "route",
+                    "node_name": "Route",
+                    "data": {
+                      "method": "model",
+                      "used_default": false
+                    }
+                  },
+                  {
+                    "type": "activity.started",
+                    "time": "2026-01-06T09:12:00.000Z",
+                    "seq": 19,
+                    "node_id": "approve",
+                    "node_name": "Approve",
+                    "data": {
+                      "actor_type": "human"
+                    }
+                  },
+                  {
+                    "type": "token.waiting",
+                    "time": "2026-01-06T09:12:00.000Z",
+                    "seq": 20,
+                    "node_id": "approve",
+                    "data": {
+                      "reason": "human_task"
+                    }
+                  },
+                  {
+                    "type": "token.resumed",
+                    "time": "2026-01-06T10:12:00.000Z",
+                    "seq": 21,
+                    "node_id": "approve",
+                    "data": {
+                      "waited_ms": 3600000
+                    }
+                  },
+                  {
+                    "type": "activity.completed",
+                    "time": "2026-01-06T10:22:00.000Z",
+                    "seq": 22,
+                    "node_id": "approve",
+                    "node_name": "Approve",
+                    "data": {
+                      "actor_type": "human",
+                      "duration_ms": 600000
+                    }
+                  },
+                  {
+                    "type": "run.completed",
+                    "time": "2026-01-06T12:00:00.000Z",
+                    "seq": 23,
+                    "data": {
+                      "cost": 0.04,
+                      "currency": "EUR",
+                      "input_tokens": 300,
+                      "output_tokens": 40
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "instance": {
+              "id": "i-c",
+              "journey_id": "order",
+              "subject_key": "c",
+              "status": "abandoned",
+              "stage_id": "placed",
+              "stage_entered_at": "2026-01-07T09:00:00.000Z",
+              "stalled": false,
+              "started_at": "2026-01-07T09:00:00.000Z",
+              "goals_reached": [],
+              "stage_history": [
+                {
+                  "stage_id": "placed",
+                  "entered_at": "2026-01-07T09:00:00.000Z",
+                  "left_at": "2026-01-07T10:00:00.000Z"
+                }
+              ],
+              "events": [
+                {
+                  "type": "journey.started",
+                  "time": "2026-01-07T09:00:00.000Z",
+                  "stage_id": "placed",
+                  "data": {
+                    "sentiment": 0
+                  }
+                },
+                {
+                  "type": "journey.touchpoint",
+                  "time": "2026-01-07T09:00:00.000Z",
+                  "data": {
+                    "channel": "phone",
+                    "direction": "inbound",
+                    "technology": "Shop",
+                    "artefacts": []
+                  }
+                },
+                {
+                  "type": "journey.sentiment_changed",
+                  "time": "2026-01-07T10:00:00.000Z",
+                  "data": {
+                    "basis": "inferred"
+                  }
+                }
+              ],
+              "ended_at": "2026-01-07T10:00:00.000Z",
+              "sentiment": -1
+            },
+            "runs": [
+              {
+                "run_id": "r3",
+                "workflow_id": "fulfil",
+                "stage_id": "placed",
+                "events": [
+                  {
+                    "type": "run.started",
+                    "time": "2026-01-07T09:00:00.000Z",
+                    "seq": 24,
+                    "data": {
+                      "workflow_name": "Fulfil"
+                    }
+                  },
+                  {
+                    "type": "event.waiting",
+                    "time": "2026-01-07T09:05:00.000Z",
+                    "seq": 25,
+                    "node_id": "paid",
+                    "node_name": "Paid"
+                  },
+                  {
+                    "type": "event.timed_out",
+                    "time": "2026-01-07T10:00:00.000Z",
+                    "seq": 26,
+                    "node_id": "paid",
+                    "node_name": "Paid"
+                  },
+                  {
+                    "type": "run.cancelled",
+                    "time": "2026-01-07T10:00:00.000Z",
+                    "seq": 27,
+                    "data": {
+                      "reason": "journey abandoned"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "instance": {
+              "id": "i-d",
+              "journey_id": "order",
+              "subject_key": "d",
+              "status": "active",
+              "stage_id": "placed",
+              "stage_entered_at": "2026-01-08T09:00:00.000Z",
+              "stalled": true,
+              "started_at": "2026-01-08T09:00:00.000Z",
+              "goals_reached": [],
+              "stage_history": [
+                {
+                  "stage_id": "placed",
+                  "entered_at": "2026-01-08T09:00:00.000Z"
+                }
+              ],
+              "events": [
+                {
+                  "type": "journey.started",
+                  "time": "2026-01-08T09:00:00.000Z",
+                  "stage_id": "placed",
+                  "data": {
+                    "sentiment": 0
+                  }
+                },
+                {
+                  "type": "journey.stalled",
+                  "time": "2026-01-09T09:00:00.000Z",
+                  "stage_id": "placed",
+                  "data": {
+                    "stage_name": "Placed",
+                    "max_duration": "P1D",
+                    "owner": "Sales desk"
+                  }
+                }
+              ],
+              "sentiment": 0
+            },
+            "runs": [
+              {
+                "run_id": "r4",
+                "workflow_id": "fulfil",
+                "stage_id": "placed",
+                "events": [
+                  {
+                    "type": "run.started",
+                    "time": "2026-01-08T09:00:00.000Z",
+                    "seq": 28,
+                    "data": {
+                      "workflow_name": "Fulfil"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "transitions": []
+  },
+  "options": {},
+  "expect": {
+    "currency": "EUR",
+    "journeys": [
+      {
+        "name": "Order",
+        "measures": {
+          "journey.started": 4,
+          "journey.active": 1,
+          "journey.completion_rate": 0.5,
+          "journey.abandonment_rate": 0.25,
+          "journey.stall_rate": 0.5,
+          "journey.stalled_now": 1,
+          "journey.goal_attainment": 0.5,
+          "journey.duration_median_ms": 7200000,
+          "journey.duration_p90_ms": 21600000,
+          "journey.mood_end": 0.6666666666666666,
+          "journey.mood_change": 0.6666666666666666,
+          "journey.mood_measured_share": 0.3333333333333333,
+          "journey.touchpoints_per_journey": 1,
+          "journey.runs_per_journey": 1,
+          "journey.cost_per_journey": 0.015
+        },
+        "stages": [
+          {
+            "stage_id": "placed",
+            "owner": "Sales desk",
+            "measures": {
+              "stage.entered": 4,
+              "stage.conversion": 0.5,
+              "stage.duration_median_ms": 3600000,
+              "stage.breach_rate": 0.5,
+              "stage.active": 1,
+              "stage.stalled_now": 1,
+              "stage.abandoned": 1
+            }
+          },
+          {
+            "stage_id": "delivered",
+            "measures": {
+              "stage.entered": 2,
+              "stage.conversion": 1,
+              "stage.duration_median_ms": 3600000,
+              "stage.breach_rate": 0,
+              "stage.active": 0,
+              "stage.stalled_now": 0,
+              "stage.abandoned": 0
+            }
+          }
+        ],
+        "channels": [
+          {
+            "channel": "web",
+            "touchpoints": 2,
+            "inbound": 2,
+            "outbound": 0
+          },
+          {
+            "channel": "email",
+            "touchpoints": 1,
+            "inbound": 0,
+            "outbound": 1
+          },
+          {
+            "channel": "phone",
+            "touchpoints": 1,
+            "inbound": 1,
+            "outbound": 0
+          }
+        ],
+        "artefacts": [
+          {
+            "kind": "receipt",
+            "count": 1
+          }
+        ]
+      }
+    ],
+    "workflows": [
+      {
+        "name": "Fulfil",
+        "measures": {
+          "workflow.runs": 4,
+          "workflow.in_progress": 1,
+          "workflow.success_rate": 0.6666666666666666,
+          "workflow.failure_rate": 0,
+          "workflow.cancel_rate": 0.3333333333333333,
+          "workflow.first_pass_yield": 0.3333333333333333,
+          "workflow.lead_time_median_ms": 3600000,
+          "workflow.lead_time_p90_ms": 10800000,
+          "workflow.process_time_median_ms": 600000,
+          "workflow.flow_efficiency": 0.1,
+          "workflow.event_wait_median_ms": 1800000,
+          "workflow.event_timeout_rate": 0.5,
+          "workflow.human_wait_median_ms": 3600000,
+          "workflow.automation_rate": 0.6666666666666666,
+          "workflow.retries": 1,
+          "workflow.dead_letters": 0,
+          "workflow.compensations": 0,
+          "workflow.tool_calls": 2,
+          "workflow.tool_failure_rate": 0.5,
+          "workflow.contract_pass_rate": null,
+          "workflow.verification_pass_rate": null,
+          "workflow.decisions": 2,
+          "workflow.decision_default_rate": 0,
+          "workflow.model_decision_share": 0.5,
+          "workflow.input_tokens": 400,
+          "workflow.output_tokens": 60,
+          "workflow.cost": 0.06,
+          "workflow.cost_per_run": 0.02
+        },
+        "activities": [
+          {
+            "name": "Pack",
+            "measures": {
+              "activity.attempts": 3,
+              "activity.failure_rate": 0.3333333333333333,
+              "activity.duration_median_ms": 540000,
+              "activity.tokens": 460
+            }
+          },
+          {
+            "name": "Approve",
+            "measures": {
+              "activity.attempts": 1,
+              "activity.failure_rate": 0,
+              "activity.duration_median_ms": 600000
+            }
+          }
+        ]
+      }
+    ],
+    "attention": [
+      {
+        "subject_key": "d",
+        "stage_id": "placed",
+        "owner": "Sales desk",
+        "waiting_ms": 172800000
+      }
+    ]
+  }
+}

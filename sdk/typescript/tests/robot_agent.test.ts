@@ -5,7 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import { RobotAgent, RobotConfig } from '../src/runtime/actors/robot_agent';
 import { Activity } from '../src/types';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID as uuidv4 } from 'crypto';
 
 // Helper to create a mock robot activity
 function createRobotActivity(name: string, description?: string): Activity {

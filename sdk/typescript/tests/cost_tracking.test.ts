@@ -10,7 +10,7 @@ import { ExecutionLogger } from '../src/runtime/execution_logger';
 // Mock Actors
 vi.mock('../src/runtime/actors/ai_agent', () => {
     return {
-        AIAgent: vi.fn().mockImplementation(() => ({
+        AIAgent: vi.fn().mockImplementation(function () { return {
             execute: vi.fn().mockResolvedValue({
                 output: 'Mock Output',
                 status: 'completed',
@@ -19,24 +19,24 @@ vi.mock('../src/runtime/actors/ai_agent', () => {
                     output_tokens: 50
                 }
             })
-        }))
+        }; })
     };
 });
 
 vi.mock('../src/runtime/actors/software_agent', () => {
     return {
-        SoftwareAgent: vi.fn().mockImplementation(() => ({
+        SoftwareAgent: vi.fn().mockImplementation(function () { return {
             execute: vi.fn().mockResolvedValue({
                 output: 'App Output',
                 status: 'completed'
             })
-        }))
+        }; })
     };
 });
 
 vi.mock('../src/runtime/actors/human_agent', () => {
     return {
-        HumanAgent: vi.fn().mockImplementation(() => ({
+        HumanAgent: vi.fn().mockImplementation(function () { return {
             execute: vi.fn().mockImplementation(async () => {
                 // Simulate delay
                 await new Promise(resolve => setTimeout(resolve, 10));
@@ -45,13 +45,13 @@ vi.mock('../src/runtime/actors/human_agent', () => {
                     status: 'completed'
                 };
             })
-        }))
+        }; })
     };
 });
 
 vi.mock('../src/runtime/actors/robot_agent', () => {
     return {
-        RobotAgent: vi.fn().mockImplementation(() => ({
+        RobotAgent: vi.fn().mockImplementation(function () { return {
             execute: vi.fn().mockImplementation(async () => {
                 // Simulate delay
                 await new Promise(resolve => setTimeout(resolve, 10));
@@ -60,7 +60,7 @@ vi.mock('../src/runtime/actors/robot_agent', () => {
                     status: 'completed'
                 };
             })
-        }))
+        }; })
     };
 });
 

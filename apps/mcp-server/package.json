@@ -1,0 +1,25 @@
+{
+  "name": "awa-mcp-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MCP server and MCP Apps widgets for Agentic Workflow Architecture (AWA): validate, view and simulate workflows and customer journeys. Simulation only.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "engines": { "node": ">=20" },
+  "bin": { "awa-mcp": "src/start.js" },
+  "scripts": {
+    "start": "node src/start.js",
+    "start:stdio": "node src/start.js --stdio",
+    "test": "node --test tests/*.test.js",
+    "verify": "node scripts/verify-widgets.mjs",
+    "preview": "node scripts/verify-widgets.mjs --serve-only",
+    "plugin:check": "node scripts/check-plugin.mjs",
+    "plugin:package": "node scripts/package-plugin.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/ext-apps": "^2.0.4",
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "agentic-workflow-architecture": "file:../../sdk/typescript",
+    "zod": "^4.6.7"
+  }
+}

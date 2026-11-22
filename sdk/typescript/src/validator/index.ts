@@ -20,7 +20,7 @@ export interface ValidationError {
 }
 
 function formatZodError(error: ZodError): ValidationError[] {
-    return error.errors.map(e => ({
+    return error.issues.map(e => ({
         path: e.path.join('.'),
         message: e.message,
         code: e.code,

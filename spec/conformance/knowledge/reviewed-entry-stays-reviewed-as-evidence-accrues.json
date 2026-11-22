@@ -1,0 +1,121 @@
+{
+  "id": "reviewed-entry-stays-reviewed-as-evidence-accrues",
+  "level": "knowledge",
+  "spec": "15.3",
+  "description": "Evidence from a later run adds to a reviewed entry without changing its status.",
+  "workflow": {
+    "id": "9d2369e4-b8ec-57f4-b28a-05f9dba2fcd9",
+    "name": "reviewed-entry-stays-reviewed-as-evidence-accrues",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "542f3859-5650-54bc-8e67-9cd542d574ec",
+        "name": "Price order",
+        "role_id": "ec071ebe-0a42-5a5d-9a28-7c172282afbf",
+        "actor_type": "ai_agent",
+        "outcome_contract": {
+          "postconditions": [
+            {
+              "name": "Total is a number",
+              "expression": "typeof total == number"
+            }
+          ],
+          "budgets": {
+            "max_attempts": 3
+          }
+        },
+        "knowledge": {}
+      },
+      {
+        "id": "a0660f49-3d96-507d-b296-640d0fc81c94",
+        "name": "Ship",
+        "role_id": "ec071ebe-0a42-5a5d-9a28-7c172282afbf",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "8dc075dc-fe00-5be2-a3a8-8517a1a3adfb",
+        "source_id": "542f3859-5650-54bc-8e67-9cd542d574ec",
+        "target_id": "a0660f49-3d96-507d-b296-640d0fc81c94"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "run": "first",
+      "actors": {
+        "Price order": {
+          "output": {
+            "total": 40
+          },
+          "reasoning": {
+            "plan": [
+              "look up the price list",
+              "sum the lines"
+            ],
+            "rationale": "Prices come from the list, not from memory.",
+            "alternatives_considered": [
+              "estimate"
+            ],
+            "confidence": 0.9
+          }
+        }
+      },
+      "expect": {
+        "status": "completed"
+      }
+    },
+    {
+      "ingest": "first"
+    },
+    {
+      "review": {
+        "type": "strategy",
+        "node": "Price order"
+      },
+      "by": "ana"
+    },
+    {
+      "run": "second",
+      "actors": {
+        "Price order": {
+          "output": {
+            "total": 40
+          },
+          "reasoning": {
+            "plan": [
+              "look up the price list",
+              "sum the lines"
+            ],
+            "rationale": "Prices come from the list, not from memory.",
+            "alternatives_considered": [
+              "estimate"
+            ],
+            "confidence": 0.9
+          }
+        }
+      },
+      "expect": {
+        "status": "completed"
+      }
+    },
+    {
+      "ingest": "second"
+    }
+  ],
+  "expect": {
+    "entry_count": 1,
+    "entries": [
+      {
+        "type": "strategy",
+        "node": "Price order",
+        "status": "reviewed",
+        "observations": 2,
+        "sources": 2,
+        "reviewed_by": "ana"
+      }
+    ]
+  }
+}

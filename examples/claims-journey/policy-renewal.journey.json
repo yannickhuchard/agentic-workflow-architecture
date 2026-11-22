@@ -17,7 +17,8 @@
         "81caa07d-5e3c-5d4a-b7a5-9ab82b649ac7"
       ],
       "complete_when": "renewal_paid == true",
-      "max_duration": "P35D"
+      "max_duration": "P35D",
+      "owner": "Retention team"
     },
     {
       "id": "renewed",

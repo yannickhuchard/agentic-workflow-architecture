@@ -1,0 +1,110 @@
+{
+  "id": "ingesting-a-run-twice-counts-it-once",
+  "level": "knowledge",
+  "spec": "15.3",
+  "description": "Ingesting is idempotent: a run that was already ingested changes nothing.",
+  "workflow": {
+    "id": "996b54d1-a591-53cd-a3cf-80aca4b1928d",
+    "name": "ingesting-a-run-twice-counts-it-once",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "454ba3b6-369f-56bf-8254-dffb78ed597d",
+        "name": "Price order",
+        "role_id": "f4c4e7c8-c8ae-589c-9bc6-c69a91480ff5",
+        "actor_type": "ai_agent",
+        "outcome_contract": {
+          "postconditions": [
+            {
+              "name": "Total is a number",
+              "expression": "typeof total == number"
+            }
+          ],
+          "budgets": {
+            "max_attempts": 3
+          }
+        },
+        "knowledge": {}
+      },
+      {
+        "id": "7c08f3d3-4570-5598-af7c-b31b0200002b",
+        "name": "Ship",
+        "role_id": "f4c4e7c8-c8ae-589c-9bc6-c69a91480ff5",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "a26a9e4d-bf86-5b04-9bdc-c808ca779dc7",
+        "source_id": "454ba3b6-369f-56bf-8254-dffb78ed597d",
+        "target_id": "7c08f3d3-4570-5598-af7c-b31b0200002b"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "run": "first",
+      "actors": {
+        "Price order": {
+          "attempts": [
+            {
+              "output": {
+                "total": "forty"
+              },
+              "reasoning": {
+                "plan": [
+                  "estimate"
+                ],
+                "rationale": "From memory.",
+                "confidence": 0.3
+              }
+            },
+            {
+              "output": {
+                "total": 40
+              },
+              "reasoning": {
+                "plan": [
+                  "look up the price list",
+                  "sum the lines"
+                ],
+                "rationale": "Prices come from the list, not from memory.",
+                "alternatives_considered": [
+                  "estimate"
+                ],
+                "confidence": 0.9
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "status": "completed"
+      }
+    },
+    {
+      "ingest": "first"
+    },
+    {
+      "ingest": "first"
+    }
+  ],
+  "expect": {
+    "entry_count": 2,
+    "entries": [
+      {
+        "type": "strategy",
+        "node": "Price order",
+        "observations": 1,
+        "sources": 1
+      },
+      {
+        "type": "failure_pattern",
+        "node": "Price order",
+        "observations": 1,
+        "sources": 1
+      }
+    ]
+  }
+}

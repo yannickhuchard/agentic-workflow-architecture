@@ -2,13 +2,14 @@ import express from 'express';
 import cors from 'cors';
 import { workflowRouter } from './routes/workflows';
 import { humanTaskRouter } from './routes/human_tasks';
-import { journeyRouter } from './routes/journeys';
+import { journeyRouter, measuresRouter } from './routes/journeys';
 import {
     create_auth_middleware,
     create_rate_limiter,
     AuthConfig
 } from './auth';
 import { Logger, get_logger, create_logger_from_env } from './logger';
+import { view_directory } from '../runtime/views';
 
 export interface ServerConfig {
     /** Authentication configuration */
@@ -65,6 +66,12 @@ export const createServer = (config: ServerConfig = {}) => {
     app.use('/api/v1/workflows', workflowRouter);
     app.use('/api/v1/tasks', humanTaskRouter);
     app.use('/api/v1/journeys', journeyRouter);
+    app.use('/api/v1/measures', measuresRouter);
+
+    // The views that come with the SDK: /views/dashboard.html?live=<this server> and /views/journey.html?live=<this server>
+    try {
+        app.use('/views', express.static(view_directory(), { index: false, setHeaders: res => { res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('Cache-Control', 'no-cache'); } }));
+    } catch { /* this copy of the SDK was built without them */ }
 
     // Health check (always public)
     app.get('/health', (req, res) => {

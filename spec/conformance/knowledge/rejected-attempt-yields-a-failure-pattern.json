@@ -1,0 +1,108 @@
+{
+  "id": "rejected-attempt-yields-a-failure-pattern",
+  "level": "knowledge",
+  "spec": "15.1",
+  "description": "An attempt whose outcome was rejected, followed by one that was accepted, yields a failure pattern beside the strategy. Both are about the activity.",
+  "workflow": {
+    "id": "a892c60b-48d9-523d-85d3-4b654276e359",
+    "name": "rejected-attempt-yields-a-failure-pattern",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "e6f17b38-acb2-5cee-b50c-5a5e22b27132",
+        "name": "Price order",
+        "role_id": "03d6ffe8-b274-51d8-91e7-bb3e7c119e64",
+        "actor_type": "ai_agent",
+        "outcome_contract": {
+          "postconditions": [
+            {
+              "name": "Total is a number",
+              "expression": "typeof total == number"
+            }
+          ],
+          "budgets": {
+            "max_attempts": 3
+          }
+        },
+        "knowledge": {}
+      },
+      {
+        "id": "6dbe35ea-284e-5b97-80f9-961a7bdd7694",
+        "name": "Ship",
+        "role_id": "03d6ffe8-b274-51d8-91e7-bb3e7c119e64",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "ae722da9-4dc2-5555-ac1e-9f9cf4e102ff",
+        "source_id": "e6f17b38-acb2-5cee-b50c-5a5e22b27132",
+        "target_id": "6dbe35ea-284e-5b97-80f9-961a7bdd7694"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "run": "first",
+      "actors": {
+        "Price order": {
+          "attempts": [
+            {
+              "output": {
+                "total": "forty"
+              },
+              "reasoning": {
+                "plan": [
+                  "estimate"
+                ],
+                "rationale": "From memory.",
+                "confidence": 0.3
+              }
+            },
+            {
+              "output": {
+                "total": 40
+              },
+              "reasoning": {
+                "plan": [
+                  "look up the price list",
+                  "sum the lines"
+                ],
+                "rationale": "Prices come from the list, not from memory.",
+                "alternatives_considered": [
+                  "estimate"
+                ],
+                "confidence": 0.9
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "status": "completed"
+      }
+    },
+    {
+      "ingest": "first"
+    }
+  ],
+  "expect": {
+    "entry_count": 2,
+    "entries": [
+      {
+        "type": "strategy",
+        "node": "Price order",
+        "status": "draft",
+        "observations": 1
+      },
+      {
+        "type": "failure_pattern",
+        "node": "Price order",
+        "status": "draft",
+        "observations": 1,
+        "sources": 1
+      }
+    ]
+  }
+}

@@ -27,6 +27,8 @@ export const JourneyStageSchema = z.object({
     complete_when: z.string().optional(),
     /** A journey that stays longer in the stage is stalled */
     max_duration: Duration.optional(),
+    /** Who must act when the journey stalls in this stage: a team, a role or a person, as the organisation names them */
+    owner: z.string().optional(),
     /** Where the journey goes when the stage completes. Absent: the next stage in the list. Empty: the journey completes here. */
     transitions: z.array(z.object({ to: z.string(), condition: z.string().optional(), is_default: z.boolean().default(false) })).optional(),
 });
@@ -375,7 +377,7 @@ export function check_stalled(definition: JourneyDefinition, instance: JourneyIn
     const spent = now - new Date(instance.stage_entered_at).getTime();
     if (spent <= limit) return false;
     instance.stalled = true;
-    record_journey_event(instance, 'journey.stalled', new Date(now).toISOString(), { stage_name: stage.name, max_duration: stage.max_duration, in_stage_ms: spent });
+    record_journey_event(instance, 'journey.stalled', new Date(now).toISOString(), { stage_name: stage.name, max_duration: stage.max_duration, in_stage_ms: spent, ...(stage.owner ? { owner: stage.owner } : {}) });
     apply_sentiment(definition, instance, new Date(now).toISOString(), { on: 'stalled', stage: stage.id });
     return true;
 }

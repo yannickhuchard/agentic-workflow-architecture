@@ -1,0 +1,168 @@
+{
+  "id": "unreviewed-entry-is-not-given-reviewed-is",
+  "level": "knowledge",
+  "spec": "15.4",
+  "description": "A draft entry is not given to an actor. Once a person has reviewed it, the actor of the activity it is about is given it, and the journal records knowledge.retrieved listing it. The review records who made it.",
+  "workflow": {
+    "id": "d6fe40b6-3680-5321-9bb2-ccbae7703135",
+    "name": "unreviewed-entry-is-not-given-reviewed-is",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "31c5a3da-ff2d-5e72-8d70-d90eb9225c4f",
+        "name": "Price order",
+        "role_id": "7cd348a1-4e0e-5dc1-ae17-19fda2343aa9",
+        "actor_type": "ai_agent",
+        "outcome_contract": {
+          "postconditions": [
+            {
+              "name": "Total is a number",
+              "expression": "typeof total == number"
+            }
+          ],
+          "budgets": {
+            "max_attempts": 3
+          }
+        },
+        "knowledge": {}
+      },
+      {
+        "id": "740e3d8c-2b06-52a1-9afb-957fddf1c1f2",
+        "name": "Ship",
+        "role_id": "7cd348a1-4e0e-5dc1-ae17-19fda2343aa9",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "68b39fcc-ea72-5320-9c96-34b6e2413e79",
+        "source_id": "31c5a3da-ff2d-5e72-8d70-d90eb9225c4f",
+        "target_id": "740e3d8c-2b06-52a1-9afb-957fddf1c1f2"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "run": "first",
+      "actors": {
+        "Price order": {
+          "output": {
+            "total": 40
+          },
+          "reasoning": {
+            "plan": [
+              "look up the price list",
+              "sum the lines"
+            ],
+            "rationale": "Prices come from the list, not from memory.",
+            "alternatives_considered": [
+              "estimate"
+            ],
+            "confidence": 0.9
+          }
+        }
+      },
+      "expect": {
+        "status": "completed"
+      }
+    },
+    {
+      "ingest": "first"
+    },
+    {
+      "run": "before review",
+      "actors": {
+        "Price order": {
+          "output": {
+            "total": 40
+          },
+          "reasoning": {
+            "plan": [
+              "look up the price list",
+              "sum the lines"
+            ],
+            "rationale": "Prices come from the list, not from memory.",
+            "alternatives_considered": [
+              "estimate"
+            ],
+            "confidence": 0.9
+          }
+        }
+      },
+      "expect": {
+        "status": "completed",
+        "given": {
+          "Price order": []
+        }
+      }
+    },
+    {
+      "review": {
+        "type": "strategy",
+        "node": "Price order"
+      },
+      "by": "ana"
+    },
+    {
+      "run": "after review",
+      "actors": {
+        "Price order": {
+          "output": {
+            "total": 40
+          },
+          "reasoning": {
+            "plan": [
+              "look up the price list",
+              "sum the lines"
+            ],
+            "rationale": "Prices come from the list, not from memory.",
+            "alternatives_considered": [
+              "estimate"
+            ],
+            "confidence": 0.9
+          }
+        }
+      },
+      "expect": {
+        "status": "completed",
+        "given": {
+          "Price order": [
+            {
+              "type": "strategy",
+              "node": "Price order",
+              "status": "reviewed"
+            }
+          ]
+        },
+        "journal_contains": [
+          {
+            "type": "knowledge.retrieved",
+            "node_name": "Price order",
+            "data": {
+              "entries": [
+                {
+                  "type": "strategy",
+                  "status": "reviewed",
+                  "observations": 1
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "expect": {
+    "entry_count": 1,
+    "entries": [
+      {
+        "type": "strategy",
+        "node": "Price order",
+        "status": "reviewed",
+        "observations": 1,
+        "reviewed_by": "ana"
+      }
+    ]
+  }
+}

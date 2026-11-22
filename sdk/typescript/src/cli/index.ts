@@ -9,6 +9,7 @@ import { recipeCommand } from './commands/recipe';
 import { knowledgeCommand } from './commands/knowledge';
 import { replayCommand } from './commands/replay';
 import { journeyCommand } from './commands/journey';
+import { measuresCommand } from './commands/measures';
 
 import { version } from '../../package.json';
 
@@ -28,5 +29,6 @@ program.addCommand(recipeCommand);
 program.addCommand(knowledgeCommand);
 program.addCommand(replayCommand);
 program.addCommand(journeyCommand);
+program.addCommand(measuresCommand);
 
 program.parse(process.argv);

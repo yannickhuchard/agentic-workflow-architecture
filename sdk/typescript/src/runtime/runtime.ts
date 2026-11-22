@@ -19,6 +19,7 @@ import {
 import { WorkflowState } from './persistence';
 import { WorkflowEngine, WorkflowEngineOptions } from './workflow_engine';
 import fs from 'fs/promises';
+import { rmSync } from 'fs';
 import path from 'path';
 
 export interface RuntimeOptions {
@@ -103,6 +104,8 @@ export class AwaRuntime {
     /** run id -> journey instance id */
     private run_journey = new Map<string, string>();
     private seen_events = new Set<string>();
+    /** Release whatever the runtime holds outside the process, such as the lock on its directory. Safe to call more than once. */
+    close: () => Promise<void> = async () => { };
     /** run id -> events the run published, taken in when the run next settles */
     private outbox = new Map<string, BusinessEvent[]>();
     /** journey id -> the business event types that concern it */
@@ -312,7 +315,7 @@ export class AwaRuntime {
         if (status === 'failed' && instance.status === 'active' && !instance.stalled) {
             instance.stalled = true;
             const stage = definition.stages.find(s => s.id === instance.stage_id);
-            record_journey_event(instance, 'journey.stalled', time, { stage_name: stage?.name, reason: `the ${ref.workflow_name} workflow failed` }, { run_id: ref.run_id });
+            record_journey_event(instance, 'journey.stalled', time, { stage_name: stage?.name, reason: `the ${ref.workflow_name} workflow failed`, ...(stage?.owner ? { owner: stage.owner } : {}) }, { run_id: ref.run_id });
             apply_sentiment(definition, instance, time, { on: 'run_failed', stage: instance.stage_id });
             apply_sentiment(definition, instance, time, { on: 'stalled', stage: instance.stage_id });
         }
@@ -536,6 +539,7 @@ export async function open_runtime_directory(directory: string, options: Runtime
     const { FileJournalStore } = await import('./journal');
     const definitions = path.join(directory, 'definitions');
     await fs.mkdir(definitions, { recursive: true });
+    const release = await lock_directory(directory);
     const runtime = new AwaRuntime({
         ...options,
         store: options.store || new FileRuntimeStore(path.join(directory, 'runtime.json')),
@@ -546,8 +550,61 @@ export async function open_runtime_directory(directory: string, options: Runtime
     // Workflows first: a journey is checked against the workflows it names
     for (const document of documents.filter(d => !is_journey_document(d))) runtime.register_workflow(parse_document(document));
     for (const document of documents.filter(is_journey_document)) runtime.register_journey(JourneyDefinitionSchema.parse(document));
-    await runtime.recover();
+    try { await runtime.recover(); } catch (error) { await release(); throw error; }
+    runtime.close = release;
     return runtime;
+}
+
+const held = new Map<string, number>();
+/**
+ * One host at a time on a runtime directory: two processes that each loaded the state and each
+ * saved it would lose one another's work. The lock is a file naming the process that holds it.
+ * A lock left by a process that no longer exists is taken over. Within one process the lock is
+ * counted, so that a program may open the directory more than once in turn.
+ */
+async function lock_directory(directory: string): Promise<() => Promise<void>> {
+    const file = path.join(directory, 'runtime.lock');
+    let released = false;
+    // Each opening releases once: a second call must not take away a lock that a later opening holds
+    const release = async () => {
+        if (released) return;
+        released = true;
+        const left = (held.get(file) || 1) - 1;
+        if (left > 0) { held.set(file, left); return; }
+        held.delete(file);
+        await fs.rm(file, { force: true });
+    };
+    if (held.has(file)) { held.set(file, held.get(file)! + 1); return release; }
+
+    // The lock is written aside and linked into place, so that it never exists without naming its owner:
+    // another host can then never mistake a lock that is being taken for one left behind.
+    const mine = `${file}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}`;
+    await fs.writeFile(mine, String(process.pid));
+    try {
+        for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+                await fs.link(mine, file);
+                if ((await fs.readFile(file, 'utf-8')) !== String(process.pid)) continue;     // taken over in the same instant: start again
+                held.set(file, 1);
+                process.once('exit', () => { try { if (held.has(file)) rmSync(file, { force: true }); } catch { /* leaving */ } });
+                return release;
+            } catch (error) {
+                if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+                const text = await fs.readFile(file, 'utf-8').catch(() => null);
+                if (text === null) continue;                                                // released meanwhile
+                const pid = Number(text);
+                if (!Number.isInteger(pid) || pid <= 0) throw new Error(`The runtime directory ${directory} holds a lock that names no process (${file}). If no host is running, remove that file.`);
+                let alive = false;
+                try { process.kill(pid, 0); alive = true; } catch (probe) { alive = (probe as NodeJS.ErrnoException).code === 'EPERM'; }
+                if (alive) throw new Error(`The runtime directory ${directory} is in use by process ${pid}. One host at a time: stop it, or talk to it over HTTP.`);
+                // Left behind by a process that is gone. Remove it only if it is still that lock.
+                if ((await fs.readFile(file, 'utf-8').catch(() => null)) === text) await fs.rm(file, { force: true });
+            }
+        }
+    } finally {
+        await fs.rm(mine, { force: true });
+    }
+    throw new Error(`Could not lock the runtime directory ${directory}`);
 }
 
 /** A journey has stages and a subject; a workflow has activities */

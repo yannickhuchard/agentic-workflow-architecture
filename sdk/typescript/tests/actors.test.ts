@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { WorkflowEngine } from '../src/runtime/workflow_engine';
 import { Workflow, Activity, Role, ActorType } from '../src/types';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID as uuidv4 } from 'crypto';
 
 // Mock @google/generative-ai
 const mockGenerateContent = vi.fn();
@@ -11,9 +11,9 @@ const mockGetGenerativeModel = vi.fn(() => ({
 
 vi.mock('@google/generative-ai', () => {
     return {
-        GoogleGenerativeAI: vi.fn(() => ({
+        GoogleGenerativeAI: vi.fn(function () { return {
             getGenerativeModel: mockGetGenerativeModel
-        }))
+        }; })
     };
 });
 

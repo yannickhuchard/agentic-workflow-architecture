@@ -28,6 +28,7 @@ This document is normative. Where it and an SDK disagree, this document is right
 18. [Business events](#18-business-events)
 19. [Journeys](#19-journeys)
 20. [Counterfactual replay](#20-counterfactual-replay)
+21. [Measures](#21-measures)
 
 ## 1. Scope
 
@@ -57,12 +58,15 @@ An implementation claims one or more levels. Each level has cases in `spec/confo
 | `recorded` | Writes the execution journal | 9 |
 | `resilient` | Retries, dead-letters and recovers runs | 10 |
 | `contract` | Enforces outcome contracts, budgets and escalation | 11 |
+| `routing` | Resolves model references and routes model calls through tiers with ordered fallbacks | 12 |
 | `flow` | Parallel split and join, events, timers and compensation | 13 |
+| `knowledge` | Distils journals into knowledge that compounds, and gives actors only what a person has reviewed | 15.1 to 15.4 |
 | `events` | Publishes business events and holds tokens until one arrives or a deadline passes | 18 |
 | `model_decision` | Lets a model decide at a decision node, within enumerated options | 16 |
 | `tools` | Runs tool calls through one runner that refuses, records and bounds them | 17 |
 | `journeys` | Hosts journeys: stages, triggers, exits, touchpoints, mood, several journeys, and a host that restarts | 19 |
 | `replay` | Replays a recorded run under a changed workflow or model and reports the difference | 20 |
+| `measures` | Computes the measures of journeys and workflows from what was recorded | 21 |
 
 An implementation MUST NOT claim a level unless it passes every case tagged with that level. It MUST report the cases it skips; it MUST NOT silently omit them.
 
@@ -70,7 +74,7 @@ An implementation MUST NOT claim a level unless it passes every case tagged with
 
 | SDK | Levels claimed |
 |---|---|
-| TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `flow`, `events`, `model_decision`, `tools`, `journeys`, `replay` |
+| TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay` |
 | Python | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `flow`, `events` |
 | Java | none (data model only) |
 
@@ -506,7 +510,7 @@ An engine MUST NOT alter or remove an event once written.
 | Subject | Recorded when |
 |---|---|
 | `model_selection` | A model is chosen for an attempt or a decision |
-| `model_route` | The router skipped a candidate model or fell back from one that failed (12.5) |
+| `model_route` | The route was anything other than "first candidate used": a candidate was skipped or failed, even when it was the only one (12.5) |
 | `retry` | An attempt raised and will be retried |
 | `verification_retry` | An output was rejected by verification and the activity will be re-executed with feedback |
 | `contract_retry` | An outcome violated its contract and the activity will be re-executed with feedback |
@@ -731,6 +735,10 @@ The `embedded` provider runs a small model in the engine's process: no server, n
 
 Small models follow a reply format more reliably than they judge. In the reference implementation's measurements (`docs/embedded-models.md`), models under one billion parameters always returned a valid option and chose correctly no more often than chance. A deployment SHOULD therefore place an embedded model last in a tier, and SHOULD pair model decisions made by one with `min_confidence` and a default edge that leads to a person (section 16).
 
+### 12.7 Conformance
+
+Level `routing` covers 12.1, 12.2, 12.5 and the rule of 12.3 that no other model is substituted, where an engine itself calls a model, which is at a decision node with a `decision_model` (section 16): the three forms of reference, tiers with ordered candidates, fallback, the end of a route, and the `model_selection` and `model_route` records. Its cases are execution cases (Appendix A) whose scripted `model` describes several providers and the tier map. Routing of an AI agent's and a judge's calls (12.3), the skipping of a provider that cannot call tools, and the adapters of 12.4 and 12.6 are fixed by `sdk/typescript/tests/router_tools_decisions.test.ts` and `contract_models.test.ts`.
+
 ## 13. Flow control
 
 ### 13.1 Parallel split
@@ -915,7 +923,7 @@ An import MUST restore AWA-written concepts exactly, including which runs were a
 
 ### 15.6 Conformance
 
-The knowledge layer is not yet covered by the language-neutral conformance suite. The reference implementation's behaviour is fixed by `sdk/typescript/tests/knowledge.test.ts`.
+Level `knowledge` covers 15.1 to 15.4. It has its own cases, in `spec/conformance/knowledge/` (Appendix A): scripted runs, the ingestion of their journals, reviews, and what the knowledge base then holds and what actors are given. The contents of `counts` and `latest`, the `tags` and `max_entries` of a binding, and the Open Knowledge Format exchange (15.5) are fixed by `sdk/typescript/tests/knowledge.test.ts`.
 
 ## 16. Model decisions
 
@@ -1133,6 +1141,7 @@ A journey definition conforms to `spec/json-schema/journey.schema.json`:
 | `on_enter.start_workflow` | A workflow the host starts when the stage is entered, with the journey's data as input |
 | `complete_when` | A condition (section 6) over the journey's data. The stage is complete when it becomes true |
 | `max_duration` | A duration (13.5). A stage that lasts longer is **stalled** |
+| `owner` | Who must act when the journey stalls in this stage: a team, a role or a person, as the organisation names them. `journey.stalled` carries it |
 | `transitions` | A list of `{to, condition, is_default}`. When the stage completes, the first whose `condition` is true names the next stage; failing that, the one marked `is_default`, or one with no condition |
 
 When a stage completes and it has no `transitions` property, the journey moves to the next stage in the list. When `transitions` is present and empty, or the stage is the last, the journey is `completed`. When transitions exist and none applies, the journey stays in the stage; it does not guess.
@@ -1265,6 +1274,8 @@ On starting again, once the workflows and journeys are registered, the host reco
 
 A host that cannot recover a run, because its workflow is no longer registered, MUST refuse to start rather than drop the run.
 
+Two hosts MUST NOT work from the same saved state at once: each would load it, and each would save over the other's work. A host that keeps its state where another process could open it MUST hold it exclusively and refuse to start while another holds it. It MAY take over from a holder that no longer exists. The reference host keeps a `runtime.lock` file naming the process in its directory.
+
 The reference host keeps this in a **runtime directory**: `definitions/` holding the workflows and journeys, `runtime.json` holding the state above, `journals/` holding one journal per run. `awa journey` and the HTTP interface under `/journeys` both work on such a directory, so a command, a server and a scheduled job can each open it, do one thing and leave it for the next.
 
 ### 19.11 Conformance
@@ -1313,6 +1324,93 @@ It names the first point at which the paths diverge. A run that was `completed` 
 
 Level `replay` has its own cases, in `spec/conformance/replay/` (Appendix A). Replay of tool results, of business events and of timeouts is fixed by `sdk/typescript/tests/counterfactual.test.ts`.
 
+## 21. Measures
+
+An organisation asks the same questions of every journey and every workflow: how many finish, where they stop, how long they take, how often the work is right the first time, what it costs, how the customer felt. This section fixes the answers, so that two implementations given the same record report the same numbers, and a dashboard built on one can be read on another.
+
+Measures are computed, never estimated. Their only source is what was recorded: journey instances with their records (19.6) and run journals (section 9).
+
+### 21.1 The report
+
+A **measure** is a `value` and `n`, the number of things the value was computed over. When there is nothing to compute it from, `value` is `null` and MUST NOT be reported as zero: an empty week has no completion rate. A reader shows `n` wherever a rate over few could mislead.
+
+The form of the report is fixed by `spec/json-schema/measure-report.schema.json`. A report covers a **period**: with `from` and `to`, it keeps the journey instances and the runs started at or after `from` and before `to`, and may be narrowed to one journey or one workflow. It carries:
+
+| Part | Content |
+|---|---|
+| `journeys` | For each journey: its measures (21.2), its goals with the number that reached each, its stages with their measures (21.3) and `owner`, touchpoints by channel and by technology, artefacts by kind, the spread of mood of ended instances with the number of measured and of inferred changes, and the journeys its subjects went on to (19.7) |
+| `workflows` | For each workflow: its measures (21.4), its activities with theirs (21.5), its decision nodes with the number of evaluations by method, its tools with calls and failures, and its activity failures by error code |
+| `totals` | The journey measures over all journeys kept, and the workflow measures over all runs kept |
+| `attention` | Instances in progress that are stalled, longest first, each with its stage, the stage's `owner`, since when, and the reason `journey.stalled` gave |
+| `series` | Journeys started, completed and abandoned, runs ended and failed, cost, and mean mood of journeys ended, per day, week or month in UTC, weeks starting on Monday |
+| `currency` | The currency of the costs, as recorded |
+
+A median is the nearest-rank 50th percentile: of *n* values in ascending order, the value at position ⌈*p*·*n*⌉. Durations are in milliseconds, rates between 0 and 1.
+
+### 21.2 Journey measures
+
+"Started" is the number of instances kept. "Ended" instances are those `completed` or `abandoned`.
+
+| Id | Rule |
+|---|---|
+| `journey.started`, `journey.active` | Instances kept; instances neither completed nor abandoned |
+| `journey.completion_rate`, `journey.abandonment_rate` | Completed, respectively abandoned, over started |
+| `journey.stall_rate`, `journey.stalled_now` | Instances with at least one `journey.stalled` over started; instances in progress that are stalled |
+| `journey.goal_attainment` | Instances that reached every goal of their journey over started. No value for a journey without goals |
+| `journey.duration_median_ms`, `journey.duration_p90_ms` | From `started_at` to `ended_at` of completed instances |
+| `journey.mood_end`, `journey.mood_change` | Mean last mood of ended instances; mean of last mood minus first mood (19.9) |
+| `journey.mood_measured_share` | `journey.sentiment_changed` with basis `measured` over all of them. What is not measured was inferred by rule, and a reader MUST be able to tell |
+| `journey.touchpoints_per_journey`, `journey.runs_per_journey` | `journey.touchpoint` records, respectively runs, over started |
+| `journey.cost_per_journey` | Cost of the ended runs of the journey over started |
+
+### 21.3 Stage measures
+
+| Id | Rule |
+|---|---|
+| `stage.entered` | Instances that entered the stage |
+| `stage.conversion` | Instances that completed the stage over those that entered. A stage left because the journey was abandoned in it was not completed |
+| `stage.duration_median_ms` | From entering to completing |
+| `stage.breach_rate` | Instances with a `journey.stalled` in the stage over those that entered |
+| `stage.active`, `stage.stalled_now`, `stage.abandoned` | Instances whose current stage this is: in progress, in progress and stalled, abandoned |
+
+### 21.4 Workflow measures
+
+"Ended" runs have a `run.completed`, `run.failed` or `run.cancelled`. Lead time is from `run.started` to that event. Work time is the sum of `duration_ms` of the run's `activity.completed` and `activity.failed`.
+
+| Id | Rule |
+|---|---|
+| `workflow.runs`, `workflow.in_progress` | Runs kept; runs not ended |
+| `workflow.success_rate`, `workflow.failure_rate`, `workflow.cancel_rate` | Completed, failed, cancelled over ended |
+| `workflow.first_pass_yield` | Runs completed with no `activity.failed`, `activity.retry_scheduled`, `activity.dead_lettered` or `activity.compensated`, over ended |
+| `workflow.lead_time_median_ms`, `workflow.lead_time_p90_ms`, `workflow.process_time_median_ms` | Over ended runs |
+| `workflow.flow_efficiency` | Summed work time over summed lead time of ended runs, at most 1 |
+| `workflow.event_wait_median_ms`, `workflow.event_timeout_rate` | Time from `event.waiting` to the `event.received` at the same node; `event.timed_out` over waits that ended either way |
+| `workflow.human_wait_median_ms` | `waited_ms` of `token.resumed` |
+| `workflow.automation_rate` | `activity.completed` whose actor is not `human` over all `activity.completed` |
+| `workflow.retries`, `workflow.dead_letters`, `workflow.compensations`, `workflow.tool_calls`, `workflow.decisions` | Counts of `activity.retry_scheduled`, `activity.dead_lettered`, `activity.compensated`, `tool.invoked`, `decision.evaluated` |
+| `workflow.tool_failure_rate` | `tool.failed` over `tool.completed` plus `tool.failed` |
+| `workflow.contract_pass_rate`, `workflow.verification_pass_rate` | `contract.checked` that passed; `verification.completed` with verdict `pass`; each over all of its kind |
+| `workflow.decision_default_rate`, `workflow.model_decision_share` | Decisions that took the default edge; decisions whose method is `model`; over all decisions |
+| `workflow.input_tokens`, `workflow.output_tokens`, `workflow.cost`, `workflow.cost_per_run` | As recorded by the ended runs |
+
+### 21.5 Activity measures
+
+| Id | Rule |
+|---|---|
+| `activity.attempts` | `activity.started` |
+| `activity.failure_rate` | `activity.failed` over attempts that ended |
+| `activity.duration_median_ms`, `activity.tokens` | `duration_ms`, and input plus output tokens, of completed attempts |
+
+### 21.6 Exposure
+
+An implementation at this level offers the report as data. It SHOULD also offer it in the OpenMetrics text format for a metrics system to scrape: each measure with a value becomes a gauge named `awa_` followed by its id with dots replaced by underscores, labelled `journey`, `stage`, `workflow` or `activity` by name. The reference implementation gives the report with `compute_measures`, `awa measures` and `GET /api/v1/measures`, and OpenMetrics with `GET /api/v1/measures?format=openmetrics`.
+
+Measures say what happened. They do not say why, and a rate over a handful of journeys is an anecdote: a reader of a report SHOULD be led from any number to the journeys and the journal records behind it.
+
+### 21.7 Conformance
+
+Level `measures` has its own cases, in `spec/conformance/measures/` (Appendix A): a record, the options of a report, and the values that follow.
+
 ## Appendix A. Conformance suite
 
 `spec/conformance/` holds language-neutral cases.
@@ -1332,7 +1430,8 @@ Level `replay` has its own cases, in `spec/conformance/replay/` (Appendix A). Re
 | `actors` | What each activity returns, keyed by activity name: `output`, or `error` (optionally with an error `code`), or `attempts` (a list of those, one per execution; the last repeats) |
 | `deliver` | Business events to deliver after the run settles, in order (18.5) |
 | `tools` | For level `tools`: what each `function` tool returns, by name: `result`, or `error` |
-| `model` | For level `model_decision`: `replies`, one per call to the model, the last repeating. Each is a vote (`option`, `confidence`, `rationale`), a raw `text`, or an `error` |
+| `model` | For level `model_decision`: `replies`, one per call to the model, the last repeating. Each is a vote (`option`, `confidence`, `rationale`), a raw `text`, or an `error` (optionally with an error `code`). Every standard tier maps to this one model |
+| `model.providers`, `model.tiers` | For level `routing`, instead of `model.replies`: the providers registered with the engine, each with an `id` and either `replies` as above, counted per provider, or an `error` (optionally with a `code`) with which every call to it fails. The first listed is the default provider. `tiers` maps each tier name to an ordered list of model references; no other tier is mapped |
 | `actors.<name>.calls` | Tool calls the actor makes, in order, before it returns its output |
 | `expect.status` | The run status |
 | `expect.visited` | Activity names in execution order, one entry per execution |
@@ -1344,7 +1443,9 @@ Level `replay` has its own cases, in `spec/conformance/replay/` (Appendix A). Re
 | `expect.journal_contains` | Partial events, each of which some journal event must contain |
 | `expect.journal_excludes` | Event types that must not appear |
 | `expect.journal_count` | For an event type, exactly how many times it must appear |
-| `expect.model_calls` | Exactly how many times the model must have been called |
+| `expect.journal_mentions` | Each gives a partial `event` and a list `mentions`: some journal event must contain the partial event and have every one of those strings in its `data`, serialised as JSON. For records whose wording is left to the implementation but which must name something, such as a model |
+| `expect.model_calls` | Exactly how many times the model must have been called, over all providers |
+| `expect.provider_calls` | For a provider id, exactly how many times that provider must have been called |
 
 A runner replaces every actor with one that follows `actors`, runs the workflow, and compares. An activity not listed in `actors` returns an empty object.
 
@@ -1360,6 +1461,23 @@ A runner replaces every actor with one that follows `actors`, runs the workflow,
 An actor script MAY give `takes`, a duration by which the activity moves the clock. `expect` gives `instance_count`, `transitions`, and `instances`: each names a `journey` and optionally a `subject_key`, and may state `status`, `stage_id`, `stalled`, `sentiment`, `goals_reached`, `runs` (their statuses in order), `data` (a subset), `events` (types in this order, others allowed between), `events_exact`, `events_count`, `events_contain` (partial events; `has` lists paths that must be present) and `run_journal` (types in order in the journal of the first run).
 
 **Replay cases** (`replay/*.json`) each give a `workflow`, `input` and `actors` that produce the baseline run; optionally a `candidate` workflow; `ai` (`recorded` or `live`); and for `live`, `candidate_actors` for the AI agents. `expect` gives `baseline_status`, `candidate_status`, `same_path`, `verdicts` by node name (20.3), `regressions` or `regressions_at_least`, `unrecorded` (how many situations had no recording), `divergence_after`, and `error_matches`.
+
+**Measure cases** (`measures/*.json`) each give `recorded`, what the measures are computed from in the form a host exports (journeys with their instances and the journals of their runs), the `options` of the report (21.1), and `expect`: for journeys, stages, workflows and activities named, the value of each measure listed, `null` meaning no value; and where given the channels, artefacts, currency and the list of what needs attention. Numbers are compared to within 1e-9.
+
+**Knowledge cases** (`knowledge/*.json`) each give a `workflow` and `steps` performed in order against one knowledge base, which starts empty:
+
+| Step | Meaning |
+|---|---|
+| `{"run": "<name>", "actors", "input", "expect"}` | The workflow is run with the knowledge base as it then stands. `actors` and `input` are as in an execution case. The run is not ingested by this step |
+| `{"ingest": "<name>"}` | The journal of the run of that name is ingested (15.3) |
+| `{"review": <entry>, "by": "<reviewer>"}` | That person reviews the entry (15.4) |
+| `{"deprecate": <entry>}` | The entry is made `deprecated` |
+
+An actor script MAY give `reasoning` (`plan`, `rationale`, `alternatives_considered`, `confidence`): the account the actor reports with that result, which the engine journals as `reasoning.recorded` (9.2).
+
+An `<entry>` describes entries by `type`, `node` (the name of the node in the entry's scope), `status`, `observations`, `sources` (how many runs the entry cites) and `reviewed_by`; whatever it leaves out is not compared. In a `review` or `deprecate` step it MUST describe exactly one entry of the knowledge base.
+
+A run's `expect` gives its `status`; optionally `given`, which for an activity name lists, in order, the entries its actor must have been given at each execution of that activity, an empty list meaning none; and `journal_contains` as in an execution case. The case's `expect` gives `entry_count`, the number of entries the knowledge base must hold at the end, and `entries`: each `<entry>` must describe exactly one entry, or as many as its `count` says. A runner MUST also check that every source of every entry names a run that was ingested and at least one event of that run's journal, each by its `seq` (15.2).
 
 Runners: `sdk/typescript/tests/conformance.test.ts`, `sdk/python/tests/test_conformance.py`.
 
@@ -1393,3 +1511,6 @@ Runners: `sdk/typescript/tests/conformance.test.ts`, `sdk/python/tests/test_conf
 - Journeys declare touchpoints (channel, technology, what changes hands as business artefacts) and an estimate of the subject's mood whose every change is marked measured or inferred; a subject's journeys are joined by subject key and business events (19.7 to 19.9).
 - Conformance levels `model_decision`, `tools`, `journeys` and `replay`, each with language-neutral cases.
 - A host of journeys keeps its state durably and recovers after a restart (19.10).
+- Conformance levels `routing` (section 12) and `knowledge` (section 15), each with language-neutral cases.
+- A stage may name its `owner`, carried by `journey.stalled`; a host holds its saved state exclusively (19.2, 19.10).
+- Measures of journeys and workflows, computed from the record, with conformance level `measures` (section 21).

@@ -5,7 +5,7 @@
 
 import { Activity, UUID, HumanTaskPriority } from '../../types';
 import { Actor } from './actor';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID as uuidv4 } from 'crypto';
 import { TaskService } from '../services/task_service';
 
 /**

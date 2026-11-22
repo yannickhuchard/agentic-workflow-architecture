@@ -1370,7 +1370,8 @@ export class WorkflowEngine {
 
     /** Journal a model route that was not simply "first candidate used": a skip or a fallback happened */
     private recordRoute(route: RouteAttempt[] | undefined, ref: { token_id: UUID; node_id: UUID; node_name?: string }, attempt?: number): void {
-        if (!route || route.length < 2) return;
+        // Nothing to say when the first candidate served; a single candidate that failed is a route worth recording too (12.5)
+        if (!route || !route.some(r => r.outcome !== 'used')) return;
         const used = route.find(r => r.outcome === 'used');
         this.record({
             type: 'meta.recorded', level: 'meta', ...ref, ...(attempt ? { attempt } : {}),

@@ -1,0 +1,3 @@
+/* Added to tools/visualization/journey.html when it runs as an MCP Apps widget */
+#b-open, #file { display: none !important; }      /* the record comes from the conversation, not from a file */
+html { color-scheme: dark; }                       /* the journey stage is drawn dark in either host theme */

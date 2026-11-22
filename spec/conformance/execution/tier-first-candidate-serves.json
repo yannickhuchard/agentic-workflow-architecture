@@ -1,0 +1,168 @@
+{
+  "id": "tier-first-candidate-serves",
+  "level": "routing",
+  "spec": "12.5",
+  "description": "A tier maps to an ordered list of models. The first candidate is called; while it serves, no other is. The journal names the provider, the model and the tier.",
+  "workflow": {
+    "id": "abacf20d-cab3-513c-91ff-2a74112ad419",
+    "name": "tier-first-candidate-serves",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "1c823afa-dbac-501c-947e-d1ef56f46ac3",
+        "name": "Intake",
+        "role_id": "f0a3583f-4aac-5d1b-b71c-73209aeb0535",
+        "actor_type": "application"
+      },
+      {
+        "id": "b5747ca9-633f-5e89-95b3-88e48b9b07b4",
+        "name": "Pay",
+        "role_id": "f0a3583f-4aac-5d1b-b71c-73209aeb0535",
+        "actor_type": "application"
+      },
+      {
+        "id": "13e1262e-ec24-5025-a977-76c47ef4fff1",
+        "name": "Review",
+        "role_id": "f0a3583f-4aac-5d1b-b71c-73209aeb0535",
+        "actor_type": "application"
+      },
+      {
+        "id": "9cba5b61-81cd-51db-96bd-3f4715a6a46f",
+        "name": "Manual",
+        "role_id": "f0a3583f-4aac-5d1b-b71c-73209aeb0535",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "fba161a6-16f6-54f0-a4a8-5e8c5cbf7255",
+        "source_id": "1c823afa-dbac-501c-947e-d1ef56f46ac3",
+        "target_id": "5594adc0-9ef9-556d-a9c8-57598ae7e47d"
+      },
+      {
+        "id": "49e19c1f-bc04-521c-8ddf-cc912607a58f",
+        "source_id": "5594adc0-9ef9-556d-a9c8-57598ae7e47d",
+        "target_id": "b5747ca9-633f-5e89-95b3-88e48b9b07b4"
+      },
+      {
+        "id": "0baaefdb-b5dd-54d7-a4a0-cf1d914cb0dd",
+        "source_id": "5594adc0-9ef9-556d-a9c8-57598ae7e47d",
+        "target_id": "13e1262e-ec24-5025-a977-76c47ef4fff1"
+      },
+      {
+        "id": "e8983136-f710-50e9-b82b-b4cd78dee876",
+        "source_id": "5594adc0-9ef9-556d-a9c8-57598ae7e47d",
+        "target_id": "9cba5b61-81cd-51db-96bd-3f4715a6a46f"
+      }
+    ],
+    "decision_nodes": [
+      {
+        "id": "5594adc0-9ef9-556d-a9c8-57598ae7e47d",
+        "name": "Triage",
+        "description": "Route the claim.",
+        "decision_model": {
+          "model": "tier:fast",
+          "instructions": "Pay simple claims. Send anything unusual to review.",
+          "options": [
+            {
+              "id": "pay",
+              "description": "Simple and covered",
+              "output_edge_id": "49e19c1f-bc04-521c-8ddf-cc912607a58f"
+            },
+            {
+              "id": "review",
+              "description": "Unusual or unclear",
+              "output_edge_id": "0baaefdb-b5dd-54d7-a4a0-cf1d914cb0dd"
+            }
+          ],
+          "inputs": [
+            "amount"
+          ]
+        },
+        "default_output_edge_id": "e8983136-f710-50e9-b82b-b4cd78dee876"
+      }
+    ]
+  },
+  "actors": {
+    "Intake": {
+      "output": {
+        "amount": 900
+      }
+    }
+  },
+  "model": {
+    "providers": [
+      {
+        "id": "primary",
+        "replies": [
+          {
+            "option": "review",
+            "confidence": 0.9,
+            "rationale": "Because."
+          }
+        ]
+      },
+      {
+        "id": "backup",
+        "replies": [
+          {
+            "option": "pay",
+            "confidence": 0.9,
+            "rationale": "Because."
+          }
+        ]
+      }
+    ],
+    "tiers": {
+      "fast": [
+        "primary:alpha",
+        "backup:beta"
+      ]
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "Intake",
+      "Review"
+    ],
+    "model_calls": 1,
+    "provider_calls": {
+      "primary": 1,
+      "backup": 0
+    },
+    "journal": [
+      "meta.recorded",
+      "decision.evaluated"
+    ],
+    "journal_contains": [
+      {
+        "type": "decision.evaluated",
+        "node_name": "Triage",
+        "data": {
+          "method": "model",
+          "model": {
+            "option": "review"
+          }
+        }
+      }
+    ],
+    "journal_mentions": [
+      {
+        "event": {
+          "type": "meta.recorded",
+          "node_name": "Triage",
+          "data": {
+            "subject": "model_selection"
+          }
+        },
+        "mentions": [
+          "primary",
+          "alpha",
+          "fast"
+        ]
+      }
+    ]
+  }
+}

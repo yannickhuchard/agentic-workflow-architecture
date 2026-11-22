@@ -1,0 +1,156 @@
+{
+  "id": "tier-every-candidate-fails-without-default",
+  "level": "routing",
+  "spec": "12.5",
+  "description": "When no candidate serves and the decision has no default edge, the token fails with NO_ROUTE. The engine does not pick an option for the model.",
+  "workflow": {
+    "id": "8d1577e5-bbfd-5506-8bd2-a2e5695a925b",
+    "name": "tier-every-candidate-fails-without-default",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "f382b1e5-6379-5b43-88e7-fa7b08a5e817",
+        "name": "Intake",
+        "role_id": "0dcc004a-dd5b-5f17-9a30-7512c04153b4",
+        "actor_type": "application"
+      },
+      {
+        "id": "bfcf198a-fe15-5ef7-8178-25cdbb5b9916",
+        "name": "Pay",
+        "role_id": "0dcc004a-dd5b-5f17-9a30-7512c04153b4",
+        "actor_type": "application"
+      },
+      {
+        "id": "9d1c9ec8-9547-5b52-9558-c2c4d17a1d9d",
+        "name": "Review",
+        "role_id": "0dcc004a-dd5b-5f17-9a30-7512c04153b4",
+        "actor_type": "application"
+      },
+      {
+        "id": "edbaafea-bf65-57a3-b605-82315ab9e133",
+        "name": "Manual",
+        "role_id": "0dcc004a-dd5b-5f17-9a30-7512c04153b4",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "1a4f69eb-6906-5c63-9515-1a92b3c04a66",
+        "source_id": "f382b1e5-6379-5b43-88e7-fa7b08a5e817",
+        "target_id": "a0e21b7f-c074-5b38-be35-7d0fd3e28efd"
+      },
+      {
+        "id": "21cc3b4d-afdf-5111-b854-fcd9cca4f2b3",
+        "source_id": "a0e21b7f-c074-5b38-be35-7d0fd3e28efd",
+        "target_id": "bfcf198a-fe15-5ef7-8178-25cdbb5b9916"
+      },
+      {
+        "id": "051c7d73-3380-55ba-9e9c-5d247ceb9044",
+        "source_id": "a0e21b7f-c074-5b38-be35-7d0fd3e28efd",
+        "target_id": "9d1c9ec8-9547-5b52-9558-c2c4d17a1d9d"
+      },
+      {
+        "id": "faf0bdb0-7277-5f8d-99d2-0ec95fe40d47",
+        "source_id": "a0e21b7f-c074-5b38-be35-7d0fd3e28efd",
+        "target_id": "edbaafea-bf65-57a3-b605-82315ab9e133"
+      }
+    ],
+    "decision_nodes": [
+      {
+        "id": "a0e21b7f-c074-5b38-be35-7d0fd3e28efd",
+        "name": "Triage",
+        "description": "Route the claim.",
+        "decision_model": {
+          "model": "tier:fast",
+          "instructions": "Pay simple claims. Send anything unusual to review.",
+          "options": [
+            {
+              "id": "pay",
+              "description": "Simple and covered",
+              "output_edge_id": "21cc3b4d-afdf-5111-b854-fcd9cca4f2b3"
+            },
+            {
+              "id": "review",
+              "description": "Unusual or unclear",
+              "output_edge_id": "051c7d73-3380-55ba-9e9c-5d247ceb9044"
+            }
+          ],
+          "inputs": [
+            "amount"
+          ]
+        }
+      }
+    ]
+  },
+  "actors": {
+    "Intake": {
+      "output": {
+        "amount": 900
+      }
+    }
+  },
+  "model": {
+    "providers": [
+      {
+        "id": "primary",
+        "error": "quota exhausted",
+        "code": "RATE_LIMITED"
+      },
+      {
+        "id": "backup",
+        "error": "connection refused"
+      }
+    ],
+    "tiers": {
+      "fast": [
+        "primary:alpha",
+        "backup:beta"
+      ]
+    }
+  },
+  "expect": {
+    "status": "failed",
+    "visited": [
+      "Intake"
+    ],
+    "provider_calls": {
+      "primary": 1,
+      "backup": 1
+    },
+    "journal_contains": [
+      {
+        "type": "decision.evaluated",
+        "node_name": "Triage",
+        "data": {
+          "method": "none"
+        }
+      },
+      {
+        "type": "token.failed",
+        "data": {
+          "error": {
+            "code": "NO_ROUTE"
+          }
+        }
+      }
+    ],
+    "journal_mentions": [
+      {
+        "event": {
+          "type": "meta.recorded",
+          "node_name": "Triage",
+          "data": {
+            "subject": "model_route"
+          }
+        },
+        "mentions": [
+          "primary",
+          "alpha",
+          "backup",
+          "beta"
+        ]
+      }
+    ]
+  }
+}
