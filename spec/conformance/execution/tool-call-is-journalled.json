@@ -1,0 +1,94 @@
+{
+  "id": "tool-call-is-journalled",
+  "level": "tools",
+  "spec": "17.3",
+  "description": "A tool call is recorded before it runs and when it returns, with the link to what ran, between the start and the end of its activity.",
+  "workflow": {
+    "id": "2354b63b-9d65-520e-9b67-bdd240ccdca6",
+    "name": "tool-call-is-journalled",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "bb85287c-0ad7-5d4f-8862-907a110af88f",
+        "name": "A",
+        "role_id": "78366b0b-d048-5e11-837e-912890a85dd8",
+        "actor_type": "application",
+        "tools": [
+          {
+            "name": "lookup",
+            "description": "The lookup tool",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "q": {
+                  "type": "string"
+                }
+              }
+            },
+            "binding": {
+              "kind": "function",
+              "name": "lookup"
+            }
+          }
+        ]
+      }
+    ],
+    "edges": []
+  },
+  "actors": {
+    "A": {
+      "calls": [
+        {
+          "tool": "lookup",
+          "arguments": {
+            "q": "POL-1"
+          }
+        }
+      ],
+      "output": {
+        "done": true
+      }
+    }
+  },
+  "tools": {
+    "lookup": {
+      "result": {
+        "found": true
+      }
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "journal": [
+      "activity.started",
+      "tool.invoked",
+      "tool.completed",
+      "activity.completed"
+    ],
+    "journal_contains": [
+      {
+        "type": "tool.invoked",
+        "node_name": "A",
+        "data": {
+          "tool": "lookup",
+          "link": "function:lookup",
+          "arguments": {
+            "q": "POL-1"
+          }
+        }
+      },
+      {
+        "type": "tool.completed",
+        "node_name": "A",
+        "data": {
+          "tool": "lookup",
+          "link": "function:lookup",
+          "result": {
+            "found": true
+          }
+        }
+      }
+    ]
+  }
+}

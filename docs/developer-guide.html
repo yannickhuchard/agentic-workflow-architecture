@@ -1,207 +1,85 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Developer Guide | AWA Documentation</title>
+    <title>Developer guide | AWA</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&display=swap"
-        rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css">
     <link rel="stylesheet" href="style.css">
+    <style>table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.92em; } th, td { text-align: left; vertical-align: top; padding: 8px 12px; border-bottom: 1px solid rgba(128,128,128,.25); } th { font-weight: 600; }</style>
 </head>
-
 <body>
-    <button class="theme-toggle" title="Toggle Theme">☀️</button>
+    <button class="theme-toggle" title="Toggle theme" aria-label="Toggle theme">&#9728;</button>
     <div class="app-container">
-        <!-- Sidebar -->
         <aside class="sidebar">
-            <div class="logo">
-                <div class="logo-icon"></div>
-                <span>AWA</span>
-            </div>
-
-            <div class="search-container">
-                <span class="search-icon">🔍</span>
-                <input type="text" class="search-input" placeholder="Search guides...">
-            </div>
-
-            <div class="nav-section">
-                <div class="nav-section-title">Getting Started</div>
-                <ul class="nav-links">
-                    <li><a href="getting-started.html" class="nav-link">Introduction</a></li>
-                    <li><a href="installation-guide.html" class="nav-link">Installation Guide</a></li>
-                </ul>
-            </div>
-
-            <div class="nav-section">
-                <div class="nav-section-title">Developer Guides</div>
-                <ul class="nav-links">
-                    <li><a href="developer-guide.html" class="nav-link">Reference Material</a></li>
-                    <li><a href="data-model-guide.html" class="nav-link">Data Model & Concepts</a></li>
-                </ul>
-            </div>
-
-            <div class="nav-section">
-                <div class="nav-section-title">Theory & Business</div>
-                <ul class="nav-links">
-                    <li><a href="abpm-guide.html" class="nav-link">Agentic BPM</a></li>
-                    <li><a href="architect-guide.html" class="nav-link">Architect Guide</a></li>
-                </ul>
-            </div>
-
-            <div class="nav-section">
-                <div class="nav-section-title">Playground</div>
-                <ul class="nav-links">
-                    <li><a href="playground.html" class="nav-link">Interactive Sandbox</a></li>
-                </ul>
-            </div>
+            <div class="logo"><div class="logo-icon"></div><span>AWA</span></div>
+            <div class="search-container"><input type="text" class="search-input" placeholder="Search guides..." aria-label="Search guides"></div>
+            <div class="nav-section"><div class="nav-section-title">Start</div><ul class="nav-links"><li><a href="getting-started.html" class="nav-link">Introduction</a></li><li><a href="installation-guide.html" class="nav-link">Installation</a></li></ul></div><div class="nav-section"><div class="nav-section-title">Build</div><ul class="nav-links"><li><a href="developer-guide.html" class="nav-link active">Developer guide</a></li><li><a href="#engine" class="nav-link" style="padding-left:28px;font-size:0.85em">Run a workflow</a></li><li><a href="#contracts" class="nav-link" style="padding-left:28px;font-size:0.85em">Say what must be true of a result</a></li><li><a href="#journal" class="nav-link" style="padding-left:28px;font-size:0.85em">Read what happened</a></li><li><a href="#events" class="nav-link" style="padding-left:28px;font-size:0.85em">Wait for the outside world</a></li><li><a href="#journeys" class="nav-link" style="padding-left:28px;font-size:0.85em">Journeys that outlive the process</a></li><li><a href="#tools" class="nav-link" style="padding-left:28px;font-size:0.85em">Tools</a></li><li><a href="#replay" class="nav-link" style="padding-left:28px;font-size:0.85em">Change a model without guessing</a></li><li><a href="#http" class="nav-link" style="padding-left:28px;font-size:0.85em">Over HTTP</a></li><li><a href="data-model-guide.html" class="nav-link">Data model</a></li></ul></div><div class="nav-section"><div class="nav-section-title">Design</div><ul class="nav-links"><li><a href="abpm-guide.html" class="nav-link">For process owners</a></li><li><a href="architect-guide.html" class="nav-link">For architects</a></li></ul></div><div class="nav-section"><div class="nav-section-title">See</div><ul class="nav-links"><li><a href="playground.html" class="nav-link">Playground</a></li><li><a href="../tools/visualization/journey.html" class="nav-link">Journey view</a></li><li><a href="../tools/visualization/replay.html" class="nav-link">Run replay</a></li></ul></div>
         </aside>
-
-        <!-- Main Content -->
         <main class="main-content">
             <header class="content-header">
-                <span class="badge">Technical Reference</span>
-                <h1 class="hero-title">Developer Deep Dive</h1>
-                <p class="hero-desc">Everything you need to build, deploy, and scale Agentic Workflows across your
-                    ecosystem.</p>
+                <span class="badge">Specification 1.1 &middot; SDK 2.0.0</span>
+                <h1 class="hero-title">Developer guide</h1>
+                <p class="hero-desc">The parts of the SDK you will use, each with the smallest example that works. Every example is TypeScript; the engine parts exist in Python under the same names in snake case.</p>
             </header>
+            <section id="engine"><h2>Run a workflow</h2>
+<pre><code class="language-typescript">import fs from &#x27;fs&#x27;;
+import { WorkflowEngine, parse_document, FileJournalStore } from &#x27;agentic-workflow-architecture&#x27;;
 
-            <section id="reference-arch">
-                <h2>Reference Architecture</h2>
-                <p>For **Enterprise Architects**, AWA provides a blueprint for scalable multi-agent ecosystems.</p>
-                <div class="card">
-                    <h4>The Sovereign Actor Pattern</h4>
-                    <p>In AWA, every actor (AI or Human) is treated as a sovereign entity with explicit context
-                        boundaries. This prevents "context sprawl" and ensures that security permissions are
-                        declarative.</p>
-                    <ul style="margin-left: 1.5rem; margin-top: 1rem; color: var(--text-muted)">
-                        <li><strong>Ingress Layer</strong>: API Gateway mapping OpenAPI 3.1 specs to AWA workflows.</li>
-                        <li><strong>Orchestration Layer</strong>: Managed via AWA SDKs (TS/Python/Java).</li>
-                        <li><strong>Data Plane</strong>: Context stored in PostgreSQL or Datastore with shared-state
-                            visibility.</li>
-                    </ul>
-                </div>
-            </section>
+const workflow = parse_document(JSON.parse(fs.readFileSync(&#x27;workflow.awa.json&#x27;, &#x27;utf-8&#x27;)));
+const engine = new WorkflowEngine(workflow, { journal: new FileJournalStore(&#x27;journals&#x27;) });
 
-            <section id="sdks">
-                <h2>Language SDKs</h2>
-                <div class="code-tabs">
-                    <div class="tabs-header">
-                        <button class="tab-btn active" data-lang="ts">TypeScript</button>
-                        <button class="tab-btn" data-lang="py">Python</button>
-                        <button class="tab-btn" data-lang="java">Java</button>
-                    </div>
-                    <div class="tab-content active" data-lang="ts">
-                        <pre><code class="language-typescript">// TS Fluent API
-import { workflow } from '@awa/sdk';
+await engine.start({ claim_id: &#x27;CLM-1&#x27; });
+const status = await engine.run();     // completed | failed | waiting_human | waiting_event</code></pre>
+<p>A run with a failed token is <code>failed</code>, never <code>completed</code>. A choice with no true condition and no default edge fails with <code>NO_ROUTE</code>: the engine does not guess.</p></section><section id="contracts"><h2>Say what must be true of a result</h2>
+<p>An outcome contract belongs to an activity. It is checked after every attempt, deterministically, and a result that breaks it is refused.</p>
+<pre><code class="language-json">{ &quot;name&quot;: &quot;Assess damage&quot;, &quot;actor_type&quot;: &quot;ai_agent&quot;,
+  &quot;outcome_contract&quot;: {
+    &quot;output_schema&quot;: { &quot;type&quot;: &quot;object&quot;, &quot;required&quot;: [&quot;estimated_cost&quot;], &quot;properties&quot;: { &quot;estimated_cost&quot;: { &quot;type&quot;: &quot;number&quot; } } },
+    &quot;postconditions&quot;: [{ &quot;name&quot;: &quot;Within authority&quot;, &quot;expression&quot;: &quot;estimated_cost &lt;= 50000&quot; }],
+    &quot;budgets&quot;: { &quot;max_tokens&quot;: 6000, &quot;max_tool_calls&quot;: 4 },
+    &quot;on_violation&quot;: &quot;escalate_human&quot; },
+  &quot;retry&quot;: { &quot;max_attempts&quot;: 3 } }</code></pre></section><section id="journal"><h2>Read what happened</h2>
+<p>Every run writes a journal: one JSON object per line, numbered from 1 without gaps. Three levels: what happened (<code>execution</code>), the actor's own account of its approach (<code>reasoning</code>), and the engine's decisions, such as which model it chose (<code>meta</code>).</p>
+<pre><code class="language-typescript">for (const event of await engine.getEvents()) console.log(event.seq, event.type, event.node_name);
+engine.onEvent(event =&gt; { /* live */ });</code></pre></section><section id="events"><h2>Wait for the outside world</h2>
+<p>A <code>message</code> event holds a token until a business event arrives. Give it a deadline and a path for the deadline; without that path, a timeout fails the token rather than letting the run hang or carry on as if the event had come.</p>
+<pre><code class="language-json">{ &quot;name&quot;: &quot;Documents uploaded&quot;, &quot;event_type&quot;: &quot;message&quot;,
+  &quot;event_definition&quot;: { &quot;name&quot;: &quot;documents.uploaded&quot;, &quot;correlation_key&quot;: &quot;customer_id&quot;,
+                        &quot;timeout&quot;: &quot;P5D&quot;, &quot;timeout_edge_id&quot;: &quot;&lt;edge taken when nothing arrives&gt;&quot; } }</code></pre>
+<pre><code class="language-typescript">await engine.deliverEvent(business_event(&#x27;documents.uploaded&#x27;, { customer_id: &#x27;c-1&#x27; }));
+await engine.expireEvents();           // deadlines that have passed take effect</code></pre></section><section id="journeys"><h2>Journeys that outlive the process</h2>
+<p>A journey is the life of one subject across several workflows. <code>AwaRuntime</code> hosts journeys and their runs behind one entry point for events, and keeps its state so that another process can carry on.</p>
+<pre><code class="language-typescript">import { open_runtime_directory, business_event } from &#x27;agentic-workflow-architecture&#x27;;
 
-const process = workflow('Claims', '1.0.0')
-  .activity('Verification', { actor_type: 'ai_agent' })
-  .build();</code></pre>
-                    </div>
-                    <div class="tab-content" data-lang="py">
-                        <pre><code class="language-python"># Python Pydantic Models
-from awa import workflow
-
-process = workflow("Claims", "1.0.0")\
-    .activity("Verification", actor_type="ai_agent")\
-    .build()</code></pre>
-                    </div>
-                    <div class="tab-content" data-lang="java">
-                        <pre><code class="language-java">// Java Object Model
-Workflow process = WorkflowBuilder.workflow("Claims", "1.0.0")
-    .activity("Verification", ActorType.AI_AGENT)
-    .build();</code></pre>
-                    </div>
-                </div>
-            </section>
-
-            <section id="schemas">
-                <h2>The Specification Reference</h2>
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Field</th>
-                                <th>Type</th>
-                                <th>Required</th>
-                                <th>Description</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td><code>workflow_id</code></td>
-                                <td>string</td>
-                                <td>Yes</td>
-                                <td>Unique identifier for the process.</td>
-                            </tr>
-                            <tr>
-                                <td><code>actor_type</code></td>
-                                <td>enum</td>
-                                <td>Yes</td>
-                                <td>One of: <code>human</code>, <code>ai_agent</code>, <code>robot</code>,
-                                    <code>application</code>.
-                                </td>
-                            </tr>
-                            <tr>
-                                <td><code>duration_ms</code></td>
-                                <td>integer</td>
-                                <td>No</td>
-                                <td>Expected or actual execution time.</td>
-                            </tr>
-                            <tr>
-                                <td><code>transfer_type</code></td>
-                                <td>enum</td>
-                                <td>No</td>
-                                <td><code>integration_flow</code>, <code>manual_work</code>, <code>notification</code>.
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-
-            <section id="ai-patterns">
-                <h2>AI Integration Patterns</h2>
-                <p>AWA is designed to work with modern AI orchestrators and MCP (Model Context Protocol).</p>
-                <div class="card-grid">
-                    <div class="card">
-                        <h3>Context to Prompt</h3>
-                        <p>Map AWA <code>context_id</code> directly to LLM prompt templates or RAG injections.</p>
-                    </div>
-                    <div class="card">
-                        <h3>Agentic Handoffs</h3>
-                        <p>Define <code>blackboard</code> sync patterns for multi-agent swarm collaboration.</p>
-                    </div>
-                    <div class="card">
-                        <h3>Tool/MCP Mapping</h3>
-                        <p>Map AWA <code>access_rights</code> to available tools in the AI agent's catalog.</p>
-                    </div>
-                </div>
-            </section>
-
-            <section id="visualization">
-                <h2>Advanced Visualization</h2>
-                <p>The <code>awa-viz.js</code> library handles rendering and analytics.</p>
-                <div class="info-box">
-                    <strong>Bottleneck Highlighting:</strong> If <code>duration_ms > bottleneck_threshold_ms</code>, the
-                    renderer automatically colors the node/edge in red (2D) or glowing red (3D).
-                </div>
-            </section>
-
-            <div class="footer">
-                &copy; 2026 Agentic Workflow Architecture Group. Released under Apache 2.0 License.
-            </div>
+const runtime = await open_runtime_directory(&#x27;.awa&#x27;);        // definitions, state and journals side by side
+await runtime.publish(business_event(&#x27;claim.submitted&#x27;, { customer_id: &#x27;c-1&#x27; }));
+await runtime.tick();                                         // let deadlines pass; call on a schedule
+const everything = await runtime.export_portfolio();          // what the journey view loads</code></pre>
+<p>The same from the command line, each command a separate process:</p>
+<pre><code class="language-bash">awa journey add intake.awa.json claim.journey.json
+awa journey publish claim.submitted -d &#x27;{&quot;customer_id&quot;:&quot;c-1&quot;}&#x27;
+awa journey tick
+awa journey list --stalled
+awa journey show c-1
+awa journey export -o portfolio.json</code></pre>
+<p>A journey may also declare its touchpoints, what changes hands and how mood is estimated; see the <a href="data-model-guide.html#journeys">data model</a>.</p></section><section id="tools"><h2>Tools</h2>
+<p>An activity lists the tools its actor may call. Every call goes through one runner, which refuses unknown tools, invalid arguments and calls over budget, applies the deployment's permissions, and journals the call with a link to what ran.</p>
+<pre><code class="language-json">{ &quot;name&quot;: &quot;get_policy&quot;, &quot;description&quot;: &quot;Look up a policy by number&quot;,
+  &quot;parameters&quot;: { &quot;type&quot;: &quot;object&quot;, &quot;required&quot;: [&quot;number&quot;], &quot;properties&quot;: { &quot;number&quot;: { &quot;type&quot;: &quot;string&quot; } } },
+  &quot;binding&quot;: { &quot;kind&quot;: &quot;http&quot;, &quot;url&quot;: &quot;https://policies.example/api/policies/{number}&quot; } }</code></pre>
+<p>Command bindings do not run unless the deployment allows commands. The default is to allow none.</p></section><section id="replay"><h2>Change a model without guessing</h2>
+<p>Counterfactual replay runs a recorded run again with something changed, holding everything else as it was recorded: the input, what applications and people returned, tool results, events and time.</p>
+<pre><code class="language-bash">awa replay workflow.awa.json run.journal.jsonl --candidate changed.awa.json --ai recorded</code></pre>
+<p>It exits with status 2 on a regression, so a folder of recorded journals is a regression suite for a change of model, prompt, contract or rule. A step the baseline never performed is reported as unrecorded; nothing is invented and no real call is made.</p></section><section id="http"><h2>Over HTTP</h2><div style="overflow-x:auto"><table><tr><th>Request</th><th>Does</th></tr><tr><td><code>POST /api/v1/workflows/run</code></td><td>Run a workflow file</td></tr><tr><td><code>GET /api/v1/workflows/runs/{id}/events</code></td><td>The journal of a run; <code>/events/stream</code> for Server-Sent Events</td></tr><tr><td><code>POST /api/v1/journeys/definitions</code></td><td>Register a workflow or a journey</td></tr><tr><td><code>POST /api/v1/journeys/events</code></td><td>Take in a business event (CloudEvents 1.0). The same id twice has no further effect</td></tr><tr><td><code>POST /api/v1/journeys/tick</code></td><td>Let time pass</td></tr><tr><td><code>GET /api/v1/journeys/instances</code></td><td>Journey instances; <code>?stalled=true</code> for those that need someone to act</td></tr><tr><td><code>GET /api/v1/journeys/portfolio</code></td><td>Everything recorded, as the journey view loads it</td></tr></table></div></section>
+            <section><p style="opacity:.7;font-size:.9em">The normative text is the <a href="https://github.com/yannickhuchard/agentic-workflow-architecture/blob/main/docs/specification.md">specification</a>. Where this guide and the specification disagree, the specification is right.</p></section>
         </main>
     </div>
-
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
     <script src="main.js"></script>
     <script>hljs.highlightAll();</script>
 </body>
-
 </html>

@@ -536,7 +536,7 @@ CREATE TRIGGER update_edge_routings_updated_at BEFORE UPDATE ON edge_routings FO
 
 CREATE TYPE join_mode AS ENUM ('any', 'all');
 CREATE TYPE trace_level AS ENUM ('execution', 'reasoning', 'meta');
-CREATE TYPE run_status AS ENUM ('running', 'waiting_human', 'completed', 'failed');
+CREATE TYPE run_status AS ENUM ('running', 'waiting_human', 'waiting_event', 'completed', 'failed', 'cancelled');
 CREATE TYPE knowledge_type AS ENUM ('strategy', 'failure_pattern', 'decision_precedent', 'lesson');
 CREATE TYPE knowledge_status AS ENUM ('draft', 'reviewed', 'deprecated');
 
@@ -659,3 +659,109 @@ CREATE TABLE knowledge_sources (
 );
 
 CREATE INDEX idx_knowledge_entries_scope ON knowledge_entries (workflow_id, node_id, status);
+
+-- ============================================================================
+-- Business events and journeys (sections 18 and 19)
+-- ============================================================================
+
+CREATE TYPE journey_status AS ENUM ('active', 'completed', 'abandoned');
+CREATE TYPE touchpoint_direction AS ENUM ('inbound', 'outbound');
+CREATE TYPE sentiment_basis AS ENUM ('measured', 'inferred');
+
+-- Business events a host has taken in. The primary key is what makes delivery idempotent (18.3, 19.5).
+CREATE TABLE business_events (
+    id VARCHAR(255) PRIMARY KEY,
+    source VARCHAR(500) NOT NULL,
+    type VARCHAR(255) NOT NULL,
+    subject VARCHAR(255),
+    time TIMESTAMPTZ,
+    data JSONB NOT NULL DEFAULT '{}',
+    accepted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_business_events_type ON business_events (type, accepted_at);
+
+-- A journey definition is kept whole: stages, triggers, goals, exits, artefacts, touchpoints, sentiment (19.1)
+CREATE TABLE journeys (
+    id UUID PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    version VARCHAR(50) NOT NULL,
+    subject_name VARCHAR(100) NOT NULL,
+    subject_key VARCHAR(255) NOT NULL,                    -- path in event data that identifies one subject
+    definition JSONB NOT NULL
+);
+
+CREATE TABLE journey_instances (
+    id UUID PRIMARY KEY,
+    journey_id UUID NOT NULL REFERENCES journeys(id),
+    subject_key VARCHAR(255) NOT NULL,                    -- the value: the same in every journey of one subject (19.7)
+    status journey_status NOT NULL DEFAULT 'active',
+    stage_id VARCHAR(64) NOT NULL,
+    stage_entered_at TIMESTAMPTZ NOT NULL,
+    stalled BOOLEAN NOT NULL DEFAULT FALSE,
+    sentiment NUMERIC(6, 2),                              -- current estimate of the subject's mood (19.9)
+    goals_reached TEXT[] NOT NULL DEFAULT '{}',
+    data JSONB NOT NULL DEFAULT '{}',
+    started_at TIMESTAMPTZ NOT NULL,
+    ended_at TIMESTAMPTZ
+);
+-- One active instance per subject and journey
+CREATE UNIQUE INDEX idx_journey_instances_active ON journey_instances (journey_id, subject_key) WHERE status = 'active';
+CREATE INDEX idx_journey_instances_subject ON journey_instances (subject_key, started_at);
+CREATE INDEX idx_journey_instances_stalled ON journey_instances (journey_id, stage_id) WHERE stalled AND status = 'active';
+
+-- The runs started on behalf of a journey. run_id is the only join between the two layers (19.4).
+CREATE TABLE journey_runs (
+    journey_instance_id UUID NOT NULL REFERENCES journey_instances(id) ON DELETE CASCADE,
+    run_id UUID NOT NULL REFERENCES runs(id),
+    stage_id VARCHAR(64) NOT NULL,
+    caused_by_event VARCHAR(255) REFERENCES business_events(id),
+    PRIMARY KEY (journey_instance_id, run_id)
+);
+CREATE UNIQUE INDEX idx_journey_runs_run ON journey_runs (run_id);
+
+-- Append-only: rows are never updated or deleted
+CREATE TABLE journey_events (
+    journey_instance_id UUID NOT NULL REFERENCES journey_instances(id) ON DELETE CASCADE,
+    seq INTEGER NOT NULL CHECK (seq >= 1),
+    spec_version VARCHAR(10) NOT NULL,
+    journey_id UUID NOT NULL,
+    time TIMESTAMPTZ NOT NULL,
+    type VARCHAR(50) NOT NULL,                            -- e.g. journey.stage_entered, journey.touchpoint
+    stage_id VARCHAR(64),
+    run_id UUID,
+    data JSONB NOT NULL DEFAULT '{}',
+    PRIMARY KEY (journey_instance_id, seq)
+);
+CREATE INDEX idx_journey_events_type ON journey_events (journey_id, type, time);
+
+-- Touchpoints as they happened: who, over what, and what changed hands (19.8)
+CREATE VIEW journey_touchpoints AS
+SELECT e.journey_instance_id, e.seq, e.time, e.run_id,
+       e.data->>'touchpoint_id'                       AS touchpoint_id,
+       e.data->>'name'                                AS name,
+       e.data->>'party'                               AS party,
+       (e.data->>'direction')::touchpoint_direction   AS direction,
+       e.data->>'channel'                             AS channel,
+       e.data->>'technology'                          AS technology,
+       e.data->'artefacts'                            AS artefacts
+FROM journey_events e WHERE e.type = 'journey.touchpoint';
+
+-- Every change of mood with its basis. A reader must be able to tell what was said from what was assumed (19.9).
+CREATE VIEW journey_sentiment AS
+SELECT e.journey_instance_id, e.seq, e.time,
+       (e.data->>'value')::NUMERIC                    AS value,
+       (e.data->>'previous')::NUMERIC                 AS previous,
+       (e.data->>'basis')::sentiment_basis            AS basis,
+       e.data->>'reason'                              AS reason
+FROM journey_events e WHERE e.type = 'journey.sentiment_changed';
+
+-- How subjects move from one journey to the next (19.7)
+CREATE VIEW journey_transitions AS
+SELECT a.journey_id AS from_journey_id, b.journey_id AS to_journey_id, COUNT(*) AS subjects
+FROM journey_instances a
+JOIN LATERAL (
+    SELECT n.journey_id FROM journey_instances n
+    WHERE n.subject_key = a.subject_key AND n.started_at > a.started_at
+    ORDER BY n.started_at LIMIT 1
+) b ON TRUE
+GROUP BY a.journey_id, b.journey_id;

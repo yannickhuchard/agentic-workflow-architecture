@@ -1,0 +1,148 @@
+{
+  "id": "replay-tightened-contract-regresses",
+  "level": "replay",
+  "spec": "20.3",
+  "description": "A contract tightened in the candidate is tested against the recorded AI output, with no model at all. The node that no longer passes is a regression, and so is the run.",
+  "workflow": {
+    "id": "7d2fa244-6de1-53c1-88ce-305be55d4b3e",
+    "name": "replay-tightened-contract-regresses",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "1619a897-eef2-5668-9137-b85f216dc084",
+        "name": "Collect",
+        "role_id": "aedc5a1b-fdb5-5e02-9278-c5abfc2d8329",
+        "actor_type": "application"
+      },
+      {
+        "id": "bfedcbf6-ff4b-5d87-91bd-cfc5a13f992c",
+        "name": "Assess",
+        "role_id": "aedc5a1b-fdb5-5e02-9278-c5abfc2d8329",
+        "actor_type": "ai_agent"
+      },
+      {
+        "id": "bcecd66b-17a3-5cc8-9f45-27206b2b821f",
+        "name": "Approve",
+        "role_id": "aedc5a1b-fdb5-5e02-9278-c5abfc2d8329",
+        "actor_type": "application"
+      },
+      {
+        "id": "e2aa54de-6ac0-5c65-9aa1-15268ba55819",
+        "name": "Escalate",
+        "role_id": "aedc5a1b-fdb5-5e02-9278-c5abfc2d8329",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "d0a30f2a-6457-5114-afc9-6c84da9c6bb5",
+        "source_id": "1619a897-eef2-5668-9137-b85f216dc084",
+        "target_id": "bfedcbf6-ff4b-5d87-91bd-cfc5a13f992c"
+      },
+      {
+        "id": "c733d6c5-d017-5f3c-8746-1519e7dc501d",
+        "source_id": "bfedcbf6-ff4b-5d87-91bd-cfc5a13f992c",
+        "target_id": "bcecd66b-17a3-5cc8-9f45-27206b2b821f",
+        "condition": "score >= 5"
+      },
+      {
+        "id": "fb455fe8-9753-5615-af0d-a1936beac43c",
+        "source_id": "bfedcbf6-ff4b-5d87-91bd-cfc5a13f992c",
+        "target_id": "e2aa54de-6ac0-5c65-9aa1-15268ba55819",
+        "is_default": true
+      }
+    ]
+  },
+  "input": {
+    "claim": 1
+  },
+  "actors": {
+    "Collect": {
+      "output": {
+        "documents": 3
+      }
+    },
+    "Assess": {
+      "output": {
+        "score": 7
+      }
+    },
+    "Approve": {
+      "output": {
+        "approved": true
+      }
+    }
+  },
+  "ai": "recorded",
+  "candidate": {
+    "id": "7d2fa244-6de1-53c1-88ce-305be55d4b3e",
+    "name": "replay-tightened-contract-regresses",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "1619a897-eef2-5668-9137-b85f216dc084",
+        "name": "Collect",
+        "role_id": "aedc5a1b-fdb5-5e02-9278-c5abfc2d8329",
+        "actor_type": "application"
+      },
+      {
+        "id": "bfedcbf6-ff4b-5d87-91bd-cfc5a13f992c",
+        "name": "Assess",
+        "role_id": "aedc5a1b-fdb5-5e02-9278-c5abfc2d8329",
+        "actor_type": "ai_agent",
+        "outcome_contract": {
+          "postconditions": [
+            {
+              "name": "High confidence",
+              "expression": "score >= 9"
+            }
+          ],
+          "on_violation": "fail"
+        }
+      },
+      {
+        "id": "bcecd66b-17a3-5cc8-9f45-27206b2b821f",
+        "name": "Approve",
+        "role_id": "aedc5a1b-fdb5-5e02-9278-c5abfc2d8329",
+        "actor_type": "application"
+      },
+      {
+        "id": "e2aa54de-6ac0-5c65-9aa1-15268ba55819",
+        "name": "Escalate",
+        "role_id": "aedc5a1b-fdb5-5e02-9278-c5abfc2d8329",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "d0a30f2a-6457-5114-afc9-6c84da9c6bb5",
+        "source_id": "1619a897-eef2-5668-9137-b85f216dc084",
+        "target_id": "bfedcbf6-ff4b-5d87-91bd-cfc5a13f992c"
+      },
+      {
+        "id": "c733d6c5-d017-5f3c-8746-1519e7dc501d",
+        "source_id": "bfedcbf6-ff4b-5d87-91bd-cfc5a13f992c",
+        "target_id": "bcecd66b-17a3-5cc8-9f45-27206b2b821f",
+        "condition": "score >= 5"
+      },
+      {
+        "id": "fb455fe8-9753-5615-af0d-a1936beac43c",
+        "source_id": "bfedcbf6-ff4b-5d87-91bd-cfc5a13f992c",
+        "target_id": "e2aa54de-6ac0-5c65-9aa1-15268ba55819",
+        "is_default": true
+      }
+    ]
+  },
+  "expect": {
+    "baseline_status": "completed",
+    "candidate_status": "failed",
+    "verdicts": {
+      "Collect": "same",
+      "Assess": "regressed"
+    },
+    "regressions_at_least": 1,
+    "unrecorded": 0
+  }
+}

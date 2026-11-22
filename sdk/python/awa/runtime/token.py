@@ -16,6 +16,8 @@ class TokenStatus(str, Enum):
     FAILED = "failed"
     WAITING = "waiting"
     CANCELLED = "cancelled"
+    JOINING = "joining"
+    JOINED = "joined"
 
 
 class Token:
@@ -120,6 +122,19 @@ class Token:
             "analytics": analytics
         })
     
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Token":
+        """Rebuild a token from to_dict(), keeping its id, status and history (specification 10.3)"""
+        token = cls(data["activity_id"], data.get("context_data"), data.get("parent_token_id"), data.get("workflow_id"))
+        token.id = data["id"]
+        token.status = TokenStatus(data.get("status", "active"))
+        token.history = [dict(entry) for entry in data.get("history", [])]
+        if data.get("created_at"):
+            token.created_at = datetime.fromisoformat(data["created_at"])
+        if data.get("updated_at"):
+            token.updated_at = datetime.fromisoformat(data["updated_at"])
+        return token
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary"""
         return {

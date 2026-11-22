@@ -1,0 +1,104 @@
+{
+  "id": "journey-stalls-at-once-when-a-run-fails",
+  "level": "journeys",
+  "spec": "19.5",
+  "description": "A run that fails marks its stage stalled at once, with the run's id. The journey itself does not fail.",
+  "start": "2026-01-05T09:00:00Z",
+  "workflows": [
+    {
+      "id": "3c9d9baf-11b5-5f6e-91cf-c261c7148d33",
+      "name": "Claim",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "d51d39f1-cf74-52a7-be6b-3d9e94676e88",
+          "name": "Register",
+          "role_id": "e7337b82-7860-55b2-aebc-6cff917adb2a",
+          "actor_type": "application"
+        },
+        {
+          "id": "a91f6f00-dc1e-5c42-9ca0-463d760adf68",
+          "name": "Settle",
+          "role_id": "e7337b82-7860-55b2-aebc-6cff917adb2a",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "9a5a1794-ab1a-56a4-b501-cc5b70e76761",
+          "source_id": "d51d39f1-cf74-52a7-be6b-3d9e94676e88",
+          "target_id": "a91f6f00-dc1e-5c42-9ca0-463d760adf68"
+        }
+      ]
+    }
+  ],
+  "journeys": [
+    {
+      "id": "b561f546-ee3e-5115-8c03-56a0e1fd39a2",
+      "name": "Claim",
+      "version": "1.0.0",
+      "subject": {
+        "name": "customer",
+        "key": "customer_id"
+      },
+      "stages": [
+        {
+          "id": "open",
+          "name": "Open",
+          "workflows": [
+            "3c9d9baf-11b5-5f6e-91cf-c261c7148d33"
+          ],
+          "complete_when": "paid == true",
+          "transitions": []
+        }
+      ],
+      "triggers": [
+        {
+          "event": "claim.submitted",
+          "starts_journey": true,
+          "start_workflow": "3c9d9baf-11b5-5f6e-91cf-c261c7148d33"
+        }
+      ]
+    }
+  ],
+  "actors": {
+    "Register": {
+      "error": "claims system down"
+    }
+  },
+  "steps": [
+    {
+      "publish": {
+        "type": "claim.submitted",
+        "data": {
+          "customer_id": "c-1"
+        }
+      }
+    }
+  ],
+  "expect": {
+    "instances": [
+      {
+        "journey": "Claim",
+        "status": "active",
+        "stalled": true,
+        "runs": [
+          "failed"
+        ],
+        "events": [
+          "journey.run_ended",
+          "journey.stalled"
+        ],
+        "events_contain": [
+          {
+            "type": "journey.run_ended",
+            "data": {
+              "status": "failed"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

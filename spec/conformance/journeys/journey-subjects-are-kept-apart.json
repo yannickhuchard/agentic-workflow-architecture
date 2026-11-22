@@ -1,0 +1,134 @@
+{
+  "id": "journey-subjects-are-kept-apart",
+  "level": "journeys",
+  "spec": "19.1",
+  "description": "Events with different values of the subject key belong to different instances.",
+  "start": "2026-01-05T09:00:00Z",
+  "workflows": [
+    {
+      "id": "9f23ab47-cf08-55a3-838e-e6ad6360a87c",
+      "name": "Claim",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "2e0a78af-cd74-5ac6-a42f-778d26e24bd7",
+          "name": "Register",
+          "role_id": "2c241d5e-5344-52b9-a0f8-4322025e2c94",
+          "actor_type": "application"
+        },
+        {
+          "id": "b50c8d8e-d949-56c6-9891-e356ed15e948",
+          "name": "Settle",
+          "role_id": "2c241d5e-5344-52b9-a0f8-4322025e2c94",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "8aef845d-ed5f-53a0-bbca-c7c15e180692",
+          "source_id": "2e0a78af-cd74-5ac6-a42f-778d26e24bd7",
+          "target_id": "a60ffc64-6ab7-5865-8dc7-abb3d7498a0e"
+        },
+        {
+          "id": "93e34758-77fa-5bf9-833e-ac9edab585c7",
+          "source_id": "a60ffc64-6ab7-5865-8dc7-abb3d7498a0e",
+          "target_id": "b50c8d8e-d949-56c6-9891-e356ed15e948"
+        }
+      ],
+      "events": [
+        {
+          "id": "a60ffc64-6ab7-5865-8dc7-abb3d7498a0e",
+          "name": "Documents",
+          "event_type": "message",
+          "event_definition": {
+            "name": "documents.uploaded",
+            "correlation_key": "customer_id"
+          }
+        }
+      ]
+    }
+  ],
+  "journeys": [
+    {
+      "id": "c0ccedd3-ebfa-5b55-ad06-36b4f7781550",
+      "name": "Claim",
+      "version": "1.0.0",
+      "subject": {
+        "name": "customer",
+        "key": "customer_id"
+      },
+      "stages": [
+        {
+          "id": "open",
+          "name": "Open",
+          "workflows": [
+            "9f23ab47-cf08-55a3-838e-e6ad6360a87c"
+          ],
+          "complete_when": "paid == true",
+          "transitions": []
+        }
+      ],
+      "triggers": [
+        {
+          "event": "claim.submitted",
+          "starts_journey": true,
+          "start_workflow": "9f23ab47-cf08-55a3-838e-e6ad6360a87c"
+        }
+      ]
+    }
+  ],
+  "actors": {
+    "Register": {
+      "output": {
+        "claim_id": "CLM-1"
+      }
+    },
+    "Settle": {
+      "output": {
+        "paid": true
+      }
+    }
+  },
+  "steps": [
+    {
+      "publish": {
+        "type": "claim.submitted",
+        "data": {
+          "customer_id": "c-1"
+        }
+      }
+    },
+    {
+      "publish": {
+        "type": "claim.submitted",
+        "data": {
+          "customer_id": "c-2"
+        }
+      }
+    },
+    {
+      "publish": {
+        "type": "documents.uploaded",
+        "data": {
+          "customer_id": "c-2"
+        }
+      }
+    }
+  ],
+  "expect": {
+    "instance_count": 2,
+    "instances": [
+      {
+        "journey": "Claim",
+        "subject_key": "c-1",
+        "status": "active"
+      },
+      {
+        "journey": "Claim",
+        "subject_key": "c-2",
+        "status": "completed"
+      }
+    ]
+  }
+}

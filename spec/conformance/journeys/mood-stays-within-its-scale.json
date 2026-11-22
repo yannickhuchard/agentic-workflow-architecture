@@ -1,0 +1,123 @@
+{
+  "id": "mood-stays-within-its-scale",
+  "level": "journeys",
+  "spec": "19.9",
+  "description": "The estimate is kept within the journey's scale.",
+  "start": "2026-01-05T09:00:00Z",
+  "workflows": [
+    {
+      "id": "c9fa6b42-5e29-51a1-ba25-61366318c23b",
+      "name": "Claim",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "71197cff-5228-5598-ab4c-10d9e5176715",
+          "name": "Register",
+          "role_id": "8c969d6b-d427-53b0-bb1a-3f650ee17160",
+          "actor_type": "application"
+        },
+        {
+          "id": "ad43ac8b-7110-52d7-9e7f-06c614f4b873",
+          "name": "Settle",
+          "role_id": "8c969d6b-d427-53b0-bb1a-3f650ee17160",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "500ef52d-d764-5d5b-8bab-8eaaa1924ac2",
+          "source_id": "71197cff-5228-5598-ab4c-10d9e5176715",
+          "target_id": "3850a096-6023-5612-ab4c-0c71fd9b194f"
+        },
+        {
+          "id": "e1907e85-a381-5abe-919d-76e1909362b4",
+          "source_id": "3850a096-6023-5612-ab4c-0c71fd9b194f",
+          "target_id": "ad43ac8b-7110-52d7-9e7f-06c614f4b873"
+        }
+      ],
+      "events": [
+        {
+          "id": "3850a096-6023-5612-ab4c-0c71fd9b194f",
+          "name": "Documents",
+          "event_type": "message",
+          "event_definition": {
+            "name": "documents.uploaded",
+            "correlation_key": "customer_id"
+          }
+        }
+      ]
+    }
+  ],
+  "journeys": [
+    {
+      "id": "000ddd3a-d215-59a0-aba9-f2f2fc6ec3a8",
+      "name": "Claim",
+      "version": "1.0.0",
+      "subject": {
+        "name": "customer",
+        "key": "customer_id"
+      },
+      "stages": [
+        {
+          "id": "open",
+          "name": "Open",
+          "workflows": [
+            "c9fa6b42-5e29-51a1-ba25-61366318c23b"
+          ],
+          "complete_when": "paid == true",
+          "transitions": []
+        }
+      ],
+      "triggers": [
+        {
+          "event": "claim.submitted",
+          "starts_journey": true,
+          "start_workflow": "c9fa6b42-5e29-51a1-ba25-61366318c23b"
+        }
+      ],
+      "sentiment": {
+        "rules": [
+          {
+            "on": "event",
+            "event": "claim.submitted",
+            "change": -5,
+            "reason": "very bad news"
+          }
+        ],
+        "min": -2,
+        "max": 2
+      }
+    }
+  ],
+  "actors": {
+    "Register": {
+      "output": {
+        "claim_id": "CLM-1"
+      }
+    },
+    "Settle": {
+      "output": {
+        "paid": true
+      }
+    }
+  },
+  "steps": [
+    {
+      "publish": {
+        "type": "claim.submitted",
+        "data": {
+          "customer_id": "c-1"
+        }
+      }
+    }
+  ],
+  "expect": {
+    "instances": [
+      {
+        "journey": "Claim",
+        "sentiment": -2
+      }
+    ]
+  }
+}

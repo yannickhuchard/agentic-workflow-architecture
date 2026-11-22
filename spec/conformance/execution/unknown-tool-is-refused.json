@@ -1,0 +1,79 @@
+{
+  "id": "unknown-tool-is-refused",
+  "level": "tools",
+  "spec": "17.3",
+  "description": "A call to a tool the activity does not declare is refused before anything runs.",
+  "workflow": {
+    "id": "e822e2d0-140f-5cd2-90bb-7277be30b694",
+    "name": "unknown-tool-is-refused",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "b7419884-26f4-501e-bdb0-24d8f5ede1d0",
+        "name": "A",
+        "role_id": "43f93aa3-10b8-5d90-a41b-715b6fe37fee",
+        "actor_type": "application",
+        "tools": [
+          {
+            "name": "lookup",
+            "description": "The lookup tool",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "q": {
+                  "type": "string"
+                }
+              }
+            },
+            "binding": {
+              "kind": "function",
+              "name": "lookup"
+            }
+          }
+        ]
+      }
+    ],
+    "edges": []
+  },
+  "actors": {
+    "A": {
+      "calls": [
+        {
+          "tool": "delete_everything",
+          "arguments": {}
+        }
+      ],
+      "output": {}
+    }
+  },
+  "tools": {
+    "lookup": {
+      "result": {}
+    },
+    "delete_everything": {
+      "result": {
+        "deleted": true
+      }
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "journal_contains": [
+      {
+        "type": "tool.failed",
+        "data": {
+          "tool": "delete_everything",
+          "invoked": false,
+          "error": {
+            "code": "UNKNOWN_TOOL"
+          }
+        }
+      }
+    ],
+    "journal_excludes": [
+      "tool.invoked",
+      "tool.completed"
+    ]
+  }
+}

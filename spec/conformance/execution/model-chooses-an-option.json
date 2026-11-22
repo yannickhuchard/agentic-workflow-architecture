@@ -1,0 +1,142 @@
+{
+  "id": "model-chooses-an-option",
+  "level": "model_decision",
+  "spec": "16.4",
+  "description": "The model picks one of the enumerated options and the token takes that option's edge. The decision, its rationale and the model that served are journalled.",
+  "workflow": {
+    "id": "d607571a-bd5e-5caf-90e4-4c0e5318b6cb",
+    "name": "model-chooses-an-option",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "81939a29-08db-516a-b3d8-3e5d4462bdef",
+        "name": "Intake",
+        "role_id": "0bec00f1-8be3-53ec-ab3d-e99c9d7b54a3",
+        "actor_type": "application"
+      },
+      {
+        "id": "5e7de0f1-1c6a-54e5-bfe3-3ee216529c5f",
+        "name": "Pay",
+        "role_id": "0bec00f1-8be3-53ec-ab3d-e99c9d7b54a3",
+        "actor_type": "application"
+      },
+      {
+        "id": "3467bf91-5836-5222-8510-ccdda23b67b5",
+        "name": "Review",
+        "role_id": "0bec00f1-8be3-53ec-ab3d-e99c9d7b54a3",
+        "actor_type": "application"
+      },
+      {
+        "id": "13fc344a-e435-5679-9e3d-b1bbafd0250a",
+        "name": "Manual",
+        "role_id": "0bec00f1-8be3-53ec-ab3d-e99c9d7b54a3",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "33ffbfae-0c93-5bd3-a368-79858dbe5481",
+        "source_id": "81939a29-08db-516a-b3d8-3e5d4462bdef",
+        "target_id": "63d1e87b-ef83-5154-be86-396268831613"
+      },
+      {
+        "id": "97810177-204e-5853-98bd-386627fa51d7",
+        "source_id": "63d1e87b-ef83-5154-be86-396268831613",
+        "target_id": "5e7de0f1-1c6a-54e5-bfe3-3ee216529c5f"
+      },
+      {
+        "id": "dccd2d8b-0256-52e5-8065-f145e15b8d52",
+        "source_id": "63d1e87b-ef83-5154-be86-396268831613",
+        "target_id": "3467bf91-5836-5222-8510-ccdda23b67b5"
+      },
+      {
+        "id": "666d2df5-cdc3-52b4-84b5-81844bc5d014",
+        "source_id": "63d1e87b-ef83-5154-be86-396268831613",
+        "target_id": "13fc344a-e435-5679-9e3d-b1bbafd0250a"
+      }
+    ],
+    "decision_nodes": [
+      {
+        "id": "63d1e87b-ef83-5154-be86-396268831613",
+        "name": "Triage",
+        "description": "Route the claim.",
+        "decision_model": {
+          "model": "tier:fast",
+          "instructions": "Pay simple claims. Send anything unusual to review.",
+          "options": [
+            {
+              "id": "pay",
+              "description": "Simple and covered",
+              "output_edge_id": "97810177-204e-5853-98bd-386627fa51d7"
+            },
+            {
+              "id": "review",
+              "description": "Unusual or unclear",
+              "output_edge_id": "dccd2d8b-0256-52e5-8065-f145e15b8d52"
+            }
+          ],
+          "inputs": [
+            "amount"
+          ]
+        },
+        "default_output_edge_id": "666d2df5-cdc3-52b4-84b5-81844bc5d014"
+      }
+    ]
+  },
+  "actors": {
+    "Intake": {
+      "output": {
+        "amount": 900
+      }
+    }
+  },
+  "model": {
+    "replies": [
+      {
+        "option": "review",
+        "confidence": 0.82,
+        "rationale": "Because."
+      }
+    ]
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "Intake",
+      "Review"
+    ],
+    "model_calls": 1,
+    "journal": [
+      "meta.recorded",
+      "reasoning.recorded",
+      "decision.evaluated"
+    ],
+    "journal_contains": [
+      {
+        "type": "decision.evaluated",
+        "node_name": "Triage",
+        "data": {
+          "method": "model",
+          "model": {
+            "option": "review",
+            "confidence": 0.82
+          }
+        }
+      },
+      {
+        "type": "reasoning.recorded",
+        "data": {
+          "source": "decision_model",
+          "rationale": "Because."
+        }
+      },
+      {
+        "type": "meta.recorded",
+        "data": {
+          "subject": "model_selection"
+        }
+      }
+    ]
+  }
+}

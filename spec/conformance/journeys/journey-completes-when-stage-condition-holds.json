@@ -1,0 +1,138 @@
+{
+  "id": "journey-completes-when-stage-condition-holds",
+  "level": "journeys",
+  "spec": "19.2",
+  "description": "A run's business data becomes the journey's data when the run ends. A stage completes when its condition holds, and a stage with empty transitions completes the journey.",
+  "start": "2026-01-05T09:00:00Z",
+  "workflows": [
+    {
+      "id": "13459394-577e-5e02-84c1-84e895fa5bcb",
+      "name": "Claim",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "2e44293f-5a58-598d-94e4-5f1b454e7f0e",
+          "name": "Register",
+          "role_id": "281d01cc-41cb-5568-8868-dcc6f6210633",
+          "actor_type": "application"
+        },
+        {
+          "id": "806a533f-dc08-583b-a428-2e38ef4805bb",
+          "name": "Settle",
+          "role_id": "281d01cc-41cb-5568-8868-dcc6f6210633",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "d1e07a2e-ae6f-5e47-99c1-5e005daa31a0",
+          "source_id": "2e44293f-5a58-598d-94e4-5f1b454e7f0e",
+          "target_id": "b1024aaa-763f-5f7f-ba44-f79dc26d5bac"
+        },
+        {
+          "id": "c2ec05a4-7cf3-586b-b761-6f5fbab0a4f9",
+          "source_id": "b1024aaa-763f-5f7f-ba44-f79dc26d5bac",
+          "target_id": "806a533f-dc08-583b-a428-2e38ef4805bb"
+        }
+      ],
+      "events": [
+        {
+          "id": "b1024aaa-763f-5f7f-ba44-f79dc26d5bac",
+          "name": "Documents",
+          "event_type": "message",
+          "event_definition": {
+            "name": "documents.uploaded",
+            "correlation_key": "customer_id"
+          }
+        }
+      ]
+    }
+  ],
+  "journeys": [
+    {
+      "id": "61aaf4c6-be97-5317-8ff2-c5403ec0bc8f",
+      "name": "Claim",
+      "version": "1.0.0",
+      "subject": {
+        "name": "customer",
+        "key": "customer_id"
+      },
+      "stages": [
+        {
+          "id": "open",
+          "name": "Open",
+          "workflows": [
+            "13459394-577e-5e02-84c1-84e895fa5bcb"
+          ],
+          "complete_when": "paid == true",
+          "transitions": []
+        }
+      ],
+      "triggers": [
+        {
+          "event": "claim.submitted",
+          "starts_journey": true,
+          "start_workflow": "13459394-577e-5e02-84c1-84e895fa5bcb"
+        }
+      ],
+      "goals": [
+        {
+          "id": "paid",
+          "name": "Paid",
+          "expression": "paid == true"
+        }
+      ]
+    }
+  ],
+  "actors": {
+    "Register": {
+      "output": {
+        "claim_id": "CLM-1"
+      }
+    },
+    "Settle": {
+      "output": {
+        "paid": true
+      }
+    }
+  },
+  "steps": [
+    {
+      "publish": {
+        "type": "claim.submitted",
+        "data": {
+          "customer_id": "c-1"
+        }
+      }
+    },
+    {
+      "publish": {
+        "type": "documents.uploaded",
+        "data": {
+          "customer_id": "c-1"
+        }
+      }
+    }
+  ],
+  "expect": {
+    "instances": [
+      {
+        "journey": "Claim",
+        "status": "completed",
+        "goals_reached": [
+          "paid"
+        ],
+        "runs": [
+          "completed"
+        ],
+        "events": [
+          "journey.run_ended",
+          "journey.goal_reached",
+          "journey.stage_completed",
+          "journey.completed"
+        ]
+      }
+    ]
+  }
+}

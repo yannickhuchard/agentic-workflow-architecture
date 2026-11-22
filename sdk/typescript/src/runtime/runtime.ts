@@ -16,13 +16,64 @@ import {
     JourneyDefinition, JourneyInstance, advance_journey, check_stalled, enter_stage,
     apply_sentiment, journey_analytics, journey_transitions, new_journey_instance, record_journey_event, record_touchpoint, touchpoints_for, validate_journey,
 } from './journey';
+import { WorkflowState } from './persistence';
 import { WorkflowEngine, WorkflowEngineOptions } from './workflow_engine';
+import fs from 'fs/promises';
+import path from 'path';
 
 export interface RuntimeOptions {
     /** Options given to every run the runtime starts */
     engine?: WorkflowEngineOptions;
     /** The current time in milliseconds. Tests replace it to move time forward. */
     now?: () => number;
+    /** Where the runtime keeps what it knows, so that another process can carry on (spec 19.10). Without it, everything is in memory. */
+    store?: RuntimeStore;
+}
+
+/** Everything a host must keep to carry on after a restart: journeys, runs, and which events it has already taken in */
+export interface RuntimeState {
+    version: '1';
+    saved_at: string;
+    instances: JourneyInstance[];
+    runs: { run_id: string; workflow_id: string; journey_instance_id?: string; state: WorkflowState }[];
+    seen_events: string[];
+    outbox: Record<string, BusinessEvent[]>;
+}
+
+export interface RuntimeStore {
+    save(state: RuntimeState): Promise<void>;
+    load(): Promise<RuntimeState | null>;
+}
+
+export class InMemoryRuntimeStore implements RuntimeStore {
+    private state: string | null = null;
+    async save(state: RuntimeState): Promise<void> { this.state = JSON.stringify(state); }
+    async load(): Promise<RuntimeState | null> { return this.state ? JSON.parse(this.state) : null; }
+}
+
+/** Keeps the runtime's state in one JSON file, replaced atomically on every save */
+export class FileRuntimeStore implements RuntimeStore {
+    constructor(private file: string) { }
+    async save(state: RuntimeState): Promise<void> {
+        await fs.mkdir(path.dirname(this.file), { recursive: true });
+        const temporary = `${this.file}.${process.pid}.tmp`;
+        await fs.writeFile(temporary, JSON.stringify(state));
+        await fs.rename(temporary, this.file);
+    }
+    async load(): Promise<RuntimeState | null> {
+        try { return JSON.parse(await fs.readFile(this.file, 'utf-8')); } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+            throw error;
+        }
+    }
+}
+
+/** Several journeys with everything recorded about them: what a view of journeys reads */
+export interface PortfolioBundle {
+    as_of: string;
+    workflows: Workflow[];
+    transitions: { from: string; to: string; count: number; subjects: string[] }[];
+    journeys: { definition: JourneyDefinition; analytics: ReturnType<typeof journey_analytics>; instances: { instance: JourneyInstance; runs: JourneyBundle['runs'] }[] }[];
 }
 
 export interface PublishResult {
@@ -72,7 +123,7 @@ export class AwaRuntime {
     }
 
     register_journey(definition: JourneyDefinition): this {
-        const errors = validate_journey(definition, new Set(this.workflows.keys()));
+        const errors = validate_journey(definition, new Set(this.workflows.keys()), true);
         if (errors.length) throw new Error(`Invalid journey "${definition.name}": ${errors.map(e => e.message).join('; ')}`);
         this.journeys.set(definition.id, definition);
         // An event concerns a journey that names it, or whose workflows wait for it
@@ -107,51 +158,127 @@ export class AwaRuntime {
         return journey_analytics(definition, this.list_journey_instances(journey_id));
     }
 
-    /** Start a run. With a journey instance, the run belongs to that journey. */
-    async start(workflow_id: UUID, input: Record<string, unknown> = {}, journey?: { instance: JourneyInstance; caused_by_event?: string }): Promise<WorkflowEngine> {
-        const workflow = this.workflows.get(workflow_id);
-        if (!workflow) throw new Error(`Workflow ${workflow_id} is not registered`);
-        const outer_sink = this.options.engine?.event_sink;
-        const engine = new WorkflowEngine(workflow, {
-            ...this.options.engine, now: this.options.now,
-            event_sink: async event => { this.outbox.set(run_id(), [...(this.outbox.get(run_id()) || []), event]); await outer_sink?.(event); },
-        });
-        const run_id = () => engine.getRunId();
-        this.runs.set(engine.getRunId(), engine);
+    /** One operation of the host. When the outermost one ends, what the runtime knows is saved. */
+    private depth = 0;
+    private async op<T>(work: () => Promise<T>): Promise<T> {
+        this.depth++;
+        try { return await work(); } finally {
+            this.depth--;
+            if (this.depth === 0) await this.save();
+        }
+    }
 
-        if (journey) {
-            const definition = this.journeys.get(journey.instance.journey_id)!;
-            const stage = definition.stages.find(s => s.workflows.includes(workflow_id) || s.on_enter?.start_workflow === workflow_id);
-            const ref = {
-                run_id: engine.getRunId(), workflow_id, workflow_name: workflow.name,
-                stage_id: stage?.id || journey.instance.stage_id, status: 'running', started_at: this.time(),
-                ...(journey.caused_by_event ? { caused_by_event: journey.caused_by_event } : {}),
-            };
-            journey.instance.runs.push(ref);
-            this.run_journey.set(ref.run_id, journey.instance.id);
-            record_journey_event(journey.instance, 'journey.run_started', ref.started_at,
-                { workflow_id, workflow_name: workflow.name, caused_by_event: journey.caused_by_event }, { run_id: ref.run_id, stage_id: ref.stage_id });
-            // What the run does towards the outside world shows on the journey as touchpoints (spec 19.8)
-            const instance = journey.instance;
-            if (definition.touchpoints.length) engine.onEvent(event => {
-                const d = event.data as Record<string, unknown>;
-                const output = d.output as Record<string, unknown> | undefined;
-                const occasion = event.type === 'activity.completed' ? { activity: event.node_name, data: (output?.output && typeof output.output === 'object' ? output.output : output) as Record<string, unknown> | undefined }
-                    : event.type === 'tool.completed' ? { tool: d.tool as string, data: d.result as Record<string, unknown> | undefined, link: d.link as string | undefined }
-                        : event.type === 'event.published' ? { event: d.name as string, data: d.data as Record<string, unknown> | undefined, event_id: d.event_id as string | undefined }
-                            : undefined;
-                if (!occasion) return;
-                for (const touchpoint of touchpoints_for(definition, occasion)) {
-                    if (occasion.event && touchpoint.direction !== 'outbound') continue;
-                    record_touchpoint(definition, instance, touchpoint, event.time, { data: occasion.data, run_id: ref.run_id, event_id: (occasion as { event_id?: string }).event_id, link: (occasion as { link?: string }).link });
-                }
-            });
+    /** Write the runtime's state to its store. Called after every operation; a host may also call it. */
+    async save(): Promise<void> {
+        // Journals first: a state that names a journal position must never be ahead of the journal
+        await Promise.all([...this.runs.values()].map(engine => engine.flush()));
+        if (!this.options.store) return;
+        await this.options.store.save({
+            version: '1', saved_at: this.time(),
+            instances: [...this.instances.values()],
+            runs: [...this.runs.values()].map(engine => ({ run_id: engine.getRunId(), workflow_id: engine.getWorkflow().id, journey_instance_id: this.run_journey.get(engine.getRunId()), state: engine.snapshot() })),
+            seen_events: [...this.seen_events],
+            outbox: Object.fromEntries(this.outbox),
+        });
+    }
+
+    /**
+     * Take up where a previous process left off (spec 19.10). Call after the
+     * workflows and journeys are registered. Runs that were in the middle of an
+     * activity execute it again, so activities are executed at least once (10.3).
+     */
+    async recover(): Promise<{ instances: number; runs: number; continued: string[] }> {
+        const state = await this.options.store?.load();
+        if (!state) return { instances: 0, runs: 0, continued: [] };
+
+        // Everything is rebuilt aside first. A recovery that cannot complete throws here, before
+        // anything is taken over or saved: the state on record stays exactly as it was (spec 19.10).
+        const missing = state.runs.filter(saved => !this.workflows.has(saved.workflow_id));
+        if (missing.length) throw new Error(`Cannot recover: ${missing.map(m => `run ${m.run_id} needs workflow ${m.workflow_id}`).join('; ')}, which is not registered. Nothing was changed.`);
+        const instances = new Map(state.instances.map(i => [i.id, i]));
+        const engines: { saved: RuntimeState['runs'][number]; engine: WorkflowEngine }[] = [];
+        for (const saved of state.runs) {
+            engines.push({ saved, engine: await WorkflowEngine.recover(this.workflows.get(saved.workflow_id)!, saved.state, this.engine_options(() => saved.run_id)) });
         }
 
-        await engine.start(input);
-        await engine.run();
-        await this.sync(engine);
-        return engine;
+        return this.op(async () => {
+            this.instances = instances;
+            this.seen_events = new Set(state.seen_events);
+            this.outbox = new Map(Object.entries(state.outbox || {}));
+            const continued: string[] = [];
+            for (const { saved, engine } of engines) {
+                this.runs.set(saved.run_id, engine);
+                const instance = this.instances.get(saved.journey_instance_id || '');
+                if (instance) {
+                    this.run_journey.set(saved.run_id, instance.id);
+                    this.watch(engine, this.journeys.get(instance.journey_id)!, instance, saved.run_id);
+                }
+            }
+            for (const { saved, engine } of engines) {
+                if (engine.getStatus() === 'running') { continued.push(saved.run_id); await engine.run(); }
+                await this.sync(engine);
+            }
+            return { instances: this.instances.size, runs: this.runs.size, continued };
+        });
+    }
+
+    private engine_options(run_id: () => string): WorkflowEngineOptions {
+        const outer_sink = this.options.engine?.event_sink;
+        return {
+            ...this.options.engine, now: this.options.now,
+            event_sink: async event => { this.outbox.set(run_id(), [...(this.outbox.get(run_id()) || []), event]); await outer_sink?.(event); },
+        };
+    }
+
+    /** What a run does towards the outside world shows on its journey as touchpoints (spec 19.8) */
+    private watch(engine: WorkflowEngine, definition: JourneyDefinition, instance: JourneyInstance, run_id: string): void {
+        if (!definition.touchpoints.length) return;
+        engine.onEvent(event => {
+            const d = event.data as Record<string, unknown>;
+            const output = d.output as Record<string, unknown> | undefined;
+            const occasion = event.type === 'activity.completed' ? { activity: event.node_name, data: (output?.output && typeof output.output === 'object' ? output.output : output) as Record<string, unknown> | undefined }
+                : event.type === 'tool.completed' ? { tool: d.tool as string, data: d.result as Record<string, unknown> | undefined, link: d.link as string | undefined }
+                    : event.type === 'event.published' ? { event: d.name as string, data: d.data as Record<string, unknown> | undefined, event_id: d.event_id as string | undefined }
+                        : undefined;
+            if (!occasion) return;
+            for (const touchpoint of touchpoints_for(definition, occasion)) {
+                if (occasion.event && touchpoint.direction !== 'outbound') continue;
+                record_touchpoint(definition, instance, touchpoint, event.time, { data: occasion.data, run_id, event_id: (occasion as { event_id?: string }).event_id, link: (occasion as { link?: string }).link });
+            }
+        });
+    }
+
+    /** Start a run. With a journey instance, the run belongs to that journey. */
+    async start(workflow_id: UUID, input: Record<string, unknown> = {}, journey?: { instance: JourneyInstance; caused_by_event?: string }): Promise<WorkflowEngine> {
+        return this.op(async () => {
+            const workflow = this.workflows.get(workflow_id);
+            if (!workflow) throw new Error(`Workflow ${workflow_id} is not registered`);
+            // The engine's options need its run id, which exists only once the engine does
+            const made: { engine?: WorkflowEngine } = {};
+            const engine = new WorkflowEngine(workflow, this.engine_options(() => made.engine!.getRunId()));
+            made.engine = engine;
+            this.runs.set(engine.getRunId(), engine);
+
+            if (journey) {
+                const definition = this.journeys.get(journey.instance.journey_id)!;
+                const stage = definition.stages.find(s => s.workflows.includes(workflow_id) || s.on_enter?.start_workflow === workflow_id);
+                const ref = {
+                    run_id: engine.getRunId(), workflow_id, workflow_name: workflow.name,
+                    stage_id: stage?.id || journey.instance.stage_id, status: 'running', started_at: this.time(),
+                    ...(journey.caused_by_event ? { caused_by_event: journey.caused_by_event } : {}),
+                };
+                journey.instance.runs.push(ref);
+                this.run_journey.set(ref.run_id, journey.instance.id);
+                record_journey_event(journey.instance, 'journey.run_started', ref.started_at,
+                    { workflow_id, workflow_name: workflow.name, caused_by_event: journey.caused_by_event }, { run_id: ref.run_id, stage_id: ref.stage_id });
+                this.watch(engine, definition, journey.instance, ref.run_id);
+            }
+
+            await engine.start(input);
+            await engine.run();
+            await this.sync(engine);
+            return engine;
+        });
     }
 
     /** After a run has made progress: if it ended, fold its result into its journey and move the journey on */
@@ -220,6 +347,10 @@ export class AwaRuntime {
      * already seen is ignored.
      */
     async publish(event: BusinessEvent): Promise<PublishResult> {
+        return this.op(() => this.take_in(event));
+    }
+
+    private async take_in(event: BusinessEvent): Promise<PublishResult> {
         const result: PublishResult = { accepted: false, resumed_runs: [], started_runs: [], journeys: [] };
         if (this.seen_events.has(event.id)) return result;
         this.seen_events.add(event.id);
@@ -334,6 +465,10 @@ export class AwaRuntime {
      * journeys that have stayed too long in a stage as stalled.
      */
     async tick(now: number = this.now()): Promise<{ timed_out_runs: string[]; stalled_journeys: string[] }> {
+        return this.op(() => this.pass_time(now));
+    }
+
+    private async pass_time(now: number): Promise<{ timed_out_runs: string[]; stalled_journeys: string[] }> {
         const timed_out_runs: string[] = [];
         for (const engine of this.runs.values()) {
             if (await engine.expireEvents(now) > 0) {
@@ -353,10 +488,23 @@ export class AwaRuntime {
     async resume(run_id: string, token_id: string, output: Record<string, unknown>): Promise<boolean> {
         const engine = this.runs.get(run_id);
         if (!engine) return false;
-        const resumed = await engine.resumeToken(token_id, output);
-        await engine.run();
-        await this.sync(engine);
-        return resumed;
+        return this.op(async () => {
+            const resumed = await engine.resumeToken(token_id, output);
+            await engine.run();
+            await this.sync(engine);
+            return resumed;
+        });
+    }
+
+    /** Every journey with everything recorded about it, for a view or an audit */
+    async export_portfolio(): Promise<PortfolioBundle> {
+        const journeys = [];
+        for (const definition of this.journeys.values()) {
+            const instances = [];
+            for (const instance of this.list_journey_instances(definition.id)) instances.push({ instance, runs: (await this.export_journey(instance.id)).runs });
+            journeys.push({ definition, analytics: journey_analytics(definition, this.list_journey_instances(definition.id)), instances });
+        }
+        return { as_of: this.time(), workflows: [...this.workflows.values()], transitions: this.transitions(), journeys };
     }
 
     async export_journey(instance_id: string): Promise<JourneyBundle> {
@@ -371,4 +519,50 @@ export class AwaRuntime {
         const workflow_ids = new Set(instance.runs.map(r => r.workflow_id));
         return { definition, instance, workflows: [...workflow_ids].map(id => this.workflows.get(id)!).filter(Boolean), runs };
     }
+}
+
+/**
+ * A runtime that lives in a directory: definitions, state and journals side by
+ * side, so that a command line, a server or a scheduled job can each open it,
+ * do one thing and leave it for the next.
+ *
+ *   <dir>/definitions/*.json   workflows and journeys
+ *   <dir>/runtime.json         journeys, runs, events already taken in
+ *   <dir>/journals/            one journal per run
+ */
+export async function open_runtime_directory(directory: string, options: RuntimeOptions = {}): Promise<AwaRuntime> {
+    const { parse_document } = await import('../validator');
+    const { JourneyDefinitionSchema } = await import('./journey');
+    const { FileJournalStore } = await import('./journal');
+    const definitions = path.join(directory, 'definitions');
+    await fs.mkdir(definitions, { recursive: true });
+    const runtime = new AwaRuntime({
+        ...options,
+        store: options.store || new FileRuntimeStore(path.join(directory, 'runtime.json')),
+        engine: { journal: new FileJournalStore(path.join(directory, 'journals')), ...options.engine },
+    });
+    const documents = [];
+    for (const name of (await fs.readdir(definitions)).filter(n => n.endsWith('.json')).sort()) documents.push(JSON.parse(await fs.readFile(path.join(definitions, name), 'utf-8')));
+    // Workflows first: a journey is checked against the workflows it names
+    for (const document of documents.filter(d => !is_journey_document(d))) runtime.register_workflow(parse_document(document));
+    for (const document of documents.filter(is_journey_document)) runtime.register_journey(JourneyDefinitionSchema.parse(document));
+    await runtime.recover();
+    return runtime;
+}
+
+/** A journey has stages and a subject; a workflow has activities */
+export function is_journey_document(document: unknown): boolean {
+    const d = document as Record<string, unknown>;
+    return !!d && Array.isArray(d.stages) && typeof d.subject === 'object';
+}
+
+/** Add a workflow or a journey to a runtime directory. Returns what it was. */
+export async function add_definition(directory: string, document: Record<string, unknown>): Promise<{ kind: 'workflow' | 'journey'; id: string; name: string }> {
+    const { parse_document } = await import('../validator');
+    const { JourneyDefinitionSchema } = await import('./journey');
+    const journey = is_journey_document(document);
+    const parsed = journey ? JourneyDefinitionSchema.parse(document) : parse_document(document);
+    await fs.mkdir(path.join(directory, 'definitions'), { recursive: true });
+    await fs.writeFile(path.join(directory, 'definitions', `${journey ? 'journey' : 'workflow'}-${parsed.id}.json`), JSON.stringify(document, null, 2) + '\n');
+    return { kind: journey ? 'journey' : 'workflow', id: parsed.id, name: parsed.name };
 }

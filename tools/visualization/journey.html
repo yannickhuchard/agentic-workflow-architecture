@@ -127,7 +127,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid #a5b4fc; outline-
 .doc { position: absolute; width: 11px; height: 13px; margin: -7px 0 0 -6px; border-radius: 2px 5px 2px 2px; background: #e2e8f0; pointer-events: auto; transition: opacity .3s ease .6s, transform .3s ease .6s; }
 .doc.out { background: var(--bg); border: 2px solid #e2e8f0; }
 .dot.off, .doc.off { opacity: 0; transform: scale(.2); transition-delay: 0s; }
-.th { position: absolute; background: #94a3b8; pointer-events: none; transition: transform .3s ease; }
+.th { position: absolute; background: #94a3b8; pointer-events: none; transition: transform .3s ease, opacity .3s ease; }
 .th.h { height: 2px; margin-top: -1px; transform-origin: left center; }
 .th.v { width: 2px; margin-left: -1px; transition-delay: .25s; }
 .th.v.down { transform-origin: center top; } .th.v.up { transform-origin: center bottom; }
@@ -140,8 +140,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid #a5b4fc; outline-
 .rb:hover { background: #2a3a52; }
 .rb.off { opacity: 0; transform: scaleX(.05); pointer-events: none; transition-delay: 0s; }
 .rb.r-running { border-color: var(--run); border-style: dashed; } .rb.r-completed { border-color: var(--ok); } .rb.r-failed { border-color: var(--bad); } .rb.r-cancelled { border-color: var(--mute); border-style: dotted; }
-.rbl { position: absolute; font-size: 12px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; border: 0; background: none; padding: 2px 4px; border-radius: 6px; cursor: pointer; z-index: 3; transition: opacity .3s ease .5s; }
-.rbl:hover { background: rgba(255,255,255,.08); }
+.rbl { position: absolute; font-size: 12px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; border: 1px solid rgba(255,255,255,.22); background: var(--card); padding: 3px 9px; border-radius: 8px; cursor: pointer; z-index: 3; transition: opacity .3s ease .5s; }
+.rbl:hover { background: #2a3a52; border-color: var(--focus); }
 .rbl.off { opacity: 0; pointer-events: none; transition-delay: 0s; }
 .fl { position: absolute; font-size: 12px; font-weight: 600; color: #fff; background: #312e81; border: 1px solid var(--focus); padding: 3px 9px; border-radius: 8px; white-space: nowrap; pointer-events: none; z-index: 4; transition: left .5s cubic-bezier(.4,0,.2,1), top .5s cubic-bezier(.4,0,.2,1); }
 .fl.ct { transform: translateX(-50%); } .fl.rt { transform: translateX(-100%) translateX(14px); } .fl.lt { transform: translateX(-14px); }
@@ -156,6 +156,30 @@ button:focus-visible, input:focus-visible { outline: 2px solid #a5b4fc; outline-
 .mdot { transition: opacity .3s ease .4s; } .mdot.off { opacity: 0; transition-delay: 0s; }
 .lg { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--soft); white-space: nowrap; }
 .lgi { width: 14px; height: 14px; flex: none; position: relative; }
+
+/* On one customer's journey nothing disappears: what lies after the moment being read is dimmed, so a click inspects and never seems to erase */
+#L2 .g.off { opacity: .42; transform: none; pointer-events: auto; }
+#L2 .dot.off, #L2 .doc.off { opacity: .25; transform: none; }
+#L2 .th.h.off, #L2 .th.v.off { transform: none; opacity: .22; }
+#L2 .gap.off { opacity: .4; }
+#L2 .rb.off { opacity: .35; transform: none; pointer-events: auto; }
+#L2 .rbl.off { opacity: .45; pointer-events: auto; }
+#L2 .band.off { opacity: .55; }
+.ms { stroke: #e2e8f0; stroke-width: 2; stroke-linecap: round; transition: opacity .3s ease; }
+.ms.said { stroke-width: 3.5; } .ms.guess { stroke-dasharray: 5 5; } .ms.off { opacity: .25; }
+.md { position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; border: 2px solid #e2e8f0; background: var(--bg); padding: 0; cursor: pointer; z-index: 3; transition: opacity .3s ease; }
+.md.said { background: #e2e8f0; } .md.off { opacity: .45; }
+.nd[data-n] { cursor: pointer; }
+
+.listp { position: absolute; right: 24px; top: 58px; width: 560px; height: 596px; border-radius: 14px; background: var(--panel); border: 1px solid rgba(129,140,248,.5); box-shadow: 0 20px 60px rgba(0,0,0,.6); z-index: 6; display: flex; flex-direction: column; overflow: hidden; }
+.listp[hidden] { display: none; }
+.listh { flex: none; display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.listb { flex: 1 1 auto; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 2px; }
+.ll2 { display: flex; gap: 12px; align-items: baseline; width: 100%; padding: 7px 8px; border-radius: 8px; border: 1px solid transparent; background: none; cursor: pointer; text-align: left; font-size: 13px; line-height: 18px; color: #e2e8f0; }
+.ll2:hover { background: rgba(255,255,255,.05); }
+.ll2.cur { background: rgba(129,140,248,.14); border-color: rgba(129,140,248,.45); }
+.ll2 .w { flex: none; width: 104px; font-size: 12px; color: var(--mute); white-space: nowrap; }
+.ll2 .gapl { color: #a5b4fc; font-size: 12px; }
 
 /* One run */
 .nd { position: absolute; transition: border-color .25s ease .35s, box-shadow .25s ease .35s, background-color .25s ease .35s, opacity .25s ease .35s; }
@@ -208,8 +232,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid #a5b4fc; outline-
 #bar { position: absolute; left: 0; top: 756px; width: 1440px; height: 144px; padding: 12px 28px 14px; background: var(--panel); border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; z-index: 5; }
 #cap { flex: 1 1 auto; min-width: 0; font-size: 19px; line-height: 27px; font-weight: 500; }
 #cap.in { animation: capin .4s ease both; }
-#facts { flex: none; width: 380px; display: flex; flex-direction: column; gap: 2px; font-size: 12px; line-height: 16px; }
-#facts div { display: flex; gap: 8px; } #facts span { flex: none; width: 76px; color: var(--mute); } #facts b { font-weight: 500; color: #e2e8f0; }
+#facts { flex: none; width: 420px; overflow: hidden; display: flex; flex-direction: column; gap: 2px; font-size: 12px; line-height: 16px; }
+#facts div { display: flex; gap: 8px; min-width: 0; } #facts span { flex: none; width: 76px; color: var(--mute); } #facts b { font-weight: 500; color: #e2e8f0; }
 .tb { width: 44px; height: 44px; flex: none; border-radius: 10px; border: 1px solid rgba(255,255,255,.16); background: var(--card); color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; transition: background-color .2s; }
 .tb:hover { background: #2a3a52; }
 .tb.pri { width: 60px; background: #4f46e5; border-color: var(--focus); } .tb.pri:hover { background: #6366f1; }
@@ -227,6 +251,9 @@ button:focus-visible, input:focus-visible { outline: 2px solid #a5b4fc; outline-
     <div style="width:1px;height:22px;background:rgba(255,255,255,.16)"></div>
     <nav id="crumbs" aria-label="Where you are" style="display:flex;align-items:center;gap:6px"></nav>
     <div style="flex:1"></div>
+    <div id="source" style="font-size:12px;color:var(--mute);white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis"></div>
+    <button class="crumb" id="b-open" style="border-color:rgba(255,255,255,.16)" title="Open a record: the file written by awa journey export, or by GET /api/v1/journeys/portfolio">Open a record</button>
+    <input id="file" type="file" accept=".json,application/json" hidden>
     <div id="switch" class="seg-ctl" role="group" aria-label="Journey"></div>
   </div>
   <div class="layer" id="L0"><div class="scene"></div></div>
@@ -249,17 +276,17 @@ button:focus-visible, input:focus-visible { outline: 2px solid #a5b4fc; outline-
       <div id="count" class="mono" style="flex:none;width:76px;text-align:right;font-size:13px;color:#cbd5e1"></div>
     </div>
   </div>
-  <div id="none" hidden>No story data. Run <span class="mono">&nbsp;node examples/claims-journey/make-story.mjs&nbsp;</span> to write journey-story.js beside this file.</div>
+  <div id="none" hidden></div>
 </div>
+<script src="journey-story-builder.js"></script>
 <script src="journey-story.js"></script>
 <script>
 (() => {
 'use strict';
-const S = window.AWA_STORY;
+let S = window.AWA_STORY;
 const $ = id => document.getElementById(id);
 const fit = () => { const k = Math.min(innerWidth / 1440, innerHeight / 900); $('fit').style.transform = `translate(${(innerWidth - 1440 * k) / 2}px, ${(innerHeight - 900 * k) / 2}px) scale(${k})`; };
 addEventListener('resize', fit); fit();
-if (!S) { $('none').hidden = false; return; }
 
 const DAY = 86400000, r = Math.round;
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -280,6 +307,8 @@ const moodWord = v => v === null || v === undefined ? '' : v >= 1.5 ? 'delighted
 const moodCls = v => v >= 1.5 ? 'm-up2' : v >= 0.5 ? 'm-up1' : v > -0.5 ? 'm-mid' : v > -1.5 ? 'm-dn1' : 'm-dn2';
 const signed = v => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(Math.round(v * 10) / 10);
 const mood = v => v === null || v === undefined ? '' : `<span class="${moodCls(v)}">${moodWord(v)} (${signed(v)})</span>`;
+/** Whether the mood a journey ended on was stated by the customer or inferred by a rule */
+const basisOf = inst => { let basis = ''; for (const b of inst.beats) for (const w of b.mood_why || []) basis = w.basis === 'measured' ? 'said' : 'inferred'; return basis; };
 const KIND = k => k.charAt(0).toUpperCase() + k.slice(1);
 
 // ---------------------------------------------------------------- geometry
@@ -310,7 +339,7 @@ const built = {};
 scenes.atlas = () => {
     let h = `<div style="position:absolute;left:28px;top:20px;width:216px;display:flex;flex-direction:column;gap:8px">
       <div class="hd" style="font-size:22px;line-height:26px;font-weight:600">${S.journeys.length} journeys, ${S.customers.length} customers</div>
-      <div class="sub" style="font-size:13px;line-height:18px">Select a journey to see everyone in it, or a cell to follow one customer through it. The line in each cell is that customer&rsquo;s mood.</div></div>`;
+      <div class="sub" style="font-size:13px;line-height:18px">Select a journey to see everyone in it, or a cell to follow one customer through it. The line in each cell is that customer&rsquo;s mood: &ldquo;said&rdquo; where they told us, &ldquo;inferred&rdquo; where a rule assumed it.</div></div>`;
     S.journeys.forEach((j, k) => {
         const o = j.outcome;
         h += `<button class="jcard" style="left:${CX(k)}px" data-open-j="${k}" aria-label="See everyone in the ${esc(j.name)} journey">
@@ -329,7 +358,7 @@ scenes.atlas = () => {
             const pts = inst.beats.map((b, k) => `${r(4 + k / Math.max(n - 1, 1) * 142)},${r(20 - (b.mood ?? 0) / sc.max * 15)}`).join(' ');
             h += `<button class="pcell" style="left:${CX(life.j)}px;top:${PY(i)}px" data-open-s="${life.j},${life.i}" aria-label="Follow ${esc(c.name)} through ${esc(S.journeys[life.j].name)}">
               <svg class="spark" viewBox="0 0 150 40" aria-hidden="true"><line x1="0" y1="20" x2="150" y2="20" stroke="#334155" stroke-dasharray="3 4"/><polyline points="${pts}" fill="none" stroke="#e2e8f0" stroke-width="2" stroke-linejoin="round"/></svg>
-              <span style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="e-${inst.ending.kind}" style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(inst.ending.label)}</span><span style="font-size:12px">${mood(inst.mood_end)}</span></span></button>`;
+              <span style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="e-${inst.ending.kind}" style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(inst.ending.label)}</span><span style="font-size:12px">${mood(inst.mood_end)}${basisOf(inst) ? ` <span style="color:var(--mute)">&middot; ${basisOf(inst)}</span>` : ''}</span></span></button>`;
         }
     });
     return h;
@@ -340,7 +369,8 @@ scenes.journey = () => {
     const ax = t => 264 + (Math.min(Math.max(t, j.t0), j.t1) - j.t0) / Math.max(j.t1 - j.t0, 1) * 1104;
     let h = `<div style="position:absolute;left:28px;top:22px;width:216px;display:flex;flex-direction:column;gap:8px">
       <div class="hd" style="font-size:22px;line-height:26px;font-weight:600">${esc(j.name)}</div>
-      <div class="sub" style="font-size:13px;line-height:18px">Calendar time, ${day(j.t0)} to ${day(j.t1)}. One lane per customer. Select a lane to follow that customer.</div></div>`;
+      <div class="sub" style="font-size:13px;line-height:18px">Calendar time, ${day(j.t0)} to ${day(j.t1)}. One lane per customer. Select a lane to follow that customer.</div>
+      <div id="asof" style="font-size:13px;font-weight:600;color:#a5b4fc"></div></div>`;
     j.stages.forEach((s, k) => {
         h += `<div class="card" style="left:${264 + k * (w + 24)}px;width:${w}px"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px"><span class="hd" style="font-size:17px;font-weight:600">${esc(s.name)}</span><span class="sub">${s.max ? 'given ' + esc(s.max) : ''}</span></div>
           <div class="kv" data-card="${k}"></div></div>`;
@@ -364,10 +394,12 @@ scenes.story = () => {
     const j = J(), c = I(), beats = c.beats, n = beats.length, xs = xsOf(c), person = S.customers[c.c];
     const ys = beats.map(b => beatY(j, b));
     let h = `<div style="position:absolute;left:28px;top:12px;width:1384px;display:flex;align-items:center;gap:10px">
-      <button class="nav" data-person="-1" aria-label="Previous customer"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
-      <div class="hd" style="font-size:22px;font-weight:600;white-space:nowrap">${esc(c.name)}</div>
-      <button class="nav" data-person="1" aria-label="Next customer"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
-      <div class="sub" style="font-size:13px;flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(person.persona)}">${esc(person.persona)} ${esc(c.summary)}</div>
+      <div class="hd" style="font-size:22px;font-weight:600;white-space:nowrap" title="${esc((person.persona || '') + ' ' + c.summary)}">${esc(c.name)}</div>
+      <button class="crumb" style="border-color:rgba(255,255,255,.16);font-size:12px;height:28px;padding:0 9px" data-person="-1" title="The previous customer in this journey">&lsaquo; previous customer</button>
+      <button class="crumb" style="border-color:rgba(255,255,255,.16);font-size:12px;height:28px;padding:0 9px" data-person="1" title="The next customer in this journey">next customer &rsaquo;</button>
+      <button class="crumb" style="border-color:var(--focus);color:#fff;font-size:12px;height:28px;padding:0 9px" data-list="toggle" title="The whole story as a dated list you can read from top to bottom">Read as a list</button>
+<div style="flex:1 1 auto"></div>
+      ${c.mood_from ? `<div class="chip" title="A journey begins at the mood the customer's last one left them in">Arrived ${mood(c.mood_start)} from ${esc(c.mood_from)}</div>` : ''}
       <div class="chip" id="moodchip"></div>
       ${c.goals.map((g, k) => `<div class="chip" data-goal="${k}"></div>`).join('')}
       <div class="chip e-${c.ending.kind} hide" id="endchip">${esc(c.ending.label)}</div></div>`;
@@ -380,7 +412,7 @@ scenes.story = () => {
     h += `<div class="col"></div>`;
     // Lane labels and rails. The journey itself is the line of visibility: customer above, work below.
     const label = (y, title, sub) => `<div class="ll" style="top:${y - 16}px"><div class="pt">${title}</div><div class="sub">${sub}</div></div>`;
-    h += label(96, 'Mood', 'said or inferred') + label(LY.world, 'Customer', 'touchpoints') + label(LY.journey, 'Journey', 'line of visibility') + label(LY.work, 'Workflows', 'the work behind it');
+    h += label(96, 'Mood', 'solid: said &middot; dashed: inferred') + label(LY.world, 'Customer', 'touchpoints') + label(LY.journey, 'Journey', 'line of visibility') + label(LY.work, 'Workflows', 'the work behind it');
     h += `<div class="rail" style="top:${moodY(0)}px;border-top:1px dashed rgba(255,255,255,.14)"></div><div class="rail" style="top:${LY.world}px;border-top:1px dashed rgba(255,255,255,.10)"></div>
       <div class="rail" style="top:${LY.journey - 1}px;border-top:2px solid #475569"></div><div class="rail" style="top:${LY.work}px;border-top:1px dashed rgba(255,255,255,.10)"></div>
       <div class="rowl" style="top:${moodY(2) - 8}px;left:150px;width:auto;color:#34d399">+2</div><div class="rowl" style="top:${moodY(-2) - 8}px;left:150px;width:auto;color:#ff8a8c">&minus;2</div>`;
@@ -391,16 +423,22 @@ scenes.story = () => {
 
     // Mood: one line, revealed as the story is told. A filled dot was said by the customer; a hollow one was inferred.
     if (j.scale) {
-        const pts = beats.map((b, i) => [xs[i], moodY(b.mood ?? 0)]);
-        const start = [xs[0] - 22, moodY(c.mood_start ?? 0)];
-        const d = 'M' + [start, ...pts].map(p => p.join(' ')).join(' L');
-        h += `<svg style="position:absolute;left:0;top:0;width:1440px;height:160px;overflow:visible;pointer-events:none" aria-hidden="true"><path class="moodline" id="moodline" d="${d}"/>`;
-        beats.forEach((b, i) => { for (const w of b.mood_why || []) h += `<circle class="mdot off" data-b="${i}" cx="${xs[i]}" cy="${moodY(b.mood)}" r="5" fill="${w.basis === 'measured' ? '#e2e8f0' : '#0b0f19'}" stroke="#e2e8f0" stroke-width="2"><title>${esc(w.basis)}: ${esc(w.reason)}</title></circle>`; });
+        const pts = [[xs[0] - 22, moodY(c.mood_start ?? 0)], ...beats.map((b, i) => [xs[i], moodY(b.mood ?? 0)])];
+        h += `<svg style="position:absolute;left:0;top:0;width:1440px;height:160px;overflow:visible;pointer-events:none" aria-hidden="true">`;
+        beats.forEach((b, i) => {
+            const why = b.mood_why || [], basis = why.length ? (why.some(w => w.basis === 'measured') ? ' said' : ' guess') : '';
+            h += `<line class="ms${basis} off" data-b="${i}" x1="${pts[i][0]}" y1="${pts[i][1]}" x2="${pts[i + 1][0]}" y2="${pts[i + 1][1]}"/>`;
+        });
         h += `</svg>`;
+        beats.forEach((b, i) => {
+            if (!b.mood_why) return;
+            const said = b.mood_why.some(w => w.basis === 'measured');
+            h += `<button class="md${said ? ' said' : ''} off" data-b="${i}" data-beat="${i}" style="left:${xs[i]}px;top:${moodY(b.mood)}px" title="${esc(b.mood_why.map(w => `${w.basis === 'measured' ? 'The customer said so' : 'Inferred by a rule'}: ${w.reason}`).join('; '))}" aria-label="Mood changes here: ${esc(b.mood_why.map(w => w.basis + ', ' + w.reason).join('; '))}"></button>`;
+        });
     }
     c.runs.forEach((run, ri) => {
         h += `<button class="rb off" data-run="${ri}" data-b0="${run.b0}" data-b1="${run.b1}" data-status="${run.status}" style="left:${xs[run.b0] - 18}px;top:${LY.work}px;width:${xs[run.b1] - xs[run.b0] + 36}px" aria-label="Look inside the run of ${esc(run.name)}"></button>
-          <button class="rbl off" data-b="${run.b0}" data-run="${ri}" data-runlabel="${ri}" style="left:${xs[run.b0] - 16}px;top:${LY.work + 23}px;max-width:${(c.runs[ri + 1] ? xs[c.runs[ri + 1].b0] : 1420) - xs[run.b0] - 6}px"></button>`;
+          <button class="rbl off" data-b="${run.b0}" data-run="${ri}" data-runlabel="${ri}" style="left:${xs[run.b0] - 16}px;top:${LY.work + 25}px;max-width:${(c.runs[ri + 1] ? xs[c.runs[ri + 1].b0] : 1420) - xs[run.b0] - 6}px"></button>`;
     });
     for (let i = 1; i < n; i++) {
         const b = beats[i], y0 = ys[i - 1], y1 = ys[i], time = b.outside ? ' time' : '';
@@ -421,11 +459,16 @@ scenes.story = () => {
             h += `<div class="doc${out} off" data-b="${i}" style="left:${xs[i] + (seen[k] - 1) * 7}px;top:${kindY(j, k)}px" title="${esc(a.name)}${a.reference ? ' ' + esc(a.reference) : ''}"></div>`;
         }
     });
+    h += `<div class="listp" id="listp" hidden><div class="listh"><b style=\"flex:1 1 auto;white-space:nowrap\">What happened, in order</b><div class="seg-ctl"><button data-list="customer">The customer&rsquo;s side</button><button data-list="all">Everything</button></div><button class="crumb" data-list="toggle">Close</button></div><div class="listb" id="listb"></div></div>`;
     h += `<div class="ring"></div><div class="fl ct"></div>
-      <div style="position:absolute;left:28px;top:660px;width:1384px;display:flex;align-items:center;gap:16px">
+      <div style="position:absolute;left:28px;top:654px;width:1384px;display:flex;align-items:center;gap:16px">
         ${[['k-event', 'customer acts'], ['k-told', 'customer is told'], ['k-timeout', 'nothing arrives in time'], ['k-stage_in', 'stage begins'], ['k-goal', 'goal reached'], ['k-model_decision', 'a model decides'], ['k-human_wait', 'waits for a person'], ['k-partner', 'a partner system is called']].map(([k, t]) => `<div class="lg"><span class="lgi"><span class="sh ${k}"></span></span>${t}</div>`).join('')}
         <div class="lg"><span class="lgi"><span class="doc" style="left:7px;top:8px"></span></span>received</div><div class="lg"><span class="lgi"><span class="doc out" style="left:7px;top:8px"></span></span>sent out</div>
-        <div class="lg"><span style="width:20px;border-top:2px solid #94a3b8"></span>caused</div><div class="lg"><span style="width:20px;border-top:2px dashed #64748b"></span>time passes</div></div>`;
+        <div class="lg"><span style="width:20px;border-top:2px solid #94a3b8"></span>caused</div><div class="lg"><span style="width:20px;border-top:2px dashed #64748b"></span>time passes</div></div>
+      <div style="position:absolute;left:28px;top:678px;width:1384px;display:flex;align-items:center;gap:16px">
+        <div class="lg"><span class="md said" style="position:static;margin:0;cursor:default"></span>mood the customer stated</div><div class="lg"><span class="md" style="position:static;margin:0;cursor:default"></span>mood inferred by a rule</div>
+        <div class="lg"><span class="lgi"><span class="sh k-undone"></span></span>an earlier step is undone</div><div class="lg"><span class="lgi"><span class="sh k-run_failed"></span></span>a workflow fails</div><div class="lg"><span class="lgi"><span class="sh k-stalled"></span></span>stalled: needs someone</div>
+        <div class="lg" style="color:var(--mute)">Select any mark to read that moment. Nothing is hidden: later moments are dimmed.</div></div>`;
     return h;
 };
 
@@ -436,6 +479,9 @@ scenes.run = () => {
       <button class="crumb" style="border-color:rgba(255,255,255,.16)" data-up="1">Back to ${esc(c.name)}</button>
       <div class="hd" style="font-size:22px;font-weight:600;white-space:nowrap">${esc(run.name)}</div>
       <div class="sub" style="font-size:14px;flex:1 1 auto">serving the stage &ldquo;${esc(stage ? stage.name : '')}&rdquo; of the ${esc(J().name)} journey</div><div class="chip" id="runchip"></div></div>`;
+    // A workflow wider or taller than the stage is shown smaller, never cut off
+    const fit = Math.min(1, 1384 / W.width, 330 / W.height);
+    h += `<div style="position:absolute;left:0;top:0;width:1440px;height:420px;transform:scale(${fit.toFixed(3)});transform-origin:720px 242px">`;
     W.edges.forEach((e, ei) => {
         e.segs.forEach((sg, si) => {
             const hz = sg.dir === 'r' || sg.dir === 'l';
@@ -449,10 +495,11 @@ scenes.run = () => {
         else if (n.kind === 'event') h += `<div class="nd evt m-${n.mode}" data-n="${i}" data-base="nd evt m-${n.mode}" style="${box}"><span class="ev-in"></span></div><div class="nl" style="left:${gx + n.x + n.w / 2}px;top:${gy + n.y + n.h + 5}px"><span>${esc(n.name)}</span></div>`;
         else h += `<div class="nd dec" data-n="${i}" data-base="nd dec" style="${box}"></div><div class="nl dl" style="left:${gx + n.x + n.w - 10}px;top:${gy + n.y - 14}px"><span>${esc(n.name)}</span></div>`;
     });
+    h += `</div>`;
     const swatch = (css, t) => `<div class="lg" style="font-size:12px"><span style="width:18px;height:12px;border-radius:3px;${css}"></span>${t}</div>`;
     return h + `<div style="position:absolute;left:28px;top:424px;width:1384px;display:flex;gap:16px">
       <div class="pn" style="flex:0 0 560px"><div class="pt" style="color:var(--mute)">The story so far</div><div id="script" style="display:flex;flex-direction:column;gap:2px"></div></div>
-      <div class="pn" style="flex:1 1 auto;min-width:0"><div class="pt" style="color:var(--mute)">Evidence for this step</div><div id="evidence" style="display:flex;flex-direction:column;gap:7px"></div></div>
+      <div class="pn" style="flex:1 1 auto;min-width:0"><div class="pt" style="color:var(--mute)">Evidence for this step</div><div id="evidence" style="display:flex;flex-direction:column;gap:7px;overflow:auto"></div></div>
       <div class="pn" style="flex:0 0 250px"><div class="pt" style="color:var(--mute)">Reading the diagram</div>
         ${swatch('border:1.5px solid var(--run)', 'working now')}${swatch('border:1.5px dashed var(--wait)', 'waiting')}${swatch('border:1.5px solid var(--ok)', 'done')}${swatch('border:1.5px solid var(--bad);background:#3b1d24', 'failed')}${swatch('border:1.5px dotted var(--mute)', 'undone afterwards')}
         <div class="lg" style="font-size:12px"><span style="width:18px;border-top:2px dashed var(--wait)"></span>path taken on a missed deadline</div></div></div>`;
@@ -477,6 +524,7 @@ apply.journey = el => {
         seg.classList.toggle('stalled', seg.dataset.open === '1' && seg.dataset.stall !== '' && +seg.dataset.stall <= T);
     });
     el.querySelectorAll('[data-t]').forEach(x => x.classList.toggle('off', +x.dataset.t > T));
+    el.querySelector('#asof').textContent = pos() === j.all.length - 1 ? `Counts as of ${day(T)}, the end of the record` : `Counts as of ${day(T)}: move the slider to the end for the final picture`;
     const ph = el.querySelector('.ph'); ph.style.left = r(ax(T)) + 'px'; ph.firstChild.textContent = day(T);
     const ring = el.querySelector('.ring'); ring.style.left = r(ax(T)) + 'px'; ring.style.top = laneTop(m.c) + 34 + 'px';
 };
@@ -489,7 +537,7 @@ apply.story = el => {
         const started = ib >= +bar.dataset.b0, ended = ib >= +bar.dataset.b1, status = bar.dataset.status;
         bar.className = 'rb' + (started ? '' : ' off') + (ended ? ' r-' + status : ' r-running');
         const label = el.querySelector(`[data-runlabel="${bar.dataset.run}"]`);
-        label.innerHTML = `<b style="color:#fff">${esc(c.runs[+bar.dataset.run].name)}</b> &middot; ${ended ? WORD[status] || status : 'under way'} &middot; look inside`;
+        label.innerHTML = `<b style="color:#fff">${esc(c.runs[+bar.dataset.run].name)}</b> &middot; ${ended ? WORD[status] || status : 'under way'} &middot; <span style="color:#a5b4fc;font-weight:600">Look inside &rsaquo;</span>`;
     });
     const finished = ib === n - 1, over = finished && c.ending.kind !== 'stalled';
     c.goals.forEach((g, k) => {
@@ -504,6 +552,16 @@ apply.story = el => {
     el.querySelector('.col').style.left = xs[ib] + 'px';
     const fl = el.querySelector('.fl'); fl.textContent = cur.title; fl.style.left = xs[ib] + 'px'; fl.style.top = (cur.lane === 'tech' ? y + 14 : y - 46) + 'px';
     fl.className = 'fl ' + (xs[ib] < 300 ? 'lt' : xs[ib] > 1150 ? 'rt' : 'ct');
+    // The same story as a list to read from top to bottom: by default only what the customer lived through
+    const panel = el.querySelector('#listp'); panel.hidden = !st.list;
+    if (st.list) {
+        const SIDE = { event: 1, told: 1, timeout: 1, stalled: 1, completed: 1, abandoned: 1, human_done: 1, model_decision: 1, run_failed: 1, goal: 1, undone: 1 };
+        el.querySelectorAll('[data-list="customer"],[data-list="all"]').forEach(b => b.classList.toggle('on', (b.dataset.list === 'all') === !!st.listAll));
+        el.querySelector('#listb').innerHTML = beats.map((b, i) => (st.listAll || SIDE[b.kind]) ? `${b.gap ? `<div class="ll2" style="cursor:default"><span class="w"></span><span class="gapl">${esc(b.gap)}</span></div>` : ''}<button class="ll2${i === ib ? ' cur' : ''}" data-beat="${i}"><span class="w mono">${esc(b.when)}</span><span>${esc(b.cap)}${b.mood_why ? ` <span style="color:var(--mute)">(mood ${b.mood_why.map(w => `${signed(w.change)}, ${w.basis === 'measured' ? 'said by the customer' : 'inferred'}: ${esc(w.reason)}`).join('; ')})</span>` : ''}</span></button>` : '').join('');
+        const body = el.querySelector('#listb'), cur = body.querySelector('.cur');
+        if (!panel.dataset.open) body.scrollTop = 0; else if (cur) cur.scrollIntoView({ block: 'nearest' });
+        panel.dataset.open = '1';
+    } else delete panel.dataset.open;
     const line = el.querySelector('#moodline');
     if (line) {
         if (!line.dataset.len) {
@@ -524,7 +582,7 @@ apply.run = el => {
     let h = '';
     for (let i = Math.max(0, Math.min(ic - 2, steps.length - 5)), k = 0; i < steps.length && k < 5; i++, k++) h += `<button class="tr${i === ic ? ' cur' : ''}" data-step="${i}"><span class="trw mono">${esc(steps[i].when)}</span><span class="${i === ic ? 'clamp2' : 'one'}">${esc(steps[i].cap)}</span></button>`;
     el.querySelector('#script').innerHTML = h;
-    el.querySelector('#evidence').innerHTML = [...step.det.slice(0, 6), ['Journal record', `event ${step.seq} of run ${run.run_id.slice(0, 8)}`]].map(d => `<div class="ev"><span class="evl">${esc(d[0])}</span><span class="evt2 clamp2">${esc(d[1])}</span></div>`).join('');
+    el.querySelector('#evidence').innerHTML = [...step.det.slice(0, 6), ['Journal record', `event ${step.seq} of run ${run.run_id.slice(0, 8)}`]].map(d => `<div class="ev"><span class="evl">${esc(d[0])}</span><span class="evt2">${esc(d[1])}</span></div>`).join('');
     const over = ic === steps.length - 1, chip = el.querySelector('#runchip');
     chip.className = 'chip' + (over ? (run.status === 'completed' ? ' ok' : run.status === 'failed' ? ' e-stalled' : ' e-abandoned') : '');
     chip.textContent = over ? ({ completed: 'completed', failed: 'failed', cancelled: 'withdrawn' }[run.status] || run.status) : 'being replayed';
@@ -536,16 +594,16 @@ function told() {
     if (st.level === 'atlas') {
         const c = S.customers[p];
         const life = c.life.map(l => { const x = S.journeys[l.j].instances[l.i]; return `${S.journeys[l.j].name}: ${x.ending.label.toLowerCase()}, ${moodWord(x.mood_end)}`; }).join('. ');
-        return { when: `Customer ${p + 1} of ${S.customers.length}`, cap: `${c.name}. ${c.persona} ${life}.`, facts: [['Insures', 'a ' + c.vehicle], ['Journeys', String(c.life.length)]] };
+        return { when: `Customer ${p + 1} of ${S.customers.length}`, cap: `${c.name}. ${c.persona ? c.persona + ' ' : ''}${life}.`, facts: [...(c.vehicle ? [['Insures', 'a ' + c.vehicle]] : []), ['Journeys', String(c.life.length)]] };
     }
     if (st.level === 'journey') { const m = J().all[p]; return { when: m.when, cap: m.cap, facts: [['Journey', J().name], ['Customer', J().instances[m.c].name]] }; }
     if (st.level === 'run') { const s = R().steps[p]; return { when: s.when, cap: s.cap, facts: [['Workflow', R().name], ['Customer', I().name], ...(s.link ? [['Link', s.link]] : [])] }; }
     const b = I().beats[p], facts = [];
+    if (b.mood_why) facts.push(['Mood', b.mood_why.map(w => `${signed(w.change)} ${w.basis === 'measured' ? 'the customer said so' : 'inferred'}: ${w.reason}`).join('; ')]);
     if (b.tp) {
         facts.push(['Touchpoint', `${b.tp.name} (${b.tp.direction === 'inbound' ? 'from' : 'to'} ${b.tp.party === 'subject' ? 'the customer' : 'the ' + b.tp.party})`], ['Channel', `${b.tp.channel}, over ${b.tp.technology}`]);
         if (b.tp.artefacts.length) facts.push(['Exchanged', b.tp.artefacts.map(a => `${a.name}${a.reference ? ' ' + a.reference : ''} (${a.kind})`).join('; ')]);
     }
-    if (b.mood_why) facts.push(['Mood', b.mood_why.map(w => `${signed(w.change)} ${w.basis}: ${w.reason}`).join('; ')]);
     if (!facts.length) facts.push(['Journey', J().name], ['Stage', J().stages[b.stage].name]);
     return { when: b.when, cap: b.cap, facts };
 }
@@ -564,7 +622,8 @@ function chrome() {
     $('when').textContent = t.when;
     const cap = $('cap');
     if (t.cap !== lastCap) { cap.textContent = t.cap; cap.classList.remove('in'); void cap.offsetWidth; cap.classList.add('in'); lastCap = t.cap; }
-    $('facts').innerHTML = t.facts.slice(0, 4).map(f => `<div><span>${esc(f[0])}</span><b class="clamp2">${esc(f[1])}</b></div>`).join('');
+    $('facts').innerHTML = t.facts.slice(0, 3).map(f => `<div title="${esc(f[1])}"><span>${esc(f[0])}</span><b class="one" style="min-width:0">${esc(f[1])}</b></div>`).join('');
+    cap.title = t.cap;
     $('scrub').max = n - 1; $('scrub').value = p; $('count').textContent = `${p + 1} / ${n}`;
     $('b-play').innerHTML = st.playing ? PAUSE : PLAY; $('b-play').setAttribute('aria-label', st.playing ? 'Pause the telling' : 'Tell the story');
     $('b-pace').textContent = st.fast ? '2x' : '1x';
@@ -596,7 +655,7 @@ function render(swap) {
 const set = (patch, swap) => { Object.assign(st, patch); render(swap); };
 
 // ---------------------------------------------------------------- moving about
-function openJourney(j, origin) { set({ level: 'journey', j, ia: 0, playing: false, ...(origin || {}) }); }
+function openJourney(j, origin) { set({ level: 'journey', j, ia: 1e9, playing: false, ...(origin || {}) }); }
 function openStory(j, i, ib, origin) {
     const inst = S.journeys[j].instances[i];
     set({ level: 'story', j, i, r: 0, ib: ib === undefined ? inst.beats.length - 1 : ib, playing: false, ...(origin || {}) });
@@ -616,6 +675,7 @@ function goLevel(level) {
     if (level === 'journey') {                                  // return to the moment that was being read
         const t = I().beats[Math.min(st.ib, I().beats.length - 1)].t; let ia = 0;
         J().all.forEach((m, k) => { if (m.t <= t) ia = k; });
+        if (st.ib >= I().beats.length - 1) ia = 1e9;                // a reader at the end of a story returns to the end of the record
         Object.assign(patch, { ia, ox: 700, oy: laneTop(st.i) + 34 });
     }
     if (level === 'atlas') Object.assign(patch, { ip: from >= 2 ? I().c : st.ip, ox: CX(st.j) + 180, oy: from >= 2 ? PY(I().c) + 30 : 100 });
@@ -624,10 +684,10 @@ function goLevel(level) {
 function switchJourney(j) {
     if (j === st.j) return;
     const dir = j > st.j ? 1 : -1;
-    if (st.level === 'story') { const i = S.journeys[j].instances.findIndex(x => x.c === I().c); if (i >= 0) set({ j, i, r: 0, ib: 0, playing: false }, dir); }
-    else set({ j, ia: 0, playing: false }, dir);
+    if (st.level === 'story') { const i = S.journeys[j].instances.findIndex(x => x.c === I().c); if (i >= 0) set({ j, i, r: 0, ib: 1e9, playing: false }, dir); }
+    else set({ j, ia: 1e9, playing: false }, dir);
 }
-function switchPerson(d) { const n = J().instances.length; set({ i: (st.i + d + n) % n, r: 0, ib: 0, playing: false }, d); }
+function switchPerson(d) { const n = J().instances.length; set({ i: (st.i + d + n) % n, r: 0, ib: 1e9, playing: false }, d); }
 function move(d, auto) {
     const key = KEY[st.level], i = pos() + d;
     if (i < 0) return;
@@ -644,10 +704,12 @@ document.addEventListener('click', e => {
     else if ((x = hit('[data-open-j]'))) openJourney(+x.dataset.openJ, { ox: CX(+x.dataset.openJ) + 180, oy: 106 });
     else if ((x = hit('[data-open-s]'))) { const [j, i] = x.dataset.openS.split(',').map(Number); openStory(j, i, undefined, { ox: CX(j) + 180, oy: PY(S.journeys[j].instances[i].c) + 30 }); }
     else if ((x = hit('[data-lane]'))) { const i = +x.dataset.lane, T = J().all[pos()].t; let ib = 0; J().instances[i].beats.forEach((b, k) => { if (b.t <= T) ib = k; }); openStory(st.j, i, ib, { ox: 700, oy: laneTop(i) + 34 }); }
+    else if ((x = hit('[data-list]'))) { const v = x.dataset.list; set(v === 'toggle' ? { list: !st.list } : { listAll: v === 'all' }); }
     else if ((x = hit('[data-person]'))) switchPerson(+x.dataset.person);
     else if ((x = hit('[data-run]'))) openRun(+x.dataset.run);
     else if ((x = hit('[data-beat]'))) jump(+x.dataset.beat);
     else if ((x = hit('[data-step]'))) jump(+x.dataset.step);
+    else if ((x = hit('#L3 [data-n]'))) { const n = +x.dataset.n, steps = R().steps; let at = steps.findIndex(s => s.n === n); steps.forEach((s, k) => { if (s.n === n && k <= pos()) at = k; }); if (at >= 0) jump(at); }
     else if ((x = hit('[data-up]'))) goLevel('story');
 });
 $('b-start').onclick = () => jump(0);
@@ -670,13 +732,64 @@ document.addEventListener('keydown', e => {
 let acc = 0;
 setInterval(() => { if (!st.playing) return; acc += 200 * (st.fast ? 2.4 : 1); if (acc >= 2200) { acc = 0; move(1, true); } }, 200);
 
+// ---------------------------------------------------------------- where the record comes from
+const message = text => { $('none').textContent = text; $('none').hidden = !text; };
+/** Show a record: a story as the builder makes it, or the portfolio a host exports, which is built into one here */
+function show(data, source, keep) {
+    const story = data && data.journeys && data.journeys[0] && data.journeys[0].instances[0] && data.journeys[0].instances[0].beats ? data : window.AWA_build_story(data);
+    if (!story.journeys.length) { message('This record holds no journey yet.'); return; }
+    // Following a live record: a reader at the latest moment stays at the latest moment
+    const following = keep && S && st.level !== 'atlas' && pos() === count() - 1;
+    S = story;
+    for (const level of LEVELS) delete built[level];
+    if (!keep) Object.assign(st, { level: 'atlas', j: 0, i: 0, r: 0, ip: 0, ia: 0, ib: 0, ic: 0, playing: false });
+    st.j = Math.min(st.j, S.journeys.length - 1); st.i = Math.min(st.i, J().instances.length - 1);
+    if (st.level === 'run' && !I().runs.length) st.level = 'story';
+    if (following) st[KEY[st.level]] = count() - 1;
+    $('source').textContent = source || '';
+    message('');
+    render();
+}
+async function fetch_record(url) {
+    const response = await fetch(url, { headers: { accept: 'application/json' } });
+    if (!response.ok) throw new Error(`${url} answered ${response.status}`);
+    return response.json();
+}
+$('b-open').onclick = () => $('file').click();
+$('file').onchange = async e => {
+    const file = e.target.files[0]; if (!file) return;
+    try { show(JSON.parse(await file.text()), file.name); } catch (error) { message(`${file.name} is not a journey record: ${error.message}`); }
+};
+addEventListener('dragover', e => e.preventDefault());
+addEventListener('drop', async e => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0]; if (!file) return;
+    try { show(JSON.parse(await file.text()), file.name); } catch (error) { message(`${file.name} is not a journey record: ${error.message}`); }
+});
+
 // A link carries the place: #level/journey/instance/run/position
-const parts = location.hash.slice(1).split('/');
-if (LEVELS.includes(parts[0])) {
+const place = () => {
+    const parts = location.hash.slice(1).split('/');
+    if (!S || !LEVELS.includes(parts[0])) return;
     const [level, j, i, rr, p] = [parts[0], ...parts.slice(1).map(Number)];
     if (S.journeys[j] && S.journeys[j].instances[i || 0]) Object.assign(st, { level, j, i: i || 0, r: rr || 0, [KEY[level]]: p || 0 });
-}
-render();
+};
+// ?data=<url> shows that record. ?live=<server> follows a host: its journeys as they progress.
+const query = new URLSearchParams(location.search);
+if (query.get('live')) {
+    const url = query.get('live').replace(/\/$/, '') + '/api/v1/journeys/portfolio';
+    let last = '';
+    const poll = async () => {
+        try {
+            const text = JSON.stringify(await fetch_record(url));
+            if (text !== last) { const first = !last; last = text; show(JSON.parse(text), `live \u00b7 ${new Date().toLocaleTimeString()}`, !first); }
+        } catch (error) { if (!last) message(`Cannot reach ${url}: ${error.message}`); else $('source').textContent = 'live \u00b7 connection lost'; }
+    };
+    poll(); setInterval(poll, 3000);
+} else if (query.get('data')) {
+    fetch_record(query.get('data')).then(data => { show(data, query.get('data')); }).catch(error => message(`Cannot load ${query.get('data')}: ${error.message}`));
+} else if (S) { place(); $('source').textContent = 'sample: six customers, three journeys'; render(); }
+else message('No record loaded. Use "Open a record", drop a file here, or run node examples/claims-journey/make-story.mjs for the sample.');
 })();
 </script>
 </body>

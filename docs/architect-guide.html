@@ -1,166 +1,49 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Architect Guide | AWA Documentation</title>
+    <title>For architects | AWA</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&display=swap"
-        rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css">
     <link rel="stylesheet" href="style.css">
+    <style>table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.92em; } th, td { text-align: left; vertical-align: top; padding: 8px 12px; border-bottom: 1px solid rgba(128,128,128,.25); } th { font-weight: 600; }</style>
 </head>
-
 <body>
-    <button class="theme-toggle" title="Toggle Theme">☀️</button>
+    <button class="theme-toggle" title="Toggle theme" aria-label="Toggle theme">&#9728;</button>
     <div class="app-container">
-        <!-- Sidebar -->
         <aside class="sidebar">
-            <div class="logo">
-                <div class="logo-icon"></div>
-                <span>AWA</span>
-            </div>
-
-            <div class="search-container">
-                <span class="search-icon">🔍</span>
-                <input type="text" class="search-input" placeholder="Search guides...">
-            </div>
-
-            <div class="nav-section">
-                <div class="nav-section-title">Getting Started</div>
-                <ul class="nav-links">
-                    <li><a href="getting-started.html" class="nav-link">Introduction</a></li>
-                    <li><a href="installation-guide.html" class="nav-link">Installation Guide</a></li>
-                </ul>
-            </div>
-
-            <div class="nav-section">
-                <div class="nav-section-title">Developer Guides</div>
-                <ul class="nav-links">
-                    <li><a href="developer-guide.html" class="nav-link">Reference Material</a></li>
-                    <li><a href="data-model-guide.html" class="nav-link">Data Model & Concepts</a></li>
-                </ul>
-            </div>
-
-            <div class="nav-section">
-                <div class="nav-section-title">Theory & Business</div>
-                <ul class="nav-links">
-                    <li><a href="abpm-guide.html" class="nav-link">Agentic BPM</a></li>
-                    <li><a href="architect-guide.html" class="nav-link active">Architect Guide</a></li>
-                </ul>
-            </div>
-
-            <div class="nav-section">
-                <div class="nav-section-title">Playground</div>
-                <ul class="nav-links">
-                    <li><a href="playground.html" class="nav-link">Interactive Sandbox</a></li>
-                </ul>
-            </div>
+            <div class="logo"><div class="logo-icon"></div><span>AWA</span></div>
+            <div class="search-container"><input type="text" class="search-input" placeholder="Search guides..." aria-label="Search guides"></div>
+            <div class="nav-section"><div class="nav-section-title">Start</div><ul class="nav-links"><li><a href="getting-started.html" class="nav-link">Introduction</a></li><li><a href="installation-guide.html" class="nav-link">Installation</a></li></ul></div><div class="nav-section"><div class="nav-section-title">Build</div><ul class="nav-links"><li><a href="developer-guide.html" class="nav-link">Developer guide</a></li><li><a href="data-model-guide.html" class="nav-link">Data model</a></li></ul></div><div class="nav-section"><div class="nav-section-title">Design</div><ul class="nav-links"><li><a href="abpm-guide.html" class="nav-link">For process owners</a></li><li><a href="architect-guide.html" class="nav-link active">For architects</a></li><li><a href="#layers" class="nav-link" style="padding-left:28px;font-size:0.85em">Engine and host</a></li><li><a href="#durability" class="nav-link" style="padding-left:28px;font-size:0.85em">What survives a restart</a></li><li><a href="#conformance" class="nav-link" style="padding-left:28px;font-size:0.85em">Conformance levels</a></li><li><a href="#security" class="nav-link" style="padding-left:28px;font-size:0.85em">What may run</a></li><li><a href="#not" class="nav-link" style="padding-left:28px;font-size:0.85em">What AWA does not do</a></li></ul></div><div class="nav-section"><div class="nav-section-title">See</div><ul class="nav-links"><li><a href="playground.html" class="nav-link">Playground</a></li><li><a href="../tools/visualization/journey.html" class="nav-link">Journey view</a></li><li><a href="../tools/visualization/replay.html" class="nav-link">Run replay</a></li></ul></div>
         </aside>
-
-        <!-- Main Content -->
         <main class="main-content">
             <header class="content-header">
-                <span class="badge">Enterprise Strategy</span>
-                <h1 class="hero-title">Architecting Agentic Ecosystems</h1>
-                <p class="hero-desc">Strategic patterns and frameworks for deploying Agentic Workflow Architecture at
-                    enterprise scale.</p>
+                <span class="badge">Specification 1.1 &middot; SDK 2.0.0</span>
+                <h1 class="hero-title">For architects</h1>
+                <p class="hero-desc">How AWA is put together, what it guarantees, and what it leaves to you.</p>
             </header>
-
-            <section id="sovereign-actor">
-                <h2>The Sovereign Actor Pattern</h2>
-                <p>The foundation of AWA architecture is the **Sovereign Actor**. Unlike traditional microservices that
-                    share databases, AWA actors are defined by their autonomy over specific context domains.</p>
-                <div class="card">
-                    <h4>Core Principles:</h4>
-                    <ul style="margin-left: 1.5rem; margin-top: 1rem; color: var(--text-muted)">
-                        <li><strong>Context Isolation</strong>: Actors only see what they need (Least Privilege).</li>
-                        <li><strong>Standardized Handoffs</strong>: Interactions are modeled via
-                            <code>transfer_type</code> to ensure interoperability between AI and Legacy systems.
-                        </li>
-                        <li><strong>Outcome Autonomy</strong>: The orchestrator defines *what* needs to be done; the
-                            Sovereign Actor decides *how* to achieve it.</li>
-                    </ul>
-                </div>
-            </section>
-
-            <section id="orchestration-patterns">
-                <h2>Multi-Agent Orchestration Patterns</h2>
-                <p>Choosing the right orchestration pattern is critical for system stability and AI performance.</p>
-                <div class="card-grid">
-                    <div class="card">
-                        <h3>The Hub & Spoke</h3>
-                        <p>A central orchestrator manages state and routes tasks to specialized agents. Best for
-                            deterministic business rules.</p>
-                    </div>
-                    <div class="card">
-                        <h3>Agent Swarms</h3>
-                        <p>Collaborative clusters of agents where context is shared on a "Blackboard". Best for creative
-                            or discovery-heavy tasks like fraud investigation.</p>
-                    </div>
-                    <div class="card">
-                        <h3>Human-in-the-Loop (HITL)</h3>
-                        <p>Formalized handovers from AI to Human actors via <code>manual_work</code> edges. Essential
-                            for high-stakes authorizations.</p>
-                    </div>
-                </div>
-            </section>
-
-            <section id="enterprise-integration">
-                <h2>Enterprise Integration Strategy</h2>
-                <p>AWA doesn't exist in a vacuum. It must integrate with the existing corporate fabric.</p>
-                <div class="info-box">
-                    <strong>Reference Topology:</strong> Ingress via API Gateway &rarr; Authentication via Corporate IAM
-                    (mapping to AWA Roles) &rarr; Execution via AWA SDK &rarr; Persistence in Encrypted Data Pools.
-                </div>
-                <h4>Architecture Blueprint:</h4>
-                <div class="card">
-                    <pre><code class="language-mermaid">graph TD
-    User([External User]) --> GW[API Gateway]
-    GW --> IAM{IAM Provider}
-    IAM -- "Map to Role_ID" --> AWA[AWA Orchestrator]
-    AWA --> AI[AI Agent Pool]
-    AWA --> Legacy[Application / SAP / ERP]
-    AI --> Context[(Shared Context)]
-    Legacy --> Context</code></pre>
-                </div>
-            </section>
-
-            <section id="security-governance">
-                <h2>Governance & Semantic Safety</h2>
-                <p>Architecting for safety in an agentic world requires moving beyond network security to **Semantic
-                    Security**.</p>
-                <div class="card-grid">
-                    <div class="card">
-                        <h4>Auditability</h4>
-                        <p>AWA's event-native structure ensures every agent decision is traceable back to the prompt,
-                            context, and actor role.</p>
-                    </div>
-                    <div class="card">
-                        <h4>Rate Limiting & Cost</h4>
-                        <p>Architects must implement "Budget Contexts" to track token usage and prevent agent runaway
-                            scenarios.</p>
-                    </div>
-                    <div class="card">
-                        <h4>Compliance (GDPR/EU AI Act)</h4>
-                        <p>AWA <code>AccessRights</code> allow for declarative data masking and "right to be forgotten"
-                            implementation at the workflow level.</p>
-                    </div>
-                </div>
-            </section>
-
-            <div class="footer">
-                &copy; 2026 Agentic Workflow Architecture Group. Released under Apache 2.0 License.
-            </div>
+            <section id="layers"><h2>Engine and host</h2>
+<p>An <strong>engine</strong> runs one workflow run. It never opens a connection to a broker and never watches the clock: it is told when an event has arrived and when a deadline has passed. A <strong>host</strong> runs engines, receives business events from wherever they come, hands them to the runs that wait, and moves journeys. A run that waits two weeks costs nothing while it waits.</p>
+<p>This separation is deliberate. It is what lets the same engine sit behind a command line, an HTTP server or a scheduled job, and it is the seam along which the engine could be reimplemented in another language without touching hosts.</p></section><section id="durability"><h2>What survives a restart</h2><div style="overflow-x:auto"><table><tr><th>State</th><th>Kept as</th></tr><tr><td>A run</td><td>A checkpoint after every step, from which another process continues under the same run id</td></tr><tr><td>A run's journal</td><td>Append-only, one file per run, numbered without gaps across restarts</td></tr><tr><td>Journeys</td><td>Every instance with its record</td></tr><tr><td>Events already accepted</td><td>Their ids, so that redelivery has no further effect</td></tr><tr><td>Events runs have published</td><td>An outbox, accepted as soon as the publishing run settles</td></tr></table></div>
+<p>Activities are executed at least once: a run that stopped in the middle of an activity performs it again. Each attempt carries an idempotency key so that an activity with effects can be made safe to repeat.</p>
+<p>The reference host keeps all this in a directory of files. That is enough for one host at a time. Several hosts on one store need locking that the reference host does not do; the PostgreSQL DDL shows the shape a shared store would have.</p></section><section id="conformance"><h2>Conformance levels</h2><div style="overflow-x:auto"><table><tr><th>Level</th><th>Section</th><th>TypeScript</th><th>Python</th></tr><tr><td>document, core, decision</td><td>4 to 6</td><td>yes</td><td>yes</td></tr><tr><td>verified, contract</td><td>7, 11</td><td>yes</td><td>yes</td></tr><tr><td>recorded, resilient</td><td>9, 10</td><td>yes</td><td>yes</td></tr><tr><td>flow, events</td><td>13, 18</td><td>yes</td><td>yes</td></tr><tr><td>model_decision, tools</td><td>16, 17</td><td>yes</td><td>no</td></tr><tr><td>journeys, replay</td><td>19, 20</td><td>yes</td><td>no</td></tr></table></div>
+<p>Knowledge (section 15) and model routing (section 12) have no language-neutral cases yet; their behaviour is fixed by the TypeScript tests.</p></section><section id="security"><h2>What may run</h2>
+<p>A workflow document can name any URL or program. What actually runs is the deployment's decision: command bindings need explicit permission, HTTP and JSON-RPC bindings can be restricted to listed hosts, and secrets are substituted at call time and never journalled. The link to what ran is always journalled, even when payloads are hashed or omitted.</p></section><section id="not"><h2>What AWA does not do</h2>
+<ul>
+<li><strong>Access rights, context bindings and SLAs are declared, not enforced.</strong> The document can state them and they can be queried; the engine does not check them at run time.</li>
+<li><strong>No built-in MCP or gRPC executor.</strong> The bindings are specified; a deployment supplies the executor.</li>
+<li><strong>No broker.</strong> Events enter and leave through the host. Connecting Kafka, a queue or a webhook is the host's job.</li>
+<li><strong>No multi-host coordination.</strong> See durability above.</li>
+<li><strong>Model providers have not all been exercised against live services</strong> in the reference tests; they are tested against stubs.</li>
+</ul></section>
+            <section><p style="opacity:.7;font-size:.9em">The normative text is the <a href="https://github.com/yannickhuchard/agentic-workflow-architecture/blob/main/docs/specification.md">specification</a>. Where this guide and the specification disagree, the specification is right.</p></section>
         </main>
     </div>
-
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
     <script src="main.js"></script>
     <script>hljs.highlightAll();</script>
 </body>
-
 </html>

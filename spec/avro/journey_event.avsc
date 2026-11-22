@@ -1,0 +1,68 @@
+{
+  "type": "record",
+  "name": "JourneyEvent",
+  "namespace": "io.awa.schema",
+  "doc": "One entry in the append-only record of a journey (AWA specification section 19.4). Informative projection of spec/json-schema/journey-event.schema.json. Use journey_instance_id as the message key so that the events of a journey stay in order.",
+  "fields": [
+    {
+      "name": "spec_version",
+      "type": "string"
+    },
+    {
+      "name": "journey_instance_id",
+      "type": {
+        "type": "string",
+        "logicalType": "uuid"
+      }
+    },
+    {
+      "name": "journey_id",
+      "type": {
+        "type": "string",
+        "logicalType": "uuid"
+      }
+    },
+    {
+      "name": "seq",
+      "type": "int",
+      "doc": "Position in the journey's record, starting at 1, with no gaps"
+    },
+    {
+      "name": "time",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      }
+    },
+    {
+      "name": "type",
+      "type": "string",
+      "doc": "Event type, e.g. journey.stage_entered, journey.touchpoint, journey.sentiment_changed"
+    },
+    {
+      "name": "stage_id",
+      "type": [
+        "null",
+        "string"
+      ],
+      "default": null
+    },
+    {
+      "name": "run_id",
+      "type": [
+        "null",
+        {
+          "type": "string",
+          "logicalType": "uuid"
+        }
+      ],
+      "default": null,
+      "doc": "The run concerned: the link into that run's journal"
+    },
+    {
+      "name": "data",
+      "type": "string",
+      "doc": "Event-specific payload, JSON-encoded"
+    }
+  ]
+}

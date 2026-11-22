@@ -1,0 +1,148 @@
+{
+  "id": "journey-exit-abandons-and-cancels-runs",
+  "level": "journeys",
+  "spec": "19.5",
+  "description": "An exit event ends the journey with the outcome it names, and the runs still under way for it are cancelled: a customer who has left is not sent a reminder.",
+  "start": "2026-01-05T09:00:00Z",
+  "workflows": [
+    {
+      "id": "85cc818e-d9be-5e7c-9f86-6cdacf0ca174",
+      "name": "Claim",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "0a6d527c-e562-550a-81b5-de296c186f44",
+          "name": "Register",
+          "role_id": "6d8ee3c2-46dc-5a37-b5a6-c0d7c1d531fe",
+          "actor_type": "application"
+        },
+        {
+          "id": "82dbfc28-a9db-524e-9f22-61a61966c8ab",
+          "name": "Settle",
+          "role_id": "6d8ee3c2-46dc-5a37-b5a6-c0d7c1d531fe",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "9f0cd7ea-6894-5a32-bdfe-dc305f929acc",
+          "source_id": "0a6d527c-e562-550a-81b5-de296c186f44",
+          "target_id": "f7124453-2dc6-5f28-aa52-449e93c59c57"
+        },
+        {
+          "id": "6c6c868a-47eb-5379-86c7-bee422883cd0",
+          "source_id": "f7124453-2dc6-5f28-aa52-449e93c59c57",
+          "target_id": "82dbfc28-a9db-524e-9f22-61a61966c8ab"
+        }
+      ],
+      "events": [
+        {
+          "id": "f7124453-2dc6-5f28-aa52-449e93c59c57",
+          "name": "Documents",
+          "event_type": "message",
+          "event_definition": {
+            "name": "documents.uploaded",
+            "correlation_key": "customer_id"
+          }
+        }
+      ]
+    }
+  ],
+  "journeys": [
+    {
+      "id": "391e8ad8-1679-5b1c-884b-62c771ffce20",
+      "name": "Claim",
+      "version": "1.0.0",
+      "subject": {
+        "name": "customer",
+        "key": "customer_id"
+      },
+      "stages": [
+        {
+          "id": "open",
+          "name": "Open",
+          "workflows": [
+            "85cc818e-d9be-5e7c-9f86-6cdacf0ca174"
+          ],
+          "complete_when": "paid == true",
+          "transitions": []
+        }
+      ],
+      "triggers": [
+        {
+          "event": "claim.submitted",
+          "starts_journey": true,
+          "start_workflow": "85cc818e-d9be-5e7c-9f86-6cdacf0ca174"
+        }
+      ],
+      "exits": [
+        {
+          "event": "claim.withdrawn",
+          "outcome": "abandoned",
+          "reason": "Withdrawn"
+        }
+      ]
+    }
+  ],
+  "actors": {
+    "Register": {
+      "output": {
+        "claim_id": "CLM-1"
+      }
+    },
+    "Settle": {
+      "output": {
+        "paid": true
+      }
+    }
+  },
+  "steps": [
+    {
+      "publish": {
+        "type": "claim.submitted",
+        "data": {
+          "customer_id": "c-1"
+        }
+      }
+    },
+    {
+      "publish": {
+        "type": "claim.withdrawn",
+        "data": {
+          "customer_id": "c-1"
+        }
+      }
+    }
+  ],
+  "expect": {
+    "instances": [
+      {
+        "journey": "Claim",
+        "status": "abandoned",
+        "runs": [
+          "cancelled"
+        ],
+        "events": [
+          "journey.event_received",
+          "journey.run_ended",
+          "journey.abandoned"
+        ],
+        "events_contain": [
+          {
+            "type": "journey.run_ended",
+            "data": {
+              "status": "cancelled"
+            }
+          },
+          {
+            "type": "journey.abandoned",
+            "data": {
+              "reason": "Withdrawn"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

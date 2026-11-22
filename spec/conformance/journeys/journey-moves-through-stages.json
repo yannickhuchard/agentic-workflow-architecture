@@ -1,0 +1,136 @@
+{
+  "id": "journey-moves-through-stages",
+  "level": "journeys",
+  "spec": "19.2",
+  "description": "Without transitions a completed stage leads to the next in the list; entering a stage starts the workflow it names with the journey's data.",
+  "start": "2026-01-05T09:00:00Z",
+  "workflows": [
+    {
+      "id": "82a35444-59bb-54d1-b019-48c4d6122bc3",
+      "name": "Claim",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "a1880f67-2c27-57ec-a372-2402795d457a",
+          "name": "Register",
+          "role_id": "603e5ac9-ba8e-5ffc-a24d-2561f791b4c4",
+          "actor_type": "application"
+        },
+        {
+          "id": "f1ac7bfe-bd52-5c9e-8caa-85082e32eaeb",
+          "name": "Settle",
+          "role_id": "603e5ac9-ba8e-5ffc-a24d-2561f791b4c4",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "f52a216b-d7ae-5149-a9a4-b39e354fb26e",
+          "source_id": "a1880f67-2c27-57ec-a372-2402795d457a",
+          "target_id": "f1ac7bfe-bd52-5c9e-8caa-85082e32eaeb"
+        }
+      ]
+    },
+    {
+      "id": "535a938e-be09-59f9-b266-d5de2610a9da",
+      "name": "Survey",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "48aff0a2-f21a-5626-bbde-d6fdb4b981de",
+          "name": "Ask",
+          "role_id": "50760eba-bce2-5447-b178-01ae9cc93662",
+          "actor_type": "application"
+        }
+      ],
+      "edges": []
+    }
+  ],
+  "journeys": [
+    {
+      "id": "e5c3cecb-782d-59a4-b7f9-55f328e59cee",
+      "name": "Claim",
+      "version": "1.0.0",
+      "subject": {
+        "name": "customer",
+        "key": "customer_id"
+      },
+      "stages": [
+        {
+          "id": "open",
+          "name": "Open",
+          "workflows": [
+            "82a35444-59bb-54d1-b019-48c4d6122bc3"
+          ],
+          "complete_when": "paid == true"
+        },
+        {
+          "id": "asked",
+          "name": "Asked",
+          "on_enter": {
+            "start_workflow": "535a938e-be09-59f9-b266-d5de2610a9da"
+          },
+          "complete_when": "asked == true",
+          "transitions": []
+        }
+      ],
+      "triggers": [
+        {
+          "event": "claim.submitted",
+          "starts_journey": true,
+          "start_workflow": "82a35444-59bb-54d1-b019-48c4d6122bc3"
+        }
+      ]
+    }
+  ],
+  "actors": {
+    "Register": {
+      "output": {
+        "claim_id": "CLM-1"
+      }
+    },
+    "Settle": {
+      "output": {
+        "paid": true
+      }
+    },
+    "Ask": {
+      "output": {
+        "asked": true
+      }
+    }
+  },
+  "steps": [
+    {
+      "publish": {
+        "type": "claim.submitted",
+        "data": {
+          "customer_id": "c-1"
+        }
+      }
+    }
+  ],
+  "expect": {
+    "instances": [
+      {
+        "journey": "Claim",
+        "status": "completed",
+        "stage_id": "asked",
+        "runs": [
+          "completed",
+          "completed"
+        ],
+        "events": [
+          "journey.stage_completed",
+          "journey.stage_entered",
+          "journey.run_started",
+          "journey.run_ended",
+          "journey.stage_completed",
+          "journey.completed"
+        ]
+      }
+    ]
+  }
+}

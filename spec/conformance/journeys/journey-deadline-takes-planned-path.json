@@ -1,0 +1,141 @@
+{
+  "id": "journey-deadline-takes-planned-path",
+  "level": "journeys",
+  "spec": "18.3",
+  "description": "When the host lets time pass, a wait whose deadline has run out takes its timeout edge, and the journey learns what that path established.",
+  "start": "2026-01-05T09:00:00Z",
+  "workflows": [
+    {
+      "id": "bd7d6516-1fc5-596f-af4e-54c0b1d388c0",
+      "name": "Claim",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "810516e1-d739-55c5-9982-9c85eca6abdc",
+          "name": "Register",
+          "role_id": "19485772-1478-5a82-892d-96f2e6efb337",
+          "actor_type": "application"
+        },
+        {
+          "id": "685a70bd-8b64-596b-8e6b-c9dc72811b6e",
+          "name": "Settle",
+          "role_id": "19485772-1478-5a82-892d-96f2e6efb337",
+          "actor_type": "application"
+        },
+        {
+          "id": "6c46288c-ea23-5112-be81-59824e594a30",
+          "name": "Close",
+          "role_id": "19485772-1478-5a82-892d-96f2e6efb337",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "c7724ca4-f4a8-5253-bfb9-42625fdb0405",
+          "source_id": "810516e1-d739-55c5-9982-9c85eca6abdc",
+          "target_id": "22f5a642-9ede-5b9d-9de6-c2b0f142831e"
+        },
+        {
+          "id": "b1a4c230-7156-5852-809b-80fdc34d82e6",
+          "source_id": "22f5a642-9ede-5b9d-9de6-c2b0f142831e",
+          "target_id": "685a70bd-8b64-596b-8e6b-c9dc72811b6e"
+        },
+        {
+          "id": "f93cdd55-54f9-56ce-8f67-f64748d71fd8",
+          "source_id": "22f5a642-9ede-5b9d-9de6-c2b0f142831e",
+          "target_id": "6c46288c-ea23-5112-be81-59824e594a30"
+        }
+      ],
+      "events": [
+        {
+          "id": "22f5a642-9ede-5b9d-9de6-c2b0f142831e",
+          "name": "Documents",
+          "event_type": "message",
+          "event_definition": {
+            "name": "documents.uploaded",
+            "correlation_key": "customer_id",
+            "timeout": "P5D",
+            "timeout_edge_id": "f93cdd55-54f9-56ce-8f67-f64748d71fd8"
+          }
+        }
+      ]
+    }
+  ],
+  "journeys": [
+    {
+      "id": "6d6b94c7-abf7-5383-bac6-3bb01f41fced",
+      "name": "Claim",
+      "version": "1.0.0",
+      "subject": {
+        "name": "customer",
+        "key": "customer_id"
+      },
+      "stages": [
+        {
+          "id": "open",
+          "name": "Open",
+          "workflows": [
+            "bd7d6516-1fc5-596f-af4e-54c0b1d388c0"
+          ],
+          "complete_when": "paid == true",
+          "transitions": []
+        }
+      ],
+      "triggers": [
+        {
+          "event": "claim.submitted",
+          "starts_journey": true,
+          "start_workflow": "bd7d6516-1fc5-596f-af4e-54c0b1d388c0"
+        }
+      ]
+    }
+  ],
+  "actors": {
+    "Register": {
+      "output": {
+        "claim_id": "CLM-1"
+      }
+    },
+    "Settle": {
+      "output": {
+        "paid": true
+      }
+    },
+    "Close": {
+      "output": {
+        "closed": true
+      }
+    }
+  },
+  "steps": [
+    {
+      "publish": {
+        "type": "claim.submitted",
+        "data": {
+          "customer_id": "c-1"
+        }
+      }
+    },
+    {
+      "advance": "P6D"
+    },
+    {
+      "tick": true
+    }
+  ],
+  "expect": {
+    "instances": [
+      {
+        "journey": "Claim",
+        "status": "active",
+        "runs": [
+          "completed"
+        ],
+        "data": {
+          "closed": true
+        }
+      }
+    ]
+  }
+}

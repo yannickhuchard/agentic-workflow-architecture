@@ -429,7 +429,7 @@ export function journey_analytics(definition: JourneyDefinition, instances: Jour
 }
 
 /** Check a journey document beyond its schema: stages, expressions and references */
-export function validate_journey(definition: JourneyDefinition, workflow_ids: Set<string> = new Set()): { path: string; message: string; code: string }[] {
+export function validate_journey(definition: JourneyDefinition, workflow_ids: Set<string> = new Set(), strict = false): { path: string; message: string; code: string }[] {
     const errors: { path: string; message: string; code: string }[] = [];
     const ids = definition.stages.map(s => s.id);
     for (const id of new Set(ids.filter((s, i) => ids.indexOf(s) !== i))) errors.push({ path: 'stages', message: `Duplicate stage '${id}'`, code: 'duplicate_id' });
@@ -438,7 +438,7 @@ export function validate_journey(definition: JourneyDefinition, workflow_ids: Se
         try { evaluate_expression(text, {}); } catch (error) { errors.push({ path, message: error instanceof Error ? error.message : String(error), code: 'invalid_expression' }); }
     };
     const workflow = (id: string | undefined, path: string) => {
-        if (id && workflow_ids.size && !workflow_ids.has(id)) errors.push({ path, message: `Workflow '${id}' is not registered`, code: 'invalid_reference' });
+        if (id && (strict || workflow_ids.size) && !workflow_ids.has(id)) errors.push({ path, message: `Workflow '${id}' is not registered`, code: 'invalid_reference' });
     };
     for (const stage of definition.stages) {
         expression(stage.complete_when, `stages[${stage.id}].complete_when`);

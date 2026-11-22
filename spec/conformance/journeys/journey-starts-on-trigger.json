@@ -1,0 +1,122 @@
+{
+  "id": "journey-starts-on-trigger",
+  "level": "journeys",
+  "spec": "19.3",
+  "description": "A trigger with starts_journey creates an instance in the first stage for a subject that has none, and starts the workflow it names. The run belongs to the journey.",
+  "start": "2026-01-05T09:00:00Z",
+  "workflows": [
+    {
+      "id": "5ba76d7c-9ccd-53e3-9941-a61713dce59a",
+      "name": "Claim",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "e80a229f-77db-56c1-9a6d-e5d5202953c3",
+          "name": "Register",
+          "role_id": "a1903f33-74dd-52e2-b5c6-30ebe43c78f9",
+          "actor_type": "application"
+        },
+        {
+          "id": "f6497019-1e76-5d3f-9c33-e2f72e308802",
+          "name": "Settle",
+          "role_id": "a1903f33-74dd-52e2-b5c6-30ebe43c78f9",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "4143f573-f6a8-5a37-872e-b71b2ce3a884",
+          "source_id": "e80a229f-77db-56c1-9a6d-e5d5202953c3",
+          "target_id": "de3041c3-cf3b-5a96-bf53-e7d7178f6503"
+        },
+        {
+          "id": "d0deb590-2639-5b57-9962-885f297f6989",
+          "source_id": "de3041c3-cf3b-5a96-bf53-e7d7178f6503",
+          "target_id": "f6497019-1e76-5d3f-9c33-e2f72e308802"
+        }
+      ],
+      "events": [
+        {
+          "id": "de3041c3-cf3b-5a96-bf53-e7d7178f6503",
+          "name": "Documents",
+          "event_type": "message",
+          "event_definition": {
+            "name": "documents.uploaded",
+            "correlation_key": "customer_id"
+          }
+        }
+      ]
+    }
+  ],
+  "journeys": [
+    {
+      "id": "25b41385-c9ba-5caa-b9ce-09746d980208",
+      "name": "Claim",
+      "version": "1.0.0",
+      "subject": {
+        "name": "customer",
+        "key": "customer_id"
+      },
+      "stages": [
+        {
+          "id": "open",
+          "name": "Open",
+          "workflows": [
+            "5ba76d7c-9ccd-53e3-9941-a61713dce59a"
+          ],
+          "complete_when": "paid == true",
+          "transitions": []
+        }
+      ],
+      "triggers": [
+        {
+          "event": "claim.submitted",
+          "starts_journey": true,
+          "start_workflow": "5ba76d7c-9ccd-53e3-9941-a61713dce59a"
+        }
+      ]
+    }
+  ],
+  "actors": {
+    "Register": {
+      "output": {
+        "claim_id": "CLM-1"
+      }
+    },
+    "Settle": {
+      "output": {
+        "paid": true
+      }
+    }
+  },
+  "steps": [
+    {
+      "publish": {
+        "type": "claim.submitted",
+        "data": {
+          "customer_id": "c-1"
+        }
+      }
+    }
+  ],
+  "expect": {
+    "instances": [
+      {
+        "journey": "Claim",
+        "subject_key": "c-1",
+        "status": "active",
+        "stage_id": "open",
+        "runs": [
+          "waiting_event"
+        ],
+        "events": [
+          "journey.started",
+          "journey.stage_entered",
+          "journey.event_received",
+          "journey.run_started"
+        ]
+      }
+    ]
+  }
+}

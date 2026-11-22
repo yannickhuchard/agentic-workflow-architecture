@@ -1,0 +1,93 @@
+{
+  "id": "tool-call-budget-is-enforced",
+  "level": "tools",
+  "spec": "17.3",
+  "description": "A call beyond the activity's budget of tool calls is refused.",
+  "workflow": {
+    "id": "979bb331-20c0-5d1a-a7d5-374f88e3121c",
+    "name": "tool-call-budget-is-enforced",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "0247880b-6232-5036-adee-0e03b6fb1736",
+        "name": "A",
+        "role_id": "43b1ab85-9794-5f69-bdc2-983800b2de75",
+        "actor_type": "application",
+        "tools": [
+          {
+            "name": "lookup",
+            "description": "The lookup tool",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "q": {
+                  "type": "string"
+                }
+              }
+            },
+            "binding": {
+              "kind": "function",
+              "name": "lookup"
+            }
+          }
+        ],
+        "outcome_contract": {
+          "postconditions": [],
+          "budgets": {
+            "max_tool_calls": 1
+          }
+        }
+      }
+    ],
+    "edges": []
+  },
+  "actors": {
+    "A": {
+      "calls": [
+        {
+          "tool": "lookup",
+          "arguments": {
+            "q": "1"
+          }
+        },
+        {
+          "tool": "lookup",
+          "arguments": {
+            "q": "2"
+          }
+        }
+      ],
+      "output": {}
+    }
+  },
+  "tools": {
+    "lookup": {
+      "result": {
+        "found": true
+      }
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "journal": [
+      "tool.invoked",
+      "tool.completed",
+      "tool.failed"
+    ],
+    "journal_contains": [
+      {
+        "type": "tool.failed",
+        "data": {
+          "invoked": false,
+          "error": {
+            "code": "TOOL_BUDGET_EXCEEDED"
+          }
+        }
+      }
+    ],
+    "journal_count": {
+      "tool.invoked": 1
+    }
+  }
+}

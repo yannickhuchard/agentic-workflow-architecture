@@ -161,6 +161,9 @@ const built_in: Partial<Record<ToolBinding['kind'], ToolExecutor>> = {
             try { result = JSON.parse(stdout); } catch { /* not JSON: keep the text */ }
             resolve({ status: 0, result });
         });
+        // A program may exit without reading its input. That is its business, not an error of the call:
+        // without this handler the broken pipe would be an uncaught exception in the host.
+        child.stdin?.on('error', () => { });
         // Arguments not placed on the command line are given as JSON on standard input
         child.stdin?.end(binding.args?.some(a => /\{\w+\}/.test(a)) ? '' : JSON.stringify(args));
     }),

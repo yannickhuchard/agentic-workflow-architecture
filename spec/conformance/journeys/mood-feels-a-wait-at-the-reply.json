@@ -1,0 +1,162 @@
+{
+  "id": "mood-feels-a-wait-at-the-reply",
+  "level": "journeys",
+  "spec": "19.9",
+  "description": "The waited rule applies when an outbound touchpoint reaches the subject more than longer_than after the subject last acted, having heard nothing since.",
+  "start": "2026-01-05T09:00:00Z",
+  "workflows": [
+    {
+      "id": "59846663-c133-579f-b8d3-dc92975e49e6",
+      "name": "Claim",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "e4193307-8786-5db5-b766-d0717c7e5d2e",
+          "name": "Register",
+          "role_id": "5dc07f58-25a6-5117-b998-8a9f6edd32e7",
+          "actor_type": "application"
+        },
+        {
+          "id": "9094084b-1639-5c04-aaec-49cc1040ff68",
+          "name": "Settle",
+          "role_id": "5dc07f58-25a6-5117-b998-8a9f6edd32e7",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "cc784408-5d4f-5622-bfe2-875d3293620e",
+          "source_id": "e4193307-8786-5db5-b766-d0717c7e5d2e",
+          "target_id": "51b918f7-972c-547c-9001-51cf1ece6abc"
+        },
+        {
+          "id": "8f9875fe-ff7b-5d6a-8e59-93189299e9db",
+          "source_id": "51b918f7-972c-547c-9001-51cf1ece6abc",
+          "target_id": "9094084b-1639-5c04-aaec-49cc1040ff68"
+        }
+      ],
+      "events": [
+        {
+          "id": "51b918f7-972c-547c-9001-51cf1ece6abc",
+          "name": "Documents",
+          "event_type": "message",
+          "event_definition": {
+            "name": "documents.uploaded",
+            "correlation_key": "customer_id"
+          }
+        }
+      ]
+    }
+  ],
+  "journeys": [
+    {
+      "id": "91685a04-3901-576e-ab16-39ff9b2b84e5",
+      "name": "Claim",
+      "version": "1.0.0",
+      "subject": {
+        "name": "customer",
+        "key": "customer_id"
+      },
+      "stages": [
+        {
+          "id": "open",
+          "name": "Open",
+          "workflows": [
+            "59846663-c133-579f-b8d3-dc92975e49e6"
+          ],
+          "complete_when": "paid == true",
+          "transitions": []
+        }
+      ],
+      "triggers": [
+        {
+          "event": "claim.submitted",
+          "starts_journey": true,
+          "start_workflow": "59846663-c133-579f-b8d3-dc92975e49e6"
+        }
+      ],
+      "sentiment": {
+        "rules": [
+          {
+            "on": "waited",
+            "longer_than": "P2D",
+            "change": -1,
+            "reason": "waited more than two days"
+          }
+        ]
+      },
+      "touchpoints": [
+        {
+          "id": "uploaded",
+          "name": "Uploads documents",
+          "direction": "inbound",
+          "channel": "web",
+          "on": {
+            "event": "documents.uploaded"
+          }
+        },
+        {
+          "id": "settled",
+          "name": "Is told",
+          "direction": "outbound",
+          "channel": "email",
+          "on": {
+            "activity": "Settle"
+          }
+        }
+      ]
+    }
+  ],
+  "actors": {
+    "Register": {
+      "output": {}
+    },
+    "Settle": {
+      "output": {
+        "paid": true
+      },
+      "takes": "P3D"
+    }
+  },
+  "steps": [
+    {
+      "publish": {
+        "type": "claim.submitted",
+        "data": {
+          "customer_id": "c-1"
+        }
+      }
+    },
+    {
+      "publish": {
+        "type": "documents.uploaded",
+        "data": {
+          "customer_id": "c-1"
+        }
+      }
+    }
+  ],
+  "expect": {
+    "instances": [
+      {
+        "journey": "Claim",
+        "sentiment": -1,
+        "events": [
+          "journey.sentiment_changed",
+          "journey.touchpoint"
+        ],
+        "events_contain": [
+          {
+            "type": "journey.sentiment_changed",
+            "data": {
+              "on": "waited",
+              "basis": "inferred",
+              "value": -1
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

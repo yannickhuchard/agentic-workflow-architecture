@@ -1,0 +1,334 @@
+#!/usr/bin/env python3
+"""Writes the HTML guides in this directory from the text below, so that the six
+pages share one shell and one navigation. Run: python3 docs/build-guides.py
+
+The normative text is docs/specification.md. These guides introduce it; where
+they disagree with it, the specification is right and the guide needs fixing."""
+import html
+import pathlib
+
+HERE = pathlib.Path(__file__).parent
+SDK, SPEC = "2.0.0", "1.1"
+REPO = "https://github.com/yannickhuchard/agentic-workflow-architecture"
+
+NAV = [
+    ("Start", [("getting-started.html", "Introduction"), ("installation-guide.html", "Installation")]),
+    ("Build", [("developer-guide.html", "Developer guide"), ("data-model-guide.html", "Data model")]),
+    ("Design", [("abpm-guide.html", "For process owners"), ("architect-guide.html", "For architects")]),
+    ("See", [("playground.html", "Playground"), ("../tools/visualization/journey.html", "Journey view"), ("../tools/visualization/replay.html", "Run replay")]),
+]
+
+
+def code(text, lang="bash"):
+    return f'<pre><code class="language-{lang}">{html.escape(text.strip())}</code></pre>'
+
+
+def table(head, rows):
+    cell = lambda tag, cells: "<tr>" + "".join(f"<{tag}>{c}</{tag}>" for c in cells) + "</tr>"
+    return '<div style="overflow-x:auto"><table>' + cell("th", head) + "".join(cell("td", r) for r in rows) + "</table></div>"
+
+
+def cards(items):
+    return '<div class="card-grid">' + "".join(f'<div class="card"><h3>{t}</h3><p>{d}</p></div>' for t, d in items) + "</div>"
+
+
+def page(file, title, lead, sections):
+    nav = ""
+    for heading, links in NAV:
+        nav += f'<div class="nav-section"><div class="nav-section-title">{heading}</div><ul class="nav-links">'
+        for href, label in links:
+            nav += f'<li><a href="{href}" class="nav-link{" active" if href == file else ""}">{label}</a></li>'
+            if href == file:
+                nav += "".join(f'<li><a href="#{sid}" class="nav-link" style="padding-left:28px;font-size:0.85em">{st}</a></li>' for sid, st, _ in sections)
+        nav += "</ul></div>"
+    body = "".join(f'<section id="{sid}"><h2>{st}</h2>{content}</section>' for sid, st, content in sections)
+    (HERE / file).write_text(f'''<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{title} | AWA</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css">
+    <link rel="stylesheet" href="style.css">
+    <style>table {{ border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.92em; }} th, td {{ text-align: left; vertical-align: top; padding: 8px 12px; border-bottom: 1px solid rgba(128,128,128,.25); }} th {{ font-weight: 600; }}</style>
+</head>
+<body>
+    <button class="theme-toggle" title="Toggle theme" aria-label="Toggle theme">&#9728;</button>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="logo"><div class="logo-icon"></div><span>AWA</span></div>
+            <div class="search-container"><input type="text" class="search-input" placeholder="Search guides..." aria-label="Search guides"></div>
+            {nav}
+        </aside>
+        <main class="main-content">
+            <header class="content-header">
+                <span class="badge">Specification {SPEC} &middot; SDK {SDK}</span>
+                <h1 class="hero-title">{title}</h1>
+                <p class="hero-desc">{lead}</p>
+            </header>
+            {body}
+            <section><p style="opacity:.7;font-size:.9em">The normative text is the <a href="{REPO}/blob/main/docs/specification.md">specification</a>. Where this guide and the specification disagree, the specification is right.</p></section>
+        </main>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+    <script src="main.js"></script>
+    <script>hljs.highlightAll();</script>
+</body>
+</html>
+''')
+
+
+spec = lambda n, text=None: f'<a href="{REPO}/blob/main/docs/specification.md">{text or f"section {n}"}</a>'
+
+# --------------------------------------------------------------------------- getting started
+page("getting-started.html", "Workflows where the outcome is fixed and the strategy is free",
+     "AWA is a specification for workflows carried out by AI agents, people, robots and applications together. An agent may reach a result by different means each time, so AWA fixes what must be true of the result, records how it was reached, and refuses results it cannot verify.",
+     [("what", "What AWA is", f'''
+<p>Three things, kept apart on purpose:</p>
+{cards([("A specification", f"Version {SPEC}. Twenty sections saying what a workflow document means and what an engine must do with it. Written with MUST and MAY."),
+        ("A conformance suite", "Language-neutral cases: a workflow, scripted actors, the outcome an engine must produce. An implementation claims a level only if it passes every case at that level."),
+        ("Reference implementations", f"TypeScript SDK {SDK} passes every level. The Python SDK passes the engine levels. Java has the data model only.")])}
+<p>The specification and the SDKs are versioned separately: the specification says what a document means, an SDK version says what its API promises.</p>'''),
+      ("layers", "What it gives you", table(["Layer", "In one sentence"], [
+          ["Document", "A workflow as JSON: activities, actors, roles, edges, decision tables, events."],
+          ["Flow", "Sequence, conditional routing, parallel split and join, timers, compensation, cancellation."],
+          ["Decisions", "Decision tables with a specified entry language and strict hit policies; a model may decide, within options the workflow lists."],
+          ["Outcome contracts", "Per activity: output schema, postconditions, budgets, escalation to a person. Checked deterministically, failing closed."],
+          ["Resilience", "Retry with backoff, dead letters, checkpoints, recovery in another process, idempotency keys."],
+          ["Journal", "An append-only record of every run: what happened, the actor's reasoning, the engine's own decisions."],
+          ["Tools", "HTTP, command, JSON-RPC, gRPC, MCP and function calls, each journalled with a link to what ran."],
+          ["Business events", "Workflows publish events and wait for them, with correlation and a deadline that has its own path."],
+          ["Journeys", "The life of a customer across several workflows: stages, goals, touchpoints, what changes hands, and an estimate of mood that always says whether it was measured or inferred."],
+          ["Explanation", "A replay, a recipe that explains how to rebuild the workflow, and counterfactual replay: what would this run have done under another model or rule?"],
+          ["Knowledge", "Strategies and failure patterns distilled from runs, reviewed by people, exported as an Open Knowledge Format bundle."]])),
+      ("first-run", "A first run", f'''
+<p>From a clone of the repository, with Node.js 20 or later:</p>
+{code("cd sdk/typescript && npm install && npm run build")}
+<p>Run an example without any API key. <code>--simulate</code> replaces models and tools; <code>--outputs</code> says what each activity returns:</p>
+{code("node sdk/typescript/dist/cli/index.js run examples/claims-settlement/claims-settlement.awa.json --simulate --outputs examples/claims-settlement/simulation.json --journal run.journal.jsonl")}
+<p>Then turn the journal into a document that explains how to build that workflow from scratch:</p>
+{code("node sdk/typescript/dist/cli/index.js recipe examples/claims-settlement/claims-settlement.awa.json run.journal.jsonl -o RECIPE.md")}
+<p>To see a run, open <a href="../tools/visualization/replay.html">the run replay</a>. To see six customers through a year of journeys, open <a href="../tools/visualization/journey.html">the journey view</a>.</p>'''),
+      ("who", "Where to go next", cards([
+          ("You write software", 'The <a href="developer-guide.html">developer guide</a>: engine, journal, contracts, events, journeys, tools, the HTTP interface.'),
+          ("You own a process", 'The guide <a href="abpm-guide.html">for process owners</a>: what you can fix, what you can see, how to change a model safely.'),
+          ("You design the system", 'The guide <a href="architect-guide.html">for architects</a>: layers, durability, conformance levels, and what AWA does not enforce.')]))])
+
+# --------------------------------------------------------------------------- installation
+page("installation-guide.html", "Installation", "What you need, how to build, and how to check that your installation behaves as the specification says.",
+     [("typescript", "TypeScript SDK and the command line", f'''
+<p>Node.js 20 or later.</p>
+{code("git clone " + REPO + ".git\ncd agentic-workflow-architecture/sdk/typescript\nnpm install\nnpm run build")}
+<p>The command line is then <code>node dist/cli/index.js</code>, or <code>awa</code> after <code>npm link</code>.</p>
+<p>The package name on npm is <code>agentic-workflow-architecture</code>. Check which version is published before relying on it: what this guide describes is SDK {SDK}.</p>
+{table(["Command", "What it does"], [
+    ["<code>awa run</code>", "Run a workflow file; keep its journal and checkpoints"],
+    ["<code>awa journey</code>", "Journeys kept in a runtime directory: add definitions, take in events, let time pass, list, show, export"],
+    ["<code>awa replay</code>", "Counterfactual replay of a recorded run"],
+    ["<code>awa recipe</code>", "Compile a workflow and a journal into a build-from-scratch recipe"],
+    ["<code>awa knowledge</code>", "Distil, review and exchange knowledge from journals"],
+    ["<code>awa serve</code>", "The HTTP interface"],
+    ["<code>awa task</code>", "Human tasks: list, assign, complete"],
+    ["<code>awa init</code>, <code>awa generate</code>", "Start a project; draft a workflow from a description"]])}'''),
+      ("python", "Python SDK", f'''
+<p>Python 3.10 or later.</p>
+{code("cd sdk/python\npip install -e '.[dev,web]'\npytest -q")}
+<p>The Python SDK runs workflows with the journal, retry, checkpoints, contracts, verification, parallel flow, timers, compensation and business events. It does not yet have model routing, tools, journeys or replay.</p>'''),
+      ("models", "Model providers", f'''
+<p>Activities name a capability tier (<code>tier:fast</code>, <code>tier:balanced</code>, <code>tier:reasoning</code>), not a vendor. A deployment maps each tier to providers in order of preference; when one fails the next is tried.</p>
+{table(["Provider", "Needs"], [["google", "<code>GEMINI_API_KEY</code>"], ["openai", "<code>OPENAI_API_KEY</code>"], ["ollama", "A running Ollama; <code>OLLAMA_BASE_URL</code> if not on localhost"],
+                                 ["embedded", "<code>npm install @huggingface/transformers</code>. A small open-source model in-process: no server, no key"]])}
+{code("awa run workflow.awa.json --providers google,ollama,embedded --journal run.journal.jsonl")}
+<p>Small embedded models follow a reply format well and judge poorly. Measurements are in <a href="{REPO}/blob/main/docs/embedded-models.md">embedded-models.md</a>.</p>'''),
+      ("server", "The HTTP interface", f'''
+{code("AWA_DATA_DIR=./.awa awa serve --port 3000 --api-key mykey:admin")}
+{table(["Variable", "Effect"], [
+    ["<code>AWA_DATA_DIR</code>", "Journeys, their runs and journals are kept in this directory and survive a restart. Without it they live in the process"],
+    ["<code>AWA_WORKFLOWS_DIR</code>", "The only directory from which <code>POST /workflows/run</code> will run a file"],
+    ["<code>AWA_SIMULATE=1</code>, <code>AWA_SIMULATED_OUTPUTS</code>", "Run activities without calling models or tools"],
+    ["<code>JWT_SECRET</code>", "Accept signed tokens as well as API keys"]])}
+<p>The interface is described in <a href="{REPO}/blob/main/spec/openapi/awa-api.yaml">spec/openapi/awa-api.yaml</a>.</p>'''),
+      ("check", "Check conformance", f'''
+<p>The conformance suite is what "implements AWA" means. Run it against either SDK:</p>
+{code("cd sdk/typescript && npx vitest run tests/conformance.test.ts")}
+{code("cd sdk/python && pytest tests/test_conformance.py -rs")}
+<p>Cases at levels an SDK does not claim are reported as skipped, never hidden.</p>''')])
+
+# --------------------------------------------------------------------------- developer guide
+page("developer-guide.html", "Developer guide", "The parts of the SDK you will use, each with the smallest example that works. Every example is TypeScript; the engine parts exist in Python under the same names in snake case.",
+     [("engine", "Run a workflow", f'''
+{code("""
+import fs from 'fs';
+import { WorkflowEngine, parse_document, FileJournalStore } from 'agentic-workflow-architecture';
+
+const workflow = parse_document(JSON.parse(fs.readFileSync('workflow.awa.json', 'utf-8')));
+const engine = new WorkflowEngine(workflow, { journal: new FileJournalStore('journals') });
+
+await engine.start({ claim_id: 'CLM-1' });
+const status = await engine.run();     // completed | failed | waiting_human | waiting_event
+""", "typescript")}
+<p>A run with a failed token is <code>failed</code>, never <code>completed</code>. A choice with no true condition and no default edge fails with <code>NO_ROUTE</code>: the engine does not guess.</p>'''),
+      ("contracts", "Say what must be true of a result", f'''
+<p>An outcome contract belongs to an activity. It is checked after every attempt, deterministically, and a result that breaks it is refused.</p>
+{code("""
+{ "name": "Assess damage", "actor_type": "ai_agent",
+  "outcome_contract": {
+    "output_schema": { "type": "object", "required": ["estimated_cost"], "properties": { "estimated_cost": { "type": "number" } } },
+    "postconditions": [{ "name": "Within authority", "expression": "estimated_cost <= 50000" }],
+    "budgets": { "max_tokens": 6000, "max_tool_calls": 4 },
+    "on_violation": "escalate_human" },
+  "retry": { "max_attempts": 3 } }
+""", "json")}'''),
+      ("journal", "Read what happened", f'''
+<p>Every run writes a journal: one JSON object per line, numbered from 1 without gaps. Three levels: what happened (<code>execution</code>), the actor's own account of its approach (<code>reasoning</code>), and the engine's decisions, such as which model it chose (<code>meta</code>).</p>
+{code("""
+for (const event of await engine.getEvents()) console.log(event.seq, event.type, event.node_name);
+engine.onEvent(event => { /* live */ });
+""", "typescript")}'''),
+      ("events", "Wait for the outside world", f'''
+<p>A <code>message</code> event holds a token until a business event arrives. Give it a deadline and a path for the deadline; without that path, a timeout fails the token rather than letting the run hang or carry on as if the event had come.</p>
+{code("""
+{ "name": "Documents uploaded", "event_type": "message",
+  "event_definition": { "name": "documents.uploaded", "correlation_key": "customer_id",
+                        "timeout": "P5D", "timeout_edge_id": "<edge taken when nothing arrives>" } }
+""", "json")}
+{code("""
+await engine.deliverEvent(business_event('documents.uploaded', { customer_id: 'c-1' }));
+await engine.expireEvents();           // deadlines that have passed take effect
+""", "typescript")}'''),
+      ("journeys", "Journeys that outlive the process", f'''
+<p>A journey is the life of one subject across several workflows. <code>AwaRuntime</code> hosts journeys and their runs behind one entry point for events, and keeps its state so that another process can carry on.</p>
+{code("""
+import { open_runtime_directory, business_event } from 'agentic-workflow-architecture';
+
+const runtime = await open_runtime_directory('.awa');        // definitions, state and journals side by side
+await runtime.publish(business_event('claim.submitted', { customer_id: 'c-1' }));
+await runtime.tick();                                         // let deadlines pass; call on a schedule
+const everything = await runtime.export_portfolio();          // what the journey view loads
+""", "typescript")}
+<p>The same from the command line, each command a separate process:</p>
+{code("""
+awa journey add intake.awa.json claim.journey.json
+awa journey publish claim.submitted -d '{"customer_id":"c-1"}'
+awa journey tick
+awa journey list --stalled
+awa journey show c-1
+awa journey export -o portfolio.json
+""")}
+<p>A journey may also declare its touchpoints, what changes hands and how mood is estimated; see the <a href="data-model-guide.html#journeys">data model</a>.</p>'''),
+      ("tools", "Tools", f'''
+<p>An activity lists the tools its actor may call. Every call goes through one runner, which refuses unknown tools, invalid arguments and calls over budget, applies the deployment's permissions, and journals the call with a link to what ran.</p>
+{code("""
+{ "name": "get_policy", "description": "Look up a policy by number",
+  "parameters": { "type": "object", "required": ["number"], "properties": { "number": { "type": "string" } } },
+  "binding": { "kind": "http", "url": "https://policies.example/api/policies/{number}" } }
+""", "json")}
+<p>Command bindings do not run unless the deployment allows commands. The default is to allow none.</p>'''),
+      ("replay", "Change a model without guessing", f'''
+<p>Counterfactual replay runs a recorded run again with something changed, holding everything else as it was recorded: the input, what applications and people returned, tool results, events and time.</p>
+{code("awa replay workflow.awa.json run.journal.jsonl --candidate changed.awa.json --ai recorded")}
+<p>It exits with status 2 on a regression, so a folder of recorded journals is a regression suite for a change of model, prompt, contract or rule. A step the baseline never performed is reported as unrecorded; nothing is invented and no real call is made.</p>'''),
+      ("http", "Over HTTP", table(["Request", "Does"], [
+          ["<code>POST /api/v1/workflows/run</code>", "Run a workflow file"],
+          ["<code>GET /api/v1/workflows/runs/{id}/events</code>", "The journal of a run; <code>/events/stream</code> for Server-Sent Events"],
+          ["<code>POST /api/v1/journeys/definitions</code>", "Register a workflow or a journey"],
+          ["<code>POST /api/v1/journeys/events</code>", "Take in a business event (CloudEvents 1.0). The same id twice has no further effect"],
+          ["<code>POST /api/v1/journeys/tick</code>", "Let time pass"],
+          ["<code>GET /api/v1/journeys/instances</code>", "Journey instances; <code>?stalled=true</code> for those that need someone to act"],
+          ["<code>GET /api/v1/journeys/portfolio</code>", "Everything recorded, as the journey view loads it"]]))])
+
+# --------------------------------------------------------------------------- data model
+page("data-model-guide.html", "Data model", "The things AWA names, what each is for, and where each is defined. The JSON Schemas in spec/json-schema are normative; OpenAPI, GraphQL, Avro and the PostgreSQL DDL are projections of them.",
+     [("workflow", "Workflow", table(["Thing", "What it is"], [
+         ["Workflow", "Activities, edges, decision nodes, events and roles, with an <code>awa_version</code>"],
+         ["Activity", "One unit of work, performed by one kind of actor: <code>human</code>, <code>ai_agent</code>, <code>robot</code> or <code>application</code>"],
+         ["Edge", "Where a token may go next. With a <code>condition</code> it is a choice; several edges without one are a parallel split"],
+         ["Decision node", "A choice made by a decision table, an external rule engine, a model within listed options, or a table first and a model for what no rule covers"],
+         ["Event", "<code>start</code>, <code>end</code>, <code>timer</code>, and <code>message</code> or <code>signal</code>, which publish a business event or wait for one"],
+         ["Role", "Who performs activities; for an AI role, which model, named by capability tier"]])),
+      ("activity", "What an activity can carry", table(["Property", "Purpose"], [
+          ["<code>outcome_contract</code>", "What must be true of the result: schema, postconditions, budgets, what to do on a violation"],
+          ["<code>verification</code>", "Acceptance criteria judged by schema, by a model or by a custom check; fails closed"],
+          ["<code>retry</code>", "How often and how patiently to try again"],
+          ["<code>compensation</code>", "The activity that undoes this one if the run later fails or is cancelled"],
+          ["<code>tools</code>", "The tools the actor may call, each with a binding"],
+          ["<code>knowledge</code>", "Whether reviewed knowledge from earlier runs is given to the actor"],
+          ["<code>join</code>", "<code>all</code> to wait for every incoming branch"]])),
+      ("run", "Run", table(["Thing", "What it is"], [
+          ["Run", "One execution of a workflow. Status: <code>running</code>, <code>waiting_human</code>, <code>waiting_event</code>, <code>completed</code>, <code>failed</code>, <code>cancelled</code>"],
+          ["Token", "A position in the run. A parallel split makes more; a join merges them"],
+          ["Journal event", "One entry in the run's append-only record. Schema: <code>journal-event.schema.json</code>"],
+          ["Checkpoint", "The state from which another process can continue the run"]])),
+      ("journeys", "Journey", f'''{table(["Thing", "What it is"], [
+          ["Business event", "A statement that something happened, in CloudEvents 1.0 form. Its <code>type</code> is the name workflows and journeys refer to"],
+          ["Journey", "Stages a subject passes through, the workflows that serve each, triggers, goals and exits"],
+          ["Journey instance", "One subject on one journey, with its record. Joined to its runs by <code>run_id</code> and to the subject's other journeys by the subject key"],
+          ["Artefact", "A kind of thing that changes hands, as the business names it: contract, attestation, invoice, receipt, certificate. A business concept, not a file format"],
+          ["Touchpoint", "A moment of contact: party, direction, channel, technology, and the artefacts exchanged. Realised by an event, an activity or a tool call"],
+          ["Mood", "An estimate that changes only by declared rules. Every change is recorded as <code>measured</code> (the subject said so) or <code>inferred</code> (the authors assumed so)"]])}
+{code("""
+"artefacts":   [{ "id": "insurance-contract", "name": "Insurance contract", "kind": "contract" }],
+"touchpoints": [{ "id": "contract-signed", "name": "Signs the contract", "direction": "inbound", "channel": "web",
+                  "technology": "E-signature service", "on": { "event": "contract.signed" },
+                  "exchanges": [{ "artefact": "insurance-contract", "reference": "contract_id" }] }],
+"sentiment":   { "rules": [{ "on": "waited", "longer_than": "P2D", "change": -1, "reason": "waited more than two days" },
+                           { "on": "event", "event": "survey.answered", "measure": { "path": "satisfaction", "from": [1, 5] } }] }
+""", "json")}'''),
+      ("formats", "Formats", table(["Format", "File", "Status"], [
+          ["JSON Schema", "<code>spec/json-schema/</code>", "Normative"],
+          ["OpenAPI 3.1", "<code>spec/openapi/awa-api.yaml</code>", "Describes the reference HTTP interface"],
+          ["GraphQL", "<code>spec/graphql/awa.graphql</code>", "Informative"],
+          ["Avro", "<code>spec/avro/</code>", "Informative; for journals and events on a stream"],
+          ["PostgreSQL DDL", "<code>spec/ddl/awa.postgresql.sql</code>", "Informative; loads into PostgreSQL 16"]]))])
+
+# --------------------------------------------------------------------------- process owners
+page("abpm-guide.html", "For process owners", "What changes when part of your process is done by an AI agent, what you can still fix, and what you can see.",
+     [("principle", "Fix the outcome, free the strategy", '''
+<p>A person follows a procedure. A program follows it exactly. An AI agent reaches the result its own way, and not the same way twice. Writing a longer procedure does not change that.</p>
+<p>So AWA asks you for something else: say what must be true of the result. The estimate is a number. It is within the adjuster's authority. Every damaged part is priced. The agent is then free in how it gets there, and a result that does not meet what you said is refused, retried, or handed to a person. You decide which.</p>'''),
+      ("decide", "Decisions you can read", '''
+<p>Routine cases are decided by a table you can read and sign off: rows of conditions, one outcome each, and a declared policy for what happens when two rows match. The cases no row covers can go to a model, which may only choose among options you listed. If its answer is not one of them, or it is not confident enough, the case takes the default path. The engine never invents a route.</p>'''),
+      ("journeys", "The customer's journey, not just your process", '''
+<p>A customer does not experience a process. They experience a year: they buy, they claim, they renew. A journey in AWA is that year, made of stages with a time allowed for each, goals, and the ways a customer can leave.</p>
+<p>It records where the customer and your organisation meet, over which channel and system, and what changed hands: the contract, the invoice, the receipt, the certificate. It also carries an estimate of how the customer feels. That estimate is the one thing here that could mislead, so every point on it says whether the customer told you (a survey answer) or whether a rule of yours assumed it (a long wait is felt). A view of a journey has to show the difference.</p>
+<p>Why look at several journeys at once: in the example, a claim is paid in full and its journey completes. The three-day wait in the middle shows up five months later, in another journey, as a policy that is not renewed.</p>
+<p><a href="../tools/visualization/journey.html">Open the journey view.</a></p>'''),
+      ("stalled", "Knowing who is stuck", '''
+<p>A stage that lasts longer than you allowed is marked stalled. So is a stage whose workflow failed. A stalled journey is not a failed one: it is a customer nobody is working for, and a reason for a person to look. <code>awa journey list --stalled</code> lists them.</p>'''),
+      ("change", "Changing a model or a rule", '''
+<p>Before you change a model, a prompt, a contract or a decision rule, replay your recorded runs under the change. Everything else is held as it was recorded. You get, per run and per step: the same, changed, improved, regressed. A run that used to complete and no longer does is a regression, and the command says so with its exit status.</p>'''),
+      ("waste", "Where the time goes", '''
+<p>The engine measures process time, waiting time and lead time per step, and classifies waste by the DOWNTIME categories. In a journey most of the time is waiting, and most of that is waiting for the customer or for a person: the view states those gaps in words rather than drawing them to scale.</p>''')])
+
+# --------------------------------------------------------------------------- architects
+page("architect-guide.html", "For architects", "How AWA is put together, what it guarantees, and what it leaves to you.",
+     [("layers", "Engine and host", '''
+<p>An <strong>engine</strong> runs one workflow run. It never opens a connection to a broker and never watches the clock: it is told when an event has arrived and when a deadline has passed. A <strong>host</strong> runs engines, receives business events from wherever they come, hands them to the runs that wait, and moves journeys. A run that waits two weeks costs nothing while it waits.</p>
+<p>This separation is deliberate. It is what lets the same engine sit behind a command line, an HTTP server or a scheduled job, and it is the seam along which the engine could be reimplemented in another language without touching hosts.</p>'''),
+      ("durability", "What survives a restart", table(["State", "Kept as"], [
+          ["A run", "A checkpoint after every step, from which another process continues under the same run id"],
+          ["A run's journal", "Append-only, one file per run, numbered without gaps across restarts"],
+          ["Journeys", "Every instance with its record"],
+          ["Events already accepted", "Their ids, so that redelivery has no further effect"],
+          ["Events runs have published", "An outbox, accepted as soon as the publishing run settles"]]) + '''
+<p>Activities are executed at least once: a run that stopped in the middle of an activity performs it again. Each attempt carries an idempotency key so that an activity with effects can be made safe to repeat.</p>
+<p>The reference host keeps all this in a directory of files. That is enough for one host at a time. Several hosts on one store need locking that the reference host does not do; the PostgreSQL DDL shows the shape a shared store would have.</p>'''),
+      ("conformance", "Conformance levels", table(["Level", "Section", "TypeScript", "Python"], [
+          ["document, core, decision", "4 to 6", "yes", "yes"], ["verified, contract", "7, 11", "yes", "yes"], ["recorded, resilient", "9, 10", "yes", "yes"],
+          ["flow, events", "13, 18", "yes", "yes"], ["model_decision, tools", "16, 17", "yes", "no"], ["journeys, replay", "19, 20", "yes", "no"]]) + '''
+<p>Knowledge (section 15) and model routing (section 12) have no language-neutral cases yet; their behaviour is fixed by the TypeScript tests.</p>'''),
+      ("security", "What may run", '''
+<p>A workflow document can name any URL or program. What actually runs is the deployment's decision: command bindings need explicit permission, HTTP and JSON-RPC bindings can be restricted to listed hosts, and secrets are substituted at call time and never journalled. The link to what ran is always journalled, even when payloads are hashed or omitted.</p>'''),
+      ("not", "What AWA does not do", '''
+<ul>
+<li><strong>Access rights, context bindings and SLAs are declared, not enforced.</strong> The document can state them and they can be queried; the engine does not check them at run time.</li>
+<li><strong>No built-in MCP or gRPC executor.</strong> The bindings are specified; a deployment supplies the executor.</li>
+<li><strong>No broker.</strong> Events enter and leave through the host. Connecting Kafka, a queue or a webhook is the host's job.</li>
+<li><strong>No multi-host coordination.</strong> See durability above.</li>
+<li><strong>Model providers have not all been exercised against live services</strong> in the reference tests; they are tested against stubs.</li>
+</ul>''')])
+
+print("wrote 6 guides")

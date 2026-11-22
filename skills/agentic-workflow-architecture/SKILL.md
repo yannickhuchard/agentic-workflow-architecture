@@ -592,6 +592,22 @@ A journey can also declare its **touchpoints**, **what changes hands** and the c
 
 `on` is one of `event`, `activity` (an activity name) or `tool` (a tool name). Every mood change is recorded as `measured` or `inferred`. `runtime.transitions()` reports how subjects move between journeys. View it all with `tools/visualization/journey.html`.
 
+Journeys are durable. Keep them in a runtime directory and work on it from any process:
+
+```bash
+awa journey add intake.awa.json claim.journey.json     # definitions
+awa journey publish claim.submitted -d '{"customer_id":"c-1"}'
+awa journey tick                                       # let deadlines pass; run on a schedule
+awa journey list --stalled
+awa journey export -o portfolio.json                   # opens in tools/visualization/journey.html
+```
+
+```typescript
+const runtime = await open_runtime_directory('.awa');  // recovers journeys and waiting runs
+```
+
+Over HTTP: `AWA_DATA_DIR=.awa awa serve`, then `POST /api/v1/journeys/events`, `GET /api/v1/journeys/portfolio`.
+
 **Counterfactual replay** answers "what if this run had used another model or rule":
 
 ```bash

@@ -1,0 +1,117 @@
+{
+  "id": "no-decision-without-default-fails",
+  "level": "model_decision",
+  "spec": "16.4",
+  "description": "On no decision, a node without a default edge fails its token with NO_ROUTE.",
+  "workflow": {
+    "id": "f7190f7e-c135-58c4-b06c-9d88eada757e",
+    "name": "no-decision-without-default-fails",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "a21db79e-35c6-540d-af61-515a3491f3f6",
+        "name": "Intake",
+        "role_id": "776cc74a-27c0-562e-a148-a249c5ae224c",
+        "actor_type": "application"
+      },
+      {
+        "id": "6ca0e415-8a39-5f84-8daa-98f8740675d5",
+        "name": "Pay",
+        "role_id": "776cc74a-27c0-562e-a148-a249c5ae224c",
+        "actor_type": "application"
+      },
+      {
+        "id": "76000caf-c543-5eef-8de5-52e35ee58c4e",
+        "name": "Review",
+        "role_id": "776cc74a-27c0-562e-a148-a249c5ae224c",
+        "actor_type": "application"
+      },
+      {
+        "id": "9fd84ce0-7283-51d4-a662-b88350bcd057",
+        "name": "Manual",
+        "role_id": "776cc74a-27c0-562e-a148-a249c5ae224c",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "b0ca65e2-cb16-5719-b53a-37e05c0618bb",
+        "source_id": "a21db79e-35c6-540d-af61-515a3491f3f6",
+        "target_id": "fd14ec28-9fcb-5cee-9574-1187d3bb2678"
+      },
+      {
+        "id": "7a67162b-b585-5b5e-b103-62c875327a60",
+        "source_id": "fd14ec28-9fcb-5cee-9574-1187d3bb2678",
+        "target_id": "6ca0e415-8a39-5f84-8daa-98f8740675d5"
+      },
+      {
+        "id": "0f749682-0363-54c8-9884-f1f4f8973722",
+        "source_id": "fd14ec28-9fcb-5cee-9574-1187d3bb2678",
+        "target_id": "76000caf-c543-5eef-8de5-52e35ee58c4e"
+      },
+      {
+        "id": "b67f9302-22c3-5cad-963b-2572eaa9ed1e",
+        "source_id": "fd14ec28-9fcb-5cee-9574-1187d3bb2678",
+        "target_id": "9fd84ce0-7283-51d4-a662-b88350bcd057"
+      }
+    ],
+    "decision_nodes": [
+      {
+        "id": "fd14ec28-9fcb-5cee-9574-1187d3bb2678",
+        "name": "Triage",
+        "description": "Route the claim.",
+        "decision_model": {
+          "model": "tier:fast",
+          "instructions": "Pay simple claims. Send anything unusual to review.",
+          "options": [
+            {
+              "id": "pay",
+              "description": "Simple and covered",
+              "output_edge_id": "7a67162b-b585-5b5e-b103-62c875327a60"
+            },
+            {
+              "id": "review",
+              "description": "Unusual or unclear",
+              "output_edge_id": "0f749682-0363-54c8-9884-f1f4f8973722"
+            }
+          ],
+          "inputs": [
+            "amount"
+          ]
+        }
+      }
+    ]
+  },
+  "actors": {
+    "Intake": {
+      "output": {
+        "amount": 900
+      }
+    }
+  },
+  "model": {
+    "replies": [
+      {
+        "option": "refund",
+        "confidence": 0.9,
+        "rationale": "Because."
+      }
+    ]
+  },
+  "expect": {
+    "status": "failed",
+    "visited": [
+      "Intake"
+    ],
+    "error_matches": "no default path",
+    "journal_contains": [
+      {
+        "type": "decision.evaluated",
+        "data": {
+          "method": "none"
+        }
+      }
+    ]
+  }
+}

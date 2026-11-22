@@ -1,0 +1,109 @@
+{
+  "id": "journey-transition-by-condition",
+  "level": "journeys",
+  "spec": "19.2",
+  "description": "With transitions, the first whose condition is true names the next stage; failing that, the default.",
+  "start": "2026-01-05T09:00:00Z",
+  "workflows": [
+    {
+      "id": "82b30e0f-ba2d-5d00-b2ce-88cabfe5e9cb",
+      "name": "Claim",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "7edfa0fd-55f2-5f03-8e8f-8f84dba87ef8",
+          "name": "Register",
+          "role_id": "3687add9-5673-5ebb-a3c3-42c288c2263d",
+          "actor_type": "application"
+        },
+        {
+          "id": "15a87f1d-ec89-58c1-8d75-466163ebb600",
+          "name": "Settle",
+          "role_id": "3687add9-5673-5ebb-a3c3-42c288c2263d",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "841cd305-5159-5b9a-9bfd-7d113a798870",
+          "source_id": "7edfa0fd-55f2-5f03-8e8f-8f84dba87ef8",
+          "target_id": "15a87f1d-ec89-58c1-8d75-466163ebb600"
+        }
+      ]
+    }
+  ],
+  "journeys": [
+    {
+      "id": "b3901481-6188-58b5-8631-a59f08b1c982",
+      "name": "Claim",
+      "version": "1.0.0",
+      "subject": {
+        "name": "customer",
+        "key": "customer_id"
+      },
+      "stages": [
+        {
+          "id": "open",
+          "name": "Open",
+          "workflows": [
+            "82b30e0f-ba2d-5d00-b2ce-88cabfe5e9cb"
+          ],
+          "complete_when": "claim_id exists",
+          "transitions": [
+            {
+              "to": "fast",
+              "condition": "amount < 100"
+            },
+            {
+              "to": "slow",
+              "is_default": true
+            }
+          ]
+        },
+        {
+          "id": "fast",
+          "name": "Fast"
+        },
+        {
+          "id": "slow",
+          "name": "Slow"
+        }
+      ],
+      "triggers": [
+        {
+          "event": "claim.submitted",
+          "starts_journey": true,
+          "start_workflow": "82b30e0f-ba2d-5d00-b2ce-88cabfe5e9cb"
+        }
+      ]
+    }
+  ],
+  "actors": {
+    "Register": {
+      "output": {
+        "claim_id": "CLM-1",
+        "amount": 900
+      }
+    }
+  },
+  "steps": [
+    {
+      "publish": {
+        "type": "claim.submitted",
+        "data": {
+          "customer_id": "c-1"
+        }
+      }
+    }
+  ],
+  "expect": {
+    "instances": [
+      {
+        "journey": "Claim",
+        "status": "active",
+        "stage_id": "slow"
+      }
+    ]
+  }
+}

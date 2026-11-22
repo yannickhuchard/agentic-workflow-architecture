@@ -1,0 +1,146 @@
+{
+  "id": "journey-survives-a-restart",
+  "level": "journeys",
+  "spec": "19.10",
+  "description": "A host that stops and starts again carries on: the journey and its waiting run are as they were, an event accepted before the restart is not accepted again, and the run's journal continues without a gap.",
+  "start": "2026-01-05T09:00:00Z",
+  "workflows": [
+    {
+      "id": "379db507-a282-521d-9499-7d850179e06b",
+      "name": "Claim",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "b9ebc057-e35a-5197-9c16-9112b51d4353",
+          "name": "Register",
+          "role_id": "1fe6646d-1e97-56de-becc-af62b9528ec7",
+          "actor_type": "application"
+        },
+        {
+          "id": "417d1a45-7e69-5cb6-9f38-15617254314b",
+          "name": "Settle",
+          "role_id": "1fe6646d-1e97-56de-becc-af62b9528ec7",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "e70d82b6-1e8d-50f6-9d2d-65996c686290",
+          "source_id": "b9ebc057-e35a-5197-9c16-9112b51d4353",
+          "target_id": "730877dd-bda0-5bbb-a4e5-73c00a4d10ae"
+        },
+        {
+          "id": "20695008-c046-5aae-aa62-98c3ab5e323f",
+          "source_id": "730877dd-bda0-5bbb-a4e5-73c00a4d10ae",
+          "target_id": "417d1a45-7e69-5cb6-9f38-15617254314b"
+        }
+      ],
+      "events": [
+        {
+          "id": "730877dd-bda0-5bbb-a4e5-73c00a4d10ae",
+          "name": "Documents",
+          "event_type": "message",
+          "event_definition": {
+            "name": "documents.uploaded",
+            "correlation_key": "customer_id"
+          }
+        }
+      ]
+    }
+  ],
+  "journeys": [
+    {
+      "id": "0914eb92-8cfd-59f2-a54b-3bf22ec9d331",
+      "name": "Claim",
+      "version": "1.0.0",
+      "subject": {
+        "name": "customer",
+        "key": "customer_id"
+      },
+      "stages": [
+        {
+          "id": "open",
+          "name": "Open",
+          "workflows": [
+            "379db507-a282-521d-9499-7d850179e06b"
+          ],
+          "complete_when": "paid == true",
+          "transitions": []
+        }
+      ],
+      "triggers": [
+        {
+          "event": "claim.submitted",
+          "starts_journey": true,
+          "start_workflow": "379db507-a282-521d-9499-7d850179e06b"
+        }
+      ]
+    }
+  ],
+  "actors": {
+    "Register": {
+      "output": {
+        "claim_id": "CLM-1"
+      }
+    },
+    "Settle": {
+      "output": {
+        "paid": true
+      }
+    }
+  },
+  "steps": [
+    {
+      "publish": {
+        "type": "claim.submitted",
+        "data": {
+          "customer_id": "c-1"
+        },
+        "id": "evt-1"
+      }
+    },
+    {
+      "restart": true
+    },
+    {
+      "publish": {
+        "type": "claim.submitted",
+        "data": {
+          "customer_id": "c-1"
+        },
+        "id": "evt-1"
+      },
+      "expect": {
+        "accepted": false
+      }
+    },
+    {
+      "publish": {
+        "type": "documents.uploaded",
+        "data": {
+          "customer_id": "c-1"
+        }
+      }
+    }
+  ],
+  "expect": {
+    "instance_count": 1,
+    "instances": [
+      {
+        "journey": "Claim",
+        "status": "completed",
+        "runs": [
+          "completed"
+        ],
+        "run_journal": [
+          "run.started",
+          "event.waiting",
+          "run.resumed",
+          "event.received",
+          "run.completed"
+        ]
+      }
+    ]
+  }
+}
