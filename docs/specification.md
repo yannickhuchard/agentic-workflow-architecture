@@ -66,7 +66,23 @@ An implementation MUST NOT claim a level unless it passes every case tagged with
 | Python | `core`, `decision`, and `document` except the two rules about features it does not execute (compensation, timers) |
 | Java | none (data model only) |
 
-### 2.3 Normative and informative artefacts
+### 2.3 Versions
+
+Two things carry a version, and they are independent.
+
+| What | Version | Where it appears | Changes when |
+|---|---|---|---|
+| The specification | `major.minor`, e.g. 1.1 | `awa_version` in documents, `spec_version` in journal events | The rules in this document change |
+| An SDK | Semantic version, e.g. 2.0.0 | The package | Its behaviour changes: major for any change that makes a previously valid workflow fail or behave differently, minor for additions, patch for fixes |
+
+| SDK | Implements specification |
+|---|---|
+| TypeScript 1.x, Python 1.x | 1.0 |
+| TypeScript 2.x, Python 2.x | 1.1 |
+
+An SDK moved from 1.x to 2.0 for specification 1.1 because 1.1 is stricter: Appendix B lists what changed.
+
+### 2.4 Normative and informative artefacts
 
 The JSON Schemas in `spec/json-schema/` and this document are normative. The Avro, OpenAPI, GraphQL and PostgreSQL DDL files in `spec/` are informative projections of the same model, kept in step with version 1.1; where they differ from the JSON Schemas, the JSON Schemas apply.
 
