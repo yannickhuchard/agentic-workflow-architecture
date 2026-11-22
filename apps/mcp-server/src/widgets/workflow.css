@@ -1,0 +1,30 @@
+/* Added to tools/visualization/replay.html when it runs as an MCP Apps widget */
+html, body { height: var(--awa-height, 100vh); max-height: 100vh; }
+#open, #open2, #files, #samples, #sample { display: none !important; }   /* data comes from the conversation, not from files */
+.awa-chip { display: inline-block; padding: 0 6px; border: 1px solid var(--line); border-radius: 999px; font-size: 11px; margin: 1px 0; }
+.awa-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.awa-table th, .awa-table td { text-align: left; vertical-align: top; padding: 4px 6px; border-bottom: 1px solid var(--line); word-break: break-word; }
+.awa-table th { color: var(--muted); font-weight: 600; }
+code { font: 11px/1.4 ui-monospace, Menlo, Consolas, monospace; }
+
+/* A workflow definition has no run: no timeline, no step, no journal, no run states */
+body[data-awa-mode="workflow"] footer,
+body[data-awa-mode="workflow"] #tab-step, body[data-awa-mode="workflow"] #tab-log,
+body[data-awa-mode="workflow"] #legend, body[data-awa-mode="workflow"] #status, body[data-awa-mode="workflow"] .node .state { display: none !important; }
+
+/* The host's light theme. The view's own colours are its dark theme. */
+html[data-awa-theme="light"] {
+    --canvas: #f8fafc; --panel: #ffffff; --card: #ffffff; --line: rgba(15,23,42,.14);
+    --text: #0f172a; --muted: #475569; --faint: #64748b;
+    --running: #7e22ce; --waiting: #b45309; --done: #047857; --queue: #64748b;
+    --failed: #dc2626; --select: #4f46e5; --reasoning: #0369a1; --meta: #b45309;
+}
+html[data-awa-theme="light"] .node rect.body { stroke: rgba(15,23,42,.22); }
+html[data-awa-theme="light"] pre { background: #f1f5f9; }
+html[data-awa-theme="light"] #legend { background: rgba(255,255,255,.9); }
+html[data-awa-theme="light"] #drop .box { background: rgba(255,255,255,.85); border-color: rgba(15,23,42,.3); }
+html[data-awa-theme="light"] #error { color: #b91c1c; }
+html[data-awa-theme="light"] .edge.taken text { fill: #047857; }
+html[data-awa-theme="light"] .log li:hover, html[data-awa-theme="light"] .attempt { background: rgba(15,23,42,.03); }
+html[data-awa-theme="light"] .tag.execution { background: rgba(100,116,139,.18); color: #334155; }
+html[data-awa-theme="light"] .token { fill: #ffffff; }
