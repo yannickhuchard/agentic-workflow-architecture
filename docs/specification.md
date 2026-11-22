@@ -63,12 +63,12 @@ An implementation MUST NOT claim a level unless it passes every case tagged with
 | SDK | Levels claimed |
 |---|---|
 | TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `flow` |
-| Python | `core`, `decision`, and `document` except some integrity rules (see its conformance run) |
+| Python | `core`, `decision`, and `document` except the two rules about features it does not execute (compensation, timers) |
 | Java | none (data model only) |
 
 ### 2.3 Normative and informative artefacts
 
-The JSON Schemas in `spec/json-schema/` and this document are normative. The Avro, OpenAPI, GraphQL and PostgreSQL DDL files in `spec/` are informative projections of the same model; where they differ from the JSON Schemas, the JSON Schemas apply.
+The JSON Schemas in `spec/json-schema/` and this document are normative. The Avro, OpenAPI, GraphQL and PostgreSQL DDL files in `spec/` are informative projections of the same model, kept in step with version 1.1; where they differ from the JSON Schemas, the JSON Schemas apply.
 
 ## 3. Terminology
 
@@ -1004,6 +1004,8 @@ Sections 16 and 17 are not yet covered by the language-neutral conformance suite
 ## Appendix A. Conformance suite
 
 `spec/conformance/` holds language-neutral cases.
+
+**Expression and entry tables.** `expressions.json` holds condition expressions (section 6) with the data they are evaluated against and their results. `unary-tests.json` holds decision table entries (5.5.1) with values and results. Both list inputs that must be rejected. An implementation of level `core` MUST reproduce the first; of level `decision`, the second.
 
 **Document cases** (`documents/*.json`) each give a `document`, whether it is `valid`, and for invalid documents the `stage` at which it must be rejected (`schema` or `integrity`) and the `error_code`.
 

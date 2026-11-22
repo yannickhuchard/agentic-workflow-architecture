@@ -45,7 +45,7 @@ The full text is in [`docs/specification.md`](docs/specification.md). What it me
 | SDK | Conformance levels |
 |---|---|
 | TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `flow`, plus recipe, replay, knowledge, model routing, model decisions and tools |
-| Python | `core`, `decision`, and most of `document` |
+| Python | `core`, `decision`, and `document` except two rules about features it does not execute |
 | Java | Data model only |
 
 ### See a run

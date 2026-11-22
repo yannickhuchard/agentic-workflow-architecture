@@ -6,6 +6,8 @@ Language-neutral test cases that define what it means to implement AWA. The rule
 |---|---|
 | `documents/` | Documents that must be accepted or rejected, and at which validation stage |
 | `execution/` | Workflows with scripted actors and the outcome an engine must produce |
+| `expressions.json` | Condition expressions, the data they are evaluated against, and their results |
+| `unary-tests.json` | Decision table entries, values, and whether each value satisfies the entry |
 
 Each execution case is tagged with a conformance level. An implementation claims a level only if it passes every case at that level, and reports the cases it skips.
 

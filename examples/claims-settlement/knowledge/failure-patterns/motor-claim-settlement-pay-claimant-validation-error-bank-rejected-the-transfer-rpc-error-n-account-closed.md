@@ -10,12 +10,12 @@ tags:
 status: draft
 generated:
   by: agent:awa-distiller
-  at: "2026-11-22T11:23:29.066Z"
+  at: "2026-11-22T11:47:09.658Z"
 sources:
-  - id: run-f4b30187
-    resource: urn:awa:run:f4b30187-6774-41d0-abf3-7f707e2a920a
-    title: Run f4b30187-6774-41d0-abf3-7f707e2a920a, journal events 56
-    last_modified: "2026-11-22T11:23:29.066Z"
+  - id: run-c068c94e
+    resource: urn:awa:run:c068c94e-ded1-4189-a248-2b1224d44ffc
+    title: Run c068c94e-ded1-4189-a248-2b1224d44ffc, journal events 56
+    last_modified: "2026-11-22T11:47:09.658Z"
     x-awa-event-seqs:
       - 56
 x-awa-entry-type: failure_pattern
@@ -33,7 +33,7 @@ x-awa-latest:
   terms: []
   message: "Bank rejected the transfer: RPC error -32010: account closed"
   resolution: unresolved
-x-awa-created-at: "2026-11-22T11:23:29.066Z"
+x-awa-created-at: "2026-11-22T11:47:09.658Z"
 ---
 
 # Pay claimant: validation error

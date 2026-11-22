@@ -9,26 +9,26 @@ tags:
 status: draft
 generated:
   by: agent:awa-distiller
-  at: "2026-11-22T11:23:35.788Z"
+  at: "2026-11-22T11:47:16.484Z"
 sources:
-  - id: run-1c5f2824
-    resource: urn:awa:run:1c5f2824-ac15-4cf1-b6f6-385bb4201253
-    title: Run 1c5f2824-ac15-4cf1-b6f6-385bb4201253, journal events 37, 39
-    last_modified: "2026-11-22T11:23:22.990Z"
+  - id: run-ed673f09
+    resource: urn:awa:run:ed673f09-082b-45a0-aa9b-a2a68db5cb50
+    title: Run ed673f09-082b-45a0-aa9b-a2a68db5cb50, journal events 37, 39
+    last_modified: "2026-11-22T11:47:03.573Z"
     x-awa-event-seqs:
       - 37
       - 39
-  - id: run-f4b30187
-    resource: urn:awa:run:f4b30187-6774-41d0-abf3-7f707e2a920a
-    title: Run f4b30187-6774-41d0-abf3-7f707e2a920a, journal events 37, 39
-    last_modified: "2026-11-22T11:23:29.066Z"
+  - id: run-c068c94e
+    resource: urn:awa:run:c068c94e-ded1-4189-a248-2b1224d44ffc
+    title: Run c068c94e-ded1-4189-a248-2b1224d44ffc, journal events 37, 39
+    last_modified: "2026-11-22T11:47:09.658Z"
     x-awa-event-seqs:
       - 37
       - 39
-  - id: run-191bdcc6
-    resource: urn:awa:run:191bdcc6-80b8-4d3d-a855-fb1fbbbb1393
-    title: Run 191bdcc6-80b8-4d3d-a855-fb1fbbbb1393, journal events 37, 39
-    last_modified: "2026-11-22T11:23:35.788Z"
+  - id: run-e853a985
+    resource: urn:awa:run:e853a985-771b-4cb3-b440-bfa3978ea3af
+    title: Run e853a985-771b-4cb3-b440-bfa3978ea3af, journal events 37, 39
+    last_modified: "2026-11-22T11:47:16.484Z"
     x-awa-event-seqs:
       - 37
       - 39
@@ -51,7 +51,7 @@ x-awa-latest:
   rationale: Policy held for four years, one prior claim, repairer not on the watchlist.
   confidence: 0.9
   model: tier:fast
-x-awa-created-at: "2026-11-22T11:23:22.990Z"
+x-awa-created-at: "2026-11-22T11:47:03.573Z"
 ---
 
 # How to check fraud signals

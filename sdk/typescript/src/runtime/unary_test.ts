@@ -96,7 +96,7 @@ function parse_test(text: string, entry: string): Test {
     if (lower.startsWith('starts with ')) return { kind: 'text', fn: 'starts', value: quoted(t.slice(12), entry) };
     if (lower.startsWith('ends with ')) return { kind: 'text', fn: 'ends', value: quoted(t.slice(10), entry) };
 
-    const range = /^([\[(])([\s\S]+?)\.\.([\s\S]+)([\])])$/.exec(t);
+    const range = /^([[(])([\s\S]+?)\.\.([\s\S]+)([\])])$/.exec(t);
     if (range) {
         return {
             kind: 'range', low: literal(range[2], entry), high: literal(range[3], entry),

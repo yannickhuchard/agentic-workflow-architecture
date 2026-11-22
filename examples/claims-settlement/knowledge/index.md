@@ -3,9 +3,9 @@ okf_version: "0.3"
 title: Motor claim settlement knowledge
 description: "Knowledge distilled from AWA workflow runs: accepted strategies, failure patterns, decision precedents and lessons."
 x-awa-ingested-runs:
-  - 1c5f2824-ac15-4cf1-b6f6-385bb4201253
-  - f4b30187-6774-41d0-abf3-7f707e2a920a
-  - 191bdcc6-80b8-4d3d-a855-fb1fbbbb1393
+  - ed673f09-082b-45a0-aa9b-a2a68db5cb50
+  - c068c94e-ded1-4189-a248-2b1224d44ffc
+  - e853a985-771b-4cb3-b440-bfa3978ea3af
 ---
 
 # Knowledge

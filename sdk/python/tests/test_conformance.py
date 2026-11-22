@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+from awa.runtime.expression import ExpressionError, evaluate_expression
 from awa.runtime.unary_test import MISSING, evaluate_unary_tests, validate_unary_tests
 from awa.runtime.workflow_engine import WorkflowEngine
 from awa.types import Workflow
@@ -17,6 +18,8 @@ from awa.validator import validate_workflow_integrity
 
 CONFORMANCE = Path(__file__).resolve().parents[3] / "spec" / "conformance"
 CLAIMED_LEVELS = {"core", "decision"}
+# Rules about features the Python SDK does not execute (compensation, timer events)
+UNSUPPORTED_INTEGRITY_RULES = {"invalid_compensation", "invalid_timer"}
 
 EXECUTION = [json.loads(p.read_text()) for p in sorted((CONFORMANCE / "execution").glob("*.json"))]
 DOCUMENTS = [json.loads(p.read_text()) for p in sorted((CONFORMANCE / "documents").glob("*.json"))]
@@ -76,10 +79,11 @@ def test_documents(case):
         with pytest.raises(Exception):
             Workflow.model_validate(document)
     else:
-        if case["error_code"] != "invalid_reference" or "decision_nodes" in document or "invalid-comp" in case["id"]:
+        if case["error_code"] in UNSUPPORTED_INTEGRITY_RULES:
             pytest.skip(f"integrity rule '{case['error_code']}' is not implemented by the Python SDK")
-        assert not validate_workflow_integrity(Workflow.model_validate(document)).valid
-
+        result = validate_workflow_integrity(Workflow.model_validate(document))
+        assert not result.valid
+        assert case["error_code"] in [e.code for e in result.errors]
 
 UNARY = json.loads((CONFORMANCE / "unary-tests.json").read_text())
 
@@ -93,3 +97,17 @@ def test_decision_entries(case):
 @pytest.mark.parametrize("entry", UNARY["invalid"])
 def test_invalid_decision_entries_are_rejected(entry):
     assert validate_unary_tests(entry) is not None
+
+
+EXPRESSIONS = json.loads((CONFORMANCE / "expressions.json").read_text())
+
+
+@pytest.mark.parametrize("case", EXPRESSIONS["cases"], ids=[c["expression"] for c in EXPRESSIONS["cases"]])
+def test_condition_expressions(case):
+    assert evaluate_expression(case["expression"], EXPRESSIONS["data"]) is case["expect"]
+
+
+@pytest.mark.parametrize("expression", EXPRESSIONS["invalid"])
+def test_invalid_condition_expressions_are_rejected(expression):
+    with pytest.raises(ExpressionError):
+        evaluate_expression(expression, EXPRESSIONS["data"])

@@ -1,7 +1,7 @@
 # Recipe: Motor Claim Settlement
 
 Workflow version 1.0.0, AWA specification 1.1.
-Compiled from run `f4b30187-6774-41d0-abf3-7f707e2a920a`, which failed in 6.1 s. The journal holds 60 events.
+Compiled from run `c068c94e-ded1-4189-a248-2b1224d44ffc`, which failed in 6.1 s. The journal holds 60 events.
 
 This document explains how to build this workflow from scratch and what one real run of it did. Sections 2 to 4 are the build instructions. Section 5 is what the run taught. Section 6 is how to check your build.
 
@@ -117,8 +117,8 @@ Accepted outcome:
   - Rationale: The first answer gave the cost as text. Itemising the parts gives a numeric total of 3,200 EUR and satisfies the schema.
   - Alternatives it rejected: Repair rather than replace the tailgate: rejected, the crease runs through the lock housing
   - Confidence it reported: 0.86
-  - Tool call at 2026-11-22T11:23:24.648Z: `price_part` → https://repair-catalogue.example/v2/parts/rear%20bumper/price (http), returned 200 in 151 ms. Arguments: `{"part":"rear bumper","vehicle":"2021 hatchback"}`
-  - Tool call at 2026-11-22T11:23:24.649Z: `price_part` → https://repair-catalogue.example/v2/parts/tailgate/price (http), returned 200 in 150 ms. Arguments: `{"part":"tailgate","vehicle":"2021 hatchback"}`
+  - Tool call at 2026-11-22T11:47:05.229Z: `price_part` → https://repair-catalogue.example/v2/parts/rear%20bumper/price (http), returned 200 in 151 ms. Arguments: `{"part":"rear bumper","vehicle":"2021 hatchback"}`
+  - Tool call at 2026-11-22T11:47:05.230Z: `price_part` → https://repair-catalogue.example/v2/parts/tailgate/price (http), returned 200 in 150 ms. Arguments: `{"part":"tailgate","vehicle":"2021 hatchback"}`
   - Contract: held
   - Verification: pass, score 100%
     - met: Parts itemised. Expression "parts exists" evaluated to true
@@ -161,7 +161,7 @@ Accepted outcome:
 **In this run**
 
 - Attempt 1: errored: Fraud scoring service timed out
-  - Engine decision (retry): Retry after 355 ms. Attempt 1 raised "Fraud scoring service timed out" (TIMEOUT). The error is retryable and 2 of 2 retries remained.
+  - Engine decision (retry): Retry after 367 ms. Attempt 1 raised "Fraud scoring service timed out" (TIMEOUT). The error is retryable and 2 of 2 retries remained.
 - Attempt 2: accepted (the activity took 1.6 s in all)
   - Model: Use model acme:classifier-small. The role assigned to this activity names this model. The reference is the capability tier "fast", which this deployment maps to that model.
   - Plan the actor reported: Compare claim date with policy start → Check prior claims → Check repairer against watchlist
@@ -188,8 +188,8 @@ Accepted outcome:
 
 **In this run**
 
-- Attempt 1: accepted (the activity took 351 ms in all)
-  - Tool call at 2026-11-22T11:23:25.401Z: `get_policy` → https://policies.example/api/policies/POL-77310 (http), returned 200 in 151 ms. Arguments: `{"policy_number":"POL-77310"}`
+- Attempt 1: accepted (the activity took 350 ms in all)
+  - Tool call at 2026-11-22T11:47:05.981Z: `get_policy` → https://policies.example/api/policies/POL-77310 (http), returned 200 in 150 ms. Arguments: `{"policy_number":"POL-77310"}`
 
 Accepted outcome:
 
@@ -210,7 +210,7 @@ Accepted outcome:
 
 **In this run**
 
-- Attempt 1: accepted (the activity took 200 ms in all)
+- Attempt 1: accepted (the activity took 201 ms in all)
 
 Accepted outcome:
 
@@ -284,7 +284,7 @@ Accepted outcome:
 **In this run**
 
 - Attempt 1: errored: Bank rejected the transfer: RPC error -32010: account closed
-  - Tool call at 2026-11-22T11:23:28.562Z: `transfer` → https://payments.example/rpc#payments.transfer (jsonrpc), failed: RPC error -32010: account closed. Arguments: `{"amount":2950,"reference":"CLM-2041"}`
+  - Tool call at 2026-11-22T11:47:09.154Z: `transfer` → https://payments.example/rpc#payments.transfer (jsonrpc), failed: RPC error -32010: account closed. Arguments: `{"amount":2950,"reference":"CLM-2041"}`
 
 ### Step 10: Claim received (not reached in this run)
 

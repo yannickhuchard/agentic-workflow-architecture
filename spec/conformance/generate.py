@@ -624,6 +624,28 @@ def unary_tests() -> dict:
             "spec": "5.5.1", "cases": cases, "invalid": invalid}
 
 
+def expressions() -> dict:
+    """Condition expressions (specification section 6), evaluated against one data object."""
+    data = {"amount": 120, "status": "approved", "ok": True, "off": False, "nested": {"score": 0.2, "tags": ["a"]}, "empty": None, "zero": 0, "blank": ""}
+    T, F = True, False
+    rows = [
+        ("amount > 100", T), ("amount <= 100", F), ("amount == 120", T), ("amount >= 120", T), ("amount < 120", F), ("amount != 121", T),
+        ("status == approved", T), ('status == "approved"', T), ("status != 'rejected'", T), ("status != approved", F),
+        ("ok == true", T), ("off == false", T), ("ok", T), ("!ok", F), ("off", F), ("zero", F), ("blank", F), ("empty", F), ("missing", F), ("!missing", T),
+        ("nested.score < 0.3", T), ("nested.missing == 1", F), ("nested.tags exists", T),
+        ("missing == 1", F), ("missing != 1", T), ("missing > 1", F), ("missing < 1", F),
+        ("missing exists", F), ("empty exists", T), ("empty == null", T), ("missing == null", T), ("amount == null", F),
+        ("typeof amount == number", T), ("typeof status == string", T), ("typeof ok == boolean", T), ("typeof nested == object", T),
+        ("typeof nested.tags == array", T), ("typeof empty == null", T), ("typeof missing == undefined", T),
+        ("ok && amount > 100", T), ("ok && amount > 500", F), ("amount > 500 || status == approved", T), ("off || missing", F),
+        ("!(ok && amount > 500)", T), ("(off || ok) && amount == 120", T), ("off || ok && amount > 500", F),
+        ("status > 5", F), ("amount == 120.0", T),
+    ]
+    invalid = ["", "amount >", "== 3", "amount > 1 &&", "a ? b", "(ok", "ok)", "amount >> 3", "typeof amount", '"quoted" == 1', "amount = 1"]
+    return {"description": "Condition expressions. 'data' is the object every expression is evaluated against. 'cases': an expression and its result. 'invalid': expressions that must be rejected.",
+            "spec": "6", "data": data, "cases": [{"expression": e, "expect": x} for e, x in rows], "invalid": invalid}
+
+
 def write(path: pathlib.Path, data: dict) -> None:
     path.write_text(json.dumps(data, indent=2) + "\n")
 
@@ -639,6 +661,9 @@ def main() -> None:
         write(ROOT / "documents" / f"{doc['id']}.json", doc)
     tests = unary_tests()
     write(ROOT / "unary-tests.json", tests)
+    exprs = expressions()
+    write(ROOT / "expressions.json", exprs)
+    print(f"wrote {len(exprs['cases']) + len(exprs['invalid'])} expression tests")
     print(f"wrote {len(execution_cases())} execution cases, {len(document_cases())} document cases "
           f"and {len(tests['cases']) + len(tests['invalid'])} unary tests")
 

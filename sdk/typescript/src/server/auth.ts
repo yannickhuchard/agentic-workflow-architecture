@@ -96,6 +96,8 @@ export function verify_jwt(token: string, secret: string): JWTPayload | null {
  * Extend Express Request with auth info
  */
 declare global {
+    // Express types are extended through its namespace; there is no module form for this
+    // eslint-disable-next-line @typescript-eslint/no-namespace
     namespace Express {
         interface Request {
             user?: AuthUser;

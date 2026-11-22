@@ -8,7 +8,6 @@ import { generateCommand } from './commands/generate';
 import { recipeCommand } from './commands/recipe';
 import { knowledgeCommand } from './commands/knowledge';
 
-// @ts-ignore
 import { version } from '../../package.json';
 
 const program = new Command();

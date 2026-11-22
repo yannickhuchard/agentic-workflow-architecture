@@ -502,7 +502,7 @@ const table = decision.decision_table, model = decision.decision_model;
     push('');
     push('```mermaid', 'flowchart LR');
     const mermaid_id = (id: string) => `n${id.replace(/-/g, '').slice(0, 12)}`;
-    const label = (id: string) => name_of(id).replace(/["\[\]{}()]/g, ' ');
+    const label = (id: string) => name_of(id).replace(/["[\]{}()]/g, ' ');
     for (const id of node_ids) {
         const shape = decisions.has(id) ? `{"${label(id)}"}` : workflow_events.has(id) ? `(("${label(id)}"))` : `["${label(id)}"]`;
         push(`    ${mermaid_id(id)}${shape}`);

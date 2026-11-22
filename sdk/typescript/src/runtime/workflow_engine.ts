@@ -1464,12 +1464,13 @@ export class WorkflowEngine {
             case 'application':
                 return new SoftwareAgent();
 
-            case 'ai_agent':
+            case 'ai_agent': {
                 if (!this.models.has_providers() && !this.simulate) {
                     throw new Error('Gemini API Key required for AI Agent. Set gemini_api_key in options, or register a model provider.');
                 }
                 const role = this.roleMap.get(activity.role_id);
                 return new AIAgent(this.options.gemini_api_key || '', role, this.defaultAIModelId, this.simulate, this.models);
+            }
 
             case 'robot':
                 return new RobotAgent(this.options.robot_config);

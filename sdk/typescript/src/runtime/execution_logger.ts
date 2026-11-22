@@ -26,7 +26,8 @@ export class PrismaExecutionLogger implements ExecutionLogger {
     private prisma: PrismaClient;
 
     constructor() {
-        this.prisma = new PrismaClient();
+        const url = process.env.AWA_DATABASE_URL;
+        this.prisma = new PrismaClient(url ? { datasources: { db: { url } } } : undefined);
     }
 
     async log_execution(metrics: ExecutionMetrics): Promise<void> {

@@ -526,3 +526,136 @@ CREATE TRIGGER update_visualizations_updated_at BEFORE UPDATE ON visualizations 
 CREATE TRIGGER update_node_positions_updated_at BEFORE UPDATE ON node_positions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_lanes_updated_at BEFORE UPDATE ON lanes FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_edge_routings_updated_at BEFORE UPDATE ON edge_routings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ============================================================================
+-- AWA 1.1
+-- ============================================================================
+-- Informative projection of the JSON Schemas in spec/json-schema, which are
+-- normative. Structured values (contracts, tools, policies) are kept as JSONB
+-- in the shape those schemas define.
+
+CREATE TYPE join_mode AS ENUM ('any', 'all');
+CREATE TYPE trace_level AS ENUM ('execution', 'reasoning', 'meta');
+CREATE TYPE run_status AS ENUM ('running', 'waiting_human', 'completed', 'failed');
+CREATE TYPE knowledge_type AS ENUM ('strategy', 'failure_pattern', 'decision_precedent', 'lesson');
+CREATE TYPE knowledge_status AS ENUM ('draft', 'reviewed', 'deprecated');
+
+-- Workflow document (specification sections 4 and 8)
+ALTER TABLE workflows ADD COLUMN awa_version VARCHAR(10);
+
+-- roles.ai_model_config.model_id holds a model reference, e.g. "tier:fast" (section 12)
+
+ALTER TABLE activities
+    ADD COLUMN procedure TEXT,
+    ADD COLUMN verification JSONB,                        -- acceptance criteria (section 7)
+    ADD COLUMN retry JSONB,                               -- retry policy (section 10)
+    ADD COLUMN outcome_contract JSONB,                    -- schema, postconditions, budgets, escalation (section 11)
+    ADD COLUMN join_mode join_mode NOT NULL DEFAULT 'any', -- "join" in the document (section 13.2)
+    ADD COLUMN compensation_activity_id UUID REFERENCES activities(id), -- section 13.6
+    ADD COLUMN tools JSONB NOT NULL DEFAULT '[]',         -- callable tools and their bindings (section 17)
+    ADD COLUMN knowledge JSONB;                           -- knowledge binding (section 15.4)
+
+ALTER TABLE events ADD COLUMN join_mode join_mode NOT NULL DEFAULT 'any';
+
+-- A decision node has a table, an external engine, or a model (sections 5.5 and 16)
+ALTER TABLE decision_nodes
+    ALTER COLUMN decision_table DROP NOT NULL,
+    ADD COLUMN decision_engine JSONB,
+    ADD COLUMN decision_model JSONB,
+    ADD CONSTRAINT decision_nodes_decided_by CHECK (
+        (decision_table IS NOT NULL OR decision_engine IS NOT NULL OR decision_model IS NOT NULL)
+        AND NOT (decision_table IS NOT NULL AND decision_engine IS NOT NULL)
+    );
+
+-- Runs and the execution journal (section 9)
+CREATE TABLE runs (
+    id UUID PRIMARY KEY,
+    workflow_id UUID NOT NULL REFERENCES workflows(id),
+    workflow_version VARCHAR(50),
+    status run_status NOT NULL DEFAULT 'running',
+    input JSONB,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    ended_at TIMESTAMPTZ,
+    checkpoint JSONB,                                     -- latest state, for recovery (section 10.3)
+    checkpoint_at TIMESTAMPTZ
+);
+
+-- Append-only: rows are never updated or deleted
+CREATE TABLE journal_events (
+    run_id UUID NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+    seq INTEGER NOT NULL CHECK (seq >= 1),                -- position in the run, no gaps
+    id UUID NOT NULL UNIQUE,
+    spec_version VARCHAR(10) NOT NULL,
+    time TIMESTAMPTZ NOT NULL,
+    type VARCHAR(50) NOT NULL,                            -- e.g. activity.started, tool.invoked
+    level trace_level NOT NULL DEFAULT 'execution',
+    workflow_id UUID NOT NULL,
+    token_id UUID,
+    node_id UUID,
+    node_name VARCHAR(255),
+    attempt INTEGER CHECK (attempt >= 1),
+    data JSONB NOT NULL DEFAULT '{}',
+    PRIMARY KEY (run_id, seq)
+);
+
+CREATE INDEX idx_journal_events_type ON journal_events (type);
+CREATE INDEX idx_journal_events_node ON journal_events (node_id);
+CREATE INDEX idx_journal_events_time ON journal_events (time);
+CREATE INDEX idx_runs_workflow ON runs (workflow_id, started_at DESC);
+
+-- Tool calls, as recorded in the journal (section 17.5): what was called, when, and the link to what ran
+CREATE VIEW tool_calls AS
+SELECT
+    invoked.run_id,
+    invoked.node_id,
+    invoked.node_name,
+    invoked.attempt,
+    invoked.data->>'call_id'                   AS call_id,
+    invoked.data->>'tool'                      AS tool,
+    invoked.data->>'link'                      AS link,
+    invoked.data->'binding'->>'kind'           AS binding_kind,
+    invoked.time                               AS invoked_at,
+    finished.time                              AS finished_at,
+    finished.type = 'tool.completed'           AS succeeded,
+    finished.data->>'status'                   AS status,
+    (finished.data->>'duration_ms')::INTEGER   AS duration_ms,
+    finished.data->'error'->>'message'         AS error
+FROM journal_events invoked
+LEFT JOIN journal_events finished
+    ON finished.run_id = invoked.run_id
+   AND finished.type IN ('tool.completed', 'tool.failed')
+   AND finished.data->>'call_id' = invoked.data->>'call_id'
+WHERE invoked.type = 'tool.invoked';
+
+-- Knowledge (section 15)
+CREATE TABLE knowledge_entries (
+    id VARCHAR(255) PRIMARY KEY,                          -- bundle path without ".md"
+    type knowledge_type NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    tags TEXT[] NOT NULL DEFAULT '{}',
+    workflow_id UUID,
+    node_id UUID,
+    node_name VARCHAR(255),
+    status knowledge_status NOT NULL DEFAULT 'draft',
+    observations INTEGER NOT NULL DEFAULT 1,
+    counts JSONB NOT NULL DEFAULT '{}',
+    latest JSONB NOT NULL DEFAULT '{}',
+    reviewed_by VARCHAR(255),
+    reviewed_at TIMESTAMPTZ,
+    superseded_by VARCHAR(255) REFERENCES knowledge_entries(id),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (status <> 'reviewed' OR (reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL))
+);
+
+-- The evidence behind each entry: which run, and which journal events
+CREATE TABLE knowledge_sources (
+    entry_id VARCHAR(255) NOT NULL REFERENCES knowledge_entries(id) ON DELETE CASCADE,
+    run_id UUID NOT NULL,
+    event_seqs INTEGER[] NOT NULL DEFAULT '{}',
+    observed_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (entry_id, run_id)
+);
+
+CREATE INDEX idx_knowledge_entries_scope ON knowledge_entries (workflow_id, node_id, status);

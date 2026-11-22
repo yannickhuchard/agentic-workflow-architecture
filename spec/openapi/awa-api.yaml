@@ -4,7 +4,10 @@ info:
   description: |
     REST API for the Agentic Workflow Architecture - the specification standard 
     for AI-native, queryable workflow architecture.
-  version: 1.0.0
+
+    This document is an informative projection. The JSON Schemas in
+    spec/json-schema and docs/specification.md are normative.
+  version: 1.1.0
   contact:
     name: Yannick HUCHARD
     url: https://github.com/yannickhuchard/agentic-workflow-architecture
@@ -19,6 +22,8 @@ servers:
     description: Local development
 
 tags:
+  - name: runs
+    description: Running workflows and reading their execution journal
   - name: workflows
     description: Workflow management
   - name: activities
@@ -366,8 +371,145 @@ paths:
               schema:
                 $ref: '#/components/schemas/AccessRightList'
 
+  /workflows/run:
+    post:
+      tags: [runs]
+      summary: Start a run of a workflow
+      operationId: startRun
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [filePath]
+              properties:
+                filePath:
+                  type: string
+                  description: Path of a .json workflow file inside the server's workflows directory
+                input:
+                  type: object
+                  description: Data the run starts with
+                simulate:
+                  type: boolean
+                  description: Run without calling models, tools or people
+      responses:
+        '200':
+          description: The run was started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  runId:
+                    type: string
+                    format: uuid
+                  status:
+                    $ref: '#/components/schemas/RunStatus'
+        '400':
+          description: The file is not an allowed workflow file, or the workflow is invalid
+
+  /workflows/runs/{run_id}:
+    parameters:
+      - $ref: '#/components/parameters/RunId'
+    get:
+      tags: [runs]
+      summary: Status of a run and where its tokens are
+      operationId: getRun
+      responses:
+        '200':
+          description: The run
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Run'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /workflows/runs/{run_id}/workflow:
+    parameters:
+      - $ref: '#/components/parameters/RunId'
+    get:
+      tags: [runs]
+      summary: The workflow definition a run is executing
+      operationId: getRunWorkflow
+      responses:
+        '200':
+          description: The workflow
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workflow'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /workflows/runs/{run_id}/events:
+    parameters:
+      - $ref: '#/components/parameters/RunId'
+    get:
+      tags: [runs]
+      summary: The execution journal of a run
+      description: Events in sequence order. Tool calls appear as tool.invoked, tool.completed and tool.failed events carrying a link to what ran.
+      operationId: listRunEvents
+      parameters:
+        - name: after
+          in: query
+          description: Return only events whose seq is greater than this
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        '200':
+          description: Journal events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/JournalEvent'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /workflows/runs/{run_id}/events/stream:
+    parameters:
+      - $ref: '#/components/parameters/RunId'
+    get:
+      tags: [runs]
+      summary: The execution journal of a run, live
+      description: |
+        Server-Sent Events. Each message has `id` set to the event's seq, `event` set to its
+        type, and `data` set to the JournalEvent as JSON. The stream replays from `after`, or
+        from the `Last-Event-ID` header, then delivers new events as they are recorded.
+      operationId: streamRunEvents
+      parameters:
+        - name: after
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+        - name: Last-Event-ID
+          in: header
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: An event stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '404':
+          $ref: '#/components/responses/NotFound'
+
 components:
   parameters:
+    RunId:
+      name: run_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
     workflow_id:
       name: workflow_id
       in: path
@@ -405,6 +547,78 @@ components:
             $ref: '#/components/schemas/Error'
 
   schemas:
+    RunStatus:
+      type: string
+      enum: [running, waiting_human, completed, failed]
+
+    Run:
+      type: object
+      properties:
+        runId:
+          type: string
+          format: uuid
+        workflowId:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/RunStatus'
+        tokens:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              node_id:
+                type: string
+                format: uuid
+              status:
+                type: string
+                enum: [active, waiting, completed, failed, cancelled, joining, joined]
+
+    JournalEvent:
+      description: One entry in the append-only execution journal of a run. See spec/json-schema/journal-event.schema.json.
+      type: object
+      required: [spec_version, id, run_id, seq, time, type, level, workflow_id, data]
+      properties:
+        spec_version:
+          type: string
+        id:
+          type: string
+          format: uuid
+        run_id:
+          type: string
+          format: uuid
+        seq:
+          type: integer
+          minimum: 1
+        time:
+          type: string
+          format: date-time
+        type:
+          type: string
+          examples: [activity.started, decision.evaluated, tool.invoked, reasoning.recorded]
+        level:
+          type: string
+          enum: [execution, reasoning, meta]
+        workflow_id:
+          type: string
+          format: uuid
+        token_id:
+          type: string
+          format: uuid
+        node_id:
+          type: string
+          format: uuid
+        node_name:
+          type: string
+        attempt:
+          type: integer
+          minimum: 1
+        data:
+          type: object
+
     # Enums
     ActorType:
       type: string
@@ -532,6 +746,35 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/AccessRight'
+        procedure:
+          type: string
+        verification:
+          type: object
+          description: Acceptance criteria. See activity.schema.json, verification_policy.
+        retry:
+          type: object
+          description: Retry policy. See activity.schema.json, retry_policy.
+        outcome_contract:
+          type: object
+          description: Output schema, postconditions, budgets and escalation. See activity.schema.json, outcome_contract.
+        join:
+          type: string
+          enum: [any, all]
+          default: any
+        compensation:
+          type: object
+          properties:
+            activity_id:
+              type: string
+              format: uuid
+        tools:
+          type: array
+          description: Callable tools and their bindings. See activity.schema.json, tool.
+          items:
+            type: object
+        knowledge:
+          type: object
+          description: Knowledge binding. See activity.schema.json.
 
     ActivityList:
       type: object

@@ -13,6 +13,7 @@ import { Activity } from '../src/types';
 import { Actor } from '../src/runtime/actors/actor';
 import { silent_logger } from './helpers';
 import { evaluate_unary_tests, validate_unary_tests } from '../src/runtime/unary_test';
+import { evaluate_expression, validate_expression } from '../src/runtime/expression';
 
 const ROOT = path.resolve(__dirname, '../../..');
 const CONFORMANCE = path.join(ROOT, 'spec/conformance');
@@ -76,6 +77,16 @@ describe('Conformance: documents', () => {
                 expect(result.errors.map(e => e.code)).toContain(c.error_code);
             }
         });
+    }
+});
+
+describe('Conformance: condition expressions', () => {
+    const suite = read(path.join(CONFORMANCE, 'expressions.json'));
+    for (const c of suite.cases) {
+        it(`${c.expression} -> ${c.expect}`, () => expect(evaluate_expression(c.expression, suite.data)).toBe(c.expect));
+    }
+    for (const expression of suite.invalid) {
+        it(`${JSON.stringify(expression)} is rejected`, () => expect(validate_expression(expression).valid).toBe(false));
     }
 });
 

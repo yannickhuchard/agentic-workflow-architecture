@@ -4,24 +4,240 @@
   "namespace": "io.awa.schema",
   "doc": "A unit of work in the agentic workflow",
   "fields": [
-    { "name": "id", "type": { "type": "string", "logicalType": "uuid" } },
-    { "name": "name", "type": "string" },
-    { "name": "description", "type": ["null", "string"], "default": null, "doc": "High-level summary of what the activity does and why it is performed" },
-    { "name": "procedure", "type": ["null", "string"], "default": null, "doc": "Step-by-step instructions for HOW to perform this activity" },
-    { "name": "role_id", "type": { "type": "string", "logicalType": "uuid" } },
-    { "name": "actor_type", "type": { "type": "enum", "name": "ActorType", "symbols": ["human", "ai_agent", "robot", "application"] } },
-    { "name": "system_id", "type": ["null", { "type": "string", "logicalType": "uuid" }], "default": null },
-    { "name": "machine_id", "type": ["null", { "type": "string", "logicalType": "uuid" }], "default": null },
-    { "name": "endpoint_id", "type": ["null", { "type": "string", "logicalType": "uuid" }], "default": null },
-    { "name": "organization_id", "type": ["null", { "type": "string", "logicalType": "uuid" }], "default": null },
-    { "name": "inputs", "type": { "type": "array", "items": "DataObject" }, "default": [] },
-    { "name": "outputs", "type": { "type": "array", "items": "DataObject" }, "default": [] },
-    { "name": "context_bindings", "type": { "type": "array", "items": "ContextBinding" }, "default": [] },
-    { "name": "access_rights", "type": { "type": "array", "items": "AccessRight" }, "default": [] },
-    { "name": "programs", "type": { "type": "array", "items": "Program" }, "default": [] },
-    { "name": "controls", "type": { "type": "array", "items": "Control" }, "default": [] },
-    { "name": "sla", "type": ["null", "SLA"], "default": null },
-    { "name": "is_expandable", "type": "boolean", "default": false },
-    { "name": "expansion_workflow_id", "type": ["null", { "type": "string", "logicalType": "uuid" }], "default": null }
+    {
+      "name": "id",
+      "type": {
+        "type": "string",
+        "logicalType": "uuid"
+      }
+    },
+    {
+      "name": "name",
+      "type": "string"
+    },
+    {
+      "name": "description",
+      "type": [
+        "null",
+        "string"
+      ],
+      "default": null,
+      "doc": "High-level summary of what the activity does and why it is performed"
+    },
+    {
+      "name": "procedure",
+      "type": [
+        "null",
+        "string"
+      ],
+      "default": null,
+      "doc": "Step-by-step instructions for HOW to perform this activity"
+    },
+    {
+      "name": "role_id",
+      "type": {
+        "type": "string",
+        "logicalType": "uuid"
+      }
+    },
+    {
+      "name": "actor_type",
+      "type": {
+        "type": "enum",
+        "name": "ActorType",
+        "symbols": [
+          "human",
+          "ai_agent",
+          "robot",
+          "application"
+        ]
+      }
+    },
+    {
+      "name": "system_id",
+      "type": [
+        "null",
+        {
+          "type": "string",
+          "logicalType": "uuid"
+        }
+      ],
+      "default": null
+    },
+    {
+      "name": "machine_id",
+      "type": [
+        "null",
+        {
+          "type": "string",
+          "logicalType": "uuid"
+        }
+      ],
+      "default": null
+    },
+    {
+      "name": "endpoint_id",
+      "type": [
+        "null",
+        {
+          "type": "string",
+          "logicalType": "uuid"
+        }
+      ],
+      "default": null
+    },
+    {
+      "name": "organization_id",
+      "type": [
+        "null",
+        {
+          "type": "string",
+          "logicalType": "uuid"
+        }
+      ],
+      "default": null
+    },
+    {
+      "name": "inputs",
+      "type": {
+        "type": "array",
+        "items": "DataObject"
+      },
+      "default": []
+    },
+    {
+      "name": "outputs",
+      "type": {
+        "type": "array",
+        "items": "DataObject"
+      },
+      "default": []
+    },
+    {
+      "name": "context_bindings",
+      "type": {
+        "type": "array",
+        "items": "ContextBinding"
+      },
+      "default": []
+    },
+    {
+      "name": "access_rights",
+      "type": {
+        "type": "array",
+        "items": "AccessRight"
+      },
+      "default": []
+    },
+    {
+      "name": "programs",
+      "type": {
+        "type": "array",
+        "items": "Program"
+      },
+      "default": []
+    },
+    {
+      "name": "controls",
+      "type": {
+        "type": "array",
+        "items": "Control"
+      },
+      "default": []
+    },
+    {
+      "name": "sla",
+      "type": [
+        "null",
+        "SLA"
+      ],
+      "default": null
+    },
+    {
+      "name": "is_expandable",
+      "type": "boolean",
+      "default": false
+    },
+    {
+      "name": "expansion_workflow_id",
+      "type": [
+        "null",
+        {
+          "type": "string",
+          "logicalType": "uuid"
+        }
+      ],
+      "default": null
+    },
+    {
+      "name": "verification",
+      "type": [
+        "null",
+        "string"
+      ],
+      "default": null,
+      "doc": "Acceptance criteria (specification section 7). JSON-encoded, in the shape defined by spec/json-schema/activity.schema.json."
+    },
+    {
+      "name": "retry",
+      "type": [
+        "null",
+        "string"
+      ],
+      "default": null,
+      "doc": "Retry policy (section 10). JSON-encoded, in the shape defined by spec/json-schema/activity.schema.json."
+    },
+    {
+      "name": "outcome_contract",
+      "type": [
+        "null",
+        "string"
+      ],
+      "default": null,
+      "doc": "Output schema, postconditions, budgets and escalation (section 11). JSON-encoded, in the shape defined by spec/json-schema/activity.schema.json."
+    },
+    {
+      "name": "join",
+      "type": {
+        "type": "enum",
+        "name": "JoinMode",
+        "symbols": [
+          "any",
+          "all"
+        ]
+      },
+      "default": "any",
+      "doc": "How tokens arriving over several incoming edges are treated (section 13.2)"
+    },
+    {
+      "name": "compensation_activity_id",
+      "type": [
+        "null",
+        {
+          "type": "string",
+          "logicalType": "uuid"
+        }
+      ],
+      "default": null,
+      "doc": "The activity that undoes this one if the run later fails (section 13.6)"
+    },
+    {
+      "name": "tools",
+      "type": [
+        "null",
+        "string"
+      ],
+      "default": null,
+      "doc": "Callable tools and their bindings (section 17), as a JSON array. JSON-encoded, in the shape defined by spec/json-schema/activity.schema.json."
+    },
+    {
+      "name": "knowledge",
+      "type": [
+        "null",
+        "string"
+      ],
+      "default": null,
+      "doc": "Knowledge binding (section 15.4). JSON-encoded, in the shape defined by spec/json-schema/activity.schema.json."
+    }
   ]
 }

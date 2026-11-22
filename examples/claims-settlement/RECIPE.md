@@ -1,7 +1,7 @@
 # Recipe: Motor Claim Settlement
 
 Workflow version 1.0.0, AWA specification 1.1.
-Compiled from run `1c5f2824-ac15-4cf1-b6f6-385bb4201253`, which completed in 6.4 s. The journal holds 65 events.
+Compiled from run `ed673f09-082b-45a0-aa9b-a2a68db5cb50`, which completed in 6.4 s. The journal holds 65 events.
 
 This document explains how to build this workflow from scratch and what one real run of it did. Sections 2 to 4 are the build instructions. Section 5 is what the run taught. Section 6 is how to check your build.
 
@@ -71,7 +71,7 @@ Steps are in the order this run reached them. Steps the run did not reach follow
 
 **In this run**
 
-- Attempt 1: accepted (the activity took 252 ms in all)
+- Attempt 1: accepted (the activity took 251 ms in all)
 
 Accepted outcome:
 
@@ -118,8 +118,8 @@ Accepted outcome:
   - Rationale: The first answer gave the cost as text. Itemising the parts gives a numeric total of 3,200 EUR and satisfies the schema.
   - Alternatives it rejected: Repair rather than replace the tailgate: rejected, the crease runs through the lock housing
   - Confidence it reported: 0.86
-  - Tool call at 2026-11-22T11:23:18.270Z: `price_part` → https://repair-catalogue.example/v2/parts/rear%20bumper/price (http), returned 200 in 170 ms. Arguments: `{"part":"rear bumper","vehicle":"2021 hatchback"}`
-  - Tool call at 2026-11-22T11:23:18.270Z: `price_part` → https://repair-catalogue.example/v2/parts/tailgate/price (http), returned 200 in 150 ms. Arguments: `{"part":"tailgate","vehicle":"2021 hatchback"}`
+  - Tool call at 2026-11-22T11:46:58.866Z: `price_part` → https://repair-catalogue.example/v2/parts/rear%20bumper/price (http), returned 200 in 167 ms. Arguments: `{"part":"rear bumper","vehicle":"2021 hatchback"}`
+  - Tool call at 2026-11-22T11:46:58.866Z: `price_part` → https://repair-catalogue.example/v2/parts/tailgate/price (http), returned 200 in 151 ms. Arguments: `{"part":"tailgate","vehicle":"2021 hatchback"}`
   - Contract: held
   - Verification: pass, score 100%
     - met: Parts itemised. Expression "parts exists" evaluated to true
@@ -162,8 +162,8 @@ Accepted outcome:
 **In this run**
 
 - Attempt 1: errored: Fraud scoring service timed out
-  - Engine decision (retry): Retry after 250 ms. Attempt 1 raised "Fraud scoring service timed out" (TIMEOUT). The error is retryable and 2 of 2 retries remained.
-- Attempt 2: accepted (the activity took 1.5 s in all)
+  - Engine decision (retry): Retry after 241 ms. Attempt 1 raised "Fraud scoring service timed out" (TIMEOUT). The error is retryable and 2 of 2 retries remained.
+- Attempt 2: accepted (the activity took 1.4 s in all)
   - Model: Use model acme:classifier-small. The role assigned to this activity names this model. The reference is the capability tier "fast", which this deployment maps to that model.
   - Plan the actor reported: Compare claim date with policy start → Check prior claims → Check repairer against watchlist
   - Rationale: Policy held for four years, one prior claim, repairer not on the watchlist.
@@ -189,8 +189,8 @@ Accepted outcome:
 
 **In this run**
 
-- Attempt 1: accepted (the activity took 353 ms in all)
-  - Tool call at 2026-11-22T11:23:19.025Z: `get_policy` → https://policies.example/api/policies/POL-77310 (http), returned 200 in 153 ms. Arguments: `{"policy_number":"POL-77310"}`
+- Attempt 1: accepted (the activity took 351 ms in all)
+  - Tool call at 2026-11-22T11:46:59.621Z: `get_policy` → https://policies.example/api/policies/POL-77310 (http), returned 200 in 151 ms. Arguments: `{"policy_number":"POL-77310"}`
 
 Accepted outcome:
 
@@ -211,7 +211,7 @@ Accepted outcome:
 
 **In this run**
 
-- Attempt 1: accepted (the activity took 202 ms in all)
+- Attempt 1: accepted (the activity took 200 ms in all)
 
 Accepted outcome:
 
@@ -255,7 +255,7 @@ Accepted outcome:
 
 **In this run**
 
-- Attempt 1: accepted (the activity took 302 ms in all)
+- Attempt 1: accepted (the activity took 301 ms in all)
 
 Accepted outcome:
 
@@ -284,8 +284,8 @@ Accepted outcome:
 
 **In this run**
 
-- Attempt 1: accepted (the activity took 503 ms in all)
-  - Tool call at 2026-11-22T11:23:22.086Z: `transfer` → https://payments.example/rpc#payments.transfer (jsonrpc), returned 200 in 202 ms. Arguments: `{"amount":2950,"reference":"CLM-2041"}`
+- Attempt 1: accepted (the activity took 504 ms in all)
+  - Tool call at 2026-11-22T11:47:02.670Z: `transfer` → https://payments.example/rpc#payments.transfer (jsonrpc), returned 200 in 202 ms. Arguments: `{"amount":2950,"reference":"CLM-2041"}`
 
 Accepted outcome:
 
@@ -308,7 +308,7 @@ Accepted outcome:
 
 **In this run**
 
-- Attempt 1: accepted (the activity took 702 ms in all)
+- Attempt 1: accepted (the activity took 701 ms in all)
   - Model: Use model acme:writer-medium. The role assigned to this activity names this model. The reference is the capability tier "balanced", which this deployment maps to that model.
   - Plan the actor reported: State the outcome → State the amount → Keep it short
   - Rationale: A settlement notice should lead with the result.

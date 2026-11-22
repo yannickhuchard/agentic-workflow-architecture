@@ -107,4 +107,56 @@ def validate_workflow_integrity(workflow: Workflow) -> ValidationResult:
                     )
                 )
 
+    # Imported here: the runtime package itself imports this module
+    from awa.runtime.expression import ExpressionError, evaluate_expression
+    from awa.runtime.unary_test import validate_unary_tests
+
+    def add(path: str, message: str, code: str) -> None:
+        errors.append(ValidationError(path=path, message=message, code=code))
+
+    # Node and edge identifiers are unique
+    seen: set[Any] = set()
+    for item in [*workflow.activities, *workflow.events, *workflow.decision_nodes, *workflow.edges]:
+        if item.id in seen:
+            add(f"[{item.id}]", f"Duplicate identifier '{item.id}'", "duplicate_id")
+        seen.add(item.id)
+
+    # Conditions are valid expressions; at most one default edge per source
+    defaults: dict[Any, int] = {}
+    for edge in workflow.edges:
+        if edge.condition:
+            try:
+                evaluate_expression(edge.condition, {})
+            except ExpressionError as error:
+                add(f"edges[{edge.id}].condition", str(error), "invalid_expression")
+        if edge.is_default:
+            defaults[edge.source_id] = defaults.get(edge.source_id, 0) + 1
+    for source_id, count in defaults.items():
+        if count > 1:
+            add(f"edges[source={source_id}]", f"Node '{source_id}' has {count} default edges; at most one is allowed",
+                "multiple_default_edges")
+
+    # Decision tables: rule width, entries, and edges that leave the node
+    edges_by_id = {edge.id: edge for edge in workflow.edges}
+    for decision in workflow.decision_nodes:
+        table = decision.decision_table
+        refs = [decision.default_output_edge_id] if decision.default_output_edge_id else []
+        if table:
+            for index, rule in enumerate(table.rules):
+                where = f"decision_nodes[{decision.id}].decision_table.rules[{index}]"
+                if len(rule.input_entries) != len(table.inputs) or len(rule.output_entries) != len(table.outputs):
+                    add(where, f"Rule {index + 1} of '{decision.name}' does not have one entry per column", "invalid_rule")
+                for entry in rule.input_entries:
+                    problem = validate_unary_tests(entry)
+                    if problem:
+                        add(where, problem, "invalid_expression")
+                if rule.output_edge_id:
+                    refs.append(rule.output_edge_id)
+        for ref in refs:
+            target = edges_by_id.get(ref)
+            if target is None:
+                add(f"decision_nodes[{decision.id}]", f"Output edge '{ref}' not found", "invalid_reference")
+            elif target.source_id != decision.id:
+                add(f"decision_nodes[{decision.id}]", f"Output edge '{ref}' does not leave this decision node", "invalid_reference")
+
     return ValidationResult(valid=len(errors) == 0, errors=errors)
