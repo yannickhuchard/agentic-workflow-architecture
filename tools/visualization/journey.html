@@ -227,6 +227,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid #a5b4fc; outline-
 .ev { display: flex; gap: 12px; font-size: 13px; line-height: 17px; }
 .evl { flex: none; width: 128px; color: var(--mute); }
 .evt2 { color: #e2e8f0; overflow-wrap: anywhere; }
+.rawd { font-size: 12px; position: relative; } .rawd summary { cursor: pointer; color: var(--soft); } .rawd pre { margin: 6px 0 0; padding: 8px 10px; border-radius: 8px; background: rgba(255,255,255,.04); border: 1px solid var(--line); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; line-height: 15px; color: #e2e8f0; }
+.rawc { position: absolute; right: 0; top: -2px; height: 22px; padding: 0 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); color: var(--soft); cursor: pointer; font-size: 11px; } .rawd:not([open]) .rawc { display: none; }
 
 /* Caption and transport: the sentence is the primary account, the diagram illustrates it */
 #bar { position: absolute; left: 0; top: 756px; width: 1440px; height: 144px; padding: 12px 28px 14px; background: var(--panel); border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; z-index: 5; }
@@ -584,7 +586,10 @@ apply.run = el => {
     let h = '';
     for (let i = Math.max(0, Math.min(ic - 2, steps.length - 5)), k = 0; i < steps.length && k < 5; i++, k++) h += `<button class="tr${i === ic ? ' cur' : ''}" data-step="${i}"><span class="trw mono">${esc(steps[i].when)}</span><span class="${i === ic ? 'clamp2' : 'one'}">${esc(steps[i].cap)}</span></button>`;
     el.querySelector('#script').innerHTML = h;
-    el.querySelector('#evidence').innerHTML = [...step.det.slice(0, 6), ['Journal record', `event ${step.seq} of run ${run.run_id.slice(0, 8)}`]].map(d => `<div class="ev"><span class="evl">${esc(d[0])}</span><span class="evt2">${esc(d[1])}</span></div>`).join('');
+    el.querySelector('#evidence').innerHTML = [...step.det.slice(0, 6), ['Journal record', `event ${step.seq} of run ${run.run_id.slice(0, 8)}`]].map(d => `<div class="ev"><span class="evl">${esc(d[0])}</span><span class="evt2">${esc(d[1])}</span></div>`).join('')
+        + (step.raw ? `<details class="rawd"><summary>The record as written</summary><button type="button" class="rawc" data-copy>Copy</button><pre class="mono">${esc(JSON.stringify({ run_id: run.run_id, ...step.raw }, null, 2))}</pre></details>` : '');
+    const copy = el.querySelector('[data-copy]');
+    if (copy) copy.onclick = () => { const text = el.querySelector('.rawd pre').textContent; (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(() => { copy.textContent = 'Copied'; }, () => { const r = document.createRange(); r.selectNodeContents(el.querySelector('.rawd pre')); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); copy.textContent = 'Selected'; }); };
     const over = ic === steps.length - 1, chip = el.querySelector('#runchip');
     chip.className = 'chip' + (over ? (run.status === 'completed' ? ' ok' : run.status === 'failed' ? ' e-stalled' : ' e-abandoned') : '');
     chip.textContent = over ? ({ completed: 'completed', failed: 'failed', cancelled: 'withdrawn' }[run.status] || run.status) : 'being replayed';

@@ -272,7 +272,7 @@ The number is the count of actions. No task was abandoned outright. Task 2, the 
 | **The mood line itself could not be selected.** All five tried. | "I wanted to just click the dip on the mood line." (Camille) | It can |
 | **The calendar showed counts for a date in the middle, and looked final.** Four nearly reported them. | "The counts are as of the slider position. That nearly gave me the wrong answer." (Priya) | The calendar opens at the end of the record and states the date its counts are for |
 | **The detail at the bottom right was cut off under the step counter**, at exactly the words that say why the mood changed. | "The key field is the one that's cut off." (Priya) | One line each, mood first, the full text on hover; evidence inside a run is no longer cut |
-| **"Someone needs to act" names nobody.** | "Who is 'someone'? It doesn't say who or what to do." (Inès) | Not done. A journey has no notion of who owns a stalled stage. That is a gap in the specification, not in the view: section 19 would need an owner per stage |
+| **"Someone needs to act" names nobody.** | "Who is 'someone'? It doesn't say who or what to do." (Inès) | Done since: a stage may name its `owner` (specification 19.2), `journey.stalled` carries it, and the measures page lists each stuck customer with the owner of the stage, or says that none is named |
 
 ### 12.3 What most ran into
 
@@ -288,13 +288,13 @@ The number is the count of actions. No task was abandoned outright. Task 2, the 
 
 ### 12.4 Not addressed
 
-- **Evidence is thin and uneven.** Six fields for a model's decision, a bare event number for a release of funds; no amount, no raw record, no way to copy; "Rules: none matched" without showing the rules. Raised by the engineer and the auditor, who are the two readers the evidence panel exists for.
+- **Evidence is thin and uneven.** Six fields for a model's decision, a bare event number for a release of funds; no amount, no raw record, no way to copy; "Rules: none matched" without showing the rules. Raised by the engineer and the auditor, who are the two readers the evidence panel exists for. *Partly addressed since: every step of a run now offers "The record as written", the journal record itself, with a button to copy it. The summaries above it are unchanged.*
 - **System words reach the reader**: `documents.uploaded`, `RPC error -32010`, "a model". The first two come from the record, the third from the caption writer.
 - **The same sentence twice** ("Part priced") when two parts are priced: the caption does not say which part.
 - **"Release funds" appears before "the workflow fails"**, which is the order of the record and reads backwards.
 - **A workflow shown as "completed" in green when the policy lapsed.** True of the run, misleading about the outcome.
 - **"Lose" was ambiguous** between left and stalled; the stage cards do not take a side.
-- **No money anywhere**: what a lapse cost cannot be read off.
+- **No money anywhere**: what a lapse cost cannot be read off. *The measures page now gives the cost of the work per journey and per run; what a lost customer was worth is still not recorded.*
 - **Nobody used play**, and through this tool it could not have been judged. Three said they would rather jump than watch. The storytelling the brief asked for is the least tested part of the design.
 - **Words.** Nobody said "journey", "workflow", "touchpoint", "atlas" or "blueprint" unprompted. They said: the grid, boxes, the diagram, the long bar, the sentence at the bottom, the slider, stuck. The view's vocabulary is the specification's, not its readers'.
 

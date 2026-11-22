@@ -159,7 +159,8 @@ function build_story(sample, options) {
             for (const edge of pending_edges.splice(0)) lit[edge] = 1;
             if (extra.state !== undefined && n >= 0) state[n] = extra.state;
             for (const [node, value] of extra.also || []) state[node] = value;
-            steps.push({ seq: e.seq, t: ms(e.time), when: when(ms(e.time)), n, kind, cap, det, link: extra.link, ns: state.join(''), es: lit.join('') });
+            steps.push({ seq: e.seq, t: ms(e.time), when: when(ms(e.time)), n, kind, cap, det, link: extra.link, ns: state.join(''), es: lit.join(''),
+                raw: { id: e.id, seq: e.seq, time: e.time, type: e.type, ...(e.node_name ? { node_name: e.node_name } : {}), ...(e.attempt ? { attempt: e.attempt } : {}), ...(e.data ? { data: e.data } : {}) } });   // the journal record itself, for a reader who must see the evidence and not its summary
             return steps.length - 1;
         };
         const note = (e, label, text) => { const n = ix(e.node_id); (notes[n] ||= []).push([label, text]); };
