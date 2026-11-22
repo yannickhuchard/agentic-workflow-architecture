@@ -39,7 +39,7 @@ await server.connect(a); await client.connect(b);
 
 const tools = (await client.listTools()).tools;
 const resources = (await client.listResources()).resources;
-const EXPECTED_TOOLS = ['validate_document', 'show_workflow', 'simulate_workflow', 'show_journeys', 'simulate_journey', 'load_claims_example'];
+const EXPECTED_TOOLS = ['validate_document', 'show_workflow', 'simulate_workflow', 'show_journeys', 'simulate_journey', 'load_claims_example', 'show_dashboard'];
 check(JSON.stringify(tools.map(t => t.name)) === JSON.stringify(EXPECTED_TOOLS), `the server lists ${EXPECTED_TOOLS.length} tools: ${tools.map(t => t.name).join(', ')}`);
 check(tools.every(t => t.annotations?.readOnlyHint === true && t.annotations.destructiveHint === false && t.annotations.openWorldHint === false), 'every tool is annotated read-only, not destructive, closed world');
 check(tools.every(t => t.inputSchema?.additionalProperties === false), 'every tool has a strict input schema');
@@ -86,6 +86,10 @@ const CALLS = {
     journeys_simulated: ['simulate_journey', { ...journey_args, then_wait: 'P10D' }],
     journeys_from_documents: ['show_journeys', journey_args],
     journeys_from_portfolio: ['show_journeys', { portfolio: exported }],
+    dashboard_example: ['show_dashboard', { use_claims_example: true }],
+    dashboard_simulated: ['show_dashboard', { ...journey_args, then_wait: 'P10D' }],
+    dashboard_hostile: ['show_dashboard', { journeys: [hostile(purchase_journey)], workflows: [hostile(purchase)], start_time: '2026-03-02T09:00:00Z', then_wait: 'P10D',
+        events: [{ type: 'quote.requested', data: { customer_id: `c-1 ${HOSTILE}`, name: `Eve ${HOSTILE}` } }] }],
     journeys_empty: ['show_journeys', { journeys: [purchase_journey], workflows: [purchase] }],
     journeys_hostile: ['simulate_journey', { journeys: [hostile(purchase_journey)], workflows: [hostile(purchase)], start_time: '2026-03-02T09:00:00Z',
         simulated_outputs: Object.fromEntries(Object.entries(outputs).map(([k, v]) => [`${k} ${HOSTILE}`, { output: { ...v.output, message: HOSTILE } }])),
@@ -107,13 +111,15 @@ await client.close();
 const CSP = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; frame-ancestors 'self'";
 const harness = (widget, theme, max_height) => `<!doctype html><html><head><meta charset="utf-8"><title>Fake MCP Apps host: ${widget}</title></head>
 <body style="margin:0;background:${theme === 'light' ? '#fff' : '#222'}"><iframe id="app" title="AWA widget" sandbox="allow-scripts" src="/widget/${widget}" style="border:0;width:100%;height:${max_height}px;display:block"></iframe><script>
-const frame = document.getElementById('app'), log = window.HOST_LOG = { initialize: null, initialized: false, sizes: [], display: [], context: [], calls: [], other: [] };
+const frame = document.getElementById('app'), log = window.HOST_LOG = { initialize: null, initialized: false, sizes: [], display: [], context: [], calls: [], other: [], from_widget: [], from_host: [] };
 let mode = 'inline';
-window.deliver = result => frame.contentWindow.postMessage({ jsonrpc: '2.0', method: 'ui/notifications/tool-result', params: result }, '*');
-window.setContext = context => frame.contentWindow.postMessage({ jsonrpc: '2.0', method: 'ui/notifications/host-context-changed', params: context }, '*');
+const post = message => { log.from_host.push(message.method ? { method: message.method } : { result_of: message.result_of }); delete message.result_of; frame.contentWindow.postMessage(message, '*'); };
+window.deliver = result => post({ jsonrpc: '2.0', method: 'ui/notifications/tool-result', params: result });
+window.setContext = context => post({ jsonrpc: '2.0', method: 'ui/notifications/host-context-changed', params: context });
 window.addEventListener('message', event => {
     if (event.source !== frame.contentWindow) return;
     const m = event.data; if (!m || m.jsonrpc !== '2.0') return;
+    if (m.method) log.from_widget.push({ method: m.method, params: m.params, request: m.id !== undefined });
     const answer = result => event.source.postMessage({ jsonrpc: '2.0', id: m.id, result }, '*');
     if (m.method === 'ui/initialize') { log.initialize = m.params; answer({ protocolVersion: '2026-01-26', hostInfo: { name: 'AWA verification host', version: '1' }, hostCapabilities: {}, hostContext: { theme: '${theme}', displayMode: 'inline', availableDisplayModes: ['inline', 'fullscreen'], containerDimensions: { maxHeight: ${max_height} } } }); }
     else if (m.method === 'ui/notifications/initialized') log.initialized = true;
@@ -156,6 +162,18 @@ if (args.includes('--serve-only')) {
     const deliver = (page, result) => page.evaluate(r => window.deliver(r), result);
     const settle = page => page.waitForTimeout(900);
     const shot = (page, name) => page.screenshot({ path: path.join(output, `${name}.png`) });
+    // Every message a widget sent is checked against the schemas published with the MCP Apps SDK
+    const apps = await import('@modelcontextprotocol/ext-apps');
+    const SCHEMAS = { 'ui/initialize': apps.McpUiInitializeRequestSchema, 'ui/notifications/initialized': apps.McpUiInitializedNotificationSchema, 'ui/notifications/size-changed': apps.McpUiSizeChangedNotificationSchema, 'ui/request-display-mode': apps.McpUiRequestDisplayModeRequestSchema, 'ui/update-model-context': apps.McpUiUpdateModelContextRequestSchema };
+    const sent = { count: 0, methods: new Set(), invalid: [] };
+    const conformance = async page => {
+        for (const m of (await page.evaluate(() => (window.HOST_LOG ? window.HOST_LOG.from_widget : [])))) {
+            sent.count++; sent.methods.add(m.method);
+            const schema = SCHEMAS[m.method];
+            if (!schema) sent.invalid.push(`${m.method}: not a message this check knows`);
+            else { const parsed = schema.safeParse({ method: m.method, params: m.params }); if (!parsed.success) sent.invalid.push(`${m.method}: ${JSON.stringify(parsed.error.issues).slice(0, 200)}`); }
+        }
+    };
     const no_injection = async (app, what) => {
         const found = await app.evaluate(() => ({ flag: window.__awa_xss, images: document.querySelectorAll('img').length, scripts: [...document.querySelectorAll('script')].filter(s => /__awa_xss=1<|^window\.__awa_xss/.test(s.textContent.trim())).length, handlers: document.querySelectorAll('[onerror]').length }));
         check(found.flag === undefined && found.images === 0 && found.scripts === 0 && found.handlers === 0, `${what}: hostile names and values are shown as text, not markup (${JSON.stringify(found)})`);
@@ -190,7 +208,7 @@ if (args.includes('--serve-only')) {
             const box = await app.evaluate(() => { const r = document.getElementById('fit').getBoundingClientRect(); return { w: r.width, h: r.height, iw: innerWidth, ih: innerHeight }; });
             check(box.w <= box.iw + 1 && box.h <= box.ih + 1, `journeys: in fullscreen the stage fits its frame (${Math.round(box.w)}x${Math.round(box.h)} in ${box.iw}x${box.ih})`);
             await shot(page, 'journeys-example-fullscreen');
-            await page.close();
+            await conformance(page); await page.close();
         }
         // --- journeys: simulated, from documents, from a portfolio, empty, hostile, light theme, narrow
         {
@@ -218,7 +236,7 @@ if (args.includes('--serve-only')) {
             await deliver(page, { isError: true, content: [{ type: 'text', text: `Workflow 1 is not valid ${HOSTILE}` }] }); await settle(page);
             check((await frame.locator('#none').innerText()).includes('Workflow 1 is not valid'), 'journeys: a tool error is shown as text');
             await no_injection(app, 'journeys, error');
-            await page.close();
+            await conformance(page); await page.close();
         }
         {
             const { page, frame, app } = await open('journeys', { width: 390, height: 780, max: 500 });
@@ -226,7 +244,7 @@ if (args.includes('--serve-only')) {
             const box = await app.evaluate(() => ({ scroll: document.documentElement.scrollWidth, inner: innerWidth }));
             check(await frame.locator('.jcard').count() === 1 && box.scroll <= box.inner + 1, `journeys: at 390 px wide the stage scales to the frame without overflow (${box.scroll} in ${box.inner})`);
             await shot(page, 'journeys-narrow');
-            await page.close();
+            await conformance(page); await page.close();
         }
         // --- workflow graph
         for (const theme of ['dark', 'light']) {
@@ -259,7 +277,7 @@ if (args.includes('--serve-only')) {
                 await no_injection(app, 'workflow, node tab');
                 await shot(page, 'workflow-hostile');
             }
-            await page.close();
+            await conformance(page); await page.close();
         }
         // --- run replay
         {
@@ -293,7 +311,7 @@ if (args.includes('--serve-only')) {
             await deliver(page, { isError: true, content: [{ type: 'text', text: `The workflow is not valid ${HOSTILE}` }] }); await settle(page);
             check((await frame.locator('#error').innerText()).includes('The workflow is not valid'), 'run: a tool error is shown as text');
             await no_injection(app, 'run, error');
-            await page.close();
+            await conformance(page); await page.close();
         }
         {
             const { page, frame, app } = await open('run', { width: 390, height: 780, max: 720, theme: 'light' });
@@ -301,7 +319,40 @@ if (args.includes('--serve-only')) {
             const box = await app.evaluate(() => ({ scroll: document.documentElement.scrollWidth, inner: innerWidth }));
             check(await frame.locator('.node').count() > 10 && box.scroll <= box.inner + 1, `run: at 390 px wide the layout stacks without horizontal overflow (${box.scroll} in ${box.inner})`);
             await shot(page, 'run-narrow-light');
-            await page.close();
+            await conformance(page); await page.close();
+        }
+        // --- dashboard
+        for (const theme of ['dark', 'light']) {
+            const { page, frame, app } = await open('dashboard', { theme, max: 900 });
+            await deliver(page, R.dashboard_example); await settle(page);
+            const tiles = (await frame.locator('#tiles').innerText()).replace(/\s+/g, ' ');
+            check(/Journeys started 18/.test(tiles) && await frame.locator('#attention .row').count() === 2 && await frame.locator('#journeys .item').count() === 3 && await frame.locator('#workflows .item').count() === 5, `dashboard (${theme}): the example's measures are drawn: 18 journeys, 2 customers stuck, 3 journeys, 5 workflows`);
+            check(await app.evaluate(() => document.documentElement.dataset.theme) === theme, `dashboard (${theme}): the page takes the host's theme`);
+            check(await frame.locator('#open').isHidden() && await frame.locator('#tojourney').isHidden() && await frame.locator('a[href*="journey.html"]:visible').count() === 0, `dashboard (${theme}): nothing points to a page or a file that is not there`);
+            if (theme === 'dark') {
+                await frame.locator('#journeys .item', { hasText: 'Motor Claim' }).locator('.seg .c-stuck').click();
+                check(await frame.locator('#ev-list li').count() === 2, 'dashboard: a number opens the customers behind it');
+                await frame.locator('#ev-list [data-go]').first().click(); await page.waitForTimeout(300);
+                const told = await page.evaluate(() => window.HOST_LOG.context.length);
+                check(told > 0 && /Ask in the conversation/.test(await frame.locator('#source').innerText()), 'dashboard: "Open the journey" tells the model which customer was chosen');
+                await frame.locator('#ev-x').click();
+                await frame.locator('#workflows [data-open]').nth(2).click();
+                check(/Pay claimant/.test(await frame.locator('#workflows .detail').innerText()), 'dashboard: a workflow opens into its steps');
+            }
+            await shot(page, `dashboard-${theme}`);
+            await conformance(page); await page.close();
+        }
+        {
+            const { page, frame, app } = await open('dashboard', { width: 390, height: 780, max: 700, theme: 'light' });
+            await deliver(page, R.dashboard_simulated); await settle(page);
+            const box = await app.evaluate(() => ({ scroll: document.documentElement.scrollWidth, inner: innerWidth }));
+            check(/Journeys started 2/.test((await frame.locator('#tiles').innerText()).replace(/\s+/g, ' ')) && box.scroll <= box.inner + 1, `dashboard: a simulated record at 390 px wide, without horizontal overflow (${box.scroll} in ${box.inner})`);
+            await deliver(page, R.dashboard_hostile); await settle(page);
+            for (const toggle of await frame.locator('[data-open]').all()) await toggle.click().catch(() => { });
+            await frame.locator('#journeys .n').first().click().catch(() => { });
+            check(await app.evaluate(() => !window.__awa_xss && !document.querySelector('#main img, #main script, #ev img, #ev script')) && /<img src=x/.test(await frame.locator('body').innerText()), 'dashboard: hostile names are shown as text; no element is created and no script runs');
+            await shot(page, 'dashboard-narrow');
+            await conformance(page); await page.close();
         }
         // --- the views can load a record from an address when opened as pages; a widget must not, even where no policy forbids it
         {
@@ -313,7 +364,7 @@ if (args.includes('--serve-only')) {
             await page.goto(`${origin}/bare/workflow?workflow=${encodeURIComponent(`${origin}/trap/workflow`)}&journal=${encodeURIComponent(`${origin}/trap/journal`)}`); await page.waitForTimeout(1200);
             const tried = await page.evaluate(async trap => { const out = []; try { await fetch(trap); out.push('fetch'); } catch { /* refused */ } for (const name of ['XMLHttpRequest', 'EventSource', 'WebSocket']) { try { new window[name](trap); out.push(name); } catch { /* refused */ } } return out; }, `${origin}/trap/direct`);
             check(traps.length === 0 && tried.length === 0 && local.length === 0, `served without any Content-Security-Policy and asked by address (?live, ?data, ?run, ?workflow) to load from a server, the widgets make no request (${traps.length} reached it${local.length ? `; errors: ${local.join(' | ')}` : ''})`);
-            await page.close();
+            await conformance(page); await page.close();
         }
         // --- ChatGPT globals instead of the JSON-RPC bridge
         {
@@ -326,8 +377,12 @@ if (args.includes('--serve-only')) {
             await page.goto(`${origin}/widget/workflow`); await settle(page);
             check(await page.locator('.node').count() > 5 && await page.evaluate(() => document.documentElement.dataset.awaTheme) === 'light' && heights.length > 0 && heights.every(h => h <= 520),
                 `window.openai: with ChatGPT's globals and no JSON-RPC host the widget still draws, takes the theme and reports a height within maxHeight (${[...new Set(heights)].join(', ')})`);
-            await page.close();
+            await conformance(page); await page.close();
         }
+        check(sent.invalid.length === 0 && Object.keys(SCHEMAS).every(method => sent.methods.has(method)), `all ${sent.count} messages the widgets sent (${[...sent.methods].join(', ')}) are valid against the MCP Apps SDK's schemas${sent.invalid.length ? `: ${sent.invalid.slice(0, 4).join(' | ')}` : ''}`);
+        check(apps.McpUiInitializeResultSchema.safeParse({ protocolVersion: '2026-01-26', hostInfo: { name: 'AWA verification host', version: '1' }, hostCapabilities: {}, hostContext: { theme: 'dark', displayMode: 'inline', availableDisplayModes: ['inline', 'fullscreen'], containerDimensions: { maxHeight: 640 } } }).success
+            && apps.McpUiToolResultNotificationSchema.safeParse({ method: 'ui/notifications/tool-result', params: R.run }).success
+            && apps.McpUiResourceMetaSchema.safeParse({ prefersBorder: true, csp: { connectDomains: [], resourceDomains: [] } }).success, 'what the test host answers, a real tool result and the resource metadata are valid against the same schemas');
         check(problems.length === 0, `no page error and no console error in any widget${problems.length ? `: ${problems.slice(0, 6).join(' | ')}` : ''}`);
         const outside = requests.filter(url => !url.startsWith(origin));
         const inside = [...new Set(requests.map(url => new URL(url).pathname.replace(/^\/(host|widget)\/.*/, '/$1')))];

@@ -79,18 +79,11 @@ export const WIDGETS = {
         description: 'A simulated run of an AWA workflow replayed over its graph from the execution journal: the path taken, decisions, waits, simulated tool calls and failures, step by step. Simulation only; no tool, model or command was executed.',
         bundle: { html: view('replay.html'), drop: ['replay-sample.js'], styles: [own('workflow.css')], scripts: [own('host-bridge.js'), own('workflow-bridge.js')], replace: { __AWA_WIDGET_MODE__: 'run' } },
     },
-    // DASHBOARD PLACEHOLDER --------------------------------------------------------------
-    // tools/visualization/dashboard.html is not in the repository yet. When it is, add:
-    //
-    // dashboard: {
-    //     uri: 'ui://awa/dashboard-v1.html',
-    //     description: 'Key figures of journeys and runs: ...',
-    //     bundle: { html: view('dashboard.html'), drop: [/* sample data scripts */], styles: [], scripts: [own('host-bridge.js'), own('dashboard-bridge.js')] },
-    // },
-    //
-    // then write src/widgets/dashboard-bridge.js (copy journey-bridge.js: it is 40 lines) and
-    // enable the show_dashboard tool marked "DASHBOARD PLACEHOLDER" in src/server.js.
-    // -------------------------------------------------------------------------------------
+    dashboard: {
+        uri: 'ui://awa/dashboard-v1.html',
+        description: 'The measures of journeys and workflows (AWA specification section 21): who is stuck and who is to act, what became of the journeys that started, how each workflow\'s runs went, where the time goes, and counts over time. Every rate is shown with its count, and any number opens the customers or runs behind it. Shows simulated or exported records; it executes nothing.',
+        bundle: { html: view('dashboard.html'), drop: ['dashboard-sample.js'], scripts: [own('host-bridge.js'), own('dashboard-bridge.js')] },
+    },
 };
 
 const cache = new Map();

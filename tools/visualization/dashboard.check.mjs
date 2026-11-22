@@ -29,6 +29,7 @@ const hostile = JSON.parse(JSON.stringify(sample));
 hostile.journeys[1].definition.name = '<img src=x onerror="window.pwned=1">Claim';
 hostile.journeys[1].instances[0].subject_name = '"><script>window.pwned=1</script>';
 hostile.journeys[1].definition.stages[0].owner = '<b onmouseover="window.pwned=1">desk</b>';
+delete hostile.journeys[1].definition.stages[1].owner;
 for (const r of hostile.journeys[1].instances) for (const run of r.runs) for (const e of run.events) if (e.node_name) e.node_name = `<i onclick="window.pwned=1">${e.node_name}</i>`;
 const server = http.createServer((req, res) => {
     const url = new URL(req.url, 'http://x');
@@ -62,7 +63,7 @@ const text = async (page, selector) => (await page.innerText(selector)).replace(
     check(tiles.includes(`Journeys started ${t['journey.started'].value}`), `the page counts ${t['journey.started'].value} journeys started`);
     check(tiles.includes(`${Math.round(t['journey.goal_attainment'].value * 100)}%`) && tiles.includes(`${Math.round(t['journey.goal_attainment'].value * t['journey.goal_attainment'].n)} of ${t['journey.goal_attainment'].n} journeys`), 'the share that reached the goal comes with its count');
     check(await page.locator('#attention .row').count() === report.attention.length && report.attention.length === 2, 'everyone who is stuck is listed');
-    check((await text(page, '#attention')).includes('No owner named for this stage'), 'a stage without an owner says so');
+    check((await text(page, '#attention')).includes('Claims intake desk') && (await text(page, '#attention')).includes('Claims adjusters'), 'each stuck customer comes with the owner of the stage');
     check(await page.locator('#journeys .item').count() === report.journeys.length && await page.locator('#workflows .item').count() === report.workflows.length, 'one row per journey and per workflow');
     const claim = report.journeys.find(j => j.name === 'Motor Claim');
     const row = page.locator('#journeys .item', { hasText: 'Motor Claim' });
@@ -118,6 +119,7 @@ const text = async (page, selector) => (await page.innerText(selector)).replace(
     await page.locator('#ev-list').hover().catch(() => { });
     check(await page.evaluate(() => !window.pwned && !document.querySelector('#main img, #main script, #main i[onclick], #main b[onmouseover], #ev script')), 'markup in a record is shown as text and never run');
     check((await text(page, '#journeys')).includes('<img src=x'), 'the hostile name is displayed literally');
+    check((await text(page, '#attention')).includes('No owner named for this stage'), 'a stage without an owner says so');
     const link = await page.locator('#attention a').first().getAttribute('href');
     check(link.includes('?data=') && link.includes('#story/'), 'links to the journey view carry the same record');
     check(page.errors.length === 0, `no page errors on a hostile record ${page.errors.join(' | ')}`);

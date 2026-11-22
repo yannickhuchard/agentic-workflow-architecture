@@ -1,0 +1,4 @@
+node_modules/
+dist/
+# Screenshots and the report written by "npm run verify"
+artifacts/

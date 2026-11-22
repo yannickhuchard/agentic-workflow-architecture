@@ -85,6 +85,20 @@ awa replay workflow.awa.json run.jsonl --candidate changed.awa.json --ai recorde
 
 ---
 
+## In ChatGPT and other assistants
+
+[`apps/mcp-server`](apps/mcp-server) is an MCP server with embedded views (MCP Apps), packaged as a ChatGPT plugin in [`plugins/awa`](plugins/awa). In a conversation it validates a workflow or journey document, shows a workflow as a graph with the data that moves, simulates a run and replays it, plays business events through customer journeys, and opens the measures dashboard. It simulates only: no tool, command, model or production system named by a document is ever called, and nothing is kept between calls.
+
+```bash
+cd sdk/typescript && npm install && npm run build
+```
+
+```bash
+cd apps/mcp-server && npm install && npm start
+```
+
+It runs today in development mode (ChatGPT developer mode, or any MCP client, over `http://127.0.0.1:8787/mcp` or stdio). [`apps/mcp-server/SUBMISSION.md`](apps/mcp-server/SUBMISSION.md) lists what is ready for the store and what only the owner can do: hosting, domain verification, the demo recording and the submission itself.
+
 ## Other features
 
 - **Multi-actor**: humans, AI agents, robots and applications in one flow, with a Kanban board for human tasks.

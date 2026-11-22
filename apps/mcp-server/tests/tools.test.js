@@ -18,7 +18,7 @@ async function refuses(promise, pattern, message) {
     assert.match(text, /Invalid arguments|Input validation/, message);
     assert.match(text, pattern, message);
 }
-const TOOLS = ['validate_document', 'show_workflow', 'simulate_workflow', 'show_journeys', 'simulate_journey', 'load_claims_example'];
+const TOOLS = ['validate_document', 'show_workflow', 'simulate_workflow', 'show_journeys', 'simulate_journey', 'load_claims_example', 'show_dashboard'];
 
 test('discovery: tools, annotations, security schemes, widget metadata and resources', async t => {
     const client = await connect(t);
@@ -44,7 +44,7 @@ test('discovery: tools, annotations, security schemes, widget metadata and resou
         assert.ok(meta['openai/toolInvocation/invoking'] && meta['openai/toolInvocation/invoked']);
     }
     assert.equal(tools.find(x => x.name === 'validate_document')._meta.ui, undefined);
-    assert.equal(tools.some(x => x.name === 'show_dashboard'), false, 'show_dashboard is a placeholder and must not be listed yet');
+
 
     const { resources } = await client.listResources();
     assert.deepEqual(resources.map(r => r.uri).sort(), [...uris].sort());
@@ -58,6 +58,24 @@ test('discovery: tools, annotations, security schemes, widget metadata and resou
         assert.match(content.text, /^<!doctype html>/i);
     }
     assert.match(client.getInstructions(), /simulat/i);
+});
+
+test('a widget domain is declared only when configured, and only as an https origin', async t => {
+    const { createMcpServer } = await import('../src/server.js');
+    const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
+    const { InMemoryTransport } = await import('@modelcontextprotocol/sdk/inMemory.js');
+    const server = await createMcpServer({ widget_domain: 'https://widgets.example.org' });
+    const [a, b] = InMemoryTransport.createLinkedPair();
+    const client = new Client({ name: 't', version: '1' });
+    await server.connect(a); await client.connect(b);
+    t.after(() => client.close());
+    const meta = (await client.readResource({ uri: 'ui://awa/journeys-v1.html' })).contents[0]._meta;
+    assert.equal(meta.ui.domain, 'https://widgets.example.org'); assert.equal(meta['openai/widgetDomain'], 'https://widgets.example.org');
+    assert.deepEqual(meta.ui.csp, { connectDomains: [], resourceDomains: [] });
+    await assert.rejects(createMcpServer({ widget_domain: 'http://widgets.example.org' }), /https origin/);
+    await assert.rejects(createMcpServer({ widget_domain: 'https://widgets.example.org/path' }), /https origin/);
+    const plain = (await (await connect(t)).readResource({ uri: 'ui://awa/journeys-v1.html' })).contents[0]._meta;
+    assert.equal('domain' in plain.ui, false); assert.equal('openai/widgetDomain' in plain, false);
 });
 
 test('validate_document: a valid workflow, a broken one in plain words, a journey with and without its workflows', async t => {
@@ -262,4 +280,39 @@ test('nothing is kept between calls or between servers', async t => {
     assert.equal(later.structuredContent.journeys.length, 0);
     const other = await connect(t);
     assert.equal((await call(other, 'show_journeys', { journeys: args.journeys, workflows: args.workflows })).structuredContent.journeys.length, 0);
+});
+
+test('show_dashboard: measures of the example, of a simulation and of a portfolio; nothing but what the measures read leaves the server', async t => {
+    const client = await connect(t);
+    const example = await call(client, 'show_dashboard', { use_claims_example: true });
+    const s = example.structuredContent;
+    assert.equal(s.simulated, true);
+    assert.deepEqual(s.totals['journey.started'], { value: 18, of: 18 });
+    assert.equal(s.needs_someone_now.length, 2);
+    assert.equal(s.journeys.length, 3); assert.equal(s.workflows.length, 5);
+    assert.match(text_of(example), /18 journeys and 25 runs \(simulated\)/);
+    assert.match(text_of(example), /Quote counts with rates/);
+    const record = example._meta.awa.record;
+    assert.equal(example._meta.awa.view, 'dashboard');
+    // The widget is given what happened and when, never what was said: no input, output, reasoning or tool result
+    const sent = JSON.stringify(record);
+    for (const word of ['"input"', '"output"', '"result"', '"rationale"', '"plan"', '"arguments"', '"binding"']) assert.ok(!sent.includes(word), `${word} is not sent to the widget`);
+    assert.ok(sent.length < 200_000, `the record sent is small (${sent.length} bytes)`);
+
+    const simulated = await call(client, 'show_dashboard', {
+        journeys: [purchase_journey()], workflows: [purchase()], simulated_outputs: outputs(), start_time: '2026-03-02T09:00:00Z', then_wait: 'P10D',
+        events: [{ type: 'quote.requested', data: { customer_id: 'c-1', name: 'Ada' } }, { type: 'quote.requested', data: { customer_id: 'c-2', name: 'Ben' }, after: 'PT1H' }],
+    });
+    assert.deepEqual(simulated.structuredContent.totals['journey.started'], { value: 2, of: 2 });
+    assert.equal(simulated.structuredContent.totals['journey.completion_rate'].value, 0);
+    assert.equal(simulated.structuredContent.journeys[0]['journey.duration_median_ms'], null, 'nothing completed: no value, not zero');
+
+    const later = await call(client, 'show_dashboard', { use_claims_example: true, from: '2999-01-01T00:00:00Z' });
+    assert.match(text_of(later), /nothing to measure/);
+    const none = await call(client, 'show_dashboard', {});
+    assert.equal(none.isError, true); assert.match(text_of(none), /exactly one of/);
+    const two = await call(client, 'show_dashboard', { use_claims_example: true, portfolio: { journeys: [], workflows: [] } });
+    assert.equal(two.isError, true);
+    const not = await call(client, 'show_dashboard', { portfolio: { hello: 1 } });
+    assert.equal(not.isError, true); assert.match(text_of(not), /not a journey portfolio export/);
 });

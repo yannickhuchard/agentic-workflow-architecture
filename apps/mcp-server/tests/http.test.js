@@ -135,13 +135,13 @@ test('an MCP client works over Streamable HTTP, statelessly', async t => {
     const client = new Client({ name: 'awa-http-test', version: '1.0.0' });
     await client.connect(new StreamableHTTPClientTransport(url));
     t.after(() => client.close());
-    assert.equal((await client.listTools()).tools.length, 6);
+    assert.equal((await client.listTools()).tools.length, 7);
     const result = await client.callTool({ name: 'simulate_workflow', arguments: { workflow: read('examples/order-processing/order-processing.awa.json'), simulated_outputs: read('examples/order-processing/simulation.json') } });
     assert.equal(result.structuredContent.status, 'completed');
     assert.ok((await client.readResource({ uri: 'ui://awa/run-replay-v1.html' })).contents[0].text.length > 50_000);
     // No session: a second client needs nothing from the first, and a call without initialize is answered
     const bare = await request(server, { method: 'POST', headers: json, body: rpc('tools/list', {}) });
-    assert.equal(bare.status, 200); assert.equal(JSON.parse(bare.text).result.tools.length, 6);
+    assert.equal(bare.status, 200); assert.equal(JSON.parse(bare.text).result.tools.length, 7);
     assert.equal(bare.headers['mcp-session-id'], undefined);
 });
 
@@ -150,7 +150,7 @@ test('stdio: the server answers on standard output and writes nothing else there
     const client = new Client({ name: 'awa-stdio-test', version: '1.0.0' });
     await client.connect(transport);
     t.after(() => client.close());
-    assert.equal((await client.listTools()).tools.length, 6);
+    assert.equal((await client.listTools()).tools.length, 7);
     // The SDK prints progress while it runs; none of it may reach the protocol stream
     const result = await client.callTool({ name: 'simulate_workflow', arguments: { workflow: read('examples/claims-settlement/claims-settlement.awa.json'), simulated_outputs: read('examples/claims-settlement/simulation.json') } });
     assert.equal(result.structuredContent.status, 'completed');

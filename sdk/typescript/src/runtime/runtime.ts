@@ -19,6 +19,7 @@ import {
 import { WorkflowState } from './persistence';
 import { WorkflowEngine, WorkflowEngineOptions } from './workflow_engine';
 import fs from 'fs/promises';
+import { rmSync } from 'fs';
 import path from 'path';
 
 export interface RuntimeOptions {
@@ -574,7 +575,7 @@ async function lock_directory(directory: string): Promise<() => Promise<void>> {
         try {
             await fs.writeFile(file, String(process.pid), { flag: 'wx' });
             held.set(file, 1);
-            process.once('exit', () => { try { if (held.has(file)) require('fs').rmSync(file, { force: true }); } catch { /* leaving */ } });
+            process.once('exit', () => { try { if (held.has(file)) rmSync(file, { force: true }); } catch { /* leaving */ } });
             return release;
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;

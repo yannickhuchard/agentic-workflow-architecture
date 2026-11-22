@@ -53,5 +53,7 @@ test('every widget is one self-contained document built from its view, with the 
     assert.ok(widget_html('journeys').includes('window.AWA_show = show'), 'the journey view exposes the hook the bridge calls');
     assert.ok(widget_html('run').includes('window.AWAReplay ='), 'the replay view exposes the hook the bridge calls');
     assert.ok(widget_html('workflow').includes("var MODE = 'workflow'") && widget_html('run').includes("var MODE = 'run'"));
-    assert.throws(() => widget_html('dashboard'), /Unknown widget/, 'the dashboard is a placeholder until its view exists');
+    assert.ok(widget_html('dashboard').includes('window.AWA_dashboard_show = show') && widget_html('dashboard').includes('AWA_MEASURES'), 'the dashboard carries the hook the bridge calls and the code that computes the measures');
+    assert.ok(!widget_html('dashboard').includes('window.AWA_PORTFOLIO ='), 'and no sample record');
+    assert.throws(() => widget_html('nothing'), /Unknown widget/);
 });

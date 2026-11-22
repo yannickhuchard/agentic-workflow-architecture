@@ -27,4 +27,10 @@ export function example_story() {
     if (!story) story = read(path.join(EXAMPLE_DIR, 'story.json'));
     return story;
 }
+let portfolio;
+/** The example's records as the host exported them: what the measures are computed from */
+export function example_portfolio() {
+    if (!portfolio) portfolio = read(path.join(EXAMPLE_DIR, 'journeys.json'));
+    return portfolio;
+}
 export const example_document = name => read(EXAMPLE_DOCUMENTS[name]);

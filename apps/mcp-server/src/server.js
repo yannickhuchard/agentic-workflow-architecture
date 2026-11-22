@@ -13,7 +13,8 @@ import * as S from './schemas.js';
 import { WIDGETS, widget_html } from './widgets.js';
 import { DocumentError, validate_document, require_workflow, require_journey, require_portfolio, workflow_data_view, run_summary, build_story, story_summary, sentences } from './awa.js';
 import { simulate_workflow_run, simulate_journeys } from './simulation.js';
-import { EXAMPLE_DOCUMENTS, example_document, example_story } from './example.js';
+import { EXAMPLE_DOCUMENTS, example_document, example_story, example_portfolio } from './example.js';
+import { measured_record, measure } from './measures.js';
 
 export const SERVER_NAME = 'awa-workflows';
 export const INSTRUCTIONS = [
@@ -65,7 +66,16 @@ function journeys_result(story, played, extra = {}) {
         { awa: { view: 'journeys', story, source: 'simulated', ...(summary.journeys.length ? {} : { empty }) } });
 }
 
-export async function createMcpServer() {
+/**
+ * @param options.widget_domain  an https origin declared as the widgets' own domain (_meta.ui.domain). Unset by default;
+ *                               set AWA_MCP_WIDGET_DOMAIN if the directory asks for one at submission.
+ */
+export async function createMcpServer({ widget_domain = process.env.AWA_MCP_WIDGET_DOMAIN } = {}) {
+    if (widget_domain !== undefined && widget_domain !== '') {
+        let origin; try { origin = new URL(widget_domain); } catch { /* refused below */ }
+        if (!origin || origin.protocol !== 'https:' || origin.origin !== widget_domain) throw new Error('AWA_MCP_WIDGET_DOMAIN must be an https origin, such as https://widgets.example.org');
+    }
+    const domain = widget_domain ? { domain: widget_domain } : {};
     const server = new McpServer({ name: SERVER_NAME, version: RELEASE }, { instructions: INSTRUCTIONS });
     const definitions = [];
 
@@ -74,8 +84,9 @@ export async function createMcpServer() {
             contents: [{
                 uri: widget.uri, mimeType: RESOURCE_MIME_TYPE, text: widget_html(name),
                 _meta: {
-                    ui: { prefersBorder: true, csp: { connectDomains: [], resourceDomains: [] } },
+                    ui: { prefersBorder: true, ...domain, csp: { connectDomains: [], resourceDomains: [] } },
                     'openai/widgetPrefersBorder': true, 'openai/widgetCSP': { connect_domains: [], resource_domains: [] },
+                    ...(widget_domain ? { 'openai/widgetDomain': widget_domain } : {}),
                     'openai/widgetDescription': widget.description,
                 },
             }],
@@ -229,23 +240,36 @@ export async function createMcpServer() {
                 { awa: { view: 'journeys', story, source: 'example: six customers, three journeys (fictional)' } });
         }, { widget: 'journeys', invoking: 'Loading the claims example…', invoked: 'Claims example shown' });
 
-    // DASHBOARD PLACEHOLDER ------------------------------------------------------------------
-    // show_dashboard is not registered yet: tools/visualization/dashboard.html and the KPI
-    // function of the SDK are being written. To wire it in:
-    //   1. add the "dashboard" entry to WIDGETS in src/widgets.js (the commented block there);
-    //   2. write src/widgets/dashboard-bridge.js, which hands result._meta.awa to the view;
-    //   3. uncomment and complete the tool below; add it to tests/tools.test.js and to
-    //      scripts/verify-widgets.mjs (one entry in CASES).
-    //
-    // tool('show_dashboard', 'Show journey and run figures',
-    //     'Show key figures computed from a portfolio export or from simulated journeys. Simulation or records given by the caller; nothing is executed or stored.',
-    //     { portfolio: S.portfolio.describe('A portfolio export.') },
-    //     async args => {
-    //         const { compute_kpis } = await load_sdk();                    // the SDK's KPI function, once it is exported
-    //         const kpis = compute_kpis(require_portfolio(args.portfolio));
-    //         return text_result('…one sentence a model can read…', kpis, { awa: { view: 'dashboard', kpis } });
-    //     }, { widget: 'dashboard', invoking: 'Computing the figures…', invoked: 'Dashboard shown' });
-    // -----------------------------------------------------------------------------------------
+    tool('show_dashboard', 'Show the measures dashboard',
+        'Show the measures of journeys and workflows as a dashboard (AWA specification section 21): who is stuck and who is to act, completion, abandonment and goal attainment per journey with its stages, mood and how much of it was measured, and per workflow the success rate, right first time, lead time against work time, waits, tool failures, decisions and cost. Give a portfolio export, or journey and workflow documents with business events to simulate first, or use_claims_example for the bundled fictional example. Each measure comes with the number it was computed over; null means nothing to compute it from. Nothing is executed or stored.',
+        {
+            portfolio: S.portfolio.optional().describe('A portfolio export (the JSON written by "awa journey export"). Use this, or journeys with workflows and events, or use_claims_example.'),
+            journeys: journey_inputs.journeys.optional(), workflows: journey_inputs.workflows.optional(),
+            events: z.array(S.journey_event).max(LIMITS.events).optional().describe('With journeys and workflows: the business events to simulate, in order.'),
+            simulated_outputs: journey_inputs.simulated_outputs, start_time: journey_inputs.start_time,
+            then_wait: S.iso_duration.optional().describe('With events: simulated time to let pass after the last one, so that deadlines run out and stuck journeys show.'),
+            use_claims_example: z.boolean().optional().describe('Measure the bundled fictional claims example.'),
+            from: S.iso_time.optional().describe('Keep journeys and runs started at or after this instant.'),
+            to: S.iso_time.optional().describe('Keep journeys and runs started before this instant.'),
+        },
+        async args => {
+            const given = [args.portfolio, args.journeys || args.workflows || args.events, args.use_claims_example].filter(Boolean).length;
+            if (given !== 1) throw new DocumentError('Give exactly one of: a portfolio; journeys with workflows and events; use_claims_example.');
+            let portfolio, source, simulated;
+            if (args.portfolio) { portfolio = require_portfolio(args.portfolio); source = 'portfolio given in the conversation'; simulated = false; }
+            else if (args.use_claims_example) { portfolio = require_portfolio(example_portfolio()); source = 'example: six customers, three journeys (fictional)'; simulated = true; }
+            else {
+                if (!args.journeys || !args.workflows) throw new DocumentError('Give both journeys and workflows, with the events to simulate.');
+                portfolio = (await play(args)).result.portfolio; source = 'simulated in this conversation'; simulated = true;
+            }
+            const record = measured_record(portfolio);
+            const { summary } = await measure(record, { from: args.from, to: args.to });
+            const t = summary.totals, n = t['journey.started']?.value || 0, done = t['journey.completion_rate'];
+            const sentence = n
+                ? `Measures of ${plural(n, 'journey')} and ${plural(t['workflow.runs']?.value || 0, 'run')}${simulated ? ' (simulated)' : ''}: ${done ? `${Math.round(done.value * done.of)} of ${done.of} reached the end` : 'none has ended'}; ${summary.needs_someone_now.length ? `${plural(summary.needs_someone_now.length, 'customer')} stuck (${summary.needs_someone_now.slice(0, 3).map(a => `${a.customer} in ${a.stage}${a.owner ? `, owner ${a.owner}` : ', no owner named'}`).join('; ')})` : 'nobody is stuck'}. Quote counts with rates: these are over few.`
+                : 'There is nothing to measure yet: no journey has started in what was given.';
+            return text_result(sentence, { simulated, source, ...summary }, { awa: { view: 'dashboard', record, source } });
+        }, { widget: 'dashboard', invoking: 'Computing the measures…', invoked: 'Measures shown' });
 
     // The SDK serialises only the standard fields of a tool. ChatGPT also reads a
     // top-level securitySchemes, so the list is published from our own definitions.

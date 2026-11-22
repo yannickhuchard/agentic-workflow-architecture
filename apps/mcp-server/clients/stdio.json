@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "awa": {
+      "command": "node",
+      "args": ["/absolute/path/to/agentic-workflow-architecture/apps/mcp-server/src/start.js", "--stdio"]
+    }
+  }
+}
