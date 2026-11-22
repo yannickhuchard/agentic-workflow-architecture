@@ -161,6 +161,83 @@ Five people per proto-persona is a reasonable first round; the first two rows be
 
 Watch for: whether people notice they can go *into* a run; whether they understand the gap labels; whether autoplay is used or immediately paused; where they look for the "why".
 
-## 10. What the design delivers
+## 10. Second round: several journeys, and what a journey map is expected to show
 
-An interactive design, built on the recorded data of the six example customers, covering R1 to R11 at the three heights. It is a design, not yet a shipped view: the next engineering step, if the design survives contact with users, is `tools/visualization/journey.html` beside the existing replay.
+The first round covered one journey. A customer lives through several, and a journey map as practitioners draw it carries rows the first design did not have: how the customer feels, where they meet the organisation, what technology carries that meeting, and what changes hands. This round adds both.
+
+### 10.1 Moving between journeys
+
+There are two ways to be lost among several journeys, and the design answers each with one control.
+
+| Question | Movement | Control |
+|---|---|---|
+| "What journeys are there, and how do people move from one to the next?" | Up, to a view above any one journey | A fourth height, the **atlas**: each journey as a card with its stages and outcomes, the number of customers who go on from one to the next, and under them one row per customer with a cell for each journey they have been on |
+| "What happened to this same customer before, and after?" | Sideways, keeping the customer | A **journey switch**, always in the same corner. On one customer's journey it moves to that customer's journey of another kind; on the calendar view it moves to the other journey's calendar |
+| "Is this customer typical?" | Sideways, keeping the journey | Previous and next customer, beside the name |
+
+The rule is that every move keeps one thing fixed and says which: up and down keep the thing pointed at, the journey switch keeps the customer, the customer arrows keep the journey. A reader is never moved on two axes at once.
+
+The atlas makes one cell per customer and journey, because the question that only several journeys can answer is a row-wise one: A. Okafor's claim was paid in full, and the journey completed; the cost of the three-day wait appears in a different journey, five months later, as a policy that lapsed. No view of one journey shows that.
+
+### 10.2 The rows of the blueprint
+
+| Row | What it shows | Where the data comes from | Decision |
+|---|---|---|---|
+| **Mood** | One line across the journey | `journey.sentiment_changed` (specification 19.9) | A filled dot where the customer said how they felt, a hollow dot where a rule inferred it. The view never shows an inferred mood as a fact; the caption gives the reason for every change |
+| **Touchpoints** | What the customer does and is told, in order | `journey.touchpoint` (19.8) | Filled marks are the customer acting, hollow marks the customer being told. This row replaces the hand-built "is told" marks of the first round |
+| **Technology** | Which system carried each contact, including calls to partners' systems | `technology` of the touchpoint; the tool call's link | One row per system, a dot where it was used. A column read downwards answers "what was involved in this moment"; a row read across answers "when do we depend on this system" |
+| **Exchanged** | What changed hands, as the business names it: contract, attestation, invoice, receipt, certificate, quote, form, evidence, notice, order, survey | `artefacts` of the touchpoint | One row per kind, a document mark where one was exchanged: filled when received, outlined when sent out. The particular document (its reference) is in the caption |
+
+**F9. Mood is the row most likely to mislead.** A drawn line looks measured. In this data only one kind of point is: the survey answer. The rest are the authors' assumptions (an accident is bad news, a long wait is felt, being paid is a relief). The design therefore marks the basis at every point and in every caption, and the specification requires any view to do so. Whether readers notice the difference between a filled and a hollow dot is the first thing to test.
+
+**F10. Technology and exchange are matrices, not labels.** With thirty moments on a screen there is no room for a label at each. Rows with marks stay readable at any density and let the eye run both ways.
+
+### 10.3 Simulation
+
+**The six customers.** The view was built on a simulation of six customers, each written as a persona with a temperament that shapes their path, through three journeys over a year: buying a policy, claiming on it, renewing it. 18 journeys, 1,140 recorded events. `examples/claims-journey/make-journeys.mjs`.
+
+| Customer | Persona | Purchase | Claim | Renewal |
+|---|---|---|---|---|
+| J. Moreau | Organised commuter; answers the same day | covered in a day | paid in a day, rates 5 | renews in two days |
+| A. Okafor | Contractor who needs the car for work | covered in two hours | waits three days for an adjuster, rates 2 | offered a goodwill discount; lets the policy lapse |
+| L. Petit | Retired, not at ease online | takes four days to sign | never uploads documents; stalled | pays after the last reminder |
+| S. Lindqvist | Compares everything first | pays three days late | withdraws; the warranty covered it | renews next day |
+| R. Haddad | Changed bank; does not chase | covered in a day | payment rejected by the bank; stalled | calls to cancel |
+| M. Castellano | Decides slowly, ignores surveys | accepts on day 6 of 7 | paid; never answers the survey | renews after ten days |
+
+**The people who read the view.** Each proto-persona of section 3 was then walked through the built view by a script that uses only what is on screen (`examples/claims-journey/persona-walkthrough.mjs`). It reports whether the answer can be reached and in how many actions.
+
+| Who | Question | Result | Answer found on screen |
+|---|---|---|---|
+| Operations lead | Which customers need someone to act today, and why? | reached, in 4 actions | L. Petit in Motor Claim: The journey is stalled: “Reported” has lasted 10 days, longer than the 7 days it is given. Someone needs to act. | R. Haddad in Motor Claim: The journey is stalled in “Assessed and settled”: the Motor Claim Settlement workflow failed. Someone needs to act. |
+| Case handler | Tell me what happened to A. Okafor with the claim, in order. | reached, in 31 actions | 30 sentences; the wait for the adjuster is sentence 15, the rating of 2 is sentence 25 |
+| Workflow designer | Why did A. Okafor's claim go to an adjuster? | reached, in 3 actions | The repair is costly and the fraud score is neither low nor high, so an adjuster should confirm before payment. (confidence 84%) |
+| Auditor | Was R. Haddad's money left reserved when the payment failed? | reached, in 3 actions | “Release funds” undoes “Reserve funds”, so nothing is left half done. (journal record: event 47 of the run) |
+| Journey owner | Which stage of the claim journey loses the most customers? | reached, in 2 actions | “Reported”: 2 of 6 stalled or left there. Example opened: The journey is stalled: “Reported” has lasted 10 days, longer than the 7 days it is given. Someone needs to act. |
+| Journey owner | Did the poor claim experience cost us A. Okafor as a customer? | reached, in 2 actions | Claim ended with mood unhappy (−0.5); one step sideways to the renewal: The journey ends here. The policy lapsed unpaid. (mood upset (−2)) |
+
+This shows that every answer is reachable, and how far away it is. It does not show that a person would find it: a script knows where to click. The case handler's 31 actions are 30 presses of "next", which is the story being read, not a search.
+
+The walkthrough found a defect the unit tests had not: an event announced by a workflow was taken in by the host only after everything that followed from that workflow, so that R. Haddad's stalled claim ended, on screen, with an unrelated announcement. The host now takes in what a run announces as soon as the run settles (specification 19.5).
+
+### 10.4 Added requirements
+
+| # | The view must | From |
+|---|---|---|
+| R12 | Offer a height above any one journey, showing the journeys, the movement between them and each customer's path across them | 10.1 |
+| R13 | Offer a move sideways that keeps the customer and changes the journey, and one that keeps the journey and changes the customer | 10.1 |
+| R14 | Show mood, touchpoints, technology and what changed hands against the same beats as the journey and its workflows | 10.2 |
+| R15 | Mark every mood value as said by the customer or inferred, wherever it appears | F9 |
+
+### 10.5 Still open
+
+- The atlas holds six rows. At real volumes its rows must become a distribution (how many customers took each path across the journeys) with examples one step away. Not designed.
+- Journeys here follow one another. Two journeys of the same customer running at once (a claim open while the renewal falls due, as happens to L. Petit and R. Haddad) are shown separately; the view does not yet show that they overlap.
+- Channel is in the caption, not in a row. If readers ask "how much of this journey is on the phone", it needs one.
+
+## 11. What was built
+
+`tools/visualization/journey.html`: one file, no build step, no network. Four heights (atlas, one journey on calendar time, one customer's journey as a blueprint, one run), the journey switch and customer arrows, a caption for every moment, play, step and scrub, links that carry the place. Covers R1 to R15. It reads `journey-story.js`, written by `examples/claims-journey/make-story.mjs` from any journey record the SDK produces.
+
+Not built: live journeys (the view replays what was recorded), loading a record chosen by the user, and everything under 8 and 10.5.
+

@@ -351,3 +351,133 @@ describe('Cancelling a run (spec 5.8)', () => {
         expect(await engine.cancel('again')).toBe(false);
     });
 });
+
+describe('Several journeys, touchpoints and mood (spec 19.7 to 19.9)', () => {
+    const DAYS = 24 * 3600 * 1000;
+    function setup() {
+        let now = Date.parse('2026-05-04T09:00:00Z');
+        const ask = activity('Request documents'); const settle = activity('Settle claim'); const tell = activity('Notify claimant');
+        const upload = ev('Documents uploaded', 'message', { name: 'documents.uploaded', correlation_key: 'customer_id' });
+        const settled = ev('Claim settled', 'message', { name: 'claim.settled', mode: 'publish', data: ['customer_id', 'paid'] });
+        const claim = workflow([ask, settle, tell], [edge(ask, upload), edge(upload, settle), edge(settle, tell), edge(tell, settled)], { name: 'Claim', events: [upload, settled] });
+        const survey = activity('Send survey');
+        const follow = workflow([survey], [], { name: 'Follow-up' });
+
+        const claims = JourneyDefinitionSchema.parse({
+            id: uuidv4(), name: 'Claim', version: '1.0.0', subject: { name: 'customer', key: 'customer_id' },
+            stages: [{ id: 'open', name: 'Open', workflows: [claim.id], complete_when: 'paid == true', transitions: [] }],
+            triggers: [{ event: 'claim.submitted', starts_journey: true, start_workflow: claim.id }],
+            goals: [{ id: 'paid', name: 'Paid', expression: 'paid == true' }],
+            artefacts: [
+                { id: 'claim-form', name: 'Claim form', kind: 'form' }, { id: 'police-report', name: 'Police report', kind: 'attestation' },
+                { id: 'settlement-notice', name: 'Settlement notice', kind: 'notice' }, { id: 'payment-receipt', name: 'Payment receipt', kind: 'receipt' },
+                { id: 'payment-order', name: 'Payment order', kind: 'order' },
+            ],
+            touchpoints: [
+                { id: 'reported', name: 'Reports the claim', direction: 'inbound', channel: 'web', technology: 'Customer portal', on: { event: 'claim.submitted' }, exchanges: [{ artefact: 'claim-form' }] },
+                { id: 'asked', name: 'Is asked for documents', direction: 'outbound', channel: 'email', technology: 'Email gateway', on: { activity: 'Request documents' } },
+                { id: 'uploaded', name: 'Uploads documents', direction: 'inbound', channel: 'web', technology: 'Customer portal', on: { event: 'documents.uploaded' }, exchanges: [{ artefact: 'police-report' }] },
+                { id: 'paid', name: 'Payment sent', party: 'bank', direction: 'outbound', channel: 'api', technology: 'Payments RPC', on: { tool: 'transfer' }, exchanges: [{ artefact: 'payment-order', reference: 'payment_id' }] },
+                { id: 'told', name: 'Is told the claim is settled', direction: 'outbound', channel: 'email', technology: 'Email gateway', on: { activity: 'Notify claimant' }, exchanges: [{ artefact: 'settlement-notice' }, { artefact: 'payment-receipt', reference: 'receipt_id' }] },
+            ],
+            sentiment: { rules: [
+                { on: 'event', event: 'claim.submitted', change: -1, reason: 'has had an accident' },
+                { on: 'waited', longer_than: 'P2D', change: -1, reason: 'waited more than two days' },
+                { on: 'goal_reached', goal: 'paid', change: 1, reason: 'has been paid' },
+                { on: 'event', event: 'survey.answered', measure: { path: 'satisfaction', from: [1, 5] }, reason: 'said so' },
+            ] },
+        });
+        const after = JourneyDefinitionSchema.parse({
+            id: uuidv4(), name: 'Aftercare', version: '1.0.0', subject: { name: 'customer', key: 'customer_id' },
+            stages: [{ id: 'asked', name: 'Asked', workflows: [follow.id], complete_when: 'satisfaction exists', transitions: [] }],
+            triggers: [{ event: 'claim.settled', starts_journey: true, start_workflow: follow.id }],
+            sentiment: { rules: [{ on: 'event', event: 'survey.answered', measure: { path: 'satisfaction', from: [1, 5] }, reason: 'said so' }] },
+        });
+        const s = scripted({ 'Request documents': { asked: true }, 'Settle claim': { paid: true }, 'Notify claimant': { receipt_id: 'RC-9' }, 'Send survey': { sent: true } });
+        const runtime = new AwaRuntime({ engine: { actors: s.actors, ...quiet }, now: () => now })
+            .register_workflow(claim).register_workflow(follow).register_journey(claims).register_journey(after);
+        return { runtime, claims, after, advance: (ms: number) => { now += ms; } };
+    }
+    const say = (type: string, data: Record<string, unknown> = {}) => business_event(type, { customer_id: 'c-1', ...data }, { source: '/portal' });
+
+    it('records each touchpoint with its channel, technology and what changed hands', async () => {
+        const { runtime, claims, advance } = setup();
+        await runtime.publish(say('claim.submitted'));
+        advance(3 * DAYS);
+        await runtime.publish(say('documents.uploaded'));
+        const instance = runtime.list_journey_instances(claims.id)[0];
+        const touchpoints = instance.events.filter(e => e.type === 'journey.touchpoint');
+        expect(touchpoints.map(t => t.data.touchpoint_id)).toEqual(['reported', 'asked', 'uploaded', 'told']);
+        expect(touchpoints[0].data).toMatchObject({ direction: 'inbound', channel: 'web', technology: 'Customer portal', party: 'subject', artefacts: [{ id: 'claim-form', kind: 'form' }] });
+        expect(touchpoints[1].run_id).toBe(instance.runs[0].run_id);                      // what a run did links to that run
+        expect(touchpoints[3].data.artefacts).toEqual([
+            { id: 'settlement-notice', name: 'Settlement notice', kind: 'notice' },
+            { id: 'payment-receipt', name: 'Payment receipt', kind: 'receipt', reference: 'RC-9' },   // the particular document
+        ]);
+    });
+
+    it('moves the mood by rule, says whether each change was measured or inferred, and feels a wait at the reply', async () => {
+        const { runtime, claims, advance } = setup();
+        await runtime.publish(say('claim.submitted'));
+        const instance = runtime.list_journey_instances(claims.id)[0];
+        expect(instance.sentiment).toBe(-1);
+        advance(3 * DAYS);                                                                 // uploads, then is answered at once: no wait
+        await runtime.publish(say('documents.uploaded'));
+        const changes = instance.events.filter(e => e.type === 'journey.sentiment_changed').map(e => e.data);
+        expect(changes).toEqual([
+            { value: -1, previous: 0, basis: 'inferred', reason: 'has had an accident', on: 'event' },
+            { value: 0, previous: -1, basis: 'inferred', reason: 'has been paid', on: 'goal_reached' },
+        ]);
+        expect(instance.sentiment).toBe(0);
+    });
+
+    it('a wait longer than the rule allows costs mood when the reply finally comes', async () => {
+        const { runtime, claims, advance } = setup();
+        const definition = claims;
+        await runtime.publish(say('claim.submitted'));
+        const instance = runtime.list_journey_instances(claims.id)[0];
+        // The customer acted (inbound) at the start and was answered within seconds: nothing. Now make them wait.
+        const { record_touchpoint } = await import('../src/runtime/journey');
+        record_touchpoint(definition, instance, definition.touchpoints.find(t => t.id === 'uploaded')!, new Date(Date.parse('2026-05-04T09:00:00Z')).toISOString());
+        advance(3 * DAYS);
+        record_touchpoint(definition, instance, definition.touchpoints.find(t => t.id === 'told')!, new Date(Date.parse('2026-05-07T09:00:00Z')).toISOString());
+        expect(instance.events.filter(e => e.type === 'journey.sentiment_changed').at(-1)!.data).toMatchObject({ basis: 'inferred', reason: 'waited more than two days', on: 'waited', value: -2 });
+    });
+
+    it('takes in what a run announces, starts the next journey from it, and carries the mood over', async () => {
+        const { runtime, claims, after, advance } = setup();
+        await runtime.publish(say('claim.submitted'));
+        advance(1 * DAYS);
+        await runtime.publish(say('documents.uploaded'));
+        const claim = runtime.list_journey_instances(claims.id)[0];
+        expect(claim.status).toBe('completed');
+        // The run announced claim.settled; the host took it in, and the Aftercare journey began with the mood the claim ended on
+        const care = runtime.list_journey_instances(after.id)[0];
+        expect(care).toBeDefined();
+        expect(care.events[0]).toMatchObject({ type: 'journey.started', data: { sentiment: claim.sentiment, sentiment_carried_from: claim.id } });
+        // The announcement is on the claim's record after the run that made it ended, and before the journey completed
+        const types = claim.events.map(e => e.type);
+        expect(types.indexOf('journey.run_ended')).toBeLessThan(types.lastIndexOf('journey.event_received'));
+        expect(types.lastIndexOf('journey.event_received')).toBeLessThan(types.indexOf('journey.completed'));
+
+        await runtime.publish(say('survey.answered', { satisfaction: 5 }));
+        expect(care.sentiment).toBe(2);
+        expect(care.events.filter(e => e.type === 'journey.sentiment_changed').at(-1)!.data).toMatchObject({ basis: 'measured', value: 2 });
+        expect(runtime.transitions()).toEqual([{ from: claims.id, to: after.id, count: 1, subjects: ['c-1'] }]);
+    });
+
+    it('keeps an event off journeys it does not concern', async () => {
+        const { runtime, claims } = setup();
+        await runtime.publish(say('claim.submitted'));
+        const instance = runtime.list_journey_instances(claims.id)[0];
+        const before = instance.events.length;
+        await runtime.publish(say('newsletter.opened'));
+        expect(instance.events.length).toBe(before);
+    });
+
+    it('rejects a journey whose touchpoints or mood rules point at nothing', () => {
+        const { claims } = setup();
+        const broken = { ...claims, touchpoints: [{ ...claims.touchpoints[0], exchanges: [{ artefact: 'no-such-thing' }] }], sentiment: { ...claims.sentiment!, rules: [{ on: 'touchpoint' as const, touchpoint: 'nowhere', change: 1 }, { on: 'waited' as const, change: -1 }] } };
+        expect(validate_journey(broken).map(e => e.message)).toEqual(["Artefact 'no-such-thing' not found", "Touchpoint 'nowhere' not found", 'A "waited" rule needs longer_than']);
+    });
+});

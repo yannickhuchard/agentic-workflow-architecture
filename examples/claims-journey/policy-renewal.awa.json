@@ -1,0 +1,257 @@
+{
+  "$schema": "https://awa.io/schema/awa.schema.json",
+  "id": "81caa07d-5e3c-5d4a-b7a5-9ab82b649ac7",
+  "name": "Policy Renewal",
+  "version": "1.0.0",
+  "awa_version": "1.1",
+  "description": "Sets the terms of a renewal, offers it, waits for payment, and either renews the policy or lets it lapse.",
+  "roles": [
+    {
+      "id": "0eb5e458-231c-5c91-9ed3-30d2def70152",
+      "name": "Customer communications",
+      "actor_type": "ai_agent",
+      "ai_model_config": {
+        "model_id": "tier:balanced",
+        "temperature": 0.2
+      }
+    },
+    {
+      "id": "32e25a38-924f-55e0-b151-d95086717cb4",
+      "name": "Policy administration",
+      "actor_type": "application"
+    }
+  ],
+  "events": [
+    {
+      "id": "18d790cf-7a1d-5be6-b281-430e52541950",
+      "name": "Renewal due",
+      "event_type": "start",
+      "description": "A policy is 30 days from its end.",
+      "event_definition": {
+        "name": "renewal.due"
+      }
+    },
+    {
+      "id": "acbfbd8d-b998-5239-af04-14a7b129b8ce",
+      "name": "Renewal paid",
+      "event_type": "message",
+      "description": "Wait for the renewal premium.",
+      "event_definition": {
+        "name": "renewal.paid",
+        "correlation_key": "customer_id",
+        "timeout": "P21D",
+        "timeout_edge_id": "4210186d-2932-5993-8569-99d73b763ba1"
+      }
+    },
+    {
+      "id": "3a04a413-ddea-5107-b50b-59a65b772424",
+      "name": "Paid after reminder",
+      "event_type": "message",
+      "description": "Wait once more after the reminder.",
+      "event_definition": {
+        "name": "renewal.paid",
+        "correlation_key": "customer_id",
+        "timeout": "P9D",
+        "timeout_edge_id": "5b73cbac-8484-5e31-a7ef-8536b4b340b0"
+      }
+    },
+    {
+      "id": "f1b57742-6690-50cf-b1d7-274b28e9d396",
+      "name": "Policy renewed",
+      "event_type": "message",
+      "description": "Tell other systems the policy continues.",
+      "event_definition": {
+        "name": "policy.renewed",
+        "mode": "publish",
+        "data": [
+          "policy_number",
+          "customer_id"
+        ]
+      }
+    },
+    {
+      "id": "a689df5a-282f-5818-a0d4-a99516a38463",
+      "name": "Policy lapsed",
+      "event_type": "message",
+      "description": "Tell other systems the policy has ended.",
+      "event_definition": {
+        "name": "policy.lapsed",
+        "mode": "publish",
+        "data": [
+          "policy_number",
+          "customer_id"
+        ]
+      }
+    },
+    {
+      "id": "3adcee2e-6bfe-5e23-adba-78a675f9272b",
+      "name": "Renewal done",
+      "event_type": "end"
+    }
+  ],
+  "activities": [
+    {
+      "id": "b3e1ab72-bd1c-5414-84ea-2ebfcbcc915c",
+      "name": "Send renewal offer",
+      "role_id": "0eb5e458-231c-5c91-9ed3-30d2def70152",
+      "actor_type": "ai_agent",
+      "description": "Write the renewal offer with the new premium and the reason for any change."
+    },
+    {
+      "id": "6dbd99ed-8582-5b02-9916-7cfb0623b455",
+      "name": "Send last reminder",
+      "role_id": "0eb5e458-231c-5c91-9ed3-30d2def70152",
+      "actor_type": "ai_agent",
+      "description": "Remind the customer that cover ends soon."
+    },
+    {
+      "id": "c2be785e-a92b-5aea-8449-b5da8c496856",
+      "name": "Issue renewal certificate",
+      "role_id": "32e25a38-924f-55e0-b151-d95086717cb4",
+      "actor_type": "application",
+      "description": "Record the payment, issue the receipt and the new certificate."
+    },
+    {
+      "id": "519f2eb1-aca9-5fde-b505-d1194051df2b",
+      "name": "Lapse policy",
+      "role_id": "32e25a38-924f-55e0-b151-d95086717cb4",
+      "actor_type": "application",
+      "description": "End the cover and tell the customer."
+    }
+  ],
+  "decision_nodes": [
+    {
+      "id": "5b2be03e-0124-5ded-b023-816c31b7a4b3",
+      "name": "Renewal terms",
+      "description": "How the premium changes, from the year's claims and how the customer felt about them.",
+      "decision_table": {
+        "hit_policy": "first",
+        "inputs": [
+          {
+            "name": "claims_paid",
+            "label": "Claims paid this year",
+            "type": "number"
+          },
+          {
+            "name": "last_satisfaction",
+            "label": "Last satisfaction score",
+            "type": "number"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "premium_change_percent",
+            "type": "number"
+          },
+          {
+            "name": "terms_reason",
+            "type": "string"
+          }
+        ],
+        "rules": [
+          {
+            "description": "Win back an unhappy customer",
+            "input_entries": [
+              "-",
+              "< 3"
+            ],
+            "output_entries": [
+              "-10",
+              "goodwill after a poor claim experience"
+            ],
+            "output_edge_id": "b3c7669e-2ef8-5753-b799-e47d96a2a7f5"
+          },
+          {
+            "description": "No claims",
+            "input_entries": [
+              "0",
+              "-"
+            ],
+            "output_entries": [
+              "-5",
+              "no-claims discount"
+            ],
+            "output_edge_id": "b3c7669e-2ef8-5753-b799-e47d96a2a7f5"
+          },
+          {
+            "description": "Claim paid",
+            "input_entries": [
+              ">= 1",
+              "-"
+            ],
+            "output_entries": [
+              "8",
+              "a claim was paid this year"
+            ],
+            "output_edge_id": "b3c7669e-2ef8-5753-b799-e47d96a2a7f5"
+          }
+        ]
+      },
+      "default_output_edge_id": "b3c7669e-2ef8-5753-b799-e47d96a2a7f5"
+    }
+  ],
+  "edges": [
+    {
+      "id": "f47f042a-27c5-5fef-b00e-53f3b05dbe29",
+      "source_id": "18d790cf-7a1d-5be6-b281-430e52541950",
+      "target_id": "5b2be03e-0124-5ded-b023-816c31b7a4b3"
+    },
+    {
+      "id": "b3c7669e-2ef8-5753-b799-e47d96a2a7f5",
+      "source_id": "5b2be03e-0124-5ded-b023-816c31b7a4b3",
+      "target_id": "b3e1ab72-bd1c-5414-84ea-2ebfcbcc915c"
+    },
+    {
+      "id": "e62df3ab-1de6-5b49-8a60-250a15f6187b",
+      "source_id": "b3e1ab72-bd1c-5414-84ea-2ebfcbcc915c",
+      "target_id": "acbfbd8d-b998-5239-af04-14a7b129b8ce"
+    },
+    {
+      "id": "6c7133a2-fb16-5d90-8751-e24f98e01fbe",
+      "source_id": "acbfbd8d-b998-5239-af04-14a7b129b8ce",
+      "target_id": "c2be785e-a92b-5aea-8449-b5da8c496856"
+    },
+    {
+      "id": "4210186d-2932-5993-8569-99d73b763ba1",
+      "source_id": "acbfbd8d-b998-5239-af04-14a7b129b8ce",
+      "target_id": "6dbd99ed-8582-5b02-9916-7cfb0623b455",
+      "label": "not paid in 21 days"
+    },
+    {
+      "id": "88df822e-d948-5f62-b7cf-75f709299cfc",
+      "source_id": "6dbd99ed-8582-5b02-9916-7cfb0623b455",
+      "target_id": "3a04a413-ddea-5107-b50b-59a65b772424"
+    },
+    {
+      "id": "44cd1e78-1728-54d5-b940-88a4faba4409",
+      "source_id": "3a04a413-ddea-5107-b50b-59a65b772424",
+      "target_id": "c2be785e-a92b-5aea-8449-b5da8c496856"
+    },
+    {
+      "id": "5b73cbac-8484-5e31-a7ef-8536b4b340b0",
+      "source_id": "3a04a413-ddea-5107-b50b-59a65b772424",
+      "target_id": "519f2eb1-aca9-5fde-b505-d1194051df2b",
+      "label": "not paid in 9 more days"
+    },
+    {
+      "id": "0fda7ac8-91ca-5cc7-a288-1f5675ff47b5",
+      "source_id": "c2be785e-a92b-5aea-8449-b5da8c496856",
+      "target_id": "f1b57742-6690-50cf-b1d7-274b28e9d396"
+    },
+    {
+      "id": "b6571008-f6b2-56c2-a550-554eff4c6a23",
+      "source_id": "f1b57742-6690-50cf-b1d7-274b28e9d396",
+      "target_id": "3adcee2e-6bfe-5e23-adba-78a675f9272b"
+    },
+    {
+      "id": "855c63b5-e016-5987-bdc8-8d6de7b98e2d",
+      "source_id": "519f2eb1-aca9-5fde-b505-d1194051df2b",
+      "target_id": "a689df5a-282f-5818-a0d4-a99516a38463"
+    },
+    {
+      "id": "3b4557c6-3d7c-52df-bc7a-9a69bef751cf",
+      "source_id": "a689df5a-282f-5818-a0d4-a99516a38463",
+      "target_id": "3adcee2e-6bfe-5e23-adba-78a675f9272b"
+    }
+  ]
+}

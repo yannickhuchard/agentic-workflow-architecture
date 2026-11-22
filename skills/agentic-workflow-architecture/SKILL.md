@@ -579,6 +579,19 @@ runtime.analytics(journey.id);              // funnel per stage
 
 A journey (`spec/json-schema/journey.schema.json`) has `subject.key`, `stages` (`complete_when`, `max_duration`, `on_enter.start_workflow`, `transitions`), `triggers`, `goals` and `exits`. See `examples/claims-journey`.
 
+A journey can also declare its **touchpoints**, **what changes hands** and the customer's **mood** (specification 19.8, 19.9):
+
+```json
+"artefacts":   [{ "id": "insurance-contract", "name": "Insurance contract", "kind": "contract" }],
+"touchpoints": [{ "id": "contract-signed", "name": "Signs the contract", "direction": "inbound", "channel": "web",
+                  "technology": "E-signature service", "on": { "event": "contract.signed" },
+                  "exchanges": [{ "artefact": "insurance-contract", "reference": "contract_id" }] }],
+"sentiment":   { "rules": [{ "on": "waited", "longer_than": "P2D", "change": -1, "reason": "waited more than two days" },
+                           { "on": "event", "event": "survey.answered", "measure": { "path": "satisfaction", "from": [1, 5] } }] }
+```
+
+`on` is one of `event`, `activity` (an activity name) or `tool` (a tool name). Every mood change is recorded as `measured` or `inferred`. `runtime.transitions()` reports how subjects move between journeys. View it all with `tools/visualization/journey.html`.
+
 **Counterfactual replay** answers "what if this run had used another model or rule":
 
 ```bash

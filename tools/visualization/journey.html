@@ -1,0 +1,683 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AWA Journeys</title>
+<!--
+  AWA journey view: several journeys, the customers in each, one customer's
+  journey as a living service blueprint, and the workflow run behind any part of it.
+  Design: docs/ux/journey-visualisation-research.md. Data: journey-story.js, written by
+  examples/claims-journey/make-story.mjs. No build step and no network.
+-->
+<style>
+:root { --bg: #0b0f19; --panel: #111827; --card: #1e293b; --line: rgba(255,255,255,.08); --text: #f8fafc; --mute: #9ca3af; --soft: #cbd5e1; --focus: #818cf8; --run: #a855f7; --wait: #fbbf24; --ok: #10b981; --bad: #ff4d4f; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif; overflow: hidden; }
+button { font: inherit; color: inherit; }
+button:focus-visible, input:focus-visible { outline: 2px solid #a5b4fc; outline-offset: 2px; }
+.hd { font-family: 'Space Grotesk', Inter, system-ui, sans-serif; }
+.mono { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
+#fit { position: absolute; left: 0; top: 0; width: 1440px; height: 900px; transform-origin: 0 0; overflow: hidden; background: var(--bg); }
+
+#top { position: absolute; left: 0; top: 0; width: 1440px; height: 56px; padding: 0 24px; display: flex; align-items: center; gap: 12px; background: var(--panel); border-bottom: 1px solid var(--line); z-index: 5; }
+.crumb { height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid transparent; background: none; cursor: pointer; font-size: 14px; color: var(--soft); white-space: nowrap; }
+.crumb:hover { background: rgba(255,255,255,.07); }
+.crumb.on { color: #fff; font-weight: 600; background: rgba(129,140,248,.18); border-color: rgba(129,140,248,.45); }
+.sep { color: #64748b; }
+.seg-ctl { display: flex; border: 1px solid rgba(255,255,255,.16); border-radius: 9px; overflow: hidden; }
+.seg-ctl button { height: 32px; padding: 0 12px; border: 0; border-right: 1px solid rgba(255,255,255,.12); background: none; cursor: pointer; font-size: 13px; color: var(--soft); white-space: nowrap; }
+.seg-ctl button:last-child { border-right: 0; }
+.seg-ctl button:hover:not(:disabled) { background: rgba(255,255,255,.07); }
+.seg-ctl button.on { background: #4338ca; color: #fff; font-weight: 600; }
+.seg-ctl button:disabled { opacity: .4; cursor: default; }
+.nav { width: 32px; height: 32px; border-radius: 8px; border: 1px solid rgba(255,255,255,.16); background: var(--card); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+.nav:hover { background: #2a3a52; }
+.ic { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* The heights are layers of one stage; moving between them is a zoom into the thing pointed at */
+.layer { position: absolute; left: 0; top: 56px; width: 1440px; height: 700px; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .45s ease, transform .55s cubic-bezier(.2,.7,.2,1), visibility 0s linear .55s; }
+.layer.on { opacity: 1; visibility: visible; pointer-events: auto; transition: opacity .45s ease .1s, transform .55s cubic-bezier(.2,.7,.2,1), visibility 0s linear 0s; }
+.scene { position: absolute; left: 0; top: 0; width: 100%; height: 100%; transition: opacity .22s ease, transform .22s ease; }
+.scene.swap-l { opacity: 0; transform: translateX(-48px); } .scene.swap-r { opacity: 0; transform: translateX(48px); }
+
+/* Shapes: every kind of moment has its own, so colour is never the only cue */
+.sh { display: block; width: 100%; height: 100%; }
+.k-event { background: #f8fafc; transform: rotate(45deg) scale(.76); border-radius: 2px; }
+.k-told { border: 2px solid var(--soft); background: var(--bg); transform: rotate(45deg) scale(.76); border-radius: 2px; }
+.k-timeout { border: 2px dashed var(--wait); background: var(--bg); transform: rotate(45deg) scale(.76); }
+.k-signal { border: 2px solid var(--soft); background: var(--bg); transform: scale(.6); }
+.k-announced { border: 2px solid var(--soft); background: var(--bg); border-radius: 50%; transform: scale(.55); }
+.k-partner { background: #38bdf8; border-radius: 2px; transform: scale(.55); }
+.k-stage_in { border: 3px solid var(--soft); border-radius: 50%; background: var(--bg); transform: scale(.82); }
+.k-stage_out { background: var(--soft); border-radius: 50%; transform: scale(.6); }
+.k-goal { background: var(--ok); border-radius: 50%; transform: scale(.56); box-shadow: 0 0 0 4px var(--bg), 0 0 0 7px var(--ok); }
+.k-completed { background: var(--ok); border-radius: 50%; transform: scale(.8); box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--ok); }
+.k-stalled { background: var(--wait); border-radius: 3px; transform: scale(.86); animation: wait 1.6s ease-in-out infinite; }
+.k-abandoned { background: var(--mute); border-radius: 3px; transform: scale(.8); }
+.k-run_in { background: var(--run); border-radius: 50%; transform: scale(.45); }
+.k-run_out { background: var(--ok); border-radius: 50%; transform: scale(.45); }
+.k-run_failed { background: var(--bad); border-radius: 3px; transform: scale(.72); }
+.k-run_cancelled { border: 2px solid var(--mute); border-radius: 50%; background: var(--bg); transform: scale(.6); }
+.k-model_decision { background: var(--run); transform: rotate(45deg) scale(.76); border-radius: 2px; }
+.k-human_wait { border: 3px solid var(--wait); border-radius: 50%; background: var(--bg); transform: scale(.8); animation: wait 1.6s ease-in-out infinite; }
+.k-human_done { background: var(--wait); border-radius: 50%; transform: scale(.7); }
+.k-undone { border: 2px dashed var(--bad); border-radius: 50%; background: var(--bg); transform: scale(.8); }
+@keyframes wait { 50% { opacity: .4; } }
+@keyframes glow { 50% { box-shadow: 0 0 0 5px rgba(168,85,247,.12), 0 0 26px rgba(168,85,247,.6); } }
+@keyframes capin { from { opacity: 0; transform: translateY(8px); } }
+
+/* Mood, said in a word and a number as well as a colour */
+.m-up2, .m-up1 { color: #34d399; } .m-mid { color: var(--soft); } .m-dn1 { color: #fbbf24; } .m-dn2 { color: #ff8a8c; }
+
+/* Atlas: the journeys and the people who pass through them */
+.jcard { position: absolute; top: 14px; width: 360px; height: 196px; padding: 14px 16px; border-radius: 14px; background: var(--panel); border: 1px solid var(--line); cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 8px; transition: border-color .2s, background-color .2s; }
+.jcard:hover { border-color: rgba(129,140,248,.6); background: #162033; }
+.stg { display: flex; gap: 4px; flex-wrap: wrap; }
+.stg span { font-size: 11px; padding: 2px 7px; border-radius: 5px; background: #27364d; color: #e2e8f0; }
+.kv { display: flex; gap: 14px; }
+.ct { display: flex; flex-direction: column; gap: 1px; min-width: 50px; }
+.jcard .ct span { line-height: 14px; }
+.ct b { font-family: 'Space Grotesk', Inter, sans-serif; font-size: 22px; line-height: 24px; font-weight: 600; }
+.ct span { font-size: 12px; color: var(--mute); }
+.ct.warn b { color: var(--wait); }
+.hand { position: absolute; top: 80px; width: 32px; text-align: center; font-size: 12px; color: var(--soft); pointer-events: none; }
+.prow { position: absolute; left: 16px; width: 1408px; height: 66px; border-radius: 12px; border: 1px solid transparent; transition: background-color .3s, border-color .3s; pointer-events: none; }
+.prow.hot { background: rgba(129,140,248,.09); border-color: rgba(129,140,248,.4); }
+.pname { position: absolute; left: 28px; width: 226px; display: flex; flex-direction: column; gap: 2px; pointer-events: none; }
+.pcell { position: absolute; width: 360px; height: 58px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255,255,255,.02); cursor: pointer; padding: 0 12px; display: flex; align-items: center; gap: 12px; text-align: left; transition: border-color .2s, background-color .2s; }
+.pcell:hover { border-color: rgba(129,140,248,.6); background: rgba(129,140,248,.08); }
+.spark { flex: none; width: 150px; height: 40px; overflow: visible; }
+
+/* All journeys of one kind, on calendar time */
+.card { position: absolute; top: 20px; height: 104px; padding: 14px 18px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; }
+.tick { position: absolute; top: 142px; height: 548px; border-left: 1px solid rgba(255,255,255,.06); padding-left: 6px; font-size: 12px; color: var(--mute); pointer-events: none; }
+.lane { position: absolute; left: 16px; width: 1408px; height: 76px; border-radius: 12px; border: 1px solid transparent; background: transparent; cursor: pointer; text-align: left; padding: 9px 12px; display: flex; flex-direction: column; gap: 3px; transition: background-color .3s, border-color .3s; }
+.lane:hover { background: rgba(255,255,255,.045); }
+.lane.hot { background: rgba(129,140,248,.09); border-color: rgba(129,140,248,.4); }
+.ls { font-size: 12px; line-height: 15px; color: var(--mute); width: 222px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.seg { position: absolute; height: 24px; border-radius: 6px; overflow: hidden; white-space: nowrap; font-size: 12px; line-height: 24px; color: #e2e8f0; text-indent: 8px; pointer-events: none; transition: width .6s linear; }
+.seg.st0 { background: #27364d; } .seg.st1 { background: #34486a; } .seg.st2 { background: #445b85; }
+.seg.stalled { outline: 2px dashed var(--wait); outline-offset: -2px; }
+.mk { position: absolute; width: 16px; height: 16px; margin: -8px 0 0 -8px; pointer-events: none; transition: opacity .3s ease .2s, transform .35s cubic-bezier(.3,1.5,.5,1) .2s; }
+.mk.off { opacity: 0; transform: scale(.2); transition-delay: 0s; }
+.endl { position: absolute; font-size: 12px; font-weight: 600; white-space: nowrap; pointer-events: none; transition: opacity .4s ease .3s; }
+.endl.rt { transform: translateX(-100%); }
+.endl.off { opacity: 0; transition-delay: 0s; }
+.e-completed { color: #34d399; } .e-stalled { color: #fbbf24; } .e-abandoned { color: var(--soft); }
+.ph { position: absolute; top: 132px; width: 2px; height: 558px; margin-left: -1px; background: var(--focus); box-shadow: 0 0 12px rgba(129,140,248,.7); pointer-events: none; transition: left .6s linear; }
+.phl { position: absolute; top: -20px; left: 50%; transform: translateX(-50%); white-space: nowrap; font-size: 12px; font-weight: 600; color: #fff; background: #4338ca; padding: 2px 8px; border-radius: 6px; }
+.ring { position: absolute; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; border: 2px solid var(--focus); box-shadow: 0 0 18px rgba(129,140,248,.6); pointer-events: none; z-index: 2; transition: left .5s cubic-bezier(.4,0,.2,1), top .5s cubic-bezier(.4,0,.2,1); }
+.ring.sm { width: 30px; height: 30px; margin: -15px 0 0 -15px; transition: left .6s linear, top .4s ease; }
+
+/* One journey: the living blueprint */
+.band { position: absolute; top: 58px; height: 596px; border-radius: 14px; padding: 4px 12px; font-size: 13px; font-weight: 600; color: #e2e8f0; white-space: nowrap; overflow: hidden; transition: opacity .4s ease; }
+.band.b0 { background: rgba(255,255,255,.03); } .band.b1 { background: rgba(255,255,255,.06); }
+.band.off { opacity: .28; }
+.col { position: absolute; top: 58px; width: 34px; height: 596px; margin-left: -17px; border-radius: 10px; background: rgba(129,140,248,.10); pointer-events: none; transition: left .5s cubic-bezier(.4,0,.2,1); }
+.ll { position: absolute; left: 28px; width: 150px; }
+.pt { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #e2e8f0; }
+.sub { font-size: 12px; line-height: 15px; color: var(--mute); }
+.rail { position: absolute; left: 176px; width: 1240px; height: 0; pointer-events: none; }
+.rowl { position: absolute; left: 28px; width: 150px; font-size: 11px; line-height: 16px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.g { position: absolute; width: 34px; height: 34px; margin: -17px 0 0 -17px; padding: 8px; border: 0; background: none; cursor: pointer; border-radius: 50%; z-index: 3; transition: opacity .3s ease .45s, transform .35s cubic-bezier(.3,1.5,.5,1) .45s; }
+.g.off { opacity: 0; transform: scale(.2); pointer-events: none; transition-delay: 0s; }
+.dot { position: absolute; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: #38bdf8; pointer-events: none; transition: opacity .3s ease .55s, transform .3s ease .55s; }
+.dot.out { background: var(--bg); border: 2px solid #38bdf8; }
+.doc { position: absolute; width: 11px; height: 13px; margin: -7px 0 0 -6px; border-radius: 2px 5px 2px 2px; background: #e2e8f0; pointer-events: auto; transition: opacity .3s ease .6s, transform .3s ease .6s; }
+.doc.out { background: var(--bg); border: 2px solid #e2e8f0; }
+.dot.off, .doc.off { opacity: 0; transform: scale(.2); transition-delay: 0s; }
+.th { position: absolute; background: #94a3b8; pointer-events: none; transition: transform .3s ease; }
+.th.h { height: 2px; margin-top: -1px; transform-origin: left center; }
+.th.v { width: 2px; margin-left: -1px; transition-delay: .25s; }
+.th.v.down { transform-origin: center top; } .th.v.up { transform-origin: center bottom; }
+.th.h.off { transform: scaleX(0); transition-delay: 0s; } .th.v.off { transform: scaleY(0); transition-delay: 0s; }
+.th.h.time { background: none; background-image: repeating-linear-gradient(90deg, #64748b 0 5px, transparent 5px 10px); }
+.th.v.time { background: none; background-image: repeating-linear-gradient(180deg, #64748b 0 5px, transparent 5px 10px); }
+.gap { position: absolute; top: 136px; transform: translateX(-50%); font-size: 11px; color: #e2e8f0; padding: 1px 8px; border: 1px dashed #94a3b8; border-radius: 10px; background: var(--bg); white-space: nowrap; pointer-events: none; z-index: 2; transition: opacity .3s ease .1s; }
+.gap.off { opacity: 0; transition-delay: 0s; }
+.rb { position: absolute; height: 40px; margin-top: -20px; border-radius: 20px; background: var(--card); border: 1.5px solid #475569; cursor: pointer; padding: 0; z-index: 1; transform-origin: left center; transition: opacity .3s ease .4s, transform .45s ease .4s, border-color .3s, background-color .2s; }
+.rb:hover { background: #2a3a52; }
+.rb.off { opacity: 0; transform: scaleX(.05); pointer-events: none; transition-delay: 0s; }
+.rb.r-running { border-color: var(--run); border-style: dashed; } .rb.r-completed { border-color: var(--ok); } .rb.r-failed { border-color: var(--bad); } .rb.r-cancelled { border-color: var(--mute); border-style: dotted; }
+.rbl { position: absolute; font-size: 12px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; border: 0; background: none; padding: 2px 4px; border-radius: 6px; cursor: pointer; z-index: 3; transition: opacity .3s ease .5s; }
+.rbl:hover { background: rgba(255,255,255,.08); }
+.rbl.off { opacity: 0; pointer-events: none; transition-delay: 0s; }
+.fl { position: absolute; font-size: 12px; font-weight: 600; color: #fff; background: #312e81; border: 1px solid var(--focus); padding: 3px 9px; border-radius: 8px; white-space: nowrap; pointer-events: none; z-index: 4; transition: left .5s cubic-bezier(.4,0,.2,1), top .5s cubic-bezier(.4,0,.2,1); }
+.fl.ct { transform: translateX(-50%); } .fl.rt { transform: translateX(-100%) translateX(14px); } .fl.lt { transform: translateX(-14px); }
+.chip { height: 28px; padding: 0 12px; border-radius: 14px; display: inline-flex; align-items: center; gap: 8px; font-size: 13px; border: 1px solid rgba(255,255,255,.16); color: var(--soft); white-space: nowrap; transition: background-color .4s, border-color .4s, color .4s, opacity .3s; }
+.chip.ok { background: rgba(16,185,129,.16); border-color: var(--ok); color: #6ee7b7; }
+.chip.miss { background: rgba(251,191,36,.12); border-color: var(--wait); color: #fcd34d; border-style: dashed; }
+.chip.e-completed { background: rgba(16,185,129,.16); border-color: var(--ok); color: #6ee7b7; }
+.chip.e-stalled { background: rgba(251,191,36,.14); border-color: var(--wait); color: #fcd34d; }
+.chip.e-abandoned { background: rgba(156,163,175,.16); border-color: var(--mute); color: #e5e7eb; }
+.chip.hide { opacity: 0; }
+.moodline { fill: none; stroke: #e2e8f0; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; transition: stroke-dashoffset .5s ease; }
+.mdot { transition: opacity .3s ease .4s; } .mdot.off { opacity: 0; transition-delay: 0s; }
+.lg { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--soft); white-space: nowrap; }
+.lgi { width: 14px; height: 14px; flex: none; position: relative; }
+
+/* One run */
+.nd { position: absolute; transition: border-color .25s ease .35s, box-shadow .25s ease .35s, background-color .25s ease .35s, opacity .25s ease .35s; }
+.nd.act { border: 1.5px solid #475569; border-radius: 8px; background: var(--card); padding: 7px 9px; display: flex; flex-direction: column; gap: 3px; }
+.nd.evt { border: 2px solid #64748b; border-radius: 50%; background: var(--bg); }
+.nd.dec { clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); background: #475569; }
+.tg { font-size: 10px; line-height: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--mute); }
+.nm { font-size: 12px; line-height: 14px; font-weight: 600; }
+.ev-in { position: absolute; display: none; }
+.m-end { border-width: 5px; }
+.m-timer .ev-in { display: block; left: 50%; top: 50%; width: 2px; height: 11px; margin: -11px 0 0 -1px; background: var(--soft); }
+.m-wait .ev-in { display: block; inset: 6px; border: 2px dashed var(--soft); border-radius: 50%; }
+.m-publish .ev-in { display: block; inset: 10px; background: var(--soft); border-radius: 50%; }
+.nd.s1 { border-color: var(--run); box-shadow: 0 0 0 3px rgba(168,85,247,.25), 0 0 16px rgba(168,85,247,.45); animation: glow 1.5s ease-in-out infinite; }
+.nd.s2 { border-color: var(--wait); border-style: dashed; box-shadow: 0 0 14px rgba(251,191,36,.3); }
+.nd.s3 { border-color: var(--ok); }
+.nd.s4 { border-color: var(--bad); background: #3b1d24; box-shadow: 0 0 14px rgba(255,77,79,.35); }
+.nd.s5 { border-color: var(--mute); border-style: dotted; opacity: .8; }
+.nd.s6 { border-style: dashed; opacity: .55; }
+.nd.dec.s1 { background: var(--run); } .nd.dec.s3 { background: var(--ok); } .nd.dec.s4 { background: var(--bad); }
+.nd.cur { outline: 2px solid var(--focus); outline-offset: 4px; }
+.nl { position: absolute; width: 104px; margin-left: -52px; text-align: center; font-size: 12px; line-height: 14px; color: var(--soft); pointer-events: none; z-index: 2; }
+.nl span { background: var(--bg); padding: 0 3px; }
+.nl.dl { width: auto; margin-left: 0; text-align: left; white-space: nowrap; }
+.eg { position: absolute; background: #334155; pointer-events: none; }
+.eg.timeout { background: none; background-image: repeating-linear-gradient(90deg, #7c6a2e 0 5px, transparent 5px 9px); }
+.eg.timeout.vv { background-image: repeating-linear-gradient(180deg, #7c6a2e 0 5px, transparent 5px 9px); }
+.eg.undo { background: none; background-image: repeating-linear-gradient(180deg, #64748b 0 2px, transparent 2px 6px); }
+.ef { position: absolute; inset: 0; background: var(--ok); transition: transform .2s linear; }
+.ef.timeout { background: var(--wait); } .ef.undo { background: var(--bad); }
+.ef.r { transform-origin: left center; transform: scaleX(0); } .ef.l { transform-origin: right center; transform: scaleX(0); }
+.ef.d { transform-origin: center top; transform: scaleY(0); } .ef.u { transform-origin: center bottom; transform: scaleY(0); }
+.ef.on { transform: none; }
+.tip { position: absolute; width: 0; height: 0; border: 6px solid transparent; pointer-events: none; transition: border-color .2s linear .4s; }
+.tip.r { border-left-color: #475569; } .tip.l { border-right-color: #475569; } .tip.d { border-top-color: #475569; } .tip.u { border-bottom-color: #475569; }
+.tip.r.on { border-left-color: var(--ok); } .tip.l.on { border-right-color: var(--ok); } .tip.d.on { border-top-color: var(--ok); } .tip.u.on { border-bottom-color: var(--ok); }
+.tip.timeout.r.on { border-left-color: var(--wait); } .tip.timeout.d.on { border-top-color: var(--wait); } .tip.timeout.u.on { border-bottom-color: var(--wait); }
+.pn { height: 258px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; overflow: hidden; }
+.tr { display: flex; gap: 10px; align-items: baseline; width: 100%; min-width: 0; padding: 6px 8px; border-radius: 8px; border: 1px solid transparent; background: none; cursor: pointer; text-align: left; font-size: 13px; line-height: 17px; color: var(--mute); }
+.tr:hover { background: rgba(255,255,255,.05); }
+.tr.cur { color: #fff; background: rgba(129,140,248,.14); border-color: rgba(129,140,248,.45); }
+.trw { flex: none; width: 112px; font-size: 12px; color: var(--mute); white-space: nowrap; }
+.one { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.clamp2 { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.ev { display: flex; gap: 12px; font-size: 13px; line-height: 17px; }
+.evl { flex: none; width: 128px; color: var(--mute); }
+.evt2 { color: #e2e8f0; overflow-wrap: anywhere; }
+
+/* Caption and transport: the sentence is the primary account, the diagram illustrates it */
+#bar { position: absolute; left: 0; top: 756px; width: 1440px; height: 144px; padding: 12px 28px 14px; background: var(--panel); border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; z-index: 5; }
+#cap { flex: 1 1 auto; min-width: 0; font-size: 19px; line-height: 27px; font-weight: 500; }
+#cap.in { animation: capin .4s ease both; }
+#facts { flex: none; width: 380px; display: flex; flex-direction: column; gap: 2px; font-size: 12px; line-height: 16px; }
+#facts div { display: flex; gap: 8px; } #facts span { flex: none; width: 76px; color: var(--mute); } #facts b { font-weight: 500; color: #e2e8f0; }
+.tb { width: 44px; height: 44px; flex: none; border-radius: 10px; border: 1px solid rgba(255,255,255,.16); background: var(--card); color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; transition: background-color .2s; }
+.tb:hover { background: #2a3a52; }
+.tb.pri { width: 60px; background: #4f46e5; border-color: var(--focus); } .tb.pri:hover { background: #6366f1; }
+.tb.txt { width: 56px; font-size: 13px; font-weight: 600; }
+#scrub { flex: 1 1 auto; min-width: 0; height: 44px; accent-color: var(--focus); cursor: pointer; }
+#none[hidden] { display: none; }
+#none { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 40px; text-align: center; font-size: 18px; line-height: 28px; color: var(--soft); }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="top">
+    <div class="hd" style="font-size:18px;font-weight:700;letter-spacing:.06em">AWA</div>
+    <div style="width:1px;height:22px;background:rgba(255,255,255,.16)"></div>
+    <nav id="crumbs" aria-label="Where you are" style="display:flex;align-items:center;gap:6px"></nav>
+    <div style="flex:1"></div>
+    <div id="switch" class="seg-ctl" role="group" aria-label="Journey"></div>
+  </div>
+  <div class="layer" id="L0"><div class="scene"></div></div>
+  <div class="layer" id="L1"><div class="scene"></div></div>
+  <div class="layer" id="L2"><div class="scene"></div></div>
+  <div class="layer" id="L3"><div class="scene"></div></div>
+  <div id="bar">
+    <div style="display:flex;gap:20px;align-items:flex-start;height:58px">
+      <div id="when" class="mono" style="flex:none;width:150px;padding-top:4px;font-size:13px;color:#a5b4fc"></div>
+      <div id="cap" class="clamp2" aria-live="polite"></div>
+      <div id="facts"></div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center">
+      <button class="tb" id="b-start" aria-label="Back to the beginning"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v14"/><path d="M19 5l-9 7 9 7z"/></svg></button>
+      <button class="tb" id="b-prev" aria-label="One step back"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <button class="tb pri" id="b-play" aria-label="Tell the story"></button>
+      <button class="tb" id="b-next" aria-label="One step forward"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
+      <button class="tb txt" id="b-pace" aria-label="Change the pace of the telling">1x</button>
+      <input id="scrub" type="range" min="0" max="0" step="1" value="0" aria-label="Position in the story">
+      <div id="count" class="mono" style="flex:none;width:76px;text-align:right;font-size:13px;color:#cbd5e1"></div>
+    </div>
+  </div>
+  <div id="none" hidden>No story data. Run <span class="mono">&nbsp;node examples/claims-journey/make-story.mjs&nbsp;</span> to write journey-story.js beside this file.</div>
+</div>
+<script src="journey-story.js"></script>
+<script>
+(() => {
+'use strict';
+const S = window.AWA_STORY;
+const $ = id => document.getElementById(id);
+const fit = () => { const k = Math.min(innerWidth / 1440, innerHeight / 900); $('fit').style.transform = `translate(${(innerWidth - 1440 * k) / 2}px, ${(innerHeight - 900 * k) / 2}px) scale(${k})`; };
+addEventListener('resize', fit); fit();
+if (!S) { $('none').hidden = false; return; }
+
+const DAY = 86400000, r = Math.round;
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const day = t => new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+const LEVELS = ['atlas', 'journey', 'story', 'run'];
+const st = { level: 'atlas', j: 0, i: 0, r: 0, ip: 0, ia: 0, ib: 0, ic: 0, playing: false, fast: false, ox: 720, oy: 350 };
+window.AWA_VIEW = st; // for tests and for deep links
+
+const J = () => S.journeys[st.j];
+const I = () => J().instances[Math.min(st.i, J().instances.length - 1)];
+const R = () => I().runs[Math.min(st.r, I().runs.length - 1)];
+const KEY = { atlas: 'ip', journey: 'ia', story: 'ib', run: 'ic' };
+const count = () => st.level === 'atlas' ? S.customers.length : st.level === 'journey' ? J().all.length : st.level === 'story' ? I().beats.length : R().steps.length;
+const pos = () => Math.min(st[KEY[st.level]], count() - 1);
+
+// Mood in a word, a number and a colour
+const moodWord = v => v === null || v === undefined ? '' : v >= 1.5 ? 'delighted' : v >= 0.5 ? 'pleased' : v > -0.5 ? 'neutral' : v > -1.5 ? 'unhappy' : 'upset';
+const moodCls = v => v >= 1.5 ? 'm-up2' : v >= 0.5 ? 'm-up1' : v > -0.5 ? 'm-mid' : v > -1.5 ? 'm-dn1' : 'm-dn2';
+const signed = v => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(Math.round(v * 10) / 10);
+const mood = v => v === null || v === undefined ? '' : `<span class="${moodCls(v)}">${moodWord(v)} (${signed(v)})</span>`;
+const KIND = k => k.charAt(0).toUpperCase() + k.slice(1);
+
+// ---------------------------------------------------------------- geometry
+const CX = k => 264 + k * 392;                       // atlas columns
+const PY = i => 236 + i * 72;                        // atlas rows
+const laneTop = i => 178 + i * 84;                   // calendar lanes
+const LY = { world: 180, journey: 240, work: 300 };  // blueprint lanes
+const techY = k => 366 + k * 16;
+const kindY = (j, k) => 366 + j.technologies.length * 16 + 28 + k * 16;
+const moodY = v => 100 - v * 14;
+function xsOf(inst) {
+    const w = b => 1 + (b.gap ? 1.5 : 0), beats = inst.beats;
+    let units = 0; for (let i = 1; i < beats.length; i++) units += w(beats[i]);
+    const unit = Math.min(64, 1170 / Math.max(units, 1)), xs = [218];
+    for (let i = 1; i < beats.length; i++) xs.push(xs[i - 1] + unit * w(beats[i]));
+    return xs.map(r);
+}
+function beatY(j, b) {
+    if (b.lane !== 'tech') return LY[b.lane];
+    const k = b.tp ? j.technologies.indexOf(b.tp.technology) : -1;
+    return k >= 0 ? techY(k) : LY.journey;
+}
+
+// ---------------------------------------------------------------- scenes
+const scenes = {};
+const built = {};
+
+scenes.atlas = () => {
+    let h = `<div style="position:absolute;left:28px;top:20px;width:216px;display:flex;flex-direction:column;gap:8px">
+      <div class="hd" style="font-size:22px;line-height:26px;font-weight:600">${S.journeys.length} journeys, ${S.customers.length} customers</div>
+      <div class="sub" style="font-size:13px;line-height:18px">Select a journey to see everyone in it, or a cell to follow one customer through it. The line in each cell is that customer&rsquo;s mood.</div></div>`;
+    S.journeys.forEach((j, k) => {
+        const o = j.outcome;
+        h += `<button class="jcard" style="left:${CX(k)}px" data-open-j="${k}" aria-label="See everyone in the ${esc(j.name)} journey">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px"><span class="hd" style="font-size:19px;font-weight:600">${esc(j.name)}</span><span style="font-size:12px">${o.mood === null ? '' : 'ends ' + mood(o.mood)}</span></div>
+          <div class="sub clamp2" style="flex:none;height:30px">${esc(j.description)}</div>
+          <div class="stg">${j.stages.map(s => `<span>${esc(s.name)}</span>`).join('')}</div>
+          <div class="kv"><div class="ct"><b>${o.completed}</b><span>completed</span></div><div class="ct${o.stalled ? ' warn' : ''}"><b>${o.stalled}</b><span>stalled</span></div><div class="ct"><b>${o.left}</b><span>left</span></div>
+            ${o.goals.map(g => `<div class="ct"><b>${g.reached}/${j.instances.length}</b><span>${esc(g.name.toLowerCase())}</span></div>`).join('')}</div></button>`;
+    });
+    for (const t of S.transitions) if (t.to === t.from + 1) h += `<div class="hand" style="left:${CX(t.from) + 360}px">${t.count}<br><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15"/><path d="M14 7l5 5-5 5"/></svg><br>go on</div>`;
+    S.customers.forEach((c, i) => {
+        h += `<div class="prow" data-p="${i}" style="top:${PY(i) - 4}px"></div>
+          <div class="pname" style="top:${PY(i) + 4}px"><span style="font-size:15px;font-weight:600">${esc(c.name)}</span><span class="sub clamp2">${esc(c.persona)}</span></div>`;
+        for (const life of c.life) {
+            const inst = S.journeys[life.j].instances[life.i], sc = S.journeys[life.j].scale || { min: -2, max: 2 }, n = inst.beats.length;
+            const pts = inst.beats.map((b, k) => `${r(4 + k / Math.max(n - 1, 1) * 142)},${r(20 - (b.mood ?? 0) / sc.max * 15)}`).join(' ');
+            h += `<button class="pcell" style="left:${CX(life.j)}px;top:${PY(i)}px" data-open-s="${life.j},${life.i}" aria-label="Follow ${esc(c.name)} through ${esc(S.journeys[life.j].name)}">
+              <svg class="spark" viewBox="0 0 150 40" aria-hidden="true"><line x1="0" y1="20" x2="150" y2="20" stroke="#334155" stroke-dasharray="3 4"/><polyline points="${pts}" fill="none" stroke="#e2e8f0" stroke-width="2" stroke-linejoin="round"/></svg>
+              <span style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="e-${inst.ending.kind}" style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(inst.ending.label)}</span><span style="font-size:12px">${mood(inst.mood_end)}</span></span></button>`;
+        }
+    });
+    return h;
+};
+
+scenes.journey = () => {
+    const j = J(), w = r((1104 - (j.stages.length - 1) * 24) / j.stages.length);
+    const ax = t => 264 + (Math.min(Math.max(t, j.t0), j.t1) - j.t0) / Math.max(j.t1 - j.t0, 1) * 1104;
+    let h = `<div style="position:absolute;left:28px;top:22px;width:216px;display:flex;flex-direction:column;gap:8px">
+      <div class="hd" style="font-size:22px;line-height:26px;font-weight:600">${esc(j.name)}</div>
+      <div class="sub" style="font-size:13px;line-height:18px">Calendar time, ${day(j.t0)} to ${day(j.t1)}. One lane per customer. Select a lane to follow that customer.</div></div>`;
+    j.stages.forEach((s, k) => {
+        h += `<div class="card" style="left:${264 + k * (w + 24)}px;width:${w}px"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px"><span class="hd" style="font-size:17px;font-weight:600">${esc(s.name)}</span><span class="sub">${s.max ? 'given ' + esc(s.max) : ''}</span></div>
+          <div class="kv" data-card="${k}"></div></div>`;
+    });
+    const span = j.t1 - j.t0, step = Math.max(1, Math.ceil(span / DAY / 10)) * DAY;
+    for (let t = Math.floor(j.t0 / DAY) * DAY + DAY; t < j.t1; t += step) h += `<div class="tick" style="left:${r(ax(t))}px">${day(t)}</div>`;
+    const MARK = { event: 1, timeout: 1, goal: 1, stalled: 1, completed: 1, abandoned: 1, run_failed: 1, model_decision: 1, human_done: 1 };
+    j.instances.forEach((c, i) => {
+        const top = laneTop(i), stalledBeat = c.beats.find(b => b.kind === 'stalled');
+        h += `<button class="lane" data-lane="${i}" style="top:${top}px" aria-label="Follow the journey of ${esc(c.name)}"><span style="font-size:15px;font-weight:600">${esc(c.name)}</span><span class="ls">${esc(c.summary)}</span></button>`;
+        c.stages.forEach(sg => { h += `<div class="seg st${sg.stage % 3}" data-from="${sg.from}" data-to="${sg.to === null ? j.t1 : sg.to}" data-open="${sg.to === null ? 1 : 0}" data-stall="${stalledBeat ? stalledBeat.t : ''}" data-name="${esc(j.stages[sg.stage].name)}" style="left:${r(ax(sg.from))}px;top:${top + 22}px;width:0"></div>`; });
+        c.beats.forEach(b => { if (MARK[b.kind]) h += `<div class="mk off" data-t="${b.t}" style="left:${r(ax(b.t))}px;top:${top + 34}px"><span class="sh k-${b.kind}"></span></div>`; });
+        const kind = c.ending.kind, endT = kind === 'stalled' && stalledBeat ? stalledBeat.t : c.end, x = ax(endT), missed = c.goals.some(g => !g.reached);
+        const txt = esc(c.ending.label) + (kind === 'completed' ? (missed ? ', a goal missed' : ', every goal reached') : '') + (c.mood_end === null ? '' : ' &middot; ' + mood(c.mood_end));
+        h += `<div class="endl e-${kind}${x > 1000 ? ' rt' : ''} off" data-t="${kind === 'active' ? Infinity : endT}" style="left:${r(x)}px;top:${top + 52}px">${txt}</div>`;
+    });
+    return h + `<div class="ph"><span class="phl"></span></div><div class="ring sm"></div>`;
+};
+
+scenes.story = () => {
+    const j = J(), c = I(), beats = c.beats, n = beats.length, xs = xsOf(c), person = S.customers[c.c];
+    const ys = beats.map(b => beatY(j, b));
+    let h = `<div style="position:absolute;left:28px;top:12px;width:1384px;display:flex;align-items:center;gap:10px">
+      <button class="nav" data-person="-1" aria-label="Previous customer"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <div class="hd" style="font-size:22px;font-weight:600;white-space:nowrap">${esc(c.name)}</div>
+      <button class="nav" data-person="1" aria-label="Next customer"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
+      <div class="sub" style="font-size:13px;flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(person.persona)}">${esc(person.persona)} ${esc(c.summary)}</div>
+      <div class="chip" id="moodchip"></div>
+      ${c.goals.map((g, k) => `<div class="chip" data-goal="${k}"></div>`).join('')}
+      <div class="chip e-${c.ending.kind} hide" id="endchip">${esc(c.ending.label)}</div></div>`;
+    j.stages.forEach((sg, k) => {
+        let first = -1, last = -1; beats.forEach((b, i) => { if (b.stage === k) { if (first < 0) first = i; last = i; } });
+        if (first < 0) return;
+        const x0 = first === 0 ? xs[0] - 30 : (xs[first - 1] + xs[first]) / 2 + 2, x1 = last === n - 1 ? xs[n - 1] + 30 : (xs[last] + xs[last + 1]) / 2 - 2;
+        h += `<div class="band b${k % 2} off" data-b="${first}" style="left:${r(x0)}px;width:${r(x1 - x0)}px">${esc(sg.name)}</div>`;
+    });
+    h += `<div class="col"></div>`;
+    // Lane labels and rails. The journey itself is the line of visibility: customer above, work below.
+    const label = (y, title, sub) => `<div class="ll" style="top:${y - 16}px"><div class="pt">${title}</div><div class="sub">${sub}</div></div>`;
+    h += label(96, 'Mood', 'said or inferred') + label(LY.world, 'Customer', 'touchpoints') + label(LY.journey, 'Journey', 'line of visibility') + label(LY.work, 'Workflows', 'the work behind it');
+    h += `<div class="rail" style="top:${moodY(0)}px;border-top:1px dashed rgba(255,255,255,.14)"></div><div class="rail" style="top:${LY.world}px;border-top:1px dashed rgba(255,255,255,.10)"></div>
+      <div class="rail" style="top:${LY.journey - 1}px;border-top:2px solid #475569"></div><div class="rail" style="top:${LY.work}px;border-top:1px dashed rgba(255,255,255,.10)"></div>
+      <div class="rowl" style="top:${moodY(2) - 8}px;left:150px;width:auto;color:#34d399">+2</div><div class="rowl" style="top:${moodY(-2) - 8}px;left:150px;width:auto;color:#ff8a8c">&minus;2</div>`;
+    h += `<div class="ll" style="top:${techY(0) - 26}px"><div class="pt">Technology</div></div>`;
+    j.technologies.forEach((t, k) => { h += `<div class="rowl" style="top:${techY(k) - 8}px" title="${esc(t)}">${esc(t)}</div><div class="rail" style="top:${techY(k)}px;border-top:1px solid rgba(255,255,255,.05)"></div>`; });
+    h += `<div class="ll" style="top:${kindY(j, 0) - 26}px"><div class="pt">Exchanged</div></div>`;
+    j.kinds.forEach((t, k) => { h += `<div class="rowl" style="top:${kindY(j, k) - 8}px">${KIND(t)}</div><div class="rail" style="top:${kindY(j, k)}px;border-top:1px solid rgba(255,255,255,.05)"></div>`; });
+
+    // Mood: one line, revealed as the story is told. A filled dot was said by the customer; a hollow one was inferred.
+    if (j.scale) {
+        const pts = beats.map((b, i) => [xs[i], moodY(b.mood ?? 0)]);
+        const start = [xs[0] - 22, moodY(c.mood_start ?? 0)];
+        const d = 'M' + [start, ...pts].map(p => p.join(' ')).join(' L');
+        h += `<svg style="position:absolute;left:0;top:0;width:1440px;height:160px;overflow:visible;pointer-events:none" aria-hidden="true"><path class="moodline" id="moodline" d="${d}"/>`;
+        beats.forEach((b, i) => { for (const w of b.mood_why || []) h += `<circle class="mdot off" data-b="${i}" cx="${xs[i]}" cy="${moodY(b.mood)}" r="5" fill="${w.basis === 'measured' ? '#e2e8f0' : '#0b0f19'}" stroke="#e2e8f0" stroke-width="2"><title>${esc(w.basis)}: ${esc(w.reason)}</title></circle>`; });
+        h += `</svg>`;
+    }
+    c.runs.forEach((run, ri) => {
+        h += `<button class="rb off" data-run="${ri}" data-b0="${run.b0}" data-b1="${run.b1}" data-status="${run.status}" style="left:${xs[run.b0] - 18}px;top:${LY.work}px;width:${xs[run.b1] - xs[run.b0] + 36}px" aria-label="Look inside the run of ${esc(run.name)}"></button>
+          <button class="rbl off" data-b="${run.b0}" data-run="${ri}" data-runlabel="${ri}" style="left:${xs[run.b0] - 16}px;top:${LY.work + 23}px;max-width:${(c.runs[ri + 1] ? xs[c.runs[ri + 1].b0] : 1420) - xs[run.b0] - 6}px"></button>`;
+    });
+    for (let i = 1; i < n; i++) {
+        const b = beats[i], y0 = ys[i - 1], y1 = ys[i], time = b.outside ? ' time' : '';
+        h += `<div class="th h${time} off" data-b="${i}" style="left:${xs[i - 1]}px;top:${y0}px;width:${xs[i] - xs[i - 1]}px"></div>`;
+        if (y0 !== y1) h += `<div class="th v ${y1 > y0 ? 'down' : 'up'}${time} off" data-b="${i}" style="left:${xs[i]}px;top:${Math.min(y0, y1)}px;height:${Math.abs(y1 - y0)}px"></div>`;
+        if (b.gap) h += `<div class="gap off" data-b="${i}" style="left:${r((xs[i - 1] + xs[i]) / 2)}px">${esc(b.gap)}</div>`;
+    }
+    beats.forEach((b, i) => {
+        h += `<button class="g off" data-b="${i}" data-beat="${i}" style="left:${xs[i]}px;top:${ys[i]}px" aria-label="${esc(b.title)}"><span class="sh k-${b.kind}"></span></button>`;
+        if (!b.tp) return;
+        const out = b.tp.direction === 'outbound' ? ' out' : '';
+        const tk = j.technologies.indexOf(b.tp.technology);
+        if (tk >= 0 && b.lane !== 'tech') h += `<div class="dot${out} off" data-b="${i}" style="left:${xs[i]}px;top:${techY(tk)}px"></div>`;
+        const seen = {};
+        for (const a of b.tp.artefacts) {
+            const k = j.kinds.indexOf(a.kind); if (k < 0) continue;
+            seen[k] = (seen[k] || 0) + 1;
+            h += `<div class="doc${out} off" data-b="${i}" style="left:${xs[i] + (seen[k] - 1) * 7}px;top:${kindY(j, k)}px" title="${esc(a.name)}${a.reference ? ' ' + esc(a.reference) : ''}"></div>`;
+        }
+    });
+    h += `<div class="ring"></div><div class="fl ct"></div>
+      <div style="position:absolute;left:28px;top:660px;width:1384px;display:flex;align-items:center;gap:16px">
+        ${[['k-event', 'customer acts'], ['k-told', 'customer is told'], ['k-timeout', 'nothing arrives in time'], ['k-stage_in', 'stage begins'], ['k-goal', 'goal reached'], ['k-model_decision', 'a model decides'], ['k-human_wait', 'waits for a person'], ['k-partner', 'a partner system is called']].map(([k, t]) => `<div class="lg"><span class="lgi"><span class="sh ${k}"></span></span>${t}</div>`).join('')}
+        <div class="lg"><span class="lgi"><span class="doc" style="left:7px;top:8px"></span></span>received</div><div class="lg"><span class="lgi"><span class="doc out" style="left:7px;top:8px"></span></span>sent out</div>
+        <div class="lg"><span style="width:20px;border-top:2px solid #94a3b8"></span>caused</div><div class="lg"><span style="width:20px;border-top:2px dashed #64748b"></span>time passes</div></div>`;
+    return h;
+};
+
+scenes.run = () => {
+    const c = I(), run = R(), W = S.workflows[run.wf], gx = r((1440 - W.width) / 2), gy = 84 + r((316 - W.height) / 2);
+    const stage = J().stages.find(s => s.id === run.stage);
+    let h = `<div style="position:absolute;left:28px;top:16px;width:1384px;display:flex;align-items:center;gap:14px">
+      <button class="crumb" style="border-color:rgba(255,255,255,.16)" data-up="1">Back to ${esc(c.name)}</button>
+      <div class="hd" style="font-size:22px;font-weight:600;white-space:nowrap">${esc(run.name)}</div>
+      <div class="sub" style="font-size:14px;flex:1 1 auto">serving the stage &ldquo;${esc(stage ? stage.name : '')}&rdquo; of the ${esc(J().name)} journey</div><div class="chip" id="runchip"></div></div>`;
+    W.edges.forEach((e, ei) => {
+        e.segs.forEach((sg, si) => {
+            const hz = sg.dir === 'r' || sg.dir === 'l';
+            h += `<div class="eg ${e.kind}${hz ? '' : ' vv'}" style="left:${gx + sg.x - (hz ? 0 : 1)}px;top:${gy + sg.y - (hz ? 1 : 0)}px;width:${hz ? sg.len : 2}px;height:${hz ? 2 : sg.len}px"><div class="ef ${sg.dir} ${e.kind}" data-e="${ei}" data-si="${si}"></div></div>`;
+        });
+        if (e.tip) h += `<div class="tip ${e.tip.dir} ${e.kind}" data-e="${ei}" style="left:${gx + e.tip.x - 6}px;top:${gy + e.tip.y - 6}px"></div>`;
+    });
+    W.nodes.forEach((n, i) => {
+        const box = `left:${gx + n.x}px;top:${gy + n.y}px;width:${n.w}px;height:${n.h}px`;
+        if (n.kind === 'activity') h += `<div class="nd act" data-n="${i}" data-base="nd act" style="${box}"><span class="tg">${esc(n.tag)}</span><span class="nm">${esc(n.name)}</span></div>`;
+        else if (n.kind === 'event') h += `<div class="nd evt m-${n.mode}" data-n="${i}" data-base="nd evt m-${n.mode}" style="${box}"><span class="ev-in"></span></div><div class="nl" style="left:${gx + n.x + n.w / 2}px;top:${gy + n.y + n.h + 5}px"><span>${esc(n.name)}</span></div>`;
+        else h += `<div class="nd dec" data-n="${i}" data-base="nd dec" style="${box}"></div><div class="nl dl" style="left:${gx + n.x + n.w - 10}px;top:${gy + n.y - 14}px"><span>${esc(n.name)}</span></div>`;
+    });
+    const swatch = (css, t) => `<div class="lg" style="font-size:12px"><span style="width:18px;height:12px;border-radius:3px;${css}"></span>${t}</div>`;
+    return h + `<div style="position:absolute;left:28px;top:424px;width:1384px;display:flex;gap:16px">
+      <div class="pn" style="flex:0 0 560px"><div class="pt" style="color:var(--mute)">The story so far</div><div id="script" style="display:flex;flex-direction:column;gap:2px"></div></div>
+      <div class="pn" style="flex:1 1 auto;min-width:0"><div class="pt" style="color:var(--mute)">Evidence for this step</div><div id="evidence" style="display:flex;flex-direction:column;gap:7px"></div></div>
+      <div class="pn" style="flex:0 0 250px"><div class="pt" style="color:var(--mute)">Reading the diagram</div>
+        ${swatch('border:1.5px solid var(--run)', 'working now')}${swatch('border:1.5px dashed var(--wait)', 'waiting')}${swatch('border:1.5px solid var(--ok)', 'done')}${swatch('border:1.5px solid var(--bad);background:#3b1d24', 'failed')}${swatch('border:1.5px dotted var(--mute)', 'undone afterwards')}
+        <div class="lg" style="font-size:12px"><span style="width:18px;border-top:2px dashed var(--wait)"></span>path taken on a missed deadline</div></div></div>`;
+};
+
+// ---------------------------------------------------------------- applying the state to a built scene
+const apply = {};
+apply.atlas = el => { el.querySelectorAll('.prow').forEach(row => row.classList.toggle('hot', +row.dataset.p === pos())); };
+
+apply.journey = el => {
+    const j = J(), m = j.all[pos()], T = m.t;
+    const ax = t => 264 + (Math.min(Math.max(t, j.t0), j.t1) - j.t0) / Math.max(j.t1 - j.t0, 1) * 1104;
+    el.querySelectorAll('[data-card]').forEach(card => {
+        const n = m.counts[+card.dataset.card];
+        card.innerHTML = `<div class="ct"><b>${n.here}</b><span>here now</span></div><div class="ct"><b>${n.done}</b><span>moved on</span></div><div class="ct${n.stalled ? ' warn' : ''}"><b>${n.stalled}</b><span>stalled</span></div><div class="ct"><b>${n.left}</b><span>left</span></div>`;
+    });
+    el.querySelectorAll('.lane').forEach(lane => lane.classList.toggle('hot', +lane.dataset.lane === m.c));
+    el.querySelectorAll('.seg').forEach(seg => {
+        const from = +seg.dataset.from, w = from > T ? 0 : Math.max(0, ax(Math.min(+seg.dataset.to, T)) - ax(from));
+        seg.style.width = r(w) + 'px';
+        seg.textContent = w > 120 ? seg.dataset.name : '';
+        seg.classList.toggle('stalled', seg.dataset.open === '1' && seg.dataset.stall !== '' && +seg.dataset.stall <= T);
+    });
+    el.querySelectorAll('[data-t]').forEach(x => x.classList.toggle('off', +x.dataset.t > T));
+    const ph = el.querySelector('.ph'); ph.style.left = r(ax(T)) + 'px'; ph.firstChild.textContent = day(T);
+    const ring = el.querySelector('.ring'); ring.style.left = r(ax(T)) + 'px'; ring.style.top = laneTop(m.c) + 34 + 'px';
+};
+
+apply.story = el => {
+    const j = J(), c = I(), beats = c.beats, n = beats.length, ib = pos(), cur = beats[ib], xs = xsOf(c), y = beatY(j, cur);
+    el.querySelectorAll('[data-b]').forEach(x => x.classList.toggle('off', +x.dataset.b > ib));
+    const WORD = { completed: 'completed', failed: 'failed', cancelled: 'withdrawn' };
+    el.querySelectorAll('.rb[data-b0]').forEach(bar => {
+        const started = ib >= +bar.dataset.b0, ended = ib >= +bar.dataset.b1, status = bar.dataset.status;
+        bar.className = 'rb' + (started ? '' : ' off') + (ended ? ' r-' + status : ' r-running');
+        const label = el.querySelector(`[data-runlabel="${bar.dataset.run}"]`);
+        label.innerHTML = `<b style="color:#fff">${esc(c.runs[+bar.dataset.run].name)}</b> &middot; ${ended ? WORD[status] || status : 'under way'} &middot; look inside`;
+    });
+    const finished = ib === n - 1, over = finished && c.ending.kind !== 'stalled';
+    c.goals.forEach((g, k) => {
+        const at = beats.findIndex(b => b.kind === 'goal' && b.title === 'Goal: ' + g.name), reached = at >= 0 && at <= ib, chip = el.querySelector(`[data-goal="${k}"]`);
+        chip.className = 'chip' + (reached ? ' ok' : over ? ' miss' : '');
+        chip.innerHTML = `<span>${esc(g.name)}</span><b>${reached ? 'reached' : over ? 'not reached' : 'open'}</b>`;
+    });
+    el.querySelector('#endchip').classList.toggle('hide', !finished);
+    const chip = el.querySelector('#moodchip');
+    chip.innerHTML = cur.mood === null ? '' : `<span>Mood</span><b>${mood(cur.mood)}</b>`; chip.style.display = cur.mood === null ? 'none' : '';
+    const ring = el.querySelector('.ring'); ring.style.left = xs[ib] + 'px'; ring.style.top = y + 'px';
+    el.querySelector('.col').style.left = xs[ib] + 'px';
+    const fl = el.querySelector('.fl'); fl.textContent = cur.title; fl.style.left = xs[ib] + 'px'; fl.style.top = (cur.lane === 'tech' ? y + 14 : y - 46) + 'px';
+    fl.className = 'fl ' + (xs[ib] < 300 ? 'lt' : xs[ib] > 1150 ? 'rt' : 'ct');
+    const line = el.querySelector('#moodline');
+    if (line) {
+        if (!line.dataset.len) {
+            const pts = [[xs[0] - 22, moodY(c.mood_start ?? 0)], ...beats.map((b, i) => [xs[i], moodY(b.mood ?? 0)])], cum = [0];
+            for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+            line.dataset.len = cum.join(','); line.style.strokeDasharray = cum.at(-1) + 1;
+        }
+        const cum = line.dataset.len.split(',').map(Number);
+        line.style.strokeDashoffset = cum.at(-1) + 1 - cum[ib + 1];
+    }
+};
+
+apply.run = el => {
+    const run = R(), W = S.workflows[run.wf], steps = run.steps, ic = pos(), step = steps[ic];
+    el.querySelectorAll('[data-n]').forEach(n => { const i = +n.dataset.n; n.className = n.dataset.base + ' s' + step.ns.charAt(i) + (step.n === i ? ' cur' : ''); });
+    el.querySelectorAll('.ef').forEach(f => { const lit = step.es.charAt(+f.dataset.e) === '1'; f.style.transitionDelay = lit ? (+f.dataset.si * 0.2) + 's' : '0s'; f.classList.toggle('on', lit); });
+    el.querySelectorAll('.tip').forEach(t => t.classList.toggle('on', step.es.charAt(+t.dataset.e) === '1'));
+    let h = '';
+    for (let i = Math.max(0, Math.min(ic - 2, steps.length - 5)), k = 0; i < steps.length && k < 5; i++, k++) h += `<button class="tr${i === ic ? ' cur' : ''}" data-step="${i}"><span class="trw mono">${esc(steps[i].when)}</span><span class="${i === ic ? 'clamp2' : 'one'}">${esc(steps[i].cap)}</span></button>`;
+    el.querySelector('#script').innerHTML = h;
+    el.querySelector('#evidence').innerHTML = [...step.det.slice(0, 6), ['Journal record', `event ${step.seq} of run ${run.run_id.slice(0, 8)}`]].map(d => `<div class="ev"><span class="evl">${esc(d[0])}</span><span class="evt2 clamp2">${esc(d[1])}</span></div>`).join('');
+    const over = ic === steps.length - 1, chip = el.querySelector('#runchip');
+    chip.className = 'chip' + (over ? (run.status === 'completed' ? ' ok' : run.status === 'failed' ? ' e-stalled' : ' e-abandoned') : '');
+    chip.textContent = over ? ({ completed: 'completed', failed: 'failed', cancelled: 'withdrawn' }[run.status] || run.status) : 'being replayed';
+};
+
+// ---------------------------------------------------------------- caption, facts, chrome
+function told() {
+    const p = pos();
+    if (st.level === 'atlas') {
+        const c = S.customers[p];
+        const life = c.life.map(l => { const x = S.journeys[l.j].instances[l.i]; return `${S.journeys[l.j].name}: ${x.ending.label.toLowerCase()}, ${moodWord(x.mood_end)}`; }).join('. ');
+        return { when: `Customer ${p + 1} of ${S.customers.length}`, cap: `${c.name}. ${c.persona} ${life}.`, facts: [['Insures', 'a ' + c.vehicle], ['Journeys', String(c.life.length)]] };
+    }
+    if (st.level === 'journey') { const m = J().all[p]; return { when: m.when, cap: m.cap, facts: [['Journey', J().name], ['Customer', J().instances[m.c].name]] }; }
+    if (st.level === 'run') { const s = R().steps[p]; return { when: s.when, cap: s.cap, facts: [['Workflow', R().name], ['Customer', I().name], ...(s.link ? [['Link', s.link]] : [])] }; }
+    const b = I().beats[p], facts = [];
+    if (b.tp) {
+        facts.push(['Touchpoint', `${b.tp.name} (${b.tp.direction === 'inbound' ? 'from' : 'to'} ${b.tp.party === 'subject' ? 'the customer' : 'the ' + b.tp.party})`], ['Channel', `${b.tp.channel}, over ${b.tp.technology}`]);
+        if (b.tp.artefacts.length) facts.push(['Exchanged', b.tp.artefacts.map(a => `${a.name}${a.reference ? ' ' + a.reference : ''} (${a.kind})`).join('; ')]);
+    }
+    if (b.mood_why) facts.push(['Mood', b.mood_why.map(w => `${signed(w.change)} ${w.basis}: ${w.reason}`).join('; ')]);
+    if (!facts.length) facts.push(['Journey', J().name], ['Stage', J().stages[b.stage].name]);
+    return { when: b.when, cap: b.cap, facts };
+}
+const PLAY = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4l13 8-13 8z"/></svg>', PAUSE = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14"/><path d="M16 5v14"/></svg>';
+let lastCap = '';
+function chrome() {
+    const L = LEVELS.indexOf(st.level), t = told(), n = count(), p = pos();
+    const crumbs = [`<button class="crumb${L === 0 ? ' on' : ''}" data-level="atlas">Journeys</button>`];
+    if (L >= 1) crumbs.push(`<span class="sep">/</span><button class="crumb${L === 1 ? ' on' : ''}" data-level="journey">${esc(J().name)}</button>`);
+    if (L >= 2) crumbs.push(`<span class="sep">/</span><button class="crumb${L === 2 ? ' on' : ''}" data-level="story">${esc(I().name)}</button>`);
+    if (L >= 3) crumbs.push(`<span class="sep">/</span><button class="crumb on" data-level="run">${esc(R().name)}</button>`);
+    $('crumbs').innerHTML = crumbs.join('');
+    // Sideways: the same view of another journey. On one customer's journey it keeps the customer.
+    const sw = $('switch'); sw.style.visibility = L === 1 || L === 2 ? 'visible' : 'hidden';
+    sw.innerHTML = S.journeys.map((j, k) => { const has = L !== 2 || j.instances.some(x => x.c === I().c); return `<button data-j="${k}" class="${k === st.j ? 'on' : ''}" ${has ? '' : 'disabled'} aria-pressed="${k === st.j}">${esc(j.name)}</button>`; }).join('');
+    $('when').textContent = t.when;
+    const cap = $('cap');
+    if (t.cap !== lastCap) { cap.textContent = t.cap; cap.classList.remove('in'); void cap.offsetWidth; cap.classList.add('in'); lastCap = t.cap; }
+    $('facts').innerHTML = t.facts.slice(0, 4).map(f => `<div><span>${esc(f[0])}</span><b class="clamp2">${esc(f[1])}</b></div>`).join('');
+    $('scrub').max = n - 1; $('scrub').value = p; $('count').textContent = `${p + 1} / ${n}`;
+    $('b-play').innerHTML = st.playing ? PAUSE : PLAY; $('b-play').setAttribute('aria-label', st.playing ? 'Pause the telling' : 'Tell the story');
+    $('b-pace').textContent = st.fast ? '2x' : '1x';
+    location.replace('#' + [st.level, st.j, st.i, st.r, p].join('/'));
+}
+
+// ---------------------------------------------------------------- rendering
+const sceneKey = level => level === 'atlas' ? 'a' : level === 'journey' ? 'j' + st.j : level === 'story' ? `s${st.j}.${st.i}` : `r${st.j}.${st.i}.${st.r}`;
+function render(swap) {
+    const L = LEVELS.indexOf(st.level);
+    LEVELS.forEach((level, k) => {
+        const layer = $('L' + k), scene = layer.firstElementChild;
+        layer.classList.toggle('on', k === L);
+        layer.style.transformOrigin = `${st.ox}px ${st.oy}px`;
+        layer.style.transform = k === L ? 'scale(1)' : k < L ? 'scale(1.3)' : 'scale(.84)';
+        if (k !== L) return;
+        const key = sceneKey(level);
+        if (built[level] === key) { apply[level](scene); return; }
+        const fresh = () => {
+            scene.innerHTML = scenes[level](); built[level] = key;
+            void scene.offsetWidth;                                        // let the hidden state paint, so that what follows animates
+            requestAnimationFrame(() => { scene.classList.remove('swap-l', 'swap-r'); apply[level](scene); });
+        };
+        if (swap && built[level]) { scene.classList.add(swap > 0 ? 'swap-l' : 'swap-r'); setTimeout(() => { scene.classList.remove('swap-l'); scene.classList.remove('swap-r'); scene.classList.add(swap > 0 ? 'swap-r' : 'swap-l'); fresh(); }, 200); }
+        else fresh();
+    });
+    chrome();
+}
+const set = (patch, swap) => { Object.assign(st, patch); render(swap); };
+
+// ---------------------------------------------------------------- moving about
+function openJourney(j, origin) { set({ level: 'journey', j, ia: 0, playing: false, ...(origin || {}) }); }
+function openStory(j, i, ib, origin) {
+    const inst = S.journeys[j].instances[i];
+    set({ level: 'story', j, i, r: 0, ib: ib === undefined ? inst.beats.length - 1 : ib, playing: false, ...(origin || {}) });
+}
+function openRun(ri) {
+    const c = I(), run = c.runs[ri], beat = c.beats[pos()], xs = xsOf(c);
+    let ic = 0;
+    if (beat.run === ri && beat.step !== undefined) ic = beat.step;
+    else if (st.ib >= run.b1) ic = run.steps.length - 1;
+    else if (st.ib > run.b0) run.steps.forEach((s, k) => { if (s.t <= beat.t) ic = k; });
+    set({ level: 'run', r: ri, ic, playing: false, ox: r((xs[run.b0] + xs[run.b1]) / 2), oy: LY.work });
+}
+function goLevel(level) {
+    const from = LEVELS.indexOf(st.level), to = LEVELS.indexOf(level);
+    if (to >= from) return;
+    const patch = { level, playing: false };
+    if (level === 'journey') {                                  // return to the moment that was being read
+        const t = I().beats[Math.min(st.ib, I().beats.length - 1)].t; let ia = 0;
+        J().all.forEach((m, k) => { if (m.t <= t) ia = k; });
+        Object.assign(patch, { ia, ox: 700, oy: laneTop(st.i) + 34 });
+    }
+    if (level === 'atlas') Object.assign(patch, { ip: from >= 2 ? I().c : st.ip, ox: CX(st.j) + 180, oy: from >= 2 ? PY(I().c) + 30 : 100 });
+    set(patch);
+}
+function switchJourney(j) {
+    if (j === st.j) return;
+    const dir = j > st.j ? 1 : -1;
+    if (st.level === 'story') { const i = S.journeys[j].instances.findIndex(x => x.c === I().c); if (i >= 0) set({ j, i, r: 0, ib: 0, playing: false }, dir); }
+    else set({ j, ia: 0, playing: false }, dir);
+}
+function switchPerson(d) { const n = J().instances.length; set({ i: (st.i + d + n) % n, r: 0, ib: 0, playing: false }, d); }
+function move(d, auto) {
+    const key = KEY[st.level], i = pos() + d;
+    if (i < 0) return;
+    if (i >= count()) { set({ playing: false }); return; }
+    set({ [key]: i, playing: !!auto });
+}
+const jump = i => set({ [KEY[st.level]]: Math.max(0, Math.min(i, count() - 1)), playing: false });
+
+document.addEventListener('click', e => {
+    const hit = sel => e.target.closest(sel);
+    let x;
+    if ((x = hit('[data-level]'))) goLevel(x.dataset.level);
+    else if ((x = hit('[data-j]'))) switchJourney(+x.dataset.j);
+    else if ((x = hit('[data-open-j]'))) openJourney(+x.dataset.openJ, { ox: CX(+x.dataset.openJ) + 180, oy: 106 });
+    else if ((x = hit('[data-open-s]'))) { const [j, i] = x.dataset.openS.split(',').map(Number); openStory(j, i, undefined, { ox: CX(j) + 180, oy: PY(S.journeys[j].instances[i].c) + 30 }); }
+    else if ((x = hit('[data-lane]'))) { const i = +x.dataset.lane, T = J().all[pos()].t; let ib = 0; J().instances[i].beats.forEach((b, k) => { if (b.t <= T) ib = k; }); openStory(st.j, i, ib, { ox: 700, oy: laneTop(i) + 34 }); }
+    else if ((x = hit('[data-person]'))) switchPerson(+x.dataset.person);
+    else if ((x = hit('[data-run]'))) openRun(+x.dataset.run);
+    else if ((x = hit('[data-beat]'))) jump(+x.dataset.beat);
+    else if ((x = hit('[data-step]'))) jump(+x.dataset.step);
+    else if ((x = hit('[data-up]'))) goLevel('story');
+});
+$('b-start').onclick = () => jump(0);
+$('b-prev').onclick = () => move(-1);
+$('b-next').onclick = () => move(1);
+$('b-pace').onclick = () => set({ fast: !st.fast });
+$('b-play').onclick = () => {
+    if (st.playing) return set({ playing: false });
+    const patch = { playing: true };
+    if (pos() >= count() - 1) patch[KEY[st.level]] = 0;
+    acc = 1500; set(patch);
+};
+$('scrub').oninput = e => jump(+e.target.value);
+document.addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT') return;
+    if (e.key === 'ArrowRight') { move(1); e.preventDefault(); }
+    else if (e.key === 'ArrowLeft') { move(-1); e.preventDefault(); }
+    else if (e.key === 'Escape') { const L = LEVELS.indexOf(st.level); if (L > 0) goLevel(LEVELS[L - 1]); }
+});
+let acc = 0;
+setInterval(() => { if (!st.playing) return; acc += 200 * (st.fast ? 2.4 : 1); if (acc >= 2200) { acc = 0; move(1, true); } }, 200);
+
+// A link carries the place: #level/journey/instance/run/position
+const parts = location.hash.slice(1).split('/');
+if (LEVELS.includes(parts[0])) {
+    const [level, j, i, rr, p] = [parts[0], ...parts.slice(1).map(Number)];
+    if (S.journeys[j] && S.journeys[j].instances[i || 0]) Object.assign(st, { level, j, i: i || 0, r: rr || 0, [KEY[level]]: p || 0 });
+}
+render();
+})();
+</script>
+</body>
+</html>

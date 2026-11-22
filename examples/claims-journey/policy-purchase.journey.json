@@ -1,0 +1,272 @@
+{
+  "id": "17c79c81-27e9-5c86-a298-de52303f977d",
+  "name": "Policy Purchase",
+  "version": "1.0.0",
+  "awa_version": "1.1",
+  "description": "From a request for a quote to a policy in force.",
+  "subject": {
+    "name": "customer",
+    "key": "customer_id"
+  },
+  "stages": [
+    {
+      "id": "quoted",
+      "name": "Quoted",
+      "description": "A quote is prepared and the prospect decides.",
+      "workflows": [
+        "dfbe8984-8b87-5dc0-b568-51893661d27a"
+      ],
+      "complete_when": "quote_accepted == true",
+      "max_duration": "P7D"
+    },
+    {
+      "id": "contracted",
+      "name": "Contracted",
+      "description": "The contract is signed.",
+      "workflows": [
+        "dfbe8984-8b87-5dc0-b568-51893661d27a"
+      ],
+      "complete_when": "signed == true",
+      "max_duration": "P10D"
+    },
+    {
+      "id": "covered",
+      "name": "Covered",
+      "description": "The premium is paid and the certificate issued.",
+      "workflows": [
+        "dfbe8984-8b87-5dc0-b568-51893661d27a"
+      ],
+      "complete_when": "covered == true",
+      "max_duration": "P7D",
+      "transitions": []
+    }
+  ],
+  "triggers": [
+    {
+      "event": "quote.requested",
+      "starts_journey": true,
+      "start_workflow": "dfbe8984-8b87-5dc0-b568-51893661d27a"
+    }
+  ],
+  "goals": [
+    {
+      "id": "covered",
+      "name": "Policy in force",
+      "expression": "covered == true"
+    }
+  ],
+  "exits": [
+    {
+      "event": "quote.declined",
+      "outcome": "abandoned",
+      "reason": "The prospect declined the quote"
+    }
+  ],
+  "artefacts": [
+    {
+      "id": "quote",
+      "name": "Quote",
+      "kind": "quote",
+      "description": "The premium offered and what it covers."
+    },
+    {
+      "id": "insurance-contract",
+      "name": "Insurance contract",
+      "kind": "contract",
+      "description": "The terms of the cover, to be signed."
+    },
+    {
+      "id": "signature-attestation",
+      "name": "Signature attestation",
+      "kind": "attestation",
+      "description": "Proof from the e-signature service of who signed and when."
+    },
+    {
+      "id": "premium-invoice",
+      "name": "Premium invoice",
+      "kind": "invoice",
+      "description": "The premium due."
+    },
+    {
+      "id": "payment-order",
+      "name": "Payment order",
+      "kind": "order",
+      "description": "The customer's instruction to pay."
+    },
+    {
+      "id": "payment-receipt",
+      "name": "Payment receipt",
+      "kind": "receipt",
+      "description": "Proof that the premium was received."
+    },
+    {
+      "id": "insurance-certificate",
+      "name": "Certificate of insurance",
+      "kind": "certificate",
+      "description": "Proof of cover, as the law requires a driver to carry."
+    }
+  ],
+  "touchpoints": [
+    {
+      "id": "quote-requested",
+      "name": "Asks for a quote",
+      "party": "subject",
+      "direction": "inbound",
+      "channel": "web",
+      "technology": "Customer portal",
+      "on": {
+        "event": "quote.requested"
+      },
+      "exchanges": []
+    },
+    {
+      "id": "quote-sent",
+      "name": "Receives the quote",
+      "party": "subject",
+      "direction": "outbound",
+      "channel": "email",
+      "technology": "Email gateway",
+      "on": {
+        "activity": "Prepare quote"
+      },
+      "exchanges": [
+        {
+          "artefact": "quote",
+          "reference": "quote_id"
+        }
+      ]
+    },
+    {
+      "id": "quote-accepted",
+      "name": "Accepts the quote",
+      "party": "subject",
+      "direction": "inbound",
+      "channel": "web",
+      "technology": "Customer portal",
+      "on": {
+        "event": "quote.accepted"
+      },
+      "exchanges": [
+        {
+          "artefact": "quote",
+          "reference": "quote_id"
+        }
+      ]
+    },
+    {
+      "id": "contract-sent",
+      "name": "Receives the contract",
+      "party": "subject",
+      "direction": "outbound",
+      "channel": "email",
+      "technology": "E-signature service",
+      "on": {
+        "activity": "Send contract"
+      },
+      "exchanges": [
+        {
+          "artefact": "insurance-contract",
+          "reference": "contract_id"
+        }
+      ]
+    },
+    {
+      "id": "contract-signed",
+      "name": "Signs the contract",
+      "party": "subject",
+      "direction": "inbound",
+      "channel": "web",
+      "technology": "E-signature service",
+      "on": {
+        "event": "contract.signed"
+      },
+      "exchanges": [
+        {
+          "artefact": "insurance-contract",
+          "reference": "contract_id"
+        },
+        {
+          "artefact": "signature-attestation"
+        }
+      ]
+    },
+    {
+      "id": "invoice-sent",
+      "name": "Receives the invoice",
+      "party": "subject",
+      "direction": "outbound",
+      "channel": "email",
+      "technology": "Email gateway",
+      "on": {
+        "activity": "Send invoice"
+      },
+      "exchanges": [
+        {
+          "artefact": "premium-invoice",
+          "reference": "invoice_id"
+        }
+      ]
+    },
+    {
+      "id": "premium-paid",
+      "name": "Pays the premium",
+      "party": "subject",
+      "direction": "inbound",
+      "channel": "bank transfer",
+      "technology": "Payment gateway",
+      "on": {
+        "event": "payment.received"
+      },
+      "exchanges": [
+        {
+          "artefact": "payment-order"
+        }
+      ]
+    },
+    {
+      "id": "certificate-sent",
+      "name": "Receives receipt and certificate",
+      "party": "subject",
+      "direction": "outbound",
+      "channel": "email",
+      "technology": "Email gateway",
+      "on": {
+        "activity": "Issue certificate"
+      },
+      "exchanges": [
+        {
+          "artefact": "payment-receipt",
+          "reference": "receipt_id"
+        },
+        {
+          "artefact": "insurance-certificate",
+          "reference": "certificate_id"
+        }
+      ]
+    }
+  ],
+  "sentiment": {
+    "min": -2,
+    "max": 2,
+    "initial": 0,
+    "rules": [
+      {
+        "on": "waited",
+        "change": -1,
+        "reason": "waited more than two days for an answer",
+        "longer_than": "P2D"
+      },
+      {
+        "on": "goal_reached",
+        "change": 1,
+        "reason": "is covered",
+        "goal": "covered"
+      },
+      {
+        "on": "stalled",
+        "change": -1,
+        "reason": "nothing has moved for too long"
+      }
+    ]
+  }
+}
