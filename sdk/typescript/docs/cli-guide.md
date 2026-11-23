@@ -1,433 +1,182 @@
-# AWA CLI - Installation & User Guide
+# The `awa` command
 
-A comprehensive guide to installing and using the AWA (Agentic Workflow Architecture) CLI tool.
-
----
-
-## Table of Contents
-1. [Installation](#installation)
-2. [Quick Start](#quick-start)
-3. [Commands Reference](#commands-reference)
-4. [Examples](#examples)
-   - [Simple Workflows](#simple-workflows)
-   - [Intermediate Workflows](#intermediate-workflows)
-   - [Advanced Workflows](#advanced-workflows)
-5. [Troubleshooting](#troubleshooting)
-
----
-
-## Installation
-
-### Option 1: Global Installation (Recommended)
-
-Install the AWA CLI globally to use it anywhere on your system:
-
-```bash
-npm install -g agentic-workflow-architecture
-```
-
-After installation, verify it's working:
-
-```bash
-awa --version
-```
-
-### Option 2: Local Installation
-
-Install in a project:
+Reference for the command line of the TypeScript SDK 2.0 (AWA specification 1.1). Every command also answers `--help`.
 
 ```bash
 npm install agentic-workflow-architecture
 ```
 
-Then run using npx:
+The command is then `npx awa`, or `awa` after `npm install -g agentic-workflow-architecture`. Node 20 or later.
+
+| Command | What it does |
+|---|---|
+| [`awa run`](#awa-run) | Run a workflow file, keeping its journal and checkpoints |
+| [`awa validate`](#awa-validate) | Check workflow and journey documents before running them |
+| [`awa journey`](#awa-journey) | Journeys kept in a runtime directory: add definitions, take in events, let time pass, inspect, export |
+| [`awa measures`](#awa-measures) | The measures of journeys and workflows (specification section 21) |
+| [`awa replay`](#awa-replay) | Counterfactual replay of a recorded run under a changed workflow or model |
+| [`awa recipe`](#awa-recipe) | A build-from-scratch recipe from a workflow and the journal of one run |
+| [`awa knowledge`](#awa-knowledge) | Knowledge distilled from journals: ingest, review, exchange |
+| [`awa serve`](#awa-serve) | The HTTP interface ([operational-api.md](operational-api.md)) |
+| [`awa task`](#awa-task) | Human tasks kept in the task database |
+| `awa init`, `awa generate` | A sample project; a workflow drafted from a sentence by a model |
+
+## awa run
 
 ```bash
-npx awa --version
+awa run workflow.awa.json --simulate --outputs simulation.json --journal run.jsonl
 ```
 
-### Option 3: Development Setup (from source)
+| Option | Meaning |
+|---|---|
+| `-s, --simulate` | Call no model, tool or person. Activities return what `--outputs` scripts, and nothing otherwise |
+| `--outputs <file>` | With `--simulate`: what each activity returns, by activity name (see below) |
+| `-j, --journal <file>` | Write the execution journal to this JSON Lines file |
+| `-c, --checkpoint-dir <dir>` | Checkpoint the run after every step, so that it can be recovered in another process |
+| `-i, --input <json>` | The run's initial data, as a JSON object |
+| `-p, --providers <list>` | Model providers in order of preference: `google`, `openai`, `ollama`, `embedded`. Each capability tier falls back down the list |
+| `-k, --key <key>` | Gemini API key (or `GEMINI_API_KEY`) |
+| `--allow-commands [list]` | Let tools run commands on this machine: all, or a comma-separated list of program names. None by default |
+| `--db` | Also log the run's cost and duration to the task database |
+| `-v, --verbose` | Print each step |
 
-If you're working with the AWA repository:
-
-```bash
-cd sdk/typescript
-npm install
-npm run build
-npm link
-```
-
-This makes the `awa` command available globally during development.
-
----
-
-## Quick Start
-
-Create a simple workflow file `hello.awa.json`:
+A simulation script names what each activity returns. An entry may give `output`, an `error` (with a `code`), `attempts` (one entry per attempt, the last repeating), and `contexts`, what the activity writes to the workflow's contexts:
 
 ```json
 {
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "name": "Hello World Workflow",
-  "version": "1.0.0",
-  "activities": [
-    {
-      "id": "550e8400-e29b-41d4-a716-446655440001",
-      "name": "Greet",
-      "actor_type": "application",
-      "role_id": "550e8400-e29b-41d4-a716-446655440003",
-      "inputs": [],
-      "outputs": []
-    }
-  ],
-  "edges": [],
-  "roles": [
-    {
-      "id": "550e8400-e29b-41d4-a716-446655440003",
-      "name": "System",
-      "actor_type": "application"
-    }
-  ],
-  "contexts": []
+  "Receive order": { "output": { "order_id": "ORD-1" }, "contexts": { "Order": { "total": 240 } } },
+  "Charge card":   { "attempts": [{ "error": "gateway timeout", "code": "TIMEOUT" }, { "output": { "charged": true } }] }
 }
 ```
 
-Run it:
+A simulated activity that is not scripted returns no business data, so a condition that reads data takes no edge and the run fails with `NO_ROUTE`: script the activities whose results drive the route. An activity bound to read a context nothing has written fails with `CONTEXT_MISSING`: script the activity that writes it, or give the context an `initial_value`.
+
+| Provider | Needs |
+|---|---|
+| `google` | `GEMINI_API_KEY` |
+| `openai` | `OPENAI_API_KEY` |
+| `ollama` | A running Ollama; `OLLAMA_BASE_URL` if not on localhost |
+| `embedded` | `npm install @huggingface/transformers`; `AWA_EMBEDDED_MODELS`, `AWA_EMBEDDED_MODEL` to choose where models are kept and which |
+
+## awa validate
 
 ```bash
-awa run hello.awa.json
+awa validate claim.journey.json intake.awa.json settlement.awa.json
 ```
 
----
+Checks each workflow against the schema and the rules the engine applies before a run (edges and decisions that point to nothing, expressions and durations that cannot be read, and the like), and each journey against the journey schema. A journey's references to workflows are checked against the workflows given beside it. `--json` prints the result as JSON. The exit status is 1 when any document is not valid.
 
-## Commands Reference
+## awa journey
 
-### `awa run <file>`
-
-Execute a workflow file.
-
-**Options:**
-- `-v, --verbose` - Enable verbose output with step-by-step execution details
-- `-k, --key <key>` - Provide Gemini API key (for AI agents)
-
-**Examples:**
-```bash
-# Basic execution
-awa run workflow.awa.json
-
-# With verbose output
-awa run workflow.awa.json --verbose
-
-# With API key
-awa run workflow.awa.json --key YOUR_GEMINI_API_KEY
-```
-
-### `awa serve`
-
-Start the AWA REST API server.
-
-**Options:**
-- `-p, --port <port>` - Port to listen on (default: 3000)
-
-**Examples:**
-```bash
-# Start on default port (3000)
-awa serve
-
-# Start on custom port
-awa serve --port 8080
-```
-
-### `awa --version`
-
-Display the installed version.
-
-### `awa --help`
-
-Display help information.
-
----
-
-## Examples
-
-### Simple Workflows
-
-#### Example 1: Single Activity
-
-A minimal workflow with one activity:
-
-```json
-{
-  "id": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
-  "name": "Single Task",
-  "version": "1.0.0",
-  "activities": [
-    {
-      "id": "act-001",
-      "name": "Process Data",
-      "actor_type": "application",
-      "role_id": "role-001",
-      "inputs": [],
-      "outputs": []
-    }
-  ],
-  "edges": [],
-  "roles": [
-    {
-      "id": "role-001",
-      "name": "Data Processor",
-      "actor_type": "application"
-    }
-  ],
-  "contexts": []
-}
-```
-
-Run:
-```bash
-awa run single-task.awa.json
-```
-
-#### Example 2: Sequential Workflow
-
-Two activities in sequence:
-
-```json
-{
-  "id": "b2c3d4e5-f6a7-4b5c-9d0e-1f2a3b4c5d6e",
-  "name": "Sequential Workflow",
-  "version": "1.0.0",
-  "activities": [
-    {
-      "id": "act-001",
-      "name": "Receive Order",
-      "actor_type": "application",
-      "role_id": "role-001",
-      "inputs": [],
-      "outputs": [{"name": "order_id", "schema": {"type": "string"}}]
-    },
-    {
-      "id": "act-002",
-      "name": "Process Payment",
-      "actor_type": "application",
-      "role_id": "role-001",
-      "inputs": [{"name": "order_id", "schema": {"type": "string"}}],
-      "outputs": []
-    }
-  ],
-  "edges": [
-    {
-      "id": "edge-001",
-      "source_id": "act-001",
-      "target_id": "act-002"
-    }
-  ],
-  "roles": [
-    {
-      "id": "role-001",
-      "name": "Order System",
-      "actor_type": "application"
-    }
-  ],
-  "contexts": []
-}
-```
-
-Run with verbose output to see each step:
-```bash
-awa run sequential.awa.json --verbose
-```
-
-### Intermediate Workflows
-
-#### Example 3: Multi-Actor Workflow
-
-Workflow with both application and AI agents:
-
-```json
-{
-  "id": "c3d4e5f6-a7b8-4c5d-0e1f-2a3b4c5d6e7f",
-  "name": "Customer Support Workflow",
-  "version": "1.0.0",
-  "activities": [
-    {
-      "id": "act-001",
-      "name": "Receive Customer Query",
-      "actor_type": "application",
-      "role_id": "role-app",
-      "inputs": [],
-      "outputs": [{"name": "query", "schema": {"type": "string"}}]
-    },
-    {
-      "id": "act-002",
-      "name": "Analyze Query",
-      "actor_type": "ai_agent",
-      "role_id": "role-ai",
-      "inputs": [{"name": "query", "schema": {"type": "string"}}],
-      "outputs": [{"name": "category", "schema": {"type": "string"}}]
-    },
-    {
-      "id": "act-003",
-      "name": "Send Response",
-      "actor_type": "application",
-      "role_id": "role-app",
-      "inputs": [{"name": "category", "schema": {"type": "string"}}],
-      "outputs": []
-    }
-  ],
-  "edges": [
-    {"id": "e1", "source_id": "act-001", "target_id": "act-002"},
-    {"id": "e2", "source_id": "act-002", "target_id": "act-003"}
-  ],
-  "roles": [
-    {
-      "id": "role-app",
-      "name": "Support System",
-      "actor_type": "application"
-    },
-    {
-      "id": "role-ai",
-      "name": "AI Analyst",
-      "actor_type": "ai_agent",
-      "ai_model_config": {
-        "model_id": "gemini-2.5-flash",
-        "temperature": 0.7,
-        "system_prompt": "You are a customer support analyst."
-      }
-    }
-  ],
-  "contexts": []
-}
-```
-
-Run with API key:
-```bash
-export GEMINI_API_KEY=your_api_key_here
-awa run customer-support.awa.json --verbose
-```
-
-#### Example 4: Workflow with Contexts
-
-Using shared context between activities:
-
-```json
-{
-  "id": "d4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f8a",
-  "name": "Order Processing with Context",
-  "version": "1.0.0",
-  "activities": [
-    {
-      "id": "act-001",
-      "name": "Create Order",
-      "actor_type": "application",
-      "role_id": "role-001",
-      "inputs": [],
-      "outputs": [],
-      "context_bindings": [
-        {
-          "context_id": "ctx-order",
-          "access_mode": "write"
-        }
-      ]
-    },
-    {
-      "id": "act-002",
-      "name": "Validate Order",
-      "actor_type": "application",
-      "role_id": "role-001",
-      "inputs": [],
-      "outputs": [],
-      "context_bindings": [
-        {
-          "context_id": "ctx-order",
-          "access_mode": "read_write"
-        }
-      ]
-    }
-  ],
-  "edges": [
-    {"id": "e1", "source_id": "act-001", "target_id": "act-002"}
-  ],
-  "contexts": [
-    {
-      "id": "ctx-order",
-      "name": "Order Data",
-      "type": "state",
-      "sync_pattern": "shared_state",
-      "visibility": "workflow",
-      "initial_value": {}
-    }
-  ],
-  "roles": [
-    {
-      "id": "role-001",
-      "name": "Order System",
-      "actor_type": "application"
-    }
-  ]
-}
-```
-
-### Advanced Workflows
-
-#### Example 5: Complex E-commerce Workflow
-
-For a complete example, see the `examples/` folder in the repository:
+Journeys live in a **runtime directory** (`.awa` by default, `--dir` to choose another): their definitions, the state of every journey and run, and the journals. Each command is a separate process; the directory is held by one at a time.
 
 ```bash
-# Bank account opening workflow
-awa run examples/bank-account-opening/workflow.awa.json --verbose
-
-# Insurance claim processing
-awa run examples/insurance-claim/workflow.awa.json --verbose
-
-# Skills demonstration
-awa run examples/skills-demonstration/scenario.awa.json --verbose
+awa journey add intake.awa.json claim.journey.json
 ```
-
----
-
-## Troubleshooting
-
-### Common Issues
-
-**Error: "Invalid uuid"**
-- Ensure all IDs in your workflow are valid UUIDs (format: `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`)
-- Use online UUID generators or `uuidgen` command
-
-**Error: "Expected array, received object"**
-- Check that `inputs` and `outputs` are arrays, not objects
-- Correct: `"inputs": []` or `"inputs": [{"name": "field"}]`
-- Incorrect: `"inputs": {}`
-
-**Error: "Gemini API Key required for AI Agent"**
-- Set the environment variable: `export GEMINI_API_KEY=your_key`
-- Or pass via CLI: `awa run workflow.awa.json --key your_key`
-
-**Error: "filePath is required" (API)**
-- Ensure you're sending proper JSON in the request body
-- Check Content-Type header is set to `application/json`
-
-### Getting Help
 
 ```bash
-# View CLI help
-awa --help
-
-# View command-specific help
-awa run --help
-awa serve --help
+awa journey publish claim.submitted -d '{"customer_id":"c-1"}' --simulate --outputs simulation.json
 ```
 
-### Environment Variables
+```bash
+awa journey tick
+```
 
-- `GEMINI_API_KEY` - Your Gemini API key for AI agents
+```bash
+awa journey list --stalled
+```
 
----
+| Subcommand | What it does |
+|---|---|
+| `add <files...>` | Add workflows and journeys. A journey's workflows must be added first, or in the same call |
+| `publish <type>` | Take in a business event (`-d` its data, `--id` to make it idempotent, `--source`): it wakes waiting runs, starts journeys and moves them on |
+| `tick` | Let time pass (`--at` an instant): deadlines that ran out take effect, stalled journeys are marked, service levels of waiting work are checked |
+| `resume <run_id> <token_id>` | Complete a task a run waits on a person for (`-d` what they decided) |
+| `list` | Journey instances (`--stalled` for those that need someone) |
+| `show <subject>` | A subject's journeys, in order (`--json` for the full record) |
+| `analytics` | The funnel of each journey, and how subjects move between journeys |
+| `export` | Everything recorded, in one file (`-o`): what the journey view and the measures page open |
 
-## Next Steps
+`publish`, `tick` and `resume` take `--simulate` and `--outputs` as `awa run` does.
 
-- Explore the [spec](../../spec) folder for complete schema definitions
-- Check out [examples](../../examples) for more workflow patterns
-- Read the [Operational API Guide](./operational-api.md) for REST API details
-- Visit the [AWA Documentation](../../docs) for architecture details
+## awa measures
+
+```bash
+awa measures --dir .awa
+```
+
+| Option | Meaning |
+|---|---|
+| `--file <file>` | Read an export written by `awa journey export` instead of a runtime directory |
+| `--from <instant>`, `--to <instant>` | Keep what started in this period |
+| `--journey <id>`, `--workflow <id>` | Only this journey, or this workflow |
+| `--json` | The report as JSON (`spec/json-schema/measure-report.schema.json`) |
+| `--openmetrics` | The measures in the OpenMetrics text format |
+| `--html <file>` | The measures page as one file with the record inside it |
+| `--list` | Every measure with its rule |
+
+## awa replay
+
+```bash
+awa replay workflow.awa.json run.jsonl --candidate changed.awa.json --ai recorded
+```
+
+Runs a recorded run again with tools, people, applications, events and time held as recorded, and reports what changed. `--ai live` runs AI agents again under the candidate (with `--providers`, `--key`); `--ai recorded` replays their recorded outputs, to test changed contracts or rules without a model. `-o` writes the report, `--json` as JSON, `--journal-out` the candidate run's journal. The exit status is 2 when there is a regression.
+
+## awa recipe
+
+```bash
+awa recipe workflow.awa.json run.jsonl -o RECIPE.md
+```
+
+A Markdown recipe that explains how to rebuild the workflow from scratch, from its definition and, if given, the journal of one run. `--no-definition` leaves out the full definition, `--no-payloads` the inputs and outputs.
+
+## awa knowledge
+
+| Subcommand | What it does |
+|---|---|
+| `ingest <workflow> <journal...>` | Distil runs into strategies, failure patterns, lessons and precedents. A run is counted once |
+| `list` | The entries |
+| `review <id...>` | Mark entries reviewed by a person. Only reviewed entries are given to actors by default |
+| `deprecate <id>` | Mark an entry as no longer current |
+| `export <directory>`, `import <directory>` | Exchange the knowledge base as an Open Knowledge Format bundle |
+
+## awa serve
+
+```bash
+AWA_DATA_DIR=.awa awa serve --port 3000 --no-auth
+```
+
+`-p, --port`; `--jwt-secret` (or `JWT_SECRET`); `--api-key key:role`, repeatable; `--rate-limit` requests per minute; `--no-auth` for local development. The routes are in [operational-api.md](operational-api.md).
+
+## awa task
+
+`list`, `show <id>`, `assign <id> <user_id>`, `complete <id> [json_outputs]`, `reject <id> [reason]`. These use the task database: see "The task database" in the [SDK README](../README.md).
+
+## Environment variables
+
+| Variable | Read by | Meaning |
+|---|---|---|
+| `GEMINI_API_KEY`, `OPENAI_API_KEY`, `OLLAMA_BASE_URL` | model providers | Credentials and address of the providers |
+| `AWA_DEFAULT_AI_MODEL_ID` | engine | The model used where nothing names one. Default: `default_ai_model_id` of `src/config.json` |
+| `AWA_GOOGLE_REASONING_MODEL`, `AWA_GOOGLE_FAST_MODEL` | Google provider | The models of the reasoning and fast tiers. Default: from `src/config.json` |
+| `AWA_EMBEDDED_MODELS`, `AWA_EMBEDDED_MODEL` | embedded provider | Where small models are kept, and which to use |
+| `AWA_DATA_DIR` | `awa serve` | The runtime directory behind `/api/v1/journeys` and `/api/v1/measures`. Without it, journeys are kept in memory |
+| `AWA_SIMULATE=1`, `AWA_SIMULATED_OUTPUTS` | `awa serve` | Simulate the activities of journeys' runs, with this script |
+| `AWA_WORKFLOWS_DIR` | `awa serve` | The only directory `POST /api/v1/workflows/run` may read workflow files from. The working directory by default |
+| `AWA_JOURNAL_DIR` | `awa serve` | Where the journals of runs started over HTTP are written |
+| `AWA_DATABASE_URL` | task database | Its location, e.g. `file:/var/lib/awa/awa.db` |
+| `JWT_SECRET` | `awa serve` | The secret for signed tokens |
+| `LOG_LEVEL`, `LOG_FORMAT`, `LOG_TIMESTAMPS` | logging | Level, `json` or text, timestamps |
+
+## Common errors
+
+| Error | What to do |
+|---|---|
+| `NO_ROUTE` | A condition read data no activity produced. In simulation, script the activity's output |
+| `CONTEXT_MISSING` | An activity is bound to read a context that has no value. Have an earlier activity write it, give it an `initial_value`, or make the binding `required: false` |
+| `CONTEXT_ACCESS_DENIED` | An activity wrote to a context it has no binding to write |
+| `CONTRACT_VIOLATION` | The result did not meet the activity's outcome contract. The journal's `contract.checked` event says which term |
+| `SLA_BREACH` | Work still waited for passed its service level, whose breach action is `fail` |
+| `PERMISSION_DENIED` | A tool's command or host is not allowed by this deployment (`--allow-commands`) |
+| `The runtime directory ... is in use by process N` | Another process holds the directory. Stop it, or talk to it over HTTP |

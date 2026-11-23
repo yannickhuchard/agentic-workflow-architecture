@@ -11,6 +11,7 @@
  *   "<model>"              a model of the default provider
  */
 
+import { GOOGLE_TIER_MODELS } from './model_config';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 /** A function the model may ask to have called */
@@ -110,7 +111,7 @@ export class ModelRegistry {
      * Map a tier to a model reference, or to an ordered list of them. With a
      * list the router uses the first that can serve the request and falls back
      * to the next if a provider fails, e.g.
-     * set_tier('fast', ['google:gemini-3.8-flash', 'ollama:qwen3:4b', 'embedded:default'])
+     * set_tier('fast', ['google:gemini-3.1-flash-lite', 'ollama:gemma3:1b', 'embedded:default'])
      */
     set_tier(tier: string, ref: string | string[]): this {
         const refs = Array.isArray(ref) ? ref : [ref];
@@ -126,6 +127,25 @@ export class ModelRegistry {
 
     has_providers(): boolean {
         return this.providers.size > 0;
+    }
+
+    /**
+     * Give each standard tier the deployment has not mapped the models of TIER_PRESETS, for the
+     * registered providers that have presets, in the order they were registered; with none, the
+     * default model of the default provider. So "tier:balanced" means something wherever a
+     * provider is registered, and a deployment's own map wins (12.3).
+     */
+    fill_standard_tiers(): this {
+        const known = [...this.providers.keys()].filter(id => TIER_PRESETS[id]);
+        // A deployment whose only providers are its own (no presets): every standard tier is that
+        // provider's default model, whatever the provider takes "default" to mean
+        const fallback = this.default_provider || [...this.providers.keys()][0];
+        for (const tier of STANDARD_TIERS) {
+            if (this.tiers.has(tier)) continue;
+            if (known.length) this.tiers.set(tier, known.map(id => TIER_PRESETS[id][tier]));
+            else if (fallback) this.tiers.set(tier, [`${fallback}:default`]);
+        }
+        return this;
     }
 
     private resolve_direct(target: string, origin: string, tier?: string): ResolvedModel {
@@ -593,13 +613,14 @@ export class FunctionModelProvider implements ModelProvider {
  *
  * - openai: from OpenAI's models page (Astra "most capable", Sol "everyday
  *   work", Luna "most efficient ... high-volume").
- * - google: from secondary listings of the Gemini 4 and 3.x families; not
- *   checked against Google's own page.
+ * - google: the models src/config.json makes available, with its default model
+ *   for the balanced tier (model_config.ts).
  * - ollama: widely available open-source models; pull them first.
  * - embedded: see docs/embedded-models.md for what each size can do.
  */
 export const TIER_PRESETS: Record<string, Record<(typeof STANDARD_TIERS)[number], string>> = {
-    google: { reasoning: 'google:gemini-4-hydrogen', balanced: 'google:gemini-3.8-flash', fast: 'google:gemini-3.5-flash-lite' },
+    // From the configured models (src/config.json, see model_config.ts): the default model serves the balanced tier
+    google: { reasoning: `google:${GOOGLE_TIER_MODELS.reasoning}`, balanced: `google:${GOOGLE_TIER_MODELS.balanced}`, fast: `google:${GOOGLE_TIER_MODELS.fast}` },
     openai: { reasoning: 'openai:gpt-6.2-astra', balanced: 'openai:gpt-6.2-sol', fast: 'openai:gpt-6-luna' },
     ollama: { reasoning: 'ollama:qwen3:14b', balanced: 'ollama:phi4-mini', fast: 'ollama:gemma3:1b' },
     embedded: { reasoning: 'embedded:HuggingFaceTB/SmolLM2-1.7B-Instruct', balanced: 'embedded:HuggingFaceTB/SmolLM2-1.7B-Instruct', fast: 'embedded:default' },

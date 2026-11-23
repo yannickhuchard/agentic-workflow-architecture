@@ -4,6 +4,7 @@
  * Supports AI-as-judge, schema-only validation, and custom verification modes.
  */
 
+import { DEFAULT_AI_MODEL_ID } from './model_config';
 import { ModelRegistry, GoogleModelProvider } from './models';
 import { hash_payload } from './journal';
 import { randomUUID as uuidv4 } from 'crypto';
@@ -142,7 +143,7 @@ export class VerificationEngine {
         }
 
         // Resolve the judge model reference: policy > engine default
-        const modelRef = policy.judge_model_id || this.config.default_model_id || 'gemini-3-flash-preview';
+        const modelRef = policy.judge_model_id || this.config.default_model_id || DEFAULT_AI_MODEL_ID;
         const resolved = models.resolve(modelRef);
 
         const prompt = this.generate_judge_prompt(policy.criteria, activity, inputs, output);

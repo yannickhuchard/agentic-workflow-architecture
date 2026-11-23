@@ -228,6 +228,8 @@ graph TD
 | `spec/` (other) | Informative projections: OpenAPI, GraphQL, Avro, DDL |
 | `sdk/typescript` | The reference implementation and the `awa` command |
 | `sdk/python` | The Python SDK |
+| `sdk/java` | A Java data model of AWA documents |
+| `sdk/javascript` | The 2D and 3D diagram library behind `tools/visualization/index.html` |
 | `tools/visualization` | Run replay, journey view, measures page |
 | `apps/mcp-server`, `plugins/awa` | The MCP server with embedded views, and its packaging as a ChatGPT plugin |
 | `apps/kanban-web` | A Kanban board (Next.js) for human tasks |
@@ -254,6 +256,8 @@ cd agentic-workflow-architecture/apps/kanban-web && npm install && npm run dev
 
 - **[Specification](docs/specification.md)**: the normative text.
 - **[Conformance suite](spec/conformance/README.md)**: how to test an implementation.
+- **[Command line](sdk/typescript/docs/cli-guide.md)** and **[HTTP interface](sdk/typescript/docs/operational-api.md)**: every command and route, with the environment variables they read. The machine-readable API is [`spec/openapi/awa-api.yaml`](spec/openapi/awa-api.yaml).
+- **[Releasing](RELEASING.md)**: how a version is published.
 - **Guides**: [getting started](docs/getting-started.html), [developers](docs/developer-guide.html), [data model](docs/data-model-guide.html), [process owners](docs/abpm-guide.html), [architects](docs/architect-guide.html).
 - **[Skill](skills/agentic-workflow-architecture/SKILL.md)**: AWA for AI coding assistants.
 - **[Examples](examples/)**: start with [claims-settlement](examples/claims-settlement/) for one workflow and [claims-journey](examples/claims-journey/) for journeys.

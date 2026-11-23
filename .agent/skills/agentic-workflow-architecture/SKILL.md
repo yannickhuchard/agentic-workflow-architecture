@@ -290,20 +290,22 @@ Contexts enable multi-agent collaboration:
 
 | Pattern | Description | Use Case |
 |---------|-------------|----------|
-| `shared_state` | Direct read/write to shared mutable state | Order data shared across activities |
-| `message_passing` | Agents send messages through context | Event-driven communication |
-| `blackboard` | Classic AI blackboard architecture | Multi-agent problem solving |
-| `event_sourcing` | Immutable event log pattern | Audit trails, event replay |
+| `shared_state` | A write replaces the value | Order data shared across activities |
+| `message_passing` | A write is appended to the list of messages | Event-driven communication |
+| `blackboard` | A write (an object) is merged into the value: a later writer does not erase an earlier one | Multi-agent problem solving |
+| `event_sourcing` | A write is appended to the log | Audit trails, event replay |
+
+The engine enforces these (specification section 22): see "Contexts and service levels" below.
 
 ### Access Modes
 
 | Mode | Description |
 |------|-------------|
-| `read` | Read-only access |
-| `write` | Write-only access |
-| `read_write` | Full access |
-| `subscribe` | Event subscription |
-| `publish` | Event publishing |
+| `read` | The activity is given the context's value |
+| `write` | The activity may write to it, and is not given it |
+| `read_write` | Both |
+| `subscribe` | Given, as `read` |
+| `publish` | May write, as `write` |
 
 ## Using the TypeScript SDK
 
@@ -354,8 +356,8 @@ const orderProcess = workflow('Order Processing', '1.0.0')
 # Project installation
 pip install agentic-workflow-architecture
 
-# With optional dependencies
-pip install "awa[ai,web,dev]"
+# With the HTTP server, and the tools for development
+pip install "agentic-workflow-architecture[web,dev]"
 ```
 
 ### Building Workflows Programmatically
@@ -421,9 +423,14 @@ awa serve --port 8080
 
 | Command | Description | Options |
 |---------|-------------|---------|
+| `awa validate <files...>` | Check workflow and journey documents; a journey against the workflows given beside it | `--json` |
 | `awa run <file>` | Execute a workflow file | `-v, --verbose`, `-k, --key <key>`, `-s, --simulate`, `--outputs <file>`, `-p, --providers <list>`, `-j, --journal <file>`, `-c, --checkpoint-dir <dir>`, `-i, --input <json>`, `--allow-commands [list]` |
 | `awa recipe <workflow> [journal]` | Compile a build-from-scratch recipe | `-o, --output <file>`, `--no-definition`, `--no-payloads` |
 | `awa knowledge <ingest\|list\|review\|deprecate\|export\|import>` | Build, review and exchange knowledge | `--kb <file>` |
+| `awa journey <add\|publish\|tick\|resume\|list\|show\|analytics\|export>` | Journeys in a runtime directory | `--dir <dir>`, `--simulate`, `--outputs <file>` |
+| `awa measures` | The measures of journeys and workflows | `--dir`, `--file`, `--from`, `--to`, `--json`, `--openmetrics`, `--html <file>`, `--list` |
+| `awa replay <workflow> <journal>` | Counterfactual replay; exit status 2 on a regression | `--candidate <file>`, `--ai live\|recorded`, `-o`, `--json` |
+| `awa task <list\|show\|assign\|complete\|reject>` | Human tasks in the task database | - |
 | `awa init` / `awa generate <prompt>` | Create a starter workflow / generate one from a description | - |
 | `awa serve` | Start REST API server | `-p, --port <port>`, `--jwt-secret <secret>`, `--api-key <key:role>`, `--rate-limit <max>`, `--no-auth` |
 | `awa --version` | Display version | - |
@@ -1110,6 +1117,18 @@ workflow('Order Processing', '1.0.0')
 **"Gemini API Key required for AI Agent"**
 - Set environment variable: `export GEMINI_API_KEY=your_key`
 - Or pass via CLI: `awa run workflow.awa.json --key your_key`
+
+**`CONTEXT_MISSING`**
+- An activity is bound to read a context that has no value. Have an earlier activity write it, give the context an `initial_value`, or set `required: false` on the binding. In a simulation, script the write: `{ "Receive order": { "contexts": { "Order": { ... } } } }`
+
+**`CONTEXT_ACCESS_DENIED`, `CONTEXT_INVALID`**
+- The activity wrote to a context it has no binding to write, or a value its schema refuses.
+
+**`NO_ROUTE` in a simulation**
+- A condition read data no activity produced: script the activity's `output` in the simulation file.
+
+**`SLA_BREACH`**
+- Work still waited for passed its service level, whose `breach_action` is `fail`.
 
 **"filePath is required" (API)**
 - Ensure JSON body includes `filePath` field

@@ -22,3 +22,4 @@ export * from './runtime';
 export * from './counterfactual';
 export * from './kpi';
 export * from './views';
+export * from './model_config';

@@ -1,3 +1,4 @@
+import { GOOGLE_TIER_MODELS } from '../../runtime/model_config';
 import { Command } from 'commander';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import fs from 'fs/promises';
@@ -19,7 +20,8 @@ export const generateCommand = new Command('generate')
 
         const genAI = new GoogleGenerativeAI(apiKey);
         const model = genAI.getGenerativeModel({ 
-            model: 'gemini-3.1-pro-preview',
+            // The configured reasoning model (src/config.json)
+            model: GOOGLE_TIER_MODELS.reasoning,
             generationConfig: { responseMimeType: "application/json" }
         });
 

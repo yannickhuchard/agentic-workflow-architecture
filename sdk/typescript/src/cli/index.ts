@@ -10,6 +10,7 @@ import { knowledgeCommand } from './commands/knowledge';
 import { replayCommand } from './commands/replay';
 import { journeyCommand } from './commands/journey';
 import { measuresCommand } from './commands/measures';
+import { validateCommand } from './commands/validate';
 
 import { version } from '../../package.json';
 
@@ -21,6 +22,7 @@ program
     .version(version);
 
 program.addCommand(runCommand);
+program.addCommand(validateCommand);
 program.addCommand(serveCommand);
 program.addCommand(taskCommand);
 program.addCommand(initCommand);

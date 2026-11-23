@@ -1,3 +1,4 @@
+import { DEFAULT_AI_MODEL_ID } from '../model_config';
 import { ChatMessage, ModelRegistry, ModelRouter, GoogleModelProvider, RouteAttempt } from '../models';
 import { ActorContext } from './actor';
 import { Activity, Role } from '../../types';
@@ -15,8 +16,8 @@ export class AIAgent implements Actor {
      * @param models Registry of model providers. If absent, a registry holding
      *               the Google provider is created from `apiKey`.
      */
-    constructor(apiKey: string, role?: Role, defaultModelId: string = 'gemini-3.1-flash', simulate: boolean = false, models?: ModelRegistry) {
-        this.models = models || new ModelRegistry().register(new GoogleModelProvider(apiKey));
+    constructor(apiKey: string, role?: Role, defaultModelId: string = DEFAULT_AI_MODEL_ID, simulate: boolean = false, models?: ModelRegistry) {
+        this.models = models || new ModelRegistry().register(new GoogleModelProvider(apiKey)).fill_standard_tiers();
         this.router = new ModelRouter(this.models);
         this.role = role;
         this.defaultModelId = defaultModelId;

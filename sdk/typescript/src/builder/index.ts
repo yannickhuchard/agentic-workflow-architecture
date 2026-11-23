@@ -44,6 +44,8 @@ export interface ActivityConfig {
     sla?: SLA;
     analytics?: Analytics;
     verification?: {
+        /** The model that judges, as a model reference (12.1). Default: the engine's default model */
+        judge_model_id?: string;
         criteria: Array<{
             name: string;
             description: string;
@@ -197,7 +199,8 @@ export class WorkflowBuilder {
                 max_retries: config.verification.max_retries ?? 3,
                 retry_with_feedback: true,
                 output_schema: config.verification.output_schema,
-                judge_model_id: 'gemini-2.5-flash',
+                // No vendor default (7.2): the judge is the engine's default model unless the policy names one
+                ...(config.verification.judge_model_id ? { judge_model_id: config.verification.judge_model_id } : {}),
                 judge_temperature: 0.1,
                 pass_threshold: config.verification.pass_threshold ?? 0.9,
             } : undefined,

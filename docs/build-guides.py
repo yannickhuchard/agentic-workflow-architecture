@@ -90,7 +90,7 @@ page("getting-started.html", "Workflows where the outcome is fixed and the strat
 <p>Three things, kept apart on purpose:</p>
 {cards([("A specification", f"Version {SPEC}. Twenty sections saying what a workflow document means and what an engine must do with it. Written with MUST and MAY."),
         ("A conformance suite", "Language-neutral cases: a workflow, scripted actors, the outcome an engine must produce. An implementation claims a level only if it passes every case at that level."),
-        ("Reference implementations", f"TypeScript SDK {SDK} passes every level. The Python SDK passes the engine levels. Java has the data model only.")])}
+        ("Reference implementations", f"TypeScript SDK {SDK} passes every level. The Python SDK passes every level too. Java has a data model of the documents, without an engine.")])}
 <p>The specification and the SDKs are versioned separately: the specification says what a document means, an SDK version says what its API promises.</p>'''),
       ("layers", "What it gives you", table(["Layer", "In one sentence"], [
           ["Document", "A workflow as JSON: activities, actors, roles, edges, decision tables, events."],
@@ -356,16 +356,18 @@ page("architect-guide.html", "For architects", "How AWA is put together, what it
           ["Events already accepted", "Their ids, so that redelivery has no further effect"],
           ["Events runs have published", "An outbox, accepted as soon as the publishing run settles"]]) + '''
 <p>Activities are executed at least once: a run that stopped in the middle of an activity performs it again. Each attempt carries an idempotency key so that an activity with effects can be made safe to repeat.</p>
-<p>The reference host keeps all this in a directory of files. That is enough for one host at a time. Several hosts on one store need locking that the reference host does not do; the PostgreSQL DDL shows the shape a shared store would have.</p>'''),
+<p>The reference host keeps all this in a directory of files, which one host holds at a time: a second is refused while the first is alive. Several hosts sharing one store need coordination the reference host does not do; the PostgreSQL DDL shows the shape a shared store would have.</p>'''),
       ("conformance", "Conformance levels", table(["Level", "Section", "TypeScript", "Python"], [
           ["document, core, decision", "4 to 6", "yes", "yes"], ["verified, contract", "7, 11", "yes", "yes"], ["recorded, resilient", "9, 10", "yes", "yes"],
-          ["flow, events", "13, 18", "yes", "yes"], ["model_decision, tools", "16, 17", "yes", "no"], ["journeys, replay", "19, 20", "yes", "no"]]) + '''
-<p>Knowledge (section 15) and model routing (section 12) have no language-neutral cases yet; their behaviour is fixed by the TypeScript tests.</p>'''),
+          ["routing", "12", "yes", "yes"], ["flow, events", "13, 18", "yes", "yes"], ["knowledge", "15", "yes", "yes"],
+          ["model_decision, tools", "16, 17", "yes", "yes"], ["journeys, replay", "19, 20", "yes", "yes"],
+          ["measures", "21", "yes", "yes"], ["contexts, service_levels", "22, 23", "yes", "yes"]]) + '''
+<p>Each level has language-neutral cases in <code>spec/conformance</code>; both SDKs run every case of every level, none skipped. What the cases cannot reach (live model providers, Open Knowledge Format exchange, the recipe) is fixed by each SDK's own tests.</p>'''),
       ("security", "What may run", '''
 <p>A workflow document can name any URL or program. What actually runs is the deployment's decision: command bindings need explicit permission, HTTP and JSON-RPC bindings can be restricted to listed hosts, and secrets are substituted at call time and never journalled. The link to what ran is always journalled, even when payloads are hashed or omitted.</p>'''),
       ("not", "What AWA does not do", '''
 <ul>
-<li><strong>Access rights, context bindings and SLAs are declared, not enforced.</strong> The document can state them and they can be queried; the engine does not check them at run time.</li>
+<li><strong>Access rights to external resources are declared, not enforced.</strong> The document states them and they can be queried. Context bindings (section 22) and service levels (section 23) are enforced; the permissions of tools are the deployment's (section 17.4).</li>
 <li><strong>No built-in MCP or gRPC executor.</strong> The bindings are specified; a deployment supplies the executor.</li>
 <li><strong>No broker.</strong> Events enter and leave through the host. Connecting Kafka, a queue or a webhook is the host's job.</li>
 <li><strong>No multi-host coordination.</strong> See durability above.</li>
