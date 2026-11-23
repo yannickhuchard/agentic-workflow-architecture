@@ -494,6 +494,8 @@ class Workflow(BaseModel):
     events: list[Event] = Field(default_factory=list)
     decision_nodes: list[DecisionNode] = Field(default_factory=list)
     contexts: list[Context] = Field(default_factory=list)
+    # Roles referenced by activities. The role of an ai_agent activity names its model (specification 12.3).
+    roles: list["Role"] = Field(default_factory=list)
     sla: SLA | None = None
     analytics: Analytics | None = None
     metadata: dict[str, Any] | None = None
@@ -664,3 +666,6 @@ from awa.types.visualization import (
     VisualizationConfig,
 )
 
+
+# Workflow refers to Role, which is defined after it
+Workflow.model_rebuild()

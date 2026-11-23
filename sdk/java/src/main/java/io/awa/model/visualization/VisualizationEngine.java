@@ -1,5 +1,8 @@
 package io.awa.model.visualization;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
+
 /**
  * Visualization rendering engine
  */
@@ -14,10 +17,12 @@ public enum VisualizationEngine {
         this.value = value;
     }
 
+    @JsonValue
     public String getValue() {
         return value;
     }
 
+    @JsonCreator
     public static VisualizationEngine fromValue(String value) {
         for (VisualizationEngine engine : values()) {
             if (engine.value.equals(value)) {

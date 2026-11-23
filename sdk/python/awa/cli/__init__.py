@@ -13,7 +13,7 @@ from awa.types import Workflow
 from awa.runtime import WorkflowEngine
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     """Main CLI entry point"""
     parser = argparse.ArgumentParser(
         prog="awa",
@@ -26,19 +26,6 @@ def main() -> int:
     )
     
     subparsers = parser.add_subparsers(dest="command", help="Commands")
-    
-    # Run command
-    run_parser = subparsers.add_parser("run", help="Execute a workflow file")
-    run_parser.add_argument("file", help="Workflow JSON file path")
-    run_parser.add_argument(
-        "--verbose", "-v",
-        action="store_true",
-        help="Enable verbose output"
-    )
-    run_parser.add_argument(
-        "--key", "-k",
-        help="Gemini API key for AI agents"
-    )
     
     # Validate command
     validate_parser = subparsers.add_parser("validate", help="Validate a workflow file")
@@ -60,15 +47,17 @@ def main() -> int:
     
     # Journeys kept in a runtime directory, the measures of what was recorded, and counterfactual replay
     from awa.cli import journey as journey_commands, measures as measures_command, replay as replay_command
+    from awa.cli import knowledge as knowledge_commands, run as run_command, task as task_commands
+    run_command.add_parser(subparsers)
+    task_commands.add_parser(subparsers)
+    knowledge_commands.add_parser(subparsers)
     journey_commands.add_parser(subparsers)
     measures_command.add_parser(subparsers)
     replay_command.add_parser(subparsers)
 
-    args = parser.parse_args()
-    
-    if args.command == "run":
-        return run_workflow(args)
-    elif args.command == "validate":
+    args = parser.parse_args(argv)
+
+    if args.command == "validate":
         return validate_workflow_cmd(args)
     elif args.command == "serve":
         return serve_api(args)
@@ -77,35 +66,6 @@ def main() -> int:
     else:
         parser.print_help()
         return 0
-
-
-def run_workflow(args: argparse.Namespace) -> int:
-    """Run a workflow from file"""
-    try:
-        file_path = Path(args.file)
-        if not file_path.exists():
-            print(f"Error: File not found: {file_path}", file=sys.stderr)
-            return 1
-        
-        with open(file_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        
-        workflow = Workflow(**data)
-        
-        engine = WorkflowEngine(
-            workflow=workflow,
-            gemini_api_key=args.key,
-            verbose=args.verbose
-        )
-        
-        result = engine.run()
-        
-        print(json.dumps(result, indent=2, default=str))
-        return 0
-        
-    except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        return 1
 
 
 def validate_workflow_cmd(args: argparse.Namespace) -> int:

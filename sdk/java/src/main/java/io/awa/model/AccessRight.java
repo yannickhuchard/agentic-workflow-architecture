@@ -12,13 +12,13 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * AccessRight entity - explicit permission declarations
+ * A permission an activity requires or provisions (specification section 8.5).
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class AccessRight {
+public class AccessRight extends AwaObject {
 
     @NotNull
     private UUID id;

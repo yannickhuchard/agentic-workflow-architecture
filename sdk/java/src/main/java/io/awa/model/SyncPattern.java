@@ -1,5 +1,8 @@
 package io.awa.model;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
+
 /**
  * Sync patterns for shared contexts
  */
@@ -15,10 +18,12 @@ public enum SyncPattern {
         this.value = value;
     }
 
+    @JsonValue
     public String getValue() {
         return value;
     }
 
+    @JsonCreator
     public static SyncPattern fromValue(String value) {
         for (SyncPattern pattern : values()) {
             if (pattern.value.equals(value)) {

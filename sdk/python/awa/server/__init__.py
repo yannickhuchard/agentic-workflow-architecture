@@ -3,23 +3,26 @@ AWA Operational REST API Server
 Provides full management of AWA workflows and human-in-the-loop task operations.
 """
 
+import asyncio
 import base64
 import hashlib
 import hmac
 import json
 import os
+import threading
 import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
 
 from fastapi import FastAPI, HTTPException, Body, Header, Request, Depends, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from awa.types import Workflow, HumanTask, ActorType
 from awa.runtime import WorkflowEngine, EngineStatus
+from awa.runtime.journal import FileJournalStore
 from awa.runtime.services.task_service import TaskService
 from awa.runtime.logger import get_logger
 
@@ -59,7 +62,10 @@ class WorkflowRunRequest(BaseModel):
     filePath: Optional[str] = None
     apiKey: Optional[str] = None
     workflow_data: Optional[Dict[str, Any]] = None
+    # The data the run starts with. `initial_data` is the name earlier versions of this server used.
+    input: Optional[Dict[str, Any]] = None
     initial_data: Optional[Dict[str, Any]] = None
+    simulate: Optional[bool] = None
 
 class AssignTaskRequest(BaseModel):
     user_id: str
@@ -193,6 +199,57 @@ async def health():
 
 
 # --- Workflow Routes ---
+# Runs started by this server process, by run id. The oldest is forgotten past MAX_TRACKED_RUNS.
+
+MAX_TRACKED_RUNS = 200
+run_documents: Dict[str, Dict[str, Any]] = {}
+run_locks: Dict[str, threading.Lock] = {}
+_SETTLED = (EngineStatus.COMPLETED, EngineStatus.FAILED, EngineStatus.CANCELLED)
+
+
+def _error(status_code: int, code: str, message: str) -> JSONResponse:
+    """An error in the form the OpenAPI description gives: {code, message}"""
+    return JSONResponse({"code": code, "message": message}, status_code=status_code)
+
+
+def _track(engine: WorkflowEngine, document: Dict[str, Any]) -> None:
+    active_engines[engine.run_id] = engine
+    run_documents[engine.run_id] = document
+    run_locks[engine.run_id] = threading.Lock()
+    while len(active_engines) > MAX_TRACKED_RUNS:
+        oldest = next(iter(active_engines))
+        for table in (active_engines, run_documents, run_locks):
+            table.pop(oldest, None)
+
+
+def _continue(engine: WorkflowEngine, why: str) -> None:
+    """Run the engine in a background thread until it stops running"""
+    lock = run_locks.setdefault(engine.run_id, threading.Lock())
+
+    def work() -> None:
+        try:
+            while True:
+                with lock:
+                    if engine.status != EngineStatus.RUNNING:
+                        return
+                    engine.run_step()
+        except Exception as error:
+            logger.error(f"Run {engine.run_id} failed {why}", error)
+
+    threading.Thread(target=work, daemon=True, name=f"awa-run-{engine.run_id}").start()
+
+
+def _workflow_file(file_path: str) -> str:
+    """
+    The workflow file a request names. Only .json files inside the workflows
+    directory (AWA_WORKFLOWS_DIR, default the working directory) may be run.
+    """
+    directory = os.path.realpath(os.environ.get("AWA_WORKFLOWS_DIR") or os.getcwd())
+    target = os.path.realpath(os.path.join(directory, file_path))
+    if os.path.commonpath([directory, target]) != directory or not target.endswith(".json"):
+        raise ValueError("filePath must be a .json file inside the workflows directory")
+    return target
+
 
 @app.post("/api/v1/workflows/run", dependencies=[Depends(rate_limiter)])
 async def run_workflow(
@@ -200,44 +257,159 @@ async def run_workflow(
     user: Dict[str, Any] = Depends(get_current_user)
 ):
     try:
-        wf_data = None
-
         if request.filePath:
-            if not os.path.exists(request.filePath):
-                raise HTTPException(status_code=404, detail=f"Workflow file not found: {request.filePath}")
-            with open(request.filePath, "r", encoding="utf-8") as f:
+            path = _workflow_file(request.filePath)
+            if not os.path.exists(path):
+                return _error(404, "NOT_FOUND", f"Workflow file not found: {request.filePath}")
+            with open(path, "r", encoding="utf-8") as f:
                 wf_data = json.load(f)
         elif request.workflow_data:
             wf_data = request.workflow_data
         else:
-            raise HTTPException(status_code=400, detail="Either filePath or workflow_data is required")
+            return _error(400, "VALIDATION_ERROR", "Either filePath or workflow_data is required")
+        if isinstance(wf_data, dict) and "workflow" in wf_data and "activities" not in wf_data:
+            wf_data = wf_data["workflow"]
 
         wf = Workflow(**wf_data)
-        
-        apiKey = request.apiKey or os.environ.get("GEMINI_API_KEY")
-        engine = WorkflowEngine(wf, gemini_api_key=apiKey, options={"user_id": user.get("id")})
-        
-        run_id = str(uuid4())
-        active_engines[run_id] = engine
-
-        # Start execution in the background
-        import asyncio
-        async def run_background():
-            try:
-                await asyncio.to_thread(engine.run, request.initial_data)
-            except Exception as bg_err:
-                logger.error(f"Background engine execution failed for run {run_id}", bg_err)
-
-        asyncio.create_task(run_background())
-
+        api_key = request.apiKey or os.environ.get("GEMINI_API_KEY")
+        journal_dir = os.environ.get("AWA_JOURNAL_DIR")
+        engine = WorkflowEngine(wf, gemini_api_key=api_key, options={
+            "user_id": user.get("id"),
+            "simulate": request.simulate is True,
+            **({"journal": FileJournalStore(journal_dir)} if journal_dir else {}),
+        })
+        _track(engine, wf_data)
+        initial = request.input if request.input is not None else request.initial_data
+        engine.start(initial or {})
+        _continue(engine, "in the background")
         return {
-            "runId": run_id,
-            "status": "running",
+            "runId": engine.run_id,
+            "status": engine.status.value,
             "message": "Workflow started"
         }
     except Exception as e:
         logger.error("Failed to run workflow", e)
-        raise HTTPException(status_code=400, detail=str(e))
+        return _error(400, "VALIDATION_ERROR", str(e))
+
+
+@app.post("/api/v1/workflows/events", status_code=202, dependencies=[Depends(rate_limiter)])
+async def deliver_workflow_event(
+    event: Dict[str, Any] = Body(...),
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    Deliver a business event (CloudEvents 1.0 JSON) to the runs this server is
+    hosting. Runs waiting for an event of this type, with matching correlation, continue.
+    """
+    if not isinstance(event.get("type"), str) or not isinstance(event.get("id"), str):
+        return _error(400, "VALIDATION_ERROR", 'A CloudEvents event with "id" and "type" is required')
+    resumed: List[str] = []
+    for engine in list(active_engines.values()):
+        lock = run_locks.setdefault(engine.run_id, threading.Lock())
+        with lock:
+            delivered = engine.deliver_event({"specversion": "1.0", "source": "/http", **event})
+        if delivered > 0:
+            resumed.append(engine.run_id)
+            _continue(engine, f"after event {event['id']}")
+    return JSONResponse({"event_id": event["id"], "resumed_runs": resumed}, status_code=202)
+
+
+def _tracked(run_id: str) -> Optional[WorkflowEngine]:
+    return active_engines.get(run_id)
+
+
+@app.get("/api/v1/workflows/runs/{run_id}", dependencies=[Depends(rate_limiter)])
+async def get_run(run_id: str, user: Dict[str, Any] = Depends(get_current_user)):
+    engine = _tracked(run_id)
+    if not engine:
+        return _error(404, "NOT_FOUND", "Run not found")
+    return {
+        "runId": engine.run_id,
+        "workflowId": str(engine.workflow.id),
+        "status": engine.status.value,
+        "tokens": [{"id": t.id, "node_id": str(t.activity_id), "status": t.status.value} for t in engine.tokens],
+    }
+
+
+@app.get("/api/v1/workflows/runs/{run_id}/workflow", dependencies=[Depends(rate_limiter)])
+async def get_run_workflow(run_id: str, user: Dict[str, Any] = Depends(get_current_user)):
+    """The workflow definition a run is executing, for visualisers"""
+    engine = _tracked(run_id)
+    if not engine:
+        return _error(404, "NOT_FOUND", "Run not found")
+    return run_documents.get(run_id) or engine.workflow.model_dump(mode="json", exclude_none=True)
+
+
+def _after(value: Optional[str]) -> int:
+    try:
+        return max(0, int(value or 0))
+    except ValueError:
+        return 0
+
+
+@app.get("/api/v1/workflows/runs/{run_id}/events", dependencies=[Depends(rate_limiter)])
+async def list_run_events(run_id: str, after: Optional[str] = None, user: Dict[str, Any] = Depends(get_current_user)):
+    """The journal of a run. `?after=<seq>` returns only later events."""
+    engine = _tracked(run_id)
+    if not engine:
+        return _error(404, "NOT_FOUND", "Run not found")
+    return engine.get_events(_after(after))
+
+
+@app.get("/api/v1/workflows/runs/{run_id}/events/stream", dependencies=[Depends(rate_limiter)])
+async def stream_run_events(
+    run_id: str,
+    request: Request,
+    after: Optional[str] = None,
+    last_event_id: Optional[str] = Header(None),
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    The journal of a run as Server-Sent Events. Replays from `?after=<seq>` (or the
+    Last-Event-ID header), then streams new events as they are recorded. Each message
+    has `id` set to the event's seq, `event` to its type and `data` to the event as JSON.
+    The stream ends once the run has completed, failed or been cancelled and every
+    event has been sent.
+    """
+    engine = _tracked(run_id)
+    if not engine:
+        return _error(404, "NOT_FOUND", "Run not found")
+
+    loop = asyncio.get_running_loop()
+    queue: "asyncio.Queue[Dict[str, Any]]" = asyncio.Queue()
+    # Subscribed before the replay, so that no event falls between the replay and the live stream
+    unsubscribe = engine.on_event(lambda event: loop.call_soon_threadsafe(queue.put_nowait, event))
+    start = _after(after) or _after(last_event_id)
+
+    async def stream():
+        last_sent = start
+        try:
+            for event in engine.get_events(last_sent):
+                if event["seq"] > last_sent:
+                    last_sent = event["seq"]
+                    yield f"id: {event['seq']}\nevent: {event['type']}\ndata: {json.dumps(event)}\n\n"
+            while True:
+                if engine.status in _SETTLED and queue.empty():
+                    # Anything recorded after the replay and before the subscription caught up
+                    for event in engine.get_events(last_sent):
+                        last_sent = event["seq"]
+                        yield f"id: {event['seq']}\nevent: {event['type']}\ndata: {json.dumps(event)}\n\n"
+                    return
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=15)
+                except asyncio.TimeoutError:
+                    if await request.is_disconnected():
+                        return
+                    yield ": keep-alive\n\n"
+                    continue
+                if event["seq"] > last_sent:
+                    last_sent = event["seq"]
+                    yield f"id: {event['seq']}\nevent: {event['type']}\ndata: {json.dumps(event)}\n\n"
+        finally:
+            unsubscribe()
+
+    return StreamingResponse(stream(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "Connection": "keep-alive"})
 
 
 @app.get("/api/v1/workflows/run/{run_id}", dependencies=[Depends(rate_limiter)])
@@ -245,6 +417,7 @@ async def get_workflow_status(
     run_id: str,
     user: Dict[str, Any] = Depends(get_current_user)
 ):
+    """The route of earlier versions of this server: the run's status and its tokens in full"""
     engine = active_engines.get(run_id)
     if not engine:
         raise HTTPException(status_code=404, detail="Workflow run not found")
@@ -357,7 +530,9 @@ async def complete_task(
                 # Find matching waiting token
                 for token in engine.tokens:
                     if token.status.value == "waiting" and token.context_data.get("_human_task_id") == task_id:
-                        engine.resume_token(token.id, request.result)
+                        with run_locks.setdefault(engine.run_id, threading.Lock()):
+                            engine.resume_token(token.id, request.result)
+                        _continue(engine, f"after task {task_id}")
                         break
 
         return {
@@ -386,7 +561,9 @@ async def reject_task(
                 for token in engine.tokens:
                     if token.status.value == "waiting" and token.context_data.get("_human_task_id") == task_id:
                         # Fail the token with rejection reason
-                        engine.resume_token(token.id, {"rejection_reason": request.reason, "_failed": True})
+                        with run_locks.setdefault(engine.run_id, threading.Lock()):
+                            engine.resume_token(token.id, {"rejection_reason": request.reason, "_failed": True})
+                        _continue(engine, f"after task {task_id}")
                         break
 
         return {

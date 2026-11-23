@@ -1,6 +1,7 @@
 package io.awa.model;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import io.awa.model.visualization.VisualizationConfig;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -8,21 +9,25 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.OffsetDateTime;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 /**
- * Workflow entity representing a directed graph of agentic activities
+ * A workflow: a directed graph of activities, events and decision nodes
+ * (specification section 8.1, {@code workflow.schema.json}).
+ *
+ * <p>Absent properties are {@code null}. Timestamps are kept as the strings the document
+ * holds (ISO 8601 date-time with offset), so that they are written back unchanged.
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Workflow {
+public class Workflow extends AwaObject {
+
+    /** The specification version this SDK reads and writes. */
+    public static final String AWA_VERSION = "1.1";
 
     @NotNull
     private UUID id;
@@ -30,8 +35,13 @@ public class Workflow {
     @NotBlank
     private String name;
 
+    /** Semantic version of this workflow, e.g. {@code 1.0.0}. */
     @NotBlank
     private String version;
+
+    /** Version of the AWA specification the document targets, e.g. {@code 1.1}. */
+    @JsonProperty("awa_version")
+    private String awaVersion;
 
     private String description;
 
@@ -47,34 +57,38 @@ public class Workflow {
     @JsonProperty("expansion_activity_id")
     private UUID expansionActivityId;
 
-    @NotNull
-    @Builder.Default
-    private List<Activity> activities = new ArrayList<>();
+    /** Roles referenced by activities. A deployment may supply or override them. */
+    private List<Role> roles;
 
     @NotNull
-    @Builder.Default
-    private List<Edge> edges = new ArrayList<>();
+    private List<Activity> activities;
 
-    @Builder.Default
-    private List<Event> events = new ArrayList<>();
+    @NotNull
+    private List<Edge> edges;
+
+    private List<Event> events;
 
     @JsonProperty("decision_nodes")
-    @Builder.Default
-    private List<DecisionNode> decisionNodes = new ArrayList<>();
+    private List<DecisionNode> decisionNodes;
 
-    @Builder.Default
-    private List<Context> contexts = new ArrayList<>();
+    private List<Context> contexts;
 
+    /** Service level of the run as a whole (section 23). */
     private SLA sla;
 
     private Analytics analytics;
 
-    @Builder.Default
-    private Map<String, Object> metadata = new HashMap<>();
+    private Map<String, Object> metadata;
+
+    /** Default visualization configuration. */
+    private VisualizationConfig visualization;
+
+    @JsonProperty("alternate_visualizations")
+    private List<VisualizationConfig> alternateVisualizations;
 
     @JsonProperty("created_at")
-    private OffsetDateTime createdAt;
+    private String createdAt;
 
     @JsonProperty("updated_at")
-    private OffsetDateTime updatedAt;
+    private String updatedAt;
 }

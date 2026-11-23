@@ -1,5 +1,8 @@
 package io.awa.model.visualization;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
+
 /**
  * Animation easing function
  */
@@ -18,10 +21,12 @@ public enum AnimationEasing {
         this.value = value;
     }
 
+    @JsonValue
     public String getValue() {
         return value;
     }
 
+    @JsonCreator
     public static AnimationEasing fromValue(String value) {
         for (AnimationEasing easing : values()) {
             if (easing.value.equals(value)) {
