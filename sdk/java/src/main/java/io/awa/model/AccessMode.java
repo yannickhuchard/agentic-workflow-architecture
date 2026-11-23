@@ -1,5 +1,8 @@
 package io.awa.model;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
+
 /**
  * Access modes for context bindings
  */
@@ -16,10 +19,12 @@ public enum AccessMode {
         this.value = value;
     }
 
+    @JsonValue
     public String getValue() {
         return value;
     }
 
+    @JsonCreator
     public static AccessMode fromValue(String value) {
         for (AccessMode mode : values()) {
             if (mode.value.equals(value)) {

@@ -48,6 +48,7 @@ from awa.runtime.context_manager import NO_VALUE, ContextError, ContextManager
 from awa.runtime.actors import SoftwareAgent, AIAgent, HumanAgent, RobotAgent
 from awa.runtime.decision_evaluator import DecisionEvaluator
 from awa.runtime.decision_model import ModelDecision, decide_with_model
+from awa.runtime.model_config import DEFAULT_AI_MODEL_ID
 from awa.runtime.models import ModelRegistry, ModelRouter, RouteAttempt
 from awa.runtime.tools import ActorContext, ToolOptions, ToolRunner
 from awa.validator import validate_workflow_integrity
@@ -131,6 +132,32 @@ def _as_text(value: Any) -> str:
     return str(value)
 
 
+class _ScriptedOutputActor:
+    """
+    What a simulated activity returns, from the engine's `simulated_outputs`: an
+    entry gives `output`, or `error` with an optional `code`, and optionally
+    `contexts` to write; or `attempts`, a list of those, one per execution, the
+    last repeating.
+    """
+
+    def __init__(self, scripted: dict[str, Any]) -> None:
+        self.scripted = scripted
+
+    def execute(self, activity: Activity, token: Token) -> dict[str, Any]:
+        attempts = self.scripted.get("attempts")
+        step = self.scripted
+        if isinstance(attempts, list) and attempts:
+            attempt = int(token.get_data("_attempt") or 1)
+            step = attempts[min(max(attempt, 1), len(attempts)) - 1]
+        if step.get("error"):
+            raise ActivityError(str(step["error"]), step.get("code") or None)
+        return {
+            **copy.deepcopy(step.get("output") or {}),
+            **({"_context_writes": copy.deepcopy(step["contexts"])} if step.get("contexts") is not None else {}),
+            "_simulated": True,
+        }
+
+
 class WorkflowEngine:
     """
     Executes AWA workflow definitions.
@@ -151,8 +178,14 @@ class WorkflowEngine:
       sleep:               callable taking milliseconds; replaces the wait between retries and at timers
       model_providers:     model providers the engine itself may call, at decision nodes (specification 12.4)
       default_model_provider: id of the provider that serves a reference naming none; the first registered if absent
-      model_tiers:         tier name to a model reference, or to an ordered list of them (12.2, 12.5)
-      default_ai_model_id: model reference used where a document names none; "tier:balanced" if absent
+      model_tiers:         tier name to a model reference, or to an ordered list of them (12.2, 12.5). A standard
+                           tier left unmapped takes TIER_PRESETS for the providers registered, else
+                           "<default provider>:default" (12.3)
+      default_ai_model_id: model reference used where a document names none; if absent, DEFAULT_AI_MODEL_ID
+                           (awa.runtime.model_config: AWA_DEFAULT_AI_MODEL_ID, else awa/config.json)
+      simulated_outputs:   in simulation, what each activity returns, by activity name: `output`, or `error`
+                           with an optional `code`, optional `contexts` to write, or `attempts`, a list of
+                           those, one per execution, the last repeating
       tools:               ToolOptions, or a dict of its fields: handlers, executors, allow_commands,
                            allowed_hosts, secrets, simulated_results (specification 17)
       decision_engines:    external decision engines by name (5.5.4)
@@ -202,18 +235,7 @@ class WorkflowEngine:
             self._outgoing.setdefault(str(edge.source_id), []).append(edge)
             self._incoming.setdefault(str(edge.target_id), []).append(edge)
 
-        # Initialize actors
-        self._actors: dict[ActorType, Any] = {
-            ActorType.application: SoftwareAgent(),
-            ActorType.ai_agent: AIAgent(self.gemini_api_key),
-            ActorType.human: HumanAgent({"simulate": self.simulate, "wait_for_completion": not self.wait_for_human_tasks}),
-            ActorType.robot: RobotAgent(),
-        }
-        for actor_type, actor in (opts.get("actors") or {}).items():
-            self._actors[ActorType(actor_type)] = actor
-        self._decision_evaluator = DecisionEvaluator()
-
-        # Models the engine itself calls, and tools (specification 12, 16, 17)
+        # Models the engine and its AI agents call, and tools (specification 12, 16, 17)
         self._models = ModelRegistry()
         for provider in opts.get("model_providers") or []:
             self._models.register(provider)
@@ -221,8 +243,25 @@ class WorkflowEngine:
             self._models.set_default_provider(opts["default_model_provider"])
         for tier, ref in (opts.get("model_tiers") or {}).items():
             self._models.set_tier(tier, ref)
+        # Standard tiers the deployment left unmapped are filled as specification 12.3 describes
+        self._models.fill_standard_tiers()
         self._router = ModelRouter(self._models)
-        self._default_model_ref: str = opts.get("default_ai_model_id") or "tier:balanced"
+        self._default_model_ref: str = opts.get("default_ai_model_id") or DEFAULT_AI_MODEL_ID
+
+        # Initialize actors
+        self._actors: dict[ActorType, Any] = {
+            ActorType.application: SoftwareAgent(),
+            ActorType.ai_agent: AIAgent(
+                self.gemini_api_key, models=self._models, roles={str(r.id): r for r in workflow.roles},
+                default_model_id=self._default_model_ref, simulate=bool(self.simulate)),
+            ActorType.human: HumanAgent({"simulate": self.simulate, "wait_for_completion": not self.wait_for_human_tasks}),
+            ActorType.robot: RobotAgent(),
+        }
+        self._custom_actor_types: set[ActorType] = set()
+        for actor_type, actor in (opts.get("actors") or {}).items():
+            self._actors[ActorType(actor_type)] = actor
+            self._custom_actor_types.add(ActorType(actor_type))
+        self._decision_evaluator = DecisionEvaluator()
         self._tool_options = ToolOptions.of(opts.get("tools"))
         self._verification = VerificationEngine(opts.get("verifiers"), simulate=self.simulate)
 
@@ -629,7 +668,7 @@ class WorkflowEngine:
         self._log(f"Executing Activity: {activity.name}")
 
         try:
-            actor = self._actors.get(activity.actor_type)
+            actor = self._actor_for(activity)
             if actor is None:
                 self._advance_token(token, node_id)
                 return
@@ -714,7 +753,7 @@ class WorkflowEngine:
             })
 
             duration_ms = int(ended - started)
-            self._track_usage(output)
+            self._track_usage(output, activity, duration_ms)
             self._stats["steps"] += 1
             self._record("activity.completed", {
                 "actor_type": activity.actor_type.value,
@@ -739,11 +778,41 @@ class WorkflowEngine:
             self._fail_token(token, error, analytics)
             self._log(f"Activity Failed: {activity.name} - {error}")
 
-    def _track_usage(self, output: dict[str, Any]) -> None:
+    def _actor_for(self, activity: Activity) -> Any:
+        """
+        The actor that performs an activity. In simulation, an activity named in
+        `simulated_outputs` returns what is given there, unless the deployment
+        supplied its own actor for the activity's actor type.
+        """
+        scripted = ((self.options.get("simulated_outputs") or {}).get(activity.name)
+                    if self.simulate and activity.actor_type not in self._custom_actor_types else None)
+        if isinstance(scripted, dict):
+            return _ScriptedOutputActor(scripted)
+        return self._actors.get(activity.actor_type)
+
+    def _track_usage(self, output: dict[str, Any], activity: Activity | None = None, duration_ms: float = 0) -> None:
         usage = output.get("usage")
         if isinstance(usage, dict):
             self._stats["input_tokens"] += int(usage.get("input_tokens") or 0)
             self._stats["output_tokens"] += int(usage.get("output_tokens") or 0)
+        pricing = self.pricing_config
+        if not pricing or activity is None:
+            return
+        # What the run cost, by the deployment's prices: tokens for AI agents, time for people
+        # and robots, a fixed amount per execution for applications
+        cost = 0.0
+        kind = activity.actor_type
+        if kind == ActorType.ai_agent and isinstance(usage, dict):
+            cost += (int(usage.get("input_tokens") or 0) / 1000) * float(pricing.get("input_token_cost_per_1k") or 0)
+            cost += (int(usage.get("output_tokens") or 0) / 1000) * float(pricing.get("output_token_cost_per_1k") or 0)
+        hours = duration_ms / 3_600_000
+        if kind == ActorType.human and pricing.get("human_cost_per_hour") and duration_ms:
+            cost += hours * float(pricing["human_cost_per_hour"])
+        if kind == ActorType.robot and pricing.get("robot_cost_per_hour") and duration_ms:
+            cost += hours * float(pricing["robot_cost_per_hour"])
+        if kind == ActorType.application and pricing.get("software_cost_per_execution"):
+            cost += float(pricing["software_cost_per_execution"])
+        self._stats["cost"] += cost
 
     def _retry_policy(self, activity: Activity) -> RetryConfig:
         """The retry policy that applies to an activity: its own, else the engine default, else none"""
@@ -784,7 +853,27 @@ class WorkflowEngine:
         return dict(result)
 
     def _extract_traces(self, result: dict[str, Any], token: Token, node_id: str, attempt: int) -> dict[str, Any]:
-        """Move an actor's self-reported reasoning out of its result and into the journal (9.2)"""
+        """
+        Move an actor's self-reported traces out of its result and into the journal (9.2).
+        `_reasoning` is the actor's account of how it worked; `_model` says which model
+        served the attempt and why it was chosen.
+        """
+        model = result.get("_model")
+        if "_model" in result:
+            result = {key: value for key, value in result.items() if key != "_model"}
+        if isinstance(model, dict):
+            self._record("meta.recorded", {
+                "subject": "model_selection",
+                "decision": f"Use model {model['provider'] + ':' if model.get('provider') else ''}{model.get('id')}",
+                "rationale": ("The role assigned to this activity names this model." if model.get("source") == "role"
+                              else "The role names no model, so the engine default applies.")
+                             + (f' The reference is the capability tier "{model["tier"]}", which this deployment '
+                                "maps to that model." if model.get("tier") else ""),
+                "model": model,
+            }, token=token, node_id=node_id, attempt=attempt, level="meta")
+            route = [RouteAttempt(r.get("ref", ""), r.get("outcome", ""), r.get("reason"))
+                     for r in model.get("route") or [] if isinstance(r, dict)]
+            self._record_route(route, token, node_id, attempt)
         reasoning = result.get("_reasoning")
         if isinstance(reasoning, dict):
             result = {key: value for key, value in result.items() if key != "_reasoning"}

@@ -80,7 +80,7 @@ An implementation MUST NOT claim a level unless it passes every case tagged with
 |---|---|
 | TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels` |
 | Python | every level: `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`. Without a built-in AI agent that calls a model, the recipe, or Open Knowledge Format exchange |
-| Java | none (data model only) |
+| Java | none: a data model that reads and writes 1.1 documents faithfully, without validating them, and no engine |
 
 ### 2.3 Versions
 
@@ -698,6 +698,8 @@ A deployment MAY define further tiers. A tier MUST map to a model, not to anothe
 ### 12.3 Resolution
 
 When an AI agent executes an activity the model reference is, in order: the one named by the activity's role; otherwise the engine default. For a judge it is the policy's `judge_model_id`; otherwise the engine default.
+
+The engine default is the deployment's configuration: the reference implementations read it from one setting (`default_ai_model_id`, overridden by `AWA_DEFAULT_AI_MODEL_ID`). A deployment maps the standard tiers (`reasoning`, `balanced`, `fast`) to models; a standard tier it leaves unmapped MAY take a mapping the implementation documents for the providers registered (the reference ones use published presets for the providers they know, and otherwise the default model of the default provider). Whatever mapping applied is recorded by `model_selection`.
 
 A reference that cannot be resolved (an unmapped tier, or no provider) is an error with code `VALIDATION_ERROR`. An engine MUST NOT substitute another model silently. At a decision node the error is a vote that cannot be cast: it is invalid (16.3), so the decision falls to its default edge or fails with `NO_ROUTE`.
 

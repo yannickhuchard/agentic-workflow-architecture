@@ -10,13 +10,14 @@ import lombok.NoArgsConstructor;
 import java.util.UUID;
 
 /**
- * ContextBinding entity - defines how an activity interacts with a context
+ * How an activity reads or writes a context (specification section 22,
+ * {@code context.schema.json#/$defs/context_binding}).
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ContextBinding {
+public class ContextBinding extends AwaObject {
 
     private UUID id;
 
@@ -31,16 +32,21 @@ public class ContextBinding {
     @JsonProperty("access_mode")
     private AccessMode accessMode;
 
-    @Builder.Default
-    private boolean required = true;
+    /**
+     * Whether the context must hold a value before the activity runs. A required context
+     * that nothing has written fails the activity with {@code CONTEXT_MISSING}.
+     * Schema default: true.
+     */
+    private Boolean required;
 
     private Transforms transforms;
 
+    /** Transformation expressions applied when the context is read or written. */
     @Data
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class Transforms {
+    public static class Transforms extends AwaObject {
         @JsonProperty("on_read")
         private String onRead;
 

@@ -1,5 +1,8 @@
 package io.awa.model.visualization;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
+
 /**
  * Layout direction for auto-layout algorithms
  */
@@ -15,10 +18,12 @@ public enum LayoutDirection {
         this.value = value;
     }
 
+    @JsonValue
     public String getValue() {
         return value;
     }
 
+    @JsonCreator
     public static LayoutDirection fromValue(String value) {
         for (LayoutDirection dir : values()) {
             if (dir.value.equals(value)) {

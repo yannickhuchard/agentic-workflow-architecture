@@ -9,7 +9,7 @@
     { "name": "run_id", "type": { "type": "string", "logicalType": "uuid" } },
     { "name": "seq", "type": "int", "doc": "Position in the run, starting at 1, with no gaps" },
     { "name": "time", "type": { "type": "long", "logicalType": "timestamp-millis" } },
-    { "name": "type", "type": "string", "doc": "Event type, e.g. run.started, activity.completed, decision.evaluated, tool.invoked, reasoning.recorded" },
+    { "name": "type", "type": "string", "doc": "Event type, e.g. run.started, activity.completed, decision.evaluated, tool.invoked, context.written, sla.breached, reasoning.recorded. The full list is the enum of spec/json-schema/journal-event.schema.json" },
     { "name": "level", "type": { "type": "enum", "name": "TraceLevel", "symbols": ["execution", "reasoning", "meta"] }, "default": "execution" },
     { "name": "workflow_id", "type": { "type": "string", "logicalType": "uuid" } },
     { "name": "token_id", "type": ["null", { "type": "string", "logicalType": "uuid" }], "default": null },

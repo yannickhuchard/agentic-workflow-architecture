@@ -835,7 +835,7 @@ type PublishResult {
   journeys: [UUID!]!
 }
 
-type JourneyStage { id: String! name: String! description: String max_duration: String }
+type JourneyStage { id: String! name: String! description: String max_duration: String owner: String }
 
 type JourneyArtefact {
   id: String!

@@ -244,8 +244,8 @@ def counterfactual_replay(workflow: Workflow, baseline: list[JournalEvent], cand
                candidate configuration. "recorded": their recorded outputs are replayed
                too, which isolates the effect of a changed contract, criterion or rule
                and needs no model at all.
-    engine:    engine options for the candidate run: `actors` with the AI agent to run,
-               model providers and tiers, verifiers, knowledge
+    engine:    engine options for the candidate run: model providers and tiers for the built-in
+               AI agent, or `actors` with the AI agent to run; verifiers, knowledge
 
     Nothing but AI runs for real: tools, people, applications, events and time are as recorded.
     """
@@ -256,12 +256,12 @@ def counterfactual_replay(workflow: Workflow, baseline: list[JournalEvent], cand
     candidate = candidate or workflow
     options = dict(engine or {})
     supplied_actors = {ActorType(actor_type): actor for actor_type, actor in (options.get("actors") or {}).items()}
-    if ai == "live" and ActorType.ai_agent not in supplied_actors \
+    if ai == "live" and ActorType.ai_agent not in supplied_actors and not options.get("model_providers") \
             and any(a.actor_type == ActorType.ai_agent for a in candidate.activities):
-        # The built-in AI agent of this SDK calls no model. Letting it stand in would invent results.
+        # Without a model provider the built-in AI agent calls no model. Letting it stand in would invent results.
         raise ValueError(
-            'A live replay runs the AI agents again: give the actor that performs them in engine["actors"]["ai_agent"], '
-            'or replay with ai="recorded"')
+            'A live replay runs the AI agents again: give engine["model_providers"] for the built-in AI agent to call, '
+            'or the actor that performs them in engine["actors"]["ai_agent"], or replay with ai="recorded"')
     unrecorded: list[str] = []
 
     # --- the recorded world ----------------------------------------------

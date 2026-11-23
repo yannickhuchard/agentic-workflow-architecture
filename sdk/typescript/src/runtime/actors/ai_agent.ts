@@ -1,3 +1,4 @@
+import { DEFAULT_AI_MODEL_ID } from '../model_config';
 import { ChatMessage, ModelRegistry, ModelRouter, GoogleModelProvider, RouteAttempt } from '../models';
 import { ActorContext } from './actor';
 import { Activity, Role } from '../../types';
@@ -15,8 +16,8 @@ export class AIAgent implements Actor {
      * @param models Registry of model providers. If absent, a registry holding
      *               the Google provider is created from `apiKey`.
      */
-    constructor(apiKey: string, role?: Role, defaultModelId: string = 'gemini-3.1-flash', simulate: boolean = false, models?: ModelRegistry) {
-        this.models = models || new ModelRegistry().register(new GoogleModelProvider(apiKey));
+    constructor(apiKey: string, role?: Role, defaultModelId: string = DEFAULT_AI_MODEL_ID, simulate: boolean = false, models?: ModelRegistry) {
+        this.models = models || new ModelRegistry().register(new GoogleModelProvider(apiKey)).fill_standard_tiers();
         this.router = new ModelRouter(this.models);
         this.role = role;
         this.defaultModelId = defaultModelId;
@@ -87,6 +88,7 @@ export class AIAgent implements Actor {
             const jsonMatch = responseText.match(/\{[\s\S]*\}/);
             let output: unknown = responseText;
             let reasoning: unknown;
+            let contextWrites: unknown;
             if (jsonMatch) {
                 try {
                     output = JSON.parse(jsonMatch[0]);
@@ -99,11 +101,14 @@ export class AIAgent implements Actor {
             // engine can journal the reasoning and pass only the output downstream.
             if (output && typeof output === 'object' && 'reasoning' in output && 'output' in output) {
                 reasoning = (output as { reasoning: unknown }).reasoning;
+                // What the model writes to contexts goes to the engine, which checks it against the bindings (22.3)
+                contextWrites = (output as { _context_writes?: unknown })._context_writes;
                 output = (output as { output: unknown }).output;
             }
 
             return {
                 output,
+                ...(contextWrites !== undefined ? { _context_writes: contextWrites } : {}),
                 ...(reasoning && typeof reasoning === 'object' ? { _reasoning: reasoning } : {}),
                 _model: {
                     id: resolved.model,
@@ -195,6 +200,15 @@ export class AIAgent implements Actor {
             for (const entry of inputs._knowledge as { title: string; guidance: string }[]) {
                 lines.push(`- ${entry.title}: ${entry.guidance}`);
             }
+            lines.push('');
+        }
+
+        // The contexts the activity is bound to read (22.2): given to the model as what it may read, apart from the run's data
+        const contexts = inputs._contexts as Record<string, unknown> | undefined;
+        if (contexts && typeof contexts === 'object' && Object.keys(contexts).length > 0) {
+            lines.push('## Shared contexts');
+            lines.push('Read-only here. To change one your activity may write, return it under "_context_writes" beside "output", by context name.\n');
+            lines.push(JSON.stringify(contexts, null, 2));
             lines.push('');
         }
 

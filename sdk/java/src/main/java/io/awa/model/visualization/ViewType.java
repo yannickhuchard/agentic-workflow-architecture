@@ -1,5 +1,8 @@
 package io.awa.model.visualization;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
+
 /**
  * View type for 2D or 3D visualization
  */
@@ -13,10 +16,12 @@ public enum ViewType {
         this.value = value;
     }
 
+    @JsonValue
     public String getValue() {
         return value;
     }
 
+    @JsonCreator
     public static ViewType fromValue(String value) {
         for (ViewType type : values()) {
             if (type.value.equals(value)) {

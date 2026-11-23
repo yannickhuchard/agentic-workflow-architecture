@@ -1,5 +1,8 @@
 package io.awa.model.visualization;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
+
 /**
  * Node shape for visualization
  */
@@ -19,10 +22,12 @@ public enum NodeShape {
         this.value = value;
     }
 
+    @JsonValue
     public String getValue() {
         return value;
     }
 
+    @JsonCreator
     public static NodeShape fromValue(String value) {
         for (NodeShape shape : values()) {
             if (shape.value.equals(value)) {

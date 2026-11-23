@@ -7,6 +7,7 @@ import { randomUUID } from 'crypto';
 import { UUID, Workflow, Activity, Edge, Role, DecisionNode, Event as WorkflowEvent, Context } from '../types';
 import { Token } from './token';
 import { ContextManager, ContextError } from './context_manager';
+import { DEFAULT_AI_MODEL_ID } from './model_config';
 import { ExecutionLogger, ExecutionMetrics, get_execution_logger } from './execution_logger';
 import { validate_workflow_integrity } from '../validator';
 import { Actor } from './actors/actor';
@@ -97,7 +98,7 @@ export interface WorkflowEngineOptions {
     model_providers?: ModelProvider[];
     /** Provider used for model references that name none. Default: the first registered. */
     default_model_provider?: string;
-    /** Capability tiers mapped to model references, e.g. { fast: 'google:gemini-3.1-flash-lite' } */
+    /** Capability tiers mapped to model references, e.g. { fast: 'ollama:gemma3:1b' }. Standard tiers not mapped here take the models of TIER_PRESETS for the providers registered */
     model_tiers?: Record<string, string | string[]>;
     /** Receives the business events the workflow publishes. Without one they are recorded in the journal only. */
     event_sink?: EventSink;
@@ -239,7 +240,8 @@ export class WorkflowEngine {
             // Support legacy option name
             gemini_api_key: options.gemini_api_key || options.geminiApiKey
         };
-        this.defaultAIModelId = options.default_ai_model_id || 'gemini-3-flash-preview';
+        // The configured default model (src/config.json), unless the caller names another (12.3)
+        this.defaultAIModelId = options.default_ai_model_id || DEFAULT_AI_MODEL_ID;
         this.simulate = options.simulate || false;
         this.runId = options.run_id || randomUUID();
         this.journalStore = options.journal || new InMemoryJournalStore();
@@ -260,6 +262,7 @@ export class WorkflowEngine {
         for (const provider of options.model_providers || []) this.models.register(provider);
         if (options.default_model_provider) this.models.set_default_provider(options.default_model_provider);
         for (const [tier, ref] of Object.entries(options.model_tiers || {})) this.models.set_tier(tier, ref);
+        this.models.fill_standard_tiers();
 
         this.router = new ModelRouter(this.models);
 

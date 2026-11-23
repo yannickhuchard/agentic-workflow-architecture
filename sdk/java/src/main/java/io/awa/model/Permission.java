@@ -1,5 +1,8 @@
 package io.awa.model;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
+
 /**
  * Permission types for access rights
  */
@@ -17,10 +20,12 @@ public enum Permission {
         this.value = value;
     }
 
+    @JsonValue
     public String getValue() {
         return value;
     }
 
+    @JsonCreator
     public static Permission fromValue(String value) {
         for (Permission perm : values()) {
             if (perm.value.equals(value)) {

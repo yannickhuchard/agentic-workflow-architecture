@@ -22,6 +22,17 @@ from typing import Any, Callable, Protocol
 # Capability tiers every deployment SHOULD map (specification 12.2)
 STANDARD_TIERS = ("reasoning", "balanced", "fast")
 
+# Models a standard tier the deployment left unmapped takes, by provider id: {provider: {tier: "<provider>:<model>"}}
+# (specification 12.3). This SDK ships no presets, because it names no models; a deployment may add rows.
+# Without a row for any registered provider, each unmapped standard tier is "<default provider>:default".
+TIER_PRESETS: dict[str, dict[str, str]] = {}
+
+
+def tier_fallbacks(providers: list[str], presets: dict[str, dict[str, str]] | None = None) -> dict[str, list[str]]:
+    """A tier map that prefers the providers in the order given and falls back down the list"""
+    table = TIER_PRESETS if presets is None else presets
+    return {tier: [table[p][tier] for p in providers if tier in table.get(p, {})] for tier in STANDARD_TIERS}
+
 # A turn of a conversation: {"role": "system" | "user", "content"},
 # {"role": "assistant", "content", "tool_calls"?, "provider_state"?} or
 # {"role": "tool", "tool_call_id", "name", "content"}
@@ -164,6 +175,25 @@ class ModelRegistry:
 
     def has_providers(self) -> bool:
         return bool(self._providers)
+
+    def fill_standard_tiers(self, presets: dict[str, dict[str, str]] | None = None) -> "ModelRegistry":
+        """
+        Give each standard tier the deployment has not mapped the models of the presets (TIER_PRESETS
+        by default) for the registered providers that have them, in the order they were registered;
+        with none, the default model of the default provider ("<provider>:default"). So "tier:balanced"
+        means something wherever a provider is registered, and a deployment's own map wins (12.3).
+        """
+        table = TIER_PRESETS if presets is None else presets
+        fallback = self._default_provider or next(iter(self._providers), None)
+        for tier in STANDARD_TIERS:
+            if tier in self._tiers:
+                continue
+            known = [table[id][tier] for id in self._providers if tier in table.get(id, {})]
+            if known:
+                self._tiers[tier] = known
+            elif fallback:
+                self._tiers[tier] = [f"{fallback}:default"]
+        return self
 
     def _resolve_direct(self, target: str, origin: str, tier: str | None = None) -> ResolvedModel:
         named, colon, rest = target.partition(":")

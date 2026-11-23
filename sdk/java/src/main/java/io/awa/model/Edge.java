@@ -7,16 +7,17 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
- * Edge entity - connection between nodes in the workflow graph
+ * A directed connection between two nodes of a workflow (specification section 8.3).
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Edge {
+public class Edge extends AwaObject {
 
     @NotNull
     private UUID id;
@@ -35,11 +36,19 @@ public class Edge {
     @JsonProperty("target_type")
     private NodeType targetType;
 
+    /** Condition expression (section 6). */
     private String condition;
 
     private String label;
 
+    /** Taken when no condition is true. Schema default: false. */
     @JsonProperty("is_default")
-    @Builder.Default
-    private boolean isDefault = false;
+    private Boolean isDefault;
+
+    /** Skills required to traverse this edge. */
+    private List<SkillBinding> skills;
+
+    /** Tools required to traverse this edge. */
+    @JsonProperty("tool_requirements")
+    private List<ToolRequirement> toolRequirements;
 }

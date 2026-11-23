@@ -1,139 +1,76 @@
-# Operational API: Training Guide
+# The HTTP interface
 
-This guide provides a comprehensive, step-by-step walkthrough of the Agentic Workflow Architecture (AWA) Operational API.
-The Operational API consists of two main components:
-1.  **AWA CLI (`awa`)**: A command-line interface to execute workflows directly.
-2.  **AWA REST API**: A server that allows triggering workflows via HTTP requests.
-
----
-
-## 1. Installation
-
-To use the Operational API, install the `agentic-workflow-architecture` package globally.
-
-### Prerequisites
-- Node.js (v18 or higher)
-- npm
-
-### Setup
-```bash
-npm install -g agentic-workflow-architecture
-```
-
-This will make the `awa` command available in your terminal.
-
----
-
-## 2. Using the CLI (`awa`)
-
-The CLI is the primary tool for testing and running workflows manually.
-
-### Basic Usage
-To run a workflow defined in a `.awa.json` file:
+`awa serve` (TypeScript SDK 2.0) offers runs, business events, journeys, measures, human tasks and the views over HTTP. The machine-readable description is [`spec/openapi/awa-api.yaml`](../../../spec/openapi/awa-api.yaml); this page is the guide to it. The Python SDK's `awa serve` offers the same routes.
 
 ```bash
-awa run <path-to-workflow-file>
+AWA_DATA_DIR=.awa awa serve --port 3000 --no-auth
 ```
 
-### Options
-- `--verbose, -v`: Enable verbose output to see step-by-step execution details.
-- `--key, -k <key>`: Provide your Gemini API Key directly (or use `GEMINI_API_KEY` env var).
+`--no-auth` is for local development. Otherwise every route but `/health` needs an `x-api-key` header (`--api-key key:role`) or a bearer token signed with `--jwt-secret`. Roles are `admin`, `operator` and `viewer`. `--rate-limit` sets requests per minute.
 
-### Example
-Let's run a simple test workflow.
+## Workflow runs
 
-1.  **Create a workflow file** (e.g., `my-workflow.awa.json`). Ensure all IDs are valid UUIDs.
-    ```json
-    {
-      "id": "550e8400-e29b-41d4-a716-446655440000",
-      "name": "Demo Workflow",
-      "version": "1.0.0",
-      "activities": [
-        {
-          "id": "550e8400-e29b-41d4-a716-446655440001",
-          "actor_type": "application", 
-          "name": "Hello",
-          "role_id": "550e8400-e29b-41d4-a716-446655440003",
-          "inputs": [],
-          "outputs": []
-        }
-      ],
-      "edges": [],
-      "roles": [{ "id": "550e8400-e29b-41d4-a716-446655440003", "name": "System", "actor_type": "application" }],
-      "contexts": []
-    }
-    ```
-
-2.  **Run the workflow**:
-    ```bash
-    awa run my-workflow.awa.json --verbose
-    ```
-
-3.  **Expected Output**:
-    ```
-    Starting workflow: Demo Workflow (...)
-    Workflow started (Run ID: ...)
-    Step 1 completed.
-    Active tokens: 0
-    Workflow finished with status: completed
-    ```
-
----
-
-## 3. Using the REST API
-
-The REST API allows external systems to trigger AWA workflows.
-
-### Starting the Server
-To start the API server:
+| Route | What it does |
+|---|---|
+| `POST /api/v1/workflows/run` | Start a run of a workflow file. Body `{ "filePath": "orders.awa.json", "simulate": true }`. The file must be a `.json` inside `AWA_WORKFLOWS_DIR`. Answers `{ runId, status }` at once; the run goes on in the background |
+| `GET /api/v1/workflows/runs/{runId}` | Its status and tokens |
+| `GET /api/v1/workflows/runs/{runId}/workflow` | The workflow it runs |
+| `GET /api/v1/workflows/runs/{runId}/events?after={seq}` | Its journal, from after a sequence number |
+| `GET /api/v1/workflows/runs/{runId}/events/stream` | The journal as Server-Sent Events, as it is written: what `tools/visualization/replay.html?run=` follows |
+| `POST /api/v1/workflows/events` | A business event (CloudEvents 1.0 JSON with `id` and `type`) for the runs waiting for one. Answers `{ event_id, resumed_runs }` |
 
 ```bash
-awa serve --port 3000
-```
-*Output: `AWA Operational API running on http://localhost:3000`*
-
-### Endpoints
-
-#### `POST /api/v1/workflows/run`
-Triggers a workflow execution.
-
-**Headers**:
-- `Content-Type: application/json`
-
-**Body**:
-```json
-{
-  "filePath": "./examples/skills-demonstration/scenario.awa.json",
-  "apiKey": "optional-gemini-api-key"
-}
+curl -s -X POST localhost:3000/api/v1/workflows/run -H 'content-type: application/json' -d '{"filePath":"examples/claims-settlement/claims-settlement.awa.json","simulate":true}'
 ```
 
-**Response**:
-```json
-{
-  "runId": "uuid-...",
-  "status": "running",
-  "message": "Workflow started"
-}
-```
+## Journeys
 
-### Example Request (curl)
+Kept in `AWA_DATA_DIR` when it is set, in memory otherwise. `AWA_SIMULATE=1` with `AWA_SIMULATED_OUTPUTS=<file>` simulates the activities of the journeys' runs.
+
+| Route | What it does |
+|---|---|
+| `POST /api/v1/journeys/definitions` | Register a workflow or a journey document. A journey's workflows must be registered first |
+| `GET /api/v1/journeys` | The journeys, each with its funnel |
+| `POST /api/v1/journeys/events` | A business event `{ id?, type, source?, data }`. Answers what it did: `{ accepted, started_runs, resumed_runs, journeys }`. An id seen before is accepted once |
+| `POST /api/v1/journeys/tick` | Let time pass, optionally to `{ "at": "<instant>" }`: deadlines, stalled stages, service levels |
+| `POST /api/v1/journeys/runs/{run_id}/tokens/{token_id}/resume` | Complete a task a run waits on a person for; the body is what they decided |
+| `GET /api/v1/journeys/instances?journey_id=&subject=&stalled=true` | Journey instances |
+| `GET /api/v1/journeys/instances/{id}` | One instance with its record and the journals of its runs |
+| `GET /api/v1/journeys/transitions` | How subjects move from one journey to the next |
+| `GET /api/v1/journeys/portfolio` | Everything recorded: what the journey view and the measures page open |
+
 ```bash
-curl -X POST http://localhost:3000/api/v1/workflows/run \
-  -H "Content-Type: application/json" \
-  -d '{"filePath": "./tests/fixtures/simple-workflow.awa.json"}'
+curl -s -X POST localhost:3000/api/v1/journeys/events -H 'content-type: application/json' -d '{"type":"claim.submitted","data":{"customer_id":"c-1"}}'
 ```
 
----
+## Measures
 
-## 4. Troubleshooting
+| Route | What it does |
+|---|---|
+| `GET /api/v1/measures?from=&to=&journey_id=&workflow_id=` | The measure report (specification section 21). Each measure is `{ value, n }`; `value` is null when there was nothing to compute it from |
+| `GET /api/v1/measures?format=openmetrics` | The same in the OpenMetrics text format, for a metrics system to scrape |
+| `GET /api/v1/measures/definitions` | Every measure with its unit and its rule |
 
-- **Error: `filePath is required`**: ensuring you are sending the JSON body correctly.
-- **Error: `Invalid workflow definition`**: The JSON file provided does not match the AWA schema (e.g., invalid UUIDs).
-- **Error: `Gemini API Key required`**: If your workflow uses AI Agents, you must provide an API key via environment variable or request body.
+## Human tasks
 
----
+Kept in the task database (see "The task database" in the [SDK README](../README.md)).
 
-## 5. Next Steps
-- Explore the `examples` folder for more complex workflows.
-- Integrate the REST API into your frontend or other microservices.
+| Route | What it does |
+|---|---|
+| `GET /api/v1/tasks?status=&assignee=&role_id=&workflow_id=` | Tasks |
+| `GET /api/v1/tasks/pending?role_id=` | Tasks waiting for someone |
+| `GET /api/v1/tasks/{id}` | One task |
+| `POST /api/v1/tasks/{id}/assign` | `{ "user_id": "...", "assigner_id": "...", "assigner_type": "..." }` |
+| `POST /api/v1/tasks/{id}/complete` | `{ "result": { ... } }`: what the person decided |
+| `POST /api/v1/tasks/{id}/reject` | `{ "reason": "..." }` |
+| `GET /api/v1/tasks/queue/stats` | Counts by status |
+
+## Views and health
+
+| Route | What it does |
+|---|---|
+| `GET /views/dashboard.html?live=http://localhost:3000` | The measures page, following this server |
+| `GET /views/journey.html?live=http://localhost:3000` | The journey view, following this server |
+| `GET /health` | `{ status: "ok" }`, without authentication |
+
+The views come with the npm package; the Python server does not serve them, but they open its `/api/v1/journeys/portfolio` the same way.

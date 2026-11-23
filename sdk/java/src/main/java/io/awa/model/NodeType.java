@@ -1,5 +1,8 @@
 package io.awa.model;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
+
 /**
  * Node types in the workflow graph
  */
@@ -14,10 +17,12 @@ public enum NodeType {
         this.value = value;
     }
 
+    @JsonValue
     public String getValue() {
         return value;
     }
 
+    @JsonCreator
     public static NodeType fromValue(String value) {
         for (NodeType t : values()) {
             if (t.value.equals(value)) {

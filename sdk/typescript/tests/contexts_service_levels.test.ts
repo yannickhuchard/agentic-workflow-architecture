@@ -162,3 +162,26 @@ describe('Service levels', () => {
         expect(report.workflows[0].measures['workflow.failure_rate'].value).toBe(1);
     });
 });
+
+describe('An AI agent and contexts', () => {
+    it('shows the model the contexts it is bound to read, and passes what the model writes to the engine', async () => {
+        const { FunctionModelProvider } = await import('../src/runtime/models');
+        const policy = context('Policy', { initial_value: { excess: 250 } });
+        const notes = context('Notes', { sync_pattern: 'blackboard' });
+        const secret = context('Secret', { initial_value: { key: 'not for the model' } });
+        const a = activity('Assess', { actor_type: 'ai_agent', context_bindings: [{ context_id: policy.id, access_mode: 'read' }, { context_id: notes.id, access_mode: 'write' }] });
+        const prompts: string[] = [];
+        const provider = new FunctionModelProvider('test', request => {
+            prompts.push(request.prompt || JSON.stringify(request.messages));
+            return JSON.stringify({ reasoning: { rationale: 'excess applies' }, output: { payable: 950 }, _context_writes: { Notes: { assessed: true } } });
+        });
+        const engine = new WorkflowEngine(workflow([a], [], { contexts: [policy, notes, secret] }), { model_providers: [provider], execution_logger: silent_logger });
+        await engine.start({ claim: 1200 });
+        expect(await engine.run()).toBe('completed');
+        expect(prompts[0]).toContain('Shared contexts');
+        expect(prompts[0]).toContain('"excess": 250');
+        expect(prompts[0]).not.toContain('not for the model');
+        expect(engine.getContexts()).toMatchObject({ Notes: { assessed: true } });
+        expect(engine.getTokens()[0].contextData.payable).toBe(950);
+    });
+});

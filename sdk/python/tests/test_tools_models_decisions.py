@@ -843,8 +843,8 @@ def test_a_decision_that_names_no_model_uses_the_engine_default_and_says_so():
     assert selection["data"]["model"] == {"provider": "p", "id": "chosen", "requested": "p:chosen"}
     assert "engine default" in selection["data"]["rationale"]
 
-    # With no default configured the reference is the balanced tier, which the deployment maps
-    _, visited, engine = run_triage(triage_workflow(), model_providers=[provider], model_tiers={"balanced": "p:general"})
+    # Naming the balanced tier as the default, as `awa run --providers` does, the deployment's map decides
+    _, visited, engine = run_triage(triage_workflow(), model_providers=[provider], model_tiers={"balanced": "p:general"}, default_ai_model_id="tier:balanced")
     assert visited == ["Intake", "Pay"] and provider.requests[-1].model == "general"
 
 

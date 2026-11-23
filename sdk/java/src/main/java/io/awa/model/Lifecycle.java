@@ -1,5 +1,8 @@
 package io.awa.model;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
+
 /**
  * Lifecycle for contexts
  */
@@ -14,10 +17,12 @@ public enum Lifecycle {
         this.value = value;
     }
 
+    @JsonValue
     public String getValue() {
         return value;
     }
 
+    @JsonCreator
     public static Lifecycle fromValue(String value) {
         for (Lifecycle l : values()) {
             if (l.value.equals(value)) {
