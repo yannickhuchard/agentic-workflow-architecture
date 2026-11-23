@@ -252,3 +252,20 @@ def test_an_unmapped_standard_tier_is_the_default_model_of_the_default_provider(
     assert registry.resolve("tier:reasoning").ref == "test:default"
     presets = {"test": {"balanced": "test:preset-model"}}
     assert ModelRegistry().register(provider).fill_standard_tiers(presets).resolve("tier:balanced").ref == "test:preset-model"
+
+
+def test_the_model_sees_the_contexts_it_is_bound_to_read_and_its_writes_reach_the_engine():
+    policy = {"id": uid(), "name": "Policy", "type": "data", "sync_pattern": "shared_state", "initial_value": {"excess": 250}}
+    notes = {"id": uid(), "name": "Notes", "type": "data", "sync_pattern": "blackboard"}
+    secret = {"id": uid(), "name": "Secret", "type": "data", "sync_pattern": "shared_state", "initial_value": {"key": "not for the model"}}
+    wf = workflow(context_bindings=[{"context_id": policy["id"], "access_mode": "read"}, {"context_id": notes["id"], "access_mode": "write"}])
+    wf = Workflow.model_validate({**wf.model_dump(mode="json", exclude_none=True), "contexts": [policy, notes, secret]})
+    provider = FunctionModelProvider("test", lambda request: json.dumps({
+        "reasoning": {"rationale": "excess applies"}, "output": {"payable": 950}, "_context_writes": {"Notes": {"assessed": True}}}))
+    engine = engine_for(wf, provider)
+    assert engine.run({"claim": 1200})["status"] == "completed"
+    (request,) = provider.requests
+    prompt = json.dumps([request.prompt, request.messages], default=str)
+    assert "Shared contexts" in prompt and '\\"excess\\": 250' in prompt
+    assert "not for the model" not in prompt
+    assert engine.get_contexts() == {"Policy": {"excess": 250}, "Notes": {"assessed": True}, "Secret": {"key": "not for the model"}}

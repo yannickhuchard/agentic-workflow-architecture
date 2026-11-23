@@ -113,6 +113,8 @@ class AIAgent(Actor):
             raise AIAgentError(f"AIAgent execution failed: {error}", code if isinstance(code, str) else None) from error
 
         output, reasoning = parse_reply(routed.response.text)
+        # What the model writes to contexts goes to the engine, which checks it against the bindings (22.3)
+        context_writes = context_writes_of(routed.response.text)
         resolved = routed.model
         model: dict[str, Any] = {
             "id": resolved.model,
@@ -125,6 +127,7 @@ class AIAgent(Actor):
         }
         return {
             "output": output,
+            **({"_context_writes": context_writes} if context_writes is not None else {}),
             **({"_reasoning": reasoning} if isinstance(reasoning, dict) and reasoning else {}),
             "_model": model,
             "status": "complex_completed",
@@ -189,6 +192,14 @@ class AIAgent(Actor):
                 lines.append(f"- {entry.get('title')}: {entry.get('guidance')}")
             lines.append("")
 
+        # The contexts the activity is bound to read (22.2): given to the model as what it may read, apart from the run's data
+        contexts = inputs.get("_contexts")
+        if isinstance(contexts, dict) and contexts:
+            lines.append("## Shared contexts")
+            lines.append('Read-only here. To change one your activity may write, return it under "_context_writes" beside "output", by context name.\n')
+            lines.append(json.dumps(contexts, indent=2, default=str))
+            lines.append("")
+
         lines.append("## Input Context")
         lines.append(json.dumps(display, indent=2, default=str) if display else "No specific input data provided.")
 
@@ -207,6 +218,20 @@ class AIAgent(Actor):
 
         lines.append("\nBased on the above, please perform the activity and generate the output.")
         return "\n".join(lines)
+
+
+def context_writes_of(text: str) -> Any:
+    """What a reply of the form {"reasoning", "output", "_context_writes"} writes to contexts, or None"""
+    match = _JSON_OBJECT.search(text or "")
+    if not match:
+        return None
+    try:
+        whole = json.loads(match.group(0))
+    except ValueError:
+        return None
+    if isinstance(whole, dict) and "reasoning" in whole and "output" in whole:
+        return whole.get("_context_writes")
+    return None
 
 
 def parse_reply(text: str) -> tuple[Any, Any]:

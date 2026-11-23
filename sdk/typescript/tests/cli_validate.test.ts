@@ -1,7 +1,7 @@
 /**
  * awa validate: the command line check of workflow and journey documents.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -30,5 +30,30 @@ describe('awa validate', () => {
         const { results, journey_references_checked } = await check_documents([example('claims-journey/motor-claim.journey.json')]);
         expect(journey_references_checked).toBe(false);
         expect(results[0]).toMatchObject({ kind: 'journey', valid: true });
+    });
+});
+
+describe('The configured models', () => {
+    it('keep the Google presets Google model names, whatever reference the default model is set to', async () => {
+        vi.resetModules();
+        vi.stubEnv('AWA_DEFAULT_AI_MODEL_ID', 'tier:balanced');
+        try {
+            const { DEFAULT_AI_MODEL_ID } = await import('../src/runtime/model_config');
+            const { TIER_PRESETS } = await import('../src/runtime/models');
+            const config = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../src/config.json'), 'utf-8'));
+            expect(DEFAULT_AI_MODEL_ID).toBe('tier:balanced');
+            expect(TIER_PRESETS.google.balanced).toBe(`google:${config.default_ai_model_id}`);
+            expect(Object.values(TIER_PRESETS.google).every(ref => /^google:[^:]+$/.test(ref))).toBe(true);
+        } finally {
+            vi.unstubAllEnvs();
+            vi.resetModules();
+        }
+    });
+
+    it('read the default model from the configuration file', async () => {
+        const { DEFAULT_AI_MODEL_ID, GOOGLE_TIER_MODELS } = await import('../src/runtime/model_config');
+        const config = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../src/config.json'), 'utf-8'));
+        if (!process.env.AWA_DEFAULT_AI_MODEL_ID) expect(DEFAULT_AI_MODEL_ID).toBe(config.default_ai_model_id);
+        expect(GOOGLE_TIER_MODELS.balanced).toBe(process.env.AWA_GOOGLE_BALANCED_MODEL || config.default_ai_model_id);
     });
 });
