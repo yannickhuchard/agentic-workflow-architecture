@@ -80,7 +80,7 @@ An implementation MUST NOT claim a level unless it passes every case tagged with
 |---|---|
 | TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels` |
 | Python | every level: `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`. Without a built-in AI agent that calls a model, the recipe, or Open Knowledge Format exchange |
-| Java | none (data model only) |
+| Java | none: a data model that reads and writes 1.1 documents faithfully, without validating them, and no engine |
 
 ### 2.3 Versions
 

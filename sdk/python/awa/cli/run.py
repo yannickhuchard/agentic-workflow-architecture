@@ -84,6 +84,7 @@ def model_options(names: list[str], environ: "os._Environ[str] | dict[str, str] 
         "model_providers": providers,
         "default_model_provider": names[0],
         "model_tiers": tiers,
+        # With providers named, a model that is not named is the balanced tier of those providers, as the reference does
         "default_ai_model_id": "tier:balanced",
     }
 

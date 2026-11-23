@@ -60,6 +60,22 @@ jobs:
           consumer/bin/python -c "import awa; from awa.runtime.kpi import MEASURES; assert len(MEASURES) > 50"
           consumer/bin/awa measures --list | grep -q "journey.completion_rate"
 
+  java:
+    name: Java data model
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sdk/java
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+      # Reads every example and conformance document into the Java types and writes it back unchanged
+      - run: mvn -B -q test
+
   conformance-cases:
     name: Conformance cases are up to date
     runs-on: ubuntu-latest

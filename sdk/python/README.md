@@ -35,7 +35,7 @@ print(result)
 
 - **Built-in VSM & Analytics**: Real-time tracking of DOWNTIME waste (Waiting, Defects) and process metrics.
 - **Fluent Builder API**: Construct complex workflows with a clean Pythonic interface.
-- **AI agents**: activities done by an AI agent go through the actor you supply, or through a model provider you register. The built-in AI agent is a placeholder that calls no model.
+- **AI agents**: the built-in AI agent calls the model its role names through the model providers you register, runs the tools the model asks for, and journals its reasoning (see [The AI agent](#the-ai-agent)). An actor you supply replaces it.
 - **REST API Support**: Optional server mode via FastAPI.
 
 ## Conformance
@@ -44,11 +44,45 @@ The Python SDK passes every case of every conformance level of the specification
 
 What it still lacks compared with the TypeScript reference implementation, none of which belongs to a conformance level:
 
-- **An AI agent that calls a model.** The built-in `AIAgent` is a placeholder that returns no business data. Give the engine your own actor in `options["actors"]["ai_agent"]`; it reads `_contexts`, `_knowledge` and `_verification_feedback` from the token's data. Model decisions at decision nodes do call the registered model providers.
-- **The Open Knowledge Format exchange** (specification 15.5). A knowledge base is saved and loaded as JSON, in the form the reference writes with `to_json`; it is not exported as, or imported from, an OKF bundle.
-- **The recipe** (14.1) and the visual replay (14.2).
-- **Model providers** for Google and for embedded models, and `tier_fallbacks`. `OpenAICompatibleModelProvider`, `ollama_provider` and `FunctionModelProvider` are available.
-- **Commands**: `awa knowledge`, `awa recipe`, `awa generate`, `awa init` and `awa task`; `awa measures --html`; and, for `awa replay`, a live replay (see below).
+- **The recipe** (specification 14.1, `awa recipe`) and the visual replay (14.2).
+- **The Open Knowledge Format exchange** (15.5): `awa knowledge export` and `awa knowledge import`, and `export_okf` and `import_okf` in code. A knowledge base is saved and loaded as JSON, in the form the reference writes with `to_json`.
+- **Model providers** for Google and for embedded models, and the reference's `TIER_PRESETS`: `TIER_PRESETS` is empty here, so a standard tier the deployment leaves unmapped is `<default provider>:default` (12.3). `OpenAICompatibleModelProvider`, `ollama_provider` and `FunctionModelProvider` are available. `awa run --providers` names the model behind each tier from the environment instead (see below).
+- **Commands**: `awa init`, `awa generate` and `awa recipe`; `awa measures --html`; for `awa replay`, the options `--ai live`, `--providers` and `--key` (a live replay is made in code); and for `awa serve`, the options `--jwt-secret`, `--api-key`, `--rate-limit` and `--no-auth` (the Python server reads `AUTH_ENABLED`, `JWT_SECRET` and `API_KEYS` from the environment).
+- **The views**: the dashboard and journey pages the reference server serves under `/views`, and the HTML measures page.
+- **The execution logger option**: the reference engine takes an `execution_logger`; the Python engine writes the execution record to its SQLite database unless `log_execution` is `False`.
+
+## Command line
+
+```
+awa run claim.awa.json [-s] [--outputs simulation.json] [-j run.jsonl] [-c checkpoints/] [-i '{"claim_id": "C-1"}']
+                       [-p openai,ollama] [--allow-commands [all|git,jq]] [--db] [-v]
+awa validate claim.awa.json
+awa serve [--port 3000] [--host 0.0.0.0]
+awa task list [-s pending] [-r <role id>] [-a <assignee>]
+awa task show <id> | assign <id> <user_id> | complete <id> ['{"approved": true}'] | reject <id> [reason]
+awa knowledge ingest claim.awa.json run1.jsonl run2.jsonl [--kb knowledge.json]
+awa knowledge list [--status draft|reviewed|deprecated] [--kb knowledge.json]
+awa knowledge review <id...|all> --by <reviewer> [--kb knowledge.json]
+awa knowledge deprecate <id> [--superseded-by <id>] [--kb knowledge.json]
+```
+
+`awa run` takes the options of the reference command, with the same meaning:
+
+| Option | Meaning |
+|---|---|
+| `-s, --simulate` | Call no model, tool or person |
+| `--outputs <file>` | With `--simulate`: what each activity returns, by activity name, in the format of `examples/*/simulation.json`: `output`, or `error` with an optional `code`, optional `contexts` (what the activity writes to contexts, by context name), or `attempts`, a list of those, one per execution, the last repeating |
+| `-j, --journal <file>` | Write the execution journal to this file, as JSON Lines |
+| `-c, --checkpoint-dir <dir>` | Save the run state to `<dir>/<run id>.checkpoint.json` after every step |
+| `-i, --input <json>` | The data the run starts with, a JSON object |
+| `-p, --providers <list>` | Model providers in order of preference: `openai` (reads `OPENAI_API_KEY`) and `ollama` (reads `OLLAMA_BASE_URL`, default `http://localhost:11434/v1`, which can point at any OpenAI-compatible server). `google` and `embedded` are refused: the Python SDK does not have them |
+| `--allow-commands [list]` | Let tools run commands on this machine: all, or a comma-separated list of program names |
+| `--db` | Write the execution record to the database (`AWA_DATABASE_URL`, default `awa.db`) instead of printing it |
+| `-k, --key` | Accepted for compatibility; the Python SDK has no Google provider |
+
+The reference maps each provider's capability tiers to its preset models. This SDK names no models, so the model behind a tier is read from `AWA_<PROVIDER>_MODEL_<TIER>` (for example `AWA_OLLAMA_MODEL_FAST`) or `AWA_<PROVIDER>_MODEL`; each tier falls back down the list of providers, and a tier none of them names is `<first provider>:default`. At the end the command prints the run's metrics (status, duration, steps, tokens and cost, at the reference's example rates), `Workflow finished with status: ...` and, with `--journal`, where the journal was written. It exits with status 1 when the run fails.
+
+`awa task` works on the human tasks in the database named by `AWA_DATABASE_URL`. `awa knowledge` keeps the knowledge base in one JSON file, `knowledge.json` by default.
 
 ## Tools, model routing and model decisions
 
@@ -88,11 +122,11 @@ engine = WorkflowEngine(workflow, options={
 
 The output of a command and the body of an HTTP response are limited to `max_output_bytes` (4 MiB by default); a longer one fails the call. A handler that is still running at the timeout cannot be interrupted in Python: the call fails with `TIMEOUT` and the handler's result is ignored. In simulation mode no binding runs: the call is journalled with `simulated: true` and returns `tools.simulated_results[<tool name>]`.
 
-The built-in `AIAgent` actor does not call tools on its own; an actor you supply calls them through `context.tools`.
+The built-in `AIAgent` calls tools when the model asks for them (see [The AI agent](#the-ai-agent)); an actor you supply calls them through `context.tools`.
 
 ### Model references and routing
 
-The engine calls a model itself at decision nodes that carry a `decision_model`. A model reference is `tier:<name>`, `<provider>:<model>`, or a bare model name of the default provider. All calls go through one router: it lists the candidates of the reference, leaves out those whose provider is not registered, calls the first, falls back to the next when a provider fails, and stops when a provider rejects the request as invalid. The model that served is journalled as `meta.recorded` with subject `model_selection`, and any route other than "first candidate used" with subject `model_route`.
+The engine calls a model at decision nodes that carry a `decision_model`, and its AI agent calls one for each `ai_agent` activity. A model reference is `tier:<name>`, `<provider>:<model>`, or a bare model name of the default provider. All calls go through one router: it lists the candidates of the reference, leaves out those whose provider is not registered, calls the first, falls back to the next when a provider fails, and stops when a provider rejects the request as invalid. The model that served is journalled as `meta.recorded` with subject `model_selection`, and any route other than "first candidate used" with subject `model_route`.
 
 ```python
 from awa.runtime import FunctionModelProvider, OpenAICompatibleModelProvider, WorkflowEngine
@@ -104,11 +138,23 @@ engine = WorkflowEngine(workflow, options={
     ],
     "default_model_provider": "gateway",          # the first registered, if absent
     "model_tiers": {"fast": ["gateway:<model name>", "local:<model name>"]},
-    "default_ai_model_id": "tier:fast",           # used where a decision names no model; "tier:balanced" if absent
+    "default_ai_model_id": "tier:fast",           # used where a role or decision names no model; see below
 })
 ```
 
+Where a role or a decision names no model the engine uses `default_ai_model_id`, else `DEFAULT_AI_MODEL_ID` from `awa.runtime.model_config`: the environment variable `AWA_DEFAULT_AI_MODEL_ID`, else `default_ai_model_id` in `awa/config.json` (`gemini-3-flash-preview`, the same setting and value as the TypeScript SDK). A standard tier (`reasoning`, `balanced`, `fast`) the deployment leaves unmapped takes the entries of `TIER_PRESETS` for the providers registered, which this SDK leaves empty, and otherwise `<default provider>:default` (12.3).
+
 A provider is any object with an `id`, a `supports_tools` flag and `generate(request) -> ModelResponse`. `FunctionModelProvider` wraps a function, for tests and deterministic stand-ins. `OpenAICompatibleModelProvider` reaches any server exposing `chat/completions` and uses only the standard library. No vendor SDK is required.
+
+### The AI agent
+
+The built-in `AIAgent` performs `ai_agent` activities as the reference's does. It calls the model the activity's role names in `ai_model_config.model_id`, or the engine default, through the router, with the role's `temperature` (0.2 if absent) and `max_tokens` (1024). The system message gives the role, its description and capabilities, the activity, its description, and asks for a single JSON object `{"reasoning": {"plan", "rationale", "alternatives_considered", "confidence"}, "output": ...}`. The user message gives the token's data without engine-reserved properties, any verification feedback from a rejected attempt, the knowledge handed to the activity, its controls and its verification criteria.
+
+The reply is parsed: the first JSON object in it, split into `reasoning` and `output` when it has both; any other JSON object is the output; a reply without one is the output as text. The reasoning is journalled as `reasoning.recorded`, the model that served as `meta.recorded` with subject `model_selection` (and `model_route` after a fallback), and the token usage of every call is added up and reported in `activity.completed`.
+
+When the activity has tools, the model is given their names, descriptions and parameters (17.3). Each call it asks for is run through the engine's `ToolRunner`, which journals it, and the result goes back to the model as a tool turn; this repeats until the model answers without asking for a tool. A run past `budgets.max_tool_calls` fails the attempt with `TOOL_BUDGET_EXCEEDED`. A model error fails the attempt with the error's code, so the retry policy applies.
+
+In simulation no model is called, and neither is one when no model provider is registered: the agent returns a result marked `_simulated`. (The reference raises an error in the second case.)
 
 ### Model decisions
 
@@ -183,7 +229,7 @@ replay.report["nodes"]             # each with a verdict: same, changed, improve
 print(render_counterfactual_report(replay.report))
 ```
 
-The run's input, the results of applications, robots and people, tool results (matched by tool and arguments), the business events received, timeouts and the passing of time are taken from the baseline journal. Something the baseline never did fails with `REPLAY_UNRECORDED` and is listed in `report["unrecorded"]`; nothing is invented and no tool is called. With `ai="recorded"` the outputs of AI agents and model decisions are replayed too. With `ai="live"` (the default) they run again: give the actor that performs the AI agents in `engine={"actors": {"ai_agent": ...}}`, and the model providers for model decisions; a live replay without that actor is refused, because the built-in AI agent calls no model. A journal recorded with payload mode `hash` or `none` is refused.
+The run's input, the results of applications, robots and people, tool results (matched by tool and arguments), the business events received, timeouts and the passing of time are taken from the baseline journal. Something the baseline never did fails with `REPLAY_UNRECORDED` and is listed in `report["unrecorded"]`; nothing is invented and no tool is called. With `ai="recorded"` the outputs of AI agents and model decisions are replayed too. With `ai="live"` (the default) they run again: give the model providers the built-in AI agent and model decisions call in `engine={"model_providers": [...], "model_tiers": {...}}`, or the actor that performs the AI agents in `engine={"actors": {"ai_agent": ...}}`. A live replay with neither is refused, because without a provider the built-in agent calls no model. A journal recorded with payload mode `hash` or `none` is refused.
 
 ```
 awa replay claim.awa.json run.journal.jsonl [--candidate changed.awa.json] [--json] [-o report.md] [--journal-out candidate.jsonl]
@@ -286,6 +332,20 @@ awa measures --list
 `publish`, `tick` and `resume` accept `-s/--simulate` with `--outputs <file>`: activities then call no model, tool or person and return what the file gives under their name. The reference command's `--html` option (the measures page as one file) is not available in this SDK.
 
 ### HTTP
+
+`awa serve` runs workflows with the routes of the reference server and of `spec/openapi/awa-api.yaml`:
+
+| Route | Purpose |
+|---|---|
+| `POST /api/v1/workflows/run` | Start a run: `filePath`, a `.json` file inside `AWA_WORKFLOWS_DIR` (default the working directory), or `workflow_data`; `input` (or `initial_data`); `simulate`. Returns `runId` and `status` |
+| `POST /api/v1/workflows/events` | Deliver a business event (CloudEvents JSON with `id` and `type`) to the runs waiting for it. Returns `202` with `event_id` and `resumed_runs` |
+| `GET /api/v1/workflows/runs/{run_id}` | `runId`, `workflowId`, `status` and the tokens (`id`, `node_id`, `status`) |
+| `GET /api/v1/workflows/runs/{run_id}/workflow` | The workflow the run executes |
+| `GET /api/v1/workflows/runs/{run_id}/events` | The journal; `?after=<seq>` for later events only |
+| `GET /api/v1/workflows/runs/{run_id}/events/stream` | The journal as Server-Sent Events, from `?after=` or `Last-Event-ID`; the stream ends once the run has completed, failed or been cancelled |
+| `GET /api/v1/workflows/run/{run_id}` | The route of earlier versions: status and tokens in full |
+
+Errors of these routes are `{"code", "message"}`, as the OpenAPI description gives them. With `AWA_JOURNAL_DIR` set, each run's journal is written there.
 
 `awa serve` also offers, behind the same authentication as the other routes:
 

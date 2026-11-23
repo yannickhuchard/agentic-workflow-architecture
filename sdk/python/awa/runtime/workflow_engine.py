@@ -48,6 +48,7 @@ from awa.runtime.context_manager import NO_VALUE, ContextError, ContextManager
 from awa.runtime.actors import SoftwareAgent, AIAgent, HumanAgent, RobotAgent
 from awa.runtime.decision_evaluator import DecisionEvaluator
 from awa.runtime.decision_model import ModelDecision, decide_with_model
+from awa.runtime.model_config import DEFAULT_AI_MODEL_ID
 from awa.runtime.models import ModelRegistry, ModelRouter, RouteAttempt
 from awa.runtime.tools import ActorContext, ToolOptions, ToolRunner
 from awa.validator import validate_workflow_integrity
@@ -180,7 +181,8 @@ class WorkflowEngine:
       model_tiers:         tier name to a model reference, or to an ordered list of them (12.2, 12.5). A standard
                            tier left unmapped takes TIER_PRESETS for the providers registered, else
                            "<default provider>:default" (12.3)
-      default_ai_model_id: model reference used where a document names none; "tier:balanced" if absent
+      default_ai_model_id: model reference used where a document names none; if absent, DEFAULT_AI_MODEL_ID
+                           (awa.runtime.model_config: AWA_DEFAULT_AI_MODEL_ID, else awa/config.json)
       simulated_outputs:   in simulation, what each activity returns, by activity name: `output`, or `error`
                            with an optional `code`, optional `contexts` to write, or `attempts`, a list of
                            those, one per execution, the last repeating
@@ -244,7 +246,7 @@ class WorkflowEngine:
         # Standard tiers the deployment left unmapped are filled as specification 12.3 describes
         self._models.fill_standard_tiers()
         self._router = ModelRouter(self._models)
-        self._default_model_ref: str = opts.get("default_ai_model_id") or "tier:balanced"
+        self._default_model_ref: str = opts.get("default_ai_model_id") or DEFAULT_AI_MODEL_ID
 
         # Initialize actors
         self._actors: dict[ActorType, Any] = {

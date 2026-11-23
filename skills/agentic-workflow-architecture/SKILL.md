@@ -381,6 +381,8 @@ result = (
 )
 ```
 
+The Python SDK passes every conformance level and has the same commands as the TypeScript one (`awa run`, `validate`, `journey`, `measures`, `replay`, `knowledge`, `task`, `serve`), with the same options. It has no recipe, Open Knowledge Format exchange, Google or embedded provider, or views.
+
 ### Key Builder Methods
 
 The Python SDK follows the same fluent API pattern as the TypeScript SDK:

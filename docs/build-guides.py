@@ -90,7 +90,7 @@ page("getting-started.html", "Workflows where the outcome is fixed and the strat
 <p>Three things, kept apart on purpose:</p>
 {cards([("A specification", f"Version {SPEC}. Twenty sections saying what a workflow document means and what an engine must do with it. Written with MUST and MAY."),
         ("A conformance suite", "Language-neutral cases: a workflow, scripted actors, the outcome an engine must produce. An implementation claims a level only if it passes every case at that level."),
-        ("Reference implementations", f"TypeScript SDK {SDK} passes every level. The Python SDK passes every level too. Java has a data model of the documents, without an engine.")])}
+        ("Reference implementations", f"TypeScript SDK {SDK} passes every level. The Python SDK passes every level too. Java has a data model of the 1.1 documents, without an engine.")])}
 <p>The specification and the SDKs are versioned separately: the specification says what a document means, an SDK version says what its API promises.</p>'''),
       ("layers", "What it gives you", table(["Layer", "In one sentence"], [
           ["Document", "A workflow as JSON: activities, actors, roles, edges, decision tables, events."],

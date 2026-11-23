@@ -9,6 +9,7 @@ import json
 from uuid import uuid4
 
 from awa.runtime.actors.ai_agent import parse_reply
+from awa.runtime.model_config import DEFAULT_AI_MODEL_ID
 from awa.runtime.models import FunctionModelProvider, ModelError, ModelRegistry, ModelResponse
 from awa.runtime.workflow_engine import WorkflowEngine
 from awa.types import Workflow
@@ -36,7 +37,7 @@ def reply(output, reasoning=None):
 
 def engine_for(wf, provider, **options):
     return WorkflowEngine(wf, options={
-        "model_providers": [provider], "model_tiers": {"balanced": "test:test-model"},
+        "model_providers": [provider], "model_tiers": {"balanced": "test:test-model"}, "default_ai_model_id": "tier:balanced",
         "log_execution": False, "sleep": lambda ms: None, **options})
 
 
@@ -222,7 +223,7 @@ def test_a_fallback_route_is_journalled():
     second = FunctionModelProvider("second", lambda request: reply("ok"))
     engine = WorkflowEngine(workflow(), options={
         "model_providers": [first, second], "model_tiers": {"balanced": ["first:test-model", "second:test-model"]},
-        "log_execution": False})
+        "default_ai_model_id": "tier:balanced", "log_execution": False})
     assert engine.run()["status"] == "completed"
     route = [e for e in events_of(engine, "meta.recorded") if e["data"]["subject"] == "model_route"]
     assert len(route) == 1 and route[0]["data"]["decision"] == "Route to second:test-model"
@@ -239,9 +240,13 @@ def test_in_simulation_no_model_is_called():
 
 def test_an_unmapped_standard_tier_is_the_default_model_of_the_default_provider():
     provider = FunctionModelProvider("test", lambda request: reply("ok"))
-    engine = WorkflowEngine(workflow(), options={"model_providers": [provider], "log_execution": False})
+    engine = WorkflowEngine(workflow(), options={"model_providers": [provider], "default_ai_model_id": "tier:balanced", "log_execution": False})
     assert engine.run()["status"] == "completed"
     assert provider.requests[0].model == "default"
+    # Without a default named, the engine uses the configured default model (awa/config.json), on the default provider
+    configured = WorkflowEngine(workflow(), options={"model_providers": [provider], "log_execution": False})
+    assert configured.run()["status"] == "completed"
+    assert provider.requests[-1].model == DEFAULT_AI_MODEL_ID
     registry = ModelRegistry().register(provider).set_tier("fast", "test:quick").fill_standard_tiers()
     assert registry.resolve("tier:fast").ref == "test:quick"
     assert registry.resolve("tier:reasoning").ref == "test:default"

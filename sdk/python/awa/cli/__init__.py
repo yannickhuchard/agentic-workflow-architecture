@@ -10,7 +10,6 @@ from pathlib import Path
 
 from awa import __version__
 from awa.types import Workflow
-from awa.runtime import WorkflowEngine
 
 
 def main(argv: list[str] | None = None) -> int:

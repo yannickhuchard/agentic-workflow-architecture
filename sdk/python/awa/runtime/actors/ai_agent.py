@@ -21,6 +21,7 @@ import re
 from typing import Any
 from uuid import uuid4
 
+from awa.runtime.model_config import DEFAULT_AI_MODEL_ID
 from awa.runtime.models import ChatMessage, ModelRegistry, ModelRequest, ModelRouter
 from awa.runtime.token import Token
 from awa.runtime.tools import ActorContext
@@ -49,7 +50,7 @@ class AIAgent(Actor):
     """
 
     def __init__(self, api_key: str | None = None, models: ModelRegistry | None = None,
-                 roles: dict[str, Role] | None = None, default_model_id: str = "tier:balanced",
+                 roles: dict[str, Role] | None = None, default_model_id: str = DEFAULT_AI_MODEL_ID,
                  simulate: bool = False):
         self.api_key = api_key or os.environ.get("GEMINI_API_KEY")
         self.models = models if models is not None else ModelRegistry().fill_standard_tiers()

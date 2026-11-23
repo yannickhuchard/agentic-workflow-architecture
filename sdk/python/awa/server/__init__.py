@@ -281,10 +281,11 @@ async def run_workflow(
         _track(engine, wf_data)
         initial = request.input if request.input is not None else request.initial_data
         engine.start(initial or {})
+        status_now = engine.status.value
         _continue(engine, "in the background")
         return {
             "runId": engine.run_id,
-            "status": engine.status.value,
+            "status": status_now,
             "message": "Workflow started"
         }
     except Exception as e:

@@ -51,8 +51,8 @@ The full text is in [`docs/specification.md`](docs/specification.md). What it me
 | SDK | Conformance levels |
 |---|---|
 | TypeScript (reference) | Every level (18), plus the recipe, Open Knowledge Format exchange, model providers for Google, OpenAI, Ollama and an embedded model, and the views |
-| Python | Every level (18): the same engine rules, tools, model routing, journeys, measures, replay, contexts and service levels. Its built-in AI agent calls no model (supply your own actor or an OpenAI-compatible provider); no recipe, no Open Knowledge Format exchange |
-| Java | Data model only |
+| Python | Every level (18), the same commands (`run`, `validate`, `journey`, `measures`, `replay`, `knowledge`, `task`, `serve`) and the same HTTP routes; its AI agent calls models through OpenAI-compatible and Ollama providers. No recipe, Open Knowledge Format exchange, Google or embedded provider, or views |
+| Java | A data model of AWA 1.1 workflow and journey documents (read, build, write; every example and conformance document round-trips exactly), without an engine |
 
 ### See a run
 
