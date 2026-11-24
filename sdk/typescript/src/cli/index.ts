@@ -13,6 +13,7 @@ import { measuresCommand } from './commands/measures';
 import { validateCommand } from './commands/validate';
 import { evidenceCommand } from './commands/evidence';
 import { evalCommand } from './commands/eval';
+import { telemetryCommand } from './commands/telemetry';
 
 import { version } from '../../package.json';
 
@@ -36,5 +37,6 @@ program.addCommand(journeyCommand);
 program.addCommand(measuresCommand);
 program.addCommand(evidenceCommand);
 program.addCommand(evalCommand);
+program.addCommand(telemetryCommand);
 
 program.parse(process.argv);

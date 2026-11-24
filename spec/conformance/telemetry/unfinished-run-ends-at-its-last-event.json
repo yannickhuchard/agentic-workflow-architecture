@@ -1,0 +1,169 @@
+{
+  "id": "unfinished-run-ends-at-its-last-event",
+  "level": "telemetry",
+  "spec": "26.8",
+  "description": "A run still waiting: an export ends what is open at the time of the last event, unset and marked incomplete. What had ended is as it was.",
+  "decision_nodes": [],
+  "journal": [
+    {
+      "spec_version": "1.1",
+      "id": "1631b18b-c080-5bd0-b951-a023478cdc02",
+      "run_id": "fc1bbacf-909e-578a-bb67-10559894b27e",
+      "seq": 1,
+      "time": "2026-03-02T09:00:00.000Z",
+      "type": "run.started",
+      "level": "execution",
+      "workflow_id": "ccdb8b55-be57-59a8-9674-7d17da51d895",
+      "data": {
+        "workflow_name": "Order",
+        "input": {},
+        "simulate": false
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "1af9e2e0-f8d6-5b90-8a7c-c473feaf8e91",
+      "run_id": "fc1bbacf-909e-578a-bb67-10559894b27e",
+      "seq": 2,
+      "time": "2026-03-02T09:00:00.000Z",
+      "type": "token.created",
+      "level": "execution",
+      "workflow_id": "ccdb8b55-be57-59a8-9674-7d17da51d895",
+      "token_id": "1526cdcb-bf46-56d0-b6a3-10e7ea4765fe",
+      "node_id": "863724d6-3adc-570a-a858-5186daf20b11",
+      "node_name": "Take order",
+      "data": {}
+    },
+    {
+      "spec_version": "1.1",
+      "id": "066cb2dc-7dc7-5c16-b498-f244cd49d4f4",
+      "run_id": "fc1bbacf-909e-578a-bb67-10559894b27e",
+      "seq": 3,
+      "time": "2026-03-02T09:00:00.000Z",
+      "type": "activity.started",
+      "level": "execution",
+      "workflow_id": "ccdb8b55-be57-59a8-9674-7d17da51d895",
+      "token_id": "1526cdcb-bf46-56d0-b6a3-10e7ea4765fe",
+      "node_id": "863724d6-3adc-570a-a858-5186daf20b11",
+      "node_name": "Take order",
+      "attempt": 1,
+      "data": {
+        "actor_type": "application",
+        "input": {}
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "8b3a08ef-e061-5e53-b1ec-5c7f0076dc70",
+      "run_id": "fc1bbacf-909e-578a-bb67-10559894b27e",
+      "seq": 4,
+      "time": "2026-03-02T09:00:00.020Z",
+      "type": "activity.completed",
+      "level": "execution",
+      "workflow_id": "ccdb8b55-be57-59a8-9674-7d17da51d895",
+      "token_id": "1526cdcb-bf46-56d0-b6a3-10e7ea4765fe",
+      "node_id": "863724d6-3adc-570a-a858-5186daf20b11",
+      "node_name": "Take order",
+      "attempt": 1,
+      "data": {
+        "actor_type": "application",
+        "output": {},
+        "duration_ms": 20,
+        "attempts": 1
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "3f692b90-95fb-5cce-a54a-0c82583e611f",
+      "run_id": "fc1bbacf-909e-578a-bb67-10559894b27e",
+      "seq": 5,
+      "time": "2026-03-02T09:00:00.021Z",
+      "type": "token.moved",
+      "level": "execution",
+      "workflow_id": "ccdb8b55-be57-59a8-9674-7d17da51d895",
+      "token_id": "1526cdcb-bf46-56d0-b6a3-10e7ea4765fe",
+      "node_id": "8387026e-de34-599e-8df0-48c2bbd30293",
+      "node_name": "Paid",
+      "data": {
+        "from_node_id": "863724d6-3adc-570a-a858-5186daf20b11",
+        "to_node_id": "8387026e-de34-599e-8df0-48c2bbd30293",
+        "edge_id": "b3161f43-3165-5d07-9254-ee1a901a38c4",
+        "reason": "unconditional"
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "64bb5300-c5b0-5a41-ae80-d35d5d58d485",
+      "run_id": "fc1bbacf-909e-578a-bb67-10559894b27e",
+      "seq": 6,
+      "time": "2026-03-02T09:00:00.021Z",
+      "type": "event.waiting",
+      "level": "execution",
+      "workflow_id": "ccdb8b55-be57-59a8-9674-7d17da51d895",
+      "token_id": "1526cdcb-bf46-56d0-b6a3-10e7ea4765fe",
+      "node_id": "8387026e-de34-599e-8df0-48c2bbd30293",
+      "node_name": "Paid",
+      "data": {
+        "name": "order.paid",
+        "due_at": "2026-03-03T09:00:00.000Z"
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "24cdef0b-2fe5-537c-a06e-6c49a720ec11",
+      "run_id": "fc1bbacf-909e-578a-bb67-10559894b27e",
+      "seq": 7,
+      "time": "2026-03-02T09:00:00.022Z",
+      "type": "run.waiting",
+      "level": "execution",
+      "workflow_id": "ccdb8b55-be57-59a8-9674-7d17da51d895",
+      "data": {
+        "waiting_for": "event",
+        "waiting_tokens": [
+          "1526cdcb-bf46-56d0-b6a3-10e7ea4765fe"
+        ]
+      }
+    }
+  ],
+  "options": {
+    "payloads": false
+  },
+  "expect": {
+    "trace_id": "458aa25122a52be1283d1f93ed380897",
+    "span_count": 3,
+    "spans": [
+      {
+        "span_id": "c756223325ca1ef1",
+        "status": "ok",
+        "end": "2026-03-02T09:00:00.020Z",
+        "absent": [
+          "awa.incomplete"
+        ]
+      },
+      {
+        "span_id": "688cca597fda19c4",
+        "parent_span_id": "6e3e5667a25c6d13",
+        "status": "unset",
+        "start": "2026-03-02T09:00:00.021Z",
+        "end": "2026-03-02T09:00:00.022Z",
+        "attributes": {
+          "awa.incomplete": true
+        },
+        "absent": [
+          "awa.wait.outcome"
+        ]
+      },
+      {
+        "span_id": "6e3e5667a25c6d13",
+        "status": "unset",
+        "end": "2026-03-02T09:00:00.022Z",
+        "attributes": {
+          "awa.incomplete": true
+        },
+        "absent": [
+          "awa.run.status"
+        ]
+      }
+    ]
+  }
+}

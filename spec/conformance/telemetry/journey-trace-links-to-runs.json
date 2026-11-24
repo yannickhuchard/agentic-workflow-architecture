@@ -1,0 +1,299 @@
+{
+  "id": "journey-trace-links-to-runs",
+  "level": "telemetry",
+  "spec": "26.7",
+  "description": "A journey instance is one trace: the journey, its stages and the runs done for it. Each run span links to the run span of that run's own trace. A stage left without completing is unset. Events land on the run, else the stage, they name.",
+  "journey": [
+    {
+      "spec_version": "1.1",
+      "journey_instance_id": "7f7c1c8b-01b4-5a2f-b262-88c7f9b22ea7",
+      "journey_id": "0938ac51-bbdd-508a-824d-32f3b223bd9e",
+      "seq": 1,
+      "time": "2026-03-02T09:00:00.000Z",
+      "type": "journey.started",
+      "stage_id": "intake",
+      "data": {
+        "subject": "customer",
+        "subject_key": "C-1",
+        "journey_name": "Motor claim"
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "journey_instance_id": "7f7c1c8b-01b4-5a2f-b262-88c7f9b22ea7",
+      "journey_id": "0938ac51-bbdd-508a-824d-32f3b223bd9e",
+      "seq": 2,
+      "time": "2026-03-02T09:00:00.000Z",
+      "type": "journey.stage_entered",
+      "stage_id": "intake",
+      "data": {
+        "stage_name": "Intake",
+        "reason": "journey started"
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "journey_instance_id": "7f7c1c8b-01b4-5a2f-b262-88c7f9b22ea7",
+      "journey_id": "0938ac51-bbdd-508a-824d-32f3b223bd9e",
+      "seq": 3,
+      "time": "2026-03-02T09:00:00.001Z",
+      "type": "journey.event_received",
+      "stage_id": "intake",
+      "data": {
+        "event_id": "e1",
+        "name": "claim.submitted",
+        "source": "/portal",
+        "data": {
+          "customer_id": "C-1",
+          "amount": 1200
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "journey_instance_id": "7f7c1c8b-01b4-5a2f-b262-88c7f9b22ea7",
+      "journey_id": "0938ac51-bbdd-508a-824d-32f3b223bd9e",
+      "seq": 4,
+      "time": "2026-03-02T09:00:00.002Z",
+      "type": "journey.run_started",
+      "stage_id": "intake",
+      "run_id": "879118cf-824c-55f7-83da-893d5cd32962",
+      "data": {
+        "workflow_id": "eb69c1ab-0213-5dfb-a677-a832566861e7",
+        "workflow_name": "Claim intake",
+        "caused_by_event": "e1"
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "journey_instance_id": "7f7c1c8b-01b4-5a2f-b262-88c7f9b22ea7",
+      "journey_id": "0938ac51-bbdd-508a-824d-32f3b223bd9e",
+      "seq": 5,
+      "time": "2026-03-02T09:00:00.003Z",
+      "type": "journey.touchpoint",
+      "stage_id": "intake",
+      "run_id": "879118cf-824c-55f7-83da-893d5cd32962",
+      "data": {
+        "touchpoint_id": "tp-ack",
+        "name": "Acknowledgement",
+        "channel": "email",
+        "direction": "outbound"
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "journey_instance_id": "7f7c1c8b-01b4-5a2f-b262-88c7f9b22ea7",
+      "journey_id": "0938ac51-bbdd-508a-824d-32f3b223bd9e",
+      "seq": 6,
+      "time": "2026-03-02T09:00:00.900Z",
+      "type": "journey.run_ended",
+      "stage_id": "intake",
+      "run_id": "879118cf-824c-55f7-83da-893d5cd32962",
+      "data": {
+        "workflow_name": "Claim intake",
+        "status": "completed"
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "journey_instance_id": "7f7c1c8b-01b4-5a2f-b262-88c7f9b22ea7",
+      "journey_id": "0938ac51-bbdd-508a-824d-32f3b223bd9e",
+      "seq": 7,
+      "time": "2026-03-02T09:00:00.900Z",
+      "type": "journey.stage_completed",
+      "stage_id": "intake",
+      "data": {
+        "stage_name": "Intake",
+        "duration_ms": 900
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "journey_instance_id": "7f7c1c8b-01b4-5a2f-b262-88c7f9b22ea7",
+      "journey_id": "0938ac51-bbdd-508a-824d-32f3b223bd9e",
+      "seq": 8,
+      "time": "2026-03-02T09:00:00.900Z",
+      "type": "journey.stage_entered",
+      "stage_id": "settle",
+      "data": {
+        "stage_name": "Settlement",
+        "reason": "stage intake completed"
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "journey_instance_id": "7f7c1c8b-01b4-5a2f-b262-88c7f9b22ea7",
+      "journey_id": "0938ac51-bbdd-508a-824d-32f3b223bd9e",
+      "seq": 9,
+      "time": "2026-03-02T09:00:00.901Z",
+      "type": "journey.run_started",
+      "stage_id": "settle",
+      "run_id": "00f9f7e2-3bee-5fbb-b801-5cb3ec219020",
+      "data": {
+        "workflow_id": "08628611-252d-54c0-a63c-db6ac95fd440",
+        "workflow_name": "Claim settlement"
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "journey_instance_id": "7f7c1c8b-01b4-5a2f-b262-88c7f9b22ea7",
+      "journey_id": "0938ac51-bbdd-508a-824d-32f3b223bd9e",
+      "seq": 10,
+      "time": "2026-03-02T09:00:02.000Z",
+      "type": "journey.run_ended",
+      "stage_id": "settle",
+      "run_id": "00f9f7e2-3bee-5fbb-b801-5cb3ec219020",
+      "data": {
+        "workflow_name": "Claim settlement",
+        "status": "failed",
+        "error": "Payment failed"
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "journey_instance_id": "7f7c1c8b-01b4-5a2f-b262-88c7f9b22ea7",
+      "journey_id": "0938ac51-bbdd-508a-824d-32f3b223bd9e",
+      "seq": 11,
+      "time": "2026-03-02T09:00:02.000Z",
+      "type": "journey.stalled",
+      "stage_id": "settle",
+      "run_id": "00f9f7e2-3bee-5fbb-b801-5cb3ec219020",
+      "data": {
+        "stage_name": "Settlement",
+        "reason": "the Claim settlement workflow failed",
+        "owner": "claims-team"
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "journey_instance_id": "7f7c1c8b-01b4-5a2f-b262-88c7f9b22ea7",
+      "journey_id": "0938ac51-bbdd-508a-824d-32f3b223bd9e",
+      "seq": 12,
+      "time": "2026-03-02T09:00:05.000Z",
+      "type": "journey.completed",
+      "stage_id": "settle",
+      "data": {
+        "reason": "claim.closed",
+        "event_id": "e9"
+      }
+    }
+  ],
+  "options": {
+    "payloads": false
+  },
+  "expect": {
+    "trace_id": "2b3851673e9e476c1f068e2c24e3d91e",
+    "span_count": 5,
+    "spans": [
+      {
+        "span_id": "29f296a217ef692c",
+        "parent_span_id": null,
+        "name": "journey Motor claim",
+        "kind": "internal",
+        "start": "2026-03-02T09:00:00.000Z",
+        "end": "2026-03-02T09:00:05.000Z",
+        "status": "ok",
+        "attributes": {
+          "awa.journey.instance_id": "7f7c1c8b-01b4-5a2f-b262-88c7f9b22ea7",
+          "awa.journey.id": "0938ac51-bbdd-508a-824d-32f3b223bd9e",
+          "awa.journey.name": "Motor claim",
+          "awa.journey.subject": "customer",
+          "awa.journey.status": "completed",
+          "awa.journey.reason": "claim.closed"
+        },
+        "absent": [
+          "awa.journey.subject_key"
+        ],
+        "events": []
+      },
+      {
+        "span_id": "d8dcb2d1d187dc25",
+        "parent_span_id": "29f296a217ef692c",
+        "name": "stage Intake",
+        "start": "2026-03-02T09:00:00.000Z",
+        "end": "2026-03-02T09:00:00.900Z",
+        "status": "ok",
+        "attributes": {
+          "awa.journey.stage.id": "intake",
+          "awa.journey.stage.name": "Intake",
+          "awa.journey.stage.outcome": "completed"
+        },
+        "events": [
+          "journey.event_received"
+        ],
+        "events_contain": [
+          {
+            "name": "journey.event_received",
+            "attributes": {
+              "awa.journey.seq": 3,
+              "awa.journey.stage.id": "intake",
+              "awa.data.name": "claim.submitted"
+            },
+            "absent": [
+              "awa.data.data"
+            ]
+          }
+        ]
+      },
+      {
+        "span_id": "fd7f88f81656bf53",
+        "parent_span_id": "d8dcb2d1d187dc25",
+        "name": "run Claim intake",
+        "start": "2026-03-02T09:00:00.002Z",
+        "end": "2026-03-02T09:00:00.900Z",
+        "status": "ok",
+        "attributes": {
+          "awa.run.id": "879118cf-824c-55f7-83da-893d5cd32962",
+          "awa.workflow.name": "Claim intake",
+          "awa.business_event.id": "e1",
+          "awa.run.status": "completed",
+          "awa.journey.stage.id": "intake"
+        },
+        "links": [
+          {
+            "trace_id": "3f19c43b4e111e8bc47272acdaefb1e8",
+            "span_id": "64ddbc3c515c7f0b"
+          }
+        ],
+        "events": [
+          "journey.touchpoint"
+        ]
+      },
+      {
+        "span_id": "a0b7f87a69f3afed",
+        "parent_span_id": "29f296a217ef692c",
+        "name": "stage Settlement",
+        "start": "2026-03-02T09:00:00.900Z",
+        "end": "2026-03-02T09:00:05.000Z",
+        "status": "unset",
+        "attributes": {
+          "awa.journey.stage.outcome": "left"
+        },
+        "events": [
+          "journey.stalled"
+        ]
+      },
+      {
+        "span_id": "705e2a575605ed9e",
+        "parent_span_id": "a0b7f87a69f3afed",
+        "name": "run Claim settlement",
+        "start": "2026-03-02T09:00:00.901Z",
+        "end": "2026-03-02T09:00:02.000Z",
+        "status": "error",
+        "status_message": "Payment failed",
+        "attributes": {
+          "awa.run.status": "failed"
+        },
+        "absent": [
+          "awa.business_event.id"
+        ],
+        "links": [
+          {
+            "trace_id": "c0e6896b767b5f33b7d32279b5ce668c",
+            "span_id": "00669ce3668c0a75"
+          }
+        ]
+      }
+    ]
+  }
+}

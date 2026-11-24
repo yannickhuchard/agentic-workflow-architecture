@@ -57,6 +57,7 @@ from awa.runtime.protocols.a2a import A2AActor, A2AOptions, A2ARunState, a2a_bin
 from awa.validator import validate_workflow_integrity
 from awa.runtime.expression import evaluate_expression, resolve_path
 from awa.runtime.duration import parse_iso_duration
+from awa.runtime.telemetry_export import open_run_telemetry
 from awa.runtime.journal import (
     InMemoryJournalStore, JournalEvent, JournalListener, JournalWriter,
     format_time, hash_payload, public_payload,
@@ -199,6 +200,8 @@ class WorkflowEngine:
       log_execution:       False keeps the run out of the execution log (ExecutionService); a replay sets it
       knowledge:           KnowledgeBase that activities with a `knowledge` binding draw on (15.4)
       learn:               True to distil the run's journal into that knowledge base when the run ends
+      telemetry:           where the run's spans go as its journal is written (specification 26): an exporter
+                           (an object with export(spans)), or {"endpoint", "headers", "protocol", "payloads"}
 
     Contexts (22): while an actor executes an activity bound to contexts, the token's data holds
     `_contexts`, the values the activity may read, by context name. An actor writes to contexts by
@@ -282,6 +285,10 @@ class WorkflowEngine:
         self._journal_store = opts.get("journal") or InMemoryJournalStore()
         self._journal = JournalWriter(
             self._run_id, str(workflow.id), self._journal_store, opts.get("journal_payloads", "full"), 0, self._now)
+        # Spans leave as the journal is written (specification 26); telemetry never holds up the run
+        self._telemetry = open_run_telemetry(workflow, opts.get("telemetry"), lambda: self._journal_store.read(self._run_id))
+        if self._telemetry:
+            self._telemetry.watch(self._journal)
         self._dead_letter_queue: DeadLetterQueue = (
             opts.get("dead_letter_queue") or DeadLetterQueue(Logger(output_func=lambda entry: None)))
         # Activities whose outcome was accepted, in order of completion. Drives compensation.
@@ -623,6 +630,8 @@ class WorkflowEngine:
         engine._journal = JournalWriter(
             engine._run_id, str(workflow.id), engine._journal_store, opts.get("journal_payloads", "full"),
             max([checkpoint_seq, *on_record]), engine._now)
+        if engine._telemetry:
+            engine._telemetry.watch(engine._journal)
         engine._tokens = {t["id"]: Token.from_dict(copy.deepcopy(t)) for t in state.get("tokens", [])}
         # Context values are part of the state a run is recovered from (22.3). A checkpoint written before
         # contexts were enforced holds an empty object for every context, which is not a value: it is ignored.

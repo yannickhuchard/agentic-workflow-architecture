@@ -391,7 +391,7 @@ result = (
 )
 ```
 
-The Python SDK passes every conformance level and has the same commands as the TypeScript one (`awa run`, `validate`, `journey`, `measures`, `replay`, `evidence`, `eval`, `knowledge`, `task`, `serve`), with the same options. It has no recipe, Open Knowledge Format exchange, Google or embedded provider, or views.
+The Python SDK passes every conformance level and has the same commands as the TypeScript one (`awa run`, `validate`, `journey`, `measures`, `replay`, `evidence`, `eval`, `knowledge`, `task`, `telemetry`, `serve`), with the same options. It has no recipe, Open Knowledge Format exchange, Google or embedded provider, or views.
 
 ### Key Builder Methods
 
@@ -444,6 +444,7 @@ awa serve --a2a workflow.awa.json --deployment deployment.json
 | `awa knowledge <ingest\|list\|review\|deprecate\|export\|import>` | Build, review and exchange knowledge | `--kb <file>` |
 | `awa journey <add\|publish\|tick\|resume\|list\|show\|analytics\|export>` | Journeys in a runtime directory | `--dir <dir>`, `--simulate`, `--outputs <file>` |
 | `awa measures` | The measures of journeys and workflows | `--dir`, `--file`, `--from`, `--to`, `--json`, `--openmetrics`, `--html <file>`, `--list` |
+| `awa telemetry export <workflow> <journal>` | A recorded run as OpenTelemetry traces; also `journeys` and `measures` | `--endpoint <url>`, `--file <out.json>`, `--protocol`, `--header k=v`, `--service-name`, `--payloads` |
 | `awa replay <workflow> <journal>` | Counterfactual replay; exit status 2 on a regression | `--candidate <file>`, `--ai live\|recorded`, `-o`, `--json` |
 | `awa evidence <sources...>` | An evidence report from journals and journey records, every statement citing its records | `--from`, `--to`, `--workflow <id or name...>`, `--as-of`, `--format json\|md\|html`, `-o` |
 | `awa eval <build\|run>` | Evaluation datasets from journals; a candidate scored against one, exit status 2 on a regression | `build <journals...> -o`; `run <workflow> <dataset> --candidate <file> --providers <list> --json -o` |
@@ -666,7 +667,25 @@ report.journeys[0].measures['journey.completion_rate'];   // { value: 0.5, n: 6 
 report.attention;                                         // who is stuck, in which stage, and its owner
 ```
 
-A measure is `{ value, n }`: `n` is what it was computed over, and `value` is `null`, never 0, when that is nothing. `GET /api/v1/measures` serves the report and `?format=openmetrics` gives it to a metrics system. `tools/visualization/dashboard.html` shows it (`?live=http://localhost:3000` reads a running server). Give a stage an `owner` so that a stalled journey names who must act.
+A measure is `{ value, n }`: `n` is what it was computed over, and `value` is `null`, never 0, when that is nothing. `GET /api/v1/measures` serves the report and `?format=openmetrics` gives it to a metrics system (`?format=otlp` as OpenTelemetry gauges). `tools/visualization/dashboard.html` shows it (`?live=http://localhost:3000` reads a running server). Give a stage an `owner` so that a stalled journey names who must act.
+
+### Telemetry (specification section 26)
+
+Every run and journey can be watched in OpenTelemetry. A run is one trace: a span for the run (`invoke_workflow`), each attempt (`invoke_agent` for an AI agent), each tool call (`execute_tool`), each model call (`chat`, with provider, model and token usage in the generative AI conventions), each decision and each wait; everything else in the journal is a span event. A journey is one trace whose run spans link to the runs' traces. Trace and span ids are derived from the run id, so the spans sent live and those exported later from the journal are the same, in either SDK.
+
+```bash
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 awa run workflow.awa.json      # spans leave as the run proceeds
+awa telemetry export workflow.awa.json run.journal.jsonl --endpoint http://localhost:4318
+awa telemetry export workflow.awa.json run.journal.jsonl --file run.otlp.json   # OTLP/JSON
+```
+
+```typescript
+import { OtlpHttpExporter, WorkflowEngine } from 'agentic-workflow-architecture';
+const exporter = new OtlpHttpExporter({ traces_url: 'http://localhost:4318/v1/traces' });
+const engine = new WorkflowEngine(workflow, { telemetry: exporter });   // or { telemetry: { endpoint, headers, payloads } }
+```
+
+Telemetry never holds up or fails a run: a backend that is down costs dropped spans, counted and reported, and the journal can send them again. Inputs, outputs and tool arguments go on spans only with `payloads: true` (or `AWA_TELEMETRY_PAYLOADS=true`). `awa serve` and `awa journey` honour the same `OTEL_*` variables.
 
 ### Evidence, evaluation and shadow runs (specification sections 32 and 33)
 

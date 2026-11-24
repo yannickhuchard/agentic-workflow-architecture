@@ -1,0 +1,223 @@
+{
+  "id": "payloads-on-spans-when-opted-in",
+  "level": "telemetry",
+  "spec": "26.6",
+  "description": "The same journal with the deployment opted in: each payload is on its span as canonical JSON, and event data is on the span event.",
+  "decision_nodes": [],
+  "journal": [
+    {
+      "spec_version": "1.1",
+      "id": "1cb13b59-8b9a-5f72-a2c0-8539be05d2a2",
+      "run_id": "a0a98b26-1d2b-56e1-9719-8ac4b698e7c9",
+      "seq": 1,
+      "time": "2026-03-02T09:00:00.000Z",
+      "type": "run.started",
+      "level": "execution",
+      "workflow_id": "0fb14f0e-f0f7-552c-bf9c-e06b426a6914",
+      "data": {
+        "workflow_name": "Refund",
+        "input": {
+          "order": "O-17"
+        },
+        "simulate": false
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "b02a94c5-fe5c-5124-9f72-064b907ecfd9",
+      "run_id": "a0a98b26-1d2b-56e1-9719-8ac4b698e7c9",
+      "seq": 2,
+      "time": "2026-03-02T09:00:00.000Z",
+      "type": "token.created",
+      "level": "execution",
+      "workflow_id": "0fb14f0e-f0f7-552c-bf9c-e06b426a6914",
+      "token_id": "78e88bb2-c582-5e71-89ef-0ca060f6c3a2",
+      "node_id": "7d748fdb-ba3f-58f4-8e89-097836bd56b5",
+      "node_name": "Pay",
+      "data": {}
+    },
+    {
+      "spec_version": "1.1",
+      "id": "bb2825c7-e215-5d5a-9e5f-37e01a582c0c",
+      "run_id": "a0a98b26-1d2b-56e1-9719-8ac4b698e7c9",
+      "seq": 3,
+      "time": "2026-03-02T09:00:00.000Z",
+      "type": "activity.started",
+      "level": "execution",
+      "workflow_id": "0fb14f0e-f0f7-552c-bf9c-e06b426a6914",
+      "token_id": "78e88bb2-c582-5e71-89ef-0ca060f6c3a2",
+      "node_id": "7d748fdb-ba3f-58f4-8e89-097836bd56b5",
+      "node_name": "Pay",
+      "attempt": 1,
+      "data": {
+        "actor_type": "application",
+        "input": {
+          "amount": 40
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "6ae3d1ea-05c5-5fe9-9ff9-7ceee8cef8e7",
+      "run_id": "a0a98b26-1d2b-56e1-9719-8ac4b698e7c9",
+      "seq": 4,
+      "time": "2026-03-02T09:00:00.001Z",
+      "type": "tool.invoked",
+      "level": "execution",
+      "workflow_id": "0fb14f0e-f0f7-552c-bf9c-e06b426a6914",
+      "token_id": "78e88bb2-c582-5e71-89ef-0ca060f6c3a2",
+      "node_id": "7d748fdb-ba3f-58f4-8e89-097836bd56b5",
+      "node_name": "Pay",
+      "attempt": 1,
+      "data": {
+        "call_id": "c1",
+        "tool": "transfer",
+        "link": "https://bank.example/rpc#transfer",
+        "binding": {
+          "kind": "jsonrpc"
+        },
+        "arguments": {
+          "iban": "FR76"
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "fb926644-e859-51b7-9fea-5c958a4c2a3e",
+      "run_id": "a0a98b26-1d2b-56e1-9719-8ac4b698e7c9",
+      "seq": 5,
+      "time": "2026-03-02T09:00:00.002Z",
+      "type": "tool.completed",
+      "level": "execution",
+      "workflow_id": "0fb14f0e-f0f7-552c-bf9c-e06b426a6914",
+      "token_id": "78e88bb2-c582-5e71-89ef-0ca060f6c3a2",
+      "node_id": "7d748fdb-ba3f-58f4-8e89-097836bd56b5",
+      "node_name": "Pay",
+      "attempt": 1,
+      "data": {
+        "call_id": "c1",
+        "tool": "transfer",
+        "link": "https://bank.example/rpc#transfer",
+        "status": 200,
+        "duration_ms": 1,
+        "result": {
+          "ref": "TX-9"
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "a40f5589-f2ea-5b29-afc6-c1dcde07d095",
+      "run_id": "a0a98b26-1d2b-56e1-9719-8ac4b698e7c9",
+      "seq": 6,
+      "time": "2026-03-02T09:00:00.003Z",
+      "type": "activity.completed",
+      "level": "execution",
+      "workflow_id": "0fb14f0e-f0f7-552c-bf9c-e06b426a6914",
+      "token_id": "78e88bb2-c582-5e71-89ef-0ca060f6c3a2",
+      "node_id": "7d748fdb-ba3f-58f4-8e89-097836bd56b5",
+      "node_name": "Pay",
+      "attempt": 1,
+      "data": {
+        "actor_type": "application",
+        "output": {
+          "paid": true
+        },
+        "duration_ms": 3,
+        "attempts": 1
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "1cef4b63-7e54-5ca5-97f5-e75e1cb1d267",
+      "run_id": "a0a98b26-1d2b-56e1-9719-8ac4b698e7c9",
+      "seq": 7,
+      "time": "2026-03-02T09:00:00.003Z",
+      "type": "event.published",
+      "level": "execution",
+      "workflow_id": "0fb14f0e-f0f7-552c-bf9c-e06b426a6914",
+      "token_id": "78e88bb2-c582-5e71-89ef-0ca060f6c3a2",
+      "node_id": "7393b4f6-2ff3-5f1a-b9fa-5566688897b7",
+      "node_name": "Refunded",
+      "data": {
+        "event_id": "ev-1",
+        "name": "refund.paid",
+        "source": "urn:awa:run:x",
+        "data": {
+          "order": "O-17"
+        },
+        "delivered": true
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "18da397b-68c4-5477-aaea-0e49597d6715",
+      "run_id": "a0a98b26-1d2b-56e1-9719-8ac4b698e7c9",
+      "seq": 8,
+      "time": "2026-03-02T09:00:00.003Z",
+      "type": "token.completed",
+      "level": "execution",
+      "workflow_id": "0fb14f0e-f0f7-552c-bf9c-e06b426a6914",
+      "token_id": "78e88bb2-c582-5e71-89ef-0ca060f6c3a2",
+      "node_id": "7393b4f6-2ff3-5f1a-b9fa-5566688897b7",
+      "node_name": "Refunded",
+      "data": {}
+    },
+    {
+      "spec_version": "1.1",
+      "id": "414a8b79-fd47-5cf3-9d36-6bf89d31cf8f",
+      "run_id": "a0a98b26-1d2b-56e1-9719-8ac4b698e7c9",
+      "seq": 9,
+      "time": "2026-03-02T09:00:00.003Z",
+      "type": "run.completed",
+      "level": "execution",
+      "workflow_id": "0fb14f0e-f0f7-552c-bf9c-e06b426a6914",
+      "data": {
+        "duration_ms": 3,
+        "steps": 1,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cost": 0,
+        "currency": "EUR"
+      }
+    }
+  ],
+  "options": {
+    "payloads": true
+  },
+  "expect": {
+    "trace_id": "77e6fed870c8ff93c9eea0562e72c8a6",
+    "span_count": 3,
+    "spans": [
+      {
+        "span_id": "ea0d325da07e928c",
+        "attributes": {
+          "awa.run.input": "{\"order\":\"O-17\"}"
+        },
+        "events_contain": [
+          {
+            "name": "event.published",
+            "attributes": {
+              "awa.data.data": "{\"order\":\"O-17\"}",
+              "awa.data.name": "refund.paid"
+            }
+          }
+        ]
+      },
+      {
+        "span_id": "ac21d154395c7427",
+        "attributes": {
+          "awa.input": "{\"amount\":40}",
+          "awa.output": "{\"paid\":true}"
+        }
+      },
+      {
+        "span_id": "5e347e5b4ed0899e",
+        "attributes": {
+          "gen_ai.tool.call.arguments": "{\"iban\":\"FR76\"}",
+          "gen_ai.tool.call.result": "{\"ref\":\"TX-9\"}"
+        }
+      }
+    ]
+  }
+}

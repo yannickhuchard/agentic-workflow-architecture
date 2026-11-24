@@ -696,7 +696,7 @@ paths:
         - { name: to, in: query, schema: { type: string, format: date-time }, description: Keep what started before this instant }
         - { name: journey_id, in: query, schema: { type: string } }
         - { name: workflow_id, in: query, schema: { type: string } }
-        - { name: format, in: query, schema: { type: string, enum: [json, openmetrics] }, description: openmetrics gives the OpenMetrics text format, for a metrics system to scrape }
+        - { name: format, in: query, schema: { type: string, enum: [json, openmetrics, otlp] }, description: openmetrics gives the OpenMetrics text format, for a metrics system to scrape; otlp gives an OTLP/JSON ExportMetricsServiceRequest of gauges (specification 26.12) }
       responses:
         '200':
           description: The report (21.1)

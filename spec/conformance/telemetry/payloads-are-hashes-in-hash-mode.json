@@ -1,0 +1,223 @@
+{
+  "id": "payloads-are-hashes-in-hash-mode",
+  "level": "telemetry",
+  "spec": "26.6",
+  "description": "A journal in hash mode, opted in: telemetry carries what the journal holds, the hash and never the value.",
+  "decision_nodes": [],
+  "journal": [
+    {
+      "spec_version": "1.1",
+      "id": "241487a1-4eb0-576c-92ed-ab410db72a68",
+      "run_id": "f5d226ac-2f27-5629-ac58-072fcdf86148",
+      "seq": 1,
+      "time": "2026-03-02T09:00:00.000Z",
+      "type": "run.started",
+      "level": "execution",
+      "workflow_id": "f957ec87-98b7-5cc6-a6b1-08aba69fb9fa",
+      "data": {
+        "workflow_name": "Refund",
+        "input": {
+          "sha256": "5cb021966f7868a2ae750d3d3f0f20c0a6309d533cb533cb889a139e9274e7a0"
+        },
+        "simulate": false
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "b517cb1b-3a56-554f-a06e-e121a982a590",
+      "run_id": "f5d226ac-2f27-5629-ac58-072fcdf86148",
+      "seq": 2,
+      "time": "2026-03-02T09:00:00.000Z",
+      "type": "token.created",
+      "level": "execution",
+      "workflow_id": "f957ec87-98b7-5cc6-a6b1-08aba69fb9fa",
+      "token_id": "a8b30840-0c38-54c2-b2df-c3117f825fae",
+      "node_id": "92221556-614a-5c0e-887a-4496242284dd",
+      "node_name": "Pay",
+      "data": {}
+    },
+    {
+      "spec_version": "1.1",
+      "id": "1efece39-1a59-552c-887e-c6548019f67d",
+      "run_id": "f5d226ac-2f27-5629-ac58-072fcdf86148",
+      "seq": 3,
+      "time": "2026-03-02T09:00:00.000Z",
+      "type": "activity.started",
+      "level": "execution",
+      "workflow_id": "f957ec87-98b7-5cc6-a6b1-08aba69fb9fa",
+      "token_id": "a8b30840-0c38-54c2-b2df-c3117f825fae",
+      "node_id": "92221556-614a-5c0e-887a-4496242284dd",
+      "node_name": "Pay",
+      "attempt": 1,
+      "data": {
+        "actor_type": "application",
+        "input": {
+          "sha256": "f78a55155e8c087f90016b4b8d51cb68fec992a9587a2a25b8f8307c9b01dd6f"
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "fc6eb909-0589-5a8d-b542-c3bb6aa0d469",
+      "run_id": "f5d226ac-2f27-5629-ac58-072fcdf86148",
+      "seq": 4,
+      "time": "2026-03-02T09:00:00.001Z",
+      "type": "tool.invoked",
+      "level": "execution",
+      "workflow_id": "f957ec87-98b7-5cc6-a6b1-08aba69fb9fa",
+      "token_id": "a8b30840-0c38-54c2-b2df-c3117f825fae",
+      "node_id": "92221556-614a-5c0e-887a-4496242284dd",
+      "node_name": "Pay",
+      "attempt": 1,
+      "data": {
+        "call_id": "c1",
+        "tool": "transfer",
+        "link": "https://bank.example/rpc#transfer",
+        "binding": {
+          "kind": "jsonrpc"
+        },
+        "arguments": {
+          "sha256": "d81678e4e4354db904f079ca1c6eaf567b4d3f35aa3f960ab2aa47299623df6f"
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "0c210366-e592-5217-a6ef-c8ada3a3e906",
+      "run_id": "f5d226ac-2f27-5629-ac58-072fcdf86148",
+      "seq": 5,
+      "time": "2026-03-02T09:00:00.002Z",
+      "type": "tool.completed",
+      "level": "execution",
+      "workflow_id": "f957ec87-98b7-5cc6-a6b1-08aba69fb9fa",
+      "token_id": "a8b30840-0c38-54c2-b2df-c3117f825fae",
+      "node_id": "92221556-614a-5c0e-887a-4496242284dd",
+      "node_name": "Pay",
+      "attempt": 1,
+      "data": {
+        "call_id": "c1",
+        "tool": "transfer",
+        "link": "https://bank.example/rpc#transfer",
+        "status": 200,
+        "duration_ms": 1,
+        "result": {
+          "sha256": "7a5dca28d360dddceaf04a6a8b17584ffb07c7f8b590cc05a7590fdc2a11dfb4"
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "8691f6f0-5190-5ac7-b6d4-4985d07569ca",
+      "run_id": "f5d226ac-2f27-5629-ac58-072fcdf86148",
+      "seq": 6,
+      "time": "2026-03-02T09:00:00.003Z",
+      "type": "activity.completed",
+      "level": "execution",
+      "workflow_id": "f957ec87-98b7-5cc6-a6b1-08aba69fb9fa",
+      "token_id": "a8b30840-0c38-54c2-b2df-c3117f825fae",
+      "node_id": "92221556-614a-5c0e-887a-4496242284dd",
+      "node_name": "Pay",
+      "attempt": 1,
+      "data": {
+        "actor_type": "application",
+        "output": {
+          "sha256": "a2af987a163f4f45e9a349097cfa9df8f7b71f7982edd1627e18ae14ef28fa2f"
+        },
+        "duration_ms": 3,
+        "attempts": 1
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "cac8367a-b101-5031-b115-005b389aea62",
+      "run_id": "f5d226ac-2f27-5629-ac58-072fcdf86148",
+      "seq": 7,
+      "time": "2026-03-02T09:00:00.003Z",
+      "type": "event.published",
+      "level": "execution",
+      "workflow_id": "f957ec87-98b7-5cc6-a6b1-08aba69fb9fa",
+      "token_id": "a8b30840-0c38-54c2-b2df-c3117f825fae",
+      "node_id": "c4deb236-61a0-5d72-a3fd-271253653ed7",
+      "node_name": "Refunded",
+      "data": {
+        "event_id": "ev-1",
+        "name": "refund.paid",
+        "source": "urn:awa:run:x",
+        "data": {
+          "sha256": "5cb021966f7868a2ae750d3d3f0f20c0a6309d533cb533cb889a139e9274e7a0"
+        },
+        "delivered": true
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "b4f6235f-6b95-54e2-b42e-060e1e07c368",
+      "run_id": "f5d226ac-2f27-5629-ac58-072fcdf86148",
+      "seq": 8,
+      "time": "2026-03-02T09:00:00.003Z",
+      "type": "token.completed",
+      "level": "execution",
+      "workflow_id": "f957ec87-98b7-5cc6-a6b1-08aba69fb9fa",
+      "token_id": "a8b30840-0c38-54c2-b2df-c3117f825fae",
+      "node_id": "c4deb236-61a0-5d72-a3fd-271253653ed7",
+      "node_name": "Refunded",
+      "data": {}
+    },
+    {
+      "spec_version": "1.1",
+      "id": "6a5d4bc4-7e28-5f2e-9cdd-aac2dce8fd69",
+      "run_id": "f5d226ac-2f27-5629-ac58-072fcdf86148",
+      "seq": 9,
+      "time": "2026-03-02T09:00:00.003Z",
+      "type": "run.completed",
+      "level": "execution",
+      "workflow_id": "f957ec87-98b7-5cc6-a6b1-08aba69fb9fa",
+      "data": {
+        "duration_ms": 3,
+        "steps": 1,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cost": 0,
+        "currency": "EUR"
+      }
+    }
+  ],
+  "options": {
+    "payloads": true
+  },
+  "expect": {
+    "trace_id": "9a46a01cbc3960ab36f57d6ef78b17bc",
+    "span_count": 3,
+    "spans": [
+      {
+        "span_id": "ea235627186be898",
+        "attributes": {
+          "awa.run.input": "{\"sha256\":\"5cb021966f7868a2ae750d3d3f0f20c0a6309d533cb533cb889a139e9274e7a0\"}"
+        },
+        "events_contain": [
+          {
+            "name": "event.published",
+            "attributes": {
+              "awa.data.data": "{\"sha256\":\"5cb021966f7868a2ae750d3d3f0f20c0a6309d533cb533cb889a139e9274e7a0\"}",
+              "awa.data.name": "refund.paid"
+            }
+          }
+        ]
+      },
+      {
+        "span_id": "eb53f825237c7b24",
+        "attributes": {
+          "awa.input": "{\"sha256\":\"f78a55155e8c087f90016b4b8d51cb68fec992a9587a2a25b8f8307c9b01dd6f\"}",
+          "awa.output": "{\"sha256\":\"a2af987a163f4f45e9a349097cfa9df8f7b71f7982edd1627e18ae14ef28fa2f\"}"
+        }
+      },
+      {
+        "span_id": "4290708a6b99396b",
+        "attributes": {
+          "gen_ai.tool.call.arguments": "{\"sha256\":\"d81678e4e4354db904f079ca1c6eaf567b4d3f35aa3f960ab2aa47299623df6f\"}",
+          "gen_ai.tool.call.result": "{\"sha256\":\"7a5dca28d360dddceaf04a6a8b17584ffb07c7f8b590cc05a7590fdc2a11dfb4\"}"
+        }
+      }
+    ]
+  }
+}

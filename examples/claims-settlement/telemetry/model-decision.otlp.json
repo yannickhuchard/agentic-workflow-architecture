@@ -1,0 +1,3745 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "awa"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "awa",
+            "version": "1.1"
+          },
+          "spans": [
+            {
+              "traceId": "f0a344645b5cf9bb0f49fca81ddd7668",
+              "spanId": "6a94b0cb2f89dc1f",
+              "parentSpanId": "2ae4675ad37d3020",
+              "name": "activity Register claim",
+              "kind": 1,
+              "startTimeUnixNano": "1795348029660000000",
+              "endTimeUnixNano": "1795348029910000000",
+              "attributes": [
+                {
+                  "key": "awa.run.id",
+                  "value": {
+                    "stringValue": "e853a985-771b-4cb3-b440-bfa3978ea3af"
+                  }
+                },
+                {
+                  "key": "awa.node.id",
+                  "value": {
+                    "stringValue": "ce586efb-eb64-5fe5-8baa-aa2a9979ae7f"
+                  }
+                },
+                {
+                  "key": "awa.node.name",
+                  "value": {
+                    "stringValue": "Register claim"
+                  }
+                },
+                {
+                  "key": "awa.token.id",
+                  "value": {
+                    "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                  }
+                },
+                {
+                  "key": "awa.attempt",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "awa.actor.type",
+                  "value": {
+                    "stringValue": "application"
+                  }
+                },
+                {
+                  "key": "awa.role.id",
+                  "value": {
+                    "stringValue": "bef76de6-107e-5861-ab56-75b55251635f"
+                  }
+                }
+              ],
+              "events": [],
+              "links": [],
+              "status": {
+                "code": 1
+              }
+            },
+            {
+              "traceId": "f0a344645b5cf9bb0f49fca81ddd7668",
+              "spanId": "f001812329c6949f",
+              "parentSpanId": "4dcbc176cc3c3bfa",
+              "name": "chat assessor-large",
+              "kind": 3,
+              "startTimeUnixNano": "1795348029910000000",
+              "endTimeUnixNano": "1795348030812000000",
+              "attributes": [
+                {
+                  "key": "awa.run.id",
+                  "value": {
+                    "stringValue": "e853a985-771b-4cb3-b440-bfa3978ea3af"
+                  }
+                },
+                {
+                  "key": "awa.node.id",
+                  "value": {
+                    "stringValue": "47a33422-41f7-57f0-b94a-503dcca1edc5"
+                  }
+                },
+                {
+                  "key": "awa.node.name",
+                  "value": {
+                    "stringValue": "Assess damage"
+                  }
+                },
+                {
+                  "key": "awa.token.id",
+                  "value": {
+                    "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                  }
+                },
+                {
+                  "key": "awa.attempt",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "chat"
+                  }
+                },
+                {
+                  "key": "gen_ai.provider.name",
+                  "value": {
+                    "stringValue": "acme"
+                  }
+                },
+                {
+                  "key": "gen_ai.request.model",
+                  "value": {
+                    "stringValue": "assessor-large"
+                  }
+                },
+                {
+                  "key": "gen_ai.response.model",
+                  "value": {
+                    "stringValue": "assessor-large"
+                  }
+                },
+                {
+                  "key": "gen_ai.request.temperature",
+                  "value": {
+                    "doubleValue": 0.2
+                  }
+                },
+                {
+                  "key": "awa.model.provider",
+                  "value": {
+                    "stringValue": "acme"
+                  }
+                },
+                {
+                  "key": "awa.model.requested",
+                  "value": {
+                    "stringValue": "tier:reasoning"
+                  }
+                },
+                {
+                  "key": "awa.model.tier",
+                  "value": {
+                    "stringValue": "reasoning"
+                  }
+                },
+                {
+                  "key": "awa.model.source",
+                  "value": {
+                    "stringValue": "role"
+                  }
+                }
+              ],
+              "events": [],
+              "links": [],
+              "status": {
+                "code": 1
+              }
+            },
+            {
+              "traceId": "f0a344645b5cf9bb0f49fca81ddd7668",
+              "spanId": "4dcbc176cc3c3bfa",
+              "parentSpanId": "2ae4675ad37d3020",
+              "name": "invoke_agent Assess damage",
+              "kind": 1,
+              "startTimeUnixNano": "1795348029910000000",
+              "endTimeUnixNano": "1795348030812000000",
+              "attributes": [
+                {
+                  "key": "awa.run.id",
+                  "value": {
+                    "stringValue": "e853a985-771b-4cb3-b440-bfa3978ea3af"
+                  }
+                },
+                {
+                  "key": "awa.node.id",
+                  "value": {
+                    "stringValue": "47a33422-41f7-57f0-b94a-503dcca1edc5"
+                  }
+                },
+                {
+                  "key": "awa.node.name",
+                  "value": {
+                    "stringValue": "Assess damage"
+                  }
+                },
+                {
+                  "key": "awa.token.id",
+                  "value": {
+                    "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                  }
+                },
+                {
+                  "key": "awa.attempt",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "awa.actor.type",
+                  "value": {
+                    "stringValue": "ai_agent"
+                  }
+                },
+                {
+                  "key": "awa.role.id",
+                  "value": {
+                    "stringValue": "8011abaf-e650-566d-ac8e-678431596e76"
+                  }
+                },
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "invoke_agent"
+                  }
+                },
+                {
+                  "key": "gen_ai.agent.name",
+                  "value": {
+                    "stringValue": "Assess damage"
+                  }
+                },
+                {
+                  "key": "gen_ai.agent.id",
+                  "value": {
+                    "stringValue": "47a33422-41f7-57f0-b94a-503dcca1edc5"
+                  }
+                },
+                {
+                  "key": "error.type",
+                  "value": {
+                    "stringValue": "CONTRACT_VIOLATION"
+                  }
+                },
+                {
+                  "key": "awa.error.retryable",
+                  "value": {
+                    "boolValue": true
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1795348030812000000",
+                  "name": "reasoning.recorded",
+                  "attributes": [
+                    {
+                      "key": "awa.journal.seq",
+                      "value": {
+                        "intValue": "9"
+                      }
+                    },
+                    {
+                      "key": "awa.journal.level",
+                      "value": {
+                        "stringValue": "reasoning"
+                      }
+                    },
+                    {
+                      "key": "awa.token.id",
+                      "value": {
+                        "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                      }
+                    },
+                    {
+                      "key": "awa.node.id",
+                      "value": {
+                        "stringValue": "47a33422-41f7-57f0-b94a-503dcca1edc5"
+                      }
+                    },
+                    {
+                      "key": "awa.node.name",
+                      "value": {
+                        "stringValue": "Assess damage"
+                      }
+                    },
+                    {
+                      "key": "awa.attempt",
+                      "value": {
+                        "intValue": "1"
+                      }
+                    },
+                    {
+                      "key": "awa.data.source",
+                      "value": {
+                        "stringValue": "actor"
+                      }
+                    },
+                    {
+                      "key": "awa.data.plan",
+                      "value": {
+                        "stringValue": "[\"Read the claim description\",\"List damaged parts\",\"Estimate the cost\"]"
+                      }
+                    },
+                    {
+                      "key": "awa.data.rationale",
+                      "value": {
+                        "stringValue": "Rear-end collision at low speed; the damage is limited to the bumper and tailgate."
+                      }
+                    },
+                    {
+                      "key": "awa.data.alternatives_considered",
+                      "value": {
+                        "stringValue": "[\"Total loss: rejected, the chassis is intact\"]"
+                      }
+                    },
+                    {
+                      "key": "awa.data.confidence",
+                      "value": {
+                        "doubleValue": 0.6
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1795348030812000000",
+                  "name": "contract.checked",
+                  "attributes": [
+                    {
+                      "key": "awa.journal.seq",
+                      "value": {
+                        "intValue": "10"
+                      }
+                    },
+                    {
+                      "key": "awa.journal.level",
+                      "value": {
+                        "stringValue": "execution"
+                      }
+                    },
+                    {
+                      "key": "awa.token.id",
+                      "value": {
+                        "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                      }
+                    },
+                    {
+                      "key": "awa.node.id",
+                      "value": {
+                        "stringValue": "47a33422-41f7-57f0-b94a-503dcca1edc5"
+                      }
+                    },
+                    {
+                      "key": "awa.node.name",
+                      "value": {
+                        "stringValue": "Assess damage"
+                      }
+                    },
+                    {
+                      "key": "awa.attempt",
+                      "value": {
+                        "intValue": "1"
+                      }
+                    },
+                    {
+                      "key": "awa.data.passed",
+                      "value": {
+                        "boolValue": false
+                      }
+                    },
+                    {
+                      "key": "awa.data.violations",
+                      "value": {
+                        "stringValue": "[{\"kind\":\"output_schema\",\"message\":\"/estimated_cost must be number\",\"name\":\"/estimated_cost\"},{\"kind\":\"postcondition\",\"message\":\"Within authority: \\\"estimated_cost <= 50000\\\" does not hold\",\"name\":\"Within authority\"}]"
+                      }
+                    },
+                    {
+                      "key": "awa.data.tokens_used",
+                      "value": {
+                        "intValue": "2050"
+                      }
+                    },
+                    {
+                      "key": "awa.data.output_hash",
+                      "value": {
+                        "stringValue": "aba37b6f2ab9a3ea858fecd0f7af51647f4f0e55f0bee59efb73f4e1ea39e800"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "links": [],
+              "status": {
+                "code": 2,
+                "message": "Outcome contract violated: /estimated_cost must be number; Within authority: \"estimated_cost <= 50000\" does not hold"
+              }
+            },
+            {
+              "traceId": "f0a344645b5cf9bb0f49fca81ddd7668",
+              "spanId": "08a2ad02f4249f89",
+              "parentSpanId": "e898fa1b705678e8",
+              "name": "execute_tool price_part",
+              "kind": 1,
+              "startTimeUnixNano": "1795348031313000000",
+              "endTimeUnixNano": "1795348031463000000",
+              "attributes": [
+                {
+                  "key": "awa.run.id",
+                  "value": {
+                    "stringValue": "e853a985-771b-4cb3-b440-bfa3978ea3af"
+                  }
+                },
+                {
+                  "key": "awa.node.id",
+                  "value": {
+                    "stringValue": "47a33422-41f7-57f0-b94a-503dcca1edc5"
+                  }
+                },
+                {
+                  "key": "awa.node.name",
+                  "value": {
+                    "stringValue": "Assess damage"
+                  }
+                },
+                {
+                  "key": "awa.token.id",
+                  "value": {
+                    "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                  }
+                },
+                {
+                  "key": "awa.attempt",
+                  "value": {
+                    "intValue": "2"
+                  }
+                },
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "execute_tool"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.name",
+                  "value": {
+                    "stringValue": "price_part"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.call.id",
+                  "value": {
+                    "stringValue": "1eb1ed50-a954-4804-b5d2-a264336dfb18"
+                  }
+                },
+                {
+                  "key": "awa.tool.link",
+                  "value": {
+                    "stringValue": "https://repair-catalogue.example/v2/parts/rear%20bumper/price"
+                  }
+                },
+                {
+                  "key": "awa.tool.binding",
+                  "value": {
+                    "stringValue": "http"
+                  }
+                },
+                {
+                  "key": "awa.tool.invoked",
+                  "value": {
+                    "boolValue": true
+                  }
+                },
+                {
+                  "key": "awa.tool.status",
+                  "value": {
+                    "intValue": "200"
+                  }
+                }
+              ],
+              "events": [],
+              "links": [],
+              "status": {
+                "code": 1
+              }
+            },
+            {
+              "traceId": "f0a344645b5cf9bb0f49fca81ddd7668",
+              "spanId": "648119a37ac05323",
+              "parentSpanId": "e898fa1b705678e8",
+              "name": "execute_tool price_part",
+              "kind": 1,
+              "startTimeUnixNano": "1795348031313000000",
+              "endTimeUnixNano": "1795348031463000000",
+              "attributes": [
+                {
+                  "key": "awa.run.id",
+                  "value": {
+                    "stringValue": "e853a985-771b-4cb3-b440-bfa3978ea3af"
+                  }
+                },
+                {
+                  "key": "awa.node.id",
+                  "value": {
+                    "stringValue": "47a33422-41f7-57f0-b94a-503dcca1edc5"
+                  }
+                },
+                {
+                  "key": "awa.node.name",
+                  "value": {
+                    "stringValue": "Assess damage"
+                  }
+                },
+                {
+                  "key": "awa.token.id",
+                  "value": {
+                    "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                  }
+                },
+                {
+                  "key": "awa.attempt",
+                  "value": {
+                    "intValue": "2"
+                  }
+                },
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "execute_tool"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.name",
+                  "value": {
+                    "stringValue": "price_part"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.call.id",
+                  "value": {
+                    "stringValue": "263faae3-a9cf-4524-9ed0-e4d5a48a9476"
+                  }
+                },
+                {
+                  "key": "awa.tool.link",
+                  "value": {
+                    "stringValue": "https://repair-catalogue.example/v2/parts/tailgate/price"
+                  }
+                },
+                {
+                  "key": "awa.tool.binding",
+                  "value": {
+                    "stringValue": "http"
+                  }
+                },
+                {
+                  "key": "awa.tool.invoked",
+                  "value": {
+                    "boolValue": true
+                  }
+                },
+                {
+                  "key": "awa.tool.status",
+                  "value": {
+                    "intValue": "200"
+                  }
+                }
+              ],
+              "events": [],
+              "links": [],
+              "status": {
+                "code": 1
+              }
+            },
+            {
+              "traceId": "f0a344645b5cf9bb0f49fca81ddd7668",
+              "spanId": "b7af4a8b7acb2c3c",
+              "parentSpanId": "e898fa1b705678e8",
+              "name": "chat assessor-large",
+              "kind": 3,
+              "startTimeUnixNano": "1795348030812000000",
+              "endTimeUnixNano": "1795348031864000000",
+              "attributes": [
+                {
+                  "key": "awa.run.id",
+                  "value": {
+                    "stringValue": "e853a985-771b-4cb3-b440-bfa3978ea3af"
+                  }
+                },
+                {
+                  "key": "awa.node.id",
+                  "value": {
+                    "stringValue": "47a33422-41f7-57f0-b94a-503dcca1edc5"
+                  }
+                },
+                {
+                  "key": "awa.node.name",
+                  "value": {
+                    "stringValue": "Assess damage"
+                  }
+                },
+                {
+                  "key": "awa.token.id",
+                  "value": {
+                    "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                  }
+                },
+                {
+                  "key": "awa.attempt",
+                  "value": {
+                    "intValue": "2"
+                  }
+                },
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "chat"
+                  }
+                },
+                {
+                  "key": "gen_ai.provider.name",
+                  "value": {
+                    "stringValue": "acme"
+                  }
+                },
+                {
+                  "key": "gen_ai.request.model",
+                  "value": {
+                    "stringValue": "assessor-large"
+                  }
+                },
+                {
+                  "key": "gen_ai.response.model",
+                  "value": {
+                    "stringValue": "assessor-large"
+                  }
+                },
+                {
+                  "key": "gen_ai.request.temperature",
+                  "value": {
+                    "doubleValue": 0.2
+                  }
+                },
+                {
+                  "key": "awa.model.provider",
+                  "value": {
+                    "stringValue": "acme"
+                  }
+                },
+                {
+                  "key": "awa.model.requested",
+                  "value": {
+                    "stringValue": "tier:reasoning"
+                  }
+                },
+                {
+                  "key": "awa.model.tier",
+                  "value": {
+                    "stringValue": "reasoning"
+                  }
+                },
+                {
+                  "key": "awa.model.source",
+                  "value": {
+                    "stringValue": "role"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "2010"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.output_tokens",
+                  "value": {
+                    "intValue": "340"
+                  }
+                }
+              ],
+              "events": [],
+              "links": [],
+              "status": {
+                "code": 1
+              }
+            },
+            {
+              "traceId": "f0a344645b5cf9bb0f49fca81ddd7668",
+              "spanId": "e898fa1b705678e8",
+              "parentSpanId": "2ae4675ad37d3020",
+              "name": "invoke_agent Assess damage",
+              "kind": 1,
+              "startTimeUnixNano": "1795348030812000000",
+              "endTimeUnixNano": "1795348031864000000",
+              "attributes": [
+                {
+                  "key": "awa.run.id",
+                  "value": {
+                    "stringValue": "e853a985-771b-4cb3-b440-bfa3978ea3af"
+                  }
+                },
+                {
+                  "key": "awa.node.id",
+                  "value": {
+                    "stringValue": "47a33422-41f7-57f0-b94a-503dcca1edc5"
+                  }
+                },
+                {
+                  "key": "awa.node.name",
+                  "value": {
+                    "stringValue": "Assess damage"
+                  }
+                },
+                {
+                  "key": "awa.token.id",
+                  "value": {
+                    "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                  }
+                },
+                {
+                  "key": "awa.attempt",
+                  "value": {
+                    "intValue": "2"
+                  }
+                },
+                {
+                  "key": "awa.actor.type",
+                  "value": {
+                    "stringValue": "ai_agent"
+                  }
+                },
+                {
+                  "key": "awa.role.id",
+                  "value": {
+                    "stringValue": "8011abaf-e650-566d-ac8e-678431596e76"
+                  }
+                },
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "invoke_agent"
+                  }
+                },
+                {
+                  "key": "gen_ai.agent.name",
+                  "value": {
+                    "stringValue": "Assess damage"
+                  }
+                },
+                {
+                  "key": "gen_ai.agent.id",
+                  "value": {
+                    "stringValue": "47a33422-41f7-57f0-b94a-503dcca1edc5"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1795348031864000000",
+                  "name": "reasoning.recorded",
+                  "attributes": [
+                    {
+                      "key": "awa.journal.seq",
+                      "value": {
+                        "intValue": "19"
+                      }
+                    },
+                    {
+                      "key": "awa.journal.level",
+                      "value": {
+                        "stringValue": "reasoning"
+                      }
+                    },
+                    {
+                      "key": "awa.token.id",
+                      "value": {
+                        "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                      }
+                    },
+                    {
+                      "key": "awa.node.id",
+                      "value": {
+                        "stringValue": "47a33422-41f7-57f0-b94a-503dcca1edc5"
+                      }
+                    },
+                    {
+                      "key": "awa.node.name",
+                      "value": {
+                        "stringValue": "Assess damage"
+                      }
+                    },
+                    {
+                      "key": "awa.attempt",
+                      "value": {
+                        "intValue": "2"
+                      }
+                    },
+                    {
+                      "key": "awa.data.source",
+                      "value": {
+                        "stringValue": "actor"
+                      }
+                    },
+                    {
+                      "key": "awa.data.plan",
+                      "value": {
+                        "stringValue": "[\"Re-read the contract feedback\",\"Price each part from the repair catalogue\",\"Sum parts and labour\",\"Return the cost as a number\"]"
+                      }
+                    },
+                    {
+                      "key": "awa.data.rationale",
+                      "value": {
+                        "stringValue": "The first answer gave the cost as text. Itemising the parts gives a numeric total of 3,200 EUR and satisfies the schema."
+                      }
+                    },
+                    {
+                      "key": "awa.data.alternatives_considered",
+                      "value": {
+                        "stringValue": "[\"Repair rather than replace the tailgate: rejected, the crease runs through the lock housing\"]"
+                      }
+                    },
+                    {
+                      "key": "awa.data.confidence",
+                      "value": {
+                        "doubleValue": 0.86
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1795348031864000000",
+                  "name": "contract.checked",
+                  "attributes": [
+                    {
+                      "key": "awa.journal.seq",
+                      "value": {
+                        "intValue": "20"
+                      }
+                    },
+                    {
+                      "key": "awa.journal.level",
+                      "value": {
+                        "stringValue": "execution"
+                      }
+                    },
+                    {
+                      "key": "awa.token.id",
+                      "value": {
+                        "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                      }
+                    },
+                    {
+                      "key": "awa.node.id",
+                      "value": {
+                        "stringValue": "47a33422-41f7-57f0-b94a-503dcca1edc5"
+                      }
+                    },
+                    {
+                      "key": "awa.node.name",
+                      "value": {
+                        "stringValue": "Assess damage"
+                      }
+                    },
+                    {
+                      "key": "awa.attempt",
+                      "value": {
+                        "intValue": "2"
+                      }
+                    },
+                    {
+                      "key": "awa.data.passed",
+                      "value": {
+                        "boolValue": true
+                      }
+                    },
+                    {
+                      "key": "awa.data.violations",
+                      "value": {
+                        "stringValue": "[]"
+                      }
+                    },
+                    {
+                      "key": "awa.data.tokens_used",
+                      "value": {
+                        "intValue": "4400"
+                      }
+                    },
+                    {
+                      "key": "awa.data.output_hash",
+                      "value": {
+                        "stringValue": "1c0a3f31d87a7bbc6aae8e3b2077182cd19c7200f63471226e13ec4e25a131d2"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1795348031864000000",
+                  "name": "verification.completed",
+                  "attributes": [
+                    {
+                      "key": "awa.journal.seq",
+                      "value": {
+                        "intValue": "21"
+                      }
+                    },
+                    {
+                      "key": "awa.journal.level",
+                      "value": {
+                        "stringValue": "execution"
+                      }
+                    },
+                    {
+                      "key": "awa.token.id",
+                      "value": {
+                        "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                      }
+                    },
+                    {
+                      "key": "awa.node.id",
+                      "value": {
+                        "stringValue": "47a33422-41f7-57f0-b94a-503dcca1edc5"
+                      }
+                    },
+                    {
+                      "key": "awa.node.name",
+                      "value": {
+                        "stringValue": "Assess damage"
+                      }
+                    },
+                    {
+                      "key": "awa.attempt",
+                      "value": {
+                        "intValue": "2"
+                      }
+                    },
+                    {
+                      "key": "awa.data.mode",
+                      "value": {
+                        "stringValue": "schema_only"
+                      }
+                    },
+                    {
+                      "key": "awa.data.verdict",
+                      "value": {
+                        "stringValue": "pass"
+                      }
+                    },
+                    {
+                      "key": "awa.data.score",
+                      "value": {
+                        "intValue": "1"
+                      }
+                    },
+                    {
+                      "key": "awa.data.pass_threshold",
+                      "value": {
+                        "doubleValue": 0.9
+                      }
+                    },
+                    {
+                      "key": "awa.data.criteria",
+                      "value": {
+                        "stringValue": "[{\"confidence\":1,\"criterion_id\":\"90e3046a-6693-5037-9a6c-ae26ea9cb3f0\",\"criterion_name\":\"Parts itemised\",\"evidence\":\"Expression \\\"parts exists\\\" evaluated to true\",\"passed\":true}]"
+                      }
+                    },
+                    {
+                      "key": "awa.data.feedback",
+                      "value": {
+                        "stringValue": ""
+                      }
+                    },
+                    {
+                      "key": "awa.data.output_hash",
+                      "value": {
+                        "stringValue": "1c0a3f31d87a7bbc6aae8e3b2077182cd19c7200f63471226e13ec4e25a131d2"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "links": [],
+              "status": {
+                "code": 1
+              }
+            },
+            {
+              "traceId": "f0a344645b5cf9bb0f49fca81ddd7668",
+              "spanId": "e7d31f8b949b4f70",
+              "parentSpanId": "1be51dc036e8033d",
+              "name": "execute_tool get_policy",
+              "kind": 1,
+              "startTimeUnixNano": "1795348032064000000",
+              "endTimeUnixNano": "1795348032214000000",
+              "attributes": [
+                {
+                  "key": "awa.run.id",
+                  "value": {
+                    "stringValue": "e853a985-771b-4cb3-b440-bfa3978ea3af"
+                  }
+                },
+                {
+                  "key": "awa.node.id",
+                  "value": {
+                    "stringValue": "656363b2-21bb-5fce-9d6d-9e7ff8fd91c2"
+                  }
+                },
+                {
+                  "key": "awa.node.name",
+                  "value": {
+                    "stringValue": "Verify policy cover"
+                  }
+                },
+                {
+                  "key": "awa.token.id",
+                  "value": {
+                    "stringValue": "304f1a94-f938-4d06-951f-4a6f85abc2c7"
+                  }
+                },
+                {
+                  "key": "awa.attempt",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "execute_tool"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.name",
+                  "value": {
+                    "stringValue": "get_policy"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.call.id",
+                  "value": {
+                    "stringValue": "f431e60d-755f-4b00-b0e7-708a7fbe2252"
+                  }
+                },
+                {
+                  "key": "awa.tool.link",
+                  "value": {
+                    "stringValue": "https://policies.example/api/policies/POL-77310"
+                  }
+                },
+                {
+                  "key": "awa.tool.binding",
+                  "value": {
+                    "stringValue": "http"
+                  }
+                },
+                {
+                  "key": "awa.tool.invoked",
+                  "value": {
+                    "boolValue": true
+                  }
+                },
+                {
+                  "key": "awa.tool.status",
+                  "value": {
+                    "intValue": "200"
+                  }
+                }
+              ],
+              "events": [],
+              "links": [],
+              "status": {
+                "code": 1
+              }
+            },
+            {
+              "traceId": "f0a344645b5cf9bb0f49fca81ddd7668",
+              "spanId": "1be51dc036e8033d",
+              "parentSpanId": "2ae4675ad37d3020",
+              "name": "activity Verify policy cover",
+              "kind": 1,
+              "startTimeUnixNano": "1795348031864000000",
+              "endTimeUnixNano": "1795348032214000000",
+              "attributes": [
+                {
+                  "key": "awa.run.id",
+                  "value": {
+                    "stringValue": "e853a985-771b-4cb3-b440-bfa3978ea3af"
+                  }
+                },
+                {
+                  "key": "awa.node.id",
+                  "value": {
+                    "stringValue": "656363b2-21bb-5fce-9d6d-9e7ff8fd91c2"
+                  }
+                },
+                {
+                  "key": "awa.node.name",
+                  "value": {
+                    "stringValue": "Verify policy cover"
+                  }
+                },
+                {
+                  "key": "awa.token.id",
+                  "value": {
+                    "stringValue": "304f1a94-f938-4d06-951f-4a6f85abc2c7"
+                  }
+                },
+                {
+                  "key": "awa.attempt",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "awa.actor.type",
+                  "value": {
+                    "stringValue": "application"
+                  }
+                },
+                {
+                  "key": "awa.role.id",
+                  "value": {
+                    "stringValue": "f8419355-d1ec-5d10-8152-eaebec2b4e95"
+                  }
+                }
+              ],
+              "events": [],
+              "links": [],
+              "status": {
+                "code": 1
+              }
+            },
+            {
+              "traceId": "f0a344645b5cf9bb0f49fca81ddd7668",
+              "spanId": "85fe066ee777fa7b",
+              "parentSpanId": "2ae4675ad37d3020",
+              "name": "invoke_agent Check fraud signals",
+              "kind": 1,
+              "startTimeUnixNano": "1795348031864000000",
+              "endTimeUnixNano": "1795348032464000000",
+              "attributes": [
+                {
+                  "key": "awa.run.id",
+                  "value": {
+                    "stringValue": "e853a985-771b-4cb3-b440-bfa3978ea3af"
+                  }
+                },
+                {
+                  "key": "awa.node.id",
+                  "value": {
+                    "stringValue": "51b0afff-918b-534d-a81e-df9e9d91ad6c"
+                  }
+                },
+                {
+                  "key": "awa.node.name",
+                  "value": {
+                    "stringValue": "Check fraud signals"
+                  }
+                },
+                {
+                  "key": "awa.token.id",
+                  "value": {
+                    "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                  }
+                },
+                {
+                  "key": "awa.attempt",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "awa.actor.type",
+                  "value": {
+                    "stringValue": "ai_agent"
+                  }
+                },
+                {
+                  "key": "awa.role.id",
+                  "value": {
+                    "stringValue": "ff16f081-a3ff-5fb0-8746-e5d48bb078f4"
+                  }
+                },
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "invoke_agent"
+                  }
+                },
+                {
+                  "key": "gen_ai.agent.name",
+                  "value": {
+                    "stringValue": "Check fraud signals"
+                  }
+                },
+                {
+                  "key": "gen_ai.agent.id",
+                  "value": {
+                    "stringValue": "51b0afff-918b-534d-a81e-df9e9d91ad6c"
+                  }
+                },
+                {
+                  "key": "error.type",
+                  "value": {
+                    "stringValue": "TIMEOUT"
+                  }
+                },
+                {
+                  "key": "awa.error.retryable",
+                  "value": {
+                    "boolValue": true
+                  }
+                }
+              ],
+              "events": [],
+              "links": [],
+              "status": {
+                "code": 2,
+                "message": "Fraud scoring service timed out"
+              }
+            },
+            {
+              "traceId": "f0a344645b5cf9bb0f49fca81ddd7668",
+              "spanId": "e010b426d03fed8e",
+              "parentSpanId": "eded8cd7027e035a",
+              "name": "chat classifier-small",
+              "kind": 3,
+              "startTimeUnixNano": "1795348032825000000",
+              "endTimeUnixNano": "1795348033426000000",
+              "attributes": [
+                {
+                  "key": "awa.run.id",
+                  "value": {
+                    "stringValue": "e853a985-771b-4cb3-b440-bfa3978ea3af"
+                  }
+                },
+                {
+                  "key": "awa.node.id",
+                  "value": {
+                    "stringValue": "51b0afff-918b-534d-a81e-df9e9d91ad6c"
+                  }
+                },
+                {
+                  "key": "awa.node.name",
+                  "value": {
+                    "stringValue": "Check fraud signals"
+                  }
+                },
+                {
+                  "key": "awa.token.id",
+                  "value": {
+                    "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                  }
+                },
+                {
+                  "key": "awa.attempt",
+                  "value": {
+                    "intValue": "2"
+                  }
+                },
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "chat"
+                  }
+                },
+                {
+                  "key": "gen_ai.provider.name",
+                  "value": {
+                    "stringValue": "acme"
+                  }
+                },
+                {
+                  "key": "gen_ai.request.model",
+                  "value": {
+                    "stringValue": "classifier-small"
+                  }
+                },
+                {
+                  "key": "gen_ai.response.model",
+                  "value": {
+                    "stringValue": "classifier-small"
+                  }
+                },
+                {
+                  "key": "gen_ai.request.temperature",
+                  "value": {
+                    "doubleValue": 0.2
+                  }
+                },
+                {
+                  "key": "awa.model.provider",
+                  "value": {
+                    "stringValue": "acme"
+                  }
+                },
+                {
+                  "key": "awa.model.requested",
+                  "value": {
+                    "stringValue": "tier:fast"
+                  }
+                },
+                {
+                  "key": "awa.model.tier",
+                  "value": {
+                    "stringValue": "fast"
+                  }
+                },
+                {
+                  "key": "awa.model.source",
+                  "value": {
+                    "stringValue": "role"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "950"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.output_tokens",
+                  "value": {
+                    "intValue": "80"
+                  }
+                }
+              ],
+              "events": [],
+              "links": [],
+              "status": {
+                "code": 1
+              }
+            },
+            {
+              "traceId": "f0a344645b5cf9bb0f49fca81ddd7668",
+              "spanId": "eded8cd7027e035a",
+              "parentSpanId": "2ae4675ad37d3020",
+              "name": "invoke_agent Check fraud signals",
+              "kind": 1,
+              "startTimeUnixNano": "1795348032825000000",
+              "endTimeUnixNano": "1795348033426000000",
+              "attributes": [
+                {
+                  "key": "awa.run.id",
+                  "value": {
+                    "stringValue": "e853a985-771b-4cb3-b440-bfa3978ea3af"
+                  }
+                },
+                {
+                  "key": "awa.node.id",
+                  "value": {
+                    "stringValue": "51b0afff-918b-534d-a81e-df9e9d91ad6c"
+                  }
+                },
+                {
+                  "key": "awa.node.name",
+                  "value": {
+                    "stringValue": "Check fraud signals"
+                  }
+                },
+                {
+                  "key": "awa.token.id",
+                  "value": {
+                    "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                  }
+                },
+                {
+                  "key": "awa.attempt",
+                  "value": {
+                    "intValue": "2"
+                  }
+                },
+                {
+                  "key": "awa.actor.type",
+                  "value": {
+                    "stringValue": "ai_agent"
+                  }
+                },
+                {
+                  "key": "awa.role.id",
+                  "value": {
+                    "stringValue": "ff16f081-a3ff-5fb0-8746-e5d48bb078f4"
+                  }
+                },
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "invoke_agent"
+                  }
+                },
+                {
+                  "key": "gen_ai.agent.name",
+                  "value": {
+                    "stringValue": "Check fraud signals"
+                  }
+                },
+                {
+                  "key": "gen_ai.agent.id",
+                  "value": {
+                    "stringValue": "51b0afff-918b-534d-a81e-df9e9d91ad6c"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1795348033426000000",
+                  "name": "reasoning.recorded",
+                  "attributes": [
+                    {
+                      "key": "awa.journal.seq",
+                      "value": {
+                        "intValue": "37"
+                      }
+                    },
+                    {
+                      "key": "awa.journal.level",
+                      "value": {
+                        "stringValue": "reasoning"
+                      }
+                    },
+                    {
+                      "key": "awa.token.id",
+                      "value": {
+                        "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                      }
+                    },
+                    {
+                      "key": "awa.node.id",
+                      "value": {
+                        "stringValue": "51b0afff-918b-534d-a81e-df9e9d91ad6c"
+                      }
+                    },
+                    {
+                      "key": "awa.node.name",
+                      "value": {
+                        "stringValue": "Check fraud signals"
+                      }
+                    },
+                    {
+                      "key": "awa.attempt",
+                      "value": {
+                        "intValue": "2"
+                      }
+                    },
+                    {
+                      "key": "awa.data.source",
+                      "value": {
+                        "stringValue": "actor"
+                      }
+                    },
+                    {
+                      "key": "awa.data.plan",
+                      "value": {
+                        "stringValue": "[\"Compare claim date with policy start\",\"Check prior claims\",\"Check repairer against watchlist\"]"
+                      }
+                    },
+                    {
+                      "key": "awa.data.rationale",
+                      "value": {
+                        "stringValue": "Policy held for four years, one prior claim, repairer not on the watchlist."
+                      }
+                    },
+                    {
+                      "key": "awa.data.confidence",
+                      "value": {
+                        "doubleValue": 0.9
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1795348033426000000",
+                  "name": "contract.checked",
+                  "attributes": [
+                    {
+                      "key": "awa.journal.seq",
+                      "value": {
+                        "intValue": "38"
+                      }
+                    },
+                    {
+                      "key": "awa.journal.level",
+                      "value": {
+                        "stringValue": "execution"
+                      }
+                    },
+                    {
+                      "key": "awa.token.id",
+                      "value": {
+                        "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                      }
+                    },
+                    {
+                      "key": "awa.node.id",
+                      "value": {
+                        "stringValue": "51b0afff-918b-534d-a81e-df9e9d91ad6c"
+                      }
+                    },
+                    {
+                      "key": "awa.node.name",
+                      "value": {
+                        "stringValue": "Check fraud signals"
+                      }
+                    },
+                    {
+                      "key": "awa.attempt",
+                      "value": {
+                        "intValue": "2"
+                      }
+                    },
+                    {
+                      "key": "awa.data.passed",
+                      "value": {
+                        "boolValue": true
+                      }
+                    },
+                    {
+                      "key": "awa.data.violations",
+                      "value": {
+                        "stringValue": "[]"
+                      }
+                    },
+                    {
+                      "key": "awa.data.tokens_used",
+                      "value": {
+                        "intValue": "1030"
+                      }
+                    },
+                    {
+                      "key": "awa.data.output_hash",
+                      "value": {
+                        "stringValue": "26e2985cc5acff91927f1152ecc158ec0e8e553a93f7b84d6f8ee9e7879985fb"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "links": [],
+              "status": {
+                "code": 1
+              }
+            },
+            {
+              "traceId": "f0a344645b5cf9bb0f49fca81ddd7668",
+              "spanId": "9e6574c4254c96ea",
+              "parentSpanId": "2ae4675ad37d3020",
+              "name": "activity Consolidate findings",
+              "kind": 1,
+              "startTimeUnixNano": "1795348033426000000",
+              "endTimeUnixNano": "1795348033626000000",
+              "attributes": [
+                {
+                  "key": "awa.run.id",
+                  "value": {
+                    "stringValue": "e853a985-771b-4cb3-b440-bfa3978ea3af"
+                  }
+                },
+                {
+                  "key": "awa.node.id",
+                  "value": {
+                    "stringValue": "8eac4bf0-c46a-584b-b95b-b6f9e274706f"
+                  }
+                },
+                {
+                  "key": "awa.node.name",
+                  "value": {
+                    "stringValue": "Consolidate findings"
+                  }
+                },
+                {
+                  "key": "awa.token.id",
+                  "value": {
+                    "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                  }
+                },
+                {
+                  "key": "awa.attempt",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "awa.actor.type",
+                  "value": {
+                    "stringValue": "application"
+                  }
+                },
+                {
+                  "key": "awa.role.id",
+                  "value": {
+                    "stringValue": "bef76de6-107e-5861-ab56-75b55251635f"
+                  }
+                }
+              ],
+              "events": [],
+              "links": [],
+              "status": {
+                "code": 1
+              }
+            },
+            {
+              "traceId": "f0a344645b5cf9bb0f49fca81ddd7668",
+              "spanId": "7b577ae65ae1aa7d",
+              "parentSpanId": "41e477b52f66c4af",
+              "name": "chat classifier-small",
+              "kind": 3,
+              "startTimeUnixNano": "1795348033626000000",
+              "endTimeUnixNano": "1795348033978000000",
+              "attributes": [
+                {
+                  "key": "awa.run.id",
+                  "value": {
+                    "stringValue": "e853a985-771b-4cb3-b440-bfa3978ea3af"
+                  }
+                },
+                {
+                  "key": "awa.node.id",
+                  "value": {
+                    "stringValue": "1a533839-b043-5ff9-86e4-1bfe726fa52f"
+                  }
+                },
+                {
+                  "key": "awa.node.name",
+                  "value": {
+                    "stringValue": "Settlement route"
+                  }
+                },
+                {
+                  "key": "awa.token.id",
+                  "value": {
+                    "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                  }
+                },
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "chat"
+                  }
+                },
+                {
+                  "key": "gen_ai.provider.name",
+                  "value": {
+                    "stringValue": "acme"
+                  }
+                },
+                {
+                  "key": "gen_ai.request.model",
+                  "value": {
+                    "stringValue": "classifier-small"
+                  }
+                },
+                {
+                  "key": "gen_ai.response.model",
+                  "value": {
+                    "stringValue": "classifier-small"
+                  }
+                },
+                {
+                  "key": "awa.model.provider",
+                  "value": {
+                    "stringValue": "acme"
+                  }
+                },
+                {
+                  "key": "awa.model.requested",
+                  "value": {
+                    "stringValue": "tier:fast"
+                  }
+                },
+                {
+                  "key": "awa.model.tier",
+                  "value": {
+                    "stringValue": "fast"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "203"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.output_tokens",
+                  "value": {
+                    "intValue": "41"
+                  }
+                }
+              ],
+              "events": [],
+              "links": [],
+              "status": {
+                "code": 1
+              }
+            },
+            {
+              "traceId": "f0a344645b5cf9bb0f49fca81ddd7668",
+              "spanId": "41e477b52f66c4af",
+              "parentSpanId": "2ae4675ad37d3020",
+              "name": "decision Settlement route",
+              "kind": 1,
+              "startTimeUnixNano": "1795348033626000000",
+              "endTimeUnixNano": "1795348033978000000",
+              "attributes": [
+                {
+                  "key": "awa.run.id",
+                  "value": {
+                    "stringValue": "e853a985-771b-4cb3-b440-bfa3978ea3af"
+                  }
+                },
+                {
+                  "key": "awa.node.id",
+                  "value": {
+                    "stringValue": "1a533839-b043-5ff9-86e4-1bfe726fa52f"
+                  }
+                },
+                {
+                  "key": "awa.node.name",
+                  "value": {
+                    "stringValue": "Settlement route"
+                  }
+                },
+                {
+                  "key": "awa.token.id",
+                  "value": {
+                    "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                  }
+                },
+                {
+                  "key": "awa.decision.method",
+                  "value": {
+                    "stringValue": "model"
+                  }
+                },
+                {
+                  "key": "awa.decision.strategy",
+                  "value": {
+                    "stringValue": "table_first"
+                  }
+                },
+                {
+                  "key": "awa.decision.hit_policy",
+                  "value": {
+                    "stringValue": "first"
+                  }
+                },
+                {
+                  "key": "awa.decision.edge_id",
+                  "value": {
+                    "stringValue": "925e230b-20b3-509e-bfce-4f343e2947a4"
+                  }
+                },
+                {
+                  "key": "awa.decision.used_default",
+                  "value": {
+                    "boolValue": false
+                  }
+                },
+                {
+                  "key": "awa.decision.matched_rules",
+                  "value": {
+                    "arrayValue": {
+                      "values": []
+                    }
+                  }
+                },
+                {
+                  "key": "awa.decision.outputs",
+                  "value": {
+                    "stringValue": "{\"confidence\":0.84,\"option\":\"review\"}"
+                  }
+                },
+                {
+                  "key": "awa.decision.option",
+                  "value": {
+                    "stringValue": "review"
+                  }
+                },
+                {
+                  "key": "awa.decision.confidence",
+                  "value": {
+                    "doubleValue": 0.84
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1795348033978000000",
+                  "name": "reasoning.recorded",
+                  "attributes": [
+                    {
+                      "key": "awa.journal.seq",
+                      "value": {
+                        "intValue": "46"
+                      }
+                    },
+                    {
+                      "key": "awa.journal.level",
+                      "value": {
+                        "stringValue": "reasoning"
+                      }
+                    },
+                    {
+                      "key": "awa.token.id",
+                      "value": {
+                        "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                      }
+                    },
+                    {
+                      "key": "awa.node.id",
+                      "value": {
+                        "stringValue": "1a533839-b043-5ff9-86e4-1bfe726fa52f"
+                      }
+                    },
+                    {
+                      "key": "awa.node.name",
+                      "value": {
+                        "stringValue": "Settlement route"
+                      }
+                    },
+                    {
+                      "key": "awa.data.source",
+                      "value": {
+                        "stringValue": "decision_model"
+                      }
+                    },
+                    {
+                      "key": "awa.data.rationale",
+                      "value": {
+                        "stringValue": "The repair is costly and the fraud score is neither low nor high, so an adjuster should confirm before payment."
+                      }
+                    },
+                    {
+                      "key": "awa.data.confidence",
+                      "value": {
+                        "doubleValue": 0.84
+                      }
+                    },
+                    {
+                      "key": "awa.data.plan",
+                      "value": {
+                        "stringValue": "[]"
+                      }
+                    },
+                    {
+                      "key": "awa.data.option",
+                      "value": {
+                        "stringValue": "review"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "links": [],
+              "status": {
+                "code": 1
+              }
+            },
+            {
+              "traceId": "f0a344645b5cf9bb0f49fca81ddd7668",
+              "spanId": "27f9ec5929bfb65c",
+              "parentSpanId": "2ae4675ad37d3020",
+              "name": "activity Adjuster review",
+              "kind": 1,
+              "startTimeUnixNano": "1795348033978000000",
+              "endTimeUnixNano": "1795348033978000000",
+              "attributes": [
+                {
+                  "key": "awa.run.id",
+                  "value": {
+                    "stringValue": "e853a985-771b-4cb3-b440-bfa3978ea3af"
+                  }
+                },
+                {
+                  "key": "awa.node.id",
+                  "value": {
+                    "stringValue": "c622ddbc-7f31-50a1-adbd-410ff7c96c3e"
+                  }
+                },
+                {
+                  "key": "awa.node.name",
+                  "value": {
+                    "stringValue": "Adjuster review"
+                  }
+                },
+                {
+                  "key": "awa.token.id",
+                  "value": {
+                    "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                  }
+                },
+                {
+                  "key": "awa.attempt",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "awa.actor.type",
+                  "value": {
+                    "stringValue": "human"
+                  }
+                },
+                {
+                  "key": "awa.role.id",
+                  "value": {
+                    "stringValue": "ade889d2-949e-5e5f-a9eb-fea819123c1a"
+                  }
+                }
+              ],
+              "events": [],
+              "links": [],
+              "status": {
+                "code": 1
+              }
+            },
+            {
+              "traceId": "f0a344645b5cf9bb0f49fca81ddd7668",
+              "spanId": "0bdf3aa015b0604a",
+              "parentSpanId": "2ae4675ad37d3020",
+              "name": "activity Reserve funds",
+              "kind": 1,
+              "startTimeUnixNano": "1795348033978000000",
+              "endTimeUnixNano": "1795348034280000000",
+              "attributes": [
+                {
+                  "key": "awa.run.id",
+                  "value": {
+                    "stringValue": "e853a985-771b-4cb3-b440-bfa3978ea3af"
+                  }
+                },
+                {
+                  "key": "awa.node.id",
+                  "value": {
+                    "stringValue": "44ce5a86-3be7-53f4-a733-da8b58d89544"
+                  }
+                },
+                {
+                  "key": "awa.node.name",
+                  "value": {
+                    "stringValue": "Reserve funds"
+                  }
+                },
+                {
+                  "key": "awa.token.id",
+                  "value": {
+                    "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                  }
+                },
+                {
+                  "key": "awa.attempt",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "awa.actor.type",
+                  "value": {
+                    "stringValue": "application"
+                  }
+                },
+                {
+                  "key": "awa.role.id",
+                  "value": {
+                    "stringValue": "a993c962-08c5-5acf-861b-23fe0b25f7f1"
+                  }
+                }
+              ],
+              "events": [],
+              "links": [],
+              "status": {
+                "code": 1
+              }
+            },
+            {
+              "traceId": "f0a344645b5cf9bb0f49fca81ddd7668",
+              "spanId": "8a43182e2a89e369",
+              "parentSpanId": "2ae4675ad37d3020",
+              "name": "wait Bank cut-off",
+              "kind": 1,
+              "startTimeUnixNano": "1795348034280000000",
+              "endTimeUnixNano": "1795348035281000000",
+              "attributes": [
+                {
+                  "key": "awa.run.id",
+                  "value": {
+                    "stringValue": "e853a985-771b-4cb3-b440-bfa3978ea3af"
+                  }
+                },
+                {
+                  "key": "awa.node.id",
+                  "value": {
+                    "stringValue": "4cc5871f-999a-5c10-89c8-54b0183ad76c"
+                  }
+                },
+                {
+                  "key": "awa.node.name",
+                  "value": {
+                    "stringValue": "Bank cut-off"
+                  }
+                },
+                {
+                  "key": "awa.token.id",
+                  "value": {
+                    "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                  }
+                },
+                {
+                  "key": "awa.wait.kind",
+                  "value": {
+                    "stringValue": "timer"
+                  }
+                },
+                {
+                  "key": "awa.timer.duration",
+                  "value": {
+                    "stringValue": "PT1S"
+                  }
+                },
+                {
+                  "key": "awa.timer.due_at",
+                  "value": {
+                    "stringValue": "2026-11-22T11:47:15.280Z"
+                  }
+                },
+                {
+                  "key": "awa.wait.outcome",
+                  "value": {
+                    "stringValue": "fired"
+                  }
+                }
+              ],
+              "events": [],
+              "links": [],
+              "status": {
+                "code": 1
+              }
+            },
+            {
+              "traceId": "f0a344645b5cf9bb0f49fca81ddd7668",
+              "spanId": "fbdf3ba4a5877528",
+              "parentSpanId": "146d1403fb879b2c",
+              "name": "execute_tool transfer",
+              "kind": 1,
+              "startTimeUnixNano": "1795348035582000000",
+              "endTimeUnixNano": "1795348035782000000",
+              "attributes": [
+                {
+                  "key": "awa.run.id",
+                  "value": {
+                    "stringValue": "e853a985-771b-4cb3-b440-bfa3978ea3af"
+                  }
+                },
+                {
+                  "key": "awa.node.id",
+                  "value": {
+                    "stringValue": "ec20a080-3057-5f9c-a694-7040111b09e7"
+                  }
+                },
+                {
+                  "key": "awa.node.name",
+                  "value": {
+                    "stringValue": "Pay claimant"
+                  }
+                },
+                {
+                  "key": "awa.token.id",
+                  "value": {
+                    "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                  }
+                },
+                {
+                  "key": "awa.attempt",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "execute_tool"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.name",
+                  "value": {
+                    "stringValue": "transfer"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.call.id",
+                  "value": {
+                    "stringValue": "f191f9c6-bd6b-47c9-a2b9-004d3dd8540a"
+                  }
+                },
+                {
+                  "key": "awa.tool.link",
+                  "value": {
+                    "stringValue": "https://payments.example/rpc#payments.transfer"
+                  }
+                },
+                {
+                  "key": "awa.tool.binding",
+                  "value": {
+                    "stringValue": "jsonrpc"
+                  }
+                },
+                {
+                  "key": "awa.tool.invoked",
+                  "value": {
+                    "boolValue": true
+                  }
+                },
+                {
+                  "key": "awa.tool.status",
+                  "value": {
+                    "intValue": "200"
+                  }
+                }
+              ],
+              "events": [],
+              "links": [],
+              "status": {
+                "code": 1
+              }
+            },
+            {
+              "traceId": "f0a344645b5cf9bb0f49fca81ddd7668",
+              "spanId": "146d1403fb879b2c",
+              "parentSpanId": "2ae4675ad37d3020",
+              "name": "activity Pay claimant",
+              "kind": 1,
+              "startTimeUnixNano": "1795348035281000000",
+              "endTimeUnixNano": "1795348035783000000",
+              "attributes": [
+                {
+                  "key": "awa.run.id",
+                  "value": {
+                    "stringValue": "e853a985-771b-4cb3-b440-bfa3978ea3af"
+                  }
+                },
+                {
+                  "key": "awa.node.id",
+                  "value": {
+                    "stringValue": "ec20a080-3057-5f9c-a694-7040111b09e7"
+                  }
+                },
+                {
+                  "key": "awa.node.name",
+                  "value": {
+                    "stringValue": "Pay claimant"
+                  }
+                },
+                {
+                  "key": "awa.token.id",
+                  "value": {
+                    "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                  }
+                },
+                {
+                  "key": "awa.attempt",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "awa.actor.type",
+                  "value": {
+                    "stringValue": "application"
+                  }
+                },
+                {
+                  "key": "awa.role.id",
+                  "value": {
+                    "stringValue": "a993c962-08c5-5acf-861b-23fe0b25f7f1"
+                  }
+                }
+              ],
+              "events": [],
+              "links": [],
+              "status": {
+                "code": 1
+              }
+            },
+            {
+              "traceId": "f0a344645b5cf9bb0f49fca81ddd7668",
+              "spanId": "b646fe28184880a8",
+              "parentSpanId": "ae920f62bcbcbba7",
+              "name": "chat writer-medium",
+              "kind": 3,
+              "startTimeUnixNano": "1795348035783000000",
+              "endTimeUnixNano": "1795348036483000000",
+              "attributes": [
+                {
+                  "key": "awa.run.id",
+                  "value": {
+                    "stringValue": "e853a985-771b-4cb3-b440-bfa3978ea3af"
+                  }
+                },
+                {
+                  "key": "awa.node.id",
+                  "value": {
+                    "stringValue": "f7054c16-d7aa-58a0-9873-376d4f409b43"
+                  }
+                },
+                {
+                  "key": "awa.node.name",
+                  "value": {
+                    "stringValue": "Notify claimant"
+                  }
+                },
+                {
+                  "key": "awa.token.id",
+                  "value": {
+                    "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                  }
+                },
+                {
+                  "key": "awa.attempt",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "chat"
+                  }
+                },
+                {
+                  "key": "gen_ai.provider.name",
+                  "value": {
+                    "stringValue": "acme"
+                  }
+                },
+                {
+                  "key": "gen_ai.request.model",
+                  "value": {
+                    "stringValue": "writer-medium"
+                  }
+                },
+                {
+                  "key": "gen_ai.response.model",
+                  "value": {
+                    "stringValue": "writer-medium"
+                  }
+                },
+                {
+                  "key": "gen_ai.request.temperature",
+                  "value": {
+                    "doubleValue": 0.2
+                  }
+                },
+                {
+                  "key": "awa.model.provider",
+                  "value": {
+                    "stringValue": "acme"
+                  }
+                },
+                {
+                  "key": "awa.model.requested",
+                  "value": {
+                    "stringValue": "tier:balanced"
+                  }
+                },
+                {
+                  "key": "awa.model.tier",
+                  "value": {
+                    "stringValue": "balanced"
+                  }
+                },
+                {
+                  "key": "awa.model.source",
+                  "value": {
+                    "stringValue": "role"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "620"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.output_tokens",
+                  "value": {
+                    "intValue": "95"
+                  }
+                }
+              ],
+              "events": [],
+              "links": [],
+              "status": {
+                "code": 1
+              }
+            },
+            {
+              "traceId": "f0a344645b5cf9bb0f49fca81ddd7668",
+              "spanId": "ae920f62bcbcbba7",
+              "parentSpanId": "2ae4675ad37d3020",
+              "name": "invoke_agent Notify claimant",
+              "kind": 1,
+              "startTimeUnixNano": "1795348035783000000",
+              "endTimeUnixNano": "1795348036484000000",
+              "attributes": [
+                {
+                  "key": "awa.run.id",
+                  "value": {
+                    "stringValue": "e853a985-771b-4cb3-b440-bfa3978ea3af"
+                  }
+                },
+                {
+                  "key": "awa.node.id",
+                  "value": {
+                    "stringValue": "f7054c16-d7aa-58a0-9873-376d4f409b43"
+                  }
+                },
+                {
+                  "key": "awa.node.name",
+                  "value": {
+                    "stringValue": "Notify claimant"
+                  }
+                },
+                {
+                  "key": "awa.token.id",
+                  "value": {
+                    "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                  }
+                },
+                {
+                  "key": "awa.attempt",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "awa.actor.type",
+                  "value": {
+                    "stringValue": "ai_agent"
+                  }
+                },
+                {
+                  "key": "awa.role.id",
+                  "value": {
+                    "stringValue": "c6ac3504-e302-5345-aac4-cca6b4c5d392"
+                  }
+                },
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "invoke_agent"
+                  }
+                },
+                {
+                  "key": "gen_ai.agent.name",
+                  "value": {
+                    "stringValue": "Notify claimant"
+                  }
+                },
+                {
+                  "key": "gen_ai.agent.id",
+                  "value": {
+                    "stringValue": "f7054c16-d7aa-58a0-9873-376d4f409b43"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1795348036483000000",
+                  "name": "reasoning.recorded",
+                  "attributes": [
+                    {
+                      "key": "awa.journal.seq",
+                      "value": {
+                        "intValue": "65"
+                      }
+                    },
+                    {
+                      "key": "awa.journal.level",
+                      "value": {
+                        "stringValue": "reasoning"
+                      }
+                    },
+                    {
+                      "key": "awa.token.id",
+                      "value": {
+                        "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                      }
+                    },
+                    {
+                      "key": "awa.node.id",
+                      "value": {
+                        "stringValue": "f7054c16-d7aa-58a0-9873-376d4f409b43"
+                      }
+                    },
+                    {
+                      "key": "awa.node.name",
+                      "value": {
+                        "stringValue": "Notify claimant"
+                      }
+                    },
+                    {
+                      "key": "awa.attempt",
+                      "value": {
+                        "intValue": "1"
+                      }
+                    },
+                    {
+                      "key": "awa.data.source",
+                      "value": {
+                        "stringValue": "actor"
+                      }
+                    },
+                    {
+                      "key": "awa.data.plan",
+                      "value": {
+                        "stringValue": "[\"State the outcome\",\"State the amount\",\"Keep it short\"]"
+                      }
+                    },
+                    {
+                      "key": "awa.data.rationale",
+                      "value": {
+                        "stringValue": "A settlement notice should lead with the result."
+                      }
+                    },
+                    {
+                      "key": "awa.data.confidence",
+                      "value": {
+                        "doubleValue": 0.95
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1795348036484000000",
+                  "name": "contract.checked",
+                  "attributes": [
+                    {
+                      "key": "awa.journal.seq",
+                      "value": {
+                        "intValue": "66"
+                      }
+                    },
+                    {
+                      "key": "awa.journal.level",
+                      "value": {
+                        "stringValue": "execution"
+                      }
+                    },
+                    {
+                      "key": "awa.token.id",
+                      "value": {
+                        "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                      }
+                    },
+                    {
+                      "key": "awa.node.id",
+                      "value": {
+                        "stringValue": "f7054c16-d7aa-58a0-9873-376d4f409b43"
+                      }
+                    },
+                    {
+                      "key": "awa.node.name",
+                      "value": {
+                        "stringValue": "Notify claimant"
+                      }
+                    },
+                    {
+                      "key": "awa.attempt",
+                      "value": {
+                        "intValue": "1"
+                      }
+                    },
+                    {
+                      "key": "awa.data.passed",
+                      "value": {
+                        "boolValue": true
+                      }
+                    },
+                    {
+                      "key": "awa.data.violations",
+                      "value": {
+                        "stringValue": "[]"
+                      }
+                    },
+                    {
+                      "key": "awa.data.tokens_used",
+                      "value": {
+                        "intValue": "715"
+                      }
+                    },
+                    {
+                      "key": "awa.data.output_hash",
+                      "value": {
+                        "stringValue": "9d16eddce6eb00a60ab7c451854c94be1194bfb8f6b490185f272bc73bda8c7c"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "links": [],
+              "status": {
+                "code": 1
+              }
+            },
+            {
+              "traceId": "f0a344645b5cf9bb0f49fca81ddd7668",
+              "spanId": "2ae4675ad37d3020",
+              "name": "invoke_workflow Motor Claim Settlement",
+              "kind": 1,
+              "startTimeUnixNano": "1795348029660000000",
+              "endTimeUnixNano": "1795348036484000000",
+              "attributes": [
+                {
+                  "key": "awa.run.id",
+                  "value": {
+                    "stringValue": "e853a985-771b-4cb3-b440-bfa3978ea3af"
+                  }
+                },
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "invoke_workflow"
+                  }
+                },
+                {
+                  "key": "gen_ai.workflow.name",
+                  "value": {
+                    "stringValue": "Motor Claim Settlement"
+                  }
+                },
+                {
+                  "key": "awa.workflow.id",
+                  "value": {
+                    "stringValue": "42ddec2f-18d0-5b06-837b-bf1e9c8cecdb"
+                  }
+                },
+                {
+                  "key": "awa.workflow.version",
+                  "value": {
+                    "stringValue": "1.0.0"
+                  }
+                },
+                {
+                  "key": "awa.run.simulated",
+                  "value": {
+                    "boolValue": false
+                  }
+                },
+                {
+                  "key": "awa.run.status",
+                  "value": {
+                    "stringValue": "completed"
+                  }
+                },
+                {
+                  "key": "awa.run.steps",
+                  "value": {
+                    "intValue": "9"
+                  }
+                },
+                {
+                  "key": "awa.run.input_tokens",
+                  "value": {
+                    "intValue": "3783"
+                  }
+                },
+                {
+                  "key": "awa.run.output_tokens",
+                  "value": {
+                    "intValue": "556"
+                  }
+                },
+                {
+                  "key": "awa.run.cost",
+                  "value": {
+                    "doubleValue": 0.023465000000000003
+                  }
+                },
+                {
+                  "key": "awa.run.currency",
+                  "value": {
+                    "stringValue": "EUR"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1795348029660000000",
+                  "name": "token.created",
+                  "attributes": [
+                    {
+                      "key": "awa.journal.seq",
+                      "value": {
+                        "intValue": "2"
+                      }
+                    },
+                    {
+                      "key": "awa.journal.level",
+                      "value": {
+                        "stringValue": "execution"
+                      }
+                    },
+                    {
+                      "key": "awa.token.id",
+                      "value": {
+                        "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                      }
+                    },
+                    {
+                      "key": "awa.node.id",
+                      "value": {
+                        "stringValue": "83526199-9953-5a91-8378-0a156d0d51d0"
+                      }
+                    },
+                    {
+                      "key": "awa.node.name",
+                      "value": {
+                        "stringValue": "Claim received"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1795348029660000000",
+                  "name": "token.moved",
+                  "attributes": [
+                    {
+                      "key": "awa.journal.seq",
+                      "value": {
+                        "intValue": "3"
+                      }
+                    },
+                    {
+                      "key": "awa.journal.level",
+                      "value": {
+                        "stringValue": "execution"
+                      }
+                    },
+                    {
+                      "key": "awa.token.id",
+                      "value": {
+                        "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                      }
+                    },
+                    {
+                      "key": "awa.node.id",
+                      "value": {
+                        "stringValue": "ce586efb-eb64-5fe5-8baa-aa2a9979ae7f"
+                      }
+                    },
+                    {
+                      "key": "awa.node.name",
+                      "value": {
+                        "stringValue": "Register claim"
+                      }
+                    },
+                    {
+                      "key": "awa.data.from_node_id",
+                      "value": {
+                        "stringValue": "83526199-9953-5a91-8378-0a156d0d51d0"
+                      }
+                    },
+                    {
+                      "key": "awa.data.to_node_id",
+                      "value": {
+                        "stringValue": "ce586efb-eb64-5fe5-8baa-aa2a9979ae7f"
+                      }
+                    },
+                    {
+                      "key": "awa.data.edge_id",
+                      "value": {
+                        "stringValue": "efa57516-c7a9-54f1-9eea-ef42324169f3"
+                      }
+                    },
+                    {
+                      "key": "awa.data.reason",
+                      "value": {
+                        "stringValue": "unconditional"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1795348029910000000",
+                  "name": "token.moved",
+                  "attributes": [
+                    {
+                      "key": "awa.journal.seq",
+                      "value": {
+                        "intValue": "6"
+                      }
+                    },
+                    {
+                      "key": "awa.journal.level",
+                      "value": {
+                        "stringValue": "execution"
+                      }
+                    },
+                    {
+                      "key": "awa.token.id",
+                      "value": {
+                        "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                      }
+                    },
+                    {
+                      "key": "awa.node.id",
+                      "value": {
+                        "stringValue": "47a33422-41f7-57f0-b94a-503dcca1edc5"
+                      }
+                    },
+                    {
+                      "key": "awa.node.name",
+                      "value": {
+                        "stringValue": "Assess damage"
+                      }
+                    },
+                    {
+                      "key": "awa.data.from_node_id",
+                      "value": {
+                        "stringValue": "ce586efb-eb64-5fe5-8baa-aa2a9979ae7f"
+                      }
+                    },
+                    {
+                      "key": "awa.data.to_node_id",
+                      "value": {
+                        "stringValue": "47a33422-41f7-57f0-b94a-503dcca1edc5"
+                      }
+                    },
+                    {
+                      "key": "awa.data.edge_id",
+                      "value": {
+                        "stringValue": "3a06004c-f55e-5004-9a88-37b0f3a03e58"
+                      }
+                    },
+                    {
+                      "key": "awa.data.reason",
+                      "value": {
+                        "stringValue": "unconditional"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1795348030812000000",
+                  "name": "meta.recorded",
+                  "attributes": [
+                    {
+                      "key": "awa.journal.seq",
+                      "value": {
+                        "intValue": "12"
+                      }
+                    },
+                    {
+                      "key": "awa.journal.level",
+                      "value": {
+                        "stringValue": "meta"
+                      }
+                    },
+                    {
+                      "key": "awa.token.id",
+                      "value": {
+                        "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                      }
+                    },
+                    {
+                      "key": "awa.node.id",
+                      "value": {
+                        "stringValue": "47a33422-41f7-57f0-b94a-503dcca1edc5"
+                      }
+                    },
+                    {
+                      "key": "awa.node.name",
+                      "value": {
+                        "stringValue": "Assess damage"
+                      }
+                    },
+                    {
+                      "key": "awa.attempt",
+                      "value": {
+                        "intValue": "1"
+                      }
+                    },
+                    {
+                      "key": "awa.data.subject",
+                      "value": {
+                        "stringValue": "contract_retry"
+                      }
+                    },
+                    {
+                      "key": "awa.data.decision",
+                      "value": {
+                        "stringValue": "Re-execute with the violated contract terms as feedback"
+                      }
+                    },
+                    {
+                      "key": "awa.data.rationale",
+                      "value": {
+                        "stringValue": "2 contract term(s) did not hold and 2 of 3 attempts remained."
+                      }
+                    },
+                    {
+                      "key": "awa.data.violations",
+                      "value": {
+                        "stringValue": "[\"/estimated_cost\",\"Within authority\"]"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1795348031864000000",
+                  "name": "token.created",
+                  "attributes": [
+                    {
+                      "key": "awa.journal.seq",
+                      "value": {
+                        "intValue": "23"
+                      }
+                    },
+                    {
+                      "key": "awa.journal.level",
+                      "value": {
+                        "stringValue": "execution"
+                      }
+                    },
+                    {
+                      "key": "awa.token.id",
+                      "value": {
+                        "stringValue": "304f1a94-f938-4d06-951f-4a6f85abc2c7"
+                      }
+                    },
+                    {
+                      "key": "awa.node.id",
+                      "value": {
+                        "stringValue": "47a33422-41f7-57f0-b94a-503dcca1edc5"
+                      }
+                    },
+                    {
+                      "key": "awa.node.name",
+                      "value": {
+                        "stringValue": "Assess damage"
+                      }
+                    },
+                    {
+                      "key": "awa.data.parent_token_id",
+                      "value": {
+                        "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                      }
+                    },
+                    {
+                      "key": "awa.data.reason",
+                      "value": {
+                        "stringValue": "parallel_split"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1795348031864000000",
+                  "name": "token.moved",
+                  "attributes": [
+                    {
+                      "key": "awa.journal.seq",
+                      "value": {
+                        "intValue": "24"
+                      }
+                    },
+                    {
+                      "key": "awa.journal.level",
+                      "value": {
+                        "stringValue": "execution"
+                      }
+                    },
+                    {
+                      "key": "awa.token.id",
+                      "value": {
+                        "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                      }
+                    },
+                    {
+                      "key": "awa.node.id",
+                      "value": {
+                        "stringValue": "51b0afff-918b-534d-a81e-df9e9d91ad6c"
+                      }
+                    },
+                    {
+                      "key": "awa.node.name",
+                      "value": {
+                        "stringValue": "Check fraud signals"
+                      }
+                    },
+                    {
+                      "key": "awa.data.from_node_id",
+                      "value": {
+                        "stringValue": "47a33422-41f7-57f0-b94a-503dcca1edc5"
+                      }
+                    },
+                    {
+                      "key": "awa.data.to_node_id",
+                      "value": {
+                        "stringValue": "51b0afff-918b-534d-a81e-df9e9d91ad6c"
+                      }
+                    },
+                    {
+                      "key": "awa.data.edge_id",
+                      "value": {
+                        "stringValue": "bb2b1cd8-b056-5f1f-9dd8-58a137b2ef83"
+                      }
+                    },
+                    {
+                      "key": "awa.data.reason",
+                      "value": {
+                        "stringValue": "parallel_split"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1795348031864000000",
+                  "name": "token.moved",
+                  "attributes": [
+                    {
+                      "key": "awa.journal.seq",
+                      "value": {
+                        "intValue": "25"
+                      }
+                    },
+                    {
+                      "key": "awa.journal.level",
+                      "value": {
+                        "stringValue": "execution"
+                      }
+                    },
+                    {
+                      "key": "awa.token.id",
+                      "value": {
+                        "stringValue": "304f1a94-f938-4d06-951f-4a6f85abc2c7"
+                      }
+                    },
+                    {
+                      "key": "awa.node.id",
+                      "value": {
+                        "stringValue": "656363b2-21bb-5fce-9d6d-9e7ff8fd91c2"
+                      }
+                    },
+                    {
+                      "key": "awa.node.name",
+                      "value": {
+                        "stringValue": "Verify policy cover"
+                      }
+                    },
+                    {
+                      "key": "awa.data.from_node_id",
+                      "value": {
+                        "stringValue": "47a33422-41f7-57f0-b94a-503dcca1edc5"
+                      }
+                    },
+                    {
+                      "key": "awa.data.to_node_id",
+                      "value": {
+                        "stringValue": "656363b2-21bb-5fce-9d6d-9e7ff8fd91c2"
+                      }
+                    },
+                    {
+                      "key": "awa.data.edge_id",
+                      "value": {
+                        "stringValue": "b1b4c5b5-52c6-517b-9951-1b2d4453a953"
+                      }
+                    },
+                    {
+                      "key": "awa.data.reason",
+                      "value": {
+                        "stringValue": "parallel_split"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1795348032215000000",
+                  "name": "token.moved",
+                  "attributes": [
+                    {
+                      "key": "awa.journal.seq",
+                      "value": {
+                        "intValue": "31"
+                      }
+                    },
+                    {
+                      "key": "awa.journal.level",
+                      "value": {
+                        "stringValue": "execution"
+                      }
+                    },
+                    {
+                      "key": "awa.token.id",
+                      "value": {
+                        "stringValue": "304f1a94-f938-4d06-951f-4a6f85abc2c7"
+                      }
+                    },
+                    {
+                      "key": "awa.node.id",
+                      "value": {
+                        "stringValue": "8eac4bf0-c46a-584b-b95b-b6f9e274706f"
+                      }
+                    },
+                    {
+                      "key": "awa.node.name",
+                      "value": {
+                        "stringValue": "Consolidate findings"
+                      }
+                    },
+                    {
+                      "key": "awa.data.from_node_id",
+                      "value": {
+                        "stringValue": "656363b2-21bb-5fce-9d6d-9e7ff8fd91c2"
+                      }
+                    },
+                    {
+                      "key": "awa.data.to_node_id",
+                      "value": {
+                        "stringValue": "8eac4bf0-c46a-584b-b95b-b6f9e274706f"
+                      }
+                    },
+                    {
+                      "key": "awa.data.edge_id",
+                      "value": {
+                        "stringValue": "0dd72b85-38b6-51e7-ab98-2ee932a43f76"
+                      }
+                    },
+                    {
+                      "key": "awa.data.reason",
+                      "value": {
+                        "stringValue": "unconditional"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1795348032465000000",
+                  "name": "activity.retry_scheduled",
+                  "attributes": [
+                    {
+                      "key": "awa.journal.seq",
+                      "value": {
+                        "intValue": "33"
+                      }
+                    },
+                    {
+                      "key": "awa.journal.level",
+                      "value": {
+                        "stringValue": "execution"
+                      }
+                    },
+                    {
+                      "key": "awa.token.id",
+                      "value": {
+                        "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                      }
+                    },
+                    {
+                      "key": "awa.node.id",
+                      "value": {
+                        "stringValue": "51b0afff-918b-534d-a81e-df9e9d91ad6c"
+                      }
+                    },
+                    {
+                      "key": "awa.node.name",
+                      "value": {
+                        "stringValue": "Check fraud signals"
+                      }
+                    },
+                    {
+                      "key": "awa.attempt",
+                      "value": {
+                        "intValue": "1"
+                      }
+                    },
+                    {
+                      "key": "awa.data.delay_ms",
+                      "value": {
+                        "intValue": "359"
+                      }
+                    },
+                    {
+                      "key": "awa.data.next_attempt",
+                      "value": {
+                        "intValue": "2"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1795348032465000000",
+                  "name": "meta.recorded",
+                  "attributes": [
+                    {
+                      "key": "awa.journal.seq",
+                      "value": {
+                        "intValue": "34"
+                      }
+                    },
+                    {
+                      "key": "awa.journal.level",
+                      "value": {
+                        "stringValue": "meta"
+                      }
+                    },
+                    {
+                      "key": "awa.token.id",
+                      "value": {
+                        "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                      }
+                    },
+                    {
+                      "key": "awa.node.id",
+                      "value": {
+                        "stringValue": "51b0afff-918b-534d-a81e-df9e9d91ad6c"
+                      }
+                    },
+                    {
+                      "key": "awa.node.name",
+                      "value": {
+                        "stringValue": "Check fraud signals"
+                      }
+                    },
+                    {
+                      "key": "awa.attempt",
+                      "value": {
+                        "intValue": "1"
+                      }
+                    },
+                    {
+                      "key": "awa.data.subject",
+                      "value": {
+                        "stringValue": "retry"
+                      }
+                    },
+                    {
+                      "key": "awa.data.decision",
+                      "value": {
+                        "stringValue": "Retry after 359 ms"
+                      }
+                    },
+                    {
+                      "key": "awa.data.rationale",
+                      "value": {
+                        "stringValue": "Attempt 1 raised \"Fraud scoring service timed out\" (TIMEOUT). The error is retryable and 2 of 2 retries remained."
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1795348033426000000",
+                  "name": "token.moved",
+                  "attributes": [
+                    {
+                      "key": "awa.journal.seq",
+                      "value": {
+                        "intValue": "40"
+                      }
+                    },
+                    {
+                      "key": "awa.journal.level",
+                      "value": {
+                        "stringValue": "execution"
+                      }
+                    },
+                    {
+                      "key": "awa.token.id",
+                      "value": {
+                        "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                      }
+                    },
+                    {
+                      "key": "awa.node.id",
+                      "value": {
+                        "stringValue": "8eac4bf0-c46a-584b-b95b-b6f9e274706f"
+                      }
+                    },
+                    {
+                      "key": "awa.node.name",
+                      "value": {
+                        "stringValue": "Consolidate findings"
+                      }
+                    },
+                    {
+                      "key": "awa.data.from_node_id",
+                      "value": {
+                        "stringValue": "51b0afff-918b-534d-a81e-df9e9d91ad6c"
+                      }
+                    },
+                    {
+                      "key": "awa.data.to_node_id",
+                      "value": {
+                        "stringValue": "8eac4bf0-c46a-584b-b95b-b6f9e274706f"
+                      }
+                    },
+                    {
+                      "key": "awa.data.edge_id",
+                      "value": {
+                        "stringValue": "dbeab570-632e-51a2-96d3-72d6b92d815a"
+                      }
+                    },
+                    {
+                      "key": "awa.data.reason",
+                      "value": {
+                        "stringValue": "unconditional"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1795348033426000000",
+                  "name": "token.joined",
+                  "attributes": [
+                    {
+                      "key": "awa.journal.seq",
+                      "value": {
+                        "intValue": "41"
+                      }
+                    },
+                    {
+                      "key": "awa.journal.level",
+                      "value": {
+                        "stringValue": "execution"
+                      }
+                    },
+                    {
+                      "key": "awa.token.id",
+                      "value": {
+                        "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                      }
+                    },
+                    {
+                      "key": "awa.node.id",
+                      "value": {
+                        "stringValue": "8eac4bf0-c46a-584b-b95b-b6f9e274706f"
+                      }
+                    },
+                    {
+                      "key": "awa.node.name",
+                      "value": {
+                        "stringValue": "Consolidate findings"
+                      }
+                    },
+                    {
+                      "key": "awa.data.merged_token_ids",
+                      "value": {
+                        "stringValue": "[\"304f1a94-f938-4d06-951f-4a6f85abc2c7\"]"
+                      }
+                    },
+                    {
+                      "key": "awa.data.incoming_edge_ids",
+                      "value": {
+                        "stringValue": "[\"dbeab570-632e-51a2-96d3-72d6b92d815a\",\"0dd72b85-38b6-51e7-ab98-2ee932a43f76\"]"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1795348033626000000",
+                  "name": "token.moved",
+                  "attributes": [
+                    {
+                      "key": "awa.journal.seq",
+                      "value": {
+                        "intValue": "44"
+                      }
+                    },
+                    {
+                      "key": "awa.journal.level",
+                      "value": {
+                        "stringValue": "execution"
+                      }
+                    },
+                    {
+                      "key": "awa.token.id",
+                      "value": {
+                        "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                      }
+                    },
+                    {
+                      "key": "awa.node.id",
+                      "value": {
+                        "stringValue": "1a533839-b043-5ff9-86e4-1bfe726fa52f"
+                      }
+                    },
+                    {
+                      "key": "awa.node.name",
+                      "value": {
+                        "stringValue": "Settlement route"
+                      }
+                    },
+                    {
+                      "key": "awa.data.from_node_id",
+                      "value": {
+                        "stringValue": "8eac4bf0-c46a-584b-b95b-b6f9e274706f"
+                      }
+                    },
+                    {
+                      "key": "awa.data.to_node_id",
+                      "value": {
+                        "stringValue": "1a533839-b043-5ff9-86e4-1bfe726fa52f"
+                      }
+                    },
+                    {
+                      "key": "awa.data.edge_id",
+                      "value": {
+                        "stringValue": "ebeb7e2c-d9bb-5e23-9a06-a9685dd04279"
+                      }
+                    },
+                    {
+                      "key": "awa.data.reason",
+                      "value": {
+                        "stringValue": "unconditional"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1795348033978000000",
+                  "name": "token.moved",
+                  "attributes": [
+                    {
+                      "key": "awa.journal.seq",
+                      "value": {
+                        "intValue": "48"
+                      }
+                    },
+                    {
+                      "key": "awa.journal.level",
+                      "value": {
+                        "stringValue": "execution"
+                      }
+                    },
+                    {
+                      "key": "awa.token.id",
+                      "value": {
+                        "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                      }
+                    },
+                    {
+                      "key": "awa.node.id",
+                      "value": {
+                        "stringValue": "c622ddbc-7f31-50a1-adbd-410ff7c96c3e"
+                      }
+                    },
+                    {
+                      "key": "awa.node.name",
+                      "value": {
+                        "stringValue": "Adjuster review"
+                      }
+                    },
+                    {
+                      "key": "awa.data.from_node_id",
+                      "value": {
+                        "stringValue": "1a533839-b043-5ff9-86e4-1bfe726fa52f"
+                      }
+                    },
+                    {
+                      "key": "awa.data.to_node_id",
+                      "value": {
+                        "stringValue": "c622ddbc-7f31-50a1-adbd-410ff7c96c3e"
+                      }
+                    },
+                    {
+                      "key": "awa.data.edge_id",
+                      "value": {
+                        "stringValue": "925e230b-20b3-509e-bfce-4f343e2947a4"
+                      }
+                    },
+                    {
+                      "key": "awa.data.reason",
+                      "value": {
+                        "stringValue": "decision"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1795348033978000000",
+                  "name": "token.moved",
+                  "attributes": [
+                    {
+                      "key": "awa.journal.seq",
+                      "value": {
+                        "intValue": "51"
+                      }
+                    },
+                    {
+                      "key": "awa.journal.level",
+                      "value": {
+                        "stringValue": "execution"
+                      }
+                    },
+                    {
+                      "key": "awa.token.id",
+                      "value": {
+                        "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                      }
+                    },
+                    {
+                      "key": "awa.node.id",
+                      "value": {
+                        "stringValue": "44ce5a86-3be7-53f4-a733-da8b58d89544"
+                      }
+                    },
+                    {
+                      "key": "awa.node.name",
+                      "value": {
+                        "stringValue": "Reserve funds"
+                      }
+                    },
+                    {
+                      "key": "awa.data.from_node_id",
+                      "value": {
+                        "stringValue": "c622ddbc-7f31-50a1-adbd-410ff7c96c3e"
+                      }
+                    },
+                    {
+                      "key": "awa.data.to_node_id",
+                      "value": {
+                        "stringValue": "44ce5a86-3be7-53f4-a733-da8b58d89544"
+                      }
+                    },
+                    {
+                      "key": "awa.data.edge_id",
+                      "value": {
+                        "stringValue": "05bc7595-d6bf-5c4a-9f5f-217800653ed6"
+                      }
+                    },
+                    {
+                      "key": "awa.data.reason",
+                      "value": {
+                        "stringValue": "condition"
+                      }
+                    },
+                    {
+                      "key": "awa.data.condition",
+                      "value": {
+                        "stringValue": "approved == true"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1795348034280000000",
+                  "name": "token.moved",
+                  "attributes": [
+                    {
+                      "key": "awa.journal.seq",
+                      "value": {
+                        "intValue": "54"
+                      }
+                    },
+                    {
+                      "key": "awa.journal.level",
+                      "value": {
+                        "stringValue": "execution"
+                      }
+                    },
+                    {
+                      "key": "awa.token.id",
+                      "value": {
+                        "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                      }
+                    },
+                    {
+                      "key": "awa.node.id",
+                      "value": {
+                        "stringValue": "4cc5871f-999a-5c10-89c8-54b0183ad76c"
+                      }
+                    },
+                    {
+                      "key": "awa.node.name",
+                      "value": {
+                        "stringValue": "Bank cut-off"
+                      }
+                    },
+                    {
+                      "key": "awa.data.from_node_id",
+                      "value": {
+                        "stringValue": "44ce5a86-3be7-53f4-a733-da8b58d89544"
+                      }
+                    },
+                    {
+                      "key": "awa.data.to_node_id",
+                      "value": {
+                        "stringValue": "4cc5871f-999a-5c10-89c8-54b0183ad76c"
+                      }
+                    },
+                    {
+                      "key": "awa.data.edge_id",
+                      "value": {
+                        "stringValue": "af497e04-f54f-588f-9c11-89032bb90a5b"
+                      }
+                    },
+                    {
+                      "key": "awa.data.reason",
+                      "value": {
+                        "stringValue": "unconditional"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1795348035281000000",
+                  "name": "token.moved",
+                  "attributes": [
+                    {
+                      "key": "awa.journal.seq",
+                      "value": {
+                        "intValue": "57"
+                      }
+                    },
+                    {
+                      "key": "awa.journal.level",
+                      "value": {
+                        "stringValue": "execution"
+                      }
+                    },
+                    {
+                      "key": "awa.token.id",
+                      "value": {
+                        "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                      }
+                    },
+                    {
+                      "key": "awa.node.id",
+                      "value": {
+                        "stringValue": "ec20a080-3057-5f9c-a694-7040111b09e7"
+                      }
+                    },
+                    {
+                      "key": "awa.node.name",
+                      "value": {
+                        "stringValue": "Pay claimant"
+                      }
+                    },
+                    {
+                      "key": "awa.data.from_node_id",
+                      "value": {
+                        "stringValue": "4cc5871f-999a-5c10-89c8-54b0183ad76c"
+                      }
+                    },
+                    {
+                      "key": "awa.data.to_node_id",
+                      "value": {
+                        "stringValue": "ec20a080-3057-5f9c-a694-7040111b09e7"
+                      }
+                    },
+                    {
+                      "key": "awa.data.edge_id",
+                      "value": {
+                        "stringValue": "deccf7fe-90df-5c4a-8482-44a42ac5b4e5"
+                      }
+                    },
+                    {
+                      "key": "awa.data.reason",
+                      "value": {
+                        "stringValue": "unconditional"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1795348035783000000",
+                  "name": "token.moved",
+                  "attributes": [
+                    {
+                      "key": "awa.journal.seq",
+                      "value": {
+                        "intValue": "62"
+                      }
+                    },
+                    {
+                      "key": "awa.journal.level",
+                      "value": {
+                        "stringValue": "execution"
+                      }
+                    },
+                    {
+                      "key": "awa.token.id",
+                      "value": {
+                        "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                      }
+                    },
+                    {
+                      "key": "awa.node.id",
+                      "value": {
+                        "stringValue": "f7054c16-d7aa-58a0-9873-376d4f409b43"
+                      }
+                    },
+                    {
+                      "key": "awa.node.name",
+                      "value": {
+                        "stringValue": "Notify claimant"
+                      }
+                    },
+                    {
+                      "key": "awa.data.from_node_id",
+                      "value": {
+                        "stringValue": "ec20a080-3057-5f9c-a694-7040111b09e7"
+                      }
+                    },
+                    {
+                      "key": "awa.data.to_node_id",
+                      "value": {
+                        "stringValue": "f7054c16-d7aa-58a0-9873-376d4f409b43"
+                      }
+                    },
+                    {
+                      "key": "awa.data.edge_id",
+                      "value": {
+                        "stringValue": "6f07e821-2883-515c-a58a-eb118ed0d5cd"
+                      }
+                    },
+                    {
+                      "key": "awa.data.reason",
+                      "value": {
+                        "stringValue": "unconditional"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1795348036484000000",
+                  "name": "token.moved",
+                  "attributes": [
+                    {
+                      "key": "awa.journal.seq",
+                      "value": {
+                        "intValue": "68"
+                      }
+                    },
+                    {
+                      "key": "awa.journal.level",
+                      "value": {
+                        "stringValue": "execution"
+                      }
+                    },
+                    {
+                      "key": "awa.token.id",
+                      "value": {
+                        "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                      }
+                    },
+                    {
+                      "key": "awa.node.id",
+                      "value": {
+                        "stringValue": "63279687-fdc7-5fa7-9813-0942361eef53"
+                      }
+                    },
+                    {
+                      "key": "awa.node.name",
+                      "value": {
+                        "stringValue": "Claim closed"
+                      }
+                    },
+                    {
+                      "key": "awa.data.from_node_id",
+                      "value": {
+                        "stringValue": "f7054c16-d7aa-58a0-9873-376d4f409b43"
+                      }
+                    },
+                    {
+                      "key": "awa.data.to_node_id",
+                      "value": {
+                        "stringValue": "63279687-fdc7-5fa7-9813-0942361eef53"
+                      }
+                    },
+                    {
+                      "key": "awa.data.edge_id",
+                      "value": {
+                        "stringValue": "90d3e408-c936-55f9-a474-2f02d7c3312c"
+                      }
+                    },
+                    {
+                      "key": "awa.data.reason",
+                      "value": {
+                        "stringValue": "unconditional"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "timeUnixNano": "1795348036484000000",
+                  "name": "token.completed",
+                  "attributes": [
+                    {
+                      "key": "awa.journal.seq",
+                      "value": {
+                        "intValue": "69"
+                      }
+                    },
+                    {
+                      "key": "awa.journal.level",
+                      "value": {
+                        "stringValue": "execution"
+                      }
+                    },
+                    {
+                      "key": "awa.token.id",
+                      "value": {
+                        "stringValue": "ce79a5b3-82b3-4512-960d-7868e6f16b36"
+                      }
+                    },
+                    {
+                      "key": "awa.node.id",
+                      "value": {
+                        "stringValue": "63279687-fdc7-5fa7-9813-0942361eef53"
+                      }
+                    },
+                    {
+                      "key": "awa.node.name",
+                      "value": {
+                        "stringValue": "Claim closed"
+                      }
+                    },
+                    {
+                      "key": "awa.data.end_event",
+                      "value": {
+                        "boolValue": true
+                      }
+                    }
+                  ]
+                }
+              ],
+              "links": [],
+              "status": {
+                "code": 1
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

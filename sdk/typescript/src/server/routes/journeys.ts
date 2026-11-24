@@ -6,6 +6,8 @@ import { AwaRuntime, add_definition, is_journey_document, open_runtime_directory
 import { JourneyDefinitionSchema } from '../../runtime/journey';
 import { parse_document } from '../../validator';
 import { compute_measures, measures_to_openmetrics, MEASURES } from '../../runtime/kpi';
+import { gauges_to_otlp_json, measures_to_gauges } from '../../runtime/telemetry';
+import { shared_telemetry_from_env } from '../../runtime/telemetry_export';
 
 /**
  * Journeys over HTTP (specification 19). With AWA_DATA_DIR set, definitions,
@@ -23,7 +25,8 @@ function host(): Promise<AwaRuntime> {
         // AWA_SIMULATE=1 runs activities without calling models or tools; AWA_SIMULATED_OUTPUTS names a file saying what each returns
         const simulated = process.env.AWA_SIMULATED_OUTPUTS ? JSON.parse(readFileSync(path.resolve(process.env.AWA_SIMULATED_OUTPUTS), 'utf-8')) : undefined;
         const engine = { wait_for_human_tasks: true, execution_logger: { log_execution: async () => { } }, ...(process.env.AWA_SIMULATE === '1' ? { simulate: true, simulated_outputs: simulated } : {}) };
-        runtime = directory() ? open_runtime_directory(directory()!, { engine }) : Promise.resolve(new AwaRuntime({ engine }));
+        const telemetry = shared_telemetry_from_env();
+        runtime = directory() ? open_runtime_directory(directory()!, { engine, telemetry }) : Promise.resolve(new AwaRuntime({ engine, telemetry }));
     }
     return runtime;
 }
@@ -100,6 +103,7 @@ measuresRouter.get('/', async (req, res) => {
         for (const instant of [from, to]) if (instant && Number.isNaN(new Date(instant).getTime())) { res.status(400).json({ error: `Not an instant: ${instant}` }); return; }
         const report = compute_measures(await (await host()).export_portfolio(), { from, to, journey_id: text(req.query.journey_id), workflow_id: text(req.query.workflow_id) });
         if (req.query.format === 'openmetrics') res.type('application/openmetrics-text; version=1.0.0; charset=utf-8').send(measures_to_openmetrics(report));
+        else if (req.query.format === 'otlp') res.json(gauges_to_otlp_json(measures_to_gauges(report, MEASURES), report));
         else res.json(report);
     } catch (error) { res.status(500).json(problem(error)); }
 });

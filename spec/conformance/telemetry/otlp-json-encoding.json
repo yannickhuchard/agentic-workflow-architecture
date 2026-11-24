@@ -1,0 +1,402 @@
+{
+  "id": "otlp-json-encoding",
+  "level": "telemetry",
+  "spec": "26.9",
+  "description": "The OTLP/JSON request for a small run: hexadecimal identifiers, nanosecond times and 64-bit integers as decimal strings, kinds and status codes as numbers, the resource and the scope. Spans in the order they end. Attributes may come in any order.",
+  "decision_nodes": [],
+  "journal": [
+    {
+      "spec_version": "1.1",
+      "id": "a96c042e-bd9f-5302-b39f-cc03a8de16a1",
+      "run_id": "8d8beb00-6e42-5621-b4b9-23e4140c09f6",
+      "seq": 1,
+      "time": "2026-03-02T09:00:00.000Z",
+      "type": "run.started",
+      "level": "execution",
+      "workflow_id": "208d6cae-5467-5f36-bf8d-b951eb19b787",
+      "data": {
+        "workflow_name": "Tiny",
+        "workflow_version": "1.0.0",
+        "input": {},
+        "simulate": true
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "9349862b-6b7b-52f2-ba4e-a29106200985",
+      "run_id": "8d8beb00-6e42-5621-b4b9-23e4140c09f6",
+      "seq": 2,
+      "time": "2026-03-02T09:00:00.000Z",
+      "type": "token.created",
+      "level": "execution",
+      "workflow_id": "208d6cae-5467-5f36-bf8d-b951eb19b787",
+      "token_id": "b32fd316-567a-58e2-8cbd-ffce40b32d13",
+      "node_id": "73c3e9c5-6505-559f-89d7-80d7cdef523e",
+      "node_name": "Score",
+      "data": {}
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e2122897-cef7-5fe6-973d-2a6cba901eb9",
+      "run_id": "8d8beb00-6e42-5621-b4b9-23e4140c09f6",
+      "seq": 3,
+      "time": "2026-03-02T09:00:00.001Z",
+      "type": "activity.started",
+      "level": "execution",
+      "workflow_id": "208d6cae-5467-5f36-bf8d-b951eb19b787",
+      "token_id": "b32fd316-567a-58e2-8cbd-ffce40b32d13",
+      "node_id": "73c3e9c5-6505-559f-89d7-80d7cdef523e",
+      "node_name": "Score",
+      "attempt": 1,
+      "data": {
+        "actor_type": "ai_agent",
+        "input": {}
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "ab1e5cff-015e-5e9f-95c3-8fc27e5724cf",
+      "run_id": "8d8beb00-6e42-5621-b4b9-23e4140c09f6",
+      "seq": 4,
+      "time": "2026-03-02T09:00:00.003Z",
+      "type": "activity.failed",
+      "level": "execution",
+      "workflow_id": "208d6cae-5467-5f36-bf8d-b951eb19b787",
+      "token_id": "b32fd316-567a-58e2-8cbd-ffce40b32d13",
+      "node_id": "73c3e9c5-6505-559f-89d7-80d7cdef523e",
+      "node_name": "Score",
+      "attempt": 1,
+      "data": {
+        "error": {
+          "message": "No reply"
+        },
+        "retryable": false,
+        "duration_ms": 2
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "102ccf07-010b-5e65-bbee-abcca178eb0d",
+      "run_id": "8d8beb00-6e42-5621-b4b9-23e4140c09f6",
+      "seq": 5,
+      "time": "2026-03-02T09:00:00.003Z",
+      "type": "token.failed",
+      "level": "execution",
+      "workflow_id": "208d6cae-5467-5f36-bf8d-b951eb19b787",
+      "token_id": "b32fd316-567a-58e2-8cbd-ffce40b32d13",
+      "node_id": "73c3e9c5-6505-559f-89d7-80d7cdef523e",
+      "node_name": "Score",
+      "data": {
+        "error": {
+          "message": "No reply"
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "9f52f9bf-3a49-5da5-bf70-28ba8c8ca897",
+      "run_id": "8d8beb00-6e42-5621-b4b9-23e4140c09f6",
+      "seq": 6,
+      "time": "2026-03-02T09:00:00.004Z",
+      "type": "run.failed",
+      "level": "execution",
+      "workflow_id": "208d6cae-5467-5f36-bf8d-b951eb19b787",
+      "data": {
+        "duration_ms": 4,
+        "steps": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cost": 0.25,
+        "currency": "EUR",
+        "errors": [
+          {
+            "message": "No reply"
+          }
+        ]
+      }
+    }
+  ],
+  "options": {
+    "payloads": false
+  },
+  "expect": {
+    "trace_id": "89295edd58f0c442fe44a86e23fc1eea",
+    "span_count": 2,
+    "otlp_json": {
+      "resourceSpans": [
+        {
+          "resource": {
+            "attributes": [
+              {
+                "key": "service.name",
+                "value": {
+                  "stringValue": "awa"
+                }
+              }
+            ]
+          },
+          "scopeSpans": [
+            {
+              "scope": {
+                "name": "awa",
+                "version": "1.1"
+              },
+              "spans": [
+                {
+                  "traceId": "89295edd58f0c442fe44a86e23fc1eea",
+                  "spanId": "fc30556f9d738787",
+                  "parentSpanId": "bff98b6abe80485c",
+                  "name": "invoke_agent Score",
+                  "kind": 1,
+                  "startTimeUnixNano": "1772442000001000000",
+                  "endTimeUnixNano": "1772442000003000000",
+                  "attributes": [
+                    {
+                      "key": "awa.run.id",
+                      "value": {
+                        "stringValue": "8d8beb00-6e42-5621-b4b9-23e4140c09f6"
+                      }
+                    },
+                    {
+                      "key": "awa.node.id",
+                      "value": {
+                        "stringValue": "73c3e9c5-6505-559f-89d7-80d7cdef523e"
+                      }
+                    },
+                    {
+                      "key": "awa.node.name",
+                      "value": {
+                        "stringValue": "Score"
+                      }
+                    },
+                    {
+                      "key": "awa.token.id",
+                      "value": {
+                        "stringValue": "b32fd316-567a-58e2-8cbd-ffce40b32d13"
+                      }
+                    },
+                    {
+                      "key": "awa.attempt",
+                      "value": {
+                        "intValue": "1"
+                      }
+                    },
+                    {
+                      "key": "awa.actor.type",
+                      "value": {
+                        "stringValue": "ai_agent"
+                      }
+                    },
+                    {
+                      "key": "gen_ai.operation.name",
+                      "value": {
+                        "stringValue": "invoke_agent"
+                      }
+                    },
+                    {
+                      "key": "gen_ai.agent.name",
+                      "value": {
+                        "stringValue": "Score"
+                      }
+                    },
+                    {
+                      "key": "gen_ai.agent.id",
+                      "value": {
+                        "stringValue": "73c3e9c5-6505-559f-89d7-80d7cdef523e"
+                      }
+                    },
+                    {
+                      "key": "error.type",
+                      "value": {
+                        "stringValue": "_OTHER"
+                      }
+                    },
+                    {
+                      "key": "awa.error.retryable",
+                      "value": {
+                        "boolValue": false
+                      }
+                    }
+                  ],
+                  "events": [],
+                  "links": [],
+                  "status": {
+                    "code": 2,
+                    "message": "No reply"
+                  }
+                },
+                {
+                  "traceId": "89295edd58f0c442fe44a86e23fc1eea",
+                  "spanId": "bff98b6abe80485c",
+                  "name": "invoke_workflow Tiny",
+                  "kind": 1,
+                  "startTimeUnixNano": "1772442000000000000",
+                  "endTimeUnixNano": "1772442000004000000",
+                  "attributes": [
+                    {
+                      "key": "awa.run.id",
+                      "value": {
+                        "stringValue": "8d8beb00-6e42-5621-b4b9-23e4140c09f6"
+                      }
+                    },
+                    {
+                      "key": "gen_ai.operation.name",
+                      "value": {
+                        "stringValue": "invoke_workflow"
+                      }
+                    },
+                    {
+                      "key": "gen_ai.workflow.name",
+                      "value": {
+                        "stringValue": "Tiny"
+                      }
+                    },
+                    {
+                      "key": "awa.workflow.id",
+                      "value": {
+                        "stringValue": "208d6cae-5467-5f36-bf8d-b951eb19b787"
+                      }
+                    },
+                    {
+                      "key": "awa.workflow.version",
+                      "value": {
+                        "stringValue": "1.0.0"
+                      }
+                    },
+                    {
+                      "key": "awa.run.simulated",
+                      "value": {
+                        "boolValue": true
+                      }
+                    },
+                    {
+                      "key": "awa.run.status",
+                      "value": {
+                        "stringValue": "failed"
+                      }
+                    },
+                    {
+                      "key": "awa.run.steps",
+                      "value": {
+                        "intValue": "0"
+                      }
+                    },
+                    {
+                      "key": "awa.run.input_tokens",
+                      "value": {
+                        "intValue": "0"
+                      }
+                    },
+                    {
+                      "key": "awa.run.output_tokens",
+                      "value": {
+                        "intValue": "0"
+                      }
+                    },
+                    {
+                      "key": "awa.run.cost",
+                      "value": {
+                        "doubleValue": 0.25
+                      }
+                    },
+                    {
+                      "key": "awa.run.currency",
+                      "value": {
+                        "stringValue": "EUR"
+                      }
+                    }
+                  ],
+                  "events": [
+                    {
+                      "timeUnixNano": "1772442000000000000",
+                      "name": "token.created",
+                      "attributes": [
+                        {
+                          "key": "awa.journal.seq",
+                          "value": {
+                            "intValue": "2"
+                          }
+                        },
+                        {
+                          "key": "awa.journal.level",
+                          "value": {
+                            "stringValue": "execution"
+                          }
+                        },
+                        {
+                          "key": "awa.token.id",
+                          "value": {
+                            "stringValue": "b32fd316-567a-58e2-8cbd-ffce40b32d13"
+                          }
+                        },
+                        {
+                          "key": "awa.node.id",
+                          "value": {
+                            "stringValue": "73c3e9c5-6505-559f-89d7-80d7cdef523e"
+                          }
+                        },
+                        {
+                          "key": "awa.node.name",
+                          "value": {
+                            "stringValue": "Score"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "timeUnixNano": "1772442000003000000",
+                      "name": "token.failed",
+                      "attributes": [
+                        {
+                          "key": "awa.journal.seq",
+                          "value": {
+                            "intValue": "5"
+                          }
+                        },
+                        {
+                          "key": "awa.journal.level",
+                          "value": {
+                            "stringValue": "execution"
+                          }
+                        },
+                        {
+                          "key": "awa.token.id",
+                          "value": {
+                            "stringValue": "b32fd316-567a-58e2-8cbd-ffce40b32d13"
+                          }
+                        },
+                        {
+                          "key": "awa.node.id",
+                          "value": {
+                            "stringValue": "73c3e9c5-6505-559f-89d7-80d7cdef523e"
+                          }
+                        },
+                        {
+                          "key": "awa.node.name",
+                          "value": {
+                            "stringValue": "Score"
+                          }
+                        },
+                        {
+                          "key": "awa.data.error",
+                          "value": {
+                            "stringValue": "{\"message\":\"No reply\"}"
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  "links": [],
+                  "status": {
+                    "code": 2,
+                    "message": "No reply"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -51,6 +51,7 @@ curl -s -X POST localhost:3000/api/v1/journeys/events -H 'content-type: applicat
 |---|---|
 | `GET /api/v1/measures?from=&to=&journey_id=&workflow_id=` | The measure report (specification section 21). Each measure is `{ value, n }`; `value` is null when there was nothing to compute it from |
 | `GET /api/v1/measures?format=openmetrics` | The same in the OpenMetrics text format, for a metrics system to scrape |
+| `GET /api/v1/measures?format=otlp` | The same as an OTLP/JSON `ExportMetricsServiceRequest`: one gauge per measure with a value, named `awa.<id>` (specification 26.12) |
 | `GET /api/v1/measures/definitions` | Every measure with its unit and its rule |
 | `GET /api/v1/evidence?from=&to=&workflow_id=&format=` | The evidence report (specification section 32) of what the host recorded, journeys and runs that belong to none alike: `format` is `json` (the default, `spec/json-schema/evidence-report.schema.json`), `md` or `html`. `workflow_id` may be repeated. Evidence a deployer can use, not a certification of compliance |
 
@@ -67,6 +68,10 @@ Kept in the task database (see "The task database" in the [SDK README](../README
 | `POST /api/v1/tasks/{id}/complete` | `{ "result": { ... } }`: what the person decided |
 | `POST /api/v1/tasks/{id}/reject` | `{ "reason": "..." }` |
 | `GET /api/v1/tasks/queue/stats` | Counts by status |
+
+## Telemetry
+
+With `OTEL_EXPORTER_OTLP_ENDPOINT` (or `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`) set, the server sends every run it starts and every journey it hosts to that OpenTelemetry endpoint as traces, while they proceed (specification section 26). The other variables of the family, `OTEL_SERVICE_NAME` and `AWA_TELEMETRY_PAYLOADS` are in the [command guide](cli-guide.md#environment-variables). A backend that is down or slow never holds up a run; what cannot be sent is dropped and counted, and `awa telemetry export` can send it again from the journal, with the same identifiers.
 
 ## Workflows offered as A2A agents
 

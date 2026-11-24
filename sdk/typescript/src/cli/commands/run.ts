@@ -8,6 +8,7 @@ import { FileJournalStore } from '../../runtime/journal';
 import { EmbeddedModelProvider, ModelProvider, OpenAIModelProvider, ollama_provider, tier_fallbacks } from '../../runtime/models';
 import { FilePersistenceAdapter } from '../../runtime/persistence';
 import { load_deployment } from '../deployment';
+import { shared_telemetry_from_env } from '../../runtime/telemetry_export';
 
 export const runCommand = new Command('run')
     .description('Run a workflow file')
@@ -69,8 +70,11 @@ export const runCommand = new Command('run')
             }
 
             const deployment = options.deployment ? load_deployment(path.resolve(process.cwd(), options.deployment)) : undefined;
+            // OTEL_EXPORTER_OTLP_ENDPOINT and its family send the run's spans as it proceeds (spec 26.11)
+            const telemetry = shared_telemetry_from_env();
             const engine = new WorkflowEngine(workflow, {
                 ...(deployment?.a2a ? { a2a: deployment.a2a } : {}),
+                telemetry,
                 ...(names.length ? {
                     model_providers: providers,
                     default_model_provider: names[0],
@@ -122,6 +126,8 @@ export const runCommand = new Command('run')
 
             const status = await execute();
             await engine.getEvents();
+            // Spans still queued leave before the command ends; this waits at most the export timeout
+            await telemetry?.exporter?.flush?.();
             console.log(`Workflow finished with status: ${status}`);
             if (options.journal) {
                 console.log(`Journal written to ${options.journal}`);

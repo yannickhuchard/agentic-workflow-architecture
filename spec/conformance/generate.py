@@ -2268,8 +2268,480 @@ def a2a_cases() -> list[Case]:
     return cases
 
 
+def telemetry_cases() -> list[dict]:
+    """Level `telemetry` (section 26): a record, and the trace every implementation must derive from it."""
+    import hashlib
+    from datetime import datetime, timedelta, timezone
+
+    def digest(text: str, size: int) -> str:
+        raw = bytearray(hashlib.sha256(text.encode("utf-8")).digest()[:size])
+        if not any(raw):
+            raw[-1] = 1
+        return raw.hex()
+
+    trace = lambda run: digest(f"awa:run:{run}", 16)
+    span = lambda run, seq: digest(f"awa:run:{run}:{seq}", 8)
+    jtrace = lambda inst: digest(f"awa:journey:{inst}", 16)
+    jspan = lambda inst, seq: digest(f"awa:journey:{inst}:{seq}", 8)
+    t0 = datetime(2026, 3, 2, 9, 0, tzinfo=timezone.utc)
+    at = lambda ms: (t0 + timedelta(milliseconds=ms)).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    canonical = lambda value: json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+    class Journal:
+        def __init__(self, case_id: str, workflow_name: str = "Refund"):
+            self.case_id, self.run, self.workflow, self.events = case_id, uid(case_id, "run"), uid(case_id, "workflow"), []
+            self.workflow_name = workflow_name
+
+        def u(self, name: str) -> str:
+            return uid(self.case_id, name)
+
+        def ev(self, type_: str, ms: int, token=None, node=None, attempt=None, level="execution", **data) -> int:
+            seq = len(self.events) + 1
+            event = {"spec_version": "1.1", "id": self.u(f"event-{seq}"), "run_id": self.run, "seq": seq, "time": at(ms),
+                     "type": type_, "level": level, "workflow_id": self.workflow}
+            if token:
+                event["token_id"] = self.u(token)
+            if node:
+                event["node_id"], event["node_name"] = self.u(node), node
+            if attempt:
+                event["attempt"] = attempt
+            event["data"] = data
+            self.events.append(event)
+            return seq
+
+        def s(self, seq: int) -> str:
+            return span(self.run, seq)
+
+        def case(self, case_id, spec, description, expect, options=None, decision_nodes=()):
+            return {"id": case_id, "level": "telemetry", "spec": spec, "description": description,
+                    "decision_nodes": [self.u(n) for n in decision_nodes], "journal": self.events,
+                    "options": options or {"payloads": False}, "expect": {"trace_id": trace(self.run), **expect}}
+
+    cases = []
+
+    # --- 1. Identifiers, the run span and attempts --------------------------------------------
+    j = Journal("telemetry-run-and-attempts")
+    j.ev("run.started", 0, workflow_name="Refund", workflow_version="1.2.0", input={"order": "O-17", "amount": 40}, simulate=False)
+    j.ev("token.created", 0, "T", "Start")
+    j.ev("token.moved", 0, "T", "Check request", from_node_id=j.u("Start"), to_node_id=j.u("Check request"), edge_id=j.u("e1"), reason="unconditional")
+    a1 = j.ev("activity.started", 10, "T", "Check request", 1, actor_type="application", role_id=j.u("clerk"), input={"order": "O-17"})
+    j.ev("activity.completed", 260, "T", "Check request", 1, actor_type="application", output={"valid": True}, duration_ms=250, attempts=1)
+    j.ev("token.moved", 265, "T", "Pay refund", from_node_id=j.u("Check request"), to_node_id=j.u("Pay refund"), edge_id=j.u("e2"), reason="unconditional")
+    a2 = j.ev("activity.started", 270, "T", "Pay refund", 1, actor_type="robot", input={"amount": 40})
+    j.ev("activity.completed", 770, "T", "Pay refund", 1, actor_type="robot", output={"paid": True}, duration_ms=500, attempts=1)
+    j.ev("token.completed", 780, "T", "End")
+    j.ev("run.completed", 780, duration_ms=780, steps=2, input_tokens=0, output_tokens=0, cost=0.5, currency="EUR")
+    run_attrs = {"awa.run.id": j.run, "gen_ai.operation.name": "invoke_workflow", "gen_ai.workflow.name": "Refund", "awa.workflow.id": j.workflow,
+                 "awa.workflow.version": "1.2.0", "awa.run.simulated": False, "awa.run.status": "completed", "awa.run.steps": 2,
+                 "awa.run.input_tokens": 0, "awa.run.output_tokens": 0, "awa.run.cost": 0.5, "awa.run.currency": "EUR"}
+    cases.append(j.case("run-trace-and-attempt-spans", "26.1",
+        "A run is one trace whose identifiers derive from the run id. The run span's key event is run.started; each attempt is a span "
+        "from activity.started to activity.completed, a child of the run. Events that open or end nothing are span events of the run.", {
+            "span_count": 3,
+            "spans": [
+                {"span_id": j.s(1), "parent_span_id": None, "name": "invoke_workflow Refund", "kind": "internal", "start": at(0), "end": at(780),
+                 "status": "ok", "attributes": run_attrs, "absent": ["awa.run.input"],
+                 "events": ["token.created", "token.moved", "token.moved", "token.completed"],
+                 "events_contain": [{"name": "token.moved", "attributes": {"awa.journal.seq": 3, "awa.journal.level": "execution", "awa.token.id": j.u("T"),
+                                                                           "awa.node.name": "Check request", "awa.data.reason": "unconditional", "awa.data.edge_id": j.u("e1")}}]},
+                {"span_id": j.s(a1), "parent_span_id": j.s(1), "name": "activity Check request", "kind": "internal", "start": at(10), "end": at(260),
+                 "status": "ok", "attributes": {"awa.run.id": j.run, "awa.node.id": j.u("Check request"), "awa.node.name": "Check request", "awa.token.id": j.u("T"),
+                                                "awa.attempt": 1, "awa.actor.type": "application", "awa.role.id": j.u("clerk")},
+                 "absent": ["gen_ai.operation.name", "awa.input", "awa.output", "error.type"], "events": []},
+                {"span_id": j.s(a2), "parent_span_id": j.s(1), "name": "activity Pay refund", "start": at(270), "end": at(770), "status": "ok",
+                 "attributes": {"awa.actor.type": "robot"}},
+            ]}))
+
+    # --- 2. AI agent attempts and model calls -------------------------------------------------
+    j = Journal("telemetry-agent-and-model")
+    j.ev("run.started", 0, workflow_name="Reply", workflow_version="1.0.0", input={}, simulate=False)
+    j.ev("token.created", 0, "T", "Draft reply")
+    m = {"id": "model-a", "provider": "google", "requested": "tier:balanced", "tier": "balanced", "source": "role", "temperature": 0.2}
+    a1 = j.ev("activity.started", 0, "T", "Draft reply", 1, actor_type="ai_agent", input={"question": "Where is my parcel?"})
+    m1 = j.ev("meta.recorded", 400, "T", "Draft reply", 1, level="meta", subject="model_selection", decision="Use model google:model-a", rationale="The role names this model.", model=m)
+    j.ev("reasoning.recorded", 400, "T", "Draft reply", 1, level="reasoning", source="actor", plan=["look up parcel", "answer"], rationale="The tracking page shows it in transit.", confidence=0.7)
+    j.ev("contract.checked", 401, "T", "Draft reply", 1, passed=False, violations=[{"kind": "schema", "name": "schema", "message": "/eta must be string"}], tokens_used=120, output_hash="ab" * 32)
+    j.ev("activity.failed", 401, "T", "Draft reply", 1, error={"message": "Outcome contract violated: /eta must be string", "code": "CONTRACT_VIOLATION"}, retryable=True, duration_ms=401)
+    j.ev("meta.recorded", 401, "T", "Draft reply", 1, level="meta", subject="contract_retry", decision="Re-execute with the violated contract terms as feedback", rationale="1 contract term(s) did not hold.")
+    a2 = j.ev("activity.started", 402, "T", "Draft reply", 2, actor_type="ai_agent", input={"question": "Where is my parcel?"}, feedback="/eta must be string")
+    m2 = j.ev("meta.recorded", 900, "T", "Draft reply", 2, level="meta", subject="model_selection", decision="Use model google:model-a", rationale="The role names this model.", model=m)
+    j.ev("contract.checked", 901, "T", "Draft reply", 2, passed=True, violations=[], tokens_used=465, output_hash="cd" * 32)
+    j.ev("activity.completed", 901, "T", "Draft reply", 2, actor_type="ai_agent", output={"eta": "tomorrow"}, duration_ms=499, attempts=2, usage={"input_tokens": 300, "output_tokens": 45})
+    j.ev("token.completed", 901, "T", "Draft reply")
+    j.ev("run.completed", 901, duration_ms=901, steps=1, input_tokens=420, output_tokens=45, cost=0.0123, currency="EUR")
+    model_attrs = {"gen_ai.operation.name": "chat", "gen_ai.provider.name": "gcp.gemini", "awa.model.provider": "google", "gen_ai.request.model": "model-a",
+                   "gen_ai.response.model": "model-a", "gen_ai.request.temperature": 0.2, "awa.model.tier": "balanced", "awa.model.requested": "tier:balanced",
+                   "awa.model.source": "role", "awa.attempt": 1}
+    cases.append(j.case("agent-attempts-and-model-calls", "26.5",
+        "An AI agent's attempt is an invoke_agent span. Each model_selection is a chat span (kind client) under its attempt, from the attempt's start to "
+        "the record of the model. Usage comes from the activity.completed that ends the attempt; a rejected attempt has none. The provider google is gcp.gemini.", {
+            "span_count": 5,
+            "spans": [
+                {"span_id": j.s(1), "parent_span_id": None, "status": "ok", "attributes": {"awa.run.input_tokens": 420, "awa.run.output_tokens": 45, "awa.run.cost": 0.0123},
+                 "absent": ["gen_ai.usage.input_tokens"], "events": ["token.created", "meta.recorded", "token.completed"]},
+                {"span_id": j.s(a1), "parent_span_id": j.s(1), "name": "invoke_agent Draft reply", "start": at(0), "end": at(401),
+                 "status": "error", "status_message": "Outcome contract violated: /eta must be string",
+                 "attributes": {"gen_ai.operation.name": "invoke_agent", "gen_ai.agent.name": "Draft reply", "gen_ai.agent.id": j.u("Draft reply"),
+                                "awa.actor.type": "ai_agent", "error.type": "CONTRACT_VIOLATION", "awa.error.retryable": True, "awa.attempt": 1},
+                 "events": ["reasoning.recorded", "contract.checked"],
+                 "events_contain": [{"name": "reasoning.recorded", "attributes": {"awa.journal.level": "reasoning", "awa.attempt": 1, "awa.data.source": "actor",
+                                                                                  "awa.data.rationale": "The tracking page shows it in transit.", "awa.data.confidence": 0.7,
+                                                                                  "awa.data.plan": canonical(["look up parcel", "answer"])}},
+                                    {"name": "contract.checked", "attributes": {"awa.data.passed": False, "awa.data.tokens_used": 120}}]},
+                {"span_id": j.s(m1), "parent_span_id": j.s(a1), "name": "chat model-a", "kind": "client", "start": at(0), "end": at(400), "status": "ok",
+                 "attributes": model_attrs, "absent": ["gen_ai.usage.input_tokens", "gen_ai.usage.output_tokens"], "events": []},
+                {"span_id": j.s(a2), "parent_span_id": j.s(1), "name": "invoke_agent Draft reply", "start": at(402), "end": at(901), "status": "ok",
+                 "attributes": {"awa.attempt": 2}, "absent": ["error.type", "awa.input"], "events": ["contract.checked"]},
+                {"span_id": j.s(m2), "parent_span_id": j.s(a2), "name": "chat model-a", "kind": "client", "start": at(402), "end": at(900), "status": "ok",
+                 "attributes": {**model_attrs, "awa.attempt": 2, "gen_ai.usage.input_tokens": 300, "gen_ai.usage.output_tokens": 45}},
+            ]}))
+
+    # --- 3. Tool calls -------------------------------------------------------------------------
+    j = Journal("telemetry-tools")
+    j.ev("run.started", 0, workflow_name="Check cover", input={}, simulate=False)
+    j.ev("token.created", 0, "T", "Verify cover")
+    a = j.ev("activity.started", 0, "T", "Verify cover", 1, actor_type="application", input={"policy": "P-1"})
+    c1 = j.ev("tool.invoked", 10, "T", "Verify cover", 1, call_id="c1", tool="get_policy", link="https://policies.example/api/policies/P-1",
+              binding={"kind": "http", "method": "GET", "url": "https://policies.example/api/policies/P-1"}, arguments={"policy": "P-1"})
+    j.ev("tool.completed", 160, "T", "Verify cover", 1, call_id="c1", tool="get_policy", link="https://policies.example/api/policies/P-1", status=200, duration_ms=150, result={"covered": True})
+    c2 = j.ev("tool.failed", 170, "T", "Verify cover", 1, call_id="c2", tool="get_policy", invoked=False,
+              error={"message": "Invalid arguments for \"get_policy\": arguments must have required property 'policy'", "code": "VALIDATION_ERROR"}, duration_ms=0)
+    c3 = j.ev("tool.invoked", 180, "T", "Verify cover", 1, call_id="c3", tool="notify", link="https://notify.example/rpc#send",
+              binding={"kind": "jsonrpc", "endpoint": "https://notify.example/rpc", "method": "send"}, arguments={"to": "a@example.org"})
+    j.ev("tool.failed", 380, "T", "Verify cover", 1, call_id="c3", tool="notify", link="https://notify.example/rpc#send", invoked=True,
+         error={"message": "Service unavailable", "code": "TOOL_ERROR"}, status=503, duration_ms=200)
+    j.ev("activity.completed", 400, "T", "Verify cover", 1, actor_type="application", output={"covered": True}, duration_ms=400, attempts=1)
+    j.ev("token.completed", 400, "T", "Verify cover")
+    j.ev("run.completed", 400, duration_ms=400, steps=1, input_tokens=0, output_tokens=0, cost=0, currency="EUR")
+    cases.append(j.case("tool-calls-are-spans", "26.2",
+        "Each tool call is an execute_tool span under its attempt, matched by call_id. A call refused before it ran is a span of no duration keyed by its "
+        "tool.failed. A failed call is an error, with the error's code as error.type. Arguments and results stay off spans unless the deployment opts in.", {
+            "span_count": 5,
+            "spans": [
+                {"span_id": j.s(a), "events": []},
+                {"span_id": j.s(c1), "parent_span_id": j.s(a), "name": "execute_tool get_policy", "kind": "internal", "start": at(10), "end": at(160), "status": "ok",
+                 "attributes": {"gen_ai.operation.name": "execute_tool", "gen_ai.tool.name": "get_policy", "gen_ai.tool.call.id": "c1",
+                                "awa.tool.link": "https://policies.example/api/policies/P-1", "awa.tool.binding": "http", "awa.tool.status": 200, "awa.tool.invoked": True,
+                                "awa.attempt": 1, "awa.node.name": "Verify cover"},
+                 "absent": ["gen_ai.tool.call.arguments", "gen_ai.tool.call.result", "error.type"]},
+                {"span_id": j.s(c2), "parent_span_id": j.s(a), "name": "execute_tool get_policy", "start": at(170), "end": at(170), "status": "error",
+                 "status_message": "Invalid arguments for \"get_policy\": arguments must have required property 'policy'",
+                 "attributes": {"awa.tool.invoked": False, "error.type": "VALIDATION_ERROR", "gen_ai.tool.call.id": "c2"}, "absent": ["awa.tool.binding", "awa.tool.status"]},
+                {"span_id": j.s(c3), "parent_span_id": j.s(a), "name": "execute_tool notify", "start": at(180), "end": at(380), "status": "error",
+                 "status_message": "Service unavailable", "attributes": {"awa.tool.status": 503, "error.type": "TOOL_ERROR", "awa.tool.binding": "jsonrpc", "awa.tool.invoked": True}},
+            ]}))
+
+    # --- 4. Decisions, by table and by model -------------------------------------------------
+    j = Journal("telemetry-decisions")
+    j.ev("run.started", 0, workflow_name="Settle", input={}, simulate=False)
+    j.ev("token.created", 0, "T", "Assess")
+    j.ev("activity.started", 0, "T", "Assess", 1, actor_type="application", input={})
+    j.ev("activity.completed", 100, "T", "Assess", 1, actor_type="application", output={"score": 0.2}, duration_ms=100, attempts=1)
+    d1 = j.ev("token.moved", 101, "T", "Route", from_node_id=j.u("Assess"), to_node_id=j.u("Route"), edge_id=j.u("e1"), reason="unconditional")
+    j.ev("decision.evaluated", 103, "T", "Route", method="table", strategy="table", hit_policy="first", inputs={"score": 0.2}, matched=True,
+         matched_rules=[{"index": 1, "input_entries": ["< 0.3"], "description": "Clean"}], outputs={"route": "auto"}, edge_id=j.u("auto"), used_default=False)
+    d2 = j.ev("token.moved", 104, "T", "Second look", from_node_id=j.u("Route"), to_node_id=j.u("Second look"), edge_id=j.u("auto"), reason="decision")
+    mm = j.ev("meta.recorded", 450, "T", "Second look", level="meta", subject="model_selection", decision="Use model acme:classifier-small", rationale="The decision names this model.",
+              model={"provider": "acme", "id": "classifier-small", "requested": "tier:fast", "tier": "fast"})
+    j.ev("reasoning.recorded", 450, "T", "Second look", level="reasoning", source="decision_model", rationale="Unusual pattern of repairs.", confidence=0.84, plan=[], option="review")
+    j.ev("decision.evaluated", 451, "T", "Second look", method="model", strategy="table_first", hit_policy="first", inputs={"score": 0.2}, matched=True, matched_rules=[],
+         outputs={"option": "review", "confidence": 0.84}, edge_id=j.u("review"), used_default=False,
+         model={"option": "review", "confidence": 0.84, "min_confidence": 0.6, "votes": [{"option": "review", "confidence": 0.84}], "usage": {"input_tokens": 203, "output_tokens": 41}})
+    j.ev("token.moved", 452, "T", "Adjuster review", from_node_id=j.u("Second look"), to_node_id=j.u("Adjuster review"), edge_id=j.u("review"), reason="decision")
+    j.ev("token.completed", 452, "T", "Adjuster review")
+    j.ev("run.completed", 452, duration_ms=452, steps=1, input_tokens=203, output_tokens=41, cost=0.001, currency="EUR")
+    cases.append(j.case("decisions-are-spans", "26.2",
+        "A decision is a span from the token's arrival at the decision node to decision.evaluated. A model decision has a chat span under it, from that arrival "
+        "to the record of the model, with the decision's usage. The arrival is also a span event of the run.", {
+            "span_count": 5,
+            "spans": [
+                {"span_id": j.s(1), "events": ["token.created", "token.moved", "token.moved", "token.moved", "token.completed"]},
+                {"span_id": j.s(d1), "parent_span_id": j.s(1), "name": "decision Route", "kind": "internal", "start": at(101), "end": at(103), "status": "ok",
+                 "attributes": {"awa.node.id": j.u("Route"), "awa.token.id": j.u("T"), "awa.decision.method": "table", "awa.decision.strategy": "table",
+                                "awa.decision.hit_policy": "first", "awa.decision.matched_rules": [1], "awa.decision.outputs": canonical({"route": "auto"}),
+                                "awa.decision.edge_id": j.u("auto"), "awa.decision.used_default": False},
+                 "absent": ["awa.decision.inputs", "awa.decision.option", "awa.attempt"], "events": []},
+                {"span_id": j.s(d2), "parent_span_id": j.s(1), "name": "decision Second look", "start": at(104), "end": at(451), "status": "ok",
+                 "attributes": {"awa.decision.method": "model", "awa.decision.matched_rules": [], "awa.decision.option": "review", "awa.decision.confidence": 0.84},
+                 "events": ["reasoning.recorded"]},
+                {"span_id": j.s(mm), "parent_span_id": j.s(d2), "name": "chat classifier-small", "kind": "client", "start": at(104), "end": at(450), "status": "ok",
+                 "attributes": {"gen_ai.provider.name": "acme", "gen_ai.request.model": "classifier-small", "gen_ai.usage.input_tokens": 203, "gen_ai.usage.output_tokens": 41},
+                 "absent": ["awa.attempt", "gen_ai.request.temperature"]},
+            ]}, decision_nodes=("Route", "Second look")))
+
+    # --- 5. Waits --------------------------------------------------------------------------------
+    j = Journal("telemetry-waits")
+    hour, day = 3_600_000, 86_400_000
+    j.ev("run.started", 0, workflow_name="Approve", input={}, simulate=False)
+    j.ev("token.created", 0, "T", "Approve refund")
+    a = j.ev("activity.started", 0, "T", "Approve refund", 1, actor_type="human", input={})
+    w1 = j.ev("token.waiting", 5, "T", "Approve refund", reason="human_task", human_task_id="task-1")
+    j.ev("run.waiting", 5, waiting_for="human", waiting_tokens=[j.u("T")])
+    j.ev("token.resumed", hour + 5, "T", "Approve refund", waited_ms=hour)
+    j.ev("activity.completed", hour + 5, "T", "Approve refund", actor_type="human", output={"approved": True}, waited_ms=hour)
+    j.ev("token.moved", hour + 10, "T", "Payment confirmed", from_node_id=j.u("Approve refund"), to_node_id=j.u("Payment confirmed"), edge_id=j.u("e1"), reason="unconditional")
+    w2 = j.ev("event.waiting", hour + 10, "T", "Payment confirmed", name="payment.confirmed", correlation_key="order_id", correlation_value="O-17", due_at=at(hour + 10 + day))
+    j.ev("event.timed_out", hour + 10 + day, "T", "Payment confirmed", name="payment.confirmed", due_at=at(hour + 10 + day))
+    j.ev("token.moved", hour + 11 + day, "T", "Cool-off", from_node_id=j.u("Payment confirmed"), to_node_id=j.u("Cool-off"), edge_id=j.u("e2"), reason="unconditional")
+    w3 = j.ev("timer.started", hour + 11 + day, "T", "Cool-off", duration="PT1H", duration_ms=hour, due_at=at(2 * hour + 11 + day))
+    j.ev("timer.fired", 2 * hour + 11 + day, "T", "Cool-off", due_at=at(2 * hour + 11 + day))
+    j.ev("token.completed", 2 * hour + 11 + day, "T", "Cool-off")
+    j.ev("run.completed", 2 * hour + 11 + day, duration_ms=2 * hour + 11 + day, steps=1, input_tokens=0, output_tokens=0, cost=0, currency="EUR")
+    cases.append(j.case("waits-are-spans", "26.2",
+        "A person's task, a business event and a timer are each a wait span. A person's wait is a child of the attempt it interrupts, which an "
+        "activity.completed without attempt ends. A wait that runs out is unset, not an error. The correlation value is a payload.", {
+            "span_count": 5,
+            "spans": [
+                {"span_id": j.s(1), "events": ["token.created", "run.waiting", "token.moved", "token.moved", "token.completed"],
+                 "events_contain": [{"name": "run.waiting", "attributes": {"awa.data.waiting_for": "human", "awa.data.waiting_tokens": canonical([j.u("T")])},
+                                     "absent": ["awa.token.id", "awa.attempt"]}]},
+                {"span_id": j.s(a), "parent_span_id": j.s(1), "name": "activity Approve refund", "start": at(0), "end": at(hour + 5), "status": "ok",
+                 "attributes": {"awa.actor.type": "human"}},
+                {"span_id": j.s(w1), "parent_span_id": j.s(a), "name": "wait Approve refund", "kind": "internal", "start": at(5), "end": at(hour + 5), "status": "ok",
+                 "attributes": {"awa.wait.kind": "human", "awa.wait.reason": "human_task", "awa.human_task.id": "task-1", "awa.wait.outcome": "resumed", "awa.wait.waited_ms": hour},
+                 "events": []},
+                {"span_id": j.s(w2), "parent_span_id": j.s(1), "name": "wait Payment confirmed", "start": at(hour + 10), "end": at(hour + 10 + day), "status": "unset",
+                 "attributes": {"awa.wait.kind": "event", "awa.business_event.name": "payment.confirmed", "awa.business_event.correlation_key": "order_id",
+                                "awa.business_event.due_at": at(hour + 10 + day), "awa.wait.outcome": "timed_out"},
+                 "absent": ["awa.business_event.correlation_value", "awa.business_event.id"]},
+                {"span_id": j.s(w3), "parent_span_id": j.s(1), "name": "wait Cool-off", "start": at(hour + 11 + day), "end": at(2 * hour + 11 + day), "status": "ok",
+                 "attributes": {"awa.wait.kind": "timer", "awa.timer.duration": "PT1H", "awa.timer.due_at": at(2 * hour + 11 + day), "awa.wait.outcome": "fired"}},
+            ]}))
+
+    # --- 6. A failed run -----------------------------------------------------------------------
+    j = Journal("telemetry-failed-run")
+    j.ev("run.started", 0, workflow_name="Post", input={}, simulate=False)
+    j.ev("token.created", 0, "T1", "Post ledger")
+    j.ev("token.created", 0, "T2", "Write letter", parent_token_id=j.u("T1"), reason="parallel_split")
+    a1 = j.ev("activity.started", 1, "T1", "Post ledger", 1, actor_type="application", input={})
+    a2 = j.ev("activity.started", 2, "T2", "Write letter", 1, actor_type="ai_agent", input={})
+    j.ev("activity.failed", 50, "T1", "Post ledger", 1, error={"message": "Ledger unavailable", "code": "LEDGER_DOWN"}, retryable=False, duration_ms=49)
+    j.ev("activity.dead_lettered", 50, "T1", "Post ledger", 1, error={"message": "Ledger unavailable", "code": "LEDGER_DOWN"}, attempts=1)
+    j.ev("token.failed", 50, "T1", "Post ledger", error={"message": "Ledger unavailable", "code": "LEDGER_DOWN"})
+    j.ev("token.cancelled", 51, "T2", "Write letter", reason="run_failed")
+    j.ev("run.failed", 52, duration_ms=52, steps=0, input_tokens=0, output_tokens=0, cost=0, currency="EUR",
+         errors=[{"token_id": j.u("T1"), "node_id": j.u("Post ledger"), "message": "Ledger unavailable"}])
+    cases.append(j.case("failed-run-ends-open-spans", "26.3",
+        "A failed run is an error described by its first error. A token that is cancelled ends its open spans, unset, after the cancellation "
+        "is recorded on the innermost of them.", {
+            "span_count": 3,
+            "spans": [
+                {"span_id": j.s(1), "status": "error", "status_message": "Ledger unavailable", "end": at(52), "attributes": {"awa.run.status": "failed"},
+                 "events": ["token.created", "token.created", "activity.dead_lettered", "token.failed"],
+                 "events_contain": [{"name": "token.failed", "attributes": {"awa.data.error": canonical({"code": "LEDGER_DOWN", "message": "Ledger unavailable"})}}]},
+                {"span_id": j.s(a1), "status": "error", "status_message": "Ledger unavailable", "end": at(50), "attributes": {"error.type": "LEDGER_DOWN", "awa.error.retryable": False}},
+                {"span_id": j.s(a2), "status": "unset", "end": at(51), "events": ["token.cancelled"], "absent": ["error.type"]},
+            ]}))
+
+    # --- 7. A cancelled run ----------------------------------------------------------------------
+    j = Journal("telemetry-cancelled-run")
+    j.ev("run.started", 0, workflow_name="Remind", input={}, simulate=False)
+    j.ev("token.created", 0, "T", "Payment received")
+    w = j.ev("event.waiting", 0, "T", "Payment received", name="payment.received", due_at=at(day))
+    j.ev("run.waiting", 0, waiting_for="event", waiting_tokens=[j.u("T")])
+    j.ev("token.cancelled", 5000, "T", "Payment received", reason="run_cancelled")
+    j.ev("run.cancelled", 5000, reason="the customer left")
+    cases.append(j.case("cancelled-run-is-unset", "26.3",
+        "A cancelled run is neither ok nor an error. The wait its token was in ends, unset, when the token is cancelled.", {
+            "span_count": 2,
+            "spans": [
+                {"span_id": j.s(1), "status": "unset", "end": at(5000), "attributes": {"awa.run.status": "cancelled", "awa.run.cancel_reason": "the customer left"},
+                 "absent": ["awa.incomplete"], "events": ["token.created", "run.waiting"]},
+                {"span_id": j.s(w), "parent_span_id": j.s(1), "status": "unset", "end": at(5000), "events": ["token.cancelled"], "absent": ["awa.wait.outcome"]},
+            ]}))
+
+    # --- 8 to 10. Payloads ---------------------------------------------------------------------
+    def payload_journal(case_id: str, mode: str) -> Journal:
+        p = (lambda v: v) if mode == "full" else (lambda v: {"sha256": hashlib.sha256(canonical(v).encode()).hexdigest()})
+        j = Journal(case_id)
+        j.ev("run.started", 0, workflow_name="Refund", input=p({"order": "O-17"}), simulate=False)
+        j.ev("token.created", 0, "T", "Pay")
+        j.ev("activity.started", 0, "T", "Pay", 1, actor_type="application", input=p({"amount": 40}))
+        j.ev("tool.invoked", 1, "T", "Pay", 1, call_id="c1", tool="transfer", link="https://bank.example/rpc#transfer", binding={"kind": "jsonrpc"}, arguments=p({"iban": "FR76"}))
+        j.ev("tool.completed", 2, "T", "Pay", 1, call_id="c1", tool="transfer", link="https://bank.example/rpc#transfer", status=200, duration_ms=1, result=p({"ref": "TX-9"}))
+        j.ev("activity.completed", 3, "T", "Pay", 1, actor_type="application", output=p({"paid": True}), duration_ms=3, attempts=1)
+        j.ev("event.published", 3, "T", "Refunded", event_id="ev-1", name="refund.paid", source="urn:awa:run:x", data=p({"order": "O-17"}), delivered=True)
+        j.ev("token.completed", 3, "T", "Refunded")
+        j.ev("run.completed", 3, duration_ms=3, steps=1, input_tokens=0, output_tokens=0, cost=0, currency="EUR")
+        return j
+
+    for case_id, mode, payloads, description in [
+        ("payloads-stay-off-spans-by-default", "full", False,
+         "A journal in full payload mode, exported without opting in: no input, output, argument, result or event data is on any span or span event."),
+        ("payloads-on-spans-when-opted-in", "full", True,
+         "The same journal with the deployment opted in: each payload is on its span as canonical JSON, and event data is on the span event."),
+        ("payloads-are-hashes-in-hash-mode", "hash", True,
+         "A journal in hash mode, opted in: telemetry carries what the journal holds, the hash and never the value."),
+    ]:
+        j = payload_journal(case_id.replace("payloads", "telemetry-payloads"), mode)
+        shown = (lambda v: canonical(v)) if mode == "full" else (lambda v: canonical({"sha256": hashlib.sha256(canonical(v).encode()).hexdigest()}))
+        keys = {"run": "awa.run.input", "in": "awa.input", "out": "awa.output", "args": "gen_ai.tool.call.arguments", "res": "gen_ai.tool.call.result", "event": "awa.data.data"}
+        if payloads:
+            spans = [
+                {"span_id": j.s(1), "attributes": {"awa.run.input": shown({"order": "O-17"})},
+                 "events_contain": [{"name": "event.published", "attributes": {"awa.data.data": shown({"order": "O-17"}), "awa.data.name": "refund.paid"}}]},
+                {"span_id": j.s(3), "attributes": {"awa.input": shown({"amount": 40}), "awa.output": shown({"paid": True})}},
+                {"span_id": j.s(4), "attributes": {"gen_ai.tool.call.arguments": shown({"iban": "FR76"}), "gen_ai.tool.call.result": shown({"ref": "TX-9"})}},
+            ]
+        else:
+            spans = [
+                {"span_id": j.s(1), "absent": [keys["run"]],
+                 "events_contain": [{"name": "event.published", "attributes": {"awa.data.name": "refund.paid", "awa.data.delivered": True}, "absent": ["awa.data.data"]}]},
+                {"span_id": j.s(3), "absent": [keys["in"], keys["out"]]},
+                {"span_id": j.s(4), "absent": [keys["args"], keys["res"]]},
+            ]
+        cases.append(j.case(case_id, "26.6", description, {"span_count": 3, "spans": spans}, options={"payloads": payloads}))
+
+    # --- 11. An unfinished run ------------------------------------------------------------------
+    j = Journal("telemetry-unfinished")
+    j.ev("run.started", 0, workflow_name="Order", input={}, simulate=False)
+    j.ev("token.created", 0, "T", "Take order")
+    a = j.ev("activity.started", 0, "T", "Take order", 1, actor_type="application", input={})
+    j.ev("activity.completed", 20, "T", "Take order", 1, actor_type="application", output={}, duration_ms=20, attempts=1)
+    j.ev("token.moved", 21, "T", "Paid", from_node_id=j.u("Take order"), to_node_id=j.u("Paid"), edge_id=j.u("e1"), reason="unconditional")
+    w = j.ev("event.waiting", 21, "T", "Paid", name="order.paid", due_at=at(day))
+    j.ev("run.waiting", 22, waiting_for="event", waiting_tokens=[j.u("T")])
+    cases.append(j.case("unfinished-run-ends-at-its-last-event", "26.8",
+        "A run still waiting: an export ends what is open at the time of the last event, unset and marked incomplete. What had ended is as it was.", {
+            "span_count": 3,
+            "spans": [
+                {"span_id": j.s(a), "status": "ok", "end": at(20), "absent": ["awa.incomplete"]},
+                {"span_id": j.s(w), "parent_span_id": j.s(1), "status": "unset", "start": at(21), "end": at(22), "attributes": {"awa.incomplete": True}, "absent": ["awa.wait.outcome"]},
+                {"span_id": j.s(1), "status": "unset", "end": at(22), "attributes": {"awa.incomplete": True}, "absent": ["awa.run.status"]},
+            ]}))
+
+    # --- 12. Journeys ------------------------------------------------------------------------------
+    inst = uid("telemetry-journey", "instance")
+    journey_id = uid("telemetry-journey", "journey")
+    r1, r2 = uid("telemetry-journey", "run-1"), uid("telemetry-journey", "run-2")
+    jevents = []
+
+    def jev(type_: str, ms: int, stage=None, run=None, **data) -> int:
+        seq = len(jevents) + 1
+        event = {"spec_version": "1.1", "journey_instance_id": inst, "journey_id": journey_id, "seq": seq, "time": at(ms), "type": type_}
+        if stage:
+            event["stage_id"] = stage
+        if run:
+            event["run_id"] = run
+        event["data"] = data
+        jevents.append(event)
+        return seq
+
+    js = jev("journey.started", 0, "intake", subject="customer", subject_key="C-1", journey_name="Motor claim")
+    s1 = jev("journey.stage_entered", 0, "intake", stage_name="Intake", reason="journey started")
+    jev("journey.event_received", 1, "intake", event_id="e1", name="claim.submitted", source="/portal", data={"customer_id": "C-1", "amount": 1200})
+    k1 = jev("journey.run_started", 2, "intake", r1, workflow_id=uid("telemetry-journey", "wf-intake"), workflow_name="Claim intake", caused_by_event="e1")
+    jev("journey.touchpoint", 3, "intake", r1, touchpoint_id="tp-ack", name="Acknowledgement", channel="email", direction="outbound")
+    jev("journey.run_ended", 900, "intake", r1, workflow_name="Claim intake", status="completed")
+    jev("journey.stage_completed", 900, "intake", stage_name="Intake", duration_ms=900)
+    s2 = jev("journey.stage_entered", 900, "settle", stage_name="Settlement", reason="stage intake completed")
+    k2 = jev("journey.run_started", 901, "settle", r2, workflow_id=uid("telemetry-journey", "wf-settle"), workflow_name="Claim settlement")
+    jev("journey.run_ended", 2000, "settle", r2, workflow_name="Claim settlement", status="failed", error="Payment failed")
+    jev("journey.stalled", 2000, "settle", r2, stage_name="Settlement", reason="the Claim settlement workflow failed", owner="claims-team")
+    jev("journey.completed", 5000, "settle", reason="claim.closed", event_id="e9")
+    cases.append({
+        "id": "journey-trace-links-to-runs", "level": "telemetry", "spec": "26.7",
+        "description": "A journey instance is one trace: the journey, its stages and the runs done for it. Each run span links to the run span of that run's own "
+                       "trace. A stage left without completing is unset. Events land on the run, else the stage, they name.",
+        "journey": jevents, "options": {"payloads": False},
+        "expect": {
+            "trace_id": jtrace(inst), "span_count": 5,
+            "spans": [
+                {"span_id": jspan(inst, js), "parent_span_id": None, "name": "journey Motor claim", "kind": "internal", "start": at(0), "end": at(5000), "status": "ok",
+                 "attributes": {"awa.journey.instance_id": inst, "awa.journey.id": journey_id, "awa.journey.name": "Motor claim", "awa.journey.subject": "customer",
+                                "awa.journey.status": "completed", "awa.journey.reason": "claim.closed"},
+                 "absent": ["awa.journey.subject_key"], "events": []},
+                {"span_id": jspan(inst, s1), "parent_span_id": jspan(inst, js), "name": "stage Intake", "start": at(0), "end": at(900), "status": "ok",
+                 "attributes": {"awa.journey.stage.id": "intake", "awa.journey.stage.name": "Intake", "awa.journey.stage.outcome": "completed"},
+                 "events": ["journey.event_received"],
+                 "events_contain": [{"name": "journey.event_received", "attributes": {"awa.journey.seq": 3, "awa.journey.stage.id": "intake", "awa.data.name": "claim.submitted"},
+                                     "absent": ["awa.data.data"]}]},
+                {"span_id": jspan(inst, k1), "parent_span_id": jspan(inst, s1), "name": "run Claim intake", "start": at(2), "end": at(900), "status": "ok",
+                 "attributes": {"awa.run.id": r1, "awa.workflow.name": "Claim intake", "awa.business_event.id": "e1", "awa.run.status": "completed", "awa.journey.stage.id": "intake"},
+                 "links": [{"trace_id": trace(r1), "span_id": span(r1, 1)}], "events": ["journey.touchpoint"]},
+                {"span_id": jspan(inst, s2), "parent_span_id": jspan(inst, js), "name": "stage Settlement", "start": at(900), "end": at(5000), "status": "unset",
+                 "attributes": {"awa.journey.stage.outcome": "left"}, "events": ["journey.stalled"]},
+                {"span_id": jspan(inst, k2), "parent_span_id": jspan(inst, s2), "name": "run Claim settlement", "start": at(901), "end": at(2000), "status": "error",
+                 "status_message": "Payment failed", "attributes": {"awa.run.status": "failed"}, "absent": ["awa.business_event.id"],
+                 "links": [{"trace_id": trace(r2), "span_id": span(r2, 1)}]},
+            ]},
+    })
+
+    # --- 13. OTLP/JSON encoding -----------------------------------------------------------------
+    j = Journal("telemetry-encoding")
+    j.ev("run.started", 0, workflow_name="Tiny", workflow_version="1.0.0", input={}, simulate=True)
+    j.ev("token.created", 0, "T", "Score")
+    j.ev("activity.started", 1, "T", "Score", 1, actor_type="ai_agent", input={})
+    j.ev("activity.failed", 3, "T", "Score", 1, error={"message": "No reply"}, retryable=False, duration_ms=2)
+    j.ev("token.failed", 3, "T", "Score", error={"message": "No reply"})
+    j.ev("run.failed", 4, duration_ms=4, steps=0, input_tokens=0, output_tokens=0, cost=0.25, currency="EUR", errors=[{"message": "No reply"}])
+    ns = lambda ms: str(int((t0 + timedelta(milliseconds=ms)).timestamp() * 1000) * 1_000_000)
+    kv = lambda key, value: {"key": key, "value": value}
+    s, i, d, b = (lambda v: {"stringValue": v}), (lambda v: {"intValue": str(v)}), (lambda v: {"doubleValue": v}), (lambda v: {"boolValue": v})
+    otlp = {"resourceSpans": [{
+        "resource": {"attributes": [kv("service.name", s("awa"))]},
+        "scopeSpans": [{
+            "scope": {"name": "awa", "version": "1.1"},
+            "spans": [
+                {"traceId": trace(j.run), "spanId": j.s(3), "parentSpanId": j.s(1), "name": "invoke_agent Score", "kind": 1,
+                 "startTimeUnixNano": ns(1), "endTimeUnixNano": ns(3),
+                 "attributes": [kv("awa.run.id", s(j.run)), kv("awa.node.id", s(j.u("Score"))), kv("awa.node.name", s("Score")), kv("awa.token.id", s(j.u("T"))),
+                                kv("awa.attempt", i(1)), kv("awa.actor.type", s("ai_agent")), kv("gen_ai.operation.name", s("invoke_agent")),
+                                kv("gen_ai.agent.name", s("Score")), kv("gen_ai.agent.id", s(j.u("Score"))), kv("error.type", s("_OTHER")), kv("awa.error.retryable", b(False))],
+                 "events": [], "links": [], "status": {"code": 2, "message": "No reply"}},
+                {"traceId": trace(j.run), "spanId": j.s(1), "name": "invoke_workflow Tiny", "kind": 1,
+                 "startTimeUnixNano": ns(0), "endTimeUnixNano": ns(4),
+                 "attributes": [kv("awa.run.id", s(j.run)), kv("gen_ai.operation.name", s("invoke_workflow")), kv("gen_ai.workflow.name", s("Tiny")),
+                                kv("awa.workflow.id", s(j.workflow)), kv("awa.workflow.version", s("1.0.0")), kv("awa.run.simulated", b(True)),
+                                kv("awa.run.status", s("failed")), kv("awa.run.steps", i(0)), kv("awa.run.input_tokens", i(0)), kv("awa.run.output_tokens", i(0)),
+                                kv("awa.run.cost", d(0.25)), kv("awa.run.currency", s("EUR"))],
+                 "events": [
+                     {"timeUnixNano": ns(0), "name": "token.created", "attributes": [kv("awa.journal.seq", i(2)), kv("awa.journal.level", s("execution")),
+                                                                                     kv("awa.token.id", s(j.u("T"))), kv("awa.node.id", s(j.u("Score"))), kv("awa.node.name", s("Score"))]},
+                     {"timeUnixNano": ns(3), "name": "token.failed", "attributes": [kv("awa.journal.seq", i(5)), kv("awa.journal.level", s("execution")),
+                                                                                    kv("awa.token.id", s(j.u("T"))), kv("awa.node.id", s(j.u("Score"))), kv("awa.node.name", s("Score")),
+                                                                                    kv("awa.data.error", s(canonical({"message": "No reply"})))]},
+                 ],
+                 "links": [], "status": {"code": 2, "message": "No reply"}},
+            ]}]}]}
+    cases.append(j.case("otlp-json-encoding", "26.9",
+        "The OTLP/JSON request for a small run: hexadecimal identifiers, nanosecond times and 64-bit integers as decimal strings, kinds and status codes as "
+        "numbers, the resource and the scope. Spans in the order they end. Attributes may come in any order.", {"span_count": 2, "otlp_json": otlp}))
+
+    # --- 14. Measures as gauges ------------------------------------------------------------------
+    report = {
+        "spec_version": "1.1", "as_of": "2026-03-31T00:00:00.000Z", "period": {"from": "2026-03-01T00:00:00.000Z", "to": "2026-03-31T00:00:00.000Z"}, "currency": "EUR",
+        "totals": {}, "attention": [], "series": {"bucket": "day", "points": []},
+        "journeys": [{"name": "Order", "measures": {"journey.started": {"value": 4, "n": 4}, "journey.completion_rate": {"value": 0.5, "n": 4}, "journey.mood_end": {"value": None, "n": 0}},
+                      "stages": [{"name": "Placed", "measures": {"stage.duration_median_ms": {"value": 3600000, "n": 2}}}]}],
+        "workflows": [{"name": "Fulfil", "measures": {"workflow.success_rate": {"value": 0.75, "n": 4}, "workflow.cost": {"value": 0.04, "n": 4}, "workflow.input_tokens": {"value": 400, "n": 4}},
+                       "activities": [{"name": "Pack", "measures": {"activity.attempts": {"value": 5, "n": 5}}}]}],
+    }
+    cases.append({
+        "id": "measures-as-gauges", "level": "telemetry", "spec": "26.12",
+        "description": "A measure report sent as OpenTelemetry metrics: one gauge per measure with a value, named awa.<id>, with the labels of the OpenMetrics "
+                       "exposition as attributes, the time as_of and the start of the period. A measure with no value sends nothing.",
+        "report": report,
+        "expect": {
+            "metric_count": 7,
+            "absent": ["awa.journey.mood_end"],
+            "metrics": [
+                {"name": "awa.journey.started", "unit": "1", "points": [{"attributes": {"journey": "Order"}, "value": 4}]},
+                {"name": "awa.journey.completion_rate", "unit": "1", "points": [{"attributes": {"journey": "Order"}, "value": 0.5}]},
+                {"name": "awa.stage.duration_median_ms", "unit": "ms", "points": [{"attributes": {"journey": "Order", "stage": "Placed"}, "value": 3600000}]},
+                {"name": "awa.workflow.success_rate", "unit": "1", "points": [{"attributes": {"workflow": "Fulfil"}, "value": 0.75}]},
+                {"name": "awa.workflow.cost", "unit": "{EUR}", "points": [{"attributes": {"workflow": "Fulfil"}, "value": 0.04}]},
+                {"name": "awa.workflow.input_tokens", "unit": "{token}", "points": [{"attributes": {"workflow": "Fulfil"}, "value": 400}]},
+                {"name": "awa.activity.attempts", "unit": "1", "points": [{"attributes": {"workflow": "Fulfil", "activity": "Pack"}, "value": 5}]},
+            ],
+            "time": "2026-03-31T00:00:00.000Z", "start_time": "2026-03-01T00:00:00.000Z",
+        },
+    })
+    return cases
+
+
 def main() -> None:
-    for folder in ("execution", "documents", "journeys", "replay", "knowledge", "measures", "evidence", "evaluation"):
+    for folder in ("execution", "documents", "journeys", "replay", "knowledge", "measures", "telemetry", "evidence", "evaluation"):
         (ROOT / folder).mkdir(exist_ok=True)
         for old in (ROOT / folder).glob("*.json"):
             old.unlink()
@@ -2286,6 +2758,8 @@ def main() -> None:
         write(ROOT / "measures" / f"{case['id']}.json", case)
     for doc in document_cases():
         write(ROOT / "documents" / f"{doc['id']}.json", doc)
+    for case in telemetry_cases():
+        write(ROOT / "telemetry" / f"{case['id']}.json", case)
     for case in evidence_cases():
         write(ROOT / "evidence" / f"{case['id']}.json", case)
     for case in evaluation_cases():
@@ -2297,6 +2771,7 @@ def main() -> None:
     print(f"wrote {len(exprs['cases']) + len(exprs['invalid'])} expression tests")
     print(f"wrote {len(evidence_cases())} evidence cases and {len(evaluation_cases())} evaluation cases")
     print(f"wrote {len(journey_cases())} journey cases, {len(replay_cases())} replay cases and {len(knowledge_cases())} knowledge cases")
+    print(f"wrote {len(telemetry_cases())} telemetry cases")
     print(f"wrote {len(execution)} execution cases, {len(document_cases())} document cases "
           f"and {len(tests['cases']) + len(tests['invalid'])} unary tests")
 

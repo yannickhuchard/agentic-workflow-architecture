@@ -14,6 +14,7 @@ The command is then `npx awa`, or `awa` after `npm install -g agentic-workflow-a
 | [`awa validate`](#awa-validate) | Check workflow and journey documents before running them |
 | [`awa journey`](#awa-journey) | Journeys kept in a runtime directory: add definitions, take in events, let time pass, inspect, export |
 | [`awa measures`](#awa-measures) | The measures of journeys and workflows (specification section 21) |
+| [`awa telemetry`](#awa-telemetry) | Runs, journeys and measures as OpenTelemetry traces and metrics (specification section 26) |
 | [`awa replay`](#awa-replay) | Counterfactual replay of a recorded run under a changed workflow or model |
 | [`awa evidence`](#awa-evidence) | An evidence report computed from journals and journey records (specification section 32) |
 | [`awa eval`](#awa-eval) | Evaluation datasets built from journals, and a candidate scored against them (section 33) |
@@ -137,6 +138,31 @@ awa measures --dir .awa
 | `--html <file>` | The measures page as one file with the record inside it |
 | `--list` | Every measure with its rule |
 
+## awa telemetry
+
+```bash
+awa telemetry export claims-settlement.awa.json run.jsonl --endpoint http://localhost:4318
+```
+
+| Subcommand | What it sends |
+|---|---|
+| `export <workflow> <journal>` | Each run of the workflow in the journal, as a trace (26.2). A run still waiting is sent with its open spans ended at its last event and marked `awa.incomplete` (26.8) |
+| `journeys` | Every journey instance as a trace whose run spans link to the runs' traces, and every run done for one (26.7). From `--dir` (default `.awa`) or `--portfolio <file>` written by `awa journey export` |
+| `measures` | The measure report as OpenTelemetry gauges (26.12), with `--from` and `--to` as for `awa measures` |
+
+| Option | Meaning |
+|---|---|
+| `--endpoint <url>` | Send OTLP over HTTP. `/v1/traces` or `/v1/metrics` is appended unless the path already ends with it. Without `--endpoint` or `--file`, the `OTEL_EXPORTER_OTLP_*` variables say where |
+| `--file <out.json>` | Write the OTLP/JSON request to this file instead |
+| `--protocol <protocol>` | `http/protobuf` (default) or `http/json` |
+| `--header <key=value>` | A request header, e.g. an API key of the backend; repeatable |
+| `--service-name <name>` | `service.name` of the resource; `awa` by default |
+| `--payloads` | Put inputs, outputs, decision inputs and tool arguments and results on spans, as the journal holds them (26.6) |
+
+Identifiers come from the run id, so exporting a journal again gives the spans a live exporter sent, with the same ids: a backend can tell what it already has. The command exits with status 1 when a span could not be sent.
+
+`awa run` and `awa journey` send the spans of their runs and journeys as they happen when `OTEL_EXPORTER_OTLP_ENDPOINT` (or `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`) is set, and `awa serve` does so for every run and journey it hosts. Telemetry never holds up or fails a run: spans are sent in the background, and what cannot be sent is dropped, counted and reported once a minute.
+
 ## awa replay
 
 ```bash
@@ -225,6 +251,14 @@ awa serve --port 3000 --a2a examples/claims-settlement/claims-settlement.awa.jso
 | `AWA_DATABASE_URL` | task database | Its location, e.g. `file:/var/lib/awa/awa.db` |
 | `JWT_SECRET` | `awa serve` | The secret for signed tokens |
 | `LOG_LEVEL`, `LOG_FORMAT`, `LOG_TIMESTAMPS` | logging | Level, `json` or text, timestamps |
+| `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | `awa run`, `awa journey`, `awa serve`, `awa telemetry` | Where spans are sent over OTLP/HTTP: the first with `/v1/traces` appended, the second as given. Without either, nothing is sent |
+| `OTEL_EXPORTER_OTLP_HEADERS`, `OTEL_EXPORTER_OTLP_TRACES_HEADERS` | the same | Request headers, `key=value` pairs separated by commas, values percent-encoded |
+| `OTEL_EXPORTER_OTLP_PROTOCOL`, `OTEL_EXPORTER_OTLP_TRACES_PROTOCOL` | the same | `http/protobuf` (default) or `http/json`. `grpc` is refused with a warning, and nothing is sent |
+| `OTEL_EXPORTER_OTLP_TIMEOUT`, `OTEL_EXPORTER_OTLP_COMPRESSION` (and their `_TRACES_` forms) | the same | Export timeout in milliseconds (10000); `gzip` or `none` |
+| `OTEL_SERVICE_NAME`, `OTEL_RESOURCE_ATTRIBUTES` | the same | The resource spans are sent with; `service.name` is `awa` by default |
+| `OTEL_SDK_DISABLED=true`, `OTEL_TRACES_EXPORTER=none` | the same | No telemetry |
+| `OTEL_BSP_SCHEDULE_DELAY`, `OTEL_BSP_MAX_QUEUE_SIZE`, `OTEL_BSP_MAX_EXPORT_BATCH_SIZE` | the same | Batching: delay in milliseconds (1000), queue (2048 spans), batch (512 spans) |
+| `AWA_TELEMETRY_PAYLOADS=true` | the same | Opt in to inputs, outputs and tool arguments on spans (specification 26.6) |
 
 ## Common errors
 

@@ -35,6 +35,7 @@ dev = [
     "httpx>=0.27.0",  # the API tests use the framework test client, which needs an HTTP client
     "jsonschema>=4.18.0",  # outcome contract schemas, and journal events in the conformance tests
     "mypy>=1.0.0",
+    "opentelemetry-proto>=1.20.0",  # the telemetry tests decode OTLP protobuf with the OpenTelemetry proto definitions
     "ruff>=0.1.0",
 ]
 contracts = [

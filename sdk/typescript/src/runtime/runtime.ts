@@ -19,6 +19,7 @@ import {
 import { WorkflowState } from './persistence';
 import { WorkflowEngine, WorkflowEngineOptions } from './workflow_engine';
 import { ShadowOptions, ShadowRunner } from './shadow';
+import { JourneyTelemetry, TelemetrySetting, resolve_telemetry } from './telemetry_export';
 import fs from 'fs/promises';
 import { rmSync } from 'fs';
 import path from 'path';
@@ -32,6 +33,8 @@ export interface RuntimeOptions {
     store?: RuntimeStore;
     /** Run a candidate workflow or model beside production, compared as runs end (spec 33.5) */
     shadow?: ShadowOptions;
+    /** Where the spans of journeys and of the runs they start go (spec 26): an exporter, or `{ endpoint, headers, payloads }`. Runs take it unless `engine.telemetry` says otherwise. */
+    telemetry?: TelemetrySetting;
 }
 
 /** Everything a host must keep to carry on after a restart: journeys, runs, and which events it has already taken in */
@@ -117,8 +120,16 @@ export class AwaRuntime {
     /** The shadow of production, when the runtime was given one (spec 33.5) */
     readonly shadow?: ShadowRunner;
 
+    private journey_telemetry?: JourneyTelemetry;
+    private run_telemetry?: TelemetrySetting;
+
     constructor(private options: RuntimeOptions = {}) {
         if (options.shadow) this.shadow = new ShadowRunner(options.shadow, () => this.now());
+        const telemetry = resolve_telemetry(options.telemetry);
+        if (telemetry) {
+            this.run_telemetry = { exporter: telemetry.exporter, payloads: telemetry.payloads };
+            this.journey_telemetry = new JourneyTelemetry(telemetry.exporter, telemetry.payloads);
+        }
     }
 
     private now(): number {
@@ -183,6 +194,7 @@ export class AwaRuntime {
     async save(): Promise<void> {
         // Journals first: a state that names a journal position must never be ahead of the journal
         await Promise.all([...this.runs.values()].map(engine => engine.flush()));
+        this.journey_telemetry?.observe(this.instances.values());
         if (!this.options.store) return;
         await this.options.store.save({
             version: '1', saved_at: this.time(),
@@ -214,6 +226,7 @@ export class AwaRuntime {
 
         return this.op(async () => {
             this.instances = instances;
+            this.journey_telemetry?.prime(instances.values());
             this.seen_events = new Set(state.seen_events);
             this.outbox = new Map(Object.entries(state.outbox || {}));
             const continued: string[] = [];
@@ -236,6 +249,7 @@ export class AwaRuntime {
     private engine_options(run_id: () => string): WorkflowEngineOptions {
         const outer_sink = this.options.engine?.event_sink;
         return {
+            ...(this.run_telemetry ? { telemetry: this.run_telemetry } : {}),
             ...this.options.engine, now: this.options.now,
             event_sink: async event => { this.outbox.set(run_id(), [...(this.outbox.get(run_id()) || []), event]); await outer_sink?.(event); },
         };

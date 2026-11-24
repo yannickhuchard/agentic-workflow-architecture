@@ -4,6 +4,7 @@ import path from 'path';
 import { business_event } from '../../runtime/business_event';
 import { AwaRuntime, add_definition, open_runtime_directory } from '../../runtime/runtime';
 import { JourneyInstance } from '../../runtime/journey';
+import { shared_telemetry_from_env } from '../../runtime/telemetry_export';
 
 /**
  * awa journey: journeys that outlive the command that touches them. Every
@@ -15,6 +16,7 @@ const fail = (error: unknown): never => { console.error(error instanceof Error ?
 
 async function open(options: { dir: string; simulate?: boolean; outputs?: string }): Promise<AwaRuntime> {
     return open_runtime_directory(path.resolve(process.cwd(), options.dir), {
+        telemetry: shared_telemetry_from_env(),
         engine: {
             simulate: options.simulate, simulated_outputs: options.outputs ? await read_json(options.outputs) : undefined,
             wait_for_human_tasks: true, execution_logger: { log_execution: async () => { } },

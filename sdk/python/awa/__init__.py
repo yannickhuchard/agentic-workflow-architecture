@@ -69,6 +69,8 @@ from awa.runtime.business_event import business_event
 from awa.runtime.journey import JourneyDefinition, parse_journey
 from awa.runtime.runtime_host import AwaRuntime, InMemoryRuntimeStore, FileRuntimeStore, open_runtime_directory
 from awa.runtime.kpi import MEASURES, compute_measures, measures_to_openmetrics
+from awa.runtime.telemetry import journey_spans, run_spans, spans_to_otlp_json, spans_to_otlp_protobuf
+from awa.runtime.telemetry_export import OtlpHttpExporter, telemetry_from_env
 from awa.runtime.knowledge import KnowledgeBase
 from awa.runtime.counterfactual import counterfactual_replay, render_counterfactual_report
 from awa.runtime.evidence import compute_evidence, render_evidence_html, render_evidence_markdown
@@ -164,5 +166,11 @@ __all__ = [
     "evaluate_dataset",
     "render_evaluation_report",
     "ShadowRunner",
+    "run_spans",
+    "journey_spans",
+    "spans_to_otlp_json",
+    "spans_to_otlp_protobuf",
+    "OtlpHttpExporter",
+    "telemetry_from_env",
 ]
 

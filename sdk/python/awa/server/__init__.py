@@ -20,6 +20,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from awa.runtime.telemetry_export import shared_telemetry_from_env
 from awa.types import Workflow, HumanTask, ActorType
 from awa.runtime import WorkflowEngine, EngineStatus
 from awa.runtime.journal import FileJournalStore
@@ -277,6 +278,7 @@ async def run_workflow(
             "user_id": user.get("id"),
             "simulate": request.simulate is True,
             **({"journal": FileJournalStore(journal_dir)} if journal_dir else {}),
+            **({"telemetry": telemetry} if (telemetry := shared_telemetry_from_env()) else {}),
         })
         _track(engine, wf_data)
         initial = request.input if request.input is not None else request.initial_data

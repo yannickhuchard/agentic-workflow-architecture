@@ -27,3 +27,5 @@ export * from './counterfactual';
 export * from './kpi';
 export * from './views';
 export * from './model_config';
+export * from './telemetry';
+export * from './telemetry_export';

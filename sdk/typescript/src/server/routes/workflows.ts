@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { WorkflowEngine } from '../../runtime/workflow_engine';
 import { parse_document } from '../../validator';
 import { FileJournalStore, JournalEvent } from '../../runtime/journal';
+import { shared_telemetry_from_env } from '../../runtime/telemetry_export';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -47,6 +48,7 @@ workflowRouter.post('/run', async (req, res) => {
             gemini_api_key: key,
             simulate: req.body.simulate === true,
             journal: process.env.AWA_JOURNAL_DIR ? new FileJournalStore(process.env.AWA_JOURNAL_DIR) : undefined,
+            telemetry: shared_telemetry_from_env(),
         });
         track(engine);
 

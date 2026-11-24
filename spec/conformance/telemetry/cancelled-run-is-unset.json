@@ -1,0 +1,137 @@
+{
+  "id": "cancelled-run-is-unset",
+  "level": "telemetry",
+  "spec": "26.3",
+  "description": "A cancelled run is neither ok nor an error. The wait its token was in ends, unset, when the token is cancelled.",
+  "decision_nodes": [],
+  "journal": [
+    {
+      "spec_version": "1.1",
+      "id": "4228bffa-1e61-512d-b45c-0a111e7c8681",
+      "run_id": "5c44f978-396e-56a6-a70d-968352395ca2",
+      "seq": 1,
+      "time": "2026-03-02T09:00:00.000Z",
+      "type": "run.started",
+      "level": "execution",
+      "workflow_id": "79ec705d-ed94-5656-9782-cad4b7dd0cc6",
+      "data": {
+        "workflow_name": "Remind",
+        "input": {},
+        "simulate": false
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "d74a360b-4e3c-50d1-8ec5-6d54737c7012",
+      "run_id": "5c44f978-396e-56a6-a70d-968352395ca2",
+      "seq": 2,
+      "time": "2026-03-02T09:00:00.000Z",
+      "type": "token.created",
+      "level": "execution",
+      "workflow_id": "79ec705d-ed94-5656-9782-cad4b7dd0cc6",
+      "token_id": "e85d09de-814a-5f13-ba7e-24fed61c0224",
+      "node_id": "e7196e12-37e8-57cc-8315-f6325460e47f",
+      "node_name": "Payment received",
+      "data": {}
+    },
+    {
+      "spec_version": "1.1",
+      "id": "8af3df16-5507-5b65-b9e5-c04c39ad7b78",
+      "run_id": "5c44f978-396e-56a6-a70d-968352395ca2",
+      "seq": 3,
+      "time": "2026-03-02T09:00:00.000Z",
+      "type": "event.waiting",
+      "level": "execution",
+      "workflow_id": "79ec705d-ed94-5656-9782-cad4b7dd0cc6",
+      "token_id": "e85d09de-814a-5f13-ba7e-24fed61c0224",
+      "node_id": "e7196e12-37e8-57cc-8315-f6325460e47f",
+      "node_name": "Payment received",
+      "data": {
+        "name": "payment.received",
+        "due_at": "2026-03-03T09:00:00.000Z"
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "ed3a7670-8a06-56e0-9a30-bf280c3ea104",
+      "run_id": "5c44f978-396e-56a6-a70d-968352395ca2",
+      "seq": 4,
+      "time": "2026-03-02T09:00:00.000Z",
+      "type": "run.waiting",
+      "level": "execution",
+      "workflow_id": "79ec705d-ed94-5656-9782-cad4b7dd0cc6",
+      "data": {
+        "waiting_for": "event",
+        "waiting_tokens": [
+          "e85d09de-814a-5f13-ba7e-24fed61c0224"
+        ]
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "39a742ab-3f99-51ba-b50c-20ec8ae3663b",
+      "run_id": "5c44f978-396e-56a6-a70d-968352395ca2",
+      "seq": 5,
+      "time": "2026-03-02T09:00:05.000Z",
+      "type": "token.cancelled",
+      "level": "execution",
+      "workflow_id": "79ec705d-ed94-5656-9782-cad4b7dd0cc6",
+      "token_id": "e85d09de-814a-5f13-ba7e-24fed61c0224",
+      "node_id": "e7196e12-37e8-57cc-8315-f6325460e47f",
+      "node_name": "Payment received",
+      "data": {
+        "reason": "run_cancelled"
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e5fc018c-f732-5b38-b5ce-49cf36cd1933",
+      "run_id": "5c44f978-396e-56a6-a70d-968352395ca2",
+      "seq": 6,
+      "time": "2026-03-02T09:00:05.000Z",
+      "type": "run.cancelled",
+      "level": "execution",
+      "workflow_id": "79ec705d-ed94-5656-9782-cad4b7dd0cc6",
+      "data": {
+        "reason": "the customer left"
+      }
+    }
+  ],
+  "options": {
+    "payloads": false
+  },
+  "expect": {
+    "trace_id": "fda78e4f9a859f8970be06ee068fb211",
+    "span_count": 2,
+    "spans": [
+      {
+        "span_id": "b98ed8fe09ad8015",
+        "status": "unset",
+        "end": "2026-03-02T09:00:05.000Z",
+        "attributes": {
+          "awa.run.status": "cancelled",
+          "awa.run.cancel_reason": "the customer left"
+        },
+        "absent": [
+          "awa.incomplete"
+        ],
+        "events": [
+          "token.created",
+          "run.waiting"
+        ]
+      },
+      {
+        "span_id": "da1e5b38bdd20b19",
+        "parent_span_id": "b98ed8fe09ad8015",
+        "status": "unset",
+        "end": "2026-03-02T09:00:05.000Z",
+        "events": [
+          "token.cancelled"
+        ],
+        "absent": [
+          "awa.wait.outcome"
+        ]
+      }
+    ]
+  }
+}

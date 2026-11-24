@@ -18,6 +18,8 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 from awa.runtime.business_event import business_event
 from awa.runtime.journey import time_ms
 from awa.runtime.kpi import MEASURES, compute_measures, measures_to_openmetrics
+from awa.runtime.telemetry import gauges_to_otlp_json, measures_to_gauges
+from awa.runtime.telemetry_export import shared_telemetry_from_env
 from awa.runtime.runtime_host import AwaRuntime, add_definition, is_journey_document, open_runtime_directory, simulated_actors
 
 journey_router = APIRouter()
@@ -50,7 +52,9 @@ def _host() -> AwaRuntime:
                     outputs = json.load(handle)
             engine = {"simulate": True, "actors": simulated_actors(outputs)}
         directory = _directory()
-        _runtime = open_runtime_directory(directory, engine=engine) if directory else AwaRuntime(engine=engine)
+        telemetry = shared_telemetry_from_env()
+        _runtime = (open_runtime_directory(directory, engine=engine, telemetry=telemetry) if directory
+                    else AwaRuntime(engine=engine, telemetry=telemetry))
     return _runtime
 
 
@@ -171,6 +175,8 @@ def measures(from_: str | None = Query(default=None, alias="from"), to: str | No
                                        "workflow_id": workflow_id or None})
     if format == "openmetrics":
         return PlainTextResponse(measures_to_openmetrics(report), media_type="application/openmetrics-text; version=1.0.0; charset=utf-8")
+    if format == "otlp":
+        return gauges_to_otlp_json(measures_to_gauges(report, MEASURES), report)
     return report
 
 

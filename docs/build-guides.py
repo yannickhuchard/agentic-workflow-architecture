@@ -130,6 +130,7 @@ page("installation-guide.html", "Installation", "What you need, how to build, an
     ["<code>awa run</code>", "Run a workflow file; keep its journal and checkpoints"],
     ["<code>awa journey</code>", "Journeys kept in a runtime directory: add definitions, take in events, let time pass, list, show, export"],
     ["<code>awa measures</code>", "The measures of journeys and workflows, computed from what was recorded"],
+    ["<code>awa telemetry</code>", "Recorded runs, journeys and measures as OpenTelemetry traces and metrics"],
     ["<code>awa replay</code>", "Counterfactual replay of a recorded run"],
     ["<code>awa evidence</code>", "An evidence report from journals and journey records: evidence a deployer can use, not a certification"],
     ["<code>awa eval</code>", "Build an evaluation dataset from journals, and score a candidate against it"],
@@ -141,7 +142,7 @@ page("installation-guide.html", "Installation", "What you need, how to build, an
       ("python", "Python SDK", f'''
 <p>Python 3.10 or later.</p>
 {code("cd sdk/python\npip install -e '.[dev,web]'\npytest -q")}
-<p>The Python SDK passes every conformance level, as the reference does: the engine rules, tools, model routing and model decisions, journeys, measures, replay, contexts, service levels, evidence and evaluation. Install it with <code>pip install agentic-workflow-architecture</code>; the package you import is <code>awa</code>. Its built-in AI agent calls no model: supply your own actor, or an OpenAI-compatible provider. It has no recipe and no Open Knowledge Format exchange.</p>'''),
+<p>The Python SDK passes every conformance level, as the reference does: the engine rules, tools, model routing and model decisions, journeys, measures, replay, contexts, service levels, telemetry, agents over A2A, evidence and evaluation. Install it with <code>pip install agentic-workflow-architecture</code>; the package you import is <code>awa</code>. Its built-in AI agent calls no model: supply your own actor, or an OpenAI-compatible provider. It has no recipe and no Open Knowledge Format exchange.</p>'''),
       ("models", "Model providers", f'''
 <p>Activities name a capability tier (<code>tier:fast</code>, <code>tier:balanced</code>, <code>tier:reasoning</code>), not a vendor. A deployment maps each tier to providers in order of preference; when one fails the next is tried.</p>
 {table(["Provider", "Needs"], [["google", "<code>GEMINI_API_KEY</code>"], ["openai", "<code>OPENAI_API_KEY</code>"], ["ollama", "A running Ollama; <code>OLLAMA_BASE_URL</code> if not on localhost"],
@@ -264,6 +265,19 @@ awa measures --list               # every measure with its rule
 curl localhost:3000/api/v1/measures?format=openmetrics
 """)}
 <p>Give a stage an <code>owner</code> and a stalled journey names who must act. The <a href="../tools/visualization/dashboard.html">measures page</a> shows the report and opens any number into the customers behind it; it follows a running server with <code>?live=http://localhost:3000</code>.</p>'''),
+      ("telemetry", "Telemetry", f'''
+<p>Specification section 26 makes every run and journey visible in OpenTelemetry. A run is one trace: a span for the run, each attempt, each tool call, each model call (provider, model and token usage, in the generative AI semantic conventions), each decision and each wait; the rest of the journal becomes span events. A journey is one trace whose run spans link to the runs' traces. Trace and span ids are derived from the run id, so what is sent live and what is exported later from the journal are the same spans, whichever SDK produced them.</p>
+{code("""
+import { OtlpHttpExporter, WorkflowEngine } from 'agentic-workflow-architecture';
+
+const exporter = new OtlpHttpExporter({ traces_url: 'http://localhost:4318/v1/traces' });
+const engine = new WorkflowEngine(workflow, { telemetry: exporter });  // or { telemetry: { endpoint, headers, payloads } }
+""", "typescript")}
+{code("""
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 awa run claim.awa.json    # spans leave as the run proceeds
+awa telemetry export claim.awa.json run.journal.jsonl --file run.otlp.json  # a recorded run, as OTLP/JSON
+""")}
+<p>Telemetry never holds up or fails a run: spans are sent in the background, and a backend that is down costs dropped spans, counted and reported, which the journal can send again. Inputs, outputs and tool arguments go on spans only when the deployment opts in. Measures can be sent as OpenTelemetry gauges too.</p>'''),
       ("tools", "Tools", f'''
 <p>An activity lists the tools its actor may call. Every call goes through one runner, which refuses unknown tools, invalid arguments and calls over budget, applies the deployment's permissions, and journals the call with a link to what ran.</p>
 {code("""
@@ -379,7 +393,7 @@ page("architect-guide.html", "For architects", "How AWA is put together, what it
           ["document, core, decision", "4 to 6", "yes", "yes"], ["verified, contract", "7, 11", "yes", "yes"], ["recorded, resilient", "9, 10", "yes", "yes"],
           ["routing", "12", "yes", "yes"], ["flow, events", "13, 18", "yes", "yes"], ["knowledge", "15", "yes", "yes"],
           ["model_decision, tools", "16, 17", "yes", "yes"], ["journeys, replay", "19, 20", "yes", "yes"],
-          ["measures", "21", "yes", "yes"], ["contexts, service_levels", "22, 23", "yes", "yes"], ["a2a", "28", "yes", "yes"]]) + '''
+          ["measures", "21", "yes", "yes"], ["contexts, service_levels", "22, 23", "yes", "yes"], ["telemetry", "26", "yes", "yes"], ["a2a", "28", "yes", "yes"]]) + '''
 <p>Each level has language-neutral cases in <code>spec/conformance</code>; both SDKs run every case of every level, none skipped. What the cases cannot reach (live model providers, Open Knowledge Format exchange, the recipe) is fixed by each SDK's own tests.</p>'''),
       ("security", "What may run", '''
 <p>A workflow document can name any URL, program or agent. What actually runs is the deployment's decision: command bindings need explicit permission, and so do MCP servers the engine would start; HTTP, JSON-RPC, MCP and gRPC bindings and A2A agents can be restricted to listed hosts; an MCP binding reaches only a server the deployment declares; and secrets are substituted at call time and never journalled. The link to what ran is always journalled, even when payloads are hashed or omitted. In simulation nothing is called.</p>'''),

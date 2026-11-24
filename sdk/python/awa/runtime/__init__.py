@@ -32,8 +32,38 @@ from .counterfactual import ReplayResult, compare_runs, counterfactual_replay, r
 from .evidence import compute_evidence, render_evidence_html, render_evidence_markdown, unresolved_citations
 from .evaluation import build_dataset, evaluate_dataset, render_evaluation_report
 from .shadow import ShadowRunner
+from .telemetry import (
+    RunTraceMapper, JourneyTraceMapper, TelemetrySpan, run_spans, journey_spans, run_trace_id, run_span_id,
+    journey_trace_id, journey_span_id, spans_to_otlp_json, spans_to_otlp_protobuf, measures_to_gauges,
+    gauges_to_otlp_json, gauges_to_otlp_protobuf, telemetry_resource,
+)
+from .telemetry_export import (
+    OtlpHttpExporter, RunTelemetry, JourneyTelemetry, otlp_exporter, resolve_telemetry, telemetry_from_env, signal_url,
+)
 
 __all__ = [
+    "RunTraceMapper",
+    "JourneyTraceMapper",
+    "TelemetrySpan",
+    "run_spans",
+    "journey_spans",
+    "run_trace_id",
+    "run_span_id",
+    "journey_trace_id",
+    "journey_span_id",
+    "spans_to_otlp_json",
+    "spans_to_otlp_protobuf",
+    "measures_to_gauges",
+    "gauges_to_otlp_json",
+    "gauges_to_otlp_protobuf",
+    "telemetry_resource",
+    "OtlpHttpExporter",
+    "RunTelemetry",
+    "JourneyTelemetry",
+    "otlp_exporter",
+    "resolve_telemetry",
+    "telemetry_from_env",
+    "signal_url",
     "Token",
     "TokenStatus",
     "ContextManager",
