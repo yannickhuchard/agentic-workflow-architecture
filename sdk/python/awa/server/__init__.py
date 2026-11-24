@@ -612,3 +612,7 @@ from awa.server.journeys import journey_router, measures_router, set_journey_run
 
 app.include_router(journey_router, prefix="/api/v1/journeys", dependencies=[Depends(rate_limiter)])
 app.include_router(measures_router, prefix="/api/v1/measures", dependencies=[Depends(rate_limiter)])
+
+from awa.server.evidence import evidence_router  # noqa: E402
+
+app.include_router(evidence_router, prefix="/api/v1/evidence", dependencies=[Depends(rate_limiter)])

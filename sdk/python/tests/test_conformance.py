@@ -29,7 +29,7 @@ CONFORMANCE = Path(__file__).resolve().parents[3] / "spec" / "conformance"
 SCHEMAS = Path(__file__).resolve().parents[3] / "spec" / "json-schema"
 CLAIMED_LEVELS = {"core", "decision", "verified", "recorded", "resilient", "contract", "flow", "events",
                   "tools", "model_decision", "routing", "journeys", "measures",
-                  "replay", "contexts", "service_levels", "knowledge"}
+                  "replay", "contexts", "service_levels", "knowledge", "evidence", "evaluation"}
 # Integrity rules the Python SDK does not enforce. None at present.
 UNSUPPORTED_INTEGRITY_RULES: set[str] = set()
 
@@ -614,3 +614,93 @@ def test_knowledge(case):
             assert source["event_seqs"], f'{entry["id"]} cites events'
             for seq in source["event_seqs"]:
                 assert any(e["seq"] == seq for e in journal), f'{entry["id"]} cites event {seq}'
+
+
+# ---------------------------------------------------------------------------
+# Evidence (specification section 32) and evaluation from journals (section 33)
+# ---------------------------------------------------------------------------
+
+from awa.runtime.evaluation import build_dataset, evaluate_dataset  # noqa: E402
+from awa.runtime.evidence import compute_evidence, unresolved_citations  # noqa: E402
+
+EVIDENCE_CASES = [json.loads(p.read_text()) for p in sorted((CONFORMANCE / "evidence").glob("*.json"))]
+EVALUATION_CASES = [json.loads(p.read_text()) for p in sorted((CONFORMANCE / "evaluation").glob("*.json"))]
+
+
+@pytest.mark.parametrize("case", EVIDENCE_CASES, ids=[c["id"] for c in EVIDENCE_CASES])
+def test_evidence(case):
+    if case["level"] not in CLAIMED_LEVELS:
+        pytest.skip(f"level '{case['level']}' is not claimed by the Python SDK")
+    report = compute_evidence(case["recorded"], case.get("options"))
+    assert [e.message for e in schema_validator("evidence-report.schema.json").iter_errors(report)] == []
+    # Every statement rests on records that exist (32.2)
+    assert unresolved_citations(report, case["recorded"]) == []
+    parts = {p["id"]: p for p in report["parts"]}
+    expect = case["expect"]
+    for id, summary in expect.get("summaries", {}).items():
+        assert is_subset(summary, parts[id]["summary"]), f"summary of {id}: {json.dumps(parts[id]['summary'])}"
+    for want in expect.get("statements", []):
+        found = [s for s in parts[want["part"]]["statements"] if s["kind"] == want["kind"] and is_subset(want["facts"], s["facts"])]
+        assert len(found) == 1, f"{want['part']}/{want['kind']} {json.dumps(want['facts'])} among {json.dumps([s['facts'] for s in parts[want['part']]['statements']])}"
+        if "citations" in want:
+            def key(citations):
+                return sorted(json.dumps(c, sort_keys=True) for c in citations)
+            assert key(found[0]["citations"]) == key(want["citations"]), f"citations of {want['part']}/{want['kind']} {json.dumps(want['facts'])}"
+    for want in expect.get("absent", []):
+        assert [s for s in parts[want["part"]]["statements"] if s["kind"] == want["kind"] and is_subset(want["facts"], s["facts"])] == []
+    if "cited_runs" in expect:
+        cited = {c["run_id"] for p in report["parts"] for s in p["statements"] for c in s["citations"] if "run_id" in c}
+        assert sorted(cited) == sorted(expect["cited_runs"])
+
+
+@pytest.mark.parametrize("case", EVALUATION_CASES, ids=[c["id"] for c in EVALUATION_CASES])
+def test_evaluation(case):
+    if case["level"] not in CLAIMED_LEVELS:
+        pytest.skip(f"level '{case['level']}' is not claimed by the Python SDK")
+    expect = case["expect"]
+    if case["kind"] == "build":
+        built = build_dataset(case["journals"])
+        validator = schema_validator("evaluation-case.schema.json")
+        for c in built["cases"]:
+            assert [e.message for e in validator.iter_errors(c)] == []
+        assert len(built["cases"]) == expect["case_count"], [c["id"] for c in built["cases"]]
+        assert len(built["skipped"]) == expect["skipped"], built["skipped"]
+        for want in expect["cases"]:
+            got = next((c for c in built["cases"] if c["id"] == want["id"]), None)
+            assert got is not None, f"case {want['id']}"
+            for key, value in want.items():
+                assert got.get(key, "absent") == value, f"{want['id']}.{key}: {got.get(key, 'absent')!r}"
+        return
+
+    def engine_for_case(k):
+        scripts = {name: script.get("cases", {}).get(k["id"], script) for name, script in case["candidate_actors"].items()}
+        return {"actors": {ActorType.ai_agent: ConformanceActor(scripts)}}
+    report = evaluate_dataset(Workflow.model_validate(case["workflow"]), case["dataset"],
+                              candidate=Workflow.model_validate(case["candidate"]) if "candidate" in case else None,
+                              engine={"sleep": lambda ms: None}, engine_for_case=engine_for_case)
+    assert [e.message for e in schema_validator("evaluation-report.schema.json").iter_errors(report)] == []
+    for key in ("evaluated",):
+        if key in expect:
+            assert report[key] == expect[key]
+    for key in ("skipped", "regressions", "improvements"):
+        if key in expect:
+            assert len(report[key]) == expect[key], json.dumps(report[key])
+
+    def same(got, want):
+        if want is None:
+            return got is None
+        if isinstance(want, (int, float)) and not isinstance(want, bool):
+            return isinstance(got, (int, float)) and not isinstance(got, bool) and abs(got - want) < 1e-9
+        return got == want
+    for name, want in expect.get("activities", {}).items():
+        got = next((a for a in report["activities"] if a["activity_name"] == name), None)
+        assert got is not None, f"activity {name}"
+        for key, value in want.items():
+            actual = got[key]["value"] if isinstance(got[key], dict) and "value" in got[key] else got[key]
+            assert same(actual, value), f"{name}.{key}: got {actual!r}, expected {value!r}"
+    for case_id, want in expect.get("results", {}).items():
+        got = next((r for r in report["results"] if r["case_id"] == case_id), None)
+        assert got is not None, f"result of {case_id}"
+        for key, value in want.items():
+            actual = len(got["unrecorded"]) if key == "unrecorded" else got[key]
+            assert actual == value if not isinstance(value, bool) else actual is value, f"{case_id}.{key}: got {actual!r}"
