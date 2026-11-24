@@ -787,7 +787,11 @@ GROUP BY a.journey_id, b.journey_id;
 -- ids of the events accepted; write back changed rows WHERE version = the
 -- version read; insert journal and journey events; commit. Deadlines are found
 -- by due_at and their partitions taken with pg_try_advisory_xact_lock, skipping
--- those another host holds.
+-- those another host holds. An operation that accepts an event holds the event's
+-- wait keys ('awa:wait:<type>', and 'awa:wait:<type>:<key>=<value>' for each
+-- correlation the workflows use) with pg_advisory_xact_lock_shared before it
+-- looks for waiting runs; one that keeps a run newly waiting holds that wait's
+-- key with pg_advisory_xact_lock before it writes (section 29.1, item 5).
 
 CREATE SCHEMA IF NOT EXISTS awa_runtime;
 CREATE TABLE IF NOT EXISTS awa_runtime.migrations (
@@ -907,3 +911,8 @@ CREATE TABLE awa_runtime.journal_events (
     PRIMARY KEY (run_id, seq)
 );
 CREATE INDEX journal_events_type ON awa_runtime.journal_events (type);
+
+-- A database made from this file holds the tables migration 1 creates: recorded as applied, so that a
+-- store opened on it goes on from there
+INSERT INTO awa_runtime.migrations (version, description, applied_by)
+VALUES (1, 'Runtime store: definitions, accepted events, journey instances and events, runs and journals', 'spec/ddl/awa.postgresql.sql');
