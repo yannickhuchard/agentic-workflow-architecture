@@ -29,6 +29,7 @@ export type JournalEventType =
     | 'activity.compensated' | 'activity.compensation_failed'
     | 'decision.evaluated'
     | 'tool.invoked' | 'tool.completed' | 'tool.failed'
+    | 'agent.message_sent' | 'agent.task_updated'
     | 'verification.completed'
     | 'contract.checked' | 'contract.escalated'
     | 'timer.started' | 'timer.fired'

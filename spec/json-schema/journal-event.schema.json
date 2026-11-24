@@ -66,6 +66,8 @@
                 "tool.invoked",
                 "tool.completed",
                 "tool.failed",
+                "agent.message_sent",
+                "agent.task_updated",
                 "verification.completed",
                 "contract.checked",
                 "contract.escalated",

@@ -1,0 +1,117 @@
+{
+  "id": "agent-host-not-allowed-is-refused",
+  "level": "a2a",
+  "spec": "28.2",
+  "description": "An agent at a host the deployment does not allow is refused before anything is sent, and the refusal is not retried.",
+  "workflow": {
+    "id": "b77ed1e9-65ff-50c8-8ed0-ab6abae3d556",
+    "name": "agent-host-not-allowed-is-refused",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "942a4808-fbf9-5da3-b6c6-a07bff14a877",
+        "name": "Assess",
+        "role_id": "00d327b7-2900-5c79-be35-e878d6efe58d",
+        "actor_type": "ai_agent",
+        "a2a": {
+          "agent_card": "https://agents.example/claims/.well-known/agent-card.json"
+        },
+        "retry": {
+          "max_attempts": 3,
+          "initial_delay": "PT0S"
+        }
+      }
+    ],
+    "edges": []
+  },
+  "options": {
+    "tools": {
+      "allowed_hosts": [
+        "tools.example"
+      ]
+    }
+  },
+  "agents": {
+    "https://agents.example/claims/.well-known/agent-card.json": {
+      "card": {
+        "name": "Claims assessor",
+        "description": "Claims assessor, reached over A2A",
+        "version": "1.0.0",
+        "supportedInterfaces": [
+          {
+            "url": "https://agents.example/claims/a2a",
+            "protocolBinding": "JSONRPC",
+            "protocolVersion": "1.0"
+          }
+        ],
+        "capabilities": {
+          "streaming": false,
+          "pushNotifications": false
+        },
+        "defaultInputModes": [
+          "application/json",
+          "text/plain"
+        ],
+        "defaultOutputModes": [
+          "application/json"
+        ],
+        "skills": [
+          {
+            "id": "assess",
+            "name": "Assess",
+            "description": "Assess a claim",
+            "tags": [
+              "claims"
+            ]
+          }
+        ]
+      },
+      "replies": [
+        {
+          "result": {
+            "task": {
+              "id": "task-1",
+              "contextId": "ctx-1",
+              "status": {
+                "state": "TASK_STATE_COMPLETED"
+              },
+              "artifacts": [
+                {
+                  "artifactId": "a0",
+                  "parts": [
+                    {
+                      "data": {
+                        "decision": "approve"
+                      },
+                      "mediaType": "application/json"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  "expect": {
+    "status": "failed",
+    "agent_card_reads": 0,
+    "agent_requests": [],
+    "journal_count": {
+      "activity.started": 1
+    },
+    "journal_contains": [
+      {
+        "type": "activity.failed",
+        "data": {
+          "error": {
+            "code": "PERMISSION_DENIED"
+          },
+          "retryable": false
+        }
+      }
+    ]
+  }
+}

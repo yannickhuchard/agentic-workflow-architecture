@@ -69,6 +69,8 @@ class Case:
             workflow["contexts"] = self.contexts
         if getattr(self, "sla", None):
             workflow["sla"] = self.sla
+        if getattr(self, "roles", None):
+            workflow["roles"] = self.roles
         case = {"id": self.id, "level": self.level, "spec": self.spec, "description": self.description,
                 "workflow": workflow}
         if self.input:
@@ -79,7 +81,7 @@ class Case:
             case["actors"] = self.actors
         if getattr(self, "deliver", None):
             case["deliver"] = self.deliver
-        for extra in ("tools", "model", "clock"):
+        for extra in ("tools", "model", "clock", "agents"):
             if getattr(self, extra, None):
                 case[extra] = getattr(self, extra)
         case["expect"] = self.expect
@@ -1715,12 +1717,200 @@ def service_level_cases() -> list[Case]:
     return cases
 
 
+# ---------------------------------------------------------------------------
+# Agents over A2A (section 28)
+# ---------------------------------------------------------------------------
+
+def a2a_cases() -> list[Case]:
+    """Level `a2a`: an activity performed by an agent reached over A2A 1.0. The runner stands in for each agent."""
+    cases = []
+    CARD = "https://agents.example/claims/.well-known/agent-card.json"
+    RPC = "https://agents.example/claims/a2a"
+    OTHER_CARD = "https://fraud.example/.well-known/agent-card.json"
+    OTHER_RPC = "https://fraud.example/a2a"
+
+    def card(name="Claims assessor", url=RPC, binding="JSONRPC"):
+        return {"name": name, "description": f"{name}, reached over A2A", "version": "1.0.0",
+                "supportedInterfaces": [{"url": url, "protocolBinding": binding, "protocolVersion": "1.0"}],
+                "capabilities": {"streaming": False, "pushNotifications": False},
+                "defaultInputModes": ["application/json", "text/plain"], "defaultOutputModes": ["application/json"],
+                "skills": [{"id": "assess", "name": "Assess", "description": "Assess a claim", "tags": ["claims"]}]}
+
+    def task(state, artifacts=None, message=None, task_id="task-1", context_id="ctx-1"):
+        status = {"state": f"TASK_STATE_{state}"}
+        if message is not None:
+            status["message"] = {"messageId": f"m-{state.lower()}", "role": "ROLE_AGENT", "parts": [{"text": message}]}
+        body = {"id": task_id, "contextId": context_id, "status": status}
+        if artifacts is not None:
+            body["artifacts"] = [{"artifactId": f"a{i}", **a} for i, a in enumerate(artifacts)]
+        return {"result": {"task": body}}
+
+    def get(state, **extra):
+        # GetTask answers with the task itself
+        return {"result": task(state, **extra)["result"]["task"]}
+
+    def data(value, name=None):
+        return {**({"name": name} if name else {}), "parts": [{"data": value, "mediaType": "application/json"}]}
+
+    def agent(c, *replies, card_url=CARD, card_doc=None):
+        c.agents = getattr(c, "agents", None) or {}
+        c.agents[card_url] = {"card": card_doc or card(), "replies": list(replies)}
+
+    def assess(c, name="Assess", actor_type="ai_agent", **extra):
+        c.act(name, actor_type, a2a={"agent_card": CARD, **extra.pop("binding", {})}, **extra)
+        return c
+
+    c = Case("agent-performs-an-activity", "a2a", "28.3", "The agent is sent the activity and its data as a message, and the artifacts of the completed task become the activity's output, recorded between the start and the end of the attempt.")
+    assess(c, description="Decide whether the claim is covered").act("Settle").edge("Assess", "Settle")
+    c.input = {"claim_id": "C-1", "amount": 1200}
+    agent(c, task("COMPLETED", [data({"decision": "approve", "score": 0.92})]))
+    c.expect = {"status": "completed", "visited": ["Settle"], "data": {"decision": "approve", "score": 0.92},
+                "journal": ["activity.started", "agent.message_sent", "agent.task_updated", "activity.completed"],
+                "journal_contains": [
+                    {"type": "agent.message_sent", "node_name": "Assess", "attempt": 1, "data": {"agent": CARD, "link": RPC}},
+                    {"type": "agent.task_updated", "node_name": "Assess", "data": {"agent": CARD, "task_id": "task-1", "context_id": "ctx-1", "state": "TASK_STATE_COMPLETED"}},
+                    {"type": "activity.completed", "node_name": "Assess", "data": {"output": {"decision": "approve"}}}],
+                "agent_card_reads": 1, "agent_requests": ["SendMessage"],
+                "agent_requests_contain": [{"agent": CARD, "method": "SendMessage", "params": {"message": {
+                    "role": "ROLE_USER",
+                    "parts": [{}, {"data": {"claim_id": "C-1", "amount": 1200}, "mediaType": "application/json"}],
+                    "metadata": {"awa": {"activity": "Assess", "attempt": 1}}}}}]}
+    cases.append(c)
+
+    c = Case("agent-task-is-followed-until-it-ends", "a2a", "28.4", "A task that is still working is asked about until its state is another; each change of state is recorded once.")
+    assess(c)
+    agent(c, task("WORKING"), get("WORKING"), get("COMPLETED", artifacts=[data({"decision": "approve"})]))
+    c.expect = {"status": "completed", "data": {"decision": "approve"},
+                "agent_requests": ["SendMessage", "GetTask", "GetTask"],
+                "agent_requests_contain": [{"method": "GetTask", "params": {"id": "task-1"}}],
+                "journal_count": {"agent.task_updated": 2},
+                "journal_contains": [{"type": "agent.task_updated", "data": {"state": "TASK_STATE_WORKING"}},
+                                     {"type": "agent.task_updated", "data": {"state": "TASK_STATE_COMPLETED"}}]}
+    cases.append(c)
+
+    c = Case("agent-message-reply-is-the-output", "a2a", "28.5", "An agent may answer with a message instead of a task: its parts are the reply. A text that is not an object becomes the output's `result`.")
+    assess(c)
+    agent(c, {"result": {"message": {"messageId": "r-1", "role": "ROLE_AGENT", "contextId": "ctx-9", "parts": [{"text": "Covered"}]}}})
+    c.expect = {"status": "completed", "data": {"result": "Covered"},
+                "journal_contains": [{"type": "agent.task_updated", "data": {"state": "message", "context_id": "ctx-9"}}]}
+    cases.append(c)
+
+    c = Case("agent-artifacts-make-one-output", "a2a", "28.5", "Objects are merged in order, a later one winning; text parts are joined by line breaks; a value that is not an object is named after its artifact.")
+    assess(c)
+    agent(c, task("COMPLETED", [data({"decision": "refer", "score": 0.4}),
+                                {"name": "summary", "parts": [{"text": "Prior claims: 2"}, {"text": "No fraud signal"}]},
+                                data({"decision": "approve"}),
+                                data([1, 2, 3], name="ids")]))
+    c.expect = {"status": "completed", "data": {"decision": "approve", "score": 0.4, "summary": "Prior claims: 2\nNo fraud signal", "ids": [1, 2, 3]}}
+    cases.append(c)
+
+    c = Case("agent-failure-fails-the-activity", "a2a", "28.4", "A task that fails fails the attempt with AGENT_FAILED and the agent's status message.")
+    assess(c).act("Settle").edge("Assess", "Settle")
+    agent(c, task("FAILED", message="Policy P-1 not found"))
+    c.expect = {"status": "failed", "not_visited": ["Settle"], "error_matches": "Policy P-1 not found",
+                "journal_contains": [{"type": "agent.task_updated", "data": {"state": "TASK_STATE_FAILED"}},
+                                     {"type": "activity.failed", "data": {"error": {"code": "AGENT_FAILED", "message": "Policy P-1 not found"}}}]}
+    cases.append(c)
+
+    c = Case("agent-rejection-is-its-own-error", "a2a", "28.4", "A task the agent rejects fails the attempt with AGENT_REJECTED.")
+    assess(c)
+    agent(c, task("REJECTED", message="Out of scope"))
+    c.expect = {"status": "failed", "journal_contains": [{"type": "activity.failed", "data": {"error": {"code": "AGENT_REJECTED"}}}]}
+    cases.append(c)
+
+    c = Case("agent-error-is-retried-under-the-policy", "a2a", "28.4", "A JSON-RPC error fails the attempt with AGENT_ERROR, which the retry policy retries with a new message.")
+    assess(c, retry={"max_attempts": 2, "initial_delay": "PT0S"})
+    agent(c, {"error": {"code": -32603, "message": "Internal error"}}, task("COMPLETED", [data({"decision": "approve"})]))
+    c.expect = {"status": "completed", "data": {"decision": "approve"}, "agent_requests": ["SendMessage", "SendMessage"],
+                "journal_contains": [{"type": "activity.failed", "attempt": 1, "data": {"error": {"code": "AGENT_ERROR"}, "retryable": True}}],
+                "journal_count": {"agent.message_sent": 2}}
+    cases.append(c)
+
+    c = Case("agent-retried-with-feedback-in-its-context", "a2a", "28.5", "An agent's outcome is held to the contract as any actor's. An AI agent whose outcome is rejected is sent the feedback in the context it answered in.")
+    assess(c, outcome_contract={"postconditions": [{"name": "confident", "expression": "score >= 0.5"}]})
+    agent(c, task("COMPLETED", [data({"decision": "approve", "score": 0.2})]),
+          task("COMPLETED", [data({"decision": "approve", "score": 0.9})], task_id="task-2"))
+    c.expect = {"status": "completed", "data": {"score": 0.9}, "agent_requests": ["SendMessage", "SendMessage"],
+                "journal": ["agent.task_updated", "contract.checked", "activity.failed", "agent.message_sent", "agent.task_updated", "contract.checked", "activity.completed"],
+                "journal_contains": [{"type": "contract.checked", "attempt": 1, "data": {"passed": False}},
+                                     {"type": "contract.checked", "attempt": 2, "data": {"passed": True}},
+                                     {"type": "agent.message_sent", "attempt": 2, "data": {"context_id": "ctx-1"}}],
+                "agent_requests_contain": [{"method": "SendMessage", "params": {"message": {"contextId": "ctx-1", "metadata": {"awa": {"attempt": 2}}}}}]}
+    cases.append(c)
+
+    c = Case("agent-outcome-breaking-the-contract-fails", "a2a", "28.5", "An agent that performs an application's activity is not tried again when its outcome breaks the contract.")
+    assess(c, actor_type="application", outcome_contract={"postconditions": [{"name": "confident", "expression": "score >= 0.5"}]})
+    agent(c, task("COMPLETED", [data({"score": 0.2})]))
+    c.expect = {"status": "failed", "agent_requests": ["SendMessage"],
+                "journal_contains": [{"type": "token.failed", "data": {"error": {"code": "CONTRACT_VIOLATION"}}}]}
+    cases.append(c)
+
+    c = Case("agent-asking-for-input-waits-for-the-host", "a2a", "28.6", "A task that needs input parks the token. The input the host gives is sent on the same task, which is followed to its end; the outcome is then accepted as any other.")
+    assess(c).act("Settle").edge("Assess", "Settle")
+    c.input = {"claim_id": "C-7"}
+    agent(c, task("INPUT_REQUIRED", message="Which policy covers the claim?"), task("COMPLETED", [data({"decision": "approve"})]))
+    c.deliver = [{"agent_input": {"policy": "P-9"}, "resumes": 1}]
+    c.expect = {"status": "completed", "visited": ["Settle"], "data": {"decision": "approve"},
+                "journal": ["activity.started", "agent.message_sent", "agent.task_updated", "token.waiting", "run.waiting", "token.resumed",
+                            "activity.started", "agent.message_sent", "agent.task_updated", "activity.completed"],
+                "journal_contains": [{"type": "token.waiting", "node_name": "Assess", "data": {"reason": "agent_input", "agent": CARD, "task_id": "task-1", "context_id": "ctx-1"}},
+                                     {"type": "run.waiting", "data": {"waiting_for": "human"}},
+                                     {"type": "agent.message_sent", "data": {"task_id": "task-1", "context_id": "ctx-1"}}],
+                "journal_excludes": ["activity.failed"],
+                "agent_requests": ["SendMessage", "SendMessage"],
+                "agent_requests_contain": [{"method": "SendMessage", "params": {"message": {"taskId": "task-1", "contextId": "ctx-1", "parts": [{"data": {"policy": "P-9"}}]}}}]}
+    cases.append(c)
+
+    c = Case("agent-asking-for-input-fails-when-told-to", "a2a", "28.6", "With on_input_required fail, a task that needs input fails the attempt with AGENT_INPUT_REQUIRED.")
+    assess(c, binding={"on_input_required": "fail"})
+    agent(c, task("INPUT_REQUIRED", message="Which policy?"))
+    c.expect = {"status": "failed", "journal_excludes": ["token.waiting"],
+                "journal_contains": [{"type": "activity.failed", "data": {"error": {"code": "AGENT_INPUT_REQUIRED"}}}]}
+    cases.append(c)
+
+    c = Case("agent-host-not-allowed-is-refused", "a2a", "28.2", "An agent at a host the deployment does not allow is refused before anything is sent, and the refusal is not retried.")
+    assess(c, retry={"max_attempts": 3, "initial_delay": "PT0S"})
+    agent(c, task("COMPLETED", [data({"decision": "approve"})]))
+    c.options = {"tools": {"allowed_hosts": ["tools.example"]}}
+    c.expect = {"status": "failed", "agent_card_reads": 0, "agent_requests": [], "journal_count": {"activity.started": 1},
+                "journal_contains": [{"type": "activity.failed", "data": {"error": {"code": "PERMISSION_DENIED"}, "retryable": False}}]}
+    cases.append(c)
+
+    c = Case("agent-without-json-rpc-interface-is-unsupported", "a2a", "28.2", "A card that offers no JSON-RPC interface of A2A 1.x fails the activity with AGENT_UNSUPPORTED, which is not retried.")
+    assess(c, retry={"max_attempts": 3, "initial_delay": "PT0S"})
+    agent(c, task("COMPLETED", [data({})]), card_doc=card(binding="GRPC"))
+    c.expect = {"status": "failed", "agent_requests": [], "journal_count": {"activity.started": 1},
+                "journal_contains": [{"type": "activity.failed", "data": {"error": {"code": "AGENT_UNSUPPORTED"}}}]}
+    cases.append(c)
+
+    c = Case("role-names-the-agent-an-activity-may-replace-it", "a2a", "28.1", "A role's agent performs its activities, whatever their actor type; an activity's own binding replaces its role's. The card of an agent is read once per run.")
+    c.roles = [{"id": c.u("role"), "name": "Assessor", "actor_type": "human", "a2a": {"agent_card": CARD}}]
+    c.act("Assess", "human").act("Review", "human").act("Screen", "ai_agent", a2a={"agent_card": OTHER_CARD})
+    c.edge("Assess", "Review").edge("Review", "Screen")
+    agent(c, task("COMPLETED", [data({"decision": "approve"})]))
+    agent(c, task("COMPLETED", [data({"fraud": False})]), card_url=OTHER_CARD, card_doc=card("Fraud screen", OTHER_RPC))
+    c.expect = {"status": "completed", "visited": [], "data": {"decision": "approve", "fraud": False}, "agent_card_reads": 2,
+                "agent_requests": ["SendMessage", "SendMessage", "SendMessage"],
+                "agent_requests_contain": [{"agent": OTHER_CARD, "method": "SendMessage", "params": {"message": {"metadata": {"awa": {"activity": "Screen"}}}}}]}
+    cases.append(c)
+
+    c = Case("simulation-calls-no-agent", "a2a", "28.7", "In simulation no card is read and nothing is sent: the message is recorded as simulated and the activity returns what was scripted.")
+    assess(c)
+    agent(c, task("COMPLETED", [data({"decision": "decline"})]))
+    c.options = {"simulate": True, "simulated_outputs": {"Assess": {"output": {"decision": "approve"}}}}
+    c.expect = {"status": "completed", "data": {"decision": "approve"}, "agent_card_reads": 0, "agent_requests": [],
+                "journal_contains": [{"type": "agent.message_sent", "data": {"agent": CARD, "simulated": True}}],
+                "journal_excludes": ["agent.task_updated"]}
+    cases.append(c)
+    return cases
+
+
 def main() -> None:
     for folder in ("execution", "documents", "journeys", "replay", "knowledge", "measures"):
         (ROOT / folder).mkdir(exist_ok=True)
         for old in (ROOT / folder).glob("*.json"):
             old.unlink()
-    execution = execution_cases() + tool_cases() + model_decision_cases() + routing_cases() + context_cases() + service_level_cases()
+    execution = execution_cases() + tool_cases() + model_decision_cases() + routing_cases() + context_cases() + service_level_cases() + a2a_cases()
     for case in execution:
         write(ROOT / "execution" / f"{case.id}.json", case.build())
     for case in journey_cases():

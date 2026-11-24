@@ -23,13 +23,14 @@ import { compute_measures } from '../src/runtime/kpi';
 import { InMemoryJournalStore } from '../src/runtime/journal';
 import { counterfactual_replay } from '../src/runtime/counterfactual';
 import { KnowledgeBase, KnowledgeEntry } from '../src/runtime/knowledge';
+import { A2ATransport } from '../src/runtime/protocols/a2a';
 
 const ROOT = path.resolve(__dirname, '../../..');
 const CONFORMANCE = path.join(ROOT, 'spec/conformance');
 const SCHEMAS = path.join(ROOT, 'spec/json-schema');
 
 /** Conformance levels this implementation claims. */
-const CLAIMED_LEVELS = new Set(['core', 'decision', 'verified', 'resilient', 'recorded', 'contract', 'flow', 'events', 'tools', 'model_decision', 'journeys', 'replay', 'routing', 'knowledge', 'measures', 'contexts', 'service_levels']);
+const CLAIMED_LEVELS = new Set(['core', 'decision', 'verified', 'resilient', 'recorded', 'contract', 'flow', 'events', 'tools', 'model_decision', 'journeys', 'replay', 'routing', 'knowledge', 'measures', 'contexts', 'service_levels', 'a2a']);
 
 const read = (file: string) => JSON.parse(fs.readFileSync(file, 'utf-8'));
 const list = (dir: string) => fs.readdirSync(dir).filter(f => f.endsWith('.json')).sort().map(f => path.join(dir, f));
@@ -112,6 +113,35 @@ function scripted_models(script: ModelScript) {
     return { options, calls, total: () => Object.values(calls).reduce((a, b) => a + b, 0) };
 }
 
+type AgentScript = { card: Record<string, any>; replies: Record<string, unknown>[] };
+
+/**
+ * Stands in for the agents a case scripts (level a2a): a GET of a card's URL answers with the card,
+ * and each JSON-RPC request to the interface the card names takes the agent's next reply, the last repeating.
+ * Any other address cannot be reached.
+ */
+function scripted_agents(agents: Record<string, AgentScript> = {}) {
+    const requests: { agent: string; method: string; params: unknown }[] = [];
+    let card_reads = 0;
+    const served = new Map<string, number>();
+    const transport: A2ATransport = async request => {
+        if (request.method === 'GET' && agents[request.url]) {
+            card_reads++;
+            return { status: 200, body: JSON.stringify(agents[request.url].card) };
+        }
+        const agent = Object.keys(agents).find(url => (agents[url].card.supportedInterfaces || []).some((i: { url: string }) => i.url === request.url));
+        if (request.method !== 'POST' || !agent) throw new Error(`connection refused: ${request.url}`);
+        const body = JSON.parse(request.body || '{}');
+        requests.push({ agent, method: body.method, params: body.params });
+        const n = served.get(agent) || 0;
+        served.set(agent, n + 1);
+        const replies = agents[agent].replies;
+        const reply = replies[Math.min(n, replies.length - 1)];
+        return { status: 200, body: JSON.stringify({ jsonrpc: '2.0', id: body.id, ...reply }) };
+    };
+    return { transport, requests, card_reads: () => card_reads };
+}
+
 function is_subset(expected: unknown, actual: unknown): boolean {
     if (expected === null || typeof expected !== 'object') return expected === actual;
     if (actual === null || typeof actual !== 'object') return false;
@@ -175,8 +205,10 @@ describe('Conformance: execution', () => {
             let clock = c.clock ? Date.parse(c.clock) : 0;
             const actor = new ConformanceActor(c.actors, ms => { clock += ms; });
             const models = scripted_models(c.model || {});
+            const agents = scripted_agents(c.agents);
             const options: WorkflowEngineOptions = {
                 actors: { application: actor, ai_agent: actor, human: actor, robot: actor },
+                a2a: { transport: agents.transport, poll_interval_ms: 0 },
                 execution_logger: silent_logger,
                 ...(c.tools ? { tools: { handlers: Object.fromEntries(Object.entries(c.tools as Record<string, { result?: unknown; error?: string }>).map(([name, script]) => [name, () => { if (script.error) throw new Error(script.error); return script.result; }])) } } : {}),
                 ...(c.model ? models.options : {}),
@@ -196,6 +228,11 @@ describe('Conformance: execution', () => {
                     expect(await engine.checkServiceLevels(), 'service levels checked').toMatchObject(step.expect || {});
                 } else if (step.expire) {
                     await engine.expireEvents(Number.MAX_SAFE_INTEGER);
+                } else if (step.agent_input !== undefined) {
+                    // The host gives every agent that asked for input what the case says (28.6)
+                    let resumed = 0;
+                    for (const request of engine.getAgentRequests()) if (await engine.answerAgent(request.token_id, step.agent_input)) resumed++;
+                    if (step.resumes !== undefined) expect(resumed, 'tokens given agent input').toBe(step.resumes);
                 } else {
                     const resumed = await engine.deliverEvent({ specversion: '1.0', id: step.event.id || `evt-${Math.random()}`, source: '/conformance', type: step.event.type, data: step.event.data || {} });
                     if (step.resumes !== undefined) expect(resumed, `tokens resumed by ${step.event.type}`).toBe(step.resumes);
@@ -236,6 +273,11 @@ describe('Conformance: execution', () => {
                     `no event matching ${JSON.stringify(wanted.event)} mentions ${wanted.mentions.join(', ')}`).toBe(true);
             }
             if (c.expect.model_calls !== undefined) expect(models.total(), 'calls to the model').toBe(c.expect.model_calls);
+            if (c.expect.agent_card_reads !== undefined) expect(agents.card_reads(), 'agent cards read').toBe(c.expect.agent_card_reads);
+            if (c.expect.agent_requests) expect(agents.requests.map(r => r.method), 'requests to agents').toEqual(c.expect.agent_requests);
+            for (const wanted of c.expect.agent_requests_contain || []) {
+                expect(agents.requests.some(r => is_subset(wanted, r)), `no request to an agent matches ${JSON.stringify(wanted)}: ${JSON.stringify(agents.requests)}`).toBe(true);
+            }
             for (const [id, n] of Object.entries(c.expect.provider_calls || {})) expect(models.calls[id], `calls to provider ${id}`).toBe(n);
             if (c.expect.error_matches) {
                 const errors = engine.getTokens().map(t => String(t.getData('_error') || ''));

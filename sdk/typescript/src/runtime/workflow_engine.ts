@@ -31,6 +31,8 @@ import { RetryConfig, DEFAULT_RETRY_CONFIG, calculate_retry_delay, DeadLetterQue
 import { Logger } from '../server/logger';
 import { ModelProvider, ModelRegistry, ModelRouter, GoogleModelProvider, RouteAttempt } from './models';
 import { ToolOptions, ToolRunner } from './tools';
+import { ToolSessions } from './protocols/sessions';
+import { A2AActor, A2AOptions, A2ARunState, a2a_binding } from './protocols/a2a';
 import { decide_with_model } from './decision_model';
 import { ActorContext } from './actors/actor';
 import { BusinessEvent, EventSink } from './business_event';
@@ -115,6 +117,8 @@ export interface WorkflowEngineOptions {
     decision_engines?: Record<string, DecisionEngine>;
     /** How the tools declared on activities are executed, and what they are allowed to do */
     tools?: ToolOptions;
+    /** How agents reached over A2A are called, and which hosts they may be reached at (spec 28) */
+    a2a?: A2AOptions;
     /** Knowledge base that activities with a `knowledge` binding draw on. */
     knowledge?: KnowledgeBase;
     /** If true, the run's journal is distilled into the knowledge base when the run ends. */
@@ -158,7 +162,7 @@ interface AwaitedEvent {
 }
 
 /** Error codes that are never retried, whatever the retry policy says */
-const NEVER_RETRIED = new Set(['VERIFICATION_FAILED', 'CONTRACT_VIOLATION', 'NO_ROUTE', 'SLA_BREACH', 'CONTEXT_MISSING', 'CONTEXT_ACCESS_DENIED', 'CONTEXT_INVALID', 'CONTEXT_NOT_FOUND']);
+const NEVER_RETRIED = new Set(['VERIFICATION_FAILED', 'CONTRACT_VIOLATION', 'NO_ROUTE', 'SLA_BREACH', 'CONTEXT_MISSING', 'CONTEXT_ACCESS_DENIED', 'CONTEXT_INVALID', 'CONTEXT_NOT_FOUND', 'AGENT_UNSUPPORTED', 'PERMISSION_DENIED']);
 /** Access modes that let an activity read a context, and those that let it write (22.2) */
 const CAN_READ = new Set(['read', 'read_write', 'subscribe']);
 const CAN_WRITE = new Set(['write', 'read_write', 'publish']);
@@ -204,6 +208,10 @@ export class WorkflowEngine {
     private completedActivities: { activity_id: UUID; token_id: UUID; output: Record<string, unknown> }[] = [];
     /** Ids of the business events this run has consumed, so that a redelivery is ignored */
     private deliveredEvents = new Set<string>();
+    /** Connections the run's tools keep open (MCP servers, gRPC channels), closed when the run ends or waits (17.7) */
+    private toolSessions = new ToolSessions();
+    /** The cards of the A2A agents this run has read (28.2) */
+    private a2aState: A2ARunState = { cards: new Map() };
     private options: WorkflowEngineOptions;
     private roleMap: Map<UUID, Role>;
     private decisionEvaluator: DecisionEvaluator;
@@ -441,10 +449,12 @@ export class WorkflowEngine {
             if (previous !== this.status) {
                 this.record({ type: 'run.waiting', data: { waiting_for: this.status === 'waiting_human' ? 'human' : 'event', waiting_tokens: waiting.map(t => t.id) } });
             }
+            await this.toolSessions.close();
             return;
         }
 
         const failed = has('failed');
+        await this.toolSessions.close();
         if (previous === 'completed' || previous === 'failed' || previous === 'cancelled') return;
 
         const compensation = failed ? await this.compensate() : undefined;
@@ -696,6 +706,8 @@ export class WorkflowEngine {
                 // Stable across retries and recovery, so actors can deduplicate side effects
                 _idempotency_key: `${this.runId}:${token.id}:${activity.id}:${visit}`,
             };
+            // The input given to an agent that asked for it is for this execution only (28.6)
+            if (token.getData('_agent_continuation') !== undefined) delete token.contextData._agent_continuation;
 
             // The service level of an activity counts from the moment the token reaches it, waits and retries included
             const enteredKey = `_entered_at:${activity.id}`;
@@ -730,6 +742,12 @@ export class WorkflowEngine {
                 value_added: activity.analytics?.value_added ?? true,
                 waste_categories: attempts > 1 ? ['defects' as WasteCategory] : [],
             };
+
+            // An agent that asks for input parks the token until the host gives it (28.6)
+            if (output._awaiting_agent_input) {
+                this.parkForAgent(token, activity, output._awaiting_agent_input as Record<string, unknown>, analytics, endTime);
+                return;
+            }
 
             // A human task that has not been completed yet parks the token
             if (output._requires_human_action && this.options.wait_for_human_tasks) {
@@ -962,6 +980,7 @@ export class WorkflowEngine {
         const compensation = await this.compensate();
         this.status = 'cancelled';
         this.record({ type: 'run.cancelled', data: { reason, ...(compensation ? { compensation } : {}) } });
+        await this.toolSessions.close();
         await this.saveCheckpoint();
         return true;
     }
@@ -1268,11 +1287,14 @@ export class WorkflowEngine {
             // --- execute -------------------------------------------------
             let output: Record<string, unknown>;
             try {
-                const context: ActorContext = {};
+                const context: ActorContext = {
+                    record: event => this.record({ ...event, ...ref, attempt }),
+                    payload: value => this.journal.payload(value),
+                };
                 if ((activity.tools || []).length > 0) {
                     context.tools = new ToolRunner(
                         activity.tools,
-                        this.options.tools || {},
+                        { ...(this.options.tools || {}), sessions: this.toolSessions },
                         event => this.record({ ...event, ...ref, attempt }),
                         value => this.journal.payload(value),
                         { max_calls: budgets?.max_tool_calls ?? 16, simulate: this.simulate },
@@ -1327,6 +1349,10 @@ export class WorkflowEngine {
             // A human task that is still pending is not an outcome yet. The token is
             // parked, and the contract is checked when the answer arrives (resumeToken).
             if (output._requires_human_action && this.options.wait_for_human_tasks) {
+                return { output, verificationRecords, attempts: attempt };
+            }
+            // Nor is a task in which the agent asks for input (28.6)
+            if (output._awaiting_agent_input) {
                 return { output, verificationRecords, attempts: attempt };
             }
 
@@ -1907,9 +1933,26 @@ export class WorkflowEngine {
      * Create the appropriate actor for an activity
      */
     private createActor(activity: Activity): Actor | undefined {
+        // An activity whose role, or which itself, names an agent over A2A is performed by that agent (28.1)
+        const agent = a2a_binding(activity, this.roleMap.get(activity.role_id));
+        if (agent) {
+            return new A2AActor(agent, this.options.a2a || {}, this.a2aState, {
+                simulate: this.simulate, scripted: this.scriptedActor(activity),
+                tools_allowed_hosts: this.options.tools?.allowed_hosts, tools_secrets: this.options.tools?.secrets,
+            });
+        }
+
         const custom = this.options.actors?.[activity.actor_type];
         if (custom) return custom;
 
+        const scripted = this.scriptedActor(activity);
+        if (scripted) return scripted;
+
+        return this.builtInActor(activity);
+    }
+
+    /** In simulation, the actor that returns what the deployment scripted for the activity, if it scripted anything */
+    private scriptedActor(activity: Activity): Actor | undefined {
         const scripted = this.simulate ? this.options.simulated_outputs?.[activity.name] : undefined;
         if (scripted) {
             return {
@@ -1921,7 +1964,10 @@ export class WorkflowEngine {
                 },
             };
         }
+        return undefined;
+    }
 
+    private builtInActor(activity: Activity): Actor | undefined {
         switch (activity.actor_type) {
             case 'application':
                 return new SoftwareAgent();
@@ -1947,6 +1993,51 @@ export class WorkflowEngine {
                 this.log(`Unknown actor type: ${activity.actor_type}`);
                 return undefined;
         }
+    }
+
+    /** Park a token whose agent asks for input (28.6) */
+    private parkForAgent(token: Token, activity: Activity, awaiting: Record<string, unknown>, analytics: Analytics, since: Date): void {
+        analytics.waste_categories?.push('waiting' as WasteCategory);
+        token.updateStatus('waiting', analytics);
+        token.setData('_awaiting_agent_input', awaiting);
+        token.setData('_waiting_since', since.toISOString());
+        this.record({
+            type: 'token.waiting', token_id: token.id, ...this.nodeRef(activity.id),
+            data: {
+                reason: 'agent_input', agent: awaiting.agent, task_id: awaiting.task_id,
+                ...(awaiting.context_id ? { context_id: awaiting.context_id } : {}),
+                request: this.journal.payload(awaiting.request ?? null),
+            },
+        });
+        this.log(`Token waits for the input agent ${awaiting.agent} asks for`);
+    }
+
+    /** The tokens waiting for input an agent asked for, with what it asked (28.6) */
+    public getAgentRequests(): { token_id: UUID; node_id: UUID; agent: string; task_id: string; context_id?: string; request: unknown }[] {
+        return this.tokens.filter(t => t.status === 'waiting' && t.getData('_awaiting_agent_input')).map(t => {
+            const awaiting = t.getData('_awaiting_agent_input') as { agent: string; task_id: string; context_id?: string; request: unknown };
+            return { token_id: t.id, node_id: t.activityId, ...awaiting };
+        });
+    }
+
+    /**
+     * Give an agent the input it asked for (28.6). The token's activity is performed again: the input is
+     * sent on the agent's task, which is then followed as before. Call run() afterwards.
+     * Returns whether the token was waiting for an agent's input.
+     */
+    public async answerAgent(tokenId: UUID, input: Record<string, unknown> | string): Promise<boolean> {
+        const token = this.tokens.find(t => t.id === tokenId);
+        const awaiting = token?.status === 'waiting' ? token.getData('_awaiting_agent_input') as { task_id: string; context_id?: string } | undefined : undefined;
+        if (!token || !awaiting) return false;
+        const since = token.getData('_waiting_since');
+        const waitedMs = since ? this.now() - new Date(since as string).getTime() : undefined;
+        const { _awaiting_agent_input, _waiting_since, ...rest } = token.contextData;
+        token.contextData = { ...rest, _agent_continuation: { task_id: awaiting.task_id, context_id: awaiting.context_id, input } };
+        token.updateStatus('active', since ? { wait_time: calculate_duration(new Date(since as string), new Date(this.now())), waste_categories: ['waiting' as WasteCategory] } : undefined);
+        this.record({ type: 'token.resumed', token_id: token.id, ...this.nodeRef(token.activityId), data: { reason: 'agent_input', waited_ms: waitedMs } });
+        if (this.status === 'waiting_event' || this.status === 'waiting_human') this.status = 'running';
+        await this.saveCheckpoint();
+        return true;
     }
 
     public async resumeToken(tokenId: UUID, output: Record<string, unknown>): Promise<boolean> {

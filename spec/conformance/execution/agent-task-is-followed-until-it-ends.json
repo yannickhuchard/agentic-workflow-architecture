@@ -1,0 +1,141 @@
+{
+  "id": "agent-task-is-followed-until-it-ends",
+  "level": "a2a",
+  "spec": "28.4",
+  "description": "A task that is still working is asked about until its state is another; each change of state is recorded once.",
+  "workflow": {
+    "id": "400b1ef3-0875-5bf2-b275-c46ea88b53fd",
+    "name": "agent-task-is-followed-until-it-ends",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "757bc17e-02c1-5c6c-9983-155e1f9a586c",
+        "name": "Assess",
+        "role_id": "ff346a0f-8ae8-545e-91fc-7022b3aad239",
+        "actor_type": "ai_agent",
+        "a2a": {
+          "agent_card": "https://agents.example/claims/.well-known/agent-card.json"
+        }
+      }
+    ],
+    "edges": []
+  },
+  "agents": {
+    "https://agents.example/claims/.well-known/agent-card.json": {
+      "card": {
+        "name": "Claims assessor",
+        "description": "Claims assessor, reached over A2A",
+        "version": "1.0.0",
+        "supportedInterfaces": [
+          {
+            "url": "https://agents.example/claims/a2a",
+            "protocolBinding": "JSONRPC",
+            "protocolVersion": "1.0"
+          }
+        ],
+        "capabilities": {
+          "streaming": false,
+          "pushNotifications": false
+        },
+        "defaultInputModes": [
+          "application/json",
+          "text/plain"
+        ],
+        "defaultOutputModes": [
+          "application/json"
+        ],
+        "skills": [
+          {
+            "id": "assess",
+            "name": "Assess",
+            "description": "Assess a claim",
+            "tags": [
+              "claims"
+            ]
+          }
+        ]
+      },
+      "replies": [
+        {
+          "result": {
+            "task": {
+              "id": "task-1",
+              "contextId": "ctx-1",
+              "status": {
+                "state": "TASK_STATE_WORKING"
+              }
+            }
+          }
+        },
+        {
+          "result": {
+            "id": "task-1",
+            "contextId": "ctx-1",
+            "status": {
+              "state": "TASK_STATE_WORKING"
+            }
+          }
+        },
+        {
+          "result": {
+            "id": "task-1",
+            "contextId": "ctx-1",
+            "status": {
+              "state": "TASK_STATE_COMPLETED"
+            },
+            "artifacts": [
+              {
+                "artifactId": "a0",
+                "parts": [
+                  {
+                    "data": {
+                      "decision": "approve"
+                    },
+                    "mediaType": "application/json"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "data": {
+      "decision": "approve"
+    },
+    "agent_requests": [
+      "SendMessage",
+      "GetTask",
+      "GetTask"
+    ],
+    "agent_requests_contain": [
+      {
+        "method": "GetTask",
+        "params": {
+          "id": "task-1"
+        }
+      }
+    ],
+    "journal_count": {
+      "agent.task_updated": 2
+    },
+    "journal_contains": [
+      {
+        "type": "agent.task_updated",
+        "data": {
+          "state": "TASK_STATE_WORKING"
+        }
+      },
+      {
+        "type": "agent.task_updated",
+        "data": {
+          "state": "TASK_STATE_COMPLETED"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,138 @@
+{
+  "id": "agent-artifacts-make-one-output",
+  "level": "a2a",
+  "spec": "28.5",
+  "description": "Objects are merged in order, a later one winning; text parts are joined by line breaks; a value that is not an object is named after its artifact.",
+  "workflow": {
+    "id": "d302ab67-57e2-5b46-964b-1d9bbe29a998",
+    "name": "agent-artifacts-make-one-output",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "03267a04-0488-50ac-9b37-adbe25e40d35",
+        "name": "Assess",
+        "role_id": "8d9addf0-271b-5ca3-9a2f-1d43ed28e9c8",
+        "actor_type": "ai_agent",
+        "a2a": {
+          "agent_card": "https://agents.example/claims/.well-known/agent-card.json"
+        }
+      }
+    ],
+    "edges": []
+  },
+  "agents": {
+    "https://agents.example/claims/.well-known/agent-card.json": {
+      "card": {
+        "name": "Claims assessor",
+        "description": "Claims assessor, reached over A2A",
+        "version": "1.0.0",
+        "supportedInterfaces": [
+          {
+            "url": "https://agents.example/claims/a2a",
+            "protocolBinding": "JSONRPC",
+            "protocolVersion": "1.0"
+          }
+        ],
+        "capabilities": {
+          "streaming": false,
+          "pushNotifications": false
+        },
+        "defaultInputModes": [
+          "application/json",
+          "text/plain"
+        ],
+        "defaultOutputModes": [
+          "application/json"
+        ],
+        "skills": [
+          {
+            "id": "assess",
+            "name": "Assess",
+            "description": "Assess a claim",
+            "tags": [
+              "claims"
+            ]
+          }
+        ]
+      },
+      "replies": [
+        {
+          "result": {
+            "task": {
+              "id": "task-1",
+              "contextId": "ctx-1",
+              "status": {
+                "state": "TASK_STATE_COMPLETED"
+              },
+              "artifacts": [
+                {
+                  "artifactId": "a0",
+                  "parts": [
+                    {
+                      "data": {
+                        "decision": "refer",
+                        "score": 0.4
+                      },
+                      "mediaType": "application/json"
+                    }
+                  ]
+                },
+                {
+                  "artifactId": "a1",
+                  "name": "summary",
+                  "parts": [
+                    {
+                      "text": "Prior claims: 2"
+                    },
+                    {
+                      "text": "No fraud signal"
+                    }
+                  ]
+                },
+                {
+                  "artifactId": "a2",
+                  "parts": [
+                    {
+                      "data": {
+                        "decision": "approve"
+                      },
+                      "mediaType": "application/json"
+                    }
+                  ]
+                },
+                {
+                  "artifactId": "a3",
+                  "name": "ids",
+                  "parts": [
+                    {
+                      "data": [
+                        1,
+                        2,
+                        3
+                      ],
+                      "mediaType": "application/json"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "data": {
+      "decision": "approve",
+      "score": 0.4,
+      "summary": "Prior claims: 2\nNo fraud signal",
+      "ids": [
+        1,
+        2,
+        3
+      ]
+    }
+  }
+}

@@ -1,0 +1,182 @@
+{
+  "id": "agent-performs-an-activity",
+  "level": "a2a",
+  "spec": "28.3",
+  "description": "The agent is sent the activity and its data as a message, and the artifacts of the completed task become the activity's output, recorded between the start and the end of the attempt.",
+  "workflow": {
+    "id": "5fb55582-1038-585f-9c81-3fee3a5f888e",
+    "name": "agent-performs-an-activity",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "c81ea953-46f0-53d8-a948-b637719e8449",
+        "name": "Assess",
+        "role_id": "e3c3fba9-ffe0-5a8c-8477-8d97e6fe9176",
+        "actor_type": "ai_agent",
+        "a2a": {
+          "agent_card": "https://agents.example/claims/.well-known/agent-card.json"
+        },
+        "description": "Decide whether the claim is covered"
+      },
+      {
+        "id": "97f59346-4084-5d06-a0a0-97fe340c6bbd",
+        "name": "Settle",
+        "role_id": "e3c3fba9-ffe0-5a8c-8477-8d97e6fe9176",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "9c5ac2d4-78c2-5709-9210-dd0cfa3b2f3b",
+        "source_id": "c81ea953-46f0-53d8-a948-b637719e8449",
+        "target_id": "97f59346-4084-5d06-a0a0-97fe340c6bbd"
+      }
+    ]
+  },
+  "input": {
+    "claim_id": "C-1",
+    "amount": 1200
+  },
+  "agents": {
+    "https://agents.example/claims/.well-known/agent-card.json": {
+      "card": {
+        "name": "Claims assessor",
+        "description": "Claims assessor, reached over A2A",
+        "version": "1.0.0",
+        "supportedInterfaces": [
+          {
+            "url": "https://agents.example/claims/a2a",
+            "protocolBinding": "JSONRPC",
+            "protocolVersion": "1.0"
+          }
+        ],
+        "capabilities": {
+          "streaming": false,
+          "pushNotifications": false
+        },
+        "defaultInputModes": [
+          "application/json",
+          "text/plain"
+        ],
+        "defaultOutputModes": [
+          "application/json"
+        ],
+        "skills": [
+          {
+            "id": "assess",
+            "name": "Assess",
+            "description": "Assess a claim",
+            "tags": [
+              "claims"
+            ]
+          }
+        ]
+      },
+      "replies": [
+        {
+          "result": {
+            "task": {
+              "id": "task-1",
+              "contextId": "ctx-1",
+              "status": {
+                "state": "TASK_STATE_COMPLETED"
+              },
+              "artifacts": [
+                {
+                  "artifactId": "a0",
+                  "parts": [
+                    {
+                      "data": {
+                        "decision": "approve",
+                        "score": 0.92
+                      },
+                      "mediaType": "application/json"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "Settle"
+    ],
+    "data": {
+      "decision": "approve",
+      "score": 0.92
+    },
+    "journal": [
+      "activity.started",
+      "agent.message_sent",
+      "agent.task_updated",
+      "activity.completed"
+    ],
+    "journal_contains": [
+      {
+        "type": "agent.message_sent",
+        "node_name": "Assess",
+        "attempt": 1,
+        "data": {
+          "agent": "https://agents.example/claims/.well-known/agent-card.json",
+          "link": "https://agents.example/claims/a2a"
+        }
+      },
+      {
+        "type": "agent.task_updated",
+        "node_name": "Assess",
+        "data": {
+          "agent": "https://agents.example/claims/.well-known/agent-card.json",
+          "task_id": "task-1",
+          "context_id": "ctx-1",
+          "state": "TASK_STATE_COMPLETED"
+        }
+      },
+      {
+        "type": "activity.completed",
+        "node_name": "Assess",
+        "data": {
+          "output": {
+            "decision": "approve"
+          }
+        }
+      }
+    ],
+    "agent_card_reads": 1,
+    "agent_requests": [
+      "SendMessage"
+    ],
+    "agent_requests_contain": [
+      {
+        "agent": "https://agents.example/claims/.well-known/agent-card.json",
+        "method": "SendMessage",
+        "params": {
+          "message": {
+            "role": "ROLE_USER",
+            "parts": [
+              {},
+              {
+                "data": {
+                  "claim_id": "C-1",
+                  "amount": 1200
+                },
+                "mediaType": "application/json"
+              }
+            ],
+            "metadata": {
+              "awa": {
+                "activity": "Assess",
+                "attempt": 1
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
