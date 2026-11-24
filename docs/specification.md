@@ -1557,7 +1557,7 @@ An importer derives the AWA identifier of an element from its identifier:
 - `_<uuid>` gives that UUID.
 - Any other identifier `X` gives the name-based UUID (RFC 4122, version 5) in the namespace `84c7aa15-559c-5fc6-abf7-39cad8e0d785` (itself the version 5 UUID of `https://awa.io/schema/interchange/1.1` in the URL namespace) of the text `<D>/<X><suffix>`, where `<D>` is the identifier of the BPMN or DMN `definitions` (`definitions` when it has none) and `<suffix>` is empty unless this section gives one.
 
-An element without a name is named by its identifier. A workflow imported from BPMN has `version` `"1.0.0"` and `awa_version` `"1.1"`. An importer writes a property only when the element gives it a value: it writes no empty lists and no defaults other than those this section names.
+An element without a name is named by its identifier. A workflow imported from BPMN has `version` `"1.0.0"` and `awa_version` `"1.1"`. An importer writes a property only when the element gives it a value: it writes no empty lists other than `activities` and `edges`, and no defaults other than those this section names.
 
 ### 27.3 Processes, lanes and activities
 
@@ -1595,6 +1595,8 @@ A sequence flow is an edge: `id`, `source_id`, `target_id`, `label` from `name`,
 - The matching join `J` is the first converging inclusive gateway that every branch reaches. Each incoming flow of `J` must be reached from exactly one branch. Each branch then meets `J` through a **merge**: an `intermediate` event (suffix `#merge:<f>` on `J`, named `<J>: <f>`) that receives the branch's flows into `J` and its skip edge, with an edge to `J` (`#merged:<f>` on `J`). `J` has `join: "all"`, and every branch delivers exactly one token to it.
 - Without a matching join, a skipped branch ends at one `end` event (`#skip-end`, named `<G>: no branch`).
 
+Among the events, the ones an importer adds follow the gateway they belong to: the merges follow the join, and the guards the split, each in the order of the split's outgoing flows, with the skip end after the first guard. The edges it adds follow the others: each merge's edge to the join, then for each guard its edge from the split and its skip edge.
+
 A flow without a condition is always taken; an inclusive gateway with one and a default flow is refused, since its default can never be taken. A converging inclusive gateway that is not the join of such a split is refused, as is a gateway that both converges and diverges.
 
 **Conditions leaving tasks.** BPMN takes every conditional flow leaving a task whose condition holds. An importer accepts at most one conditional flow leaving a task or event, any other being its default, and refuses more. An exporter writes the conditional and default edges of a task or event behind an exclusive gateway (`Route_`), which the importer folds back.
@@ -1622,7 +1624,7 @@ A flow without a condition is always taken; an inclusive gateway with one and a 
 
 ### 27.6 Decisions
 
-A business rule task becomes a decision node: `id`, `name`, `description`. Its decision is named by `awa:decisionRef`, or by an attribute `decisionRef` in another namespace (as Camunda writes it). When a DMN document given to the importer holds that decision, the node's `decision_table` is the decision's table (27.9). Otherwise the node is decided by an external decision engine named `dmn` (5.5.4), with the decision as `ruleset` and one option per outgoing flow, and the importer warns. `default_output_edge_id` is the task's default flow, or its only outgoing flow.
+A business rule task becomes a decision node: `id`, `name`, `description`. Its decision is named by `awa:decisionRef`, or by an attribute `decisionRef` in another namespace (as Camunda writes it). When a DMN document given to the importer holds that decision, the node's `decision_table` is the decision's table (27.9). Otherwise the node is decided by an external decision engine named `dmn` (5.5.4), with the decision (else the task's `implementation`, else its name) as `ruleset` and one option per outgoing flow, whose `id` is the flow's identifier with every character other than a letter, a digit, `-` or `_` replaced by `_`, and the importer warns. `default_output_edge_id` is the task's default flow, or its only outgoing flow.
 
 An exporter writes a decision node as a business rule task with `implementation` set to the DMN 1.3 namespace and `awa:decisionRef` naming its decision in the DMN document written beside it. A node with several outgoing edges routes through an exclusive gateway (`Route_`) whose flows carry, in the language `https://awa.io/schema/decision-route/1.1`, the rules and options that choose them, in words. That text is informative: an importer never reads it, and folds the gateway back into the node. A business rule task with several outgoing flows and no such gateway is refused, since it would split the token.
 
