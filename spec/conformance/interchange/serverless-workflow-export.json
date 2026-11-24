@@ -1,0 +1,346 @@
+{
+  "id": "serverless-workflow-export",
+  "level": "interchange",
+  "spec": "27.11",
+  "kind": "export_serverless_workflow",
+  "description": "Activities become a request and a wait for completion, conditions a switch in jq, retries a try, timers waits, publishing an emit, waits a listen with correlation and timeout; what does not map is listed.",
+  "workflow": {
+    "id": "a9d1ff95-b9ff-5eaf-99a3-7acd08f183d0",
+    "name": "Quote Request",
+    "version": "1.2.0",
+    "awa_version": "1.1",
+    "description": "Answer a quote request.",
+    "roles": [
+      {
+        "id": "2b7a6078-1993-5b3d-97c8-be8a8a46a497",
+        "name": "Sales",
+        "actor_type": "human"
+      }
+    ],
+    "activities": [
+      {
+        "id": "0f315e0c-4f20-578a-a4f0-196057679532",
+        "name": "Price quote",
+        "role_id": "2b7a6078-1993-5b3d-97c8-be8a8a46a497",
+        "actor_type": "human"
+      },
+      {
+        "id": "fdba26e2-62db-5fa5-9bd1-2cad38543e7f",
+        "name": "Check credit",
+        "role_id": "2b7a6078-1993-5b3d-97c8-be8a8a46a497",
+        "actor_type": "ai_agent",
+        "retry": {
+          "max_attempts": 3,
+          "initial_delay": "PT2S"
+        },
+        "verification": {
+          "criteria": [
+            {
+              "id": "c6bd59ac-e49f-538d-a6fa-a6c59ef5b5cc",
+              "name": "ok",
+              "description": "It is ok",
+              "type": "accuracy",
+              "expression": "ok"
+            }
+          ]
+        }
+      }
+    ],
+    "events": [
+      {
+        "id": "02711e89-4f40-50b9-828b-61d18a4d0801",
+        "name": "Request in",
+        "event_type": "start",
+        "event_definition": {
+          "name": "quote.requested"
+        }
+      },
+      {
+        "id": "e0f235b6-bcbd-5000-a964-44087db3b5c0",
+        "name": "Pause",
+        "event_type": "timer",
+        "event_definition": {
+          "duration": "PT1H"
+        }
+      },
+      {
+        "id": "f5c2f43c-0a4d-5d80-a729-b7cdd2315b74",
+        "name": "Quote sent",
+        "event_type": "message",
+        "event_definition": {
+          "name": "quote.sent",
+          "mode": "publish",
+          "data": [
+            "quote_id"
+          ]
+        }
+      },
+      {
+        "id": "832ba7b6-4909-58a5-91fc-1d33abec1a9d",
+        "name": "Answer",
+        "event_type": "message",
+        "event_definition": {
+          "name": "quote.answered",
+          "correlation_key": "quote_id",
+          "timeout": "P7D",
+          "timeout_edge_id": "d0d4f421-0fc1-5018-97b8-a9a0525d26f5"
+        }
+      },
+      {
+        "id": "6fd46773-ade5-5aa3-b3c2-f4c0478ca5ba",
+        "name": "Done",
+        "event_type": "end"
+      }
+    ],
+    "edges": [
+      {
+        "id": "70eb45ba-66df-5a5a-bc1d-e3679ffe12b1",
+        "source_id": "02711e89-4f40-50b9-828b-61d18a4d0801",
+        "target_id": "0f315e0c-4f20-578a-a4f0-196057679532"
+      },
+      {
+        "id": "6bc04070-f977-5f29-bb10-31597c794f0f",
+        "source_id": "0f315e0c-4f20-578a-a4f0-196057679532",
+        "target_id": "fdba26e2-62db-5fa5-9bd1-2cad38543e7f",
+        "condition": "amount > 1000",
+        "label": "Large"
+      },
+      {
+        "id": "41e49077-71ae-55b8-8bfe-74b0a1ac2e58",
+        "source_id": "0f315e0c-4f20-578a-a4f0-196057679532",
+        "target_id": "e0f235b6-bcbd-5000-a964-44087db3b5c0",
+        "is_default": true
+      },
+      {
+        "id": "8545bedc-57ea-5086-86b9-e8df075c2376",
+        "source_id": "fdba26e2-62db-5fa5-9bd1-2cad38543e7f",
+        "target_id": "e0f235b6-bcbd-5000-a964-44087db3b5c0"
+      },
+      {
+        "id": "10cfb563-5d25-5230-af97-cc0479d99865",
+        "source_id": "e0f235b6-bcbd-5000-a964-44087db3b5c0",
+        "target_id": "f5c2f43c-0a4d-5d80-a729-b7cdd2315b74"
+      },
+      {
+        "id": "60ad2eb9-8cb6-53fc-9be6-3d6056f6695a",
+        "source_id": "f5c2f43c-0a4d-5d80-a729-b7cdd2315b74",
+        "target_id": "832ba7b6-4909-58a5-91fc-1d33abec1a9d"
+      },
+      {
+        "id": "a6d93b61-92d6-598d-b80a-11e4846e7092",
+        "source_id": "832ba7b6-4909-58a5-91fc-1d33abec1a9d",
+        "target_id": "6fd46773-ade5-5aa3-b3c2-f4c0478ca5ba"
+      },
+      {
+        "id": "d0d4f421-0fc1-5018-97b8-a9a0525d26f5",
+        "source_id": "832ba7b6-4909-58a5-91fc-1d33abec1a9d",
+        "target_id": "6fd46773-ade5-5aa3-b3c2-f4c0478ca5ba"
+      }
+    ]
+  },
+  "expect": {
+    "document": {
+      "document": {
+        "dsl": "1.0.0",
+        "namespace": "awa",
+        "name": "quote-request",
+        "version": "1.2.0",
+        "title": "Quote Request",
+        "summary": "Answer a quote request.",
+        "metadata": {
+          "awa_workflow_id": "a9d1ff95-b9ff-5eaf-99a3-7acd08f183d0",
+          "awa_version": "1.1"
+        }
+      },
+      "schedule": {
+        "on": {
+          "one": {
+            "with": {
+              "type": "quote.requested"
+            }
+          }
+        }
+      },
+      "do": [
+        {
+          "price-quote": {
+            "do": [
+              {
+                "request": {
+                  "emit": {
+                    "event": {
+                      "with": {
+                        "source": "https://awa.io",
+                        "type": "io.awa.activity.requested",
+                        "subject": "0f315e0c-4f20-578a-a4f0-196057679532",
+                        "data": {
+                          "activity_id": "0f315e0c-4f20-578a-a4f0-196057679532",
+                          "activity": "Price quote",
+                          "actor_type": "human",
+                          "role_id": "2b7a6078-1993-5b3d-97c8-be8a8a46a497"
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "complete": {
+                  "listen": {
+                    "to": {
+                      "one": {
+                        "with": {
+                          "type": "io.awa.activity.completed",
+                          "subject": "0f315e0c-4f20-578a-a4f0-196057679532"
+                        }
+                      }
+                    }
+                  },
+                  "output": {
+                    "as": "${ $input + (.[0].data // .[0] // {}) }"
+                  }
+                }
+              }
+            ],
+            "then": "price-quote-route"
+          }
+        },
+        {
+          "price-quote-route": {
+            "switch": [
+              {
+                "large": {
+                  "when": "${ .amount > 1000 }",
+                  "then": "check-credit"
+                }
+              },
+              {
+                "default": {
+                  "then": "pause"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "check-credit": {
+            "try": [
+              {
+                "request": {
+                  "emit": {
+                    "event": {
+                      "with": {
+                        "source": "https://awa.io",
+                        "type": "io.awa.activity.requested",
+                        "subject": "fdba26e2-62db-5fa5-9bd1-2cad38543e7f",
+                        "data": {
+                          "activity_id": "fdba26e2-62db-5fa5-9bd1-2cad38543e7f",
+                          "activity": "Check credit",
+                          "actor_type": "ai_agent",
+                          "role_id": "2b7a6078-1993-5b3d-97c8-be8a8a46a497"
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "complete": {
+                  "listen": {
+                    "to": {
+                      "one": {
+                        "with": {
+                          "type": "io.awa.activity.completed",
+                          "subject": "fdba26e2-62db-5fa5-9bd1-2cad38543e7f"
+                        }
+                      }
+                    }
+                  },
+                  "output": {
+                    "as": "${ $input + (.[0].data // .[0] // {}) }"
+                  }
+                }
+              }
+            ],
+            "catch": {
+              "retry": {
+                "delay": "PT2S",
+                "backoff": {
+                  "exponential": {}
+                },
+                "limit": {
+                  "attempt": {
+                    "count": 3
+                  }
+                }
+              }
+            },
+            "then": "pause"
+          }
+        },
+        {
+          "pause": {
+            "wait": "PT1H",
+            "then": "quote-sent"
+          }
+        },
+        {
+          "quote-sent": {
+            "emit": {
+              "event": {
+                "with": {
+                  "source": "https://awa.io",
+                  "type": "quote.sent",
+                  "data": "${ {\"quote_id\": .quote_id} }"
+                }
+              }
+            },
+            "then": "answer"
+          }
+        },
+        {
+          "answer": {
+            "listen": {
+              "to": {
+                "one": {
+                  "with": {
+                    "type": "quote.answered"
+                  },
+                  "correlate": {
+                    "key": {
+                      "from": "${ .data.quote_id }",
+                      "expect": "${ .quote_id }"
+                    }
+                  }
+                }
+              }
+            },
+            "output": {
+              "as": "${ $input + (.[0].data // .[0] // {}) }"
+            },
+            "timeout": {
+              "after": "P7D"
+            },
+            "then": "end"
+          }
+        }
+      ]
+    },
+    "not_mapped": [
+      {
+        "property": "roles",
+        "reason": "Serverless Workflow has no roles; the role of each activity is carried in the event that requests it"
+      },
+      {
+        "node": "Check credit",
+        "property": "verification",
+        "reason": "Serverless Workflow has no acceptance verification of a task's output (section 7)"
+      },
+      {
+        "node": "Answer",
+        "property": "event_definition.timeout_edge_id",
+        "reason": "when the wait runs out the task fails with a timeout error; the path the timeout edge takes is not followed"
+      }
+    ]
+  }
+}

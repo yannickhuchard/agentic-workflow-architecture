@@ -23,13 +23,16 @@ import { compute_measures } from '../src/runtime/kpi';
 import { InMemoryJournalStore } from '../src/runtime/journal';
 import { counterfactual_replay } from '../src/runtime/counterfactual';
 import { KnowledgeBase, KnowledgeEntry } from '../src/runtime/knowledge';
+import { import_bpmn, export_bpmn, import_dmn, export_serverless_workflow } from '../src/interchange';
+import { feel_unary_to_awa, awa_unary_to_feel, feel_condition_to_awa, awa_condition_to_feel } from '../src/interchange/expressions';
+import { json_equal } from '../src/interchange/common';
 
 const ROOT = path.resolve(__dirname, '../../..');
 const CONFORMANCE = path.join(ROOT, 'spec/conformance');
 const SCHEMAS = path.join(ROOT, 'spec/json-schema');
 
 /** Conformance levels this implementation claims. */
-const CLAIMED_LEVELS = new Set(['core', 'decision', 'verified', 'resilient', 'recorded', 'contract', 'flow', 'events', 'tools', 'model_decision', 'journeys', 'replay', 'routing', 'knowledge', 'measures', 'contexts', 'service_levels']);
+const CLAIMED_LEVELS = new Set(['interchange', 'core', 'decision', 'verified', 'resilient', 'recorded', 'contract', 'flow', 'events', 'tools', 'model_decision', 'journeys', 'replay', 'routing', 'knowledge', 'measures', 'contexts', 'service_levels']);
 
 const read = (file: string) => JSON.parse(fs.readFileSync(file, 'utf-8'));
 const list = (dir: string) => fs.readdirSync(dir).filter(f => f.endsWith('.json')).sort().map(f => path.join(dir, f));
@@ -476,6 +479,45 @@ describe('Conformance: measures', () => {
             }
         });
     }
+});
+
+describe('Conformance: interchange', () => {
+    for (const file of list(path.join(CONFORMANCE, 'interchange'))) {
+        const c = read(file);
+        const run = CLAIMED_LEVELS.has(c.level) ? it : it.skip;
+        run(`${c.id}: ${c.description}`, async () => {
+            if (c.expect.error_matches) {
+                const attempt = c.kind === 'import_dmn' ? import_dmn(c.dmn) : import_bpmn(c.bpmn, { dmn: c.dmn || [] });
+                await expect(attempt).rejects.toThrow(new RegExp(c.expect.error_matches));
+                return;
+            }
+            if (c.kind === 'import_bpmn') {
+                const result = await import_bpmn(c.bpmn, { dmn: c.dmn || [] });
+                expect(result.documents).toEqual(c.expect.documents);
+            } else if (c.kind === 'import_dmn') {
+                expect((await import_dmn(c.dmn)).decisions).toEqual(c.expect.decisions);
+            } else if (c.kind === 'round_trip') {
+                const exported = await export_bpmn([c.workflow]);
+                const back = await import_bpmn(exported.bpmn, { dmn: exported.dmn ? [exported.dmn] : [] });
+                expect(back.documents[0]).toEqual(c.workflow);
+                expect(json_equal(back.documents[0], c.workflow)).toBe(true);
+            } else if (c.kind === 'export_serverless_workflow') {
+                const result = await export_serverless_workflow(c.workflow);
+                expect(result.document).toEqual(c.expect.document);
+                expect(result.not_mapped).toEqual(c.expect.not_mapped);
+            } else {
+                throw new Error(`unknown kind ${c.kind}`);
+            }
+        });
+    }
+    const feel = read(path.join(CONFORMANCE, 'feel.json'));
+    const run = CLAIMED_LEVELS.has('interchange') ? it : it.skip;
+    for (const t of feel.unary) run(`FEEL ${JSON.stringify(t.feel)} is the entry ${JSON.stringify(t.awa)}`, () => expect(feel_unary_to_awa(t.feel)).toBe(t.awa));
+    for (const t of feel.unary_invalid) run(`FEEL ${JSON.stringify(t)} is refused as an entry`, () => expect(() => feel_unary_to_awa(t)).toThrow(/FEEL/));
+    for (const t of feel.unary_export) run(`the entry ${JSON.stringify(t.awa)} is FEEL ${JSON.stringify(t.feel)}`, () => expect(awa_unary_to_feel(t.awa, t.type)).toBe(t.feel));
+    for (const t of feel.conditions) run(`the condition ${JSON.stringify(t.bpmn)} is ${JSON.stringify(t.awa)}`, () => expect(feel_condition_to_awa(t.bpmn)).toBe(t.awa));
+    for (const t of feel.conditions_invalid) run(`the condition ${JSON.stringify(t)} is refused`, () => expect(() => feel_condition_to_awa(t)).toThrow(/cannot be read/));
+    for (const t of feel.conditions_export) run(`${JSON.stringify(t.awa)} in FEEL is ${JSON.stringify(t.feel)}`, () => expect(awa_condition_to_feel(t.awa) ?? null).toBe(t.feel));
 });
 
 describe('Conformance: published examples', () => {

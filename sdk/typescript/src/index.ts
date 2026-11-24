@@ -35,3 +35,6 @@ export {
     ContextBindingQuery,
     query,
 } from './client/query';
+
+// Interchange: BPMN 2.0, DMN and CNCF Serverless Workflow (specification section 27)
+export * from './interchange';

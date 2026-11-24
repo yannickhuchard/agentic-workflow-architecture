@@ -1,0 +1,42 @@
+{
+  "id": "dmn-1-1-unique-by-default",
+  "level": "interchange",
+  "spec": "27.9",
+  "kind": "import_dmn",
+  "description": "DMN 1.1 is read; a table without a hit policy is UNIQUE; a single output without a name is named after the decision; identifiers _<uuid> give their UUID.",
+  "dmn": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<definitions xmlns=\"http://www.omg.org/spec/DMN/20151101/dmn.xsd\" xmlns:awa=\"https://awa.io/schema/interchange/1.1\" id=\"Definitions_old\" name=\"Decisions\" namespace=\"https://example.com/dmn\">\n<decision id=\"_0b9e7a1c-2d3e-4f50-8a6b-7c8d9e0f1a2b\" name=\"Eligible\">\n<decisionTable id=\"DT\">\n<input id=\"I1\"><inputExpression id=\"IE1\" typeRef=\"number\"><text>age</text></inputExpression></input>\n<output id=\"O1\" typeRef=\"boolean\"/>\n<rule id=\"_7a4c1e2b-3d5f-4a6b-8c9d-0e1f2a3b4c5d\"><inputEntry id=\"a\"><text>&gt;= 18</text></inputEntry><outputEntry id=\"b\"><text>true</text></outputEntry></rule>\n</decisionTable>\n</decision>\n</definitions>\n",
+  "expect": {
+    "decisions": [
+      {
+        "id": "0b9e7a1c-2d3e-4f50-8a6b-7c8d9e0f1a2b",
+        "name": "Eligible",
+        "decision_table": {
+          "hit_policy": "unique",
+          "inputs": [
+            {
+              "name": "age",
+              "type": "number"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "Eligible",
+              "type": "boolean"
+            }
+          ],
+          "rules": [
+            {
+              "id": "7a4c1e2b-3d5f-4a6b-8c9d-0e1f2a3b4c5d",
+              "input_entries": [
+                ">= 18"
+              ],
+              "output_entries": [
+                true
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

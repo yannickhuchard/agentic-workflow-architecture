@@ -1,0 +1,11 @@
+{
+  "id": "bpmn-refuses-condition-with-arithmetic",
+  "level": "interchange",
+  "spec": "27.10",
+  "kind": "import_bpmn",
+  "description": "A condition with arithmetic cannot be expressed in AWA.",
+  "bpmn": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<bpmn:definitions xmlns:bpmn=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:awa=\"https://awa.io/schema/interchange/1.1\" id=\"Definitions_refused\" targetNamespace=\"https://example.com/bpmn\">\n<bpmn:process id=\"P\" name=\"Refused\">\n<bpmn:startEvent id=\"S\"/><bpmn:exclusiveGateway id=\"G\" default=\"F3\"/><bpmn:serviceTask id=\"T\"/><bpmn:endEvent id=\"E\"/><bpmn:sequenceFlow id=\"F1\" sourceRef=\"S\" targetRef=\"G\"/>\n<bpmn:sequenceFlow id=\"F2\" sourceRef=\"G\" targetRef=\"T\"><bpmn:conditionExpression xsi:type=\"bpmn:tFormalExpression\" language=\"https://www.omg.org/spec/DMN/20191111/FEEL/\">amount * 2 &gt; 10</bpmn:conditionExpression></bpmn:sequenceFlow>\n<bpmn:sequenceFlow id=\"F3\" sourceRef=\"G\" targetRef=\"E\"/>\n<bpmn:sequenceFlow id=\"F4\" sourceRef=\"T\" targetRef=\"E\"/>\n</bpmn:process>\n</bpmn:definitions>\n",
+  "expect": {
+    "error_matches": "sequenceFlow \"F2\".*amount \\* 2 > 10"
+  }
+}

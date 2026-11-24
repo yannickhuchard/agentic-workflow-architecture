@@ -1,0 +1,65 @@
+{
+  "id": "dmn-priority-from-output-values",
+  "level": "interchange",
+  "spec": "27.9",
+  "kind": "import_dmn",
+  "description": "PRIORITY orders rules by their outputs' position in the output values; each rule gets the AWA priority that keeps that order.",
+  "dmn": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<definitions xmlns=\"https://www.omg.org/spec/DMN/20191111/MODEL/\" xmlns:awa=\"https://awa.io/schema/interchange/1.1\" id=\"Definitions_priority\" name=\"Decisions\" namespace=\"https://example.com/dmn\">\n<decision id=\"Decision_p\" name=\"Discount\">\n<decisionTable id=\"DT\" hitPolicy=\"PRIORITY\">\n<input id=\"I1\"><inputExpression id=\"IE1\" typeRef=\"string\"><text>tier</text></inputExpression></input>\n<output id=\"O1\" name=\"discount\" typeRef=\"string\"><outputValues id=\"OV\"><text>\"high\",\"medium\",\"none\"</text></outputValues></output>\n<rule id=\"R1\"><inputEntry id=\"a\"><text>-</text></inputEntry><outputEntry id=\"b\"><text>\"none\"</text></outputEntry></rule>\n<rule id=\"R2\"><inputEntry id=\"c\"><text>\"gold\"</text></inputEntry><outputEntry id=\"e\"><text>\"high\"</text></outputEntry></rule>\n<rule id=\"R3\"><inputEntry id=\"f\"><text>\"silver\"</text></inputEntry><outputEntry id=\"g\"><text>\"medium\"</text></outputEntry></rule>\n</decisionTable>\n</decision>\n</definitions>\n",
+  "expect": {
+    "decisions": [
+      {
+        "id": "c5848646-b1e8-5d2b-9923-cc1b1a81ab79",
+        "name": "Discount",
+        "decision_table": {
+          "hit_policy": "priority",
+          "inputs": [
+            {
+              "name": "tier",
+              "type": "string"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "discount",
+              "type": "string",
+              "allowed_values": [
+                "high",
+                "medium",
+                "none"
+              ]
+            }
+          ],
+          "rules": [
+            {
+              "input_entries": [
+                "-"
+              ],
+              "output_entries": [
+                "none"
+              ],
+              "priority": 1
+            },
+            {
+              "input_entries": [
+                "\"gold\""
+              ],
+              "output_entries": [
+                "high"
+              ],
+              "priority": 3
+            },
+            {
+              "input_entries": [
+                "\"silver\""
+              ],
+              "output_entries": [
+                "medium"
+              ],
+              "priority": 2
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

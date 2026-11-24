@@ -1,0 +1,41 @@
+{
+  "id": "round-trip-envelope-and-empty-lists",
+  "level": "interchange",
+  "spec": "27.7",
+  "kind": "round_trip",
+  "description": "An envelope-form document, with empty lists and no roles, comes back the same.",
+  "workflow": {
+    "workflow": {
+      "id": "1830f518-de20-5437-ba6b-03201c881988",
+      "name": "Plain",
+      "version": "1.0.0",
+      "activities": [
+        {
+          "id": "b7bcc886-1802-52ca-9d9d-ab49f78c7c76",
+          "name": "A",
+          "role_id": "f550617f-4f9a-5008-a47b-27973dd8ffbc",
+          "actor_type": "human"
+        },
+        {
+          "id": "6058dd08-9957-58bd-91af-04909cd10b93",
+          "name": "B",
+          "role_id": "f550617f-4f9a-5008-a47b-27973dd8ffbc",
+          "actor_type": "ai_agent"
+        }
+      ],
+      "edges": [
+        {
+          "id": "c1a3fb62-48b1-5dd9-bd68-9808a5bb83d8",
+          "source_id": "b7bcc886-1802-52ca-9d9d-ab49f78c7c76",
+          "target_id": "6058dd08-9957-58bd-91af-04909cd10b93"
+        }
+      ],
+      "events": [],
+      "decision_nodes": []
+    },
+    "acme:note": "kept"
+  },
+  "expect": {
+    "round_trip": true
+  }
+}

@@ -1,0 +1,111 @@
+{
+  "id": "bpmn-events-send-and-receive-tasks",
+  "level": "interchange",
+  "spec": "27.5",
+  "kind": "import_bpmn",
+  "description": "Send and receive tasks are message events that publish and wait; a timer on a receive task is the wait's timeout; signal and message throw events publish; a message end event publishes; an error end event is an AWA error event.",
+  "bpmn": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<bpmn:definitions xmlns:bpmn=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:awa=\"https://awa.io/schema/interchange/1.1\" id=\"Definitions_events\" targetNamespace=\"https://example.com/bpmn\">\n<bpmn:message id=\"Msg_q\" name=\"quote.sent\"/>\n<bpmn:message id=\"Msg_a\" name=\"quote.answered\"/>\n<bpmn:message id=\"Msg_done\" name=\"quote.done\"/>\n<bpmn:signal id=\"Sig\" name=\"quote.closed\"/>\n<bpmn:error id=\"Err_1\" name=\"Quote expired\" errorCode=\"QUOTE_EXPIRED\"/>\n<bpmn:process id=\"P\" name=\"Quote\">\n<bpmn:startEvent id=\"S\"/>\n<bpmn:sendTask id=\"T_send\" name=\"Send quote\" messageRef=\"Msg_q\"/>\n<bpmn:receiveTask id=\"R\" name=\"Wait for answer\" messageRef=\"Msg_a\"/>\n<bpmn:boundaryEvent id=\"B\" attachedToRef=\"R\"><bpmn:timerEventDefinition id=\"TED_b\"><bpmn:timeDuration xsi:type=\"bpmn:tFormalExpression\">P3D</bpmn:timeDuration></bpmn:timerEventDefinition></bpmn:boundaryEvent>\n<bpmn:intermediateThrowEvent id=\"Th\" name=\"Close quote\"><bpmn:signalEventDefinition id=\"SED_1\" signalRef=\"Sig\"/></bpmn:intermediateThrowEvent>\n<bpmn:intermediateCatchEvent id=\"W\" name=\"Cool-off\"><bpmn:timerEventDefinition id=\"TED_w\"><bpmn:timeDuration xsi:type=\"bpmn:tFormalExpression\">PT1H</bpmn:timeDuration></bpmn:timerEventDefinition></bpmn:intermediateCatchEvent>\n<bpmn:endEvent id=\"E\" name=\"Done\"><bpmn:messageEventDefinition id=\"MED_e\" messageRef=\"Msg_done\"/></bpmn:endEvent>\n<bpmn:endEvent id=\"Err\" name=\"Expired\"><bpmn:errorEventDefinition id=\"EED_1\" errorRef=\"Err_1\"/></bpmn:endEvent>\n<bpmn:sequenceFlow id=\"F1\" sourceRef=\"S\" targetRef=\"T_send\"/>\n<bpmn:sequenceFlow id=\"F2\" sourceRef=\"T_send\" targetRef=\"R\"/>\n<bpmn:sequenceFlow id=\"F3\" sourceRef=\"R\" targetRef=\"Th\"/>\n<bpmn:sequenceFlow id=\"F4\" sourceRef=\"Th\" targetRef=\"W\"/>\n<bpmn:sequenceFlow id=\"F5\" sourceRef=\"W\" targetRef=\"E\"/>\n<bpmn:sequenceFlow id=\"F_b\" sourceRef=\"B\" targetRef=\"Err\"/>\n</bpmn:process>\n</bpmn:definitions>\n",
+  "expect": {
+    "documents": [
+      {
+        "id": "c02962a4-b8fe-5e31-ace5-0524f38ca6ce",
+        "name": "Quote",
+        "version": "1.0.0",
+        "awa_version": "1.1",
+        "activities": [],
+        "edges": [
+          {
+            "id": "66efbd2b-6811-5a9f-868a-2352a5807020",
+            "source_id": "7da420a7-f4d2-5029-ba8b-80fa59c59fcf",
+            "target_id": "36c0132a-6c5a-58cc-9e93-665d0c2d15e9"
+          },
+          {
+            "id": "e33005b8-6138-5346-b4fb-59dd8a919657",
+            "source_id": "36c0132a-6c5a-58cc-9e93-665d0c2d15e9",
+            "target_id": "e1a14251-c67f-576a-a79d-989f7ccc3880"
+          },
+          {
+            "id": "df4342c4-ce20-5dbe-89a4-eb40296c9bd9",
+            "source_id": "e1a14251-c67f-576a-a79d-989f7ccc3880",
+            "target_id": "25b44f61-40be-5a46-91ba-7c82a1c233d4"
+          },
+          {
+            "id": "625875a6-4ff9-5b61-8bea-3ab35c8406e5",
+            "source_id": "25b44f61-40be-5a46-91ba-7c82a1c233d4",
+            "target_id": "3878c8ac-292c-59a6-a4f2-4c7a10988a6a"
+          },
+          {
+            "id": "4193af5e-9d38-5a96-a797-53780bd672fd",
+            "source_id": "3878c8ac-292c-59a6-a4f2-4c7a10988a6a",
+            "target_id": "2fadadcb-3878-5ead-870e-959984e047ff"
+          },
+          {
+            "id": "b4776b93-f983-596d-a48f-b306515b8366",
+            "source_id": "e1a14251-c67f-576a-a79d-989f7ccc3880",
+            "target_id": "0d40f0e3-9552-5d4f-bf78-8389a0eaefcb"
+          }
+        ],
+        "events": [
+          {
+            "id": "7da420a7-f4d2-5029-ba8b-80fa59c59fcf",
+            "name": "S",
+            "event_type": "start"
+          },
+          {
+            "id": "36c0132a-6c5a-58cc-9e93-665d0c2d15e9",
+            "name": "Send quote",
+            "event_type": "message",
+            "event_definition": {
+              "name": "quote.sent",
+              "mode": "publish"
+            }
+          },
+          {
+            "id": "e1a14251-c67f-576a-a79d-989f7ccc3880",
+            "name": "Wait for answer",
+            "event_type": "message",
+            "event_definition": {
+              "name": "quote.answered",
+              "timeout": "P3D",
+              "timeout_edge_id": "b4776b93-f983-596d-a48f-b306515b8366"
+            }
+          },
+          {
+            "id": "25b44f61-40be-5a46-91ba-7c82a1c233d4",
+            "name": "Close quote",
+            "event_type": "signal",
+            "event_definition": {
+              "name": "quote.closed",
+              "mode": "publish"
+            }
+          },
+          {
+            "id": "3878c8ac-292c-59a6-a4f2-4c7a10988a6a",
+            "name": "Cool-off",
+            "event_type": "timer",
+            "event_definition": {
+              "duration": "PT1H"
+            }
+          },
+          {
+            "id": "2fadadcb-3878-5ead-870e-959984e047ff",
+            "name": "Done",
+            "event_type": "message",
+            "event_definition": {
+              "name": "quote.done",
+              "mode": "publish"
+            }
+          },
+          {
+            "id": "0d40f0e3-9552-5d4f-bf78-8389a0eaefcb",
+            "name": "Expired",
+            "event_type": "error",
+            "event_definition": {
+              "name": "QUOTE_EXPIRED"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

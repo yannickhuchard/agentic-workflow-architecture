@@ -1,0 +1,11 @@
+{
+  "id": "bpmn-refuses-awa-properties-not-json",
+  "level": "interchange",
+  "spec": "27.7",
+  "kind": "import_bpmn",
+  "description": "An importer refuses an awa: element whose content is not JSON.",
+  "bpmn": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<bpmn:definitions xmlns:bpmn=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:awa=\"https://awa.io/schema/interchange/1.1\" id=\"Definitions_refused\" targetNamespace=\"https://example.com/bpmn\">\n<bpmn:process id=\"P\" name=\"Refused\">\n<bpmn:startEvent id=\"S\"><bpmn:extensionElements><awa:properties>{not json</awa:properties></bpmn:extensionElements></bpmn:startEvent>\n</bpmn:process>\n</bpmn:definitions>\n",
+  "expect": {
+    "error_matches": "awa:properties.*not JSON"
+  }
+}

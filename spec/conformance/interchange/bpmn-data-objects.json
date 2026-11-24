@@ -1,0 +1,48 @@
+{
+  "id": "bpmn-data-objects",
+  "level": "interchange",
+  "spec": "27.3",
+  "kind": "import_bpmn",
+  "description": "Data inputs and outputs of a task, and data objects joined to it by data associations, are the activity's inputs and outputs.",
+  "bpmn": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<bpmn:definitions xmlns:bpmn=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:awa=\"https://awa.io/schema/interchange/1.1\" id=\"Definitions_data\" targetNamespace=\"https://example.com/bpmn\">\n<bpmn:process id=\"P\" name=\"Assessment\">\n<bpmn:dataObject id=\"DO_claim\"/>\n<bpmn:dataObjectReference id=\"DOR_claim\" name=\"Claim form\" dataObjectRef=\"DO_claim\"/>\n<bpmn:dataObject id=\"DO_report\"/>\n<bpmn:dataObjectReference id=\"DOR_report\" name=\"Report\" dataObjectRef=\"DO_report\"/>\n<bpmn:userTask id=\"T\" name=\"Assess\">\n<bpmn:ioSpecification id=\"IO\"><bpmn:dataInput id=\"DI_policy\" name=\"policy\"><bpmn:documentation>The policy in force</bpmn:documentation></bpmn:dataInput><bpmn:inputSet id=\"IS\"><bpmn:dataInputRefs>DI_policy</bpmn:dataInputRefs></bpmn:inputSet><bpmn:outputSet id=\"OS\"/></bpmn:ioSpecification>\n<bpmn:dataInputAssociation id=\"DIA\"><bpmn:sourceRef>DOR_claim</bpmn:sourceRef><bpmn:targetRef>DI_policy</bpmn:targetRef></bpmn:dataInputAssociation>\n<bpmn:dataOutputAssociation id=\"DOA\"><bpmn:targetRef>DOR_report</bpmn:targetRef></bpmn:dataOutputAssociation>\n</bpmn:userTask>\n</bpmn:process>\n</bpmn:definitions>\n",
+  "expect": {
+    "documents": [
+      {
+        "id": "57f0a2ed-79c6-5a2f-8a9a-339a19eafdf2",
+        "name": "Assessment",
+        "version": "1.0.0",
+        "awa_version": "1.1",
+        "roles": [
+          {
+            "id": "e17de2fc-5ae7-58fd-bfb0-01167acd7581",
+            "name": "Human",
+            "actor_type": "human"
+          }
+        ],
+        "activities": [
+          {
+            "id": "4852aba6-f7c7-5adf-9cbb-b0cebc847412",
+            "name": "Assess",
+            "role_id": "e17de2fc-5ae7-58fd-bfb0-01167acd7581",
+            "actor_type": "human",
+            "inputs": [
+              {
+                "name": "policy",
+                "description": "The policy in force"
+              },
+              {
+                "name": "Claim form"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "Report"
+              }
+            ]
+          }
+        ],
+        "edges": []
+      }
+    ]
+  }
+}

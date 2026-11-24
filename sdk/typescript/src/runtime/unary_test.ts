@@ -37,6 +37,9 @@ type Test =
     | { kind: 'text'; fn: 'contains' | 'starts' | 'ends' | 'matches'; value: string }
     | { kind: 'not'; tests: Test[] };
 
+/** One test of a parsed entry, as parse_unary_tests returns it */
+export type UnaryTest = Test;
+
 /** Split on commas that are outside quotes, brackets and parentheses */
 function split_top(text: string, entry: string): string[] {
     const parts: string[] = [];

@@ -11,6 +11,7 @@ import { replayCommand } from './commands/replay';
 import { journeyCommand } from './commands/journey';
 import { measuresCommand } from './commands/measures';
 import { validateCommand } from './commands/validate';
+import { importCommand, exportCommand } from './commands/interchange';
 
 import { version } from '../../package.json';
 
@@ -32,5 +33,7 @@ program.addCommand(knowledgeCommand);
 program.addCommand(replayCommand);
 program.addCommand(journeyCommand);
 program.addCommand(measuresCommand);
+program.addCommand(importCommand);
+program.addCommand(exportCommand);
 
 program.parse(process.argv);

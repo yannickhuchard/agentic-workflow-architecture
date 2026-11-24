@@ -1,0 +1,138 @@
+{
+  "id": "bpmn-tasks-lanes-and-roles",
+  "level": "interchange",
+  "spec": "27.3",
+  "kind": "import_bpmn",
+  "description": "Task types give actor types, awa:actorType marks an AI agent's task, lanes are roles, and activities outside every lane get a role per actor type. A diagram is ignored.",
+  "bpmn": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<bpmn:definitions xmlns:bpmn=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:awa=\"https://awa.io/schema/interchange/1.1\" id=\"Definitions_lanes\" targetNamespace=\"https://example.com/bpmn\">\n<bpmn:process id=\"Process_1\" name=\"Claim handling\" isExecutable=\"true\">\n<bpmn:documentation>Handles a claim.</bpmn:documentation>\n<bpmn:laneSet id=\"LaneSet_1\">\n<bpmn:lane id=\"Lane_clerk\" name=\"Clerk\"><bpmn:flowNodeRef>Task_review</bpmn:flowNodeRef><bpmn:flowNodeRef>Task_file</bpmn:flowNodeRef></bpmn:lane>\n<bpmn:lane id=\"Lane_assistant\" name=\"Assistant\" awa:actorType=\"ai_agent\"><bpmn:flowNodeRef>Task_summarise</bpmn:flowNodeRef></bpmn:lane>\n</bpmn:laneSet>\n<bpmn:startEvent id=\"Start\" name=\"Claim received\"/>\n<bpmn:serviceTask id=\"Task_summarise\" name=\"Summarise claim\" awa:actorType=\"ai_agent\"><bpmn:documentation>Write a short summary.</bpmn:documentation></bpmn:serviceTask>\n<bpmn:userTask id=\"Task_review\" name=\"Review claim\"/>\n<bpmn:manualTask id=\"Task_file\" name=\"File paper copy\"/>\n<bpmn:scriptTask id=\"Task_score\" name=\"Score claim\" scriptFormat=\"python\"><bpmn:script>score = 1</bpmn:script></bpmn:scriptTask>\n<bpmn:task id=\"Task_note\" name=\"Note outcome\"/>\n<bpmn:scriptTask id=\"Task_legacy\" name=\"Legacy step\" scriptFormat=\"groovy\"><bpmn:script>println 'x'</bpmn:script></bpmn:scriptTask>\n<bpmn:endEvent id=\"End\" name=\"Done\"/>\n<bpmn:sequenceFlow id=\"F1\" sourceRef=\"Start\" targetRef=\"Task_summarise\"/>\n<bpmn:sequenceFlow id=\"F2\" sourceRef=\"Task_summarise\" targetRef=\"Task_review\"/>\n<bpmn:sequenceFlow id=\"F3\" sourceRef=\"Task_review\" targetRef=\"Task_file\"/>\n<bpmn:sequenceFlow id=\"F4\" sourceRef=\"Task_file\" targetRef=\"Task_score\"/>\n<bpmn:sequenceFlow id=\"F5\" sourceRef=\"Task_score\" targetRef=\"Task_note\"/>\n<bpmn:sequenceFlow id=\"F6\" sourceRef=\"Task_note\" targetRef=\"Task_legacy\"/>\n<bpmn:sequenceFlow id=\"F7\" sourceRef=\"Task_legacy\" targetRef=\"End\"/>\n</bpmn:process>\n<bpmndi:BPMNDiagram id=\"Diagram_1\" xmlns:bpmndi=\"http://www.omg.org/spec/BPMN/20100524/DI\"><bpmndi:BPMNPlane id=\"Plane_1\" bpmnElement=\"Process_1\"/></bpmndi:BPMNDiagram>\n</bpmn:definitions>\n",
+  "expect": {
+    "documents": [
+      {
+        "id": "30ece1b1-173e-5586-a6a1-e708123ad407",
+        "name": "Claim handling",
+        "version": "1.0.0",
+        "awa_version": "1.1",
+        "description": "Handles a claim.",
+        "roles": [
+          {
+            "id": "b3bc7ec8-749a-504c-9ad8-488d20b20450",
+            "name": "Clerk",
+            "actor_type": "human"
+          },
+          {
+            "id": "bc9cf0f7-14fd-5cc7-aebe-83b1742afd61",
+            "name": "Assistant",
+            "actor_type": "ai_agent"
+          },
+          {
+            "id": "786d7965-bf4f-5b45-894f-10985a3eadcb",
+            "name": "Application",
+            "actor_type": "application"
+          },
+          {
+            "id": "8690f1b2-f72d-5b26-b973-86cf97c4274d",
+            "name": "Human",
+            "actor_type": "human"
+          }
+        ],
+        "activities": [
+          {
+            "id": "a4b63bb1-9466-51cb-afc0-f53d7e65e70c",
+            "name": "Summarise claim",
+            "role_id": "bc9cf0f7-14fd-5cc7-aebe-83b1742afd61",
+            "actor_type": "ai_agent",
+            "description": "Write a short summary."
+          },
+          {
+            "id": "35eddbbe-c97a-57d9-8ff9-2099775f5aba",
+            "name": "Review claim",
+            "role_id": "b3bc7ec8-749a-504c-9ad8-488d20b20450",
+            "actor_type": "human"
+          },
+          {
+            "id": "8ea8eb69-8999-52d5-9ac3-292aa06c9a98",
+            "name": "File paper copy",
+            "role_id": "b3bc7ec8-749a-504c-9ad8-488d20b20450",
+            "actor_type": "human"
+          },
+          {
+            "id": "76096144-22b3-56c6-ac9d-2c622249f3ed",
+            "name": "Score claim",
+            "role_id": "786d7965-bf4f-5b45-894f-10985a3eadcb",
+            "actor_type": "application",
+            "programs": [
+              {
+                "id": "6e57fb14-d2d5-566c-b20c-f37c6008cf4c",
+                "name": "Score claim",
+                "language": "python",
+                "code": "score = 1"
+              }
+            ]
+          },
+          {
+            "id": "a7a41527-9413-5401-b465-bf9c65330ed2",
+            "name": "Note outcome",
+            "role_id": "8690f1b2-f72d-5b26-b973-86cf97c4274d",
+            "actor_type": "human"
+          },
+          {
+            "id": "3b79d2c5-c7ce-5328-8213-ae6cd1f6dae8",
+            "name": "Legacy step",
+            "role_id": "786d7965-bf4f-5b45-894f-10985a3eadcb",
+            "actor_type": "application",
+            "procedure": "println 'x'"
+          }
+        ],
+        "edges": [
+          {
+            "id": "b6871f5e-1345-504d-822c-39ba3ac156db",
+            "source_id": "bf87f1ab-9b6c-558a-8793-50c0f82af4d7",
+            "target_id": "a4b63bb1-9466-51cb-afc0-f53d7e65e70c"
+          },
+          {
+            "id": "d29e6c17-3629-5236-9fdf-2d879ef537b6",
+            "source_id": "a4b63bb1-9466-51cb-afc0-f53d7e65e70c",
+            "target_id": "35eddbbe-c97a-57d9-8ff9-2099775f5aba"
+          },
+          {
+            "id": "afb7f723-b32b-5583-a431-f3525adba458",
+            "source_id": "35eddbbe-c97a-57d9-8ff9-2099775f5aba",
+            "target_id": "8ea8eb69-8999-52d5-9ac3-292aa06c9a98"
+          },
+          {
+            "id": "5366cce4-1f76-5780-9ebb-5f4eefdcd785",
+            "source_id": "8ea8eb69-8999-52d5-9ac3-292aa06c9a98",
+            "target_id": "76096144-22b3-56c6-ac9d-2c622249f3ed"
+          },
+          {
+            "id": "7f3357d6-8cc3-5c7d-9505-1b87f275c495",
+            "source_id": "76096144-22b3-56c6-ac9d-2c622249f3ed",
+            "target_id": "a7a41527-9413-5401-b465-bf9c65330ed2"
+          },
+          {
+            "id": "64aa61fb-216e-5769-b467-938ada5e0afa",
+            "source_id": "a7a41527-9413-5401-b465-bf9c65330ed2",
+            "target_id": "3b79d2c5-c7ce-5328-8213-ae6cd1f6dae8"
+          },
+          {
+            "id": "1a8a2983-f082-5d31-84b2-7ab9c2276334",
+            "source_id": "3b79d2c5-c7ce-5328-8213-ae6cd1f6dae8",
+            "target_id": "4256ea18-1c99-5ff2-aeab-6916cbdb68c8"
+          }
+        ],
+        "events": [
+          {
+            "id": "bf87f1ab-9b6c-558a-8793-50c0f82af4d7",
+            "name": "Claim received",
+            "event_type": "start"
+          },
+          {
+            "id": "4256ea18-1c99-5ff2-aeab-6916cbdb68c8",
+            "name": "Done",
+            "event_type": "end"
+          }
+        ]
+      }
+    ]
+  }
+}

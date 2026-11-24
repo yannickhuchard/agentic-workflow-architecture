@@ -1,0 +1,164 @@
+{
+  "id": "bpmn-subprocess-and-call-activity",
+  "level": "interchange",
+  "spec": "27.3",
+  "kind": "import_bpmn",
+  "description": "An embedded subprocess and a call activity are expandable activities. The subprocess's content is a workflow of its own; the call activity names the process it calls. Processes come first, then subprocesses.",
+  "bpmn": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<bpmn:definitions xmlns:bpmn=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:awa=\"https://awa.io/schema/interchange/1.1\" id=\"Definitions_sub\" targetNamespace=\"https://example.com/bpmn\">\n<bpmn:process id=\"P_main\" name=\"Claim\">\n<bpmn:startEvent id=\"S\"/>\n<bpmn:subProcess id=\"SP\" name=\"Collect documents\">\n<bpmn:startEvent id=\"S2\"/>\n<bpmn:userTask id=\"T_upload\" name=\"Upload documents\"/>\n<bpmn:endEvent id=\"E2\"/>\n<bpmn:sequenceFlow id=\"G1\" sourceRef=\"S2\" targetRef=\"T_upload\"/>\n<bpmn:sequenceFlow id=\"G2\" sourceRef=\"T_upload\" targetRef=\"E2\"/>\n</bpmn:subProcess>\n<bpmn:callActivity id=\"CA\" name=\"Run checks\" calledElement=\"P_check\"/>\n<bpmn:endEvent id=\"E\"/>\n<bpmn:sequenceFlow id=\"F1\" sourceRef=\"S\" targetRef=\"SP\"/>\n<bpmn:sequenceFlow id=\"F2\" sourceRef=\"SP\" targetRef=\"CA\"/>\n<bpmn:sequenceFlow id=\"F3\" sourceRef=\"CA\" targetRef=\"E\"/>\n</bpmn:process>\n<bpmn:process id=\"P_check\" name=\"Checks\">\n<bpmn:startEvent id=\"S3\"/>\n<bpmn:serviceTask id=\"T_check\" name=\"Check\"/>\n<bpmn:endEvent id=\"E3\"/>\n<bpmn:sequenceFlow id=\"H1\" sourceRef=\"S3\" targetRef=\"T_check\"/>\n<bpmn:sequenceFlow id=\"H2\" sourceRef=\"T_check\" targetRef=\"E3\"/>\n</bpmn:process>\n</bpmn:definitions>\n",
+  "expect": {
+    "documents": [
+      {
+        "id": "4bc91400-2ce7-567e-a1b1-d163fb56cf46",
+        "name": "Claim",
+        "version": "1.0.0",
+        "awa_version": "1.1",
+        "roles": [
+          {
+            "id": "fec2d035-4843-57d5-bffc-4f2b8f5a670e",
+            "name": "Application",
+            "actor_type": "application"
+          }
+        ],
+        "activities": [
+          {
+            "id": "8e4a9a77-a04e-55ba-9915-dede1ee2a9ae",
+            "name": "Collect documents",
+            "role_id": "fec2d035-4843-57d5-bffc-4f2b8f5a670e",
+            "actor_type": "application",
+            "is_expandable": true,
+            "expansion_workflow_id": "85674de6-d0ab-59e2-aade-d8671b8a1b2a"
+          },
+          {
+            "id": "6a30e5bd-0aca-5b7e-8256-69d023a34433",
+            "name": "Run checks",
+            "role_id": "fec2d035-4843-57d5-bffc-4f2b8f5a670e",
+            "actor_type": "application",
+            "is_expandable": true,
+            "expansion_workflow_id": "9e876094-b592-50cb-b64d-f77e3e9d2a93"
+          }
+        ],
+        "edges": [
+          {
+            "id": "2e9f20e2-9a7c-5758-9421-a9ec312edbcb",
+            "source_id": "87bdc2c5-b916-5fc1-9ade-2c3cf72dc839",
+            "target_id": "8e4a9a77-a04e-55ba-9915-dede1ee2a9ae"
+          },
+          {
+            "id": "c56cdf55-a5ac-5da3-ade2-a35e231ac0a6",
+            "source_id": "8e4a9a77-a04e-55ba-9915-dede1ee2a9ae",
+            "target_id": "6a30e5bd-0aca-5b7e-8256-69d023a34433"
+          },
+          {
+            "id": "b21637b1-b003-5612-98a3-122968d65645",
+            "source_id": "6a30e5bd-0aca-5b7e-8256-69d023a34433",
+            "target_id": "e5617182-d389-5cac-b4ea-1af655ac2a6a"
+          }
+        ],
+        "events": [
+          {
+            "id": "87bdc2c5-b916-5fc1-9ade-2c3cf72dc839",
+            "name": "S",
+            "event_type": "start"
+          },
+          {
+            "id": "e5617182-d389-5cac-b4ea-1af655ac2a6a",
+            "name": "E",
+            "event_type": "end"
+          }
+        ]
+      },
+      {
+        "id": "9e876094-b592-50cb-b64d-f77e3e9d2a93",
+        "name": "Checks",
+        "version": "1.0.0",
+        "awa_version": "1.1",
+        "roles": [
+          {
+            "id": "f72ab55f-dac9-5af1-8006-a894b77c497a",
+            "name": "Application",
+            "actor_type": "application"
+          }
+        ],
+        "activities": [
+          {
+            "id": "ddcf727d-bca5-52d8-8a4a-c5851fa51996",
+            "name": "Check",
+            "role_id": "f72ab55f-dac9-5af1-8006-a894b77c497a",
+            "actor_type": "application"
+          }
+        ],
+        "edges": [
+          {
+            "id": "d9c601a6-9023-56e4-8be2-7157c18ce861",
+            "source_id": "dc9f3396-d95b-56a6-9814-c9f3e97e29ae",
+            "target_id": "ddcf727d-bca5-52d8-8a4a-c5851fa51996"
+          },
+          {
+            "id": "1df7d044-d918-55dc-8bff-70f7160075d6",
+            "source_id": "ddcf727d-bca5-52d8-8a4a-c5851fa51996",
+            "target_id": "81b1007b-3826-5f73-9f56-3fcc405cf5d0"
+          }
+        ],
+        "events": [
+          {
+            "id": "dc9f3396-d95b-56a6-9814-c9f3e97e29ae",
+            "name": "S3",
+            "event_type": "start"
+          },
+          {
+            "id": "81b1007b-3826-5f73-9f56-3fcc405cf5d0",
+            "name": "E3",
+            "event_type": "end"
+          }
+        ]
+      },
+      {
+        "id": "85674de6-d0ab-59e2-aade-d8671b8a1b2a",
+        "name": "Collect documents",
+        "version": "1.0.0",
+        "awa_version": "1.1",
+        "parent_workflow_id": "4bc91400-2ce7-567e-a1b1-d163fb56cf46",
+        "expansion_activity_id": "8e4a9a77-a04e-55ba-9915-dede1ee2a9ae",
+        "roles": [
+          {
+            "id": "9cdcf04d-edd0-5a00-b87a-a71717559918",
+            "name": "Human",
+            "actor_type": "human"
+          }
+        ],
+        "activities": [
+          {
+            "id": "6543bebf-4ee0-5575-888c-651f6359fbc6",
+            "name": "Upload documents",
+            "role_id": "9cdcf04d-edd0-5a00-b87a-a71717559918",
+            "actor_type": "human"
+          }
+        ],
+        "edges": [
+          {
+            "id": "22285c55-8aba-5370-a2c0-a248f3f195af",
+            "source_id": "e293e173-92c3-57b9-ad36-9bf92b6b89d6",
+            "target_id": "6543bebf-4ee0-5575-888c-651f6359fbc6"
+          },
+          {
+            "id": "a0cd9553-1aa4-5387-aadc-b4912629fa24",
+            "source_id": "6543bebf-4ee0-5575-888c-651f6359fbc6",
+            "target_id": "4aaa3eb3-459b-5303-95ba-efc5f3689578"
+          }
+        ],
+        "events": [
+          {
+            "id": "e293e173-92c3-57b9-ad36-9bf92b6b89d6",
+            "name": "S2",
+            "event_type": "start"
+          },
+          {
+            "id": "4aaa3eb3-459b-5303-95ba-efc5f3689578",
+            "name": "E2",
+            "event_type": "end"
+          }
+        ]
+      }
+    ]
+  }
+}
