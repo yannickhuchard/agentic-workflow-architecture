@@ -47,6 +47,7 @@
                 "run.cancelled",
                 "run.waiting",
                 "run.resumed",
+                "run.migrated",
                 "token.created",
                 "token.moved",
                 "token.completed",

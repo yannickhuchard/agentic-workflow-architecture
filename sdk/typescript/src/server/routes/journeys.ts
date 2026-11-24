@@ -5,6 +5,7 @@ import { BusinessEvent, business_event } from '../../runtime/business_event';
 import { AwaRuntime, add_definition, is_journey_document, open_runtime_directory } from '../../runtime/runtime';
 import { RUNTIME_STORE_VARIABLE, open_runtime_store } from '../../runtime/postgres_store';
 import { JourneyDefinitionSchema } from '../../runtime/journey';
+import { MigrationPlan } from '../../runtime/migration';
 import { parse_document } from '../../validator';
 import { compute_measures, measures_to_openmetrics, MEASURES } from '../../runtime/kpi';
 import { gauges_to_otlp_json, measures_to_gauges } from '../../runtime/telemetry';
@@ -90,6 +91,34 @@ journeyRouter.post('/runs/:run_id/tokens/:token_id/resume', async (req, res) => 
     try {
         const resumed = await (await host()).resume(req.params.run_id, req.params.token_id, req.body || {});
         res.status(resumed ? 200 : 404).json({ resumed });
+    } catch (error) { res.status(500).json(problem(error)); }
+});
+
+// Changing a workflow while runs are in flight (specification section 25)
+// The registered versions of a workflow, oldest first, with the live runs on each
+journeyRouter.get('/workflows/:workflow_id/versions', async (req, res) => {
+    const h = await reading();
+    const versions = h.workflow_versions(req.params.workflow_id);
+    if (!versions.length) return res.status(404).json({ error: `Workflow ${req.params.workflow_id} is not registered` });
+    const live = h.list_runs().filter(e => e.getWorkflow().id === req.params.workflow_id && !['completed', 'failed', 'cancelled'].includes(e.getStatus()));
+    res.json({ workflow_id: req.params.workflow_id, newest: versions[versions.length - 1], versions: versions.map(version => ({ version, live_runs: live.filter(e => e.getWorkflow().version === version).map(e => e.getRunId()) })) });
+});
+
+// How each position of the versions with live runs fares under a move, and which runs can move: { workflow_id, from_version?, to_version?, plan? }
+journeyRouter.post('/migrations/check', async (req, res) => {
+    try {
+        const { workflow_id, from_version, to_version, plan } = (req.body || {}) as { workflow_id?: string; from_version?: string; to_version?: string; plan?: MigrationPlan };
+        if (!workflow_id) return res.status(400).json({ error: 'workflow_id is required' });
+        res.json(await (await host()).check_migration(workflow_id, { from_version, to_version, plan }));
+    } catch (error) { res.status(400).json(problem(error)); }
+});
+
+// Move a run at rest to another version: the body is the plan, and ?dry_run=true says what would happen without doing it
+journeyRouter.post('/runs/:run_id/migrate', async (req, res) => {
+    try {
+        const result = await (await host()).migrate(req.params.run_id, (req.body || {}) as MigrationPlan, { dry_run: req.query.dry_run === 'true' || req.query.dry_run === '1' });
+        const status = result.refusals.some(r => r.code === 'not_found') ? 404 : result.refusals.length ? 409 : 200;
+        res.status(status).json(result);
     } catch (error) { res.status(500).json(problem(error)); }
 });
 

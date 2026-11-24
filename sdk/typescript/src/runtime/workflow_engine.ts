@@ -597,6 +597,14 @@ export class WorkflowEngine {
         };
     }
 
+    /**
+     * Record that the run was moved to this version of its workflow (spec 25.3). `build` is given
+     * the run's payload mode (9.4), to apply to the data values the event carries.
+     */
+    public recordMigrated(build: (payload: (value: unknown) => unknown) => Record<string, unknown>): JournalEvent {
+        return this.record({ type: 'run.migrated', data: build(value => this.journal.payload(value)) });
+    }
+
     /** Wait until every journal event recorded so far has reached the journal store */
     public async flush(): Promise<void> {
         await this.journal.flush();

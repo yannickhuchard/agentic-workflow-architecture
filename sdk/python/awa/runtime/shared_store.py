@@ -253,8 +253,11 @@ class SharedOperation:
             self._view.instances[instance["id"]] = instance
             self._kept_instances[instance["id"]] = {"text": _text(instance), "events": len(instance["events"]), "version": kept["version"]}
         for kept in loaded["runs"]:
-            if kept["workflow_id"] not in self._view.workflows:
-                raise RuntimeError(f"Run {kept['run_id']} needs workflow {kept['workflow_id']}, "
+            version = (kept.get("state") or {}).get("workflow_version")
+            has = getattr(self._view, "has_workflow", None)
+            if not (has(kept["workflow_id"], version) if has else kept["workflow_id"] in self._view.workflows):
+                needed = f"workflow {kept['workflow_id']}" + (f" version {version}" if version else "")
+                raise RuntimeError(f"Run {kept['run_id']} needs {needed}, "
                                    "which is not registered on this host. Nothing was changed.")
             self._kept_runs[kept["run_id"]] = {"text": _run_text(kept["state"], kept["outbox"]), "version": kept["version"],
                                                "waits": [wait_key(w) for w in kept["waits"]]}
@@ -281,7 +284,8 @@ class SharedOperation:
                 subjects.append(subject_partition(key))
         self.hold(subjects)
         # No operation may keep a new wait this event could reach until this one has looked for the waits there are
-        self.unit.lock_waits(event_wait_keys(event, self._view.workflows.values()), "shared")
+        every = getattr(self._view, "all_workflows", None)
+        self.unit.lock_waits(event_wait_keys(event, every() if every else self._view.workflows.values()), "shared")
         # A run may start waiting in a partition not yet held while this one waited: ask again until nothing new appears.
         # Only runs whose correlation the event matches are held, so that events about different subjects do not wait for one another.
         while True:

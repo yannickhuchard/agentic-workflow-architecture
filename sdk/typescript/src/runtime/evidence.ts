@@ -214,9 +214,23 @@ export function compute_evidence(input: EvidenceInput, options: EvidenceOptions 
             { journey_id: i.journey_id, journey_instance_id: i.instance.id, subject_key: i.instance.subject_key, status: i.instance.status, started_at: i.instance.started_at, ended_at: i.instance.ended_at ?? null },
             cite(start, end)));
     }
+    // A run moved to another version of its workflow (spec 25.5): the migration is a statement of its own
+    const migrations = every.filter(x => x.e.type === 'run.migrated');
+    for (const { e } of migrations) {
+        const tokens = (Array.isArray(e.data?.tokens) ? e.data!.tokens : []) as { outcome?: string }[];
+        const facts = {
+            run_id: e.run_id, from_version: e.data?.from_version ?? null, to_version: e.data?.to_version ?? null,
+            tokens_kept: tokens.filter(t => t.outcome === 'kept').length, tokens_restarted: tokens.filter(t => t.outcome === 'restarted').length,
+            data_changes: Array.isArray(e.data?.data_changes) ? e.data!.data_changes.length : 0,
+        };
+        operation.push(statement('migration',
+            `Run ${short(e.run_id!)} was moved from version ${facts.from_version} to version ${facts.to_version} at ${e.time}: ${facts.tokens_kept} token(s) kept their wait, ${facts.tokens_restarted} started afresh, ${facts.data_changes} change(s) to data.`,
+            facts, cite(e)));
+    }
     const workflows_scope = uniq(runs.map(r => r.run.workflow_id)).map(id => {
         const mine = runs.filter(r => r.run.workflow_id === id);
-        return { workflow_id: id, name: mine[0].name, versions: uniq(mine.map(r => r.version).filter((v): v is string => !!v)).sort(), runs: mine.length };
+        const moved_to = migrations.filter(x => x.r.run.workflow_id === id).map(x => x.e.data?.to_version as string | undefined);
+        return { workflow_id: id, name: mine[0].name, versions: uniq([...mine.map(r => r.version), ...moved_to].filter((v): v is string => !!v)).sort(), runs: mine.length };
     });
     const count_status = (s: string) => runs.filter(r => status_of(r) === s).length;
 
@@ -414,7 +428,7 @@ export function compute_evidence(input: EvidenceInput, options: EvidenceOptions 
         notice: EVIDENCE_NOTICE,
         frameworks: EVIDENCE_FRAMEWORKS,
         parts: [
-            part('operation', { runs: runs.length, completed: count_status('completed'), failed: count_status('failed'), cancelled: count_status('cancelled'), in_progress: count_status('in_progress'), journeys: instances.length, workflows: workflows_scope }, operation),
+            part('operation', { runs: runs.length, completed: count_status('completed'), failed: count_status('failed'), cancelled: count_status('cancelled'), in_progress: count_status('in_progress'), journeys: instances.length, migrations: migrations.length, workflows: workflows_scope }, operation),
             part('models', { models: uniq([...models.values()].map(m => `${m.facts.provider ? `${m.facts.provider}:` : ''}${m.facts.model}`)).sort(), selections: selections.length, routes: model_statements.filter(s => s.kind === 'route').length, model_decisions: model_statements.filter(s => s.kind === 'model_decision').length }, model_statements),
             part('oversight', { human_decisions: oversight.filter(s => s.kind === 'human_decision').length, overrides, escalations: oversight.filter(s => s.kind === 'escalation').length, cancellations: oversight.filter(s => s.kind === 'cancellation').length }, oversight),
             part('outcomes', { contracts: contracts.length, contracts_passed: contracts.filter(x => x.e.data?.passed === true).length, verifications: verifications.length, verifications_passed: verifications.filter(x => x.e.data?.verdict === 'pass').length, activities: [...per_activity.values()] }, outcomes),

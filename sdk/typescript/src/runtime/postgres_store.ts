@@ -144,6 +144,17 @@ CREATE TABLE awa_runtime.journal_events (
 CREATE INDEX journal_events_type ON awa_runtime.journal_events (type);
 `,
     },
+    {
+        version: 2,
+        description: 'Every version of a workflow is kept, for the runs that started on it',
+        sql: `
+ALTER TABLE awa_runtime.definitions DROP CONSTRAINT definitions_pkey;
+UPDATE awa_runtime.definitions SET version = '' WHERE version IS NULL OR kind = 'journey';
+ALTER TABLE awa_runtime.definitions ALTER COLUMN version SET DEFAULT '';
+ALTER TABLE awa_runtime.definitions ALTER COLUMN version SET NOT NULL;
+ALTER TABLE awa_runtime.definitions ADD PRIMARY KEY (kind, id, version);
+`,
+    },
 ];
 
 /** The statements that come before any migration: the schema and the record of migrations */
@@ -440,12 +451,16 @@ export class PostgresRuntimeStore implements SharedRuntimeStore {
         read: (run_id: string, after_seq = 0) => read_journal(this.pool, run_id, after_seq),
     };
 
-    async required_definitions(): Promise<{ workflows: string[]; journeys: string[]; instances: number; runs: number }> {
+    async required_definitions(): Promise<{ workflows: string[]; journeys: string[]; instances: number; runs: number; workflow_versions: { id: string; version: string }[] }> {
         const workflows = await this.pool.query(`SELECT DISTINCT workflow_id FROM awa_runtime.runs WHERE status NOT IN ('completed', 'failed', 'cancelled') ORDER BY workflow_id`);
+        // Each version a run not yet settled is on (spec 25.1)
+        const versions = await this.pool.query(
+            `SELECT DISTINCT workflow_id, workflow_version FROM awa_runtime.runs WHERE status NOT IN ('completed', 'failed', 'cancelled') AND workflow_version IS NOT NULL ORDER BY workflow_id, workflow_version`);
         const journeys = await this.pool.query('SELECT DISTINCT journey_id FROM awa_runtime.journey_instances ORDER BY journey_id');
         const counts = await this.pool.query('SELECT (SELECT COUNT(*) FROM awa_runtime.journey_instances) AS instances, (SELECT COUNT(*) FROM awa_runtime.runs) AS runs');
         return {
             workflows: workflows.rows.map(r => String(r.workflow_id)), journeys: journeys.rows.map(r => String(r.journey_id)),
+            workflow_versions: versions.rows.map(r => ({ id: String(r.workflow_id), version: String(r.workflow_version) })),
             instances: Number(counts.rows[0].instances), runs: Number(counts.rows[0].runs),
         };
     }
@@ -460,10 +475,11 @@ export class PostgresRuntimeStore implements SharedRuntimeStore {
         const journey = is_journey_document(document);
         const parsed = journey ? JourneyDefinitionSchema.parse(document) : parse_document(document);
         const kind = journey ? 'journey' : 'workflow';
+        // Every version of a workflow is kept, for the runs that started on it; a journey is kept once (spec 25.1)
         await this.pool.query(
             `INSERT INTO awa_runtime.definitions (kind, id, name, version, document) VALUES ($1, $2, $3, $4, $5::jsonb)
-             ON CONFLICT (kind, id) DO UPDATE SET name = EXCLUDED.name, version = EXCLUDED.version, document = EXCLUDED.document`,
-            [kind, parsed.id, parsed.name, (parsed as { version?: string }).version ?? null, JSON.stringify(document)]);
+             ON CONFLICT (kind, id, version) DO UPDATE SET name = EXCLUDED.name, document = EXCLUDED.document`,
+            [kind, parsed.id, parsed.name, journey ? '' : (parsed as { version?: string }).version ?? '', JSON.stringify(document)]);
         return { kind, id: parsed.id, name: parsed.name };
     }
 

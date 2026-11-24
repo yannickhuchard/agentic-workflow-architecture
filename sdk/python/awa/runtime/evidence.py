@@ -270,10 +270,27 @@ def compute_evidence(record: Json, options: Json | None = None) -> Json:
             {"journey_id": i["journey_id"], "journey_instance_id": inst["id"], "subject_key": inst.get("subject_key"), "status": inst.get("status"),
              "started_at": inst.get("started_at"), "ended_at": inst.get("ended_at")},
             _cite(start, end)))
+    # A run moved to another version of its workflow (25.5): the migration is a statement of its own
+    migrations = [(e, r) for e, r in every if e["type"] == "run.migrated"]
+    for e, _ in migrations:
+        data = _d(e)
+        tokens = data.get("tokens") if isinstance(data.get("tokens"), list) else []
+        facts = {
+            "run_id": e["run_id"], "from_version": data.get("from_version"), "to_version": data.get("to_version"),
+            "tokens_kept": sum(1 for t in tokens if isinstance(t, dict) and t.get("outcome") == "kept"),
+            "tokens_restarted": sum(1 for t in tokens if isinstance(t, dict) and t.get("outcome") == "restarted"),
+            "data_changes": len(data["data_changes"]) if isinstance(data.get("data_changes"), list) else 0,
+        }
+        operation.append(_statement(
+            "migration", f"Run {_short(e['run_id'])} was moved from version {facts['from_version']} to version {facts['to_version']} at {e['time']}: "
+            f"{facts['tokens_kept']} token(s) kept their wait, {facts['tokens_restarted']} started afresh, {facts['data_changes']} change(s) to data.",
+            facts, _cite(e)))
     workflows_scope = []
     for wid in _uniq([r["run"].get("workflow_id") for r in runs]):
         mine = [r for r in runs if r["run"].get("workflow_id") == wid]
-        workflows_scope.append({"workflow_id": wid, "name": mine[0]["name"], "versions": sorted(_uniq([r["version"] for r in mine if r["version"]])), "runs": len(mine)})
+        moved_to = [_d(e).get("to_version") for e, r in migrations if r["run"].get("workflow_id") == wid]
+        versions = sorted(_uniq([v for v in [*(r["version"] for r in mine), *moved_to] if v]))
+        workflows_scope.append({"workflow_id": wid, "name": mine[0]["name"], "versions": versions, "runs": len(mine)})
 
     def count_status(s: str) -> int:
         return sum(1 for r in runs if status_of(r) == s)
@@ -541,7 +558,7 @@ def compute_evidence(record: Json, options: Json | None = None) -> Json:
         "frameworks": EVIDENCE_FRAMEWORKS,
         "parts": [
             part("operation", {"runs": len(runs), "completed": count_status("completed"), "failed": count_status("failed"), "cancelled": count_status("cancelled"),
-                               "in_progress": count_status("in_progress"), "journeys": len(instances), "workflows": workflows_scope}, operation),
+                               "in_progress": count_status("in_progress"), "journeys": len(instances), "migrations": len(migrations), "workflows": workflows_scope}, operation),
             part("models", {"models": sorted(_uniq([model_name(m["facts"]) for m in models.values()])), "selections": len(selections),
                             "routes": kinds(model_statements, "route"), "model_decisions": kinds(model_statements, "model_decision")}, model_statements),
             part("oversight", {"human_decisions": kinds(oversight, "human_decision"), "overrides": overrides, "escalations": kinds(oversight, "escalation"),

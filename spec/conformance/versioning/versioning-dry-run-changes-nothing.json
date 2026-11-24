@@ -1,0 +1,195 @@
+{
+  "id": "versioning-dry-run-changes-nothing",
+  "level": "versioning",
+  "spec": "25.3",
+  "description": "A dry run reports what a migration would do, token by token, and changes nothing: the run stays on its version, and its journal does not record it.",
+  "start": "2026-05-04T09:00:00Z",
+  "workflows": [
+    {
+      "id": "d0568d74-252c-566f-8115-971f6c88feea",
+      "name": "Claim",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "9e406c2e-51e8-53e7-b4dd-6a204112d0fb",
+          "name": "Register",
+          "role_id": "fff4741b-9b20-5c53-9b34-3c5e1b773477",
+          "actor_type": "application"
+        },
+        {
+          "id": "53c637f5-6ddb-56f5-860b-bc152cd8aaad",
+          "name": "Review",
+          "role_id": "fff4741b-9b20-5c53-9b34-3c5e1b773477",
+          "actor_type": "human"
+        },
+        {
+          "id": "a11b6a3e-67ff-5089-8cac-60498bd8644c",
+          "name": "Settle",
+          "role_id": "fff4741b-9b20-5c53-9b34-3c5e1b773477",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "733c3acd-cc80-5feb-92d7-50e2caa05692",
+          "source_id": "9e406c2e-51e8-53e7-b4dd-6a204112d0fb",
+          "target_id": "53c637f5-6ddb-56f5-860b-bc152cd8aaad"
+        },
+        {
+          "id": "443db069-b350-5cae-b9a4-c349896963e0",
+          "source_id": "53c637f5-6ddb-56f5-860b-bc152cd8aaad",
+          "target_id": "a11b6a3e-67ff-5089-8cac-60498bd8644c"
+        }
+      ]
+    },
+    {
+      "id": "d0568d74-252c-566f-8115-971f6c88feea",
+      "name": "Claim",
+      "version": "2.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "9e406c2e-51e8-53e7-b4dd-6a204112d0fb",
+          "name": "Register",
+          "role_id": "fff4741b-9b20-5c53-9b34-3c5e1b773477",
+          "actor_type": "application"
+        },
+        {
+          "id": "53c637f5-6ddb-56f5-860b-bc152cd8aaad",
+          "name": "Review",
+          "role_id": "fff4741b-9b20-5c53-9b34-3c5e1b773477",
+          "actor_type": "human"
+        },
+        {
+          "id": "a11b6a3e-67ff-5089-8cac-60498bd8644c",
+          "name": "Settle",
+          "role_id": "fff4741b-9b20-5c53-9b34-3c5e1b773477",
+          "actor_type": "application"
+        },
+        {
+          "id": "ba0a0122-10be-5736-9608-cdf44b8f6669",
+          "name": "Archive",
+          "role_id": "fff4741b-9b20-5c53-9b34-3c5e1b773477",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "733c3acd-cc80-5feb-92d7-50e2caa05692",
+          "source_id": "9e406c2e-51e8-53e7-b4dd-6a204112d0fb",
+          "target_id": "53c637f5-6ddb-56f5-860b-bc152cd8aaad"
+        },
+        {
+          "id": "443db069-b350-5cae-b9a4-c349896963e0",
+          "source_id": "53c637f5-6ddb-56f5-860b-bc152cd8aaad",
+          "target_id": "a11b6a3e-67ff-5089-8cac-60498bd8644c"
+        },
+        {
+          "id": "68bd2a56-3901-5760-87fd-1fedff88811f",
+          "source_id": "a11b6a3e-67ff-5089-8cac-60498bd8644c",
+          "target_id": "ba0a0122-10be-5736-9608-cdf44b8f6669"
+        }
+      ]
+    }
+  ],
+  "actors": {
+    "Register": {
+      "output": {
+        "claim_id": "CLM-1"
+      }
+    },
+    "Review": {
+      "waits": true
+    },
+    "Settle": {
+      "output": {
+        "paid": true
+      }
+    },
+    "Notify": {
+      "output": {
+        "notified": true
+      }
+    },
+    "Archive": {
+      "output": {
+        "archived": true
+      }
+    }
+  },
+  "steps": [
+    {
+      "register": "1.0.0"
+    },
+    {
+      "start": {},
+      "as": "r1"
+    },
+    {
+      "register": "2.0.0"
+    },
+    {
+      "migrate": {
+        "run": "r1",
+        "plan": {
+          "data": [
+            {
+              "set": "currency",
+              "value": "EUR"
+            }
+          ]
+        },
+        "dry_run": true
+      },
+      "expect": {
+        "applied": false,
+        "dry_run": true,
+        "refusals": [],
+        "status": "waiting_human",
+        "run_version": "1.0.0",
+        "tokens": [
+          {
+            "from": "Review",
+            "to": "Review",
+            "wait": "human",
+            "outcome": "kept"
+          }
+        ],
+        "data_changes": [
+          {
+            "path": "currency",
+            "change": "set",
+            "value": "EUR"
+          }
+        ]
+      }
+    },
+    {
+      "complete": {
+        "run": "r1",
+        "node": "Review",
+        "output": {}
+      }
+    }
+  ],
+  "expect": {
+    "visited": [
+      "Register",
+      "Review",
+      "Settle"
+    ],
+    "runs": {
+      "r1": {
+        "status": "completed",
+        "version": "1.0.0",
+        "data_absent": [
+          "currency"
+        ],
+        "journal_excludes": [
+          "run.migrated"
+        ]
+      }
+    }
+  }
+}

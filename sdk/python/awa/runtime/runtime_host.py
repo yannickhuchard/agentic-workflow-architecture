@@ -31,6 +31,7 @@ from awa.runtime.journey import (
     record_touchpoint, time_text, touchpoints_for, validate_journey,
 )
 from awa.runtime.shared_store import SharedJournal, SharedOperation, StoredRun
+from awa.runtime.migration import compare_versions, plan_migration, semver_key
 from awa.runtime.token import TokenStatus
 from awa.runtime.workflow_engine import EngineStatus, WorkflowEngine
 from awa.runtime.shadow import ShadowRunner
@@ -139,11 +140,12 @@ class AwaRuntime:
               {"endpoint", "headers", "protocol", "payloads"}
       shared: a store that several hosts use at once (29), instead of `store`. Each operation then works on
               what it holds of the store, and keeps it there.
+      pinned_versions: workflow id -> the version new runs of it start on, instead of the newest registered (25.1)
     """
 
     def __init__(self, engine: dict[str, Any] | None = None, now: Callable[[], float] | None = None,
                  store: RuntimeStore | None = None, shadow: dict[str, Any] | None = None,
-                 telemetry: Any = None, shared: Any = None) -> None:
+                 telemetry: Any = None, shared: Any = None, pinned_versions: dict[str, str] | None = None) -> None:
         self._engine_defaults = dict(engine or {})
         # Where the spans of journeys and of their runs go (specification 26); runs take it unless engine says otherwise
         resolved = resolve_telemetry(telemetry)
@@ -152,7 +154,12 @@ class AwaRuntime:
             self._engine_defaults["telemetry"] = {"exporter": resolved[0], "payloads": resolved[1]}
         self._clock = now
         self._store = store
+        # workflow id -> its newest registered version: what new runs start on (25.1)
         self._workflows: dict[str, Workflow] = {}
+        # workflow id -> version -> the workflow: every version registered, for the runs that started on it
+        self._versions: dict[str, dict[str, Workflow]] = {}
+        self._pinned_versions = dict(pinned_versions or {})
+        # "<id>@<version>" -> the document as registered
         self._workflow_documents: dict[str, dict[str, Any]] = {}
         self._journeys: dict[str, JourneyDefinition] = {}
         self._instances: dict[str, JourneyInstance] = {}
@@ -190,16 +197,46 @@ class AwaRuntime:
     # -- definitions --------------------------------------------------------
 
     def register_workflow(self, workflow: Workflow | dict[str, Any]) -> "AwaRuntime":
-        """Register a workflow, given as a model or as its document"""
+        """
+        Register a workflow, given as a model or as its document. Several versions of one workflow may
+        be registered: runs keep the version they started on, and new runs start on the newest (25.1).
+        """
         if isinstance(workflow, dict):
             document = workflow["workflow"] if "workflow" in workflow and "activities" not in workflow else workflow
             model = Workflow.model_validate(document)
-            self._workflow_documents[str(model.id)] = _jsonable(document)
+            self._workflow_documents[f"{model.id}@{model.version}"] = _jsonable(document)
             workflow = model
         else:
-            self._workflow_documents.pop(str(workflow.id), None)
-        self._workflows[str(workflow.id)] = workflow
+            self._workflow_documents.pop(f"{workflow.id}@{workflow.version}", None)
+        self._versions.setdefault(str(workflow.id), {})[workflow.version] = workflow
+        newest = self._workflows.get(str(workflow.id))
+        if newest is None or semver_key(workflow.version) >= semver_key(newest.version):
+            self._workflows[str(workflow.id)] = workflow
         return self
+
+    def workflow_versions(self, workflow_id: str) -> list[str]:
+        """The versions of a workflow registered on this host, oldest first"""
+        return sorted(self._versions.get(str(workflow_id), {}), key=semver_key)
+
+    def get_workflow(self, workflow_id: str, version: str | None = None) -> Workflow | None:
+        """A registered workflow: the version named, or the newest"""
+        if version:
+            return self._versions.get(str(workflow_id), {}).get(version)
+        return self._workflows.get(str(workflow_id))
+
+    def _workflow_of(self, workflow_id: str, version: str | None) -> Workflow | None:
+        """The version a run needs: the one it started on, or the newest for a state that does not say"""
+        return self.get_workflow(workflow_id, version)
+
+    def _starting_version(self, workflow_id: str, version: str | None = None) -> Workflow:
+        """The version new runs of a workflow start on: the newest registered, unless the host pins another (25.1)"""
+        wanted = version or self._pinned_versions.get(str(workflow_id))
+        workflow = self.get_workflow(str(workflow_id), wanted)
+        if workflow is None:
+            if wanted and str(workflow_id) in self._workflows:
+                raise KeyError(f"Workflow {workflow_id} has no registered version {wanted}")
+            raise KeyError(f"Workflow {workflow_id} is not registered")
+        return workflow
 
     def register_journey(self, definition: JourneyDefinition | dict[str, Any]) -> "AwaRuntime":
         """Register a journey. The workflows it names must be registered first."""
@@ -313,7 +350,12 @@ class AwaRuntime:
         # Everything is rebuilt aside first. A recovery that cannot complete raises here, before
         # anything is taken over or saved: the state on record stays exactly as it was.
         saved_runs = state.get("runs") or []
-        problems = [f"run {r['run_id']} needs workflow {r['workflow_id']}" for r in saved_runs if r["workflow_id"] not in self._workflows]
+        # Each run on the version it started on, or was moved to (25.1)
+        def needs(r: dict[str, Any]) -> str:
+            version = (r.get("state") or {}).get("workflow_version")
+            return f"run {r['run_id']} needs workflow {r['workflow_id']}" + (f" version {version}" if version else "")
+        problems = [needs(r) for r in saved_runs
+                    if self._workflow_of(r["workflow_id"], (r.get("state") or {}).get("workflow_version")) is None]
         problems += [f"journey instance {i['id']} needs journey {i['journey_id']}"
                      for i in state.get("instances") or [] if i["journey_id"] not in self._journeys]
         if problems:
@@ -321,7 +363,8 @@ class AwaRuntime:
         instances = {i["id"]: i for i in state.get("instances") or []}
         outbox = {run_id: list(events) for run_id, events in (state.get("outbox") or {}).items()}
         engines = [(saved, WorkflowEngine.restore(
-            self._workflows[saved["workflow_id"]], saved["state"], self._engine_options(saved["run_id"])))
+            self._workflow_of(saved["workflow_id"], saved["state"].get("workflow_version")), saved["state"],
+            self._engine_options(saved["run_id"])))
             for saved in saved_runs]
 
         def take_over() -> dict[str, Any]:
@@ -404,12 +447,13 @@ class AwaRuntime:
         engine.on_event(listener)
 
     def start(self, workflow_id: str, input: dict[str, Any] | None = None, *, instance: JourneyInstance | None = None,
-              caused_by_event: str | None = None) -> WorkflowEngine:
-        """Start a run. With a journey instance, the run belongs to that journey."""
+              caused_by_event: str | None = None, version: str | None = None) -> WorkflowEngine:
+        """
+        Start a run. With a journey instance, the run belongs to that journey. It starts on the newest
+        version of the workflow, or on `version`, or the one the host pins, and keeps it (25.1).
+        """
         def work() -> WorkflowEngine:
-            workflow = self._workflows.get(str(workflow_id))
-            if not workflow:
-                raise KeyError(f"Workflow {workflow_id} is not registered")
+            workflow = self._starting_version(str(workflow_id), version)
             run_id = str(uuid4())
             engine = WorkflowEngine(workflow, options=self._engine_options(run_id))
             self._runs[run_id] = engine
@@ -695,10 +739,107 @@ class AwaRuntime:
 
         return self._op(work)
 
+    # -- changing a workflow while runs are in flight (25) ----------------------
+
+    def migrate(self, run_id: str, plan: dict[str, Any] | None = None, *, dry_run: bool = False) -> dict[str, Any]:
+        """
+        Move a run at rest to another registered version of its workflow (25.3): the newest, or
+        `plan["to_version"]`. The plan is checked in full first; a refusal names its reasons and
+        changes nothing. With `dry_run`, says what would happen and changes nothing either.
+        """
+        plan = dict(plan or {})
+
+        def refused(code: str, message: str, **extra: Any) -> dict[str, Any]:
+            return {"run_id": run_id, "workflow_id": plan.get("workflow_id") or "", "from_version": "", "to_version": plan.get("to_version") or "",
+                    "applied": False, "dry_run": dry_run, "refusals": [{"code": code, "message": message}], "tokens": [],
+                    "data_changes": [], "completed_work": [], **extra}
+
+        def work() -> dict[str, Any]:
+            if self._operation is not None:
+                self._operation.hold_run(run_id)
+            engine = self._runs.get(run_id)
+            if engine is None:
+                return refused("not_found", f"There is no run {run_id} on this host.")
+            old = engine.workflow
+            new = self.get_workflow(str(old.id), plan.get("to_version"))
+            if new is None:
+                return refused("unknown_version", f"Workflow {old.id} has no registered version {plan.get('to_version')}.",
+                               workflow_id=str(old.id), from_version=old.version)
+            result = plan_migration(old, new, engine.snapshot(), plan, run_id)
+            state = result.pop("state", None)
+            result["dry_run"] = dry_run
+            if dry_run or result["refusals"] or state is None:
+                return result
+
+            # The run goes on as a run of the new version, its journal continuing with the migration itself
+            moved = WorkflowEngine.restore(new, state, self._engine_options(run_id), record_resumed=False)
+
+            def data(payload: Callable[[Any], Any]) -> dict[str, Any]:
+                return {
+                    "from_version": result["from_version"], "to_version": result["to_version"],
+                    "nodes": plan.get("nodes") or {}, "restart": plan.get("restart") or [],
+                    "tokens": [t for t in result["tokens"] if t["outcome"] != "unchanged"],
+                    "data_changes": [{"token_id": c["token_id"], "path": c["path"], "change": c["change"],
+                                      **({"value": payload(c["value"])} if "value" in c else {}),
+                                      **({"previous": payload(c["previous"])} if "previous" in c else {})} for c in result["data_changes"]],
+                    **({"completed_work": result["completed_work"]} if result["completed_work"] else {}),
+                }
+            moved.record_migrated(data)
+            self._runs[run_id] = moved
+            instance = self._instances.get(self._run_journey.get(run_id) or "")
+            if instance:
+                self._watch(moved, self._journeys[instance["journey_id"]], instance, run_id)
+            result["applied"] = True
+            # A token that gave up its wait starts afresh at once (25.3)
+            if any(t["outcome"] == "restarted" for t in result["tokens"]):
+                moved.run()
+            self._sync(moved)
+            result["status"] = moved.status.value
+            return result
+
+        return self._op(work)
+
+    def check_migration(self, workflow_id: str, *, from_version: str | None = None, to_version: str | None = None,
+                        plan: dict[str, Any] | None = None) -> dict[str, Any]:
+        """
+        For a workflow: how each position of each older version with live runs fares under a move to
+        `to_version` (the newest by default), and which of those runs the plan (the identity mapping
+        by default) could move (25.4). Changes nothing.
+        """
+        self.refresh()
+        wanted = to_version or (plan or {}).get("to_version")
+        new = self.get_workflow(str(workflow_id), wanted)
+        if new is None:
+            if str(workflow_id) in self._workflows:
+                raise KeyError(f"Workflow {workflow_id} has no registered version {wanted}")
+            raise KeyError(f"Workflow {workflow_id} is not registered")
+        plan = {**(plan or {}), "to_version": new.version}
+        live = [e for e in self._runs.values()
+                if str(e.workflow.id) == str(workflow_id) and e.workflow.version != new.version
+                and (not from_version or e.workflow.version == from_version) and e.status.value not in _SETTLED]
+        versions = sorted({e.workflow.version for e in live} | ({from_version} if from_version else set()), key=semver_key)
+        comparisons = []
+        for version in versions:
+            old = self.get_workflow(str(workflow_id), version)
+            if old is None:
+                raise KeyError(f"Workflow {workflow_id} has no registered version {version}")
+            comparisons.append(compare_versions(old, new, plan))
+        runs = []
+        for engine in live:
+            result = plan_migration(engine.workflow, new, engine.snapshot(), plan, engine.run_id)
+            instance_id = self._run_journey.get(engine.run_id)
+            runs.append({
+                "run_id": engine.run_id, "version": engine.workflow.version, "status": engine.status.value,
+                **({"journey_instance_id": instance_id} if instance_id else {}),
+                "migratable": not result["refusals"], "refusals": result["refusals"],
+                "tokens": [t for t in result["tokens"] if t["outcome"] != "unchanged" or t["wait"]],
+            })
+        return {"workflow_id": str(workflow_id), "to_version": new.version, "comparisons": comparisons, "runs": runs}
+
     # -- export ---------------------------------------------------------------
 
     def _workflow_json(self, workflow: Workflow) -> dict[str, Any]:
-        return self._workflow_documents.get(str(workflow.id)) or workflow.model_dump(mode="json", exclude_none=True)
+        return self._workflow_documents.get(f"{workflow.id}@{workflow.version}") or workflow.model_dump(mode="json", exclude_none=True)
 
     def export_journey(self, instance_id: str) -> dict[str, Any]:
         """Everything about one journey, for a view or an audit: its definition, its record, and the journal of each of its runs"""
@@ -786,7 +927,7 @@ class AwaRuntime:
     def _adopt(self, saved: StoredRun) -> WorkflowEngine:
         """A run taken up where another operation left it. Only one left in the middle of an activity is resumed (10.3)."""
         resumed = any(t.get("status") == "active" for t in saved["state"].get("tokens") or [])
-        engine = WorkflowEngine.restore(self._workflows[saved["workflow_id"]], saved["state"],
+        engine = WorkflowEngine.restore(self._workflow_of(saved["workflow_id"], saved["state"].get("workflow_version")), saved["state"],
                                         self._engine_options(saved["run_id"]), record_resumed=resumed)
         self._runs[saved["run_id"]] = engine
         self._run_order.append(saved["run_id"])
@@ -799,6 +940,9 @@ class AwaRuntime:
         """A host refuses to start on a store that keeps work it could not continue (19.10)"""
         needed = self._shared.required_definitions()
         missing = [f"workflow {w}" for w in needed["workflows"] if w not in self._workflows]
+        # Each version a run not yet settled is on (25.1)
+        missing += [f"workflow {w['id']} version {w['version']}" for w in needed.get("workflow_versions") or []
+                    if w["id"] in self._workflows and self._workflow_of(w["id"], w["version"]) is None]
         missing += [f"journey {j}" for j in needed["journeys"] if j not in self._journeys]
         if missing:
             raise RuntimeError(f"Cannot work on this store: what it keeps needs {', '.join(missing)}, "
@@ -823,7 +967,7 @@ class AwaRuntime:
             if self._clock:
                 options["now"] = self._clock
             for saved in kept["runs"]:
-                workflow = self._workflows.get(saved["workflow_id"])
+                workflow = self._workflow_of(saved["workflow_id"], (saved.get("state") or {}).get("workflow_version"))
                 if workflow is None:
                     continue
                 self._runs[saved["run_id"]] = WorkflowEngine.restore(workflow, saved["state"], options, record_resumed=False)
@@ -847,6 +991,14 @@ class _SharedView:
 
     def adopt(self, saved: StoredRun) -> WorkflowEngine:
         return self._host._adopt(saved)
+
+    def has_workflow(self, workflow_id: str, version: str | None = None) -> bool:
+        """Whether the host has registered this version of a workflow (the newest when none is named) (25.1)"""
+        return self._host._workflow_of(workflow_id, version) is not None
+
+    def all_workflows(self) -> list[Workflow]:
+        """Every version of every workflow registered: their waits may all be live"""
+        return [w for versions in self._host._versions.values() for w in versions.values()]
 
     def subject_of(self, definition: JourneyDefinition, event: BusinessEvent) -> str | None:
         data: dict[str, Any] = event["data"] if isinstance(event.get("data"), dict) else {}
@@ -876,9 +1028,23 @@ def add_definition(directory: str, document: dict[str, Any]) -> dict[str, str]:
     journey = is_journey_document(document)
     parsed: Any = parse_journey(document) if journey else _parse_workflow(document)
     kind = "journey" if journey else "workflow"
-    os.makedirs(os.path.join(directory, "definitions"), exist_ok=True)
-    with open(os.path.join(directory, "definitions", f"{kind}-{parsed.id}.json"), "w", encoding="utf-8") as handle:
+    definitions = os.path.join(directory, "definitions")
+    os.makedirs(definitions, exist_ok=True)
+    # Every version of a workflow is kept beside the others, for the runs that started on it (25.1)
+    name = f"journey-{parsed.id}.json" if journey else f"workflow-{parsed.id}@{parsed.version}.json"
+    with open(os.path.join(definitions, name), "w", encoding="utf-8") as handle:
         handle.write(json.dumps(document, indent=2) + "\n")
+    if not journey:
+        # A file of the same version under the name earlier versions of this SDK gave it is replaced
+        legacy = os.path.join(definitions, f"workflow-{parsed.id}.json")
+        try:
+            with open(legacy, encoding="utf-8") as handle:
+                before = json.load(handle)
+            inner = before["workflow"] if "workflow" in before and "activities" not in before else before
+            if inner.get("version") == parsed.version:
+                os.remove(legacy)
+        except (OSError, ValueError):
+            pass
     return {"kind": kind, "id": str(parsed.id), "name": parsed.name}
 
 

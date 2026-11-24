@@ -103,7 +103,7 @@ suite('PostgreSQL runtime store (spec 29)', () => {
         const { Client } = await import('pg');
         const client = new Client({ connectionString: url });
         await client.connect();
-        expect((await client.query('SELECT version FROM awa_runtime.migrations')).rows).toEqual([{ version: 1 }]);
+        expect((await client.query('SELECT version FROM awa_runtime.migrations ORDER BY version')).rows).toEqual(RUNTIME_STORE_MIGRATIONS.map(m => ({ version: m.version })));
         await client.query(`INSERT INTO awa_runtime.migrations (version, description, applied_by) VALUES (99, 'from the future', 'test')`);
         await client.end();
         await expect(PostgresRuntimeStore.open(url)).rejects.toThrow(/version 99, newer than this SDK knows/);

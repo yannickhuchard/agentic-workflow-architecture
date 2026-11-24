@@ -159,6 +159,17 @@ CREATE TABLE awa_runtime.journal_events (
 CREATE INDEX journal_events_type ON awa_runtime.journal_events (type);
 """,
     },
+    {
+        "version": 2,
+        "description": "Every version of a workflow is kept, for the runs that started on it",
+        "sql": """
+ALTER TABLE awa_runtime.definitions DROP CONSTRAINT definitions_pkey;
+UPDATE awa_runtime.definitions SET version = '' WHERE version IS NULL OR kind = 'journey';
+ALTER TABLE awa_runtime.definitions ALTER COLUMN version SET DEFAULT '';
+ALTER TABLE awa_runtime.definitions ALTER COLUMN version SET NOT NULL;
+ALTER TABLE awa_runtime.definitions ADD PRIMARY KEY (kind, id, version);
+""",
+    },
 ]
 
 # Errors after which an operation is begun again: it met another host's operation
@@ -476,23 +487,30 @@ class PostgresRuntimeStore:
         workflows = self._query("SELECT DISTINCT workflow_id FROM awa_runtime.runs WHERE status NOT IN ('completed', 'failed', 'cancelled') ORDER BY workflow_id")
         journeys = self._query("SELECT DISTINCT journey_id FROM awa_runtime.journey_instances ORDER BY journey_id")
         counts = self._query("SELECT (SELECT COUNT(*) FROM awa_runtime.journey_instances) AS instances, (SELECT COUNT(*) FROM awa_runtime.runs) AS runs")[0]
+        # Each version a run not yet settled is on (25.1)
+        versions = self._query("SELECT DISTINCT workflow_id, workflow_version FROM awa_runtime.runs WHERE status NOT IN ('completed', 'failed', 'cancelled') "
+                               "AND workflow_version IS NOT NULL ORDER BY workflow_id, workflow_version")
         return {"workflows": [r["workflow_id"] for r in workflows], "journeys": [r["journey_id"] for r in journeys],
-                "instances": int(counts["instances"]), "runs": int(counts["runs"])}
+                "instances": int(counts["instances"]), "runs": int(counts["runs"]),
+                "workflow_versions": [{"id": r["workflow_id"], "version": r["workflow_version"]} for r in versions]}
 
     def definitions(self) -> list[dict[str, Any]]:
         rows = self._query("SELECT document FROM awa_runtime.definitions ORDER BY CASE kind WHEN 'workflow' THEN 0 ELSE 1 END, added_at, id")
         return [r["document"] for r in rows]
 
     def add_definition(self, document: dict[str, Any]) -> dict[str, str]:
-        """Keep a workflow or journey document in the store, replacing one with the same id"""
+        """
+        Keep a workflow or journey document in the store, replacing a journey with the same id, or a
+        workflow with the same id and version. Every version of a workflow is kept (25.1).
+        """
         from awa.runtime.runtime_host import _parse_workflow, is_journey_document
         journey = is_journey_document(document)
         parsed: Any = parse_journey(document) if journey else _parse_workflow(document)
         kind = "journey" if journey else "workflow"
         self._query(
             "INSERT INTO awa_runtime.definitions (kind, id, name, version, document) VALUES (%s, %s, %s, %s, %s::jsonb) "
-            "ON CONFLICT (kind, id) DO UPDATE SET name = EXCLUDED.name, version = EXCLUDED.version, document = EXCLUDED.document",
-            (kind, str(parsed.id), parsed.name, getattr(parsed, "version", None), json.dumps(document, default=str)), fetch=False)
+            "ON CONFLICT (kind, id, version) DO UPDATE SET name = EXCLUDED.name, document = EXCLUDED.document",
+            (kind, str(parsed.id), parsed.name, "" if journey else parsed.version, json.dumps(document, default=str)), fetch=False)
         return {"kind": kind, "id": str(parsed.id), "name": parsed.name}
 
     def stats(self) -> dict[str, int]:

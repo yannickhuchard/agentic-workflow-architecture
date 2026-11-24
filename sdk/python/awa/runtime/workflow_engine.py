@@ -603,6 +603,13 @@ class WorkflowEngine:
             },
         })
 
+    def record_migrated(self, build: Callable[[Callable[[Any], Any]], dict[str, Any]]) -> JournalEvent:
+        """
+        Record that the run was moved to this version of its workflow (specification 25.3). `build` is
+        given the run's payload mode (9.4), to apply to the data values the event carries.
+        """
+        return self._record("run.migrated", build(self._journal.payload))
+
     def _save_checkpoint(self) -> None:
         store = self.options.get("checkpoint")
         if store is not None:

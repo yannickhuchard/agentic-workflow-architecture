@@ -403,6 +403,20 @@ export class RunTraceMapper {
                     this.open.push(this.start('decision', event, `decision ${event.node_name || event.node_id}`, 'internal', this.run.span.span_id));
                 }
                 return out;
+            case 'run.migrated': {
+                // A span event of the run (26.4). A wait the migration withdrew ends with it (spec 25.5)
+                this.span_event(event, data);
+                for (const moved of Array.isArray(data.tokens) ? data.tokens : []) {
+                    const token = record_of(moved);
+                    if (token.outcome !== 'restarted') continue;
+                    for (let i = this.open.length - 1; i >= 0; i--) {
+                        if (i >= this.open.length) continue;
+                        const span = this.open[i];
+                        if (span.token === token.token_id) this.finish_span(span, at, { code: 'unset' }, span.kind === 'wait' ? { 'awa.wait.outcome': 'withdrawn' } : {}, out);
+                    }
+                }
+                return out;
+            }
             case 'token.failed': case 'token.cancelled': {
                 this.span_event(event, data);
                 const error = error_of(data);

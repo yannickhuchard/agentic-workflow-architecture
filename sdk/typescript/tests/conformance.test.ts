@@ -32,13 +32,15 @@ import { postgres_unavailable, start_postgres, TestPostgres } from './postgres';
 import { import_bpmn, export_bpmn, import_dmn, export_serverless_workflow } from '../src/interchange';
 import { feel_unary_to_awa, awa_unary_to_feel, feel_condition_to_awa, awa_condition_to_feel } from '../src/interchange/expressions';
 import { json_equal } from '../src/interchange/common';
+import { WorkflowState } from '../src/runtime/persistence';
+import { plan_migration } from '../src/runtime/migration';
 
 const ROOT = path.resolve(__dirname, '../../..');
 const CONFORMANCE = path.join(ROOT, 'spec/conformance');
 const SCHEMAS = path.join(ROOT, 'spec/json-schema');
 
 /** Conformance levels this implementation claims. */
-const CLAIMED_LEVELS = new Set(['core', 'decision', 'verified', 'resilient', 'recorded', 'contract', 'flow', 'events', 'tools', 'model_decision', 'journeys', 'replay', 'routing', 'knowledge', 'measures', 'contexts', 'service_levels', 'telemetry', 'interchange', 'shared_store', 'evidence', 'evaluation', 'a2a']);
+const CLAIMED_LEVELS = new Set(['versioning', 'core', 'decision', 'verified', 'resilient', 'recorded', 'contract', 'flow', 'events', 'tools', 'model_decision', 'journeys', 'replay', 'routing', 'knowledge', 'measures', 'contexts', 'service_levels', 'telemetry', 'interchange', 'shared_store', 'evidence', 'evaluation', 'a2a']);
 
 const read = (file: string) => JSON.parse(fs.readFileSync(file, 'utf-8'));
 const list = (dir: string) => fs.readdirSync(dir).filter(f => f.endsWith('.json')).sort().map(f => path.join(dir, f));
@@ -61,6 +63,8 @@ type ActorScript = {
     contexts?: Record<string, unknown>;
     /** The actor's own account of how it worked, reported with its result */
     reasoning?: Record<string, unknown>;
+    /** A person who has not answered yet: the token waits for them (5.6) */
+    waits?: boolean;
 };
 
 class ConformanceActor implements Actor {
@@ -84,6 +88,7 @@ class ConformanceActor implements Actor {
         if (script.takes) this.spend(parse_iso_duration(script.takes));
         for (const call of script.calls || []) await context!.tools!.call(call.tool, call.arguments || {});
         if (script.error) throw Object.assign(new Error(script.error), script.code ? { code: script.code } : {});
+        if (script.waits) return { _requires_human_action: true, _human_task_id: `task:${activity.name}` };
         return { ...(script.output || {}), ...(script.reasoning ? { _reasoning: script.reasoning } : {}), ...(script.contexts ? { _context_writes: script.contexts } : {}) };
     }
 }
@@ -859,5 +864,156 @@ describe('Published examples run in simulation', () => {
             }
             expect(status).toBe('completed');
         }, 30000);
+    }
+});
+
+/**
+ * Changing a workflow while runs are in flight (section 25). A host plays the steps; a case that
+ * gives a run's `state` instead has its plan checked against that state, without a host.
+ */
+describe('Conformance: versioning', () => {
+    for (const file of list(path.join(CONFORMANCE, 'versioning'))) {
+        const c = read(file);
+        const run = CLAIMED_LEVELS.has(c.level) ? it : it.skip;
+        run(`[${c.level}] ${c.id}: ${c.description}`, async () => {
+            const versions = new Map<string, any>(c.workflows.map((w: any) => [w.version, parse_document(w)]));
+            const names = new Map<string, string>();
+            for (const w of versions.values()) for (const n of [...w.activities, ...w.events, ...w.decision_nodes]) names.set(n.id, n.name);
+            const token_view = (t: any) => ({ from: names.get(t.from_node_id), to: names.get(t.to_node_id), wait: t.wait, outcome: t.outcome });
+            const codes = (refusals: { code: string }[]) => refusals.map(r => r.code).sort();
+
+            if (c.state) {
+                // A run's state as recorded, in the form this implementation keeps it (10.3)
+                const from = versions.get(c.state.version), to = versions.get(c.migrate.plan.to_version);
+                const by_name = (name: string) => [...from.activities, ...from.events].find((n: any) => n.name === name).id;
+                const state: WorkflowState = {
+                    version: '1.0', workflow_id: from.id, workflow_name: from.name, workflow_version: from.version, engine_status: c.state.status, contexts: {}, checkpoint_at: c.start,
+                    tokens: c.state.tokens.map((t: any) => {
+                        const node = by_name(t.node);
+                        const waits = t.waits || {};
+                        const data = { ...t.data, ...(waits.kind === 'timer' ? { [`_timer_due:${node}`]: waits.due_at } : {}),
+                            ...(waits.kind === 'human' ? { _requires_human_action: true, _human_task_id: 'task' } : {}),
+                            ...(waits.kind === 'event' ? { _awaiting_event: { node_id: node, name: waits.name, correlation_key: waits.correlation_key, correlation_value: waits.correlation_value } } : {}) };
+                        return { id: t.id, activity_id: node, status: t.status, context_data: data, created_at: c.start, updated_at: c.start };
+                    }),
+                    metadata: { run_id: 'recorded-run' },
+                };
+                const result = plan_migration(from, to, state, c.migrate.plan);
+                expect(codes(result.refusals), JSON.stringify(result.refusals)).toEqual([...c.expect.refusals].sort());
+                if (c.expect.refused_tokens) expect(result.refusals.map(r => r.token_id)).toEqual(c.expect.refused_tokens);
+                if (c.expect.tokens) expect(result.tokens.filter(t => t.wait).map(token_view)).toEqual(c.expect.tokens);
+                for (const [token_id, due] of Object.entries(c.expect.timers || {})) {
+                    const token = result.state!.tokens.find(t => t.id === token_id)!;
+                    expect(token.context_data[`_timer_due:${token.activity_id}`]).toBe(due);
+                }
+                return;
+            }
+
+            let now = Date.parse(c.start);
+            const store = new InMemoryRuntimeStore(), journal = new InMemoryJournalStore();
+            const actor = new ConformanceActor(c.actors, ms => { now += ms; });
+            let registered: string[] = [];
+            const runs = new Map<string, string>();
+            const host = (with_versions: string[]) => {
+                const runtime = new AwaRuntime({
+                    now: () => now, store,
+                    engine: { actors: { application: actor, ai_agent: actor, human: actor, robot: actor }, journal, execution_logger: silent_logger, sleep: async () => { }, wait_for_human_tasks: true },
+                });
+                for (const version of with_versions) runtime.register_workflow(versions.get(version));
+                if (with_versions.length) for (const journey of c.journeys || []) runtime.register_journey(JourneyDefinitionSchema.parse(journey));
+                return runtime;
+            };
+            let runtime = host([]);
+            const engine_of = (name: string) => runtime.get_run(runs.get(name)!)!;
+            const check_run = (name: string, wanted: any) => {
+                if (!wanted) return;
+                const engine = engine_of(name);
+                if (wanted.version) expect(engine.getWorkflow().version, `version of ${name}`).toBe(wanted.version);
+                if (wanted.status) expect(engine.getStatus(), `status of ${name}`).toBe(wanted.status);
+            };
+
+            for (const step of c.steps) {
+                if (step.register) {
+                    runtime.register_workflow(versions.get(step.register));
+                    if (!registered.length) for (const journey of c.journeys || []) runtime.register_journey(JourneyDefinitionSchema.parse(journey));
+                    registered.push(step.register);
+                } else if (step.restart) {
+                    const with_versions = step.restart.versions || registered;
+                    const next = host(with_versions);
+                    if (step.expect?.refused) {
+                        await expect(next.recover(), 'a host without a version a run needs').rejects.toThrow(/not registered/);
+                        continue;
+                    }
+                    await next.recover();
+                    runtime = next;
+                    registered = [...with_versions];
+                } else if (step.advance) now += parse_iso_duration(step.advance);
+                else if (step.tick) await runtime.tick();
+                else if (step.publish) {
+                    const e = step.publish;
+                    const result = await runtime.publish({ specversion: '1.0', id: e.id || `evt-${Math.random()}`, source: '/conformance', type: e.type, data: e.data || {} });
+                    if (step.as) runs.set(step.as, result.started_runs[0]);
+                    check_run(step.as, step.expect);
+                } else if (step.start) {
+                    const engine = await runtime.start(versions.get(registered[0]).id, step.start.input || {}, undefined, { version: step.start.version });
+                    runs.set(step.as, engine.getRunId());
+                    check_run(step.as, step.expect);
+                } else if (step.complete) {
+                    const engine = engine_of(step.complete.run);
+                    const token = engine.getTokens().find(t => t.status === 'waiting' && names.get(t.activityId) === step.complete.node);
+                    expect(token, `a token of ${step.complete.run} waiting at ${step.complete.node}`).toBeDefined();
+                    expect(await runtime.resume(engine.getRunId(), token!.id, step.complete.output || {})).toBe(true);
+                } else if (step.migrate) {
+                    const result = await runtime.migrate(runs.get(step.migrate.run)!, step.migrate.plan, { dry_run: !!step.migrate.dry_run });
+                    const wanted = step.expect || {};
+                    expect(codes(result.refusals), JSON.stringify(result.refusals)).toEqual([...(wanted.refusals || [])].sort());
+                    for (const key of ['applied', 'dry_run', 'status'] as const) if (wanted[key] !== undefined) expect(result[key], key).toBe(wanted[key]);
+                    if (wanted.tokens) expect(result.tokens.filter(t => t.wait).map(token_view)).toEqual(wanted.tokens);
+                    if (wanted.data_changes) {
+                        expect(result.data_changes.length, JSON.stringify(result.data_changes)).toBe(wanted.data_changes.length);
+                        wanted.data_changes.forEach((change: any, i: number) => expect(is_subset(change, result.data_changes[i]), JSON.stringify(result.data_changes[i])).toBe(true));
+                    }
+                    const engine = engine_of(step.migrate.run);
+                    if (wanted.run_version) expect(engine.getWorkflow().version, 'the version the run is on').toBe(wanted.run_version);
+                    if (wanted.run_status) expect(engine.getStatus(), 'the status of the run').toBe(wanted.run_status);
+                } else if (step.check) {
+                    const report = await runtime.check_migration(versions.get(registered[0]).id, { to_version: step.check.to_version, from_version: step.check.from_version, plan: step.check.plan });
+                    const wanted = step.expect || {};
+                    const positions = report.comparisons.flatMap(r => r.positions);
+                    if (wanted.automatic !== undefined) expect(report.comparisons.every(r => r.automatic), 'automatic').toBe(wanted.automatic);
+                    if (wanted.positions) {
+                        expect(positions.length, JSON.stringify(positions)).toBe(wanted.positions.length);
+                        wanted.positions.forEach((p: any, i: number) => {
+                            const got = positions[i];
+                            expect({ node: got.node_name, wait: got.wait, class: got.class, ...(p.to ? { to: got.to_node_name } : {}), ...(p.outcome ? { outcome: got.outcome } : {}),
+                                ...(p.candidates ? { candidates: (got.candidates || []).map(n => n.node_name) } : {}) }).toEqual(p);
+                        });
+                    }
+                    for (const r of wanted.runs || []) {
+                        const got = report.runs.find(x => x.run_id === runs.get(r.run));
+                        expect(got, `run ${r.run} in the check`).toBeDefined();
+                        expect(got!.migratable, `${r.run} migratable`).toBe(r.migratable);
+                    }
+                }
+            }
+
+            if (c.expect.visited) expect(actor.visited).toEqual(c.expect.visited);
+            for (const [name, wanted] of Object.entries<any>(c.expect.runs || {})) {
+                check_run(name, wanted);
+                const engine = engine_of(name);
+                if (wanted.data) expect(engine.getTokens().some(t => is_subset(wanted.data, t.contextData)), JSON.stringify(engine.getTokens().map(t => t.contextData))).toBe(true);
+                for (const key of wanted.data_absent || []) expect(engine.getTokens().every(t => resolve_path(t.contextData, key) === undefined), `${key} absent`).toBe(true);
+                const events = await engine.getEvents();
+                events.forEach((event, i) => {
+                    expect(validate_event(event), JSON.stringify(validate_event.errors)).toBe(true);
+                    expect(event.seq).toBe(i + 1);
+                });
+                const types = events.map(e => e.type);
+                if (wanted.journal) expect(in_order(wanted.journal, types), `journal was: ${types.join(', ')}`).toEqual([]);
+                for (const type of wanted.journal_excludes || []) expect(types).not.toContain(type);
+                for (const [type, n] of Object.entries(wanted.journal_count || {})) expect(types.filter(t => t === type).length, `count of ${type}`).toBe(n);
+                for (const part of wanted.journal_contains || []) expect(events.some(e => is_subset(part, e)), `no event matches ${JSON.stringify(part)}`).toBe(true);
+            }
+        });
     }
 });

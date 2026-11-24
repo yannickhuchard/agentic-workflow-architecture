@@ -22,6 +22,7 @@ import { WorkflowEngine, WorkflowEngineOptions } from './workflow_engine';
 import { ShadowOptions, ShadowRunner } from './shadow';
 import { JourneyTelemetry, TelemetrySetting, resolve_telemetry } from './telemetry_export';
 import { HostView, SharedJournal, SharedOperation, SharedRuntimeStore, StoredRun } from './shared_store';
+import { MigrationPlan, MigrationRefusalCode, MigrationResult, VersionComparison, compare_semver, compare_versions, plan_migration } from './migration';
 import fs from 'fs/promises';
 import { rmSync } from 'fs';
 import path from 'path';
@@ -39,6 +40,16 @@ export interface RuntimeOptions {
     telemetry?: TelemetrySetting;
     /** A store that several hosts use at once (spec 29), instead of `store`. Each operation then works on what it holds of the store, and keeps it there. */
     shared?: SharedRuntimeStore;
+    /** Workflow id -> the version new runs of it start on, instead of the newest registered (spec 25.1) */
+    pinned_versions?: Record<string, string>;
+}
+
+/** Which runs of a workflow can be moved to a version, and how each position of each older version fares (spec 25.4) */
+export interface MigrationCheck {
+    workflow_id: string;
+    to_version: string;
+    comparisons: VersionComparison[];
+    runs: { run_id: string; version: string; status: string; journey_instance_id?: string; migratable: boolean; refusals: MigrationResult['refusals']; tokens: MigrationResult['tokens'] }[];
 }
 
 /** Everything a host must keep to carry on after a restart: journeys, runs, and which events it has already taken in */
@@ -107,7 +118,10 @@ export interface JourneyBundle {
 }
 
 export class AwaRuntime {
+    /** workflow id -> its newest registered version: what new runs start on (spec 25.1) */
     private workflows = new Map<string, Workflow>();
+    /** workflow id -> version -> the workflow: every version registered, for the runs that started on it */
+    private versions = new Map<string, Map<string, Workflow>>();
     private journeys = new Map<string, JourneyDefinition>();
     private instances = new Map<string, JourneyInstance>();
     private runs = new Map<string, WorkflowEngine>();
@@ -150,9 +164,39 @@ export class AwaRuntime {
         return new Date(this.now()).toISOString();
     }
 
+    /**
+     * Register a workflow. Several versions of one workflow may be registered: runs keep the
+     * version they started on, and new runs start on the newest (spec 25.1).
+     */
     register_workflow(workflow: Workflow): this {
-        this.workflows.set(workflow.id, workflow);
+        if (!this.versions.has(workflow.id)) this.versions.set(workflow.id, new Map());
+        this.versions.get(workflow.id)!.set(workflow.version, workflow);
+        const newest = this.workflows.get(workflow.id);
+        if (!newest || compare_semver(workflow.version, newest.version) >= 0) this.workflows.set(workflow.id, workflow);
         return this;
+    }
+
+    /** The versions of a workflow registered on this host, oldest first */
+    workflow_versions(workflow_id: string): string[] {
+        return [...(this.versions.get(workflow_id)?.keys() || [])].sort(compare_semver);
+    }
+
+    /** A registered workflow: the version named, or the newest */
+    get_workflow(workflow_id: string, version?: string): Workflow | undefined {
+        return version ? this.versions.get(workflow_id)?.get(version) : this.workflows.get(workflow_id);
+    }
+
+    /** The version a run needs: the one it started on, or the newest for a state that does not say */
+    private workflow_of(workflow_id: string, version?: string): Workflow | undefined {
+        return version ? this.versions.get(workflow_id)?.get(version) : this.workflows.get(workflow_id);
+    }
+
+    /** The version new runs of a workflow start on: the newest registered, unless the host pins another (spec 25.1) */
+    private starting_version(workflow_id: string, version?: string): Workflow {
+        const wanted = version ?? this.options.pinned_versions?.[workflow_id];
+        const workflow = this.get_workflow(workflow_id, wanted);
+        if (!workflow) throw new Error(wanted && this.workflows.has(workflow_id) ? `Workflow ${workflow_id} has no registered version ${wanted}` : `Workflow ${workflow_id} is not registered`);
+        return workflow;
     }
 
     register_journey(definition: JourneyDefinition): this {
@@ -231,12 +275,13 @@ export class AwaRuntime {
 
         // Everything is rebuilt aside first. A recovery that cannot complete throws here, before
         // anything is taken over or saved: the state on record stays exactly as it was (spec 19.10).
-        const missing = state.runs.filter(saved => !this.workflows.has(saved.workflow_id));
-        if (missing.length) throw new Error(`Cannot recover: ${missing.map(m => `run ${m.run_id} needs workflow ${m.workflow_id}`).join('; ')}, which is not registered. Nothing was changed.`);
+        // Each run on the version it started on, or was moved to (spec 25.1)
+        const missing = state.runs.filter(saved => !this.workflow_of(saved.workflow_id, saved.state.workflow_version));
+        if (missing.length) throw new Error(`Cannot recover: ${missing.map(m => `run ${m.run_id} needs workflow ${m.workflow_id}${m.state.workflow_version ? ` version ${m.state.workflow_version}` : ''}`).join('; ')}, which is not registered. Nothing was changed.`);
         const instances = new Map(state.instances.map(i => [i.id, i]));
         const engines: { saved: RuntimeState['runs'][number]; engine: WorkflowEngine }[] = [];
         for (const saved of state.runs) {
-            engines.push({ saved, engine: await WorkflowEngine.recover(this.workflows.get(saved.workflow_id)!, saved.state, this.engine_options(() => saved.run_id)) });
+            engines.push({ saved, engine: await WorkflowEngine.recover(this.workflow_of(saved.workflow_id, saved.state.workflow_version)!, saved.state, this.engine_options(() => saved.run_id)) });
         }
 
         return this.op(async () => {
@@ -289,10 +334,10 @@ export class AwaRuntime {
     }
 
     /** Start a run. With a journey instance, the run belongs to that journey. */
-    async start(workflow_id: UUID, input: Record<string, unknown> = {}, journey?: { instance: JourneyInstance; caused_by_event?: string }): Promise<WorkflowEngine> {
+    async start(workflow_id: UUID, input: Record<string, unknown> = {}, journey?: { instance: JourneyInstance; caused_by_event?: string }, options: { version?: string } = {}): Promise<WorkflowEngine> {
         return this.op(async () => {
-            const workflow = this.workflows.get(workflow_id);
-            if (!workflow) throw new Error(`Workflow ${workflow_id} is not registered`);
+            // The newest version, unless pinned: a run then keeps the version it started on (spec 25.1)
+            const workflow = this.starting_version(workflow_id, options.version);
             // The engine's options need its run id, which exists only once the engine does
             const made: { engine?: WorkflowEngine } = {};
             const engine = new WorkflowEngine(workflow, this.engine_options(() => made.engine!.getRunId()));
@@ -551,6 +596,85 @@ export class AwaRuntime {
         });
     }
 
+    /**
+     * Move a run at rest to another registered version of its workflow (spec 25.3): the newest,
+     * or `plan.to_version`. The plan is checked in full first; a refusal names its reasons and
+     * changes nothing. With `dry_run`, says what would happen and changes nothing either.
+     */
+    async migrate(run_id: string, plan: MigrationPlan = {}, options: { dry_run?: boolean } = {}): Promise<MigrationResult> {
+        const dry_run = !!options.dry_run;
+        const refused = (code: MigrationRefusalCode, message: string, extra: Partial<MigrationResult> = {}): MigrationResult => ({
+            run_id, workflow_id: plan.workflow_id ?? '', from_version: '', to_version: plan.to_version ?? '', applied: false, dry_run,
+            refusals: [{ code, message }], tokens: [], data_changes: [], completed_work: [], ...extra,
+        });
+        return this.op(async () => {
+            await this.operation?.hold_run(run_id);
+            const engine = this.runs.get(run_id);
+            if (!engine) return refused('not_found', `There is no run ${run_id} on this host.`);
+            const from = engine.getWorkflow();
+            const to = this.get_workflow(from.id, plan.to_version);
+            if (!to) return refused('unknown_version', `Workflow ${from.id} has no registered version ${plan.to_version}.`, { workflow_id: from.id, from_version: from.version });
+            await engine.flush();
+            const { state, ...result } = plan_migration(from, to, engine.snapshot(), plan, run_id);
+            result.dry_run = dry_run;
+            if (dry_run || result.refusals.length || !state) return result;
+
+            // The run goes on as a run of the new version, its journal continuing with the migration itself
+            const moved = WorkflowEngine.restore(to, state, this.engine_options(() => run_id), false);
+            moved.recordMigrated(payload => ({
+                from_version: result.from_version, to_version: result.to_version,
+                nodes: plan.nodes || {}, restart: plan.restart || [],
+                tokens: result.tokens.filter(t => t.outcome !== 'unchanged'),
+                data_changes: result.data_changes.map(c => ({
+                    token_id: c.token_id, path: c.path, change: c.change,
+                    ...(c.value !== undefined ? { value: payload(c.value) } : {}), ...(c.previous !== undefined ? { previous: payload(c.previous) } : {}),
+                })),
+                ...(result.completed_work.length ? { completed_work: result.completed_work } : {}),
+            }));
+            this.runs.set(run_id, moved);
+            const instance = this.instances.get(this.run_journey.get(run_id) || '');
+            if (instance) this.watch(moved, this.journeys.get(instance.journey_id)!, instance, run_id);
+            result.applied = true;
+            // A token that gave up its wait starts afresh at once (25.3)
+            if (result.tokens.some(t => t.outcome === 'restarted')) await moved.run();
+            await this.sync(moved);
+            result.status = moved.getStatus();
+            return result;
+        });
+    }
+
+    /**
+     * For a workflow: how each position of each older version with live runs fares under a move to
+     * `to_version` (the newest by default), and which of those runs the plan (the identity mapping
+     * by default) could move (spec 25.4). Changes nothing.
+     */
+    async check_migration(workflow_id: string, options: { from_version?: string; to_version?: string; plan?: MigrationPlan } = {}): Promise<MigrationCheck> {
+        await this.refresh();
+        const to = this.get_workflow(workflow_id, options.to_version ?? options.plan?.to_version);
+        if (!to) throw new Error(this.workflows.has(workflow_id) ? `Workflow ${workflow_id} has no registered version ${options.to_version ?? options.plan?.to_version}` : `Workflow ${workflow_id} is not registered`);
+        const plan = { ...(options.plan || {}), to_version: to.version };
+        const live = this.list_runs().filter(engine => {
+            const workflow = engine.getWorkflow();
+            return workflow.id === workflow_id && workflow.version !== to.version && (!options.from_version || workflow.version === options.from_version)
+                && !['completed', 'failed', 'cancelled'].includes(engine.getStatus());
+        });
+        const from_versions = [...new Set([...live.map(e => e.getWorkflow().version), ...(options.from_version ? [options.from_version] : [])])].sort(compare_semver);
+        const comparisons = from_versions.map(version => {
+            const from = this.get_workflow(workflow_id, version);
+            if (!from) throw new Error(`Workflow ${workflow_id} has no registered version ${version}`);
+            return compare_versions(from, to, plan);
+        });
+        const runs = live.map(engine => {
+            const result = plan_migration(engine.getWorkflow(), to, engine.snapshot(), plan, engine.getRunId());
+            const journey_instance_id = this.run_journey.get(engine.getRunId());
+            return {
+                run_id: engine.getRunId(), version: engine.getWorkflow().version, status: engine.getStatus(), ...(journey_instance_id ? { journey_instance_id } : {}),
+                migratable: result.refusals.length === 0, refusals: result.refusals, tokens: result.tokens.filter(t => t.outcome !== 'unchanged' || t.wait),
+            };
+        });
+        return { workflow_id, to_version: to.version, comparisons, runs };
+    }
+
     /** Every journey with everything recorded about it, for a view or an audit */
     async export_portfolio(): Promise<PortfolioBundle> {
         await this.refresh();
@@ -625,10 +749,12 @@ export class AwaRuntime {
         return {
             workflows: this.workflows, journeys: this.journeys, concerns: this.concerns,
             instances: this.instances, runs: this.runs, run_journey: this.run_journey, outbox: this.outbox,
+            has_workflow: (id: string, version?: string) => !!this.workflow_of(id, version),
+            all_workflows: () => [...this.versions.values()].flatMap(v => [...v.values()]),
             adopt: (saved: StoredRun) => {
                 // Taken up where another operation left it. Only a run left in the middle of an activity is resumed (10.3).
                 const resumed = (saved.state.tokens as { status?: string }[]).some(t => t.status === 'active');
-                const engine = WorkflowEngine.restore(this.workflows.get(saved.workflow_id)!, saved.state, this.engine_options(() => saved.run_id), resumed);
+                const engine = WorkflowEngine.restore(this.workflow_of(saved.workflow_id, saved.state.workflow_version)!, saved.state, this.engine_options(() => saved.run_id), resumed);
                 const instance = this.instances.get(saved.journey_instance_id || '');
                 if (instance) this.watch(engine, this.journeys.get(instance.journey_id)!, instance, saved.run_id);
                 return engine;
@@ -641,6 +767,8 @@ export class AwaRuntime {
         const needed = await this.options.shared!.required_definitions();
         const missing = [
             ...needed.workflows.filter(id => !this.workflows.has(id)).map(id => `workflow ${id}`),
+            // Each version a run not yet settled is on (spec 25.1)
+            ...(needed.workflow_versions || []).filter(w => this.workflows.has(w.id) && !this.workflow_of(w.id, w.version)).map(w => `workflow ${w.id} version ${w.version}`),
             ...needed.journeys.filter(id => !this.journeys.has(id)).map(id => `journey ${id}`),
         ];
         if (missing.length) throw new Error(`Cannot work on this store: what it keeps needs ${missing.join(', ')}, which this host has not registered. Nothing was changed.`);
@@ -660,7 +788,7 @@ export class AwaRuntime {
             this.instances = new Map(kept.instances.map(i => [i.id, i]));
             this.runs = new Map(); this.run_journey = new Map(); this.outbox = new Map();
             for (const saved of kept.runs) {
-                const workflow = this.workflows.get(saved.workflow_id);
+                const workflow = this.workflow_of(saved.workflow_id, saved.state.workflow_version);
                 if (!workflow) continue;
                 this.runs.set(saved.run_id, WorkflowEngine.restore(workflow, saved.state, { ...this.options.engine, now: this.options.now, journal: shared.journal }, false));
                 if (saved.journey_instance_id) this.run_journey.set(saved.run_id, saved.journey_instance_id);
@@ -764,7 +892,18 @@ export async function add_definition(directory: string, document: Record<string,
     const { JourneyDefinitionSchema } = await import('./journey');
     const journey = is_journey_document(document);
     const parsed = journey ? JourneyDefinitionSchema.parse(document) : parse_document(document);
-    await fs.mkdir(path.join(directory, 'definitions'), { recursive: true });
-    await fs.writeFile(path.join(directory, 'definitions', `${journey ? 'journey' : 'workflow'}-${parsed.id}.json`), JSON.stringify(document, null, 2) + '\n');
+    const definitions = path.join(directory, 'definitions');
+    await fs.mkdir(definitions, { recursive: true });
+    if (journey) {
+        await fs.writeFile(path.join(definitions, `journey-${parsed.id}.json`), JSON.stringify(document, null, 2) + '\n');
+    } else {
+        // Every version is kept beside the others, for the runs that started on it (spec 25.1)
+        const version = (parsed as Workflow).version;
+        await fs.writeFile(path.join(definitions, `workflow-${parsed.id}@${version}.json`), JSON.stringify(document, null, 2) + '\n');
+        // A file of the same version under the name earlier versions of this SDK gave it is replaced
+        const legacy = path.join(definitions, `workflow-${parsed.id}.json`);
+        const before = await fs.readFile(legacy, 'utf-8').then(text => JSON.parse(text), () => undefined);
+        if (before && (before.workflow?.version ?? before.version) === version) await fs.rm(legacy, { force: true });
+    }
     return { kind: journey ? 'journey' : 'workflow', id: parsed.id, name: parsed.name };
 }

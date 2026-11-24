@@ -1,0 +1,212 @@
+{
+  "id": "versioning-refuses-when-a-waiting-human-task-loses-its-node",
+  "level": "versioning",
+  "spec": "25.3",
+  "description": "A person's task waits at a node the new version replaced by an agent's. Unmapped, the token has nowhere to go; mapped to the agent's activity, the person's task would mean nothing there. Both are refused. A plan that restarts the token withdraws the task: the token starts afresh at the new node and the run goes on at once.",
+  "start": "2026-05-04T09:00:00Z",
+  "workflows": [
+    {
+      "id": "85191515-50e9-5ef2-bcf9-d5b5c5b89fe7",
+      "name": "Claim",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "8c6dffe9-7877-5298-8366-b5d105b88183",
+          "name": "Register",
+          "role_id": "56db69ca-6925-5b33-b3c4-83cd83da3f2e",
+          "actor_type": "application"
+        },
+        {
+          "id": "3e15be22-b154-514a-9706-4a266d812120",
+          "name": "Review",
+          "role_id": "56db69ca-6925-5b33-b3c4-83cd83da3f2e",
+          "actor_type": "human"
+        },
+        {
+          "id": "d51c2fad-a310-53b4-96fb-8a611fa54b4b",
+          "name": "Settle",
+          "role_id": "56db69ca-6925-5b33-b3c4-83cd83da3f2e",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "cc643b6e-d7a6-5450-9b34-3af68ad9f884",
+          "source_id": "8c6dffe9-7877-5298-8366-b5d105b88183",
+          "target_id": "3e15be22-b154-514a-9706-4a266d812120"
+        },
+        {
+          "id": "58d62e02-6a7a-5201-971f-50e24155bb4d",
+          "source_id": "3e15be22-b154-514a-9706-4a266d812120",
+          "target_id": "d51c2fad-a310-53b4-96fb-8a611fa54b4b"
+        }
+      ]
+    },
+    {
+      "id": "85191515-50e9-5ef2-bcf9-d5b5c5b89fe7",
+      "name": "Claim",
+      "version": "2.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "8c6dffe9-7877-5298-8366-b5d105b88183",
+          "name": "Register",
+          "role_id": "56db69ca-6925-5b33-b3c4-83cd83da3f2e",
+          "actor_type": "application"
+        },
+        {
+          "id": "b42fdfb9-050f-5937-887c-9d261d0da157",
+          "name": "Automated review",
+          "role_id": "56db69ca-6925-5b33-b3c4-83cd83da3f2e",
+          "actor_type": "ai_agent"
+        },
+        {
+          "id": "d51c2fad-a310-53b4-96fb-8a611fa54b4b",
+          "name": "Settle",
+          "role_id": "56db69ca-6925-5b33-b3c4-83cd83da3f2e",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "f127440e-84c6-5cb0-8f41-caf1e4fd1ac1",
+          "source_id": "8c6dffe9-7877-5298-8366-b5d105b88183",
+          "target_id": "b42fdfb9-050f-5937-887c-9d261d0da157"
+        },
+        {
+          "id": "646c8649-49bd-5f6b-96ee-f138a1cdf98c",
+          "source_id": "b42fdfb9-050f-5937-887c-9d261d0da157",
+          "target_id": "d51c2fad-a310-53b4-96fb-8a611fa54b4b"
+        }
+      ]
+    }
+  ],
+  "actors": {
+    "Register": {
+      "output": {
+        "claim_id": "CLM-1"
+      }
+    },
+    "Review": {
+      "waits": true
+    },
+    "Settle": {
+      "output": {
+        "paid": true
+      }
+    },
+    "Notify": {
+      "output": {
+        "notified": true
+      }
+    },
+    "Archive": {
+      "output": {
+        "archived": true
+      }
+    },
+    "Automated review": {
+      "output": {
+        "approved": true
+      }
+    }
+  },
+  "steps": [
+    {
+      "register": "1.0.0"
+    },
+    {
+      "start": {},
+      "as": "r1"
+    },
+    {
+      "register": "2.0.0"
+    },
+    {
+      "migrate": {
+        "run": "r1",
+        "plan": {}
+      },
+      "expect": {
+        "applied": false,
+        "refusals": [
+          "unmapped_token"
+        ],
+        "run_version": "1.0.0"
+      }
+    },
+    {
+      "migrate": {
+        "run": "r1",
+        "plan": {
+          "nodes": {
+            "3e15be22-b154-514a-9706-4a266d812120": "b42fdfb9-050f-5937-887c-9d261d0da157"
+          }
+        }
+      },
+      "expect": {
+        "applied": false,
+        "refusals": [
+          "wait_incompatible"
+        ],
+        "run_version": "1.0.0",
+        "run_status": "waiting_human"
+      }
+    },
+    {
+      "migrate": {
+        "run": "r1",
+        "plan": {
+          "nodes": {
+            "3e15be22-b154-514a-9706-4a266d812120": "b42fdfb9-050f-5937-887c-9d261d0da157"
+          },
+          "restart": [
+            "3e15be22-b154-514a-9706-4a266d812120"
+          ]
+        }
+      },
+      "expect": {
+        "applied": true,
+        "refusals": [],
+        "run_version": "2.0.0",
+        "status": "completed",
+        "tokens": [
+          {
+            "from": "Review",
+            "to": "Automated review",
+            "wait": "human",
+            "outcome": "restarted"
+          }
+        ]
+      }
+    }
+  ],
+  "expect": {
+    "visited": [
+      "Register",
+      "Review",
+      "Automated review",
+      "Settle"
+    ],
+    "runs": {
+      "r1": {
+        "status": "completed",
+        "version": "2.0.0",
+        "journal_count": {
+          "run.migrated": 1
+        },
+        "journal_contains": [
+          {
+            "type": "run.migrated",
+            "data": {
+              "restart": [
+                "3e15be22-b154-514a-9706-4a266d812120"
+              ]
+            }
+          }
+        ]
+      }
+    }
+  }
+}

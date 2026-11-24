@@ -410,6 +410,16 @@ class RunTraceMapper:
                 name = f"decision {event.get('node_name') or node}"
                 self._open.append(self._start("decision", event, name, "internal", self._run.span.span_id))
             return out
+        elif type_ == "run.migrated":
+            # A span event of the run (26.4). A wait the migration withdrew ends with it (25.5)
+            self._span_event(event, data)
+            for moved in data.get("tokens") if isinstance(data.get("tokens"), list) else []:
+                if not isinstance(moved, dict) or moved.get("outcome") != "restarted":
+                    continue
+                for open_span in reversed(list(self._open)):
+                    if open_span.token == moved.get("token_id") and open_span in self._open:
+                        self._finish_span(open_span, at, {"code": "unset"}, {"awa.wait.outcome": "withdrawn"} if open_span.kind == "wait" else {}, out)
+            return out
         elif type_ in ("token.failed", "token.cancelled"):
             self._span_event(event, data)
             error = _error_of(data)

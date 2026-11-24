@@ -1,0 +1,141 @@
+{
+  "id": "versioning-a-timer-is-a-position-at-rest",
+  "level": "versioning",
+  "spec": "25.2",
+  "description": "A token at a timer whose due time is fixed waits for time to pass: the run is at rest and moves by the identity mapping, keeping the due time.",
+  "start": "2026-05-04T09:00:00Z",
+  "workflows": [
+    {
+      "id": "e9d00f16-0be2-572f-93fe-3600a3f503fc",
+      "name": "Claim",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "f3f387f8-5f4b-570c-97d7-4e59d1dca05e",
+          "name": "Register",
+          "role_id": "1b7846bf-050d-5359-838a-8c2889cfa9b4",
+          "actor_type": "application"
+        },
+        {
+          "id": "bd75d650-606e-573a-81ab-d6ce0ebd00dd",
+          "name": "Settle",
+          "role_id": "1b7846bf-050d-5359-838a-8c2889cfa9b4",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "871bdcfa-a90b-590b-aff5-34e9beedeede",
+          "source_id": "f3f387f8-5f4b-570c-97d7-4e59d1dca05e",
+          "target_id": "49e63db8-c3e9-5ed9-ba34-9b56ceb6a0db"
+        },
+        {
+          "id": "a48a03a1-c378-5e4e-8040-be3d34700bd3",
+          "source_id": "49e63db8-c3e9-5ed9-ba34-9b56ceb6a0db",
+          "target_id": "bd75d650-606e-573a-81ab-d6ce0ebd00dd"
+        }
+      ],
+      "events": [
+        {
+          "id": "49e63db8-c3e9-5ed9-ba34-9b56ceb6a0db",
+          "name": "Cool off",
+          "event_type": "timer",
+          "event_definition": {
+            "duration": "P1D"
+          }
+        }
+      ]
+    },
+    {
+      "id": "e9d00f16-0be2-572f-93fe-3600a3f503fc",
+      "name": "Claim",
+      "version": "2.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "f3f387f8-5f4b-570c-97d7-4e59d1dca05e",
+          "name": "Register",
+          "role_id": "1b7846bf-050d-5359-838a-8c2889cfa9b4",
+          "actor_type": "application"
+        },
+        {
+          "id": "bd75d650-606e-573a-81ab-d6ce0ebd00dd",
+          "name": "Settle",
+          "role_id": "1b7846bf-050d-5359-838a-8c2889cfa9b4",
+          "actor_type": "application"
+        },
+        {
+          "id": "10c58623-5dcb-57a4-b2f9-a406ec340aa2",
+          "name": "Notify",
+          "role_id": "1b7846bf-050d-5359-838a-8c2889cfa9b4",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "871bdcfa-a90b-590b-aff5-34e9beedeede",
+          "source_id": "f3f387f8-5f4b-570c-97d7-4e59d1dca05e",
+          "target_id": "49e63db8-c3e9-5ed9-ba34-9b56ceb6a0db"
+        },
+        {
+          "id": "a48a03a1-c378-5e4e-8040-be3d34700bd3",
+          "source_id": "49e63db8-c3e9-5ed9-ba34-9b56ceb6a0db",
+          "target_id": "bd75d650-606e-573a-81ab-d6ce0ebd00dd"
+        },
+        {
+          "id": "33914d8d-27de-5c88-b3ef-3570e4b4cf4e",
+          "source_id": "bd75d650-606e-573a-81ab-d6ce0ebd00dd",
+          "target_id": "10c58623-5dcb-57a4-b2f9-a406ec340aa2"
+        }
+      ],
+      "events": [
+        {
+          "id": "49e63db8-c3e9-5ed9-ba34-9b56ceb6a0db",
+          "name": "Cool off",
+          "event_type": "timer",
+          "event_definition": {
+            "duration": "P1D"
+          }
+        }
+      ]
+    }
+  ],
+  "state": {
+    "version": "1.0.0",
+    "status": "running",
+    "tokens": [
+      {
+        "id": "6f7c1a52-2f0e-4c35-9d55-0c0c1f0b1a02",
+        "node": "Cool off",
+        "status": "active",
+        "data": {
+          "claim_id": "CLM-1"
+        },
+        "waits": {
+          "kind": "timer",
+          "due_at": "2026-05-05T09:00:00.000Z"
+        }
+      }
+    ]
+  },
+  "migrate": {
+    "plan": {
+      "to_version": "2.0.0"
+    }
+  },
+  "expect": {
+    "refusals": [],
+    "tokens": [
+      {
+        "from": "Cool off",
+        "to": "Cool off",
+        "wait": "timer",
+        "outcome": "kept"
+      }
+    ],
+    "timers": {
+      "6f7c1a52-2f0e-4c35-9d55-0c0c1f0b1a02": "2026-05-05T09:00:00.000Z"
+    }
+  }
+}

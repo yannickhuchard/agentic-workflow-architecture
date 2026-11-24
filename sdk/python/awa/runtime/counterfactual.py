@@ -19,6 +19,7 @@ from typing import Any
 
 from awa.runtime.business_event import business_event
 from awa.runtime.journal import JournalEvent, canonical_json, hash_payload
+from awa.runtime.migration import as_migrated
 from awa.runtime.tools import BINDING_KINDS, ToolError, ToolExecution, ToolOptions
 from awa.runtime.workflow_engine import WorkflowEngine
 from awa.types import Activity, ActorType, Workflow
@@ -251,7 +252,8 @@ def counterfactual_replay(workflow: Workflow, baseline: list[JournalEvent], cand
     """
     if ai not in AI_MODES:
         raise ValueError('ai must be "live" or "recorded"')
-    recorded = sorted(baseline, key=lambda e: e["seq"])
+    # A run moved to another version is matched node by node as its migrations mapped it (25.5)
+    recorded = as_migrated(baseline)
     _require_payloads(recorded)
     candidate = candidate or workflow
     options = dict(engine or {})
