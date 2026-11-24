@@ -36,6 +36,7 @@ AWA 1.1 is a specification with a reference implementation and a conformance sui
 | **Tools** | Agents call HTTP APIs, commands, JSON-RPC, gRPC and MCP tools. MCP servers (over standard input and output or Streamable HTTP) and gRPC services are reached by built-in executors, only where the deployment allows. Every call is journalled: which tool, when, arguments, result, and a link to what ran | Section 17 |
 | **Agents over A2A** | An activity can be performed by an agent elsewhere, reached over the Agent2Agent protocol 1.0, under the same outcome contract, verification, permissions and record as any actor; an agent that asks for input makes the run wait for it. `awa serve --a2a` offers a workflow to other agents as an A2A agent | Section 28 |
 | **Contexts** | What activities share beside the data that flows: an activity is given the contexts it is bound to read and no other, and a write needs a binding that allows it. "This agent cannot read the fraud signals" is a property of the document that the engine upholds | Section 22 |
+| **Sub-workflows** | An activity can be performed by a run of another workflow: input and output mapped, the outcome held to the activity's contract and verification, retries that start a new child run, a child's wait for a person or an event that makes the parent wait, cancellation that reaches the child, a depth limit. Both runs name each other in their journals; journeys, measures, telemetry and stores see the child as a run | Section 24 |
 | **Service levels** | The time work takes, waits and retries included, compared with what was promised: warnings and breaches are recorded, and work still waited for can be made to fail | Section 23 |
 | **Journal** | An append-only record of every run at three levels: execution, the actor's reasoning, and the engine's own decisions | Section 9 |
 | **Explanation** | A replay you can scrub through, and a recipe that explains how to rebuild the workflow from scratch | Section 14 |
@@ -56,8 +57,8 @@ The full text is in [`docs/specification.md`](docs/specification.md). What it me
 
 | SDK | Conformance levels |
 |---|---|
-| TypeScript (reference) | Every level (24, `shared_store` with the optional package `pg`), plus the recipe, Open Knowledge Format exchange, model providers for Google, OpenAI, Ollama and an embedded model, and the views |
-| Python | Every level (24, `shared_store` with the extra `postgres`), the same commands (`run`, `validate`, `journey`, `measures`, `replay`, `evidence`, `eval`, `knowledge`, `task`, `telemetry`, `import`, `export`, `serve`) and the same HTTP routes; its AI agent calls models through OpenAI-compatible and Ollama providers. No recipe, Open Knowledge Format exchange, Google or embedded provider, or views |
+| TypeScript (reference) | Every level (25, `shared_store` with the optional package `pg`), plus the recipe, Open Knowledge Format exchange, model providers for Google, OpenAI, Ollama and an embedded model, and the views |
+| Python | Every level (25, `shared_store` with the extra `postgres`), the same commands (`run`, `validate`, `journey`, `measures`, `replay`, `evidence`, `eval`, `knowledge`, `task`, `telemetry`, `import`, `export`, `serve`) and the same HTTP routes; its AI agent calls models through OpenAI-compatible and Ollama providers. No recipe, Open Knowledge Format exchange, Google or embedded provider, or views |
 | Java | A data model of AWA 1.1 workflow and journey documents (read, build, write; every example and conformance document round-trips exactly), without an engine |
 
 ### See a run

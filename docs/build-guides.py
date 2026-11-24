@@ -95,6 +95,7 @@ page("getting-started.html", "Workflows where the outcome is fixed and the strat
       ("layers", "What it gives you", table(["Layer", "In one sentence"], [
           ["Document", "A workflow as JSON: activities, actors, roles, edges, decision tables, events."],
           ["Flow", "Sequence, conditional routing, parallel split and join, timers, compensation, cancellation."],
+          ["Sub-workflows", "An activity performed by a run of another workflow, its outcome held to the activity's contract, its waits and failures the parent's, both runs naming each other in their journals."],
           ["Decisions", "Decision tables with a specified entry language and strict hit policies; a model may decide, within options the workflow lists."],
           ["Outcome contracts", "Per activity: output schema, postconditions, budgets, escalation to a person. Checked deterministically, failing closed."],
           ["Resilience", "Retry with backoff, dead letters, checkpoints, recovery in another process, idempotency keys."],
@@ -413,7 +414,7 @@ page("architect-guide.html", "For architects", "How AWA is put together, what it
           ["document, core, decision", "4 to 6", "yes", "yes"], ["verified, contract", "7, 11", "yes", "yes"], ["recorded, resilient", "9, 10", "yes", "yes"],
           ["routing", "12", "yes", "yes"], ["flow, events", "13, 18", "yes", "yes"], ["knowledge", "15", "yes", "yes"],
           ["model_decision, tools", "16, 17", "yes", "yes"], ["journeys, replay", "19, 20", "yes", "yes"],
-          ["measures", "21", "yes", "yes"], ["contexts, service_levels", "22, 23", "yes", "yes"], ["telemetry", "26", "yes", "yes"], ["shared_store", "29", "yes, with PostgreSQL", "yes, with PostgreSQL"], ["a2a", "28", "yes", "yes"]]) + '''
+          ["measures", "21", "yes", "yes"], ["contexts, service_levels", "22, 23", "yes", "yes"], ["subworkflows", "24", "yes", "yes"], ["telemetry", "26", "yes", "yes"], ["shared_store", "29", "yes, with PostgreSQL", "yes, with PostgreSQL"], ["a2a", "28", "yes", "yes"]]) + '''
 <p>Each level has language-neutral cases in <code>spec/conformance</code>; both SDKs run every case of every level, none skipped. What the cases cannot reach (live model providers, Open Knowledge Format exchange, the recipe) is fixed by each SDK's own tests.</p>'''),
       ("security", "What may run", '''
 <p>A workflow document can name any URL, program or agent. What actually runs is the deployment's decision: command bindings need explicit permission, and so do MCP servers the engine would start; HTTP, JSON-RPC, MCP and gRPC bindings and A2A agents can be restricted to listed hosts; an MCP binding reaches only a server the deployment declares; and secrets are substituted at call time and never journalled. The link to what ran is always journalled, even when payloads are hashed or omitted. In simulation nothing is called.</p>'''),
