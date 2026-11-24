@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/yannickhuchard/agentic-workflow-architecture/spec/json-schema/evaluation-case.schema.json",
+  "title": "AWA evaluation case",
+  "description": "One line of an evaluation dataset: a visit of a recorded run to an AI activity, with the input the agent was given and the outcome that was accepted, or that it was rejected (specification section 33).",
+  "type": "object",
+  "required": [
+    "id",
+    "workflow_id",
+    "workflow_version",
+    "run_id",
+    "activity_id",
+    "activity_name",
+    "input",
+    "label",
+    "attempts",
+    "rejections",
+    "tool_calls",
+    "sources"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "<run_id>:<activity_id>:<visit>"
+    },
+    "workflow_id": {
+      "type": "string"
+    },
+    "workflow_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "activity_id": {
+      "type": "string"
+    },
+    "activity_name": {
+      "type": "string"
+    },
+    "input": {
+      "type": "object"
+    },
+    "label": {
+      "enum": [
+        "accepted",
+        "rejected"
+      ]
+    },
+    "accepted_by": {
+      "enum": [
+        "contract",
+        "verification",
+        "person",
+        "unchecked"
+      ]
+    },
+    "rejected_by": {
+      "enum": [
+        "contract",
+        "verification",
+        "error"
+      ]
+    },
+    "outcome": {},
+    "attempts": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "rejections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "attempt",
+          "code",
+          "terms"
+        ],
+        "properties": {
+          "attempt": {
+            "type": "integer"
+          },
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "terms": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "tool_calls": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "tool",
+          "ok"
+        ],
+        "properties": {
+          "tool": {
+            "type": "string"
+          },
+          "arguments": {},
+          "ok": {
+            "type": "boolean"
+          },
+          "status": {},
+          "result": {},
+          "error": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "integer",
+        "minimum": 1
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "label": {
+            "const": "accepted"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "accepted_by",
+          "outcome"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "label": {
+            "const": "rejected"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "rejected_by"
+        ]
+      }
+    }
+  ]
+}

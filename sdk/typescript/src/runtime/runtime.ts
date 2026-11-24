@@ -18,6 +18,7 @@ import {
 } from './journey';
 import { WorkflowState } from './persistence';
 import { WorkflowEngine, WorkflowEngineOptions } from './workflow_engine';
+import { ShadowOptions, ShadowRunner } from './shadow';
 import fs from 'fs/promises';
 import { rmSync } from 'fs';
 import path from 'path';
@@ -29,6 +30,8 @@ export interface RuntimeOptions {
     now?: () => number;
     /** Where the runtime keeps what it knows, so that another process can carry on (spec 19.10). Without it, everything is in memory. */
     store?: RuntimeStore;
+    /** Run a candidate workflow or model beside production, compared as runs end (spec 33.5) */
+    shadow?: ShadowOptions;
 }
 
 /** Everything a host must keep to carry on after a restart: journeys, runs, and which events it has already taken in */
@@ -111,7 +114,12 @@ export class AwaRuntime {
     /** journey id -> the business event types that concern it */
     private concerns = new Map<string, Set<string>>();
 
-    constructor(private options: RuntimeOptions = {}) { }
+    /** The shadow of production, when the runtime was given one (spec 33.5) */
+    readonly shadow?: ShadowRunner;
+
+    constructor(private options: RuntimeOptions = {}) {
+        if (options.shadow) this.shadow = new ShadowRunner(options.shadow, () => this.now());
+    }
 
     private now(): number {
         return this.options.now ? this.options.now() : Date.now();
@@ -286,6 +294,7 @@ export class AwaRuntime {
 
     /** After a run has made progress: if it ended, fold its result into its journey and move the journey on */
     private async sync(engine: WorkflowEngine): Promise<void> {
+        await this.shadow?.settled(engine);
         // What the run announced is taken in now that it has settled: after its own ending is recorded, before anything follows from it (spec 19.5)
         const flush = async () => { const events = this.outbox.get(engine.getRunId()) || []; this.outbox.delete(engine.getRunId()); for (const event of events) await this.publish(event); };
         const instance = this.instances.get(this.run_journey.get(engine.getRunId()) || '');

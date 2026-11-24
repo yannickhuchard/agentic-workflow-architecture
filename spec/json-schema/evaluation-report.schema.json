@@ -1,0 +1,264 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/yannickhuchard/agentic-workflow-architecture/spec/json-schema/evaluation-report.schema.json",
+  "title": "AWA evaluation report",
+  "description": "A candidate workflow or model scored against an evaluation dataset: per activity, how often the recorded outcome was accepted and how often the candidate's is, against the outcome contracts and verification, with the cases it loses and wins (specification section 33).",
+  "type": "object",
+  "required": [
+    "spec_version",
+    "workflow",
+    "candidate",
+    "cases",
+    "evaluated",
+    "skipped",
+    "totals",
+    "activities",
+    "regressions",
+    "improvements",
+    "results"
+  ],
+  "properties": {
+    "spec_version": {
+      "type": "string"
+    },
+    "workflow": {
+      "type": "object",
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "candidate": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "version"
+      ]
+    },
+    "cases": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "evaluated": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "skipped": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "case_id",
+          "reason"
+        ]
+      }
+    },
+    "totals": {
+      "type": "object",
+      "required": [
+        "recorded_rate",
+        "pass_rate",
+        "contract_pass_rate",
+        "verification_pass_rate"
+      ],
+      "additionalProperties": {
+        "$ref": "#/$defs/rate"
+      }
+    },
+    "activities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "activity_id",
+          "activity_name",
+          "cases",
+          "recorded_rate",
+          "pass_rate",
+          "contract_pass_rate",
+          "verification_pass_rate",
+          "same_outcome_rate",
+          "regressions",
+          "improvements"
+        ],
+        "properties": {
+          "activity_id": {
+            "type": "string"
+          },
+          "activity_name": {
+            "type": "string"
+          },
+          "cases": {
+            "type": "integer"
+          },
+          "recorded_rate": {
+            "$ref": "#/$defs/rate"
+          },
+          "pass_rate": {
+            "$ref": "#/$defs/rate"
+          },
+          "contract_pass_rate": {
+            "$ref": "#/$defs/rate"
+          },
+          "verification_pass_rate": {
+            "$ref": "#/$defs/rate"
+          },
+          "same_outcome_rate": {
+            "$ref": "#/$defs/rate"
+          },
+          "regressions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "improvements": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "regressions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "case_id",
+          "activity_name",
+          "reason"
+        ],
+        "properties": {
+          "case_id": {
+            "type": "string"
+          },
+          "activity_name": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "improvements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "case_id",
+          "activity_name",
+          "reason"
+        ],
+        "properties": {
+          "case_id": {
+            "type": "string"
+          },
+          "activity_name": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "case_id",
+          "activity_id",
+          "activity_name",
+          "recorded",
+          "candidate",
+          "attempts",
+          "contract_passed",
+          "verification_passed",
+          "same_outcome",
+          "change",
+          "unrecorded"
+        ],
+        "properties": {
+          "recorded": {
+            "enum": [
+              "accepted",
+              "rejected"
+            ]
+          },
+          "candidate": {
+            "enum": [
+              "accepted",
+              "rejected"
+            ]
+          },
+          "attempts": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "contract_passed": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "verification_passed": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "same_outcome": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "change": {
+            "enum": [
+              "same",
+              "improved",
+              "regressed"
+            ]
+          },
+          "error": {
+            "type": "string"
+          },
+          "unrecorded": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "rate": {
+      "type": "object",
+      "required": [
+        "value",
+        "n"
+      ],
+      "properties": {
+        "value": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "n": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

@@ -27,6 +27,8 @@ function host(): Promise<AwaRuntime> {
     }
     return runtime;
 }
+/** The runtime behind these routes, for other routes that read what it recorded */
+export const journey_runtime = (): Promise<AwaRuntime> => host();
 const problem = (error: unknown) => ({ error: error instanceof Error ? error.message : String(error) });
 const summary = (i: ReturnType<AwaRuntime['list_journey_instances']>[number]) => ({
     id: i.id, journey_id: i.journey_id, subject_key: i.subject_key, status: i.status, stalled: i.stalled, stage_id: i.stage_id,

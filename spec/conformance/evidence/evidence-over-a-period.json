@@ -1,0 +1,1218 @@
+{
+  "id": "evidence-over-a-period",
+  "level": "evidence",
+  "spec": "32.1",
+  "description": "The same record from 3 March to 5 March: a run is kept by its own start, the journey begun on 2 March is left out, and nothing kept is cited from outside the period.",
+  "recorded": {
+    "as_of": "2026-03-10T09:00:00.000Z",
+    "workflows": [
+      {
+        "id": "settle",
+        "name": "Settle",
+        "version": "1.3.0",
+        "activities": [
+          {
+            "id": "assess",
+            "name": "Assess damage",
+            "actor_type": "ai_agent"
+          },
+          {
+            "id": "approve",
+            "name": "Approve",
+            "actor_type": "human"
+          }
+        ]
+      },
+      {
+        "id": "intake",
+        "name": "Intake",
+        "version": "1.0.0"
+      }
+    ],
+    "journeys": [
+      {
+        "definition": {
+          "id": "claim",
+          "name": "Motor claim"
+        },
+        "instances": [
+          {
+            "instance": {
+              "id": "j1",
+              "journey_id": "claim",
+              "subject_key": "cust-1",
+              "status": "abandoned",
+              "stage_id": "assess",
+              "started_at": "2026-03-02T09:00:00.000Z",
+              "ended_at": "2026-03-06T09:00:00.000Z",
+              "events": [
+                {
+                  "type": "journey.started",
+                  "time": "2026-03-02T09:00:00.000Z",
+                  "seq": 1,
+                  "stage_id": "assess",
+                  "data": {
+                    "subject_key": "cust-1"
+                  }
+                },
+                {
+                  "type": "journey.run_started",
+                  "time": "2026-03-02T09:00:00.000Z",
+                  "seq": 2,
+                  "stage_id": "assess",
+                  "run_id": "r1",
+                  "data": {}
+                },
+                {
+                  "type": "journey.run_ended",
+                  "time": "2026-03-02T11:05:00.000Z",
+                  "seq": 3,
+                  "stage_id": "assess",
+                  "run_id": "r1",
+                  "data": {
+                    "status": "failed"
+                  }
+                },
+                {
+                  "type": "journey.stalled",
+                  "time": "2026-03-02T11:05:00.000Z",
+                  "seq": 4,
+                  "stage_id": "assess",
+                  "run_id": "r1",
+                  "data": {
+                    "reason": "the Settle workflow failed"
+                  }
+                },
+                {
+                  "type": "journey.run_started",
+                  "time": "2026-03-03T09:00:00.000Z",
+                  "seq": 5,
+                  "stage_id": "assess",
+                  "run_id": "r2",
+                  "data": {}
+                },
+                {
+                  "type": "journey.run_ended",
+                  "time": "2026-03-03T10:05:00.000Z",
+                  "seq": 6,
+                  "stage_id": "assess",
+                  "run_id": "r2",
+                  "data": {
+                    "status": "failed"
+                  }
+                },
+                {
+                  "type": "journey.abandoned",
+                  "time": "2026-03-06T09:00:00.000Z",
+                  "seq": 7,
+                  "stage_id": "assess",
+                  "data": {
+                    "reason": "closed"
+                  }
+                }
+              ]
+            },
+            "runs": [
+              {
+                "run_id": "r1",
+                "workflow_id": "settle",
+                "events": [
+                  {
+                    "spec_version": "1.1",
+                    "id": "r1-1",
+                    "run_id": "r1",
+                    "seq": 1,
+                    "time": "2026-03-02T09:00:00.000Z",
+                    "type": "run.started",
+                    "level": "execution",
+                    "workflow_id": "settle",
+                    "data": {
+                      "workflow_name": "Settle",
+                      "workflow_version": "1.2.0",
+                      "input": {
+                        "claim": "C-1"
+                      }
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r1-2",
+                    "run_id": "r1",
+                    "seq": 2,
+                    "time": "2026-03-02T09:00:00.000Z",
+                    "type": "meta.recorded",
+                    "level": "meta",
+                    "workflow_id": "settle",
+                    "token_id": "t1",
+                    "node_id": "assess",
+                    "node_name": "Assess damage",
+                    "attempt": 1,
+                    "data": {
+                      "subject": "model_selection",
+                      "decision": "Use model acme:assessor-large",
+                      "rationale": "The role names it.",
+                      "model": {
+                        "id": "assessor-large",
+                        "provider": "acme",
+                        "requested": "tier:reasoning",
+                        "tier": "reasoning",
+                        "source": "role"
+                      }
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r1-3",
+                    "run_id": "r1",
+                    "seq": 3,
+                    "time": "2026-03-02T09:00:00.000Z",
+                    "type": "activity.started",
+                    "level": "execution",
+                    "workflow_id": "settle",
+                    "token_id": "t1",
+                    "node_id": "assess",
+                    "node_name": "Assess damage",
+                    "attempt": 1,
+                    "data": {
+                      "actor_type": "ai_agent",
+                      "input": {
+                        "claim": "C-1"
+                      }
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r1-4",
+                    "run_id": "r1",
+                    "seq": 4,
+                    "time": "2026-03-02T09:01:00.000Z",
+                    "type": "tool.invoked",
+                    "level": "execution",
+                    "workflow_id": "settle",
+                    "token_id": "t1",
+                    "node_id": "assess",
+                    "node_name": "Assess damage",
+                    "attempt": 1,
+                    "data": {
+                      "call_id": "c1",
+                      "tool": "price_part",
+                      "link": "https://parts.example/v2/price",
+                      "arguments": {
+                        "part": "bumper"
+                      }
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r1-5",
+                    "run_id": "r1",
+                    "seq": 5,
+                    "time": "2026-03-02T09:01:00.000Z",
+                    "type": "tool.completed",
+                    "level": "execution",
+                    "workflow_id": "settle",
+                    "token_id": "t1",
+                    "node_id": "assess",
+                    "node_name": "Assess damage",
+                    "attempt": 1,
+                    "data": {
+                      "call_id": "c1",
+                      "tool": "price_part",
+                      "link": "https://parts.example/v2/price",
+                      "status": 200,
+                      "result": {
+                        "price": 100
+                      }
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r1-6",
+                    "run_id": "r1",
+                    "seq": 6,
+                    "time": "2026-03-02T09:02:00.000Z",
+                    "type": "contract.checked",
+                    "level": "execution",
+                    "workflow_id": "settle",
+                    "token_id": "t1",
+                    "node_id": "assess",
+                    "node_name": "Assess damage",
+                    "attempt": 1,
+                    "data": {
+                      "passed": false,
+                      "violations": [
+                        {
+                          "kind": "postcondition",
+                          "name": "Within authority",
+                          "message": "does not hold"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r1-7",
+                    "run_id": "r1",
+                    "seq": 7,
+                    "time": "2026-03-02T09:02:00.000Z",
+                    "type": "activity.failed",
+                    "level": "execution",
+                    "workflow_id": "settle",
+                    "token_id": "t1",
+                    "node_id": "assess",
+                    "node_name": "Assess damage",
+                    "attempt": 1,
+                    "data": {
+                      "error": {
+                        "code": "CONTRACT_VIOLATION",
+                        "message": "Outcome contract violated"
+                      },
+                      "retryable": true
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r1-8",
+                    "run_id": "r1",
+                    "seq": 8,
+                    "time": "2026-03-02T09:02:00.000Z",
+                    "type": "meta.recorded",
+                    "level": "meta",
+                    "workflow_id": "settle",
+                    "token_id": "t1",
+                    "node_id": "assess",
+                    "node_name": "Assess damage",
+                    "attempt": 2,
+                    "data": {
+                      "subject": "model_selection",
+                      "decision": "Use model acme:assessor-large",
+                      "rationale": "The role names it.",
+                      "model": {
+                        "id": "assessor-large",
+                        "provider": "acme",
+                        "requested": "tier:reasoning",
+                        "tier": "reasoning",
+                        "source": "role"
+                      }
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r1-9",
+                    "run_id": "r1",
+                    "seq": 9,
+                    "time": "2026-03-02T09:02:00.000Z",
+                    "type": "activity.started",
+                    "level": "execution",
+                    "workflow_id": "settle",
+                    "token_id": "t1",
+                    "node_id": "assess",
+                    "node_name": "Assess damage",
+                    "attempt": 2,
+                    "data": {
+                      "actor_type": "ai_agent",
+                      "input": {
+                        "claim": "C-1"
+                      }
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r1-10",
+                    "run_id": "r1",
+                    "seq": 10,
+                    "time": "2026-03-02T09:03:00.000Z",
+                    "type": "contract.checked",
+                    "level": "execution",
+                    "workflow_id": "settle",
+                    "token_id": "t1",
+                    "node_id": "assess",
+                    "node_name": "Assess damage",
+                    "attempt": 2,
+                    "data": {
+                      "passed": true,
+                      "violations": []
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r1-11",
+                    "run_id": "r1",
+                    "seq": 11,
+                    "time": "2026-03-02T09:03:00.000Z",
+                    "type": "verification.completed",
+                    "level": "execution",
+                    "workflow_id": "settle",
+                    "token_id": "t1",
+                    "node_id": "assess",
+                    "node_name": "Assess damage",
+                    "attempt": 2,
+                    "data": {
+                      "mode": "schema_only",
+                      "verdict": "pass",
+                      "score": 1
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r1-12",
+                    "run_id": "r1",
+                    "seq": 12,
+                    "time": "2026-03-02T09:03:00.000Z",
+                    "type": "activity.completed",
+                    "level": "execution",
+                    "workflow_id": "settle",
+                    "token_id": "t1",
+                    "node_id": "assess",
+                    "node_name": "Assess damage",
+                    "attempt": 2,
+                    "data": {
+                      "actor_type": "ai_agent",
+                      "output": {
+                        "output": {
+                          "cost": 900
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r1-13",
+                    "run_id": "r1",
+                    "seq": 13,
+                    "time": "2026-03-02T09:04:00.000Z",
+                    "type": "activity.started",
+                    "level": "execution",
+                    "workflow_id": "settle",
+                    "token_id": "t1",
+                    "node_id": "approve",
+                    "node_name": "Approve",
+                    "attempt": 1,
+                    "data": {
+                      "actor_type": "human",
+                      "input": {
+                        "cost": 900
+                      }
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r1-14",
+                    "run_id": "r1",
+                    "seq": 14,
+                    "time": "2026-03-02T09:04:00.000Z",
+                    "type": "token.waiting",
+                    "level": "execution",
+                    "workflow_id": "settle",
+                    "token_id": "t1",
+                    "node_id": "approve",
+                    "node_name": "Approve",
+                    "data": {
+                      "reason": "human_task"
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r1-15",
+                    "run_id": "r1",
+                    "seq": 15,
+                    "time": "2026-03-02T11:04:00.000Z",
+                    "type": "token.resumed",
+                    "level": "execution",
+                    "workflow_id": "settle",
+                    "token_id": "t1",
+                    "node_id": "approve",
+                    "node_name": "Approve",
+                    "data": {
+                      "waited_ms": 7200000
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r1-16",
+                    "run_id": "r1",
+                    "seq": 16,
+                    "time": "2026-03-02T11:04:00.000Z",
+                    "type": "activity.completed",
+                    "level": "execution",
+                    "workflow_id": "settle",
+                    "token_id": "t1",
+                    "node_id": "approve",
+                    "node_name": "Approve",
+                    "attempt": 1,
+                    "data": {
+                      "actor_type": "human",
+                      "output": {
+                        "approved": true
+                      }
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r1-17",
+                    "run_id": "r1",
+                    "seq": 17,
+                    "time": "2026-03-02T11:05:00.000Z",
+                    "type": "context.read",
+                    "level": "execution",
+                    "workflow_id": "settle",
+                    "token_id": "t1",
+                    "node_id": "notify",
+                    "node_name": "Notify",
+                    "data": {
+                      "contexts": [
+                        {
+                          "context_id": "k1",
+                          "context_name": "Claim file",
+                          "access_mode": "read",
+                          "present": true,
+                          "value_hash": "ab"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r1-18",
+                    "run_id": "r1",
+                    "seq": 18,
+                    "time": "2026-03-02T11:05:00.000Z",
+                    "type": "context.denied",
+                    "level": "execution",
+                    "workflow_id": "settle",
+                    "token_id": "t1",
+                    "node_id": "notify",
+                    "node_name": "Notify",
+                    "data": {
+                      "context_name": "Ledger",
+                      "reason": "no binding of this activity allows writing"
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r1-19",
+                    "run_id": "r1",
+                    "seq": 19,
+                    "time": "2026-03-02T11:05:00.000Z",
+                    "type": "activity.failed",
+                    "level": "execution",
+                    "workflow_id": "settle",
+                    "token_id": "t1",
+                    "node_id": "notify",
+                    "node_name": "Notify",
+                    "attempt": 1,
+                    "data": {
+                      "error": {
+                        "code": "CONTEXT_ACCESS_DENIED",
+                        "message": "wrote to Ledger"
+                      },
+                      "retryable": false
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r1-20",
+                    "run_id": "r1",
+                    "seq": 20,
+                    "time": "2026-03-02T11:05:00.000Z",
+                    "type": "run.failed",
+                    "level": "execution",
+                    "workflow_id": "settle",
+                    "data": {
+                      "errors": [
+                        "wrote to Ledger"
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "run_id": "r2",
+                "workflow_id": "settle",
+                "events": [
+                  {
+                    "spec_version": "1.1",
+                    "id": "r2-1",
+                    "run_id": "r2",
+                    "seq": 1,
+                    "time": "2026-03-03T09:00:00.000Z",
+                    "type": "run.started",
+                    "level": "execution",
+                    "workflow_id": "settle",
+                    "data": {
+                      "workflow_name": "Settle",
+                      "workflow_version": "1.2.0",
+                      "input": {
+                        "claim": "C-2"
+                      }
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r2-2",
+                    "run_id": "r2",
+                    "seq": 2,
+                    "time": "2026-03-03T09:00:00.000Z",
+                    "type": "meta.recorded",
+                    "level": "meta",
+                    "workflow_id": "settle",
+                    "token_id": "t1",
+                    "node_id": "assess",
+                    "node_name": "Assess damage",
+                    "attempt": 1,
+                    "data": {
+                      "subject": "model_selection",
+                      "decision": "Use model acme:assessor-small",
+                      "rationale": "Fallback.",
+                      "model": {
+                        "id": "assessor-small",
+                        "provider": "acme",
+                        "requested": "tier:reasoning",
+                        "tier": "reasoning",
+                        "source": "role"
+                      }
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r2-3",
+                    "run_id": "r2",
+                    "seq": 3,
+                    "time": "2026-03-03T09:00:00.000Z",
+                    "type": "meta.recorded",
+                    "level": "meta",
+                    "workflow_id": "settle",
+                    "token_id": "t1",
+                    "node_id": "assess",
+                    "node_name": "Assess damage",
+                    "attempt": 1,
+                    "data": {
+                      "subject": "model_route",
+                      "decision": "Route to acme:assessor-small",
+                      "rationale": "acme:assessor-large was tried and failed: unavailable."
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r2-4",
+                    "run_id": "r2",
+                    "seq": 4,
+                    "time": "2026-03-03T09:00:00.000Z",
+                    "type": "activity.started",
+                    "level": "execution",
+                    "workflow_id": "settle",
+                    "token_id": "t1",
+                    "node_id": "assess",
+                    "node_name": "Assess damage",
+                    "attempt": 1,
+                    "data": {
+                      "actor_type": "ai_agent",
+                      "input": {
+                        "claim": "C-2"
+                      }
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r2-5",
+                    "run_id": "r2",
+                    "seq": 5,
+                    "time": "2026-03-03T09:01:00.000Z",
+                    "type": "contract.checked",
+                    "level": "execution",
+                    "workflow_id": "settle",
+                    "token_id": "t1",
+                    "node_id": "assess",
+                    "node_name": "Assess damage",
+                    "attempt": 1,
+                    "data": {
+                      "passed": false,
+                      "violations": [
+                        {
+                          "kind": "postcondition",
+                          "name": "Within authority",
+                          "message": "does not hold"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r2-6",
+                    "run_id": "r2",
+                    "seq": 6,
+                    "time": "2026-03-03T09:01:00.000Z",
+                    "type": "activity.failed",
+                    "level": "execution",
+                    "workflow_id": "settle",
+                    "token_id": "t1",
+                    "node_id": "assess",
+                    "node_name": "Assess damage",
+                    "attempt": 1,
+                    "data": {
+                      "error": {
+                        "code": "CONTRACT_VIOLATION",
+                        "message": "Outcome contract violated"
+                      },
+                      "retryable": false
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r2-7",
+                    "run_id": "r2",
+                    "seq": 7,
+                    "time": "2026-03-03T09:01:00.000Z",
+                    "type": "contract.escalated",
+                    "level": "execution",
+                    "workflow_id": "settle",
+                    "token_id": "t1",
+                    "node_id": "assess",
+                    "node_name": "Assess damage",
+                    "attempt": 1,
+                    "data": {
+                      "code": "CONTRACT_VIOLATION",
+                      "message": "Outcome contract violated",
+                      "rejected_output": {
+                        "cost": 90000
+                      }
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r2-8",
+                    "run_id": "r2",
+                    "seq": 8,
+                    "time": "2026-03-03T09:01:00.000Z",
+                    "type": "meta.recorded",
+                    "level": "meta",
+                    "workflow_id": "settle",
+                    "token_id": "t1",
+                    "node_id": "assess",
+                    "node_name": "Assess damage",
+                    "attempt": 1,
+                    "data": {
+                      "subject": "escalation",
+                      "decision": "Hand the activity to a human",
+                      "rationale": "on_violation is escalate_human"
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r2-9",
+                    "run_id": "r2",
+                    "seq": 9,
+                    "time": "2026-03-03T09:01:00.000Z",
+                    "type": "token.waiting",
+                    "level": "execution",
+                    "workflow_id": "settle",
+                    "token_id": "t1",
+                    "node_id": "assess",
+                    "node_name": "Assess damage",
+                    "data": {
+                      "reason": "human_task"
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r2-10",
+                    "run_id": "r2",
+                    "seq": 10,
+                    "time": "2026-03-03T10:01:00.000Z",
+                    "type": "token.resumed",
+                    "level": "execution",
+                    "workflow_id": "settle",
+                    "token_id": "t1",
+                    "node_id": "assess",
+                    "node_name": "Assess damage",
+                    "data": {
+                      "waited_ms": 3600000
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r2-11",
+                    "run_id": "r2",
+                    "seq": 11,
+                    "time": "2026-03-03T10:01:00.000Z",
+                    "type": "contract.checked",
+                    "level": "execution",
+                    "workflow_id": "settle",
+                    "token_id": "t1",
+                    "node_id": "assess",
+                    "node_name": "Assess damage",
+                    "attempt": 1,
+                    "data": {
+                      "passed": true,
+                      "violations": [],
+                      "decided_by": "human"
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r2-12",
+                    "run_id": "r2",
+                    "seq": 12,
+                    "time": "2026-03-03T10:01:00.000Z",
+                    "type": "activity.completed",
+                    "level": "execution",
+                    "workflow_id": "settle",
+                    "token_id": "t1",
+                    "node_id": "assess",
+                    "node_name": "Assess damage",
+                    "attempt": 1,
+                    "data": {
+                      "actor_type": "ai_agent",
+                      "output": {
+                        "output": {
+                          "cost": 4000
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r2-13",
+                    "run_id": "r2",
+                    "seq": 13,
+                    "time": "2026-03-03T10:02:00.000Z",
+                    "type": "activity.started",
+                    "level": "execution",
+                    "workflow_id": "settle",
+                    "token_id": "t1",
+                    "node_id": "reserve",
+                    "node_name": "Reserve funds",
+                    "attempt": 1,
+                    "data": {
+                      "actor_type": "application",
+                      "input": {
+                        "cost": 4000
+                      }
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r2-14",
+                    "run_id": "r2",
+                    "seq": 14,
+                    "time": "2026-03-03T10:02:00.000Z",
+                    "type": "activity.completed",
+                    "level": "execution",
+                    "workflow_id": "settle",
+                    "token_id": "t1",
+                    "node_id": "reserve",
+                    "node_name": "Reserve funds",
+                    "attempt": 1,
+                    "data": {
+                      "actor_type": "application",
+                      "output": {
+                        "reserved": 4000
+                      }
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r2-15",
+                    "run_id": "r2",
+                    "seq": 15,
+                    "time": "2026-03-03T10:03:00.000Z",
+                    "type": "activity.started",
+                    "level": "execution",
+                    "workflow_id": "settle",
+                    "token_id": "t1",
+                    "node_id": "pay",
+                    "node_name": "Pay",
+                    "attempt": 1,
+                    "data": {
+                      "actor_type": "application",
+                      "input": {
+                        "cost": 4000
+                      }
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r2-16",
+                    "run_id": "r2",
+                    "seq": 16,
+                    "time": "2026-03-03T10:03:00.000Z",
+                    "type": "tool.failed",
+                    "level": "execution",
+                    "workflow_id": "settle",
+                    "token_id": "t1",
+                    "node_id": "pay",
+                    "node_name": "Pay",
+                    "attempt": 1,
+                    "data": {
+                      "call_id": "c9",
+                      "tool": "transfer",
+                      "link": "https://bank.example/rpc#transfer",
+                      "invoked": false,
+                      "error": {
+                        "code": "PERMISSION_DENIED",
+                        "message": "host not allowed"
+                      }
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r2-17",
+                    "run_id": "r2",
+                    "seq": 17,
+                    "time": "2026-03-03T10:03:00.000Z",
+                    "type": "tool.invoked",
+                    "level": "execution",
+                    "workflow_id": "settle",
+                    "token_id": "t1",
+                    "node_id": "pay",
+                    "node_name": "Pay",
+                    "attempt": 1,
+                    "data": {
+                      "call_id": "c10",
+                      "tool": "transfer",
+                      "link": "https://bank.example/rpc#transfer",
+                      "arguments": {
+                        "amount": 4000
+                      }
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r2-18",
+                    "run_id": "r2",
+                    "seq": 18,
+                    "time": "2026-03-03T10:04:00.000Z",
+                    "type": "tool.failed",
+                    "level": "execution",
+                    "workflow_id": "settle",
+                    "token_id": "t1",
+                    "node_id": "pay",
+                    "node_name": "Pay",
+                    "attempt": 1,
+                    "data": {
+                      "call_id": "c10",
+                      "tool": "transfer",
+                      "link": "https://bank.example/rpc#transfer",
+                      "invoked": true,
+                      "error": {
+                        "code": "TOOL_ERROR",
+                        "message": "bank rejected"
+                      },
+                      "status": 500
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r2-19",
+                    "run_id": "r2",
+                    "seq": 19,
+                    "time": "2026-03-03T10:04:00.000Z",
+                    "type": "activity.failed",
+                    "level": "execution",
+                    "workflow_id": "settle",
+                    "token_id": "t1",
+                    "node_id": "pay",
+                    "node_name": "Pay",
+                    "attempt": 1,
+                    "data": {
+                      "error": {
+                        "code": "TOOL_ERROR",
+                        "message": "bank rejected"
+                      },
+                      "retryable": false
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r2-20",
+                    "run_id": "r2",
+                    "seq": 20,
+                    "time": "2026-03-03T10:04:00.000Z",
+                    "type": "activity.dead_lettered",
+                    "level": "execution",
+                    "workflow_id": "settle",
+                    "token_id": "t1",
+                    "node_id": "pay",
+                    "node_name": "Pay",
+                    "attempt": 1,
+                    "data": {
+                      "attempts": 1,
+                      "error": {
+                        "code": "TOOL_ERROR"
+                      }
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r2-21",
+                    "run_id": "r2",
+                    "seq": 21,
+                    "time": "2026-03-03T10:05:00.000Z",
+                    "type": "activity.compensated",
+                    "level": "execution",
+                    "workflow_id": "settle",
+                    "token_id": "t1",
+                    "node_id": "release",
+                    "node_name": "Release funds",
+                    "data": {
+                      "compensates_activity_id": "reserve",
+                      "compensates_activity_name": "Reserve funds",
+                      "output": {
+                        "released": true
+                      }
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r2-22",
+                    "run_id": "r2",
+                    "seq": 22,
+                    "time": "2026-03-03T10:05:00.000Z",
+                    "type": "sla.breached",
+                    "level": "execution",
+                    "workflow_id": "settle",
+                    "data": {
+                      "scope": "workflow",
+                      "elapsed_ms": 3900000,
+                      "max_time": "PT1H",
+                      "action": "record"
+                    }
+                  },
+                  {
+                    "spec_version": "1.1",
+                    "id": "r2-23",
+                    "run_id": "r2",
+                    "seq": 23,
+                    "time": "2026-03-03T10:05:00.000Z",
+                    "type": "run.failed",
+                    "level": "execution",
+                    "workflow_id": "settle",
+                    "data": {
+                      "errors": [
+                        "bank rejected"
+                      ]
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "runs": [
+      {
+        "run_id": "r3",
+        "workflow_id": "settle",
+        "events": [
+          {
+            "spec_version": "1.1",
+            "id": "r3-1",
+            "run_id": "r3",
+            "seq": 1,
+            "time": "2026-03-04T09:00:00.000Z",
+            "type": "run.started",
+            "level": "execution",
+            "workflow_id": "settle",
+            "data": {
+              "workflow_name": "Settle",
+              "workflow_version": "1.3.0",
+              "input": {
+                "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+              }
+            }
+          },
+          {
+            "spec_version": "1.1",
+            "id": "r3-2",
+            "run_id": "r3",
+            "seq": 2,
+            "time": "2026-03-04T09:00:00.000Z",
+            "type": "activity.started",
+            "level": "execution",
+            "workflow_id": "settle",
+            "token_id": "t1",
+            "node_id": "assess",
+            "node_name": "Assess damage",
+            "attempt": 1,
+            "data": {
+              "actor_type": "ai_agent",
+              "input": {
+                "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+              }
+            }
+          },
+          {
+            "spec_version": "1.1",
+            "id": "r3-3",
+            "run_id": "r3",
+            "seq": 3,
+            "time": "2026-03-04T09:01:00.000Z",
+            "type": "activity.completed",
+            "level": "execution",
+            "workflow_id": "settle",
+            "token_id": "t1",
+            "node_id": "assess",
+            "node_name": "Assess damage",
+            "attempt": 1,
+            "data": {
+              "actor_type": "ai_agent",
+              "output": {
+                "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+              }
+            }
+          },
+          {
+            "spec_version": "1.1",
+            "id": "r3-4",
+            "run_id": "r3",
+            "seq": 4,
+            "time": "2026-03-04T09:01:00.000Z",
+            "type": "decision.evaluated",
+            "level": "execution",
+            "workflow_id": "settle",
+            "token_id": "t1",
+            "node_id": "route",
+            "node_name": "Route",
+            "data": {
+              "method": "model",
+              "model": {
+                "option": "review",
+                "confidence": 0.8
+              },
+              "edge_id": "e1",
+              "used_default": false
+            }
+          },
+          {
+            "spec_version": "1.1",
+            "id": "r3-5",
+            "run_id": "r3",
+            "seq": 5,
+            "time": "2026-03-04T09:30:00.000Z",
+            "type": "run.cancelled",
+            "level": "execution",
+            "workflow_id": "settle",
+            "data": {
+              "reason": "the customer withdrew the claim"
+            }
+          }
+        ]
+      },
+      {
+        "run_id": "r5",
+        "workflow_id": "intake",
+        "events": [
+          {
+            "spec_version": "1.1",
+            "id": "r5-1",
+            "run_id": "r5",
+            "seq": 1,
+            "time": "2026-03-05T09:00:00.000Z",
+            "type": "run.started",
+            "level": "execution",
+            "workflow_id": "intake",
+            "data": {
+              "workflow_name": "Intake",
+              "workflow_version": "1.0.0",
+              "input": {
+                "claim": "C-5"
+              }
+            }
+          },
+          {
+            "spec_version": "1.1",
+            "id": "r5-2",
+            "run_id": "r5",
+            "seq": 2,
+            "time": "2026-03-05T09:00:00.000Z",
+            "type": "activity.started",
+            "level": "execution",
+            "workflow_id": "intake",
+            "token_id": "t1",
+            "node_id": "register",
+            "node_name": "Register",
+            "attempt": 1,
+            "data": {
+              "actor_type": "application",
+              "input": {
+                "claim": "C-5"
+              }
+            }
+          },
+          {
+            "spec_version": "1.1",
+            "id": "r5-4",
+            "run_id": "r5",
+            "seq": 4,
+            "time": "2026-03-05T09:02:00.000Z",
+            "type": "run.completed",
+            "level": "execution",
+            "workflow_id": "intake",
+            "data": {}
+          }
+        ]
+      }
+    ]
+  },
+  "options": {
+    "from": "2026-03-03T00:00:00.000Z",
+    "to": "2026-03-05T00:00:00.000Z"
+  },
+  "expect": {
+    "summaries": {
+      "operation": {
+        "runs": 2,
+        "failed": 1,
+        "cancelled": 1,
+        "journeys": 0
+      },
+      "oversight": {
+        "human_decisions": 1,
+        "overrides": 1
+      },
+      "failures": {
+        "journeys_stalled": 0
+      }
+    },
+    "cited_runs": [
+      "r2",
+      "r3"
+    ],
+    "statements": [
+      {
+        "part": "operation",
+        "kind": "run",
+        "facts": {
+          "run_id": "r2",
+          "journey_instance_id": "j1"
+        },
+        "citations": [
+          {
+            "run_id": "r2",
+            "seq": [
+              1,
+              23
+            ]
+          }
+        ]
+      }
+    ],
+    "absent": [
+      {
+        "part": "operation",
+        "kind": "journey",
+        "facts": {
+          "journey_instance_id": "j1"
+        }
+      },
+      {
+        "part": "operation",
+        "kind": "run",
+        "facts": {
+          "run_id": "r1"
+        }
+      }
+    ]
+  }
+}

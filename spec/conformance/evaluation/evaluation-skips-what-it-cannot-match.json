@@ -1,0 +1,172 @@
+{
+  "id": "evaluation-skips-what-it-cannot-match",
+  "level": "evaluation",
+  "spec": "33.3",
+  "kind": "run",
+  "description": "A case recorded with another workflow, or about an activity the candidate does not have, is not evaluated and is listed as skipped; it counts in no rate.",
+  "workflow": {
+    "id": "8410eea3-9ad2-5187-83fa-6639fb9f6f65",
+    "name": "evaluation-skips-what-it-cannot-match",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "426f95ca-b604-5278-96ba-7b4b3d22f3b0",
+        "name": "Assess",
+        "role_id": "e69b721a-e1e7-5a17-9eee-e5330c8f182e",
+        "actor_type": "ai_agent",
+        "outcome_contract": {
+          "postconditions": [
+            {
+              "name": "Good score",
+              "expression": "score >= 5"
+            }
+          ],
+          "budgets": {
+            "max_attempts": 2
+          },
+          "on_violation": "escalate_human"
+        },
+        "tools": [
+          {
+            "name": "price",
+            "description": "Price a part",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "part": {
+                  "type": "string"
+                }
+              }
+            },
+            "binding": {
+              "kind": "function",
+              "name": "price"
+            }
+          }
+        ]
+      },
+      {
+        "id": "80b4168a-d1f5-5569-b757-c791da77ae15",
+        "name": "Pay",
+        "role_id": "e69b721a-e1e7-5a17-9eee-e5330c8f182e",
+        "actor_type": "application"
+      },
+      {
+        "id": "83dffce1-8d3a-59d6-b18a-4c1a31f979c7",
+        "name": "Notify",
+        "role_id": "e69b721a-e1e7-5a17-9eee-e5330c8f182e",
+        "actor_type": "ai_agent",
+        "outcome_contract": {
+          "postconditions": [
+            {
+              "name": "Has a message",
+              "expression": "message exists"
+            }
+          ]
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "88df94b2-e9df-5c4d-9b57-bf3a6f7a4962",
+        "source_id": "426f95ca-b604-5278-96ba-7b4b3d22f3b0",
+        "target_id": "80b4168a-d1f5-5569-b757-c791da77ae15"
+      },
+      {
+        "id": "8db45a09-c5eb-50cf-926c-5d9e23f70f31",
+        "source_id": "80b4168a-d1f5-5569-b757-c791da77ae15",
+        "target_id": "83dffce1-8d3a-59d6-b18a-4c1a31f979c7"
+      }
+    ]
+  },
+  "dataset": [
+    {
+      "id": "r1:426f95ca-b604-5278-96ba-7b4b3d22f3b0:1",
+      "workflow_id": "8410eea3-9ad2-5187-83fa-6639fb9f6f65",
+      "workflow_version": "1.0.0",
+      "run_id": "r1",
+      "activity_id": "426f95ca-b604-5278-96ba-7b4b3d22f3b0",
+      "activity_name": "Assess",
+      "input": {
+        "claim": 1
+      },
+      "label": "accepted",
+      "attempts": 1,
+      "rejections": [],
+      "tool_calls": [],
+      "sources": [
+        2,
+        3
+      ],
+      "accepted_by": "contract",
+      "outcome": {
+        "score": 7
+      }
+    },
+    {
+      "id": "not-in-the-workflow",
+      "workflow_id": "8410eea3-9ad2-5187-83fa-6639fb9f6f65",
+      "workflow_version": "1.0.0",
+      "run_id": "r1",
+      "activity_id": "not-in-the-workflow",
+      "activity_name": "Notify",
+      "input": {
+        "score": 7
+      },
+      "label": "accepted",
+      "attempts": 1,
+      "rejections": [],
+      "tool_calls": [],
+      "sources": [
+        2,
+        3
+      ],
+      "accepted_by": "contract",
+      "outcome": {
+        "message": "Paid"
+      }
+    },
+    {
+      "id": "other-workflow",
+      "workflow_id": "another-workflow",
+      "workflow_version": "1.0.0",
+      "run_id": "r1",
+      "activity_id": "426f95ca-b604-5278-96ba-7b4b3d22f3b0",
+      "activity_name": "Assess",
+      "input": {
+        "claim": 1
+      },
+      "label": "accepted",
+      "attempts": 1,
+      "rejections": [],
+      "tool_calls": [],
+      "sources": [
+        2,
+        3
+      ],
+      "accepted_by": "contract",
+      "outcome": {
+        "score": 7
+      }
+    }
+  ],
+  "candidate_actors": {
+    "Assess": {
+      "output": {
+        "score": 7
+      }
+    }
+  },
+  "expect": {
+    "evaluated": 1,
+    "skipped": 2,
+    "regressions": 0,
+    "activities": {
+      "Assess": {
+        "cases": 1,
+        "pass_rate": 1
+      }
+    }
+  }
+}
