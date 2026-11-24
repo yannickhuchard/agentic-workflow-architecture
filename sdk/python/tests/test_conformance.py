@@ -27,7 +27,7 @@ from awa.validator import validate_workflow_integrity
 
 CONFORMANCE = Path(__file__).resolve().parents[3] / "spec" / "conformance"
 SCHEMAS = Path(__file__).resolve().parents[3] / "spec" / "json-schema"
-CLAIMED_LEVELS = {"core", "decision", "verified", "recorded", "resilient", "contract", "flow", "events",
+CLAIMED_LEVELS = {"interchange", "core", "decision", "verified", "recorded", "resilient", "contract", "flow", "events",
                   "tools", "model_decision", "routing", "journeys", "measures",
                   "replay", "contexts", "service_levels", "knowledge"}
 # Integrity rules the Python SDK does not enforce. None at present.
@@ -614,3 +614,91 @@ def test_knowledge(case):
             assert source["event_seqs"], f'{entry["id"]} cites events'
             for seq in source["event_seqs"]:
                 assert any(e["seq"] == seq for e in journal), f'{entry["id"]} cites event {seq}'
+
+
+# ---------------------------------------------------------------------------
+# Level interchange (specification section 27)
+# ---------------------------------------------------------------------------
+
+INTERCHANGE_CASES = [json.loads(p.read_text()) for p in sorted((CONFORMANCE / "interchange").glob("*.json"))]
+FEEL = json.loads((CONFORMANCE / "feel.json").read_text())
+
+
+@pytest.mark.parametrize("case", INTERCHANGE_CASES, ids=[c["id"] for c in INTERCHANGE_CASES])
+def test_interchange(case):
+    from awa.interchange import InterchangeError, export_bpmn, export_serverless_workflow, import_bpmn, import_dmn
+    from awa.interchange.common import json_equal
+
+    if case["level"] not in CLAIMED_LEVELS:
+        pytest.skip(f"level '{case['level']}' is not claimed by the Python SDK")
+    expect = case["expect"]
+    if "error_matches" in expect:
+        with pytest.raises(InterchangeError, match=expect["error_matches"]):
+            if case["kind"] == "import_dmn":
+                import_dmn(case["dmn"])
+            else:
+                import_bpmn(case["bpmn"], case.get("dmn"))
+        return
+    if case["kind"] == "import_bpmn":
+        assert import_bpmn(case["bpmn"], case.get("dmn")).documents == expect["documents"]
+    elif case["kind"] == "import_dmn":
+        assert import_dmn(case["dmn"])[0] == expect["decisions"]
+    elif case["kind"] == "round_trip":
+        exported = export_bpmn([case["workflow"]])
+        back = import_bpmn(exported.bpmn, [exported.dmn] if exported.dmn else [])
+        assert json_equal(back.documents[0], case["workflow"])
+    elif case["kind"] == "export_serverless_workflow":
+        result = export_serverless_workflow(case["workflow"])
+        assert result.document == expect["document"]
+        assert result.not_mapped == expect["not_mapped"]
+    else:
+        raise AssertionError(f"unknown kind {case['kind']}")
+
+
+def _interchange_claimed():
+    if "interchange" not in CLAIMED_LEVELS:
+        pytest.skip("level 'interchange' is not claimed by the Python SDK")
+
+
+@pytest.mark.parametrize("case", FEEL["unary"], ids=[c["feel"] for c in FEEL["unary"]])
+def test_feel_unary_tests(case):
+    from awa.interchange import feel_unary_to_awa
+    _interchange_claimed()
+    assert feel_unary_to_awa(case["feel"]) == case["awa"]
+
+
+@pytest.mark.parametrize("text", FEEL["unary_invalid"])
+def test_feel_unary_tests_refused(text):
+    from awa.interchange import InterchangeError, feel_unary_to_awa
+    _interchange_claimed()
+    with pytest.raises(InterchangeError, match="FEEL"):
+        feel_unary_to_awa(text)
+
+
+@pytest.mark.parametrize("case", FEEL["unary_export"], ids=[c["awa"] for c in FEEL["unary_export"]])
+def test_feel_unary_export(case):
+    from awa.interchange import awa_unary_to_feel
+    _interchange_claimed()
+    assert awa_unary_to_feel(case["awa"], case.get("type")) == case["feel"]
+
+
+@pytest.mark.parametrize("case", FEEL["conditions"], ids=[c["bpmn"] for c in FEEL["conditions"]])
+def test_feel_conditions(case):
+    from awa.interchange import feel_condition_to_awa
+    _interchange_claimed()
+    assert feel_condition_to_awa(case["bpmn"]) == case["awa"]
+
+
+@pytest.mark.parametrize("text", FEEL["conditions_invalid"])
+def test_feel_conditions_refused(text):
+    from awa.interchange import InterchangeError, feel_condition_to_awa
+    _interchange_claimed()
+    with pytest.raises(InterchangeError, match="cannot be read"):
+        feel_condition_to_awa(text)
+
+
+@pytest.mark.parametrize("case", FEEL["conditions_export"], ids=[c["awa"] for c in FEEL["conditions_export"]])
+def test_feel_conditions_export(case):
+    from awa.interchange import awa_condition_to_feel
+    _interchange_claimed()
+    assert awa_condition_to_feel(case["awa"]) == case["feel"]

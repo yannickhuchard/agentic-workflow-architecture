@@ -40,7 +40,7 @@ print(result)
 
 ## Conformance
 
-The Python SDK passes every case of every conformance level of the specification (`docs/specification.md`, section 2.1): `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts` and `service_levels`. No case is skipped. Run them with `pytest tests/test_conformance.py -rs`.
+The Python SDK passes every case of every conformance level of the specification (`docs/specification.md`, section 2.1): `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels` and `interchange`. No case is skipped. Run them with `pytest tests/test_conformance.py -rs`.
 
 What it still lacks compared with the TypeScript reference implementation, none of which belongs to a conformance level:
 
@@ -64,6 +64,10 @@ awa knowledge ingest claim.awa.json run1.jsonl run2.jsonl [--kb knowledge.json]
 awa knowledge list [--status draft|reviewed|deprecated] [--kb knowledge.json]
 awa knowledge review <id...|all> --by <reviewer> [--kb knowledge.json]
 awa knowledge deprecate <id> [--superseded-by <id>] [--kb knowledge.json]
+awa export bpmn claim.awa.json [-o claim.bpmn] [--no-diagram]     # and claim.dmn for its decision tables
+awa import bpmn claim.bpmn [--dmn claim.dmn] [-o claim.awa.json]
+awa import dmn rules.dmn | awa export dmn claim.awa.json
+awa export serverless-workflow claim.awa.json [--format json|yaml]
 ```
 
 `awa run` takes the options of the reference command, with the same meaning:
@@ -83,6 +87,21 @@ awa knowledge deprecate <id> [--superseded-by <id>] [--kb knowledge.json]
 The reference maps each provider's capability tiers to its preset models. This SDK names no models, so the model behind a tier is read from `AWA_<PROVIDER>_MODEL_<TIER>` (for example `AWA_OLLAMA_MODEL_FAST`) or `AWA_<PROVIDER>_MODEL`; each tier falls back down the list of providers, and a tier none of them names is `<first provider>:default`. At the end the command prints the run's metrics (status, duration, steps, tokens and cost, at the reference's example rates), `Workflow finished with status: ...` and, with `--journal`, where the journal was written. It exits with status 1 when the run fails.
 
 `awa task` works on the human tasks in the database named by `AWA_DATABASE_URL`. `awa knowledge` keeps the knowledge base in one JSON file, `knowledge.json` by default.
+
+## BPMN, DMN and Serverless Workflow
+
+Level `interchange` (specification section 27), with the same commands, defaults and results as the TypeScript SDK. Exporting a workflow to BPMN 2.0 (and its decision tables to DMN 1.3) and importing the result gives back the same document; what BPMN has no element for travels in the `awa:` namespace of `spec/xsd/awa-interchange.xsd`. An import refuses, naming the element and the reason, what AWA cannot express without changing its meaning.
+
+```python
+from awa.interchange import export_bpmn, import_bpmn, import_dmn, export_serverless_workflow
+
+result = export_bpmn([workflow_document])          # result.bpmn, result.dmn
+back = import_bpmn(result.bpmn, [result.dmn])      # back.documents == [workflow_document]
+decisions, warnings = import_dmn(dmn_text)
+sw = export_serverless_workflow(workflow_document)  # sw.document, sw.not_mapped
+```
+
+Only the standard library's XML is used; the reference BPMN, DMN and Serverless Workflow libraries are JavaScript, and the test suite reads this SDK's exports with them when Node and `sdk/typescript/node_modules` are present. Writing Serverless Workflow as YAML needs PyYAML; `--format json` does not.
 
 ## Tools, model routing and model decisions
 

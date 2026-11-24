@@ -354,7 +354,7 @@ export async function export_serverless_workflow(document: JsonObject, options: 
     const start_name = is_object(start?.event_definition) ? start!.event_definition.name : undefined;
     if (typeof start_name === 'string') sw.schedule = { on: { one: { with: { type: start_name } } } };
     sw.do = tasks as unknown as Json;
-    for (const [key, reason] of Object.entries(WORKFLOW_PROPERTIES)) {
+    for (const [key, reason] of Object.entries(WORKFLOW_PROPERTIES).reverse()) {
         if (w[key] !== undefined && !(Array.isArray(w[key]) && !(w[key] as Json[]).length)) exporter.not_mapped.unshift({ property: key, reason });
     }
     if (options.validate !== false) {

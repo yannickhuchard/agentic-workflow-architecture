@@ -133,6 +133,7 @@ page("installation-guide.html", "Installation", "What you need, how to build, an
     ["<code>awa knowledge</code>", "Distil, review and exchange knowledge from journals"],
     ["<code>awa serve</code>", "The HTTP interface"],
     ["<code>awa task</code>", "Human tasks: list, assign, complete"],
+    ["<code>awa import</code>, <code>awa export</code>", "BPMN 2.0 and DMN in and out without loss; CNCF Serverless Workflow out"],
     ["<code>awa init</code>, <code>awa generate</code>", "Start a project; draft a workflow from a description"]])}'''),
       ("python", "Python SDK", f'''
 <p>Python 3.10 or later.</p>
@@ -272,6 +273,20 @@ curl localhost:3000/api/v1/measures?format=openmetrics
 <p>Counterfactual replay runs a recorded run again with something changed, holding everything else as it was recorded: the input, what applications and people returned, tool results, events and time.</p>
 {code("awa replay workflow.awa.json run.journal.jsonl --candidate changed.awa.json --ai recorded")}
 <p>It exits with status 2 on a regression, so a folder of recorded journals is a regression suite for a change of model, prompt, contract or rule. A step the baseline never performed is reported as unrecorded; nothing is invented and no real call is made.</p>'''),
+      ("interchange", "BPMN, DMN and Serverless Workflow", f'''
+<p>Specification section 27. A workflow exported to BPMN 2.0, with its decision tables in DMN 1.3, reads back as the same document: what BPMN has no element for travels in the <code>awa:</code> namespace. A process drawn in a BPMN modeller imports as an AWA workflow, and what AWA cannot run the same way is refused with the element and the reason.</p>
+{code("""
+awa export bpmn claim.awa.json                 # claim.bpmn, and claim.dmn for its decision tables
+awa import bpmn process.bpmn --dmn rules.dmn   # one workflow per process
+awa export serverless-workflow claim.awa.json  # and the list of what does not map
+""")}
+{code("""
+import { export_bpmn, import_bpmn } from 'agentic-workflow-architecture';
+
+const { bpmn, dmn } = await export_bpmn([workflow]);
+const { documents, warnings } = await import_bpmn(bpmn, { dmn: dmn ? [dmn] : [] });
+""", "typescript")}
+<p>Mark an AI agent's task with <code>awa:actorType="ai_agent"</code>. The TypeScript SDK reads and writes with <code>bpmn-moddle</code>, <code>dmn-moddle</code> and <code>@serverlessworkflow/sdk</code>, which you install beside it; the Python SDK needs nothing more. How AWA compares with BPMN, DMN, Serverless Workflow, Arazzo and agent frameworks is in <a href="interchange.md">docs/interchange.md</a>.</p>'''),
       ("http", "Over HTTP", table(["Request", "Does"], [
           ["<code>POST /api/v1/workflows/run</code>", "Run a workflow file"],
           ["<code>GET /api/v1/workflows/runs/{id}/events</code>", "The journal of a run; <code>/events/stream</code> for Server-Sent Events"],

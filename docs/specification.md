@@ -80,8 +80,8 @@ An implementation MUST NOT claim a level unless it passes every case tagged with
 
 | SDK | Levels claimed |
 |---|---|
-| TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels` |
-| Python | every level: `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`. Without a built-in AI agent that calls a model, the recipe, or Open Knowledge Format exchange |
+| TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `interchange` |
+| Python | every level: `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `interchange` (with the standard library's XML; its exports are checked with the reference BPMN, DMN and Serverless Workflow libraries in its tests). Without a built-in AI agent that calls a model, the recipe, or Open Knowledge Format exchange |
 | Java | none: a data model that reads and writes 1.1 documents faithfully, without validating them, and no engine |
 
 ### 2.3 Versions
@@ -102,7 +102,7 @@ An SDK moved from 1.x to 2.0 for specification 1.1 because 1.1 is stricter: Appe
 
 ### 2.4 Normative and informative artefacts
 
-The JSON Schemas in `spec/json-schema/` and this document are normative. The Avro, OpenAPI, GraphQL and PostgreSQL DDL files in `spec/` are informative projections of the same model, kept in step with version 1.1; where they differ from the JSON Schemas, the JSON Schemas apply.
+The JSON Schemas in `spec/json-schema/` and this document are normative. The Avro, OpenAPI, GraphQL and PostgreSQL DDL files in `spec/` are informative projections of the same model, kept in step with version 1.1; where they differ from the JSON Schemas, the JSON Schemas apply. The XML Schema `spec/xsd/awa-interchange.xsd` defines the `awa:` namespace that BPMN and DMN exports use (27.7).
 
 ## 3. Terminology
 
@@ -1583,8 +1583,8 @@ A sequence flow is an edge: `id`, `source_id`, `target_id`, `label` from `name`,
 
 | BPMN | AWA |
 |---|---|
-| Exclusive gateway with one incoming flow, after a task or event whose only outgoing flow it receives | Folded into that node: its outgoing flows leave the node, its default is the node's default. AWA routing (5.4) is exclusive routing |
-| Converging parallel gateway whose one outgoing flow leads to a node reached only from it | Folded into that node as `join: "all"` (13.2) |
+| Exclusive gateway with one incoming flow, after a task or event that has no default and whose only outgoing flow (apart from a wait's timeout) it receives | Folded into that node: its outgoing flows leave the node, its default is the node's default. AWA routing (5.4) is exclusive routing. After a business rule task, see 27.6 |
+| Converging parallel gateway whose one outgoing flow leads to a task, event, or exclusive or inclusive gateway reached only from it | Folded into that node as `join: "all"` (13.2) |
 | Any other exclusive, parallel or inclusive gateway | An `intermediate` event with the extension property `bpmn:gateway` (`exclusive`, `parallel` or `inclusive`) and the gateway's flows. A parallel gateway with several incoming flows has `join: "all"`. Conditions on the flows of a parallel gateway are ignored with a warning, as BPMN ignores them |
 | Diverging inclusive gateway | Encoded below |
 | Event-based gateway | Folded into the wait it guards (27.5) |
@@ -1798,6 +1798,17 @@ An `<entry>` describes entries by `type`, `node` (the name of the node in the en
 
 A run's `expect` gives its `status`; optionally `given`, which for an activity name lists, in order, the entries its actor must have been given at each execution of that activity, an empty list meaning none; and `journal_contains` as in an execution case. The case's `expect` gives `entry_count`, the number of entries the knowledge base must hold at the end, and `entries`: each `<entry>` must describe exactly one entry, or as many as its `count` says. A runner MUST also check that every source of every entry names a run that was ingested and at least one event of that run's journal, each by its `seq` (15.2).
 
+**Interchange cases** (`interchange/*.json`, level `interchange`) each give a `kind`:
+
+| `kind` | Given | `expect` |
+|---|---|---|
+| `import_bpmn` | `bpmn`, a BPMN document; optionally `dmn`, a list of DMN documents | `documents`: the AWA documents the import gives, in order, compared as JSON values; or `error_matches` |
+| `import_dmn` | `dmn`, a DMN document | `decisions`: the decision nodes the import gives; or `error_matches` |
+| `round_trip` | `workflow`, an AWA document | `round_trip: true`: exporting it to BPMN and DMN and importing the result gives an equal document |
+| `export_serverless_workflow` | `workflow` | `document`: the Serverless Workflow document, and `not_mapped`: the list of what does not map, both compared exactly |
+
+`error_matches` is a regular expression the refusal's message must match; refusals name the element by its kind and identifier, as in `complexGateway "G1"`. `feel.json` holds the FEEL translations of 27.10: `unary` (a FEEL input entry and the AWA entry it becomes), `unary_invalid` (FEEL to refuse), `unary_export` (an AWA entry, optionally a column `type`, and its FEEL), `conditions` (a BPMN condition and the AWA condition it becomes), `conditions_invalid`, and `conditions_export` (an AWA condition and its FEEL, `null` when it is written in AWA's language).
+
 Runners: `sdk/typescript/tests/conformance.test.ts`, `sdk/python/tests/test_conformance.py`.
 
 ## Appendix B. Changes from 1.0
@@ -1835,3 +1846,4 @@ Runners: `sdk/typescript/tests/conformance.test.ts`, `sdk/python/tests/test_conf
 - Measures of journeys and workflows, computed from the record, with conformance level `measures` (section 21).
 - Context bindings are enforced: an activity is given the contexts it is bound to read and no other, and a write needs a binding that allows it (section 22, level `contexts`). **A workflow that binds a required context nothing has written now fails with `CONTEXT_MISSING`** where it used to run.
 - Service levels are compared with the time work takes, and warnings and breaches are journalled; `breach_action: fail` stops work that is still waited for (section 23, level `service_levels`).
+- Interchange with BPMN 2.0 and DMN 1.x, import and export without loss through the `awa:` extension namespace (`spec/xsd/awa-interchange.xsd`), with what is not imported refused and named; export to CNCF Serverless Workflow 1.0 with the list of what does not map; conformance level `interchange` (section 27).
