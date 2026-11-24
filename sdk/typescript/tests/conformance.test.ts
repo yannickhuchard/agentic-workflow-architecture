@@ -19,7 +19,8 @@ import { parse_iso_duration } from '../src/runtime/duration_utils';
 import { FunctionModelProvider } from '../src/runtime/models';
 import { AwaRuntime, InMemoryRuntimeStore } from '../src/runtime/runtime';
 import { JourneyDefinitionSchema } from '../src/runtime/journey';
-import { compute_measures } from '../src/runtime/kpi';
+import { compute_measures, MEASURES } from '../src/runtime/kpi';
+import { gauges_to_otlp_json, journey_spans, measures_to_gauges, run_spans, spans_to_otlp_json } from '../src/runtime/telemetry';
 import { InMemoryJournalStore } from '../src/runtime/journal';
 import { counterfactual_replay } from '../src/runtime/counterfactual';
 import { KnowledgeBase, KnowledgeEntry } from '../src/runtime/knowledge';
@@ -29,7 +30,7 @@ const CONFORMANCE = path.join(ROOT, 'spec/conformance');
 const SCHEMAS = path.join(ROOT, 'spec/json-schema');
 
 /** Conformance levels this implementation claims. */
-const CLAIMED_LEVELS = new Set(['core', 'decision', 'verified', 'resilient', 'recorded', 'contract', 'flow', 'events', 'tools', 'model_decision', 'journeys', 'replay', 'routing', 'knowledge', 'measures', 'contexts', 'service_levels']);
+const CLAIMED_LEVELS = new Set(['core', 'decision', 'verified', 'resilient', 'recorded', 'contract', 'flow', 'events', 'tools', 'model_decision', 'journeys', 'replay', 'routing', 'knowledge', 'measures', 'contexts', 'service_levels', 'telemetry']);
 
 const read = (file: string) => JSON.parse(fs.readFileSync(file, 'utf-8'));
 const list = (dir: string) => fs.readdirSync(dir).filter(f => f.endsWith('.json')).sort().map(f => path.join(dir, f));
@@ -473,6 +474,78 @@ describe('Conformance: measures', () => {
             if (c.expect.attention) {
                 expect(report.attention).toHaveLength(c.expect.attention.length);
                 c.expect.attention.forEach((want: any, i: number) => expect(report.attention[i]).toMatchObject(want));
+            }
+        });
+    }
+});
+
+describe('Conformance: telemetry', () => {
+    const dir = path.join(CONFORMANCE, 'telemetry');
+    /** Attribute lists in any order: sorted by key at every depth */
+    const normalise = (value: any): any => {
+        if (Array.isArray(value)) return value.map(normalise);
+        if (!value || typeof value !== 'object') return value;
+        const out: any = {};
+        for (const [k, v] of Object.entries(value)) {
+            out[k] = k === 'attributes' && Array.isArray(v) ? [...v].sort((a: any, b: any) => a.key.localeCompare(b.key)).map(normalise) : normalise(v);
+        }
+        return out;
+    };
+    for (const file of fs.readdirSync(dir).filter(f => f.endsWith('.json')).sort()) {
+        const c = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf-8'));
+        const run = CLAIMED_LEVELS.has(c.level) ? it : it.skip;
+        run(`${c.id}: ${c.description}`, () => {
+            if (c.report) {
+                const gauges = measures_to_gauges(c.report, MEASURES);
+                const request = gauges_to_otlp_json(gauges, c.report) as any;
+                const metrics = request.resourceMetrics[0].scopeMetrics[0].metrics;
+                expect(metrics).toHaveLength(c.expect.metric_count);
+                for (const name of c.expect.absent || []) expect(metrics.find((m: any) => m.name === name), name).toBeUndefined();
+                for (const want of c.expect.metrics) {
+                    const got = metrics.find((m: any) => m.name === want.name);
+                    expect(got, want.name).toBeDefined();
+                    expect(got.unit, `${want.name} unit`).toBe(want.unit);
+                    const points = got.gauge.dataPoints.map((p: any) => ({
+                        attributes: Object.fromEntries(p.attributes.map((a: any) => [a.key, a.value.stringValue])), value: p.asDouble,
+                    }));
+                    expect(points, want.name).toEqual(want.points);
+                    for (const p of got.gauge.dataPoints) {
+                        expect(p.timeUnixNano).toBe(String(BigInt(Date.parse(c.expect.time)) * 1_000_000n));
+                        expect(p.startTimeUnixNano).toBe(String(BigInt(Date.parse(c.expect.start_time)) * 1_000_000n));
+                    }
+                }
+                return;
+            }
+            const spans = c.journal
+                ? run_spans({ decision_nodes: c.decision_nodes.map((id: string) => ({ id })) }, c.journal, c.options)
+                : journey_spans(c.journey, c.options);
+            expect(spans, 'span count').toHaveLength(c.expect.span_count);
+            for (const s of spans) expect(s.trace_id).toBe(c.expect.trace_id);
+            if (c.expect.otlp_json) {
+                expect(normalise(spans_to_otlp_json(spans))).toEqual(normalise(c.expect.otlp_json));
+            }
+            for (const want of c.expect.spans || []) {
+                const matching = spans.filter(s => s.span_id === want.span_id);
+                expect(matching, `span ${want.span_id}`).toHaveLength(1);
+                const got = matching[0];
+                const where = `${got.name} (${got.span_id})`;
+                if ('parent_span_id' in want) expect(got.parent_span_id ?? null, `${where} parent`).toBe(want.parent_span_id);
+                if (want.name) expect(got.name).toBe(want.name);
+                if (want.kind) expect(got.kind, `${where} kind`).toBe(want.kind);
+                if (want.start) expect(got.start_ms, `${where} start`).toBe(Date.parse(want.start));
+                if (want.end) expect(got.end_ms, `${where} end`).toBe(Date.parse(want.end));
+                if (want.status) expect(got.status.code, `${where} status`).toBe(want.status);
+                if ('status_message' in want) expect(got.status.message, `${where} status message`).toBe(want.status_message);
+                for (const [key, value] of Object.entries(want.attributes || {})) expect(got.attributes[key], `${where} ${key}`).toEqual(value);
+                for (const key of want.absent || []) expect(got.attributes[key], `${where} has ${key}`).toBeUndefined();
+                if (want.events) expect(got.events.map(e => e.name), `${where} events`).toEqual(want.events);
+                for (const e of want.events_contain || []) {
+                    const found = got.events.filter(x => x.name === e.name
+                        && Object.entries(e.attributes || {}).every(([k, v]) => JSON.stringify(x.attributes[k]) === JSON.stringify(v))
+                        && (e.absent || []).every((k: string) => x.attributes[k] === undefined));
+                    expect(found.length, `${where}: an event ${JSON.stringify(e)} among ${JSON.stringify(got.events)}`).toBeGreaterThan(0);
+                }
+                if (want.links) expect(got.links.map(l => ({ trace_id: l.trace_id, span_id: l.span_id })), `${where} links`).toEqual(want.links);
             }
         });
     }

@@ -1,0 +1,438 @@
+{
+  "id": "agent-attempts-and-model-calls",
+  "level": "telemetry",
+  "spec": "26.5",
+  "description": "An AI agent's attempt is an invoke_agent span. Each model_selection is a chat span (kind client) under its attempt, from the attempt's start to the record of the model. Usage comes from the activity.completed that ends the attempt; a rejected attempt has none. The provider google is gcp.gemini.",
+  "decision_nodes": [],
+  "journal": [
+    {
+      "spec_version": "1.1",
+      "id": "7b05332d-2e93-5d92-8126-1c0d1b2ba7c9",
+      "run_id": "d089a082-cb2b-5b18-9174-396a193f86ad",
+      "seq": 1,
+      "time": "2026-03-02T09:00:00.000Z",
+      "type": "run.started",
+      "level": "execution",
+      "workflow_id": "59b22c70-fd7c-54b1-b9b3-ff60102f9c51",
+      "data": {
+        "workflow_name": "Reply",
+        "workflow_version": "1.0.0",
+        "input": {},
+        "simulate": false
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "5ab35d7c-76cc-59dd-b1aa-735da365ff26",
+      "run_id": "d089a082-cb2b-5b18-9174-396a193f86ad",
+      "seq": 2,
+      "time": "2026-03-02T09:00:00.000Z",
+      "type": "token.created",
+      "level": "execution",
+      "workflow_id": "59b22c70-fd7c-54b1-b9b3-ff60102f9c51",
+      "token_id": "528a5801-a83b-5400-8f43-6e6627705b5d",
+      "node_id": "e07563bb-1e7c-52ce-9a9f-3d510b3da580",
+      "node_name": "Draft reply",
+      "data": {}
+    },
+    {
+      "spec_version": "1.1",
+      "id": "33aef2a6-308a-52c1-a020-51a90a48eed3",
+      "run_id": "d089a082-cb2b-5b18-9174-396a193f86ad",
+      "seq": 3,
+      "time": "2026-03-02T09:00:00.000Z",
+      "type": "activity.started",
+      "level": "execution",
+      "workflow_id": "59b22c70-fd7c-54b1-b9b3-ff60102f9c51",
+      "token_id": "528a5801-a83b-5400-8f43-6e6627705b5d",
+      "node_id": "e07563bb-1e7c-52ce-9a9f-3d510b3da580",
+      "node_name": "Draft reply",
+      "attempt": 1,
+      "data": {
+        "actor_type": "ai_agent",
+        "input": {
+          "question": "Where is my parcel?"
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "6de8fb24-e4f5-569c-a30f-2e7d8898666f",
+      "run_id": "d089a082-cb2b-5b18-9174-396a193f86ad",
+      "seq": 4,
+      "time": "2026-03-02T09:00:00.400Z",
+      "type": "meta.recorded",
+      "level": "meta",
+      "workflow_id": "59b22c70-fd7c-54b1-b9b3-ff60102f9c51",
+      "token_id": "528a5801-a83b-5400-8f43-6e6627705b5d",
+      "node_id": "e07563bb-1e7c-52ce-9a9f-3d510b3da580",
+      "node_name": "Draft reply",
+      "attempt": 1,
+      "data": {
+        "subject": "model_selection",
+        "decision": "Use model google:model-a",
+        "rationale": "The role names this model.",
+        "model": {
+          "id": "model-a",
+          "provider": "google",
+          "requested": "tier:balanced",
+          "tier": "balanced",
+          "source": "role",
+          "temperature": 0.2
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "41671d78-8ed7-5876-8aa7-72dec317761e",
+      "run_id": "d089a082-cb2b-5b18-9174-396a193f86ad",
+      "seq": 5,
+      "time": "2026-03-02T09:00:00.400Z",
+      "type": "reasoning.recorded",
+      "level": "reasoning",
+      "workflow_id": "59b22c70-fd7c-54b1-b9b3-ff60102f9c51",
+      "token_id": "528a5801-a83b-5400-8f43-6e6627705b5d",
+      "node_id": "e07563bb-1e7c-52ce-9a9f-3d510b3da580",
+      "node_name": "Draft reply",
+      "attempt": 1,
+      "data": {
+        "source": "actor",
+        "plan": [
+          "look up parcel",
+          "answer"
+        ],
+        "rationale": "The tracking page shows it in transit.",
+        "confidence": 0.7
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "f734509a-304f-533a-aa6d-a3a9c0ae9c30",
+      "run_id": "d089a082-cb2b-5b18-9174-396a193f86ad",
+      "seq": 6,
+      "time": "2026-03-02T09:00:00.401Z",
+      "type": "contract.checked",
+      "level": "execution",
+      "workflow_id": "59b22c70-fd7c-54b1-b9b3-ff60102f9c51",
+      "token_id": "528a5801-a83b-5400-8f43-6e6627705b5d",
+      "node_id": "e07563bb-1e7c-52ce-9a9f-3d510b3da580",
+      "node_name": "Draft reply",
+      "attempt": 1,
+      "data": {
+        "passed": false,
+        "violations": [
+          {
+            "kind": "schema",
+            "name": "schema",
+            "message": "/eta must be string"
+          }
+        ],
+        "tokens_used": 120,
+        "output_hash": "abababababababababababababababababababababababababababababababab"
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "d4f49d3c-7285-51c9-b8ef-3595004fb9f3",
+      "run_id": "d089a082-cb2b-5b18-9174-396a193f86ad",
+      "seq": 7,
+      "time": "2026-03-02T09:00:00.401Z",
+      "type": "activity.failed",
+      "level": "execution",
+      "workflow_id": "59b22c70-fd7c-54b1-b9b3-ff60102f9c51",
+      "token_id": "528a5801-a83b-5400-8f43-6e6627705b5d",
+      "node_id": "e07563bb-1e7c-52ce-9a9f-3d510b3da580",
+      "node_name": "Draft reply",
+      "attempt": 1,
+      "data": {
+        "error": {
+          "message": "Outcome contract violated: /eta must be string",
+          "code": "CONTRACT_VIOLATION"
+        },
+        "retryable": true,
+        "duration_ms": 401
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "bc330cc3-4094-5b4a-8086-e8df4cd924c6",
+      "run_id": "d089a082-cb2b-5b18-9174-396a193f86ad",
+      "seq": 8,
+      "time": "2026-03-02T09:00:00.401Z",
+      "type": "meta.recorded",
+      "level": "meta",
+      "workflow_id": "59b22c70-fd7c-54b1-b9b3-ff60102f9c51",
+      "token_id": "528a5801-a83b-5400-8f43-6e6627705b5d",
+      "node_id": "e07563bb-1e7c-52ce-9a9f-3d510b3da580",
+      "node_name": "Draft reply",
+      "attempt": 1,
+      "data": {
+        "subject": "contract_retry",
+        "decision": "Re-execute with the violated contract terms as feedback",
+        "rationale": "1 contract term(s) did not hold."
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "8c8a1f28-81a3-5913-873d-7a616885acda",
+      "run_id": "d089a082-cb2b-5b18-9174-396a193f86ad",
+      "seq": 9,
+      "time": "2026-03-02T09:00:00.402Z",
+      "type": "activity.started",
+      "level": "execution",
+      "workflow_id": "59b22c70-fd7c-54b1-b9b3-ff60102f9c51",
+      "token_id": "528a5801-a83b-5400-8f43-6e6627705b5d",
+      "node_id": "e07563bb-1e7c-52ce-9a9f-3d510b3da580",
+      "node_name": "Draft reply",
+      "attempt": 2,
+      "data": {
+        "actor_type": "ai_agent",
+        "input": {
+          "question": "Where is my parcel?"
+        },
+        "feedback": "/eta must be string"
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "63ca8f72-214f-5a5a-8bd2-282a641ab144",
+      "run_id": "d089a082-cb2b-5b18-9174-396a193f86ad",
+      "seq": 10,
+      "time": "2026-03-02T09:00:00.900Z",
+      "type": "meta.recorded",
+      "level": "meta",
+      "workflow_id": "59b22c70-fd7c-54b1-b9b3-ff60102f9c51",
+      "token_id": "528a5801-a83b-5400-8f43-6e6627705b5d",
+      "node_id": "e07563bb-1e7c-52ce-9a9f-3d510b3da580",
+      "node_name": "Draft reply",
+      "attempt": 2,
+      "data": {
+        "subject": "model_selection",
+        "decision": "Use model google:model-a",
+        "rationale": "The role names this model.",
+        "model": {
+          "id": "model-a",
+          "provider": "google",
+          "requested": "tier:balanced",
+          "tier": "balanced",
+          "source": "role",
+          "temperature": 0.2
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "a0f45560-540a-51a0-a590-2a3426aad53e",
+      "run_id": "d089a082-cb2b-5b18-9174-396a193f86ad",
+      "seq": 11,
+      "time": "2026-03-02T09:00:00.901Z",
+      "type": "contract.checked",
+      "level": "execution",
+      "workflow_id": "59b22c70-fd7c-54b1-b9b3-ff60102f9c51",
+      "token_id": "528a5801-a83b-5400-8f43-6e6627705b5d",
+      "node_id": "e07563bb-1e7c-52ce-9a9f-3d510b3da580",
+      "node_name": "Draft reply",
+      "attempt": 2,
+      "data": {
+        "passed": true,
+        "violations": [],
+        "tokens_used": 465,
+        "output_hash": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "d6ead335-656c-58a7-8b6d-448ab4ef93dd",
+      "run_id": "d089a082-cb2b-5b18-9174-396a193f86ad",
+      "seq": 12,
+      "time": "2026-03-02T09:00:00.901Z",
+      "type": "activity.completed",
+      "level": "execution",
+      "workflow_id": "59b22c70-fd7c-54b1-b9b3-ff60102f9c51",
+      "token_id": "528a5801-a83b-5400-8f43-6e6627705b5d",
+      "node_id": "e07563bb-1e7c-52ce-9a9f-3d510b3da580",
+      "node_name": "Draft reply",
+      "attempt": 2,
+      "data": {
+        "actor_type": "ai_agent",
+        "output": {
+          "eta": "tomorrow"
+        },
+        "duration_ms": 499,
+        "attempts": 2,
+        "usage": {
+          "input_tokens": 300,
+          "output_tokens": 45
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "c567ea79-5911-5713-98d3-5515a7478fba",
+      "run_id": "d089a082-cb2b-5b18-9174-396a193f86ad",
+      "seq": 13,
+      "time": "2026-03-02T09:00:00.901Z",
+      "type": "token.completed",
+      "level": "execution",
+      "workflow_id": "59b22c70-fd7c-54b1-b9b3-ff60102f9c51",
+      "token_id": "528a5801-a83b-5400-8f43-6e6627705b5d",
+      "node_id": "e07563bb-1e7c-52ce-9a9f-3d510b3da580",
+      "node_name": "Draft reply",
+      "data": {}
+    },
+    {
+      "spec_version": "1.1",
+      "id": "65ea9bc8-d30b-5c65-bfa3-dbbe13309587",
+      "run_id": "d089a082-cb2b-5b18-9174-396a193f86ad",
+      "seq": 14,
+      "time": "2026-03-02T09:00:00.901Z",
+      "type": "run.completed",
+      "level": "execution",
+      "workflow_id": "59b22c70-fd7c-54b1-b9b3-ff60102f9c51",
+      "data": {
+        "duration_ms": 901,
+        "steps": 1,
+        "input_tokens": 420,
+        "output_tokens": 45,
+        "cost": 0.0123,
+        "currency": "EUR"
+      }
+    }
+  ],
+  "options": {
+    "payloads": false
+  },
+  "expect": {
+    "trace_id": "93f8eb709ecc2c24ad737fda9b482bbe",
+    "span_count": 5,
+    "spans": [
+      {
+        "span_id": "2a7b29a160cdbd2a",
+        "parent_span_id": null,
+        "status": "ok",
+        "attributes": {
+          "awa.run.input_tokens": 420,
+          "awa.run.output_tokens": 45,
+          "awa.run.cost": 0.0123
+        },
+        "absent": [
+          "gen_ai.usage.input_tokens"
+        ],
+        "events": [
+          "token.created",
+          "meta.recorded",
+          "token.completed"
+        ]
+      },
+      {
+        "span_id": "be70caf15f5a032c",
+        "parent_span_id": "2a7b29a160cdbd2a",
+        "name": "invoke_agent Draft reply",
+        "start": "2026-03-02T09:00:00.000Z",
+        "end": "2026-03-02T09:00:00.401Z",
+        "status": "error",
+        "status_message": "Outcome contract violated: /eta must be string",
+        "attributes": {
+          "gen_ai.operation.name": "invoke_agent",
+          "gen_ai.agent.name": "Draft reply",
+          "gen_ai.agent.id": "e07563bb-1e7c-52ce-9a9f-3d510b3da580",
+          "awa.actor.type": "ai_agent",
+          "error.type": "CONTRACT_VIOLATION",
+          "awa.error.retryable": true,
+          "awa.attempt": 1
+        },
+        "events": [
+          "reasoning.recorded",
+          "contract.checked"
+        ],
+        "events_contain": [
+          {
+            "name": "reasoning.recorded",
+            "attributes": {
+              "awa.journal.level": "reasoning",
+              "awa.attempt": 1,
+              "awa.data.source": "actor",
+              "awa.data.rationale": "The tracking page shows it in transit.",
+              "awa.data.confidence": 0.7,
+              "awa.data.plan": "[\"look up parcel\",\"answer\"]"
+            }
+          },
+          {
+            "name": "contract.checked",
+            "attributes": {
+              "awa.data.passed": false,
+              "awa.data.tokens_used": 120
+            }
+          }
+        ]
+      },
+      {
+        "span_id": "996c58c2f35465fb",
+        "parent_span_id": "be70caf15f5a032c",
+        "name": "chat model-a",
+        "kind": "client",
+        "start": "2026-03-02T09:00:00.000Z",
+        "end": "2026-03-02T09:00:00.400Z",
+        "status": "ok",
+        "attributes": {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.provider.name": "gcp.gemini",
+          "awa.model.provider": "google",
+          "gen_ai.request.model": "model-a",
+          "gen_ai.response.model": "model-a",
+          "gen_ai.request.temperature": 0.2,
+          "awa.model.tier": "balanced",
+          "awa.model.requested": "tier:balanced",
+          "awa.model.source": "role",
+          "awa.attempt": 1
+        },
+        "absent": [
+          "gen_ai.usage.input_tokens",
+          "gen_ai.usage.output_tokens"
+        ],
+        "events": []
+      },
+      {
+        "span_id": "1102caeaea3e4569",
+        "parent_span_id": "2a7b29a160cdbd2a",
+        "name": "invoke_agent Draft reply",
+        "start": "2026-03-02T09:00:00.402Z",
+        "end": "2026-03-02T09:00:00.901Z",
+        "status": "ok",
+        "attributes": {
+          "awa.attempt": 2
+        },
+        "absent": [
+          "error.type",
+          "awa.input"
+        ],
+        "events": [
+          "contract.checked"
+        ]
+      },
+      {
+        "span_id": "d81f82cd0d85e228",
+        "parent_span_id": "1102caeaea3e4569",
+        "name": "chat model-a",
+        "kind": "client",
+        "start": "2026-03-02T09:00:00.402Z",
+        "end": "2026-03-02T09:00:00.900Z",
+        "status": "ok",
+        "attributes": {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.provider.name": "gcp.gemini",
+          "awa.model.provider": "google",
+          "gen_ai.request.model": "model-a",
+          "gen_ai.response.model": "model-a",
+          "gen_ai.request.temperature": 0.2,
+          "awa.model.tier": "balanced",
+          "awa.model.requested": "tier:balanced",
+          "awa.model.source": "role",
+          "awa.attempt": 2,
+          "gen_ai.usage.input_tokens": 300,
+          "gen_ai.usage.output_tokens": 45
+        }
+      }
+    ]
+  }
+}

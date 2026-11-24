@@ -36,6 +36,7 @@ import { ActorContext } from './actors/actor';
 import { BusinessEvent, EventSink } from './business_event';
 import { resolve_path } from './expression';
 import { KnowledgeBase, guidance } from './knowledge';
+import { RunTelemetry, TelemetrySetting, open_run_telemetry } from './telemetry_export';
 
 export type EngineStatus = 'running' | 'paused' | 'completed' | 'failed' | 'idle' | 'waiting_human' | 'waiting_event' | 'cancelled';
 
@@ -121,6 +122,8 @@ export interface WorkflowEngineOptions {
     learn?: boolean;
     /** Replaces the delay between retries. Tests use this to avoid real waiting. */
     sleep?: (ms: number) => Promise<void>;
+    /** Where the run's spans go as its journal is written (spec 26): an exporter, or `{ endpoint, headers, payloads }`. Telemetry never holds up the run. */
+    telemetry?: TelemetrySetting;
 }
 
 export interface SimulatedOutput {
@@ -213,6 +216,7 @@ export class WorkflowEngine {
     private simulate: boolean;
     private runId: UUID;
     private journal: JournalWriter;
+    private telemetry?: RunTelemetry;
     private journalStore: JournalStore;
     private deadLetterQueue: DeadLetterQueue;
     private sleep: (ms: number) => Promise<void>;
@@ -246,6 +250,8 @@ export class WorkflowEngine {
         this.runId = options.run_id || randomUUID();
         this.journalStore = options.journal || new InMemoryJournalStore();
         this.journal = new JournalWriter(this.runId, workflowDef.id, this.journalStore, options.journal_payloads || 'full', 0, options.now);
+        this.telemetry = open_run_telemetry(workflowDef, options.telemetry, () => this.journalStore.read(this.runId));
+        this.telemetry?.watch(this.journal);
         this.deadLetterQueue = options.dead_letter_queue || new DeadLetterQueue(new Logger({ output: () => { } }));
         this.sleep = options.sleep || (ms => new Promise(resolve => setTimeout(resolve, ms)));
         this.tokens = [];
@@ -611,6 +617,7 @@ export class WorkflowEngine {
         const engine = new WorkflowEngine(workflowDef, { ...options, run_id: meta.run_id || options.run_id });
         engine.journal = new JournalWriter(
             engine.runId, workflowDef.id, engine.journalStore, options.journal_payloads || 'full', Math.max(meta.journal_seq || 0, options.journal_tail_seq || 0), options.now);
+        engine.telemetry?.watch(engine.journal);
         engine.tokens = state.tokens.map(t => deserialize_token(t, state.workflow_id));
         engine.contextManager.restore(state.contexts, meta.context_times);
         engine.slaRecorded = new Set(meta.sla_recorded || []);

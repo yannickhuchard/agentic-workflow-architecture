@@ -1,0 +1,287 @@
+{
+  "id": "run-trace-and-attempt-spans",
+  "level": "telemetry",
+  "spec": "26.1",
+  "description": "A run is one trace whose identifiers derive from the run id. The run span's key event is run.started; each attempt is a span from activity.started to activity.completed, a child of the run. Events that open or end nothing are span events of the run.",
+  "decision_nodes": [],
+  "journal": [
+    {
+      "spec_version": "1.1",
+      "id": "cc114836-d0f6-574d-b480-b1325a32f627",
+      "run_id": "b1872529-5b1c-53d2-b4fc-2d0b08edd2b9",
+      "seq": 1,
+      "time": "2026-03-02T09:00:00.000Z",
+      "type": "run.started",
+      "level": "execution",
+      "workflow_id": "270c47d8-828f-5943-8028-b2fd4fc7c9a0",
+      "data": {
+        "workflow_name": "Refund",
+        "workflow_version": "1.2.0",
+        "input": {
+          "order": "O-17",
+          "amount": 40
+        },
+        "simulate": false
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "0954149e-4a36-5acb-b8a0-b1bedfd5ed58",
+      "run_id": "b1872529-5b1c-53d2-b4fc-2d0b08edd2b9",
+      "seq": 2,
+      "time": "2026-03-02T09:00:00.000Z",
+      "type": "token.created",
+      "level": "execution",
+      "workflow_id": "270c47d8-828f-5943-8028-b2fd4fc7c9a0",
+      "token_id": "11770079-3650-553e-b4be-a724f25af813",
+      "node_id": "18bdd7d2-2913-5b12-b2cf-b5667d0e3dc6",
+      "node_name": "Start",
+      "data": {}
+    },
+    {
+      "spec_version": "1.1",
+      "id": "6b0d4587-fd26-50c6-8113-12320295d70e",
+      "run_id": "b1872529-5b1c-53d2-b4fc-2d0b08edd2b9",
+      "seq": 3,
+      "time": "2026-03-02T09:00:00.000Z",
+      "type": "token.moved",
+      "level": "execution",
+      "workflow_id": "270c47d8-828f-5943-8028-b2fd4fc7c9a0",
+      "token_id": "11770079-3650-553e-b4be-a724f25af813",
+      "node_id": "b8cf40fd-deab-5335-9d27-0de2fd95b881",
+      "node_name": "Check request",
+      "data": {
+        "from_node_id": "18bdd7d2-2913-5b12-b2cf-b5667d0e3dc6",
+        "to_node_id": "b8cf40fd-deab-5335-9d27-0de2fd95b881",
+        "edge_id": "aa5c7e42-b8ea-5b4e-a194-cec5fd013082",
+        "reason": "unconditional"
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "4d886ce4-835f-5896-8653-1d809dbfae16",
+      "run_id": "b1872529-5b1c-53d2-b4fc-2d0b08edd2b9",
+      "seq": 4,
+      "time": "2026-03-02T09:00:00.010Z",
+      "type": "activity.started",
+      "level": "execution",
+      "workflow_id": "270c47d8-828f-5943-8028-b2fd4fc7c9a0",
+      "token_id": "11770079-3650-553e-b4be-a724f25af813",
+      "node_id": "b8cf40fd-deab-5335-9d27-0de2fd95b881",
+      "node_name": "Check request",
+      "attempt": 1,
+      "data": {
+        "actor_type": "application",
+        "role_id": "1f75c4b7-30b1-5d4a-aa28-a120e85ba4e0",
+        "input": {
+          "order": "O-17"
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "f3c354ea-bf46-5e16-81ed-7a7847b2ee18",
+      "run_id": "b1872529-5b1c-53d2-b4fc-2d0b08edd2b9",
+      "seq": 5,
+      "time": "2026-03-02T09:00:00.260Z",
+      "type": "activity.completed",
+      "level": "execution",
+      "workflow_id": "270c47d8-828f-5943-8028-b2fd4fc7c9a0",
+      "token_id": "11770079-3650-553e-b4be-a724f25af813",
+      "node_id": "b8cf40fd-deab-5335-9d27-0de2fd95b881",
+      "node_name": "Check request",
+      "attempt": 1,
+      "data": {
+        "actor_type": "application",
+        "output": {
+          "valid": true
+        },
+        "duration_ms": 250,
+        "attempts": 1
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "6640fc43-9a70-577b-b982-8602857ba7cb",
+      "run_id": "b1872529-5b1c-53d2-b4fc-2d0b08edd2b9",
+      "seq": 6,
+      "time": "2026-03-02T09:00:00.265Z",
+      "type": "token.moved",
+      "level": "execution",
+      "workflow_id": "270c47d8-828f-5943-8028-b2fd4fc7c9a0",
+      "token_id": "11770079-3650-553e-b4be-a724f25af813",
+      "node_id": "f26afea1-2994-5473-8233-8b2234d0f027",
+      "node_name": "Pay refund",
+      "data": {
+        "from_node_id": "b8cf40fd-deab-5335-9d27-0de2fd95b881",
+        "to_node_id": "f26afea1-2994-5473-8233-8b2234d0f027",
+        "edge_id": "cb7f0236-3c20-51ad-ba00-c042833e3b53",
+        "reason": "unconditional"
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "3f8bb42b-a82e-52a0-ad40-3eaec616e4f7",
+      "run_id": "b1872529-5b1c-53d2-b4fc-2d0b08edd2b9",
+      "seq": 7,
+      "time": "2026-03-02T09:00:00.270Z",
+      "type": "activity.started",
+      "level": "execution",
+      "workflow_id": "270c47d8-828f-5943-8028-b2fd4fc7c9a0",
+      "token_id": "11770079-3650-553e-b4be-a724f25af813",
+      "node_id": "f26afea1-2994-5473-8233-8b2234d0f027",
+      "node_name": "Pay refund",
+      "attempt": 1,
+      "data": {
+        "actor_type": "robot",
+        "input": {
+          "amount": 40
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "72de8ade-05c7-5019-8155-9e28e0c456c1",
+      "run_id": "b1872529-5b1c-53d2-b4fc-2d0b08edd2b9",
+      "seq": 8,
+      "time": "2026-03-02T09:00:00.770Z",
+      "type": "activity.completed",
+      "level": "execution",
+      "workflow_id": "270c47d8-828f-5943-8028-b2fd4fc7c9a0",
+      "token_id": "11770079-3650-553e-b4be-a724f25af813",
+      "node_id": "f26afea1-2994-5473-8233-8b2234d0f027",
+      "node_name": "Pay refund",
+      "attempt": 1,
+      "data": {
+        "actor_type": "robot",
+        "output": {
+          "paid": true
+        },
+        "duration_ms": 500,
+        "attempts": 1
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "5ded6f12-5395-536a-b3be-2648276d2315",
+      "run_id": "b1872529-5b1c-53d2-b4fc-2d0b08edd2b9",
+      "seq": 9,
+      "time": "2026-03-02T09:00:00.780Z",
+      "type": "token.completed",
+      "level": "execution",
+      "workflow_id": "270c47d8-828f-5943-8028-b2fd4fc7c9a0",
+      "token_id": "11770079-3650-553e-b4be-a724f25af813",
+      "node_id": "607b6e9c-1c47-5bda-bbb0-7e4457d330f8",
+      "node_name": "End",
+      "data": {}
+    },
+    {
+      "spec_version": "1.1",
+      "id": "378397b7-b5e9-5cdb-86e9-503a61e305a6",
+      "run_id": "b1872529-5b1c-53d2-b4fc-2d0b08edd2b9",
+      "seq": 10,
+      "time": "2026-03-02T09:00:00.780Z",
+      "type": "run.completed",
+      "level": "execution",
+      "workflow_id": "270c47d8-828f-5943-8028-b2fd4fc7c9a0",
+      "data": {
+        "duration_ms": 780,
+        "steps": 2,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cost": 0.5,
+        "currency": "EUR"
+      }
+    }
+  ],
+  "options": {
+    "payloads": false
+  },
+  "expect": {
+    "trace_id": "e8b7a9d114cdc3a433e2613f59806675",
+    "span_count": 3,
+    "spans": [
+      {
+        "span_id": "e2e2906f80ac68bd",
+        "parent_span_id": null,
+        "name": "invoke_workflow Refund",
+        "kind": "internal",
+        "start": "2026-03-02T09:00:00.000Z",
+        "end": "2026-03-02T09:00:00.780Z",
+        "status": "ok",
+        "attributes": {
+          "awa.run.id": "b1872529-5b1c-53d2-b4fc-2d0b08edd2b9",
+          "gen_ai.operation.name": "invoke_workflow",
+          "gen_ai.workflow.name": "Refund",
+          "awa.workflow.id": "270c47d8-828f-5943-8028-b2fd4fc7c9a0",
+          "awa.workflow.version": "1.2.0",
+          "awa.run.simulated": false,
+          "awa.run.status": "completed",
+          "awa.run.steps": 2,
+          "awa.run.input_tokens": 0,
+          "awa.run.output_tokens": 0,
+          "awa.run.cost": 0.5,
+          "awa.run.currency": "EUR"
+        },
+        "absent": [
+          "awa.run.input"
+        ],
+        "events": [
+          "token.created",
+          "token.moved",
+          "token.moved",
+          "token.completed"
+        ],
+        "events_contain": [
+          {
+            "name": "token.moved",
+            "attributes": {
+              "awa.journal.seq": 3,
+              "awa.journal.level": "execution",
+              "awa.token.id": "11770079-3650-553e-b4be-a724f25af813",
+              "awa.node.name": "Check request",
+              "awa.data.reason": "unconditional",
+              "awa.data.edge_id": "aa5c7e42-b8ea-5b4e-a194-cec5fd013082"
+            }
+          }
+        ]
+      },
+      {
+        "span_id": "16016a918a436a0b",
+        "parent_span_id": "e2e2906f80ac68bd",
+        "name": "activity Check request",
+        "kind": "internal",
+        "start": "2026-03-02T09:00:00.010Z",
+        "end": "2026-03-02T09:00:00.260Z",
+        "status": "ok",
+        "attributes": {
+          "awa.run.id": "b1872529-5b1c-53d2-b4fc-2d0b08edd2b9",
+          "awa.node.id": "b8cf40fd-deab-5335-9d27-0de2fd95b881",
+          "awa.node.name": "Check request",
+          "awa.token.id": "11770079-3650-553e-b4be-a724f25af813",
+          "awa.attempt": 1,
+          "awa.actor.type": "application",
+          "awa.role.id": "1f75c4b7-30b1-5d4a-aa28-a120e85ba4e0"
+        },
+        "absent": [
+          "gen_ai.operation.name",
+          "awa.input",
+          "awa.output",
+          "error.type"
+        ],
+        "events": []
+      },
+      {
+        "span_id": "a71f6e4eabd30270",
+        "parent_span_id": "e2e2906f80ac68bd",
+        "name": "activity Pay refund",
+        "start": "2026-03-02T09:00:00.270Z",
+        "end": "2026-03-02T09:00:00.770Z",
+        "status": "ok",
+        "attributes": {
+          "awa.actor.type": "robot"
+        }
+      }
+    ]
+  }
+}
