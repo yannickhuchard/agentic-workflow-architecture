@@ -41,6 +41,7 @@ AWA 1.1 is a specification with a reference implementation and a conformance sui
 | **Explanation** | A replay you can scrub through, and a recipe that explains how to rebuild the workflow from scratch | Section 14 |
 | **Business events** | Workflows publish business events and wait for them, in CloudEvents form, with correlation and a deadline that has its own path. A run that waits two weeks costs nothing while it waits | Section 18 |
 | **Journeys** | The layer above workflows: the stages a customer or an order passes through, which workflows serve each stage, goals and exits. Linked to every run by `run_id`. A journey also records its touchpoints (channel, technology, and what changes hands: contract, attestation, invoice, receipt, certificate), an estimate of the customer's mood that always says whether it was measured or inferred, and how customers move from one journey to the next | Section 19 |
+| **Shared store** | Several hosts, on several machines, keep journeys and runs in one PostgreSQL database and take any work. Each operation holds only the subjects it touches; no event is taken twice or lost, no record has a gap, and a host that dies leaves nothing half done. TypeScript and Python hosts can share one store | Section 29 |
 | **Counterfactual replay** | Re-run a recorded run with another model, prompt, contract or rule while the rest of the world is held as recorded, and get a regression report | Section 20 |
 | **Measures** | 56 measures of journeys, stages, workflows and activities, computed from the record, each with the number it was computed over: completion, where customers leave, right first time, work against waiting, cost. Also in the OpenMetrics format | Section 21 |
 | **Telemetry** | Every run and journey in OpenTelemetry: a trace per run with spans for attempts, tool calls, model calls (with token usage, in the generative AI conventions), decisions and waits, and a trace per journey linked to its runs. Identifiers come from the run id, so every implementation, live or from a journal, gives the same ones. Sent over OTLP without ever holding up a run; inputs and outputs only when you opt in | Section 26 |
@@ -54,8 +55,8 @@ The full text is in [`docs/specification.md`](docs/specification.md). What it me
 
 | SDK | Conformance levels |
 |---|---|
-| TypeScript (reference) | Every level (22), plus the recipe, Open Knowledge Format exchange, model providers for Google, OpenAI, Ollama and an embedded model, and the views |
-| Python | Every level (22), the same commands (`run`, `validate`, `journey`, `measures`, `replay`, `evidence`, `eval`, `knowledge`, `task`, `telemetry`, `serve`) and the same HTTP routes; its AI agent calls models through OpenAI-compatible and Ollama providers. No recipe, Open Knowledge Format exchange, Google or embedded provider, or views |
+| TypeScript (reference) | Every level (23, `shared_store` with the optional package `pg`), plus the recipe, Open Knowledge Format exchange, model providers for Google, OpenAI, Ollama and an embedded model, and the views |
+| Python | Every level (23, `shared_store` with the extra `postgres`), the same commands (`run`, `validate`, `journey`, `measures`, `replay`, `evidence`, `eval`, `knowledge`, `task`, `telemetry`, `serve`) and the same HTTP routes; its AI agent calls models through OpenAI-compatible and Ollama providers. No recipe, Open Knowledge Format exchange, Google or embedded provider, or views |
 | Java | A data model of AWA 1.1 workflow and journey documents (read, build, write; every example and conformance document round-trips exactly), without an engine |
 
 ### See a run

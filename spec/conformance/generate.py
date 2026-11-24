@@ -1225,6 +1225,137 @@ def journey_cases() -> list[dict]:
     return cases
 
 
+def shared_store_cases() -> list[dict]:
+    """
+    Several hosts on one store (section 29). Each case names its hosts; each
+    step says which host performs it, or that several perform theirs at once.
+    """
+    cases = []
+    START = "2026-03-02T09:00:00Z"
+    PAID = {"Register": {"output": {"claim_id": "CLM-1"}}, "Settle": {"output": {"paid": True}}}
+
+    class S:
+        def __init__(self, case_id, spec, description, hosts=("a", "b")):
+            self.id, self.spec, self.description, self.hosts = case_id, spec, description, list(hosts)
+            self.workflows, self.journeys, self.actors, self.steps, self.expect = [], [], dict(PAID), [], {}
+
+        def claim(self, timeout=None, timeout_to=None):
+            """Register, wait for the customer's documents, settle"""
+            c = Case(f"{self.id}:Claim", "shared_store", self.spec, "")
+            c.act("Register").act("Settle")
+            definition = {"name": "documents.uploaded", "correlation_key": "customer_id"}
+            if timeout:
+                definition["timeout"] = timeout
+            if timeout_to:
+                c.act(timeout_to)
+                definition["timeout_edge_id"] = c.u(f"Documents->{timeout_to}")
+            c.event("Documents", "message", **definition)
+            c.edge("Register", "Documents").edge("Documents", "Settle")
+            if timeout_to:
+                c.edge("Documents", timeout_to)
+            workflow = c.build()["workflow"]
+            workflow["name"] = "Claim"
+            self.workflows.append(workflow)
+            return workflow["id"]
+
+        def journey(self, workflow_id, **stage):
+            self.journeys.append({
+                "id": uid(self.id, "journey:Claim"), "name": "Claim", "version": "1.0.0", "subject": {"name": "customer", "key": "customer_id"},
+                "stages": [{"id": "open", "name": "Open", "workflows": [workflow_id], "complete_when": "paid == true", "transitions": [], **stage}],
+                "triggers": [{"event": "claim.submitted", "starts_journey": True, "start_workflow": workflow_id}]})
+
+        @staticmethod
+        def publish(host, type, customer="c-1", id=None, **extra):
+            event = {"type": type, "data": {"customer_id": customer}}
+            if id:
+                event["id"] = id
+            return {"host": host, "publish": event, **extra}
+
+        def step(self, step):
+            self.steps.append(step)
+            return self
+
+        def emit(self):
+            cases.append({"id": self.id, "level": "shared_store", "spec": self.spec, "description": self.description, "start": START,
+                          "hosts": self.hosts, "workflows": self.workflows, "journeys": self.journeys, "actors": self.actors,
+                          "steps": self.steps, "expect": self.expect})
+
+    CAUSAL = ["journey.started", "journey.stage_entered", "journey.event_received", "journey.run_started",
+              "journey.event_received", "journey.run_ended", "journey.stage_completed", "journey.completed"]
+
+    s = S("hosts-share-a-journey", "29.2", "A journey begun on one host goes on on another. The second host loads the journey and its waiting run as the first kept them, and its record reads as if one host had done everything: in causal order, and with the run taken up without being resumed.")
+    s.journey(s.claim())
+    s.step(S.publish("a", "claim.submitted", expect={"accepted": True})).step(S.publish("b", "documents.uploaded", expect={"accepted": True}))
+    s.expect = {"accepted_events": 2, "run_count": 1, "instance_count": 1,
+                "instances": [{"journey": "Claim", "status": "completed", "runs": ["completed"], "events_exact": CAUSAL,
+                               "run_journal": ["run.started", "event.waiting", "event.received", "run.completed"], "run_journal_excludes": ["run.resumed"]}]}
+    s.emit()
+
+    s = S("event-is-taken-once-by-hosts-together", "29.3", "Two hosts given the same event at the same moment accept it once between them: one accepts it and the other is told it was already accepted. Given again later, it is not accepted.")
+    s.journey(s.claim())
+    s.step({"together": [S.publish("a", "claim.submitted", id="evt-1"), S.publish("b", "claim.submitted", id="evt-1")], "expect": {"accepted": 1}})
+    s.step(S.publish("b", "claim.submitted", id="evt-1", expect={"accepted": False}))
+    s.expect = {"accepted_events": 1, "run_count": 1, "instance_count": 1,
+                "instances": [{"journey": "Claim", "runs": ["waiting_event"], "events_count": {"journey.started": 1, "journey.event_received": 1, "journey.run_started": 1}}]}
+    s.emit()
+
+    s = S("subject-starts-once-from-hosts-together", "29.2", "Three hosts given three different events about one subject at the same moment take them one after another: the journey starts once, records all three, and each event starts its run. A fourth event on another host reaches every run that waits for it.", hosts=("a", "b", "c"))
+    s.journey(s.claim())
+    s.step({"together": [S.publish(h, "claim.submitted", id=f"evt-{h}") for h in ("a", "b", "c")], "expect": {"accepted": 3}})
+    s.step(S.publish("b", "documents.uploaded", expect={"accepted": True}))
+    s.expect = {"accepted_events": 4, "run_count": 3, "instance_count": 1,
+                "instances": [{"journey": "Claim", "status": "completed", "runs": ["completed", "completed", "completed"],
+                               "events_count": {"journey.started": 1, "journey.event_received": 4, "journey.run_started": 3, "journey.run_ended": 3, "journey.completed": 1}}]}
+    s.emit()
+
+    s = S("subjects-proceed-apart-on-hosts-together", "29.2", "Events about different subjects, given to different hosts at the same moment, are each accepted and each kept, on their own instance.")
+    s.journey(s.claim())
+    s.step({"together": [S.publish("a", "claim.submitted", customer="c-1"), S.publish("b", "claim.submitted", customer="c-2")], "expect": {"accepted": 2}})
+    s.step({"together": [S.publish("a", "documents.uploaded", customer="c-2"), S.publish("b", "documents.uploaded", customer="c-1")], "expect": {"accepted": 2}})
+    s.expect = {"accepted_events": 4, "run_count": 2, "instance_count": 2,
+                "instances": [{"journey": "Claim", "subject_key": "c-1", "status": "completed", "events_exact": CAUSAL},
+                              {"journey": "Claim", "subject_key": "c-2", "status": "completed", "events_exact": CAUSAL}]}
+    s.emit()
+
+    s = S("host-that-stops-keeps-nothing", "29.4", "A host that stops in the middle of an operation, its work done but not yet kept, leaves nothing of it in the store, and the event it was given is not accepted. Given to another host, the event is accepted there, once.")
+    s.journey(s.claim())
+    s.step(S.publish("a", "claim.submitted", id="evt-1", stops_before_keeping=True))
+    s.step(S.publish("b", "claim.submitted", id="evt-1", expect={"accepted": True}))
+    s.expect = {"accepted_events": 1, "run_count": 1, "instance_count": 1,
+                "instances": [{"journey": "Claim", "runs": ["waiting_event"], "events_count": {"journey.started": 1, "journey.event_received": 1, "journey.run_started": 1}}]}
+    s.emit()
+
+    s = S("deadline-passes-on-another-host", "29.5", "A deadline fixed by a host that has since stopped passes when another host lets time pass: the waiting run takes its timeout edge there, and the journey learns what that path established.")
+    s.journey(s.claim(timeout="P5D", timeout_to="Close"))
+    s.actors["Close"] = {"output": {"closed": True}}
+    s.step(S.publish("a", "claim.submitted")).step({"stop": "a"}).step({"advance": "P4D"}).step({"host": "b", "tick": True, "expect": {"timed_out_runs": 0}})
+    s.step({"advance": "P2D"}).step({"host": "b", "tick": True, "expect": {"timed_out_runs": 1}})
+    s.expect = {"run_count": 1, "instances": [{"journey": "Claim", "runs": ["completed"], "data": {"closed": True},
+                                                "run_journal": ["run.started", "event.waiting", "event.timed_out", "run.completed"], "run_journal_excludes": ["run.resumed"]}]}
+    s.emit()
+
+    s = S("deadline-taken-once-by-hosts-together", "29.5", "Hosts that let time pass at the same moment take each deadline once between them: the wait times out once and the stage that outstayed its limit is stalled once.")
+    s.journey(s.claim(timeout="P5D", timeout_to="Close"), max_duration="P2D")
+    s.actors["Close"] = {"output": {"closed": True}}
+    s.step(S.publish("a", "claim.submitted")).step({"advance": "P6D"})
+    s.step({"together": [{"host": "a", "tick": True}, {"host": "b", "tick": True}], "expect": {"timed_out_runs": 1, "stalled_journeys": 1}})
+    s.step({"host": "b", "tick": True, "expect": {"timed_out_runs": 0, "stalled_journeys": 0}})
+    s.expect = {"run_count": 1, "instances": [{"journey": "Claim", "status": "active", "stalled": True, "runs": ["completed"],
+                                                "events_count": {"journey.stalled": 1, "journey.run_ended": 1}}]}
+    s.emit()
+
+    s = S("host-started-again-carries-on", "29.2", "A host that stopped and started again works from the store as other hosts left it: its own earlier work is not repeated, and what another host did meanwhile is there.")
+    s.journey(s.claim())
+    s.step(S.publish("a", "claim.submitted", id="evt-1")).step({"stop": "a"}).step(S.publish("b", "claim.submitted", customer="c-2"))
+    s.step({"start": "a"}).step(S.publish("a", "claim.submitted", id="evt-1", expect={"accepted": False}))
+    s.step(S.publish("a", "documents.uploaded", customer="c-2", expect={"accepted": True}))
+    s.expect = {"accepted_events": 3, "run_count": 2, "instance_count": 2,
+                "instances": [{"journey": "Claim", "subject_key": "c-1", "status": "active", "runs": ["waiting_event"]},
+                              {"journey": "Claim", "subject_key": "c-2", "status": "completed", "runs": ["completed"], "run_journal_excludes": ["run.resumed"]}]}
+    s.emit()
+    return cases
+
+
 def document_cases() -> list[dict]:
     def base(case_id: str) -> Case:
         c = Case(case_id, "document", "4", "")
@@ -2741,7 +2872,7 @@ def telemetry_cases() -> list[dict]:
 
 
 def main() -> None:
-    for folder in ("execution", "documents", "journeys", "replay", "knowledge", "measures", "telemetry", "evidence", "evaluation"):
+    for folder in ("execution", "documents", "journeys", "replay", "knowledge", "measures", "telemetry", "shared-store", "evidence", "evaluation"):
         (ROOT / folder).mkdir(exist_ok=True)
         for old in (ROOT / folder).glob("*.json"):
             old.unlink()
@@ -2750,6 +2881,8 @@ def main() -> None:
         write(ROOT / "execution" / f"{case.id}.json", case.build())
     for case in journey_cases():
         write(ROOT / "journeys" / f"{case['id']}.json", case)
+    for case in shared_store_cases():
+        write(ROOT / "shared-store" / f"{case['id']}.json", case)
     for case in replay_cases():
         write(ROOT / "replay" / f"{case['id']}.json", case)
     for case in knowledge_cases():
@@ -2772,6 +2905,7 @@ def main() -> None:
     print(f"wrote {len(evidence_cases())} evidence cases and {len(evaluation_cases())} evaluation cases")
     print(f"wrote {len(journey_cases())} journey cases, {len(replay_cases())} replay cases and {len(knowledge_cases())} knowledge cases")
     print(f"wrote {len(telemetry_cases())} telemetry cases")
+    print(f"wrote {len(shared_store_cases())} shared store cases")
     print(f"wrote {len(execution)} execution cases, {len(document_cases())} document cases "
           f"and {len(tests['cases']) + len(tests['invalid'])} unary tests")
 

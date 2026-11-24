@@ -11,6 +11,7 @@ pip install agentic-workflow-architecture
 The distribution is named `agentic-workflow-architecture`; the package you import, and the command, are `awa`. Do not install the unrelated PyPI project named `awa`.
 
 Extras: `web` for `awa serve`, `grpc` for tools with `grpc` bindings (`pip install "agentic-workflow-architecture[grpc]"`), `contracts` for outcome contracts with an output schema.
+For several hosts sharing one PostgreSQL store (see [Hosts that share a store](#hosts-that-share-a-store)), install the extra: `pip install "agentic-workflow-architecture[postgres]"`.
 
 ## Usage
 
@@ -42,7 +43,7 @@ print(result)
 
 ## Conformance
 
-The Python SDK passes every case of every conformance level of the specification (`docs/specification.md`, section 2.1): `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `telemetry`, `a2a`, `evidence` and `evaluation`. No case is skipped. Run them with `pytest tests/test_conformance.py -rs`.
+The Python SDK passes every case of every conformance level of the specification (`docs/specification.md`, section 2.1): `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `telemetry`, `shared_store` (with the extra `postgres`), `a2a`, `evidence` and `evaluation`. No case is skipped. Run them with `pytest tests/test_conformance.py -rs`.
 
 What it still lacks compared with the TypeScript reference implementation, none of which belongs to a conformance level:
 
@@ -364,6 +365,26 @@ with open_runtime_directory(".awa") as runtime:
     runtime.publish(event)
 ```
 
+### Hosts that share a store
+
+A runtime directory belongs to one host at a time. A **PostgreSQL store** is shared: any number of hosts, in any number of processes and machines, keep journeys and runs in one database and take any work (specification section 29). Each operation of a host (accepting an event, letting time pass, completing a task) is one transaction that holds only the subjects it touches, so work on different subjects goes on at once; an event id is recorded under a primary key in the same transaction, so no event is accepted twice; rows are written back at the version read; a host that dies releases what it held when its connection drops, and one that hangs when its lease (`lease_ms`, five minutes by default) runs out, keeping nothing of its operation. The outcome is that of one host doing everything one operation at a time.
+
+```python
+from awa import PostgresRuntimeStore, open_runtime_store
+
+store = PostgresRuntimeStore("postgres://awa@db.internal/awa")   # creates its tables, in schema awa_runtime, the first time
+store.add_definition(workflow_document)
+store.add_definition(journey_document)
+store.close()
+
+with open_runtime_store("postgres://awa@db.internal/awa", engine={...}) as runtime:   # on every host
+    runtime.publish(event)
+    runtime.refresh()                      # to read the whole store, as other hosts left it
+    runtime.list_journey_instances()
+```
+
+One store object holds one connection and its host does one operation at a time: run several hosts, in threads or processes, for more. The tables are those of `spec/ddl/awa.postgresql.sql`, section "Runtime store". The TypeScript SDK runs the same migrations and keeps the same forms: a TypeScript host and a Python host can share one store. `tests/test_shared_store.py` starts a throwaway PostgreSQL (or uses the one `AWA_TEST_POSTGRES_URL` names) and plays bursts of events and ticks across host objects and processes, a process killed mid-operation, a lease that runs out, and an event racing a new wait.
+
 ### Measures
 
 `compute_measures(record, options)` computes every measure of section 21 from an export; `MEASURES` lists them with their definitions; `measures_to_openmetrics(report)` gives the OpenMetrics text. A measure is `{"value": ..., "n": ...}`, and `value` is `None` when there is nothing to compute it from. The report validates against `spec/json-schema/measure-report.schema.json`.
@@ -389,12 +410,15 @@ awa journey list --dir .awa [--stalled]
 awa journey show --dir .awa <subject key or instance id> [--json]
 awa journey analytics --dir .awa
 awa journey export --dir .awa [-o journeys.json]
+awa journey publish --store postgres://awa@db/awa claim.submitted -d '{"customer_id": "c-1"}'   # a shared store instead
 
 awa measures --dir .awa                # as text
 awa measures --file journeys.json --json [--from <instant>] [--to <instant>] [--journey <id>] [--workflow <id>]
 awa measures --dir .awa --openmetrics
 awa measures --list
 ```
+
+Every `awa journey` subcommand takes `--store <url>`, or reads `AWA_RUNTIME_STORE`, to work on a shared PostgreSQL store instead of `--dir`; `awa serve --store <url>` does the same for the HTTP routes. `AWA_DATABASE_URL` is another thing: the SQLite file of human tasks.
 
 `publish`, `tick` and `resume` accept `-s/--simulate` with `--outputs <file>`: activities then call no model, tool or person and return what the file gives under their name. The reference command's `--html` option (the measures page as one file) is not available in this SDK.
 
@@ -431,6 +455,6 @@ Errors of these routes are `{"code", "message"}`, as the OpenAPI description giv
 | `GET /api/v1/measures/definitions` | The measures and their definitions |
 | `GET /api/v1/evidence` | The evidence report (`from`, `to`, `workflow_id` repeated); `format=md` or `html` for a document |
 
-With `AWA_DATA_DIR` set the server keeps a runtime directory there and survives a restart; without it journeys live in the process. `AWA_SIMULATE=1` and `AWA_SIMULATED_OUTPUTS=<file>` simulate activities as on the command line.
+With `AWA_RUNTIME_STORE` set to a PostgreSQL URL the server keeps journeys in that shared store, which several servers use at once. Otherwise, with `AWA_DATA_DIR` set the server keeps a runtime directory there and survives a restart; without it journeys live in the process. `AWA_SIMULATE=1` and `AWA_SIMULATED_OUTPUTS=<file>` simulate activities as on the command line.
 
 `awa serve --a2a <file>` offers a workflow to other agents over A2A 1.0, with the routes of the reference's [operational-api.md](../typescript/docs/operational-api.md): the card at `/a2a/<workflow id>/.well-known/agent-card.json` (and at `/.well-known/agent-card.json` for a single workflow), and `SendMessage`, `GetTask` and `CancelTask` at `POST /a2a/<workflow id>`. `mount_a2a(app, workflows, ...)` in `awa.server.a2a` adds them to any FastAPI application.

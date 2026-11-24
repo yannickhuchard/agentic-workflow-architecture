@@ -60,6 +60,48 @@ jobs:
           consumer/bin/python -c "import awa; from awa.runtime.kpi import MEASURES; assert len(MEASURES) > 50"
           consumer/bin/awa measures --list | grep -q "journey.completion_rate"
 
+  shared-store:
+    # Several hosts on one PostgreSQL store (specification section 29): both SDKs, their conformance cases,
+    # and TypeScript and Python hosts working on one store together
+    name: Hosts that share a store (PostgreSQL)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: awa
+          POSTGRES_PASSWORD: awa
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U awa"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      AWA_TEST_POSTGRES_URL: postgres://awa:awa@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: sdk/typescript/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: npm ci && npx prisma generate
+        working-directory: sdk/typescript
+      - run: pip install -e ".[dev,postgres]"
+        working-directory: sdk/python
+      - name: TypeScript store and cases, with Python hosts beside TypeScript ones
+        run: npx vitest run tests/shared_store.test.ts tests/conformance.test.ts -t "shared store|PostgreSQL runtime store"
+        working-directory: sdk/typescript
+      - name: Python store and cases
+        run: pytest -q -rs tests/test_shared_store.py tests/test_conformance.py -k "shared"
+        working-directory: sdk/python
+
   java:
     name: Java data model
     runs-on: ubuntu-latest

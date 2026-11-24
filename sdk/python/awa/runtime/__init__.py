@@ -25,6 +25,8 @@ from .journey import (
 from .runtime_host import (
     AwaRuntime, InMemoryRuntimeStore, FileRuntimeStore, open_runtime_directory, add_definition, simulated_actors,
 )
+from .shared_store import SharedOperation, StoreConflict
+from .postgres_store import PostgresRuntimeStore, RUNTIME_STORE_VARIABLE, open_runtime_store
 from .kpi import MEASURES, compute_measures, measures_to_openmetrics
 from .context_manager import ContextError
 from .knowledge import KnowledgeBase, distill, guidance
@@ -115,6 +117,11 @@ __all__ = [
     "open_runtime_directory",
     "add_definition",
     "simulated_actors",
+    "SharedOperation",
+    "StoreConflict",
+    "PostgresRuntimeStore",
+    "RUNTIME_STORE_VARIABLE",
+    "open_runtime_store",
     "MEASURES",
     "compute_measures",
     "measures_to_openmetrics",

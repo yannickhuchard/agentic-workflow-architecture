@@ -1,0 +1,156 @@
+{
+  "id": "hosts-share-a-journey",
+  "level": "shared_store",
+  "spec": "29.2",
+  "description": "A journey begun on one host goes on on another. The second host loads the journey and its waiting run as the first kept them, and its record reads as if one host had done everything: in causal order, and with the run taken up without being resumed.",
+  "start": "2026-03-02T09:00:00Z",
+  "hosts": [
+    "a",
+    "b"
+  ],
+  "workflows": [
+    {
+      "id": "806eb6a3-ec0e-524c-a616-317155673dee",
+      "name": "Claim",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "b38b777d-d30a-5bd1-a85c-615875b0a2de",
+          "name": "Register",
+          "role_id": "81430035-d14f-5836-9cd6-02ade5d97492",
+          "actor_type": "application"
+        },
+        {
+          "id": "b8f7add8-a02b-5ce0-bdff-d2fc76afaf24",
+          "name": "Settle",
+          "role_id": "81430035-d14f-5836-9cd6-02ade5d97492",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "0a6df8b8-fd06-5a46-879e-a663dd6c63d6",
+          "source_id": "b38b777d-d30a-5bd1-a85c-615875b0a2de",
+          "target_id": "d26575cd-774b-50fe-abb0-ae8717e40e76"
+        },
+        {
+          "id": "43d4d67c-1021-5c9f-9ed6-6364580b6987",
+          "source_id": "d26575cd-774b-50fe-abb0-ae8717e40e76",
+          "target_id": "b8f7add8-a02b-5ce0-bdff-d2fc76afaf24"
+        }
+      ],
+      "events": [
+        {
+          "id": "d26575cd-774b-50fe-abb0-ae8717e40e76",
+          "name": "Documents",
+          "event_type": "message",
+          "event_definition": {
+            "name": "documents.uploaded",
+            "correlation_key": "customer_id"
+          }
+        }
+      ]
+    }
+  ],
+  "journeys": [
+    {
+      "id": "0b006e46-3563-58f6-8587-bd793bb60ab3",
+      "name": "Claim",
+      "version": "1.0.0",
+      "subject": {
+        "name": "customer",
+        "key": "customer_id"
+      },
+      "stages": [
+        {
+          "id": "open",
+          "name": "Open",
+          "workflows": [
+            "806eb6a3-ec0e-524c-a616-317155673dee"
+          ],
+          "complete_when": "paid == true",
+          "transitions": []
+        }
+      ],
+      "triggers": [
+        {
+          "event": "claim.submitted",
+          "starts_journey": true,
+          "start_workflow": "806eb6a3-ec0e-524c-a616-317155673dee"
+        }
+      ]
+    }
+  ],
+  "actors": {
+    "Register": {
+      "output": {
+        "claim_id": "CLM-1"
+      }
+    },
+    "Settle": {
+      "output": {
+        "paid": true
+      }
+    }
+  },
+  "steps": [
+    {
+      "host": "a",
+      "publish": {
+        "type": "claim.submitted",
+        "data": {
+          "customer_id": "c-1"
+        }
+      },
+      "expect": {
+        "accepted": true
+      }
+    },
+    {
+      "host": "b",
+      "publish": {
+        "type": "documents.uploaded",
+        "data": {
+          "customer_id": "c-1"
+        }
+      },
+      "expect": {
+        "accepted": true
+      }
+    }
+  ],
+  "expect": {
+    "accepted_events": 2,
+    "run_count": 1,
+    "instance_count": 1,
+    "instances": [
+      {
+        "journey": "Claim",
+        "status": "completed",
+        "runs": [
+          "completed"
+        ],
+        "events_exact": [
+          "journey.started",
+          "journey.stage_entered",
+          "journey.event_received",
+          "journey.run_started",
+          "journey.event_received",
+          "journey.run_ended",
+          "journey.stage_completed",
+          "journey.completed"
+        ],
+        "run_journal": [
+          "run.started",
+          "event.waiting",
+          "event.received",
+          "run.completed"
+        ],
+        "run_journal_excludes": [
+          "run.resumed"
+        ]
+      }
+    ]
+  }
+}

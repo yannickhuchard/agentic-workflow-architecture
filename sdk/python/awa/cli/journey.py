@@ -1,11 +1,13 @@
 """
 awa journey: journeys that outlive the command that touches them. Every
-subcommand opens the runtime directory, does one thing, and leaves the state on
-disk for the next (specification 19.10).
+subcommand opens the runtime directory, or the shared runtime store named by
+--store or AWA_RUNTIME_STORE, does one thing, and leaves the state there for
+the next (specification 19.10 and 29).
 """
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -19,13 +21,27 @@ def _read_json(file: str) -> Any:
     return json.loads(Path(file).read_text(encoding="utf-8"))
 
 
-def _open(args: argparse.Namespace) -> AwaRuntime:
+def _store_url(args: argparse.Namespace) -> str | None:
+    """The shared store the command works on, if any: --store, or else AWA_RUNTIME_STORE"""
+    return getattr(args, "store", None) or os.environ.get("AWA_RUNTIME_STORE") or None
+
+
+def _open(args: argparse.Namespace, reading: bool = False) -> AwaRuntime:
     engine: dict[str, Any] = {}
     if getattr(args, "simulate", False):
         outputs = _read_json(args.outputs) if getattr(args, "outputs", None) else {}
         engine = {"simulate": True, "actors": simulated_actors(outputs)}
     from awa.runtime.telemetry_export import shared_telemetry_from_env
-    return open_runtime_directory(args.dir, engine=engine, telemetry=shared_telemetry_from_env())
+    telemetry = shared_telemetry_from_env()
+    url = _store_url(args)
+    if not url:
+        return open_runtime_directory(args.dir, engine=engine, telemetry=telemetry)
+    from awa.runtime.postgres_store import open_runtime_store
+    runtime = open_runtime_store(url, engine=engine, telemetry=telemetry)
+    if reading:
+        # A command that reports reads the whole store, as other hosts have left it
+        runtime.refresh()
+    return runtime
 
 
 def _line(instance: dict[str, Any], journey: str) -> str:
@@ -37,9 +53,18 @@ def _line(instance: dict[str, Any], journey: str) -> str:
 def _add(args: argparse.Namespace) -> None:
     documents = [_read_json(file) for file in args.files]
     # Workflows first, so that a journey added in the same command finds them
-    for document in sorted(documents, key=is_journey_document):
-        added = add_definition(args.dir, document)
-        print(f'added {added["kind"]} "{added["name"]}" ({added["id"]})')
+    url = _store_url(args)
+    store = None
+    if url:
+        from awa.runtime.postgres_store import PostgresRuntimeStore
+        store = PostgresRuntimeStore(url)
+    try:
+        for document in sorted(documents, key=is_journey_document):
+            added = store.add_definition(document) if store else add_definition(args.dir, document)
+            print(f'added {added["kind"]} "{added["name"]}" ({added["id"]})')
+    finally:
+        if store:
+            store.close()
     _open(args).close()  # checks that every journey finds its workflows
 
 
@@ -70,7 +95,7 @@ def _resume(args: argparse.Namespace) -> None:
 
 
 def _list(args: argparse.Namespace) -> None:
-    with _open(args) as runtime:
+    with _open(args, reading=True) as runtime:
         names = {j.id: j.name for j in runtime.list_journeys()}
         instances = [i for i in runtime.list_journey_instances() if not args.stalled or (i["stalled"] and i["status"] == "active")]
         if not instances:
@@ -80,7 +105,7 @@ def _list(args: argparse.Namespace) -> None:
 
 
 def _show(args: argparse.Namespace) -> None:
-    with _open(args) as runtime:
+    with _open(args, reading=True) as runtime:
         instances = sorted((i for i in runtime.list_journey_instances() if args.subject in (i["subject_key"], i["id"])),
                            key=lambda i: i["started_at"])
         if not instances:
@@ -105,7 +130,7 @@ def _show(args: argparse.Namespace) -> None:
 
 
 def _analytics(args: argparse.Namespace) -> None:
-    with _open(args) as runtime:
+    with _open(args, reading=True) as runtime:
         for journey in runtime.list_journeys():
             a = runtime.analytics(journey.id)
             print(f'\n{journey.name}: {a["total"]} journeys, {a["completed"]} completed, {a["active"]} active, {a["abandoned"]} abandoned')
@@ -130,19 +155,21 @@ def _export(args: argparse.Namespace) -> None:
 
 
 def add_parser(subparsers: Any) -> None:
-    parser = subparsers.add_parser("journey", help="Run and inspect journeys kept in a runtime directory")
+    parser = subparsers.add_parser("journey", help="Run and inspect journeys kept in a runtime directory or a shared runtime store")
     commands = parser.add_subparsers(dest="journey_command", required=True)
 
     def command(name: str, action: Any, help: str, engine: bool = False) -> argparse.ArgumentParser:
         sub = commands.add_parser(name, help=help)
         sub.add_argument("--dir", default=".awa", help="The runtime directory (default: .awa)")
+        sub.add_argument("--store", help="A PostgreSQL runtime store shared by several hosts, as a URL "
+                                         "(default: $AWA_RUNTIME_STORE). When given, --dir is not used")
         if engine:
             sub.add_argument("-s", "--simulate", action="store_true", help="Simulate activities instead of calling models and tools")
             sub.add_argument("--outputs", help="With --simulate: JSON file giving what each activity returns, by activity name")
         sub.set_defaults(handler=lambda args: _guarded(action, args))
         return sub
 
-    add = command("add", _add, "Add workflows and journeys to the runtime directory")
+    add = command("add", _add, "Add workflows and journeys to the runtime directory or store")
     add.add_argument("files", nargs="+", help="Workflow and journey JSON files")
 
     publish = command("publish", _publish, "Take in a business event: it wakes waiting runs, starts journeys and moves them on", engine=True)

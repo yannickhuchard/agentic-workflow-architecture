@@ -613,7 +613,7 @@ export class WorkflowEngine {
      * Tokens that were active when the checkpoint was taken execute their
      * current activity again, so activities are executed at least once.
      */
-    public static restore(workflowDef: Workflow, state: WorkflowState, options: WorkflowEngineOptions = {}): WorkflowEngine {
+    public static restore(workflowDef: Workflow, state: WorkflowState, options: WorkflowEngineOptions = {}, record_resumed = true): WorkflowEngine {
         if (state.workflow_id !== workflowDef.id) {
             throw new Error(`Checkpoint belongs to workflow ${state.workflow_id}, not ${workflowDef.id}`);
         }
@@ -634,13 +634,17 @@ export class WorkflowEngine {
         engine.completedActivities = meta.completed_activities || [];
         engine.deliveredEvents = new Set(meta.delivered_events || []);
         if (meta.stats) {
-            engine.executionStats = { ...engine.executionStats, ...meta.stats, startTime: new Date(String(meta.stats.startTime)) };
+            // Written by this SDK as text; by another implementation of the same store perhaps as milliseconds (spec 29.6)
+            const raw = meta.stats.startTime ?? meta.stats.started_at;
+            const started = typeof raw === 'number' ? new Date(raw) : new Date(String(raw));
+            engine.executionStats = { ...engine.executionStats, ...meta.stats, startTime: isNaN(started.getTime()) ? engine.executionStats.startTime : started };
         }
         engine.status = engine.tokens.some(t => t.status === 'active') ? 'running'
             : engine.tokens.some(t => t.status === 'waiting' && !t.getData('_awaiting_event')) ? 'waiting_human'
                 : engine.tokens.some(t => t.status === 'waiting') ? 'waiting_event'
                 : (state.engine_status as EngineStatus);
-        engine.record({
+        // A run another host left at rest is taken up, not resumed: nothing was interrupted (spec 29.2)
+        if (record_resumed) engine.record({
             type: 'run.resumed',
             data: { from_checkpoint_at: state.checkpoint_at, from_seq: meta.journal_seq || 0, active_tokens: engine.tokens.filter(t => t.status === 'active').length },
         });

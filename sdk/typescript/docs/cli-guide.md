@@ -12,7 +12,7 @@ The command is then `npx awa`, or `awa` after `npm install -g agentic-workflow-a
 |---|---|
 | [`awa run`](#awa-run) | Run a workflow file, keeping its journal and checkpoints |
 | [`awa validate`](#awa-validate) | Check workflow and journey documents before running them |
-| [`awa journey`](#awa-journey) | Journeys kept in a runtime directory: add definitions, take in events, let time pass, inspect, export |
+| [`awa journey`](#awa-journey) | Journeys kept in a runtime directory or a shared PostgreSQL store: add definitions, take in events, let time pass, inspect, export |
 | [`awa measures`](#awa-measures) | The measures of journeys and workflows (specification section 21) |
 | [`awa telemetry`](#awa-telemetry) | Runs, journeys and measures as OpenTelemetry traces and metrics (specification section 26) |
 | [`awa replay`](#awa-replay) | Counterfactual replay of a recorded run under a changed workflow or model |
@@ -93,6 +93,14 @@ Checks each workflow against the schema and the rules the engine applies before 
 
 Journeys live in a **runtime directory** (`.awa` by default, `--dir` to choose another): their definitions, the state of every journey and run, and the journals. Each command is a separate process; the directory is held by one at a time.
 
+Or they live in a **shared store**: a PostgreSQL database named by `--store <url>` or the variable `AWA_RUNTIME_STORE`, which any number of commands and servers, on any number of machines, use at once (specification section 29). Each operation holds only the subjects it touches; no event is taken twice. It needs the optional package `pg` (`npm install pg`); the store creates its tables, in schema `awa_runtime`, the first time.
+
+```bash
+export AWA_RUNTIME_STORE=postgres://awa@db.internal/awa
+awa journey add intake.awa.json claim.journey.json
+awa journey publish claim.submitted -d '{"customer_id":"c-1"}'
+```
+
 ```bash
 awa journey add intake.awa.json claim.journey.json
 ```
@@ -120,7 +128,7 @@ awa journey list --stalled
 | `analytics` | The funnel of each journey, and how subjects move between journeys |
 | `export` | Everything recorded, in one file (`-o`): what the journey view and the measures page open |
 
-`publish`, `tick` and `resume` take `--simulate` and `--outputs` as `awa run` does.
+`publish`, `tick` and `resume` take `--simulate` and `--outputs` as `awa run` does. Every subcommand takes `--store <url>`; with it, or with `AWA_RUNTIME_STORE` set, `--dir` is not used.
 
 ## awa measures
 
@@ -224,7 +232,11 @@ A Markdown recipe that explains how to rebuild the workflow from scratch, from i
 AWA_DATA_DIR=.awa awa serve --port 3000 --no-auth
 ```
 
-`-p, --port`; `--jwt-secret` (or `JWT_SECRET`); `--api-key key:role`, repeatable; `--rate-limit` requests per minute; `--no-auth` for local development. The routes are in [operational-api.md](operational-api.md).
+`-p, --port`; `--jwt-secret` (or `JWT_SECRET`); `--api-key key:role`, repeatable; `--rate-limit` requests per minute; `--no-auth` for local development; `--store <url>` (or `AWA_RUNTIME_STORE`) to keep journeys in a PostgreSQL store that several servers share. The routes are in [operational-api.md](operational-api.md).
+
+```bash
+awa serve --port 3000 --store postgres://awa@db.internal/awa      # the same command on every machine
+```
 
 `--a2a <file>`, repeatable, offers a workflow to other agents over A2A 1.0 (specification 28.8): its agent card is at `/a2a/<workflow id>/.well-known/agent-card.json`, and at `/.well-known/agent-card.json` when one workflow is offered. `--public-url <url>` is the address written in the cards, when callers reach the server at another one than the request shows. `--deployment <file>` says what those runs may reach, as for `awa run`.
 
@@ -244,11 +256,12 @@ awa serve --port 3000 --a2a examples/claims-settlement/claims-settlement.awa.jso
 | `AWA_DEFAULT_AI_MODEL_ID` | engine | The model used where nothing names one. Default: `default_ai_model_id` of `src/config.json` |
 | `AWA_GOOGLE_REASONING_MODEL`, `AWA_GOOGLE_FAST_MODEL` | Google provider | The models of the reasoning and fast tiers. Default: from `src/config.json` |
 | `AWA_EMBEDDED_MODELS`, `AWA_EMBEDDED_MODEL` | embedded provider | Where small models are kept, and which to use |
+| `AWA_RUNTIME_STORE` | `awa journey`, `awa serve` | A PostgreSQL URL: journeys, runs and journals are kept in that shared store (section 29), which several hosts use at once. Takes precedence over `--dir` and `AWA_DATA_DIR` |
 | `AWA_DATA_DIR` | `awa serve` | The runtime directory behind `/api/v1/journeys`, `/api/v1/measures` and `/api/v1/evidence`. Without it, journeys are kept in memory |
 | `AWA_SIMULATE=1`, `AWA_SIMULATED_OUTPUTS` | `awa serve` | Simulate the activities of journeys' runs, with this script |
 | `AWA_WORKFLOWS_DIR` | `awa serve` | The only directory `POST /api/v1/workflows/run` may read workflow files from. The working directory by default |
 | `AWA_JOURNAL_DIR` | `awa serve` | Where the journals of runs started over HTTP are written |
-| `AWA_DATABASE_URL` | task database | Its location, e.g. `file:/var/lib/awa/awa.db` |
+| `AWA_DATABASE_URL` | task database | Its location, e.g. `file:/var/lib/awa/awa.db`. Not the runtime store |
 | `JWT_SECRET` | `awa serve` | The secret for signed tokens |
 | `LOG_LEVEL`, `LOG_FORMAT`, `LOG_TIMESTAMPS` | logging | Level, `json` or text, timestamps |
 | `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | `awa run`, `awa journey`, `awa serve`, `awa telemetry` | Where spans are sent over OTLP/HTTP: the first with `/v1/traces` appended, the second as given. Without either, nothing is sent |
@@ -271,4 +284,5 @@ awa serve --port 3000 --a2a examples/claims-settlement/claims-settlement.awa.jso
 | `SLA_BREACH` | Work still waited for passed its service level, whose breach action is `fail` |
 | `PERMISSION_DENIED` | A tool's command, host or MCP server, or an agent's host, is not allowed by this deployment (`--allow-commands`, `--deployment`) |
 | `AGENT_FAILED`, `AGENT_REJECTED`, `AGENT_ERROR`, `AGENT_UNSUPPORTED` | An agent reached over A2A failed or refused the task, could not be reached, or offers no JSON-RPC interface of A2A 1.0. The journal's `agent.task_updated` event has its reply |
-| `The runtime directory ... is in use by process N` | Another process holds the directory. Stop it, or talk to it over HTTP |
+| `The runtime directory ... is in use by process N` | Another process holds the directory. Stop it, talk to it over HTTP, or move to a shared store (`--store`) |
+| `The PostgreSQL runtime store needs the "pg" package` | `npm install pg` |

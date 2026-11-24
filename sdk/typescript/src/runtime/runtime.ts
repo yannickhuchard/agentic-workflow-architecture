@@ -8,6 +8,7 @@
  */
 
 import { randomUUID } from 'crypto';
+import { AsyncLocalStorage } from 'async_hooks';
 import { UUID, Workflow } from '../types';
 import { BusinessEvent } from './business_event';
 import { resolve_path } from './expression';
@@ -20,6 +21,7 @@ import { WorkflowState } from './persistence';
 import { WorkflowEngine, WorkflowEngineOptions } from './workflow_engine';
 import { ShadowOptions, ShadowRunner } from './shadow';
 import { JourneyTelemetry, TelemetrySetting, resolve_telemetry } from './telemetry_export';
+import { HostView, SharedJournal, SharedOperation, SharedRuntimeStore, StoredRun } from './shared_store';
 import fs from 'fs/promises';
 import { rmSync } from 'fs';
 import path from 'path';
@@ -35,6 +37,8 @@ export interface RuntimeOptions {
     shadow?: ShadowOptions;
     /** Where the spans of journeys and of the runs they start go (spec 26): an exporter, or `{ endpoint, headers, payloads }`. Runs take it unless `engine.telemetry` says otherwise. */
     telemetry?: TelemetrySetting;
+    /** A store that several hosts use at once (spec 29), instead of `store`. Each operation then works on what it holds of the store, and keeps it there. */
+    shared?: SharedRuntimeStore;
 }
 
 /** Everything a host must keep to carry on after a restart: journeys, runs, and which events it has already taken in */
@@ -117,6 +121,12 @@ export class AwaRuntime {
     /** journey id -> the business event types that concern it */
     private concerns = new Map<string, Set<string>>();
 
+    /** On a shared store: the operation under way, its journal, and one operation of this host at a time (spec 29) */
+    private operation?: SharedOperation;
+    private shared_journal?: SharedJournal;
+    private in_operation = new AsyncLocalStorage<boolean>();
+    private queue: Promise<unknown> = Promise.resolve();
+
     /** The shadow of production, when the runtime was given one (spec 33.5) */
     readonly shadow?: ShadowRunner;
 
@@ -124,6 +134,7 @@ export class AwaRuntime {
     private run_telemetry?: TelemetrySetting;
 
     constructor(private options: RuntimeOptions = {}) {
+        if (options.shared) this.shared_journal = new SharedJournal(options.shared, () => this.operation);
         if (options.shadow) this.shadow = new ShadowRunner(options.shadow, () => this.now());
         const telemetry = resolve_telemetry(options.telemetry);
         if (telemetry) {
@@ -165,6 +176,8 @@ export class AwaRuntime {
         return this;
     }
 
+    /** The store this host shares with others (spec 29), if it has one */
+    get shared_store(): SharedRuntimeStore | undefined { return this.options.shared; }
     get_run(run_id: string): WorkflowEngine | undefined { return this.runs.get(run_id); }
     list_runs(): WorkflowEngine[] { return [...this.runs.values()]; }
     get_journey_instance(id: string): JourneyInstance | undefined { return this.instances.get(id); }
@@ -183,6 +196,7 @@ export class AwaRuntime {
     /** One operation of the host. When the outermost one ends, what the runtime knows is saved. */
     private depth = 0;
     private async op<T>(work: () => Promise<T>): Promise<T> {
+        if (this.options.shared) return this.shared_op(work);
         this.depth++;
         try { return await work(); } finally {
             this.depth--;
@@ -211,6 +225,7 @@ export class AwaRuntime {
      * activity execute it again, so activities are executed at least once (10.3).
      */
     async recover(): Promise<{ instances: number; runs: number; continued: string[] }> {
+        if (this.options.shared) return this.check_shared_store();
         const state = await this.options.store?.load();
         if (!state) return { instances: 0, runs: 0, continued: [] };
 
@@ -250,7 +265,7 @@ export class AwaRuntime {
         const outer_sink = this.options.engine?.event_sink;
         return {
             ...(this.run_telemetry ? { telemetry: this.run_telemetry } : {}),
-            ...this.options.engine, now: this.options.now,
+            ...this.options.engine, now: this.options.now, ...(this.shared_journal ? { journal: this.shared_journal } : {}),
             event_sink: async event => { this.outbox.set(run_id(), [...(this.outbox.get(run_id()) || []), event]); await outer_sink?.(event); },
         };
     }
@@ -378,8 +393,13 @@ export class AwaRuntime {
 
     private async take_in(event: BusinessEvent): Promise<PublishResult> {
         const result: PublishResult = { accepted: false, resumed_runs: [], started_runs: [], journeys: [] };
-        if (this.seen_events.has(event.id)) return result;
-        this.seen_events.add(event.id);
+        if (this.operation) {
+            // Accepted once across every host of the store, and everything it can touch held (spec 29.3)
+            if (!(await this.operation.accept(event))) return result;
+        } else {
+            if (this.seen_events.has(event.id)) return result;
+            this.seen_events.add(event.id);
+        }
         result.accepted = true;
         const data = event.data || {};
         const time = this.time();
@@ -495,8 +515,11 @@ export class AwaRuntime {
     }
 
     private async pass_time(now: number): Promise<{ timed_out_runs: string[]; stalled_journeys: string[] }> {
+        if (this.operation) await this.operation.hold_due(now);
         const timed_out_runs: string[] = [];
         for (const engine of this.runs.values()) {
+            // A run left in the middle of an activity is continued (10.3)
+            if (engine.getStatus() === 'running') { await engine.run(); await this.sync(engine); }
             if (await engine.expireEvents(now) > 0) {
                 timed_out_runs.push(engine.getRunId());
                 await engine.run();
@@ -516,9 +539,11 @@ export class AwaRuntime {
 
     /** A person completed a task in one of the runs */
     async resume(run_id: string, token_id: string, output: Record<string, unknown>): Promise<boolean> {
-        const engine = this.runs.get(run_id);
-        if (!engine) return false;
+        if (!this.options.shared && !this.runs.get(run_id)) return false;
         return this.op(async () => {
+            await this.operation?.hold_run(run_id);
+            const engine = this.runs.get(run_id);
+            if (!engine) return false;
             const resumed = await engine.resumeToken(token_id, output);
             await engine.run();
             await this.sync(engine);
@@ -528,16 +553,22 @@ export class AwaRuntime {
 
     /** Every journey with everything recorded about it, for a view or an audit */
     async export_portfolio(): Promise<PortfolioBundle> {
+        await this.refresh();
         const journeys = [];
         for (const definition of this.journeys.values()) {
             const instances = [];
-            for (const instance of this.list_journey_instances(definition.id)) instances.push({ instance, runs: (await this.export_journey(instance.id)).runs });
+            for (const instance of this.list_journey_instances(definition.id)) instances.push({ instance, runs: (await this.bundle(instance.id)).runs });
             journeys.push({ definition, analytics: journey_analytics(definition, this.list_journey_instances(definition.id)), instances });
         }
         return { as_of: this.time(), workflows: [...this.workflows.values()], transitions: this.transitions(), journeys };
     }
 
     async export_journey(instance_id: string): Promise<JourneyBundle> {
+        await this.refresh();
+        return this.bundle(instance_id);
+    }
+
+    private async bundle(instance_id: string): Promise<JourneyBundle> {
         const instance = this.instances.get(instance_id);
         if (!instance) throw new Error(`Journey instance ${instance_id} not found`);
         const definition = this.journeys.get(instance.journey_id)!;
@@ -548,6 +579,93 @@ export class AwaRuntime {
         }
         const workflow_ids = new Set(instance.runs.map(r => r.workflow_id));
         return { definition, instance, workflows: [...workflow_ids].map(id => this.workflows.get(id)!).filter(Boolean), runs };
+    }
+
+    // -- A shared store (spec 29) -------------------------------------------------------------
+
+    /** One operation at a time per host object */
+    private serialise<T>(work: () => Promise<T>): Promise<T> {
+        const next = this.queue.then(() => this.in_operation.run(true, work));
+        this.queue = next.catch(() => undefined);
+        return next;
+    }
+
+    /** One operation as one unit of the store: the working set starts empty and holds what the operation takes */
+    private async shared_op<T>(work: () => Promise<T>): Promise<T> {
+        // Called from within the operation under way (a run that settles publishes, a trigger starts a run): part of it
+        if (this.operation && this.in_operation.getStore()) return work();
+        let kept: SharedOperation | undefined;
+        const result = await this.serialise(() => this.options.shared!.operation(async unit => {
+            this.instances = new Map(); this.runs = new Map(); this.run_journey = new Map(); this.outbox = new Map();
+            this.operation = new SharedOperation(unit, this.shared_view());
+            try {
+                const result = await work();
+                await this.operation.write();
+                kept = this.operation;
+                return result;
+            } finally { this.operation = undefined; }
+        }));
+        this.observe_shared(kept);
+        return result;
+    }
+
+    /**
+     * The journey spans of an operation that was kept (spec 26.7). The events another host added
+     * before it were that host's to send: they are taken in without being sent.
+     */
+    private observe_shared(operation?: SharedOperation): void {
+        if (!this.journey_telemetry || !operation) return;
+        const loaded = operation.loaded_events();
+        this.journey_telemetry.prime([...this.instances.values()].map(instance =>
+            ({ ...instance, status: 'active' as const, events: instance.events.slice(0, loaded.get(instance.id) ?? 0) })));
+        this.journey_telemetry.observe(this.instances.values());
+    }
+
+    private shared_view(): HostView {
+        return {
+            workflows: this.workflows, journeys: this.journeys, concerns: this.concerns,
+            instances: this.instances, runs: this.runs, run_journey: this.run_journey, outbox: this.outbox,
+            adopt: (saved: StoredRun) => {
+                // Taken up where another operation left it. Only a run left in the middle of an activity is resumed (10.3).
+                const resumed = (saved.state.tokens as { status?: string }[]).some(t => t.status === 'active');
+                const engine = WorkflowEngine.restore(this.workflows.get(saved.workflow_id)!, saved.state, this.engine_options(() => saved.run_id), resumed);
+                const instance = this.instances.get(saved.journey_instance_id || '');
+                if (instance) this.watch(engine, this.journeys.get(instance.journey_id)!, instance, saved.run_id);
+                return engine;
+            },
+        };
+    }
+
+    /** A host refuses to start on a store that keeps work it could not continue (19.10) */
+    private async check_shared_store(): Promise<{ instances: number; runs: number; continued: string[] }> {
+        const needed = await this.options.shared!.required_definitions();
+        const missing = [
+            ...needed.workflows.filter(id => !this.workflows.has(id)).map(id => `workflow ${id}`),
+            ...needed.journeys.filter(id => !this.journeys.has(id)).map(id => `journey ${id}`),
+        ];
+        if (missing.length) throw new Error(`Cannot work on this store: what it keeps needs ${missing.join(', ')}, which this host has not registered. Nothing was changed.`);
+        return { instances: needed.instances, runs: needed.runs, continued: [] };
+    }
+
+    /**
+     * On a shared store, load everything as last kept, for reading: list_journey_instances(),
+     * analytics(), transitions() and get_run() then show the whole store rather than what this
+     * host's last operation held. Exports do this themselves. Without a shared store it does nothing.
+     */
+    async refresh(): Promise<void> {
+        const shared = this.options.shared;
+        if (!shared || (this.operation && this.in_operation.getStore())) return;
+        await this.serialise(async () => {
+            const kept = await shared.read_all();
+            this.instances = new Map(kept.instances.map(i => [i.id, i]));
+            this.runs = new Map(); this.run_journey = new Map(); this.outbox = new Map();
+            for (const saved of kept.runs) {
+                const workflow = this.workflows.get(saved.workflow_id);
+                if (!workflow) continue;
+                this.runs.set(saved.run_id, WorkflowEngine.restore(workflow, saved.state, { ...this.options.engine, now: this.options.now, journal: shared.journal }, false));
+                if (saved.journey_instance_id) this.run_journey.set(saved.run_id, saved.journey_instance_id);
+            }
+        });
     }
 }
 

@@ -29,7 +29,7 @@ CONFORMANCE = Path(__file__).resolve().parents[3] / "spec" / "conformance"
 SCHEMAS = Path(__file__).resolve().parents[3] / "spec" / "json-schema"
 CLAIMED_LEVELS = {"core", "decision", "verified", "recorded", "resilient", "contract", "flow", "events",
                   "tools", "model_decision", "routing", "journeys", "measures",
-                  "replay", "contexts", "service_levels", "knowledge", "telemetry", "evidence", "evaluation", "a2a"}
+                  "replay", "contexts", "service_levels", "knowledge", "telemetry", "shared_store", "evidence", "evaluation", "a2a"}
 # Integrity rules the Python SDK does not enforce. None at present.
 UNSUPPORTED_INTEGRITY_RULES: set[str] = set()
 
@@ -384,6 +384,55 @@ def in_order(wanted, actual):
     return wanted[cursor:]
 
 
+def expect_journeys(runtime, expect, journey_event_schema):
+    """What a journey case expects of the journeys a host has recorded (Appendix A). Shared by the journey and shared store cases."""
+    names = {j.id: j.name for j in runtime.list_journeys()}
+    instances = runtime.list_journey_instances()
+    if "instance_count" in expect:
+        assert len(instances) == expect["instance_count"]
+    for wanted in expect.get("instances", []):
+        found = [i for i in instances if names[i["journey_id"]] == wanted["journey"]
+                 and (not wanted.get("subject_key") or i["subject_key"] == wanted["subject_key"])]
+        assert len(found) == 1, f"instances of {wanted['journey']} {wanted.get('subject_key', '')}"
+        instance = found[0]
+        types = [e["type"] for e in instance["events"]]
+        # Every implementation that records journeys must record validly: schema-valid events, numbered from 1 without gaps
+        for position, event in enumerate(instance["events"]):
+            assert [e.message for e in journey_event_schema.iter_errors(event)] == [], event
+            assert event["seq"] == position + 1
+        for key in ("status", "stage_id", "stalled", "sentiment"):
+            if key in wanted:
+                assert instance.get(key) == wanted[key] and isinstance(instance.get(key), bool) == isinstance(wanted[key], bool), key
+        if "goals_reached" in wanted:
+            assert instance["goals_reached"] == wanted["goals_reached"]
+        if "runs" in wanted:
+            assert [r["status"] for r in instance["runs"]] == wanted["runs"]
+        if "data" in wanted:
+            assert is_subset(wanted["data"], instance["data"]), json.dumps(instance["data"])
+        if "events" in wanted:
+            assert in_order(wanted["events"], types) == [], f"record was: {', '.join(types)}"
+        if "events_exact" in wanted:
+            assert types == wanted["events_exact"]
+        for type, count in wanted.get("events_count", {}).items():
+            assert types.count(type) == count, f"count of {type}"
+        for part in wanted.get("events_contain", []):
+            rest = {k: v for k, v in part.items() if k != "has"}
+            absent = object()
+            assert any(is_subset(rest, e) and all(resolve_path(e, p, absent) is not absent for p in part.get("has", []))
+                       for e in instance["events"]), f"no journey event matches {json.dumps(part)}"
+        if "run_journal" in wanted or "run_journal_excludes" in wanted:
+            events = runtime.export_journey(instance["id"])["runs"][0]["events"]
+            for position, event in enumerate(events):
+                check_journal_event(event, position + 1)
+            types_in_journal = [e["type"] for e in events]
+            assert in_order(wanted.get("run_journal", []), types_in_journal) == [], f"journal was: {', '.join(types_in_journal)}"
+            for type in wanted.get("run_journal_excludes", []):
+                assert type not in types_in_journal, f"journal was: {', '.join(types_in_journal)}"
+    if "transitions" in expect:
+        assert [{"from": names[t["from"]], "to": names[t["to"]], "count": t["count"]}
+                for t in runtime.transitions()] == expect["transitions"]
+
+
 @pytest.mark.parametrize("case", JOURNEYS, ids=[c["id"] for c in JOURNEYS])
 def test_journeys(case):
     if case["level"] not in CLAIMED_LEVELS:
@@ -432,50 +481,114 @@ def test_journeys(case):
             if "accepted" in expect:
                 assert result["accepted"] is expect["accepted"], f"accepted {event['type']}"
 
-    expect = case["expect"]
-    names = {j.id: j.name for j in runtime.list_journeys()}
-    instances = runtime.list_journey_instances()
-    if "instance_count" in expect:
-        assert len(instances) == expect["instance_count"]
-    for wanted in expect.get("instances", []):
-        found = [i for i in instances if names[i["journey_id"]] == wanted["journey"]
-                 and (not wanted.get("subject_key") or i["subject_key"] == wanted["subject_key"])]
-        assert len(found) == 1, f"instances of {wanted['journey']} {wanted.get('subject_key', '')}"
-        instance = found[0]
-        types = [e["type"] for e in instance["events"]]
-        # Every implementation that records journeys must record validly: schema-valid events, numbered from 1 without gaps
-        for position, event in enumerate(instance["events"]):
-            assert [e.message for e in journey_event_schema.iter_errors(event)] == [], event
-            assert event["seq"] == position + 1
-        for key in ("status", "stage_id", "stalled", "sentiment"):
+    expect_journeys(runtime, case["expect"], journey_event_schema)
+
+
+SHARED_STORE = [json.loads(p.read_text()) for p in sorted((CONFORMANCE / "shared-store").glob("*.json"))]
+
+
+@pytest.fixture(scope="module")
+def postgres():
+    """One PostgreSQL for the shared store cases; each case has a database of its own"""
+    from tests.postgres_helper import TestPostgres, postgres_unavailable
+    reason = postgres_unavailable()
+    if reason:
+        pytest.skip(f"shared store cases need PostgreSQL: {reason}")
+    server = TestPostgres()
+    yield server
+    server.stop()
+
+
+@pytest.mark.parametrize("case", SHARED_STORE, ids=[c["id"] for c in SHARED_STORE])
+def test_shared_store(case, postgres):
+    """Several hosts on one store (section 29). Steps marked `together` are performed at once, one thread per host."""
+    from concurrent.futures import ThreadPoolExecutor
+    from awa.runtime.postgres_store import PostgresRuntimeStore
+    if case["level"] not in CLAIMED_LEVELS:
+        pytest.skip(f"level '{case['level']}' is not claimed by the Python SDK")
+
+    url = postgres.database()
+    clock = {"now": time_ms(case["start"])}
+    actor = ConformanceActor(case.get("actors"), lambda ms: clock.__setitem__("now", clock["now"] + ms))
+    stores = []
+
+    def open_host(name):
+        stopping = {"now": False}
+
+        def before_commit():
+            if stopping["now"]:
+                raise RuntimeError(f"host {name} stopped")
+        store = PostgresRuntimeStore(url, host_id=name, before_commit=before_commit)
+        stores.append(store)
+        runtime = AwaRuntime(now=lambda: clock["now"], shared=store,
+                             engine={"actors": {actor_type: actor for actor_type in ActorType}, "sleep": lambda ms: None})
+        for workflow in case["workflows"]:
+            runtime.register_workflow(workflow)
+        for journey in case["journeys"]:
+            runtime.register_journey(journey)
+        runtime.recover()
+        return {"runtime": runtime, "store": store, "stopping": stopping}
+
+    hosts = {name: open_host(name) for name in case["hosts"]}
+
+    def stop(name):
+        hosts.pop(name)["store"].close()
+
+    def perform(step):
+        """One host's step; what it counts towards the step's expectations"""
+        host = hosts[step["host"]]
+        if step.get("tick"):
+            result = host["runtime"].tick()
+            return {"timed_out_runs": len(result["timed_out_runs"]), "stalled_journeys": len(result["stalled_journeys"])}
+        e = step["publish"]
+        event = {"specversion": "1.0", "id": e.get("id") or f"evt-{uuid4()}", "source": "/conformance", "type": e["type"], "data": e.get("data", {})}
+        if step.get("stops_before_keeping"):
+            host["stopping"]["now"] = True
+            with pytest.raises(RuntimeError, match="stopped"):
+                host["runtime"].publish(event)
+            stop(step["host"])
+            return {}
+        return {"accepted": host["runtime"].publish(event)["accepted"]}
+
+    def check(wanted, results):
+        if not wanted:
+            return
+        if "accepted" in wanted:
+            got = results[0]["accepted"] if isinstance(wanted["accepted"], bool) else sum(1 for r in results if r.get("accepted"))
+            assert got == wanted["accepted"], "accepted"
+        for key in ("timed_out_runs", "stalled_journeys"):
             if key in wanted:
-                assert instance.get(key) == wanted[key] and isinstance(instance.get(key), bool) == isinstance(wanted[key], bool), key
-        if "goals_reached" in wanted:
-            assert instance["goals_reached"] == wanted["goals_reached"]
-        if "runs" in wanted:
-            assert [r["status"] for r in instance["runs"]] == wanted["runs"]
-        if "data" in wanted:
-            assert is_subset(wanted["data"], instance["data"]), json.dumps(instance["data"])
-        if "events" in wanted:
-            assert in_order(wanted["events"], types) == [], f"record was: {', '.join(types)}"
-        if "events_exact" in wanted:
-            assert types == wanted["events_exact"]
-        for type, count in wanted.get("events_count", {}).items():
-            assert types.count(type) == count, f"count of {type}"
-        for part in wanted.get("events_contain", []):
-            rest = {k: v for k, v in part.items() if k != "has"}
-            absent = object()
-            assert any(is_subset(rest, e) and all(resolve_path(e, p, absent) is not absent for p in part.get("has", []))
-                       for e in instance["events"]), f"no journey event matches {json.dumps(part)}"
-        if "run_journal" in wanted:
-            events = runtime.export_journey(instance["id"])["runs"][0]["events"]
-            for position, event in enumerate(events):
-                check_journal_event(event, position + 1)
-            assert in_order(wanted["run_journal"], [e["type"] for e in events]) == [], \
-                f"journal was: {', '.join(e['type'] for e in events)}"
-    if "transitions" in expect:
-        assert [{"from": names[t["from"]], "to": names[t["to"]], "count": t["count"]}
-                for t in runtime.transitions()] == expect["transitions"]
+                assert sum(r.get(key, 0) for r in results) == wanted[key], key
+
+    try:
+        for step in case["steps"]:
+            if "advance" in step:
+                clock["now"] += parse_iso_duration(step["advance"])
+            elif "stop" in step:
+                stop(step["stop"])
+            elif "start" in step:
+                hosts[step["start"]] = open_host(step["start"])
+            elif "together" in step:
+                with ThreadPoolExecutor(max_workers=len(step["together"])) as pool:
+                    check(step.get("expect"), list(pool.map(perform, step["together"])))
+            else:
+                check(step.get("expect"), [perform(step)])
+        # What the store keeps, read by a host that took no part
+        reader = open_host("reader")
+        reader["runtime"].refresh()
+        stats = reader["store"].stats()
+        expect = case["expect"]
+        if "accepted_events" in expect:
+            assert stats["accepted_events"] == expect["accepted_events"], "events accepted"
+        if "run_count" in expect:
+            assert stats["runs"] == expect["run_count"], "runs kept"
+        # Every journal is numbered from 1 without a gap, whichever host wrote which part
+        for engine in reader["runtime"].list_runs():
+            assert [e["seq"] for e in engine.get_events()] == list(range(1, len(engine.get_events()) + 1))
+        expect_journeys(reader["runtime"], expect, schema_validator("journey-event.schema.json"))
+    finally:
+        for store in stores:
+            store.close()
 
 
 @pytest.mark.parametrize("case", MEASURE_CASES, ids=[c["id"] for c in MEASURE_CASES])

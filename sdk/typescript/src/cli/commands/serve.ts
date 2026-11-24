@@ -17,8 +17,11 @@ export const serveCommand = new Command('serve')
     .option('--a2a <file>', 'Offer this workflow to other agents over A2A (can be repeated)', (value: string, previous: string[]) => [...previous, value], [] as string[])
     .option('--public-url <url>', 'The address callers reach this server at, written in agent cards. Default: taken from each request')
     .option('--deployment <file>', 'JSON file saying what the workflows may reach: tools.allow_commands, tools.allowed_hosts, tools.mcp_servers, tools.grpc, a2a')
+    .option('--store <url>', 'Keep journeys and runs in this PostgreSQL runtime store, which several servers may share (default: $AWA_RUNTIME_STORE)')
     .action(async (options) => {
         try {
+            // The routes read the store from the environment, as a server started without this option would
+            if (options.store) process.env.AWA_RUNTIME_STORE = options.store;
             const port = parseInt(options.port, 10);
             const jwtSecret = options.jwtSecret || process.env.JWT_SECRET;
             const rateLimit = parseInt(options.rateLimit, 10);
@@ -63,6 +66,7 @@ export const serveCommand = new Command('serve')
                 if (authConfig.enabled) {
                     console.log(`  Authentication: ${jwtSecret ? 'JWT' : ''} ${Object.keys(options.apiKey).length > 0 ? 'API Keys' : ''}`.trim());
                 }
+                if (process.env.AWA_RUNTIME_STORE) console.log('  Journeys: kept in the shared runtime store');
                 if (rateLimit > 0) {
                     console.log(`  Rate limit: ${rateLimit} requests/minute`);
                 }

@@ -442,7 +442,7 @@ awa serve --a2a workflow.awa.json --deployment deployment.json
 | `awa run <file>` | Execute a workflow file | `-v, --verbose`, `-k, --key <key>`, `-s, --simulate`, `--outputs <file>`, `-p, --providers <list>`, `-j, --journal <file>`, `-c, --checkpoint-dir <dir>`, `-i, --input <json>`, `--allow-commands [list]` |
 | `awa recipe <workflow> [journal]` | Compile a build-from-scratch recipe | `-o, --output <file>`, `--no-definition`, `--no-payloads` |
 | `awa knowledge <ingest\|list\|review\|deprecate\|export\|import>` | Build, review and exchange knowledge | `--kb <file>` |
-| `awa journey <add\|publish\|tick\|resume\|list\|show\|analytics\|export>` | Journeys in a runtime directory | `--dir <dir>`, `--simulate`, `--outputs <file>` |
+| `awa journey <add\|publish\|tick\|resume\|list\|show\|analytics\|export>` | Journeys in a runtime directory, or a shared PostgreSQL store | `--dir <dir>`, `--store <url>` (or `AWA_RUNTIME_STORE`), `--simulate`, `--outputs <file>` |
 | `awa measures` | The measures of journeys and workflows | `--dir`, `--file`, `--from`, `--to`, `--json`, `--openmetrics`, `--html <file>`, `--list` |
 | `awa telemetry export <workflow> <journal>` | A recorded run as OpenTelemetry traces; also `journeys` and `measures` | `--endpoint <url>`, `--file <out.json>`, `--protocol`, `--header k=v`, `--service-name`, `--payloads` |
 | `awa replay <workflow> <journal>` | Counterfactual replay; exit status 2 on a regression | `--candidate <file>`, `--ai live\|recorded`, `-o`, `--json` |
@@ -632,6 +632,20 @@ const runtime = await open_runtime_directory('.awa');  // recovers journeys and 
 ```
 
 Over HTTP: `AWA_DATA_DIR=.awa awa serve`, then `POST /api/v1/journeys/events`, `GET /api/v1/journeys/portfolio`.
+
+A runtime directory belongs to one host at a time. For several hosts (servers on several machines, scheduled jobs, commands) keep journeys in a **shared PostgreSQL store** instead (specification section 29). Each operation holds only the subjects it touches, an event id is accepted once across all hosts, and a host that dies leaves nothing half done. TypeScript and Python hosts can share one store. It needs `npm install pg` (or the Python extra `postgres`); the store creates its tables, in schema `awa_runtime`, itself.
+
+```bash
+export AWA_RUNTIME_STORE=postgres://awa@db.internal/awa   # not AWA_DATABASE_URL, which is the task database
+awa journey add intake.awa.json claim.journey.json        # definitions go into the store
+awa serve --port 3000                                      # the same on every machine; or --store <url>
+```
+
+```typescript
+const runtime = await open_runtime_store(process.env.AWA_RUNTIME_STORE!);  // registers the store's definitions
+await runtime.publish(event);       // one transaction, holding only this subject
+await runtime.refresh();            // read the whole store, as every host left it
+```
 
 **Counterfactual replay** answers "what if this run had used another model or rule":
 

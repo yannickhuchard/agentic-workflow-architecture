@@ -23,6 +23,8 @@ export * from './decision_engine';
 export * from './business_event';
 export * from './journey';
 export * from './runtime';
+export * from './shared_store';
+export * from './postgres_store';
 export * from './counterfactual';
 export * from './kpi';
 export * from './views';

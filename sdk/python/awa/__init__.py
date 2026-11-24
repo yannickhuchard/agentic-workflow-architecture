@@ -68,6 +68,7 @@ from awa.runtime import (
 from awa.runtime.business_event import business_event
 from awa.runtime.journey import JourneyDefinition, parse_journey
 from awa.runtime.runtime_host import AwaRuntime, InMemoryRuntimeStore, FileRuntimeStore, open_runtime_directory
+from awa.runtime.postgres_store import PostgresRuntimeStore, open_runtime_store
 from awa.runtime.kpi import MEASURES, compute_measures, measures_to_openmetrics
 from awa.runtime.telemetry import journey_spans, run_spans, spans_to_otlp_json, spans_to_otlp_protobuf
 from awa.runtime.telemetry_export import OtlpHttpExporter, telemetry_from_env
@@ -155,6 +156,8 @@ __all__ = [
     "InMemoryRuntimeStore",
     "FileRuntimeStore",
     "open_runtime_directory",
+    "PostgresRuntimeStore",
+    "open_runtime_store",
     "MEASURES",
     "compute_measures",
     "measures_to_openmetrics",

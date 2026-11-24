@@ -5,6 +5,7 @@ Command-line interface for running AWA workflows
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -50,6 +51,10 @@ def main(argv: list[str] | None = None) -> int:
     serve_parser.add_argument("--deployment", metavar="FILE",
                               help="JSON file saying what the workflows may reach: tools.allow_commands, tools.allowed_hosts, "
                                    "tools.mcp_servers, tools.grpc, a2a")
+    serve_parser.add_argument(
+        "--store",
+        help="Keep journeys and runs in this PostgreSQL runtime store, which several servers may share (default: $AWA_RUNTIME_STORE)"
+    )
     
     # Journeys kept in a runtime directory, the measures of what was recorded, and counterfactual replay
     from awa.cli import journey as journey_commands, measures as measures_command, replay as replay_command
@@ -144,6 +149,11 @@ def serve_api(args: argparse.Namespace) -> int:
                       authenticated=AUTH_ENABLED, dependencies=[Depends(rate_limiter)])
             for workflow in offered:
                 print(f"  A2A agent \"{workflow.name}\": {args.public_url or f'http://{args.host}:{args.port}'}/a2a/{workflow.id}/.well-known/agent-card.json")
+
+        # The routes read the store from the environment, as a server started without this option would
+        if getattr(args, "store", None):
+            os.environ["AWA_RUNTIME_STORE"] = args.store
+            print("  Journeys: kept in the shared runtime store")
 
         print(f"Starting AWA Operational API on http://{args.host}:{args.port}")
         uvicorn.run(app, host=args.host, port=args.port)
