@@ -18,6 +18,8 @@ AWA_DATA_DIR=.awa awa serve --port 3000 --no-auth
 | `GET /api/v1/workflows/runs/{runId}/events?after={seq}` | Its journal, from after a sequence number |
 | `GET /api/v1/workflows/runs/{runId}/events/stream` | The journal as Server-Sent Events, as it is written: what `tools/visualization/replay.html?run=` follows |
 | `POST /api/v1/workflows/events` | A business event (CloudEvents 1.0 JSON with `id` and `type`) for the runs waiting for one. Answers `{ event_id, resumed_runs }` |
+| `GET /api/v1/workflows/runs/{runId}/agent-requests` | The tokens waiting for input an agent reached over A2A asked for: `token_id`, `node_id`, `agent`, `task_id`, `context_id`, and the agent's `request` (specification 28.6) |
+| `POST /api/v1/workflows/runs/{runId}/tokens/{tokenId}/agent-input` | `{ "input": { ... } }` or `{ "input": "text" }`: the answer, sent on the agent's task; the run goes on in the background. `409` when the token is not waiting for an agent |
 
 ```bash
 curl -s -X POST localhost:3000/api/v1/workflows/run -H 'content-type: application/json' -d '{"filePath":"examples/claims-settlement/claims-settlement.awa.json","simulate":true}'
@@ -64,6 +66,23 @@ Kept in the task database (see "The task database" in the [SDK README](../README
 | `POST /api/v1/tasks/{id}/complete` | `{ "result": { ... } }`: what the person decided |
 | `POST /api/v1/tasks/{id}/reject` | `{ "reason": "..." }` |
 | `GET /api/v1/tasks/queue/stats` | Counts by status |
+
+## Workflows offered as A2A agents
+
+With `awa serve --a2a <file>`, each workflow named is an agent other agents can call over A2A 1.0, JSON-RPC binding (specification 28.8). The card needs no authentication; the JSON-RPC route needs what every other route needs, and the card says so.
+
+| Route | What it does |
+|---|---|
+| `GET /a2a/{workflowId}/.well-known/agent-card.json` | The agent card: the workflow's name, description and version, its JSON-RPC interface, and one skill |
+| `GET /.well-known/agent-card.json` | The same, when one workflow is offered |
+| `POST /a2a/{workflowId}` | JSON-RPC 2.0. `SendMessage` starts a run with the message's data parts merged (text parts as `text`) and answers with the task, once the run has ended or waits, or at once with `configuration.returnImmediately`. `GetTask` and `CancelTask` by task id, which is the run id. A completed task has one artifact, `output`, holding the run's data |
+
+```bash
+curl -s -X POST localhost:3000/a2a/<workflow id> -H 'content-type: application/json' -H 'A2A-Version: 1.0' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"SendMessage","params":{"message":{"messageId":"m1","role":"ROLE_USER","parts":[{"data":{"amount":1200}}]}}}'
+```
+
+Errors are A2A's: `-32001` unknown task, `-32002` a task that has ended cannot be cancelled, `-32004` streaming, push notifications and messages that continue a task are not offered, `-32009` an `A2A-Version` other than 1.x.
 
 ## Views and health
 

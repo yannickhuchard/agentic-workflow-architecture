@@ -344,3 +344,30 @@ def test_this_engine_delegates_to_the_typescript_host(typescript_host):
     data = engine.tokens[0].context_data
     assert data["tier"] == "large" and data["claim"] == "C-3"
     assert "/a2a/" in next(e for e in events if e["type"] == "agent.message_sent")["data"]["link"]
+
+
+def test_the_operational_api_gives_an_agent_the_input_it_asked_for(reference, monkeypatch):
+    from fastapi.testclient import TestClient
+    import awa.server
+    from awa.server import app
+    # Another test module may have imported the server with authentication on
+    monkeypatch.setattr(awa.server, "AUTH_ENABLED", False)
+    client = TestClient(app)
+    document = json.loads(delegating(reference["card"]).model_dump_json(exclude_none=True))
+    started = client.post("/api/v1/workflows/run", json={"workflow_data": document, "input": {"policy_needed": True}})
+    assert started.status_code == 200, started.text
+    run_id = started.json()["runId"]
+    for _ in range(100):
+        requests = client.get(f"/api/v1/workflows/runs/{run_id}/agent-requests").json()
+        if requests:
+            break
+        time.sleep(0.05)
+    assert requests[0]["request"]["parts"][0]["text"] == "Which policy?"
+    assert client.post(f"/api/v1/workflows/runs/{run_id}/tokens/nope/agent-input", json={"input": "P-1"}).status_code == 409
+    answered = client.post(f"/api/v1/workflows/runs/{run_id}/tokens/{requests[0]['token_id']}/agent-input", json={"input": {"policy": "P-4"}})
+    assert answered.status_code == 200
+    for _ in range(100):
+        if client.get(f"/api/v1/workflows/runs/{run_id}").json()["status"] == "completed":
+            break
+        time.sleep(0.05)
+    assert client.get(f"/api/v1/workflows/runs/{run_id}").json()["status"] == "completed"

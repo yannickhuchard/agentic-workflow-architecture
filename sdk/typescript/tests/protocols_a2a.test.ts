@@ -143,6 +143,37 @@ describe('An agent built with the reference A2A SDK performs an activity', () =>
     });
 });
 
+describe('The operational API gives an agent the input it asked for', () => {
+    it('lists what agents ask and sends the answer on their task', async () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'awa-a2a-'));
+        fs.writeFileSync(path.join(dir, 'delegate.awa.json'), JSON.stringify(delegating(`${reference.base}/.well-known/agent-card.json`)));
+        const previous = process.env.AWA_WORKFLOWS_DIR;
+        process.env.AWA_WORKFLOWS_DIR = dir;
+        const api = await listen(createServer({ request_logging: false }));
+        try {
+            const post = (url: string, body: unknown) => fetch(`${api.base}${url}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+            const { runId } = await (await post('/api/v1/workflows/run', { filePath: 'delegate.awa.json', input: { policy_needed: true } })).json() as { runId: string };
+            let requests: any[] = [];
+            for (let i = 0; i < 100 && requests.length === 0; i++) {
+                await new Promise(r => setTimeout(r, 50));
+                requests = await (await fetch(`${api.base}/api/v1/workflows/runs/${runId}/agent-requests`)).json() as any[];
+            }
+            expect(requests[0].request).toMatchObject({ parts: [{ text: 'Which policy?' }] });
+            expect((await post(`/api/v1/workflows/runs/${runId}/tokens/nope/agent-input`, { input: 'P-1' })).status).toBe(409);
+            expect((await post(`/api/v1/workflows/runs/${runId}/tokens/${requests[0].token_id}/agent-input`, { input: { policy: 'P-4' } })).status).toBe(200);
+            let status = '';
+            for (let i = 0; i < 100 && status !== 'completed'; i++) {
+                await new Promise(r => setTimeout(r, 50));
+                status = ((await (await fetch(`${api.base}/api/v1/workflows/runs/${runId}`)).json()) as { status: string }).status;
+            }
+            expect(status).toBe('completed');
+        } finally {
+            api.server.close();
+            if (previous === undefined) delete process.env.AWA_WORKFLOWS_DIR; else process.env.AWA_WORKFLOWS_DIR = previous;
+        }
+    });
+});
+
 describe('A redirect is held to the allowed hosts', () => {
     it('refuses a card that redirects to a host not on the list', async () => {
         let reached = 0;

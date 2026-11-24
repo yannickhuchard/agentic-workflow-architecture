@@ -100,6 +100,7 @@ page("getting-started.html", "Workflows where the outcome is fixed and the strat
           ["Resilience", "Retry with backoff, dead letters, checkpoints, recovery in another process, idempotency keys."],
           ["Journal", "An append-only record of every run: what happened, the actor's reasoning, the engine's own decisions."],
           ["Tools", "HTTP, command, JSON-RPC, gRPC, MCP and function calls, each journalled with a link to what ran."],
+          ["Agents over A2A", "An agent elsewhere, reached over the Agent2Agent protocol, can perform an activity under the same contract, verification and record; a workflow can be offered to other agents."],
           ["Business events", "Workflows publish events and wait for them, with correlation and a deadline that has its own path."],
           ["Journeys", "The life of a customer across several workflows: stages, goals, touchpoints, what changes hands, and an estimate of mood that always says whether it was measured or inferred."],
           ["Explanation", "A replay, a recipe that explains how to rebuild the workflow, and counterfactual replay: what would this run have done under another model or rule?"],
@@ -267,7 +268,12 @@ curl localhost:3000/api/v1/measures?format=openmetrics
   "parameters": { "type": "object", "required": ["number"], "properties": { "number": { "type": "string" } } },
   "binding": { "kind": "http", "url": "https://policies.example/api/policies/{number}" } }
 """, "json")}
-<p>Command bindings do not run unless the deployment allows commands. The default is to allow none.</p>'''),
+<p>Command bindings do not run unless the deployment allows commands. The default is to allow none.</p>
+<p>The engine reaches MCP servers and gRPC services itself. An <code>mcp</code> binding names a server the deployment declares, a program (held to the same permission as commands) or a Streamable HTTP address; a <code>grpc</code> binding makes one unary call, described by the deployment's <code>.proto</code> files or by server reflection, over TLS unless the deployment allows plaintext for the host. Connections are kept for the run and closed when it ends.</p>
+{code("""
+awa run workflow.awa.json --deployment deployment.json
+""")}
+<p>An activity can also be performed by an agent reached over the Agent2Agent protocol (A2A 1.0): name its agent card in the role's or the activity's <code>a2a</code>. The engine sends the activity and its data as a message, follows the task, and holds the reply to the outcome contract like any actor's; an agent that asks for input makes the run wait for the host's answer. <code>awa serve --a2a workflow.awa.json</code> offers a workflow to other agents.</p>'''),
       ("replay", "Change a model without guessing", f'''
 <p>Counterfactual replay runs a recorded run again with something changed, holding everything else as it was recorded: the input, what applications and people returned, tool results, events and time.</p>
 {code("awa replay workflow.awa.json run.journal.jsonl --candidate changed.awa.json --ai recorded")}
@@ -361,14 +367,14 @@ page("architect-guide.html", "For architects", "How AWA is put together, what it
           ["document, core, decision", "4 to 6", "yes", "yes"], ["verified, contract", "7, 11", "yes", "yes"], ["recorded, resilient", "9, 10", "yes", "yes"],
           ["routing", "12", "yes", "yes"], ["flow, events", "13, 18", "yes", "yes"], ["knowledge", "15", "yes", "yes"],
           ["model_decision, tools", "16, 17", "yes", "yes"], ["journeys, replay", "19, 20", "yes", "yes"],
-          ["measures", "21", "yes", "yes"], ["contexts, service_levels", "22, 23", "yes", "yes"]]) + '''
+          ["measures", "21", "yes", "yes"], ["contexts, service_levels", "22, 23", "yes", "yes"], ["a2a", "28", "yes", "yes"]]) + '''
 <p>Each level has language-neutral cases in <code>spec/conformance</code>; both SDKs run every case of every level, none skipped. What the cases cannot reach (live model providers, Open Knowledge Format exchange, the recipe) is fixed by each SDK's own tests.</p>'''),
       ("security", "What may run", '''
-<p>A workflow document can name any URL or program. What actually runs is the deployment's decision: command bindings need explicit permission, HTTP and JSON-RPC bindings can be restricted to listed hosts, and secrets are substituted at call time and never journalled. The link to what ran is always journalled, even when payloads are hashed or omitted.</p>'''),
+<p>A workflow document can name any URL, program or agent. What actually runs is the deployment's decision: command bindings need explicit permission, and so do MCP servers the engine would start; HTTP, JSON-RPC, MCP and gRPC bindings and A2A agents can be restricted to listed hosts; an MCP binding reaches only a server the deployment declares; and secrets are substituted at call time and never journalled. The link to what ran is always journalled, even when payloads are hashed or omitted. In simulation nothing is called.</p>'''),
       ("not", "What AWA does not do", '''
 <ul>
 <li><strong>Access rights to external resources are declared, not enforced.</strong> The document states them and they can be queried. Context bindings (section 22) and service levels (section 23) are enforced; the permissions of tools are the deployment's (section 17.4).</li>
-<li><strong>No built-in MCP or gRPC executor.</strong> The bindings are specified; a deployment supplies the executor.</li>
+<li><strong>No streaming calls.</strong> gRPC tools make unary calls; an agent offered over A2A answers requests, without streaming or push notifications.</li>
 <li><strong>No broker.</strong> Events enter and leave through the host. Connecting Kafka, a queue or a webhook is the host's job.</li>
 <li><strong>No multi-host coordination.</strong> See durability above.</li>
 <li><strong>Model providers have not all been exercised against live services</strong> in the reference tests; they are tested against stubs.</li>

@@ -1,7 +1,7 @@
 ---
 name: agentic-workflow-architecture
 description: Expert guide for working with the Agentic Workflow Architecture (AWA) framework. Use this skill when users need to create, edit, validate, execute, or visualize AI-native workflow processes using AWA's SDK (TypeScript & Python), CLI, API, or visualization tools. This skill covers workflow building with the fluent API, running workflows via CLI, triggering workflows via REST API, creating workflow JSON files, understanding AWA concepts (actors, contexts, skills, access rights, decision nodes), and rendering workflow diagrams.
-Sync: Updated for AWA 1.1 (normative specification, outcome contracts, model routing, tools, journal, knowledge)
+Sync: Updated for AWA 1.1 (normative specification, outcome contracts, model routing, tools with MCP and gRPC, agents over A2A, journal, knowledge)
 ---
 
 # Agentic Workflow Architecture (AWA) Skill
@@ -223,7 +223,17 @@ Declare what an agent may call on the activity. Every call is journalled with th
 } ]
 ```
 
-Binding kinds: `http`, `command` (needs `--allow-commands`), `jsonrpc`, `grpc` and `mcp` (need a registered executor), `function`.
+Binding kinds: `http`, `command` (needs `--allow-commands`), `jsonrpc`, `function`, `mcp` and `grpc`. An `mcp` binding (`{ "kind": "mcp", "server": "docs", "tool": "search" }`) names a server the deployment declares in its deployment file (`awa run --deployment deployment.json`, under `tools.mcp_servers`): a program, which also needs `allow_commands`, or a Streamable HTTP address. A `grpc` binding makes one unary call, described by the deployment's `.proto` files or by server reflection, over TLS unless the deployment allows plaintext for the host.
+
+### Agents over A2A
+
+An activity can be performed by an agent reached over the Agent2Agent protocol 1.0. Name its agent card on the role or the activity:
+
+```json
+{ "id": "…", "name": "Fraud screen", "actor_type": "ai_agent", "a2a": { "agent_card": "https://fraud.example/.well-known/agent-card.json" } }
+```
+
+The agent gets the activity and its data as a message; its artifacts become the output, held to the outcome contract and verification like any actor's. If the agent asks for input, the run waits (`waiting_human`) until the host answers with `answerAgent` (`answer_agent` in Python). Agents are held to the deployment's allowed hosts; in simulation nothing is called. `awa serve --a2a workflow.awa.json` offers a workflow to other agents, with its card at `/.well-known/agent-card.json`.
 
 ### After a run: journal, recipe, replay, knowledge
 
@@ -419,6 +429,9 @@ awa serve
 
 # Custom port
 awa serve --port 8080
+
+# Offer a workflow to other agents over A2A, under a deployment's permissions
+awa serve --a2a workflow.awa.json --deployment deployment.json
 ```
 
 ### CLI Commands Reference
