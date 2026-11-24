@@ -29,7 +29,7 @@ CONFORMANCE = Path(__file__).resolve().parents[3] / "spec" / "conformance"
 SCHEMAS = Path(__file__).resolve().parents[3] / "spec" / "json-schema"
 CLAIMED_LEVELS = {"core", "decision", "verified", "recorded", "resilient", "contract", "flow", "events",
                   "tools", "model_decision", "routing", "journeys", "measures",
-                  "replay", "contexts", "service_levels", "knowledge"}
+                  "replay", "contexts", "service_levels", "knowledge", "telemetry"}
 # Integrity rules the Python SDK does not enforce. None at present.
 UNSUPPORTED_INTEGRITY_RULES: set[str] = set()
 
@@ -486,6 +486,98 @@ def test_measures(case):
         assert len(report["attention"]) == len(expect["attention"])
         for got, want in zip(report["attention"], expect["attention"]):
             assert is_subset(want, got), f"{json.dumps(got)} does not contain {json.dumps(want)}"
+
+
+# ---------------------------------------------------------------------------
+# Telemetry (specification section 26)
+# ---------------------------------------------------------------------------
+
+from awa.runtime.kpi import MEASURES  # noqa: E402
+from awa.runtime.telemetry import (  # noqa: E402
+    gauges_to_otlp_json, journey_spans, measures_to_gauges, run_spans, spans_to_otlp_json, time_ms as telemetry_ms,
+)
+
+TELEMETRY_CASES = [json.loads(p.read_text()) for p in sorted((CONFORMANCE / "telemetry").glob("*.json"))]
+
+
+def _sorted_attributes(value):
+    """Attribute lists in any order: sorted by key at every depth"""
+    if isinstance(value, list):
+        return [_sorted_attributes(v) for v in value]
+    if not isinstance(value, dict):
+        return value
+    return {k: (sorted((_sorted_attributes(a) for a in v), key=lambda a: a["key"]) if k == "attributes" and isinstance(v, list)
+                else _sorted_attributes(v)) for k, v in value.items()}
+
+
+def _same_value(got, want):
+    """JSON equality, which keeps booleans apart from numbers and integers apart from fractions"""
+    return json.dumps(got, sort_keys=True) == json.dumps(want, sort_keys=True)
+
+
+@pytest.mark.parametrize("case", TELEMETRY_CASES, ids=[c["id"] for c in TELEMETRY_CASES])
+def test_telemetry(case):
+    if case["level"] not in CLAIMED_LEVELS:
+        pytest.skip(f"level '{case['level']}' is not claimed by the Python SDK")
+    expect = case["expect"]
+
+    if "report" in case:
+        report = case["report"]
+        request = gauges_to_otlp_json(measures_to_gauges(report, MEASURES), report)
+        metrics = request["resourceMetrics"][0]["scopeMetrics"][0]["metrics"]
+        assert len(metrics) == expect["metric_count"]
+        names = [m["name"] for m in metrics]
+        for name in expect.get("absent", []):
+            assert name not in names
+        for want in expect["metrics"]:
+            got = next(m for m in metrics if m["name"] == want["name"])
+            assert got["unit"] == want["unit"], want["name"]
+            points = [{"attributes": {a["key"]: a["value"]["stringValue"] for a in p["attributes"]}, "value": p["asDouble"]}
+                      for p in got["gauge"]["dataPoints"]]
+            assert points == want["points"], want["name"]
+            for p in got["gauge"]["dataPoints"]:
+                assert p["timeUnixNano"] == str(telemetry_ms(expect["time"]) * 1_000_000)
+                assert p["startTimeUnixNano"] == str(telemetry_ms(expect["start_time"]) * 1_000_000)
+        return
+
+    payloads = (case.get("options") or {}).get("payloads", False)
+    spans = run_spans(case["decision_nodes"], case["journal"], payloads) if "journal" in case else journey_spans(case["journey"], payloads)
+    assert len(spans) == expect["span_count"]
+    assert {s.trace_id for s in spans} == {expect["trace_id"]}
+    if "otlp_json" in expect:
+        assert _sorted_attributes(spans_to_otlp_json(spans)) == _sorted_attributes(expect["otlp_json"])
+    for want in expect.get("spans", []):
+        matching = [s for s in spans if s.span_id == want["span_id"]]
+        assert len(matching) == 1, f"span {want['span_id']}"
+        got = matching[0]
+        where = f"{got.name} ({got.span_id})"
+        if "parent_span_id" in want:
+            assert got.parent_span_id == want["parent_span_id"], f"{where} parent"
+        if "name" in want:
+            assert got.name == want["name"]
+        if "kind" in want:
+            assert got.kind == want["kind"], f"{where} kind"
+        if "start" in want:
+            assert got.start_ms == telemetry_ms(want["start"]), f"{where} start"
+        if "end" in want:
+            assert got.end_ms == telemetry_ms(want["end"]), f"{where} end"
+        if "status" in want:
+            assert got.status["code"] == want["status"], f"{where} status"
+        if "status_message" in want:
+            assert got.status.get("message") == want["status_message"], f"{where} status message"
+        for key, value in want.get("attributes", {}).items():
+            assert key in got.attributes and _same_value(got.attributes[key], value), f"{where} {key}: {got.attributes.get(key)!r} != {value!r}"
+        for key in want.get("absent", []):
+            assert key not in got.attributes, f"{where} has {key}"
+        if "events" in want:
+            assert [e.name for e in got.events] == want["events"], f"{where} events"
+        for e in want.get("events_contain", []):
+            found = [x for x in got.events if x.name == e["name"]
+                     and all(k in x.attributes and _same_value(x.attributes[k], v) for k, v in e.get("attributes", {}).items())
+                     and all(k not in x.attributes for k in e.get("absent", []))]
+            assert found, f"{where}: no event {e} among {[(x.name, x.attributes) for x in got.events]}"
+        if "links" in want:
+            assert [{"trace_id": l["trace_id"], "span_id": l["span_id"]} for l in got.links] == want["links"], f"{where} links"
 
 
 # ---------------------------------------------------------------------------

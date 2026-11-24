@@ -21,6 +21,7 @@ import threading
 from typing import Any, Callable, Protocol
 from uuid import uuid4
 
+from awa.runtime.telemetry_export import JourneyTelemetry, resolve_telemetry
 from awa.runtime.business_event import BusinessEvent
 from awa.runtime.expression import resolve_path
 from awa.runtime.journal import FileJournalStore, public_payload
@@ -131,11 +132,18 @@ class AwaRuntime:
       engine: options given to every run the host starts (see WorkflowEngine)
       now:    callable returning the current time in milliseconds; tests replace it to move time forward
       store:  where the host keeps what it knows (19.10). Without it, everything is in memory.
+      telemetry: where the spans of journeys and of the runs they start go (26): an exporter, or
+              {"endpoint", "headers", "protocol", "payloads"}
     """
 
     def __init__(self, engine: dict[str, Any] | None = None, now: Callable[[], float] | None = None,
-                 store: RuntimeStore | None = None) -> None:
+                 store: RuntimeStore | None = None, telemetry: Any = None) -> None:
         self._engine_defaults = dict(engine or {})
+        # Where the spans of journeys and of their runs go (specification 26); runs take it unless engine says otherwise
+        resolved = resolve_telemetry(telemetry)
+        self._journey_telemetry = JourneyTelemetry(resolved[0], resolved[1]) if resolved else None
+        if resolved and "telemetry" not in self._engine_defaults:
+            self._engine_defaults["telemetry"] = {"exporter": resolved[0], "payloads": resolved[1]}
         self._clock = now
         self._store = store
         self._workflows: dict[str, Workflow] = {}
@@ -258,6 +266,8 @@ class AwaRuntime:
             flush = getattr(store, "flush", None)
             if callable(flush):
                 flush()
+        if self._journey_telemetry:
+            self._journey_telemetry.observe(self._instances.values())
         if not self._store:
             return
         self._store.save({
@@ -299,6 +309,8 @@ class AwaRuntime:
 
         def take_over() -> dict[str, Any]:
             self._instances = instances
+            if self._journey_telemetry:
+                self._journey_telemetry.prime(instances.values())
             self._outbox = outbox
             self._seen_events = dict.fromkeys(state.get("seen_events") or [])
             continued: list[str] = []
@@ -721,7 +733,7 @@ def add_definition(directory: str, document: dict[str, Any]) -> dict[str, str]:
 
 
 def open_runtime_directory(directory: str, engine: dict[str, Any] | None = None, now: Callable[[], float] | None = None,
-                           store: RuntimeStore | None = None) -> AwaRuntime:
+                           store: RuntimeStore | None = None, telemetry: Any = None) -> AwaRuntime:
     """
     A runtime that lives in a directory, so that a command line, a server or a
     scheduled job can each open it, do one thing and leave it for the next:
@@ -742,7 +754,7 @@ def open_runtime_directory(directory: str, engine: dict[str, Any] | None = None,
     try:
         runtime = AwaRuntime(
             engine={"journal": FileJournalStore(os.path.join(directory, "journals")), **(engine or {})},
-            now=now, store=store or FileRuntimeStore(os.path.join(directory, "runtime.json")))
+            now=now, store=store or FileRuntimeStore(os.path.join(directory, "runtime.json")), telemetry=telemetry)
         documents = []
         for name in sorted(n for n in os.listdir(definitions) if n.endswith(".json")):
             with open(os.path.join(definitions, name), encoding="utf-8") as handle:

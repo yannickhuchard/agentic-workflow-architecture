@@ -29,8 +29,38 @@ from .kpi import MEASURES, compute_measures, measures_to_openmetrics
 from .context_manager import ContextError
 from .knowledge import KnowledgeBase, distill, guidance
 from .counterfactual import ReplayResult, compare_runs, counterfactual_replay, render_counterfactual_report
+from .telemetry import (
+    RunTraceMapper, JourneyTraceMapper, TelemetrySpan, run_spans, journey_spans, run_trace_id, run_span_id,
+    journey_trace_id, journey_span_id, spans_to_otlp_json, spans_to_otlp_protobuf, measures_to_gauges,
+    gauges_to_otlp_json, gauges_to_otlp_protobuf, telemetry_resource,
+)
+from .telemetry_export import (
+    OtlpHttpExporter, RunTelemetry, JourneyTelemetry, otlp_exporter, resolve_telemetry, telemetry_from_env, signal_url,
+)
 
 __all__ = [
+    "RunTraceMapper",
+    "JourneyTraceMapper",
+    "TelemetrySpan",
+    "run_spans",
+    "journey_spans",
+    "run_trace_id",
+    "run_span_id",
+    "journey_trace_id",
+    "journey_span_id",
+    "spans_to_otlp_json",
+    "spans_to_otlp_protobuf",
+    "measures_to_gauges",
+    "gauges_to_otlp_json",
+    "gauges_to_otlp_protobuf",
+    "telemetry_resource",
+    "OtlpHttpExporter",
+    "RunTelemetry",
+    "JourneyTelemetry",
+    "otlp_exporter",
+    "resolve_telemetry",
+    "telemetry_from_env",
+    "signal_url",
     "Token",
     "TokenStatus",
     "ContextManager",

@@ -24,7 +24,8 @@ def _open(args: argparse.Namespace) -> AwaRuntime:
     if getattr(args, "simulate", False):
         outputs = _read_json(args.outputs) if getattr(args, "outputs", None) else {}
         engine = {"simulate": True, "actors": simulated_actors(outputs)}
-    return open_runtime_directory(args.dir, engine=engine)
+    from awa.runtime.telemetry_export import shared_telemetry_from_env
+    return open_runtime_directory(args.dir, engine=engine, telemetry=shared_telemetry_from_env())
 
 
 def _line(instance: dict[str, Any], journey: str) -> str:

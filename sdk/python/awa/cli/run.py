@@ -148,6 +148,11 @@ def run_command(args: argparse.Namespace) -> int:
         if args.simulate:
             print("Running in SIMULATION MODE. No real API calls will be made.")
 
+        # OTEL_EXPORTER_OTLP_ENDPOINT and its family send the run's spans as it proceeds (specification 26.11)
+        from awa.runtime.telemetry_export import shared_telemetry_from_env
+        telemetry = shared_telemetry_from_env()
+        if telemetry:
+            options["telemetry"] = telemetry
         engine = WorkflowEngine(workflow, gemini_api_key=args.key, options=options)
         engine.start(initial)
         print(f"Workflow started (Run ID: {engine.run_id})")
@@ -160,6 +165,9 @@ def run_command(args: argparse.Namespace) -> int:
                 print(f"Active tokens: {sum(1 for t in engine.tokens if t.status == TokenStatus.ACTIVE)}")
 
         status = engine.status
+        if telemetry:
+            # Spans still queued leave before the command ends; this waits at most the export timeout
+            telemetry["exporter"].flush()
         if not args.db and status in (EngineStatus.COMPLETED, EngineStatus.FAILED):
             _metrics(workflow, engine)
         print(f"Workflow finished with status: {status.value}")
