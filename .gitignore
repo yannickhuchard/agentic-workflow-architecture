@@ -77,3 +77,7 @@ sdk/python/awa.db
 
 # The web app keeps source in lib/, which the Python rule above would hide
 !apps/kanban-web/lib/
+
+# Written by the test suites
+sdk/python/test_awa_server.db
+sdk/python/pytest_output.txt
