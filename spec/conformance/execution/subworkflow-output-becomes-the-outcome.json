@@ -1,0 +1,226 @@
+{
+  "id": "subworkflow-output-becomes-the-outcome",
+  "level": "subworkflows",
+  "spec": "24.3",
+  "description": "A call activity is performed by a child run: its input is mapped from the parent's data, the child's output is mapped to the activity's outcome, which is merged into the parent's data and routes it. Both journals name each other.",
+  "workflow": {
+    "id": "0b4dc969-b5f5-526c-9c86-043d23fcee61",
+    "name": "subworkflow-output-becomes-the-outcome",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "792f7045-ad38-5811-b914-1af09eb6b302",
+        "name": "Prepare",
+        "role_id": "e201c192-7072-53eb-9c11-dd01357cf3de",
+        "actor_type": "application"
+      },
+      {
+        "id": "39117eb9-ab41-56ab-8dac-4eab89217482",
+        "name": "Check",
+        "role_id": "e201c192-7072-53eb-9c11-dd01357cf3de",
+        "actor_type": "application",
+        "is_expandable": true,
+        "expansion_workflow_id": "a1774afd-3b4b-583f-bd3e-3b5d04735901",
+        "subworkflow": {
+          "input": {
+            "applicant": "applicant",
+            "amount": "request.amount"
+          },
+          "output": {
+            "credit_grade": "grade",
+            "credit_score": "score"
+          }
+        }
+      },
+      {
+        "id": "9ac1e707-3e6a-575a-b45b-dd20917c1cc3",
+        "name": "Approve",
+        "role_id": "e201c192-7072-53eb-9c11-dd01357cf3de",
+        "actor_type": "application"
+      },
+      {
+        "id": "0cce1cc6-a14e-5167-bcd9-728a5daf5238",
+        "name": "Refer",
+        "role_id": "e201c192-7072-53eb-9c11-dd01357cf3de",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "f8811831-ca49-5779-8a1a-84658e8ee793",
+        "source_id": "792f7045-ad38-5811-b914-1af09eb6b302",
+        "target_id": "39117eb9-ab41-56ab-8dac-4eab89217482"
+      },
+      {
+        "id": "41fdf3df-f36c-56c6-9ea9-413866d41058",
+        "source_id": "39117eb9-ab41-56ab-8dac-4eab89217482",
+        "target_id": "9ac1e707-3e6a-575a-b45b-dd20917c1cc3",
+        "condition": "credit_grade == \"A\""
+      },
+      {
+        "id": "4d502204-0d7f-59f5-8f0c-4ee416897fc2",
+        "source_id": "39117eb9-ab41-56ab-8dac-4eab89217482",
+        "target_id": "0cce1cc6-a14e-5167-bcd9-728a5daf5238",
+        "is_default": true
+      }
+    ]
+  },
+  "input": {
+    "applicant": {
+      "name": "Ada",
+      "income": 5000
+    }
+  },
+  "actors": {
+    "Prepare": {
+      "output": {
+        "request": {
+          "amount": 300
+        }
+      }
+    },
+    "Score": {
+      "output": {
+        "score": 720,
+        "bureau": "north"
+      }
+    },
+    "Grade": {
+      "output": {
+        "grade": "A"
+      }
+    }
+  },
+  "workflows": [
+    {
+      "id": "a1774afd-3b4b-583f-bd3e-3b5d04735901",
+      "name": "Credit check",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "1a72b01c-b900-53eb-abc5-e648281c5c2b",
+          "name": "Score",
+          "role_id": "9e4c1bac-d9be-5e42-9daf-146918511f26",
+          "actor_type": "application"
+        },
+        {
+          "id": "b3f0e436-b127-56f0-8dc4-b1a2464d7e5f",
+          "name": "Grade",
+          "role_id": "9e4c1bac-d9be-5e42-9daf-146918511f26",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "517b35bc-5370-53a5-8f67-c125333a15d5",
+          "source_id": "1a72b01c-b900-53eb-abc5-e648281c5c2b",
+          "target_id": "b3f0e436-b127-56f0-8dc4-b1a2464d7e5f"
+        }
+      ]
+    }
+  ],
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "Prepare",
+      "Score",
+      "Grade",
+      "Approve"
+    ],
+    "data": {
+      "credit_grade": "A",
+      "credit_score": 720,
+      "output": {
+        "credit_grade": "A",
+        "credit_score": 720
+      }
+    },
+    "journal": [
+      "activity.started",
+      "subworkflow.started",
+      "subworkflow.completed",
+      "activity.completed",
+      "run.completed"
+    ],
+    "journal_contains": [
+      {
+        "type": "subworkflow.started",
+        "node_name": "Check",
+        "attempt": 1,
+        "data": {
+          "workflow_id": "a1774afd-3b4b-583f-bd3e-3b5d04735901",
+          "workflow_name": "Credit check",
+          "depth": 1,
+          "input": {
+            "applicant": {
+              "name": "Ada",
+              "income": 5000
+            },
+            "amount": 300
+          }
+        }
+      },
+      {
+        "type": "subworkflow.completed",
+        "node_name": "Check",
+        "data": {
+          "workflow_id": "a1774afd-3b4b-583f-bd3e-3b5d04735901",
+          "output": {
+            "credit_grade": "A",
+            "credit_score": 720
+          }
+        }
+      },
+      {
+        "type": "activity.completed",
+        "node_name": "Check",
+        "data": {
+          "output": {
+            "output": {
+              "credit_grade": "A",
+              "credit_score": 720
+            }
+          }
+        }
+      }
+    ],
+    "journal_excludes": [
+      "subworkflow.failed"
+    ],
+    "subworkflow_runs": [
+      {
+        "workflow_name": "Credit check",
+        "workflow_id": "a1774afd-3b4b-583f-bd3e-3b5d04735901",
+        "node_id": "39117eb9-ab41-56ab-8dac-4eab89217482",
+        "attempt": 1,
+        "depth": 1,
+        "status": "completed",
+        "journal": [
+          "run.started",
+          "activity.started",
+          "activity.completed",
+          "activity.started",
+          "activity.completed",
+          "run.completed"
+        ],
+        "journal_contains": [
+          {
+            "type": "run.started",
+            "data": {
+              "depth": 1,
+              "input": {
+                "applicant": {
+                  "name": "Ada",
+                  "income": 5000
+                },
+                "amount": 300
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

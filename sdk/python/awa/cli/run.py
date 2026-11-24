@@ -144,6 +144,8 @@ def run_command(args: argparse.Namespace) -> int:
             # The execution record goes to the database only when asked; otherwise it is printed
             "log_execution": bool(args.db),
             "verbose": bool(args.verbose),
+            # A call activity runs one of these as a child run: the workflow itself, and those given (specification 24.1)
+            "subworkflows": {"workflows": [workflow, *(read_workflow(f) for f in (args.workflows or []))]},
         }
         if args.as_principal:
             from awa.runtime.authorization import principal_named
@@ -182,6 +184,8 @@ def run_command(args: argparse.Namespace) -> int:
         if not args.db and status in (EngineStatus.COMPLETED, EngineStatus.FAILED):
             _metrics(workflow, engine)
         print(f"Workflow finished with status: {status.value}")
+        for child in engine.subworkflow_runs():
+            print(f"{'  ' * child['depth']}Child run {child['run_id']} of {child['workflow_name']}: {child['status']}")
         if args.journal:
             print(f"Journal written to {args.journal}")
 
@@ -232,4 +236,7 @@ def add_parser(subparsers: Any) -> None:
     parser.add_argument("-c", "--checkpoint-dir", metavar="DIR",
                         help="Checkpoint the run state to this directory after every step")
     parser.add_argument("-i", "--input", metavar="JSON", help="Initial data for the run, as a JSON object")
+    parser.add_argument("-w", "--workflows", nargs="+", metavar="FILE",
+                        help="Workflow documents that call activities may run as child runs (specification 24); "
+                             "the workflow itself is always one")
     parser.set_defaults(handler=run_command)

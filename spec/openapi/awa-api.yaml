@@ -1022,7 +1022,7 @@ components:
       properties:
         code:
           type: string
-          enum: [not_found, unknown_version, different_workflow, wrong_version, same_version, run_ended, run_in_activity, unknown_source, unknown_target, unmapped_token, wait_incompatible, invalid_assignment]
+          enum: [not_found, unknown_version, different_workflow, wrong_version, same_version, run_ended, run_in_activity, unknown_source, unknown_target, unmapped_token, wait_incompatible, invalid_assignment, child_run_in_flight]
         message: { type: string }
         token_id: { type: string }
         node_id: { type: string }

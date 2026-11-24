@@ -265,6 +265,19 @@ Put guardrails on what goes into and comes out of agents and tools (specificatio
 
 Stages: `input` (what the actor is given), `output` (before the outcome contract and verification), `tool_call`, `tool_result`. Checks: `personal_data`, `deny_list`, `prompt_injection`, `size`, `json_schema`, `allowed_values`, `topic` (condition expressions), `model` (a guard model; the engine default unless a reference is named) and `classifier` (registered by the deployment). Actions: `block` (`GUARDRAIL_BLOCKED`), `redact`, `retry_with_feedback` (output only), `escalate` (to a person; input and output) and `warn`; a guardrail on a tool takes only `tool_call` and `tool_result`. The journal records `guardrail.triggered` with positions and categories, never the matched text. Pattern lists are a floor, not a defence: bound what an agent can do with tools, permissions and contracts.
 
+### Sub-workflows
+
+An activity can be performed by a run of another workflow (specification section 24). Mark it as a call and name the workflow; map what goes in and what comes out, or leave the mapping out to pass the activity's data and take back the child's:
+
+```json
+{ "id": "…", "name": "Credit check", "role_id": "…", "actor_type": "application",
+  "is_expandable": true, "expansion_workflow_id": "<id of the called workflow>",
+  "subworkflow": { "input": { "applicant": "applicant", "amount": "request.amount" },
+                   "output": { "credit_grade": "grade" } } }
+```
+
+The child's output is held to the activity's outcome contract and verification like any actor's. A child that fails fails the activity with `SUBWORKFLOW_FAILED`, which the retry policy may retry with a new child run; a workflow that is not registered fails with `SUBWORKFLOW_NOT_FOUND`; calls nest at most 8 deep (`SUBWORKFLOW_DEPTH_EXCEEDED`). A child that waits for a person or an event makes the parent wait; give the event, or complete the task (with the child's run id), to the parent's host as usual. Cancelling the parent cancels the child. A host (runtime directory, shared store, `awa serve`) gives runs every workflow registered with it; `awa run parent.json --workflows child.json` gives them on the command line. Both journals name each other (`subworkflow.started`, `.completed`, `.failed`, `.cancelled`; `run.started.parent`), and journeys list child runs with their `parent_run_id`.
+
 ### After a run: journal, recipe, replay, knowledge
 
 ```bash

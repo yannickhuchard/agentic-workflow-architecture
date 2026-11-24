@@ -26,6 +26,7 @@ export const runCommand = new Command('run')
     .option('-j, --journal <file>', 'Write the execution journal to this .jsonl file')
     .option('-c, --checkpoint-dir <dir>', 'Checkpoint the run state to this directory after every step')
     .option('-i, --input <json>', 'Initial data for the run, as a JSON object')
+    .option('-w, --workflows <files...>', 'Workflow documents that call activities may run as child runs (spec 24); the workflow itself is always one')
     .action(async (file, options) => {
         try {
             const filePath = path.resolve(process.cwd(), file);
@@ -87,6 +88,11 @@ export const runCommand = new Command('run')
                     model_tiers: tier_fallbacks(names),
                     default_ai_model_id: 'tier:balanced',
                 } : {}),
+                // A call activity runs one of these as a child run: the workflow itself, and those given (spec 24.1)
+                subworkflows: {
+                    workflows: [workflow, ...await Promise.all(((options.workflows as string[] | undefined) || [])
+                        .map(async (f: string) => parse_document(JSON.parse(await fs.readFile(path.resolve(process.cwd(), f), 'utf-8')))))],
+                },
                 tools: {
                     ...(deployment?.tools || {}),
                     allow_commands: options.allowCommands === true ? true
@@ -135,6 +141,9 @@ export const runCommand = new Command('run')
             // Spans still queued leave before the command ends; this waits at most the export timeout
             await telemetry?.exporter?.flush?.();
             console.log(`Workflow finished with status: ${status}`);
+            for (const child of engine.getSubworkflowRuns()) {
+                console.log(`${'  '.repeat(child.depth)}Child run ${child.run_id} of ${child.workflow_name}: ${child.status}`);
+            }
             if (options.journal) {
                 console.log(`Journal written to ${options.journal}`);
             }

@@ -109,7 +109,30 @@
         },
         "expansion_workflow_id": {
             "$ref": "awa.schema.json#/$defs/uuid",
-            "description": "Sub-workflow expanding this activity"
+            "description": "Sub-workflow expanding this activity. With is_expandable true, the activity is performed by a child run of this workflow (specification 24)"
+        },
+        "subworkflow": {
+            "type": "object",
+            "description": "How a call activity's child run is given its input and how its output becomes the activity's outcome (specification 24.1)",
+            "properties": {
+                "input": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "description": "Each property of the child run's input, with the path in the parent token's data it is read from. When absent, the child is given the data the activity would be given"
+                },
+                "output": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "description": "Each property of the activity's outcome, with the path in the child run's output it is read from. When absent, the outcome is the child run's output"
+                }
+            },
+            "additionalProperties": false
         },
         "skills": {
             "type": "array",

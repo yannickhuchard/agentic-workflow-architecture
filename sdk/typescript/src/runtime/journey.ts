@@ -160,6 +160,8 @@ export interface JourneyRunRef {
     ended_at?: string;
     /** The business event that started the run, if one did */
     caused_by_event?: string;
+    /** For a child run of a call activity: the run that started it (spec 24.7) */
+    parent_run_id?: string;
 }
 
 export interface JourneyInstance {

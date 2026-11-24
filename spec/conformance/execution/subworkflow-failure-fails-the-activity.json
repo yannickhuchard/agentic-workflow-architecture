@@ -1,0 +1,122 @@
+{
+  "id": "subworkflow-failure-fails-the-activity",
+  "level": "subworkflows",
+  "spec": "24.3",
+  "description": "When the child run fails, the parent records why and the attempt fails with SUBWORKFLOW_FAILED, naming the workflow and giving the child's error.",
+  "workflow": {
+    "id": "299d4016-3e4e-5952-a878-35270f6ed2af",
+    "name": "subworkflow-failure-fails-the-activity",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "a9b8b5a8-905a-5716-aa3a-757d1db0d589",
+        "name": "Check",
+        "role_id": "046b3a7c-4803-510b-8b38-7e8037475957",
+        "actor_type": "application",
+        "is_expandable": true,
+        "expansion_workflow_id": "07ee79c7-78fc-5a00-90b2-3288c8de7b86"
+      },
+      {
+        "id": "c8bad011-52cb-5bfa-81f5-d172e3b0c2af",
+        "name": "Approve",
+        "role_id": "046b3a7c-4803-510b-8b38-7e8037475957",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "d7e72b4e-bd35-501e-b5d1-88332d84cbfb",
+        "source_id": "a9b8b5a8-905a-5716-aa3a-757d1db0d589",
+        "target_id": "c8bad011-52cb-5bfa-81f5-d172e3b0c2af"
+      }
+    ]
+  },
+  "actors": {
+    "Score": {
+      "error": "bureau unavailable",
+      "code": "UPSTREAM_DOWN"
+    }
+  },
+  "workflows": [
+    {
+      "id": "07ee79c7-78fc-5a00-90b2-3288c8de7b86",
+      "name": "Credit check",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "32b1b529-6b84-558b-b28b-4d745c0fb936",
+          "name": "Score",
+          "role_id": "77cacbe0-a1c9-5acf-99f1-721700f7ae9b",
+          "actor_type": "application"
+        },
+        {
+          "id": "de64decd-e136-5958-9494-b2a0bd59649f",
+          "name": "Grade",
+          "role_id": "77cacbe0-a1c9-5acf-99f1-721700f7ae9b",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "bacbce59-bd8e-5d38-a656-6e3b4be5c2c3",
+          "source_id": "32b1b529-6b84-558b-b28b-4d745c0fb936",
+          "target_id": "de64decd-e136-5958-9494-b2a0bd59649f"
+        }
+      ]
+    }
+  ],
+  "expect": {
+    "status": "failed",
+    "visited": [
+      "Score"
+    ],
+    "not_visited": [
+      "Grade",
+      "Approve"
+    ],
+    "error_matches": "Credit check.*bureau unavailable",
+    "journal": [
+      "subworkflow.started",
+      "subworkflow.failed",
+      "activity.failed",
+      "token.failed",
+      "run.failed"
+    ],
+    "journal_contains": [
+      {
+        "type": "subworkflow.failed",
+        "node_name": "Check",
+        "data": {
+          "workflow_id": "07ee79c7-78fc-5a00-90b2-3288c8de7b86",
+          "error": {
+            "message": "bureau unavailable",
+            "code": "UPSTREAM_DOWN"
+          }
+        }
+      },
+      {
+        "type": "activity.failed",
+        "node_name": "Check",
+        "data": {
+          "error": {
+            "code": "SUBWORKFLOW_FAILED"
+          }
+        }
+      }
+    ],
+    "subworkflow_runs": [
+      {
+        "workflow_name": "Credit check",
+        "status": "failed",
+        "journal": [
+          "run.started",
+          "activity.failed",
+          "token.failed",
+          "run.failed"
+        ]
+      }
+    ]
+  }
+}

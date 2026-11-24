@@ -236,6 +236,7 @@ export class RunTraceMapper {
                 if (this.run || this.ended) break;
                 this.run = this.start('run', event, `${GEN_AI_OPERATIONS.INVOKE_WORKFLOW} ${typeof data.workflow_name === 'string' ? data.workflow_name : event.workflow_id}`, 'internal', undefined);
                 this.run_attributes(this.run.span.attributes, event, data);
+                this.parent_link(this.run.span, data);
                 return out;
             case 'run.completed': case 'run.failed': case 'run.cancelled': {
                 if (!this.run) break;
@@ -492,6 +493,15 @@ export class RunTraceMapper {
         put(a, 'awa.workflow.version', data.workflow_version);
         put(a, 'awa.run.simulated', data.simulate);
         if (this.payloads) put(a, 'awa.run.input', data.input);
+    }
+
+    /** A child run's span names its parent run and links to the attempt span that started it (24.7, 26.2) */
+    private parent_link(span: TelemetrySpan, data: Record<string, unknown>): void {
+        const parent = record_of(data.parent);
+        if (typeof parent.run_id !== 'string') return;
+        put(span.attributes, 'awa.run.parent_run_id', parent.run_id);
+        put(span.attributes, 'awa.run.depth', data.depth);
+        if (typeof parent.seq === 'number') span.links.push({ trace_id: run_trace_id(parent.run_id), span_id: run_span_id(parent.run_id, parent.seq) });
     }
 
     /** The most recently opened span still open that matches */

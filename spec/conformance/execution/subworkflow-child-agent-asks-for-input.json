@@ -1,0 +1,223 @@
+{
+  "id": "subworkflow-child-agent-asks-for-input",
+  "level": "subworkflows",
+  "spec": "24.4",
+  "description": "A child run whose agent, reached over A2A, asks for input leaves the parent waiting_human; the host answers through the parent, and the child and then the parent go on.",
+  "workflow": {
+    "id": "446bccd4-fcf0-5f43-a482-768aa1120479",
+    "name": "subworkflow-child-agent-asks-for-input",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "8bf2caf8-85a3-5a80-8a73-37869fc8c6ad",
+        "name": "Assess claim",
+        "role_id": "92661bf9-14a8-523d-931e-016b280f863f",
+        "actor_type": "application",
+        "is_expandable": true,
+        "expansion_workflow_id": "1bcf0e5d-7417-5e82-9766-5438b370f2b1"
+      },
+      {
+        "id": "29d2f548-6024-53f5-9d78-ef06c086df6b",
+        "name": "Settle",
+        "role_id": "92661bf9-14a8-523d-931e-016b280f863f",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "b065d93f-2570-553d-8b70-95be4cb4801d",
+        "source_id": "8bf2caf8-85a3-5a80-8a73-37869fc8c6ad",
+        "target_id": "29d2f548-6024-53f5-9d78-ef06c086df6b"
+      }
+    ]
+  },
+  "input": {
+    "claim_id": "C-7"
+  },
+  "deliver": [
+    {
+      "agent_input": {
+        "policy": "P-9"
+      },
+      "resumes": 1
+    }
+  ],
+  "agents": {
+    "https://agents.example/claims/.well-known/agent-card.json": {
+      "card": {
+        "name": "Claims assessor",
+        "description": "Claims assessor, reached over A2A",
+        "version": "1.0.0",
+        "supportedInterfaces": [
+          {
+            "url": "https://agents.example/claims/a2a",
+            "protocolBinding": "JSONRPC",
+            "protocolVersion": "1.0"
+          }
+        ],
+        "capabilities": {
+          "streaming": false,
+          "pushNotifications": false
+        },
+        "defaultInputModes": [
+          "application/json",
+          "text/plain"
+        ],
+        "defaultOutputModes": [
+          "application/json"
+        ],
+        "skills": [
+          {
+            "id": "assess",
+            "name": "Assess",
+            "description": "Assess a claim",
+            "tags": [
+              "claims"
+            ]
+          }
+        ]
+      },
+      "replies": [
+        {
+          "result": {
+            "task": {
+              "id": "task-1",
+              "contextId": "ctx-1",
+              "status": {
+                "state": "TASK_STATE_INPUT_REQUIRED",
+                "message": {
+                  "messageId": "m-input_required",
+                  "role": "ROLE_AGENT",
+                  "parts": [
+                    {
+                      "text": "Which policy covers the claim?"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "result": {
+            "task": {
+              "id": "task-1",
+              "contextId": "ctx-1",
+              "status": {
+                "state": "TASK_STATE_COMPLETED"
+              },
+              "artifacts": [
+                {
+                  "artifactId": "a0",
+                  "parts": [
+                    {
+                      "data": {
+                        "decision": "approve"
+                      },
+                      "mediaType": "application/json"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  "workflows": [
+    {
+      "id": "1bcf0e5d-7417-5e82-9766-5438b370f2b1",
+      "name": "Assessment",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "ec35dddd-fbb3-54ea-8a8d-c018a142ea0d",
+          "name": "Assess",
+          "role_id": "4f811d1b-e53a-5e19-8f34-9e5edfe3db27",
+          "actor_type": "ai_agent",
+          "a2a": {
+            "agent_card": "https://agents.example/claims/.well-known/agent-card.json"
+          }
+        }
+      ],
+      "edges": []
+    }
+  ],
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "Settle"
+    ],
+    "data": {
+      "decision": "approve"
+    },
+    "journal": [
+      "subworkflow.started",
+      "token.waiting",
+      "run.waiting",
+      "token.resumed",
+      "subworkflow.completed",
+      "activity.completed"
+    ],
+    "journal_contains": [
+      {
+        "type": "token.waiting",
+        "node_name": "Assess claim",
+        "data": {
+          "reason": "subworkflow",
+          "waiting_for": "human"
+        }
+      },
+      {
+        "type": "run.waiting",
+        "data": {
+          "waiting_for": "human"
+        }
+      }
+    ],
+    "agent_requests": [
+      "SendMessage",
+      "SendMessage"
+    ],
+    "agent_requests_contain": [
+      {
+        "agent": "https://agents.example/claims/.well-known/agent-card.json",
+        "method": "SendMessage",
+        "params": {
+          "message": {
+            "taskId": "task-1",
+            "contextId": "ctx-1"
+          }
+        }
+      }
+    ],
+    "subworkflow_runs": [
+      {
+        "workflow_name": "Assessment",
+        "status": "completed",
+        "journal": [
+          "agent.message_sent",
+          "token.waiting",
+          "run.waiting",
+          "token.resumed",
+          "agent.message_sent",
+          "activity.completed",
+          "run.completed"
+        ],
+        "journal_contains": [
+          {
+            "type": "token.waiting",
+            "node_name": "Assess",
+            "data": {
+              "reason": "agent_input",
+              "task_id": "task-1"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -21,7 +21,7 @@ import { AwaRuntime, InMemoryRuntimeStore } from '../src/runtime/runtime';
 import { JourneyDefinitionSchema } from '../src/runtime/journey';
 import { compute_measures, MEASURES } from '../src/runtime/kpi';
 import { gauges_to_otlp_json, journey_spans, measures_to_gauges, run_spans, spans_to_otlp_json } from '../src/runtime/telemetry';
-import { InMemoryJournalStore } from '../src/runtime/journal';
+import { InMemoryJournalStore, JournalEvent } from '../src/runtime/journal';
 import { counterfactual_replay } from '../src/runtime/counterfactual';
 import { KnowledgeBase, KnowledgeEntry } from '../src/runtime/knowledge';
 import { compute_evidence, unresolved_citations } from '../src/runtime/evidence';
@@ -41,7 +41,7 @@ const CONFORMANCE = path.join(ROOT, 'spec/conformance');
 const SCHEMAS = path.join(ROOT, 'spec/json-schema');
 
 /** Conformance levels this implementation claims. */
-const CLAIMED_LEVELS = new Set(['guardrails', 'versioning', 'core', 'decision', 'verified', 'resilient', 'recorded', 'contract', 'flow', 'events', 'tools', 'model_decision', 'journeys', 'replay', 'routing', 'knowledge', 'measures', 'contexts', 'service_levels', 'telemetry', 'interchange', 'shared_store', 'evidence', 'evaluation', 'a2a', 'authorization']);
+const CLAIMED_LEVELS = new Set(['subworkflows', 'guardrails', 'versioning', 'core', 'decision', 'verified', 'resilient', 'recorded', 'contract', 'flow', 'events', 'tools', 'model_decision', 'journeys', 'replay', 'routing', 'knowledge', 'measures', 'contexts', 'service_levels', 'telemetry', 'interchange', 'shared_store', 'evidence', 'evaluation', 'a2a', 'authorization']);
 
 const read = (file: string) => JSON.parse(fs.readFileSync(file, 'utf-8'));
 const list = (dir: string) => fs.readdirSync(dir).filter(f => f.endsWith('.json')).sort().map(f => path.join(dir, f));
@@ -66,6 +66,8 @@ type ActorScript = {
     reasoning?: Record<string, unknown>;
     /** A person who has not answered yet: the token waits for them (5.6) */
     waits?: boolean;
+    /** The actor hands the activity to a person: the token waits until the task is completed */
+    human_task?: boolean;
 };
 
 class ConformanceActor implements Actor {
@@ -93,6 +95,7 @@ class ConformanceActor implements Actor {
         for (const call of script.calls || []) await context!.tools!.call(call.tool, call.arguments || {});
         if (script.error) throw Object.assign(new Error(script.error), script.code ? { code: script.code } : {});
         if (script.waits) return { _requires_human_action: true, _human_task_id: `task:${activity.name}` };
+        if (script.human_task) return { _requires_human_action: true, _human_task_id: `task-${activity.name}-${n}` };
         return { ...(script.output || {}), ...(script.reasoning ? { _reasoning: script.reasoning } : {}), ...(script.contexts ? { _context_writes: script.contexts } : {}) };
     }
 }
@@ -225,9 +228,14 @@ describe('Conformance: execution', () => {
             const actor = new ConformanceActor(c.actors, ms => { clock += ms; });
             const models = scripted_models(c.model || {});
             const agents = scripted_agents(c.agents);
+            const journal = new InMemoryJournalStore();
             const options: WorkflowEngineOptions = {
-                actors: { application: actor, ai_agent: actor, human: actor, robot: actor },
+                // In simulation the activities return what the case scripts in options.simulated_outputs
+                ...(c.options?.simulate ? {} : { actors: { application: actor, ai_agent: actor, human: actor, robot: actor } }),
                 a2a: { transport: agents.transport, poll_interval_ms: 0 },
+                journal,
+                // The workflows the case's workflow may call: its own, and the case's others (spec 24.1)
+                subworkflows: { workflows: [parse_document(c.workflow), ...(c.workflows || []).map((w: unknown) => parse_document(w))] },
                 execution_logger: silent_logger,
                 ...(c.tools ? { tools: { handlers: Object.fromEntries(Object.entries(c.tools as Record<string, { result?: unknown; error?: string }>).map(([name, script]) => [name, () => { if (script.error) throw new Error(script.error); return script.result; }])) } } : {}),
                 ...(c.model ? models.options : {}),
@@ -249,6 +257,13 @@ describe('Conformance: execution', () => {
                     expect(await engine.checkServiceLevels(), 'service levels checked').toMatchObject(step.expect || {});
                 } else if (step.expire) {
                     await engine.expireEvents(Number.MAX_SAFE_INTEGER);
+                } else if (step.cancel !== undefined) {
+                    await engine.cancel(step.cancel);
+                } else if (step.complete_task) {
+                    // A person completes the task of every token waiting at that activity, in the run or a run it called (24.4)
+                    let resumed = 0;
+                    for (const token_id of await waiting_tasks(engine, step.complete_task.activity)) if (await engine.resumeToken(token_id, step.complete_task.output || {})) resumed++;
+                    if (step.resumes !== undefined) expect(resumed, 'tasks completed').toBe(step.resumes);
                 } else if (step.agent_input !== undefined) {
                     // The host gives every agent that asked for input what the case says (28.6)
                     let resumed = 0;
@@ -308,9 +323,54 @@ describe('Conformance: execution', () => {
                 const errors = engine.getTokens().map(t => String(t.getData('_error') || ''));
                 expect(errors.some(e => new RegExp(c.expect.error_matches).test(e)), errors.join(' | ')).toBe(true);
             }
+            await expect_subworkflow_runs(engine, journal, events, c.expect.subworkflow_runs);
         });
     }
 });
+
+/** The tokens of a run, or of a run it called, that wait for a person at an activity of this name, from the journals */
+async function waiting_tasks(engine: WorkflowEngine, activity: string): Promise<string[]> {
+    const journals = [await engine.getEvents(), ...await Promise.all(engine.getSubworkflowRuns().map(r => engine.getSubworkflowEvents(r.run_id)))];
+    const waiting = new Set<string>();
+    for (const events of journals) {
+        for (const e of events) {
+            if (e.type === 'token.waiting' && e.node_name === activity && e.data.reason === 'human_task' && e.token_id) waiting.add(e.token_id);
+            if ((e.type === 'token.resumed' || e.type === 'token.cancelled') && e.token_id) waiting.delete(e.token_id);
+        }
+    }
+    return [...waiting];
+}
+
+/**
+ * The child runs a run started (spec 24.7): exactly those listed, in order, each journal valid and numbered
+ * from 1, its run.started naming the parent and the parent's attempt, and what the case expects of it.
+ */
+async function expect_subworkflow_runs(engine: WorkflowEngine, journal: InMemoryJournalStore, parent_events: JournalEvent[], expected: any[] | undefined): Promise<void> {
+    const runs = engine.getSubworkflowRuns();
+    if (expected !== undefined) expect(runs.length, `child runs: ${JSON.stringify(runs)}`).toBe(expected.length);
+    for (const [i, run] of runs.entries()) {
+        const events = await journal.read(run.run_id);
+        events.forEach((event, n) => {
+            expect(validate_event(event), JSON.stringify(validate_event.errors)).toBe(true);
+            expect(event.seq).toBe(n + 1);
+        });
+        const started = events.find(e => e.type === 'run.started')!;
+        const parent = started.data.parent as Record<string, unknown>;
+        expect(parent.run_id, 'the child names its parent').toBe(run.parent_run_id);
+        expect(started.data.depth).toBe(run.depth);
+        const parent_journal = run.parent_run_id === engine.getRunId() ? parent_events : await journal.read(run.parent_run_id);
+        const attempt = parent_journal.find(e => e.seq === parent.seq);
+        expect(attempt, 'the child names the activity.started of its parent attempt').toMatchObject({ type: 'activity.started', node_id: run.node_id, attempt: run.attempt, token_id: parent.token_id });
+        expect(parent_journal.some(e => e.type === 'subworkflow.started' && e.data.run_id === run.run_id), 'the parent names the child').toBe(true);
+        const wanted = expected?.[i];
+        if (!wanted) continue;
+        const { journal: types, journal_contains, journal_excludes, ...record } = wanted;
+        expect(is_subset(record, run), `child run ${i + 1}: ${JSON.stringify(run)}`).toBe(true);
+        if (types) expect(in_order(types, events.map(e => e.type)), `journal of child run ${i + 1}: ${events.map(e => e.type).join(', ')}`).toEqual([]);
+        for (const part of journal_contains || []) expect(events.some(e => is_subset(part, e)), `child run ${i + 1}: no event matches ${JSON.stringify(part)}`).toBe(true);
+        for (const type of journal_excludes || []) expect(events.map(e => e.type), `child run ${i + 1}`).not.toContain(type);
+    }
+}
 
 /** Event types must appear in this order; others may come between */
 function in_order(wanted: string[], actual: string[]): string[] {

@@ -1,0 +1,131 @@
+{
+  "id": "subworkflow-output-breaking-the-contract-fails",
+  "level": "subworkflows",
+  "spec": "24.3",
+  "description": "The child's output is held to the call activity's outcome contract like any actor's; a rejected outcome is not tried again with feedback, even for an ai_agent activity, because a workflow takes no feedback.",
+  "workflow": {
+    "id": "463f3117-b495-5e8e-83de-a7b469bbd177",
+    "name": "subworkflow-output-breaking-the-contract-fails",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "24437f86-c72d-5a6a-bbee-a93b9acef2ff",
+        "name": "Check",
+        "role_id": "0ed3ffe4-34cb-57ea-8db2-8582aac91a86",
+        "actor_type": "ai_agent",
+        "is_expandable": true,
+        "expansion_workflow_id": "5e159c5d-51d1-587c-a201-dba1b692ab63",
+        "outcome_contract": {
+          "postconditions": [
+            {
+              "name": "good grade",
+              "expression": "grade == \"A\""
+            }
+          ]
+        }
+      },
+      {
+        "id": "88d1401c-dd6e-50fa-ab84-daaffd4fbaad",
+        "name": "Approve",
+        "role_id": "0ed3ffe4-34cb-57ea-8db2-8582aac91a86",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "b6e6ef92-0023-522f-a032-7ab2572d2925",
+        "source_id": "24437f86-c72d-5a6a-bbee-a93b9acef2ff",
+        "target_id": "88d1401c-dd6e-50fa-ab84-daaffd4fbaad"
+      }
+    ]
+  },
+  "actors": {
+    "Score": {
+      "output": {
+        "score": 540
+      }
+    },
+    "Grade": {
+      "output": {
+        "grade": "C"
+      }
+    }
+  },
+  "workflows": [
+    {
+      "id": "5e159c5d-51d1-587c-a201-dba1b692ab63",
+      "name": "Credit check",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "b39e19bd-54c2-5a88-9bce-08de82357123",
+          "name": "Score",
+          "role_id": "cb383c22-0c01-5d3c-95ab-96cfa5c6a3c7",
+          "actor_type": "application"
+        },
+        {
+          "id": "a628ad74-847b-50d6-a24f-ab2f2c8ee5bb",
+          "name": "Grade",
+          "role_id": "cb383c22-0c01-5d3c-95ab-96cfa5c6a3c7",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "69bfdccb-c204-58b6-ab31-2134f904c858",
+          "source_id": "b39e19bd-54c2-5a88-9bce-08de82357123",
+          "target_id": "a628ad74-847b-50d6-a24f-ab2f2c8ee5bb"
+        }
+      ]
+    }
+  ],
+  "expect": {
+    "status": "failed",
+    "visited": [
+      "Score",
+      "Grade"
+    ],
+    "not_visited": [
+      "Approve"
+    ],
+    "error_matches": "Outcome contract violated",
+    "journal": [
+      "subworkflow.started",
+      "subworkflow.completed",
+      "contract.checked",
+      "activity.failed",
+      "token.failed",
+      "run.failed"
+    ],
+    "journal_contains": [
+      {
+        "type": "contract.checked",
+        "data": {
+          "passed": false
+        }
+      },
+      {
+        "type": "activity.failed",
+        "node_name": "Check",
+        "data": {
+          "error": {
+            "code": "CONTRACT_VIOLATION"
+          },
+          "retryable": false
+        }
+      }
+    ],
+    "journal_count": {
+      "subworkflow.started": 1,
+      "activity.started": 1
+    },
+    "subworkflow_runs": [
+      {
+        "workflow_name": "Credit check",
+        "status": "completed"
+      }
+    ]
+  }
+}

@@ -57,7 +57,7 @@ export interface MigrationPlan {
 
 export type MigrationRefusalCode =
     | 'not_found' | 'unknown_version' | 'different_workflow' | 'wrong_version' | 'same_version' | 'run_ended' | 'run_in_activity'
-    | 'unknown_source' | 'unknown_target' | 'unmapped_token' | 'wait_incompatible' | 'invalid_assignment';
+    | 'unknown_source' | 'unknown_target' | 'unmapped_token' | 'wait_incompatible' | 'invalid_assignment' | 'child_run_in_flight';
 
 export interface MigrationRefusal {
     code: MigrationRefusalCode;
@@ -314,6 +314,12 @@ export function plan_migration(from: Workflow, to: Workflow, state: WorkflowStat
         const wait = token_wait(from, token);
         if (!wait) {
             refuse('run_in_activity', `Token ${token.id} is in the middle of "${source?.name ?? from_id}": a run can be moved only while it is at rest. Let the step finish, then migrate.`, ref);
+            result.tokens.push(entry);
+            continue;
+        }
+        // A token waiting on a child run (24.4): the child's state names nodes of this version, so the run stays where it is
+        if (token.context_data?._awaiting_subworkflow || token.context_data?._subworkflow_continuation) {
+            refuse('child_run_in_flight', `Token ${token.id} at "${source?.name ?? from_id}" waits on a child run (section 24). A run can be moved only once its child runs have ended.`, ref);
             result.tokens.push(entry);
             continue;
         }

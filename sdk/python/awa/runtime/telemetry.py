@@ -247,6 +247,13 @@ class RunTraceMapper:
                 _put(a, "awa.run.simulated", data.get("simulate"))
                 if self._payloads:
                     _put(a, "awa.run.input", data.get("input"))
+                # A child run's span names its parent run and links to the attempt span that started it (24.7, 26.2)
+                parent = _record(data.get("parent"))
+                if isinstance(parent.get("run_id"), str):
+                    _put(a, "awa.run.parent_run_id", parent["run_id"])
+                    _put(a, "awa.run.depth", data.get("depth"))
+                    if isinstance(parent.get("seq"), int) and not isinstance(parent.get("seq"), bool):
+                        self._run.span.links.append({"trace_id": run_trace_id(parent["run_id"]), "span_id": run_span_id(parent["run_id"], parent["seq"])})
                 return out
         elif type_ in ("run.completed", "run.failed", "run.cancelled"):
             if self._run:

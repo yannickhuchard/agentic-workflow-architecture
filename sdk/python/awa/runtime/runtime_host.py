@@ -32,6 +32,7 @@ from awa.runtime.journey import (
 )
 from awa.runtime.shared_store import SharedJournal, SharedOperation, StoredRun
 from awa.runtime.migration import compare_versions, plan_migration, semver_key
+from awa.runtime.subworkflow import called_workflows, record_child_runs
 from awa.runtime.token import TokenStatus
 from awa.runtime.workflow_engine import EngineStatus, WorkflowEngine
 from awa.runtime.shadow import ShadowRunner
@@ -252,6 +253,8 @@ class AwaRuntime:
         types |= {r.event for r in (definition.sentiment.rules if definition.sentiment else []) if r.event}
         workflow_ids = [w for s in definition.stages for w in [*s.workflows, *([s.on_enter.start_workflow] if s.on_enter else [])]]
         workflow_ids += [t.start_workflow for t in definition.triggers if t.start_workflow]
+        # The workflows they call are the journey's too (24.7)
+        workflow_ids += [str(w.id) for w in called_workflows(workflow_ids, self._workflows)]
         for workflow_id in workflow_ids:
             workflow = self._workflows.get(workflow_id)
             for event in (workflow.events if workflow else []):
@@ -413,7 +416,10 @@ class AwaRuntime:
             if outer_sink:
                 outer_sink(event)
 
-        options = {**self._engine_defaults, "run_id": run_id, "event_sink": sink}
+        options = {**self._engine_defaults, "run_id": run_id, "event_sink": sink,
+                   # Call activities run the workflows registered here (24.1); a shared store keeps each child run (24.8)
+                   "subworkflows": {"workflows": self._workflows, **({"record_settled": True} if self._shared is not None else {}),
+                                    **(self._engine_defaults.get("subworkflows") or {})}}
         if self._shared_journal is not None:
             options["journal"] = self._shared_journal
         if self._clock:
@@ -441,7 +447,7 @@ class AwaRuntime:
             for touchpoint in found:
                 if occasion.get("event") and touchpoint.direction != "outbound":
                     continue
-                record_touchpoint(definition, instance, touchpoint, event["time"], data=occasion.get("data"), run_id=run_id,
+                record_touchpoint(definition, instance, touchpoint, event["time"], data=occasion.get("data"), run_id=event.get("run_id") or run_id,
                                   event_id=occasion.get("event_id"), link=occasion.get("link"))
 
         engine.on_event(listener)
@@ -502,6 +508,8 @@ class AwaRuntime:
             return flush()
         ref = next(r for r in instance["runs"] if r["run_id"] == engine.run_id)
         status = engine.status.value
+        # The runs it called belong to the journey too, and end before it does (24.7)
+        record_child_runs(engine, instance, ref, self._time(), record_journey_event)
         if ref["status"] == status:
             return flush()
         ref["status"] = status
@@ -728,14 +736,18 @@ class AwaRuntime:
 
     def resume(self, run_id: str, token_id: str, output: dict[str, Any] | None = None,
                principal: dict[str, Any] | None = None) -> bool:
-        """A person completed a task in one of the runs. `principal` is who (30.4); a refusal raises an AuthorizationError and the task keeps waiting"""
-        if self._shared is None and run_id not in self._runs:
+        """
+        A person completed a task in one of the runs, or in a child run one of them holds (24.4).
+        `principal` is who (30.4); a refusal raises an AuthorizationError and the task keeps waiting.
+        """
+        if self._shared is None and self._holding(run_id) is None:
             return False
 
         def work() -> bool:
             if self._operation is not None:
                 self._operation.hold_run(run_id)
-            engine = self._runs.get(run_id)
+            # A task of a child run is completed through the run that holds it (24.4)
+            engine = self._holding(run_id)
             if not engine:
                 return False
             resumed = engine.resume_token(token_id, output or {}, principal)
@@ -842,6 +854,10 @@ class AwaRuntime:
             })
         return {"workflow_id": str(workflow_id), "to_version": new.version, "comparisons": comparisons, "runs": runs}
 
+    def _holding(self, run_id: str) -> WorkflowEngine | None:
+        """The run of this id, or the run that holds it as a child run (24.8)"""
+        return self._runs.get(run_id) or next((e for e in self._runs.values() if e.has_subworkflow_run(run_id)), None)
+
     # -- export ---------------------------------------------------------------
 
     def _workflow_json(self, workflow: Workflow) -> dict[str, Any]:
@@ -860,8 +876,9 @@ class AwaRuntime:
         runs = []
         for ref in instance["runs"]:
             engine = self._runs.get(ref["run_id"])
-            runs.append({"run_id": ref["run_id"], "workflow_id": ref["workflow_id"], "stage_id": ref["stage_id"],
-                         "events": engine.get_events() if engine else []})
+            holder = None if engine else self._holding(ref["run_id"])
+            events = engine.get_events() if engine else holder.get_subworkflow_events(ref["run_id"]) if holder else []
+            runs.append({"run_id": ref["run_id"], "workflow_id": ref["workflow_id"], "stage_id": ref["stage_id"], "events": events})
         workflow_ids = list(dict.fromkeys(r["workflow_id"] for r in instance["runs"]))
         return _jsonable({
             "definition": definition.to_json(), "instance": instance,
@@ -969,7 +986,8 @@ class AwaRuntime:
             kept = self._shared.read_all()
             self._instances = {i["id"]: i for i in kept["instances"]}
             self._runs, self._run_order, self._run_journey, self._outbox = {}, [], {}, {}
-            options = {**self._engine_defaults, "journal": self._shared.journal}
+            options = {**self._engine_defaults, "journal": self._shared.journal,
+                       "subworkflows": {"workflows": self._workflows, **(self._engine_defaults.get("subworkflows") or {})}}
             if self._clock:
                 options["now"] = self._clock
             for saved in kept["runs"]:

@@ -41,6 +41,7 @@ export type JournalEventType =
     | 'sla.warning' | 'sla.breached'
     | 'authorization.decided'
     | 'guardrail.triggered'
+    | 'subworkflow.started' | 'subworkflow.completed' | 'subworkflow.failed' | 'subworkflow.cancelled'
     | 'checkpoint.saved';
 
 export interface JournalEvent {

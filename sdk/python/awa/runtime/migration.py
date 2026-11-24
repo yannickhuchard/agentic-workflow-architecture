@@ -295,6 +295,12 @@ def plan_migration(old: Workflow, new: Workflow, state: dict[str, Any], plan: Mi
             refuse("run_in_activity", f'Token {token["id"]} is in the middle of "{label}": a run can be moved only while it is at rest. Let the step finish, then migrate.', **ref)
             result["tokens"].append(entry)
             continue
+        # A token waiting on a child run (24.4): the child's state names nodes of this version, so the run stays where it is
+        data = token.get("context_data") or {}
+        if data.get("_awaiting_subworkflow") or data.get("_subworkflow_continuation"):
+            refuse("child_run_in_flight", f'Token {token["id"]} at "{label}" waits on a child run (section 24). A run can be moved only once its child runs have ended.', **ref)
+            result["tokens"].append(entry)
+            continue
         entry["wait"] = wait
         to_id = mapping.get(from_id, from_id)
         target = new_nodes.get(to_id)

@@ -42,6 +42,7 @@ import { RunTelemetry, TelemetrySetting, open_run_telemetry } from './telemetry_
 import { AuthorizationOptions, Principal, RunAuthorization, principal_ref } from './authorization';
 import { Guardrail } from '../types';
 import { GuardrailClassifier, GuardrailContext, GuardrailSet, GuardrailStop, guardrail_feedback, input_value, merge_guarded, output_value } from './guardrails';
+import { SubworkflowCalls, SubworkflowOptions, SubworkflowRun, SubworkflowState, is_call_activity, subworkflow_journal_tails } from './subworkflow';
 
 export type EngineStatus = 'running' | 'paused' | 'completed' | 'failed' | 'idle' | 'waiting_human' | 'waiting_event' | 'cancelled';
 
@@ -139,6 +140,8 @@ export interface WorkflowEngineOptions {
     guardrails?: Guardrail[];
     /** Classifiers that guardrails of kind "classifier" call, by name (spec 31.8) */
     guardrail_classifiers?: Record<string, GuardrailClassifier>;
+    /** The workflows call activities may run as child runs, and how deep they may nest (spec 24) */
+    subworkflows?: SubworkflowOptions;
 }
 
 export interface SimulatedOutput {
@@ -176,7 +179,7 @@ interface AwaitedEvent {
 }
 
 /** Error codes that are never retried, whatever the retry policy says */
-const NEVER_RETRIED = new Set(['VERIFICATION_FAILED', 'CONTRACT_VIOLATION', 'NO_ROUTE', 'SLA_BREACH', 'CONTEXT_MISSING', 'CONTEXT_ACCESS_DENIED', 'CONTEXT_INVALID', 'CONTEXT_NOT_FOUND', 'AGENT_UNSUPPORTED', 'PERMISSION_DENIED', 'FORBIDDEN']);
+const NEVER_RETRIED = new Set(['SUBWORKFLOW_NOT_FOUND', 'SUBWORKFLOW_DEPTH_EXCEEDED', 'VERIFICATION_FAILED', 'CONTRACT_VIOLATION', 'NO_ROUTE', 'SLA_BREACH', 'CONTEXT_MISSING', 'CONTEXT_ACCESS_DENIED', 'CONTEXT_INVALID', 'CONTEXT_NOT_FOUND', 'AGENT_UNSUPPORTED', 'PERMISSION_DENIED', 'FORBIDDEN']);
 /** Access modes that let an activity read a context, and those that let it write (22.2) */
 const CAN_READ = new Set(['read', 'read_write', 'subscribe']);
 const CAN_WRITE = new Set(['write', 'read_write', 'publish']);
@@ -229,6 +232,8 @@ export class WorkflowEngine {
     /** Who may do what in this run, and the principal performing each token's activity (spec 30) */
     private authorization?: RunAuthorization;
     private performers = new Map<UUID, Principal>();
+    /** The child runs of call activities (spec 24) */
+    private calls: SubworkflowCalls;
     private options: WorkflowEngineOptions;
     private roleMap: Map<UUID, Role>;
     private decisionEvaluator: DecisionEvaluator;
@@ -321,6 +326,12 @@ export class WorkflowEngine {
             });
         }
         this.guardrails = new GuardrailSet(workflowDef, options.guardrails, activity => this.roleMap.get(activity.role_id));
+        this.calls = new SubworkflowCalls({
+            run_id: () => this.runId, workflow: () => this.workflow, options: () => this.options, journal: () => this.journalStore,
+            record: input => this.record(input), node_ref: id => this.nodeRef(id), now: () => this.now(), tokens: () => this.tokens,
+            make: (workflow, options) => new WorkflowEngine(workflow, options),
+            restore: (workflow, state, options, resumed) => WorkflowEngine.restore(workflow, state, options, resumed),
+        });
     }
 
     private initializeMaps(): void {
@@ -405,6 +416,7 @@ export class WorkflowEngine {
                 input: this.journal.payload(initialData),
                 simulate: this.simulate,
                 ...(starter ? { principal: principal_ref(starter) } : {}),
+                ...this.calls.started_data(),
             },
         });
         this.record({ type: 'token.created', token_id: token.id, ...this.nodeRef(startNodeId), data: {} });
@@ -469,6 +481,8 @@ export class WorkflowEngine {
                 this.record({ type: 'token.cancelled', token_id: token.id, ...this.nodeRef(token.activityId), data: { reason: 'run_failed' } });
             }
         }
+        // A child run whose parent token no longer waits on it is withdrawn too (24.5)
+        await this.calls.reap();
 
         if (has('active')) return;
 
@@ -477,7 +491,7 @@ export class WorkflowEngine {
         if (has('waiting')) {
             const waiting = this.tokens.filter(t => t.status === 'waiting');
             // Waiting on a person takes precedence in the status; otherwise the run waits on events
-            this.status = waiting.some(t => !t.getData('_awaiting_event')) ? 'waiting_human' : 'waiting_event';
+            this.status = waiting.some(t => !t.getData('_awaiting_event') && !this.calls.waits_for_event(t)) ? 'waiting_human' : 'waiting_event';
             if (previous !== this.status) {
                 this.record({ type: 'run.waiting', data: { waiting_for: this.status === 'waiting_human' ? 'human' : 'event', waiting_tokens: waiting.map(t => t.id) } });
             }
@@ -587,7 +601,9 @@ export class WorkflowEngine {
 
     /** Subscribe to journal events as they are recorded. Returns an unsubscribe function. */
     public onEvent(listener: JournalListener): () => void {
-        return this.journal.subscribe(listener);
+        const own = this.journal.subscribe(listener);
+        const children = this.calls.subscribe(listener);
+        return () => { own(); children(); };
     }
 
     /** The journal of this run so far, in sequence order */
@@ -619,6 +635,7 @@ export class WorkflowEngine {
                 sla_recorded: [...this.slaRecorded],
                 context_times: this.contextManager.snapshot_times(),
                 stats: { ...this.executionStats, startTime: this.executionStats.startTime.toISOString() },
+                ...this.subworkflowMetadata(),
             },
         };
     }
@@ -657,6 +674,7 @@ export class WorkflowEngine {
             delivered_events?: string[];
             sla_recorded?: string[];
             context_times?: Record<string, number>;
+            subworkflows?: SubworkflowState;
         };
         const engine = new WorkflowEngine(workflowDef, { ...options, run_id: meta.run_id || options.run_id });
         engine.journal = new JournalWriter(
@@ -667,6 +685,8 @@ export class WorkflowEngine {
         engine.slaRecorded = new Set(meta.sla_recorded || []);
         engine.completedActivities = meta.completed_activities || [];
         engine.deliveredEvents = new Set(meta.delivered_events || []);
+        // The children the run waits on are restored with it, each from its own state (24.8)
+        engine.calls.restore(meta.subworkflows, record_resumed);
         if (meta.stats) {
             // Written by this SDK as text; by another implementation of the same store perhaps as milliseconds (spec 29.6)
             const raw = meta.stats.startTime ?? meta.stats.started_at;
@@ -674,7 +694,7 @@ export class WorkflowEngine {
             engine.executionStats = { ...engine.executionStats, ...meta.stats, startTime: isNaN(started.getTime()) ? engine.executionStats.startTime : started };
         }
         engine.status = engine.tokens.some(t => t.status === 'active') ? 'running'
-            : engine.tokens.some(t => t.status === 'waiting' && !t.getData('_awaiting_event')) ? 'waiting_human'
+            : engine.tokens.some(t => t.status === 'waiting' && !t.getData('_awaiting_event') && !engine.calls.waits_for_event(t)) ? 'waiting_human'
                 : engine.tokens.some(t => t.status === 'waiting') ? 'waiting_event'
                 : (state.engine_status as EngineStatus);
         // A run another host left at rest is taken up, not resumed: nothing was interrupted (spec 29.2)
@@ -694,7 +714,11 @@ export class WorkflowEngine {
     public static async recover(workflowDef: Workflow, state: WorkflowState, options: WorkflowEngineOptions = {}): Promise<WorkflowEngine> {
         const run_id = ((state.metadata || {}) as { run_id?: UUID }).run_id || options.run_id;
         const on_record = options.journal && run_id ? await options.journal.read(run_id) : [];
-        return WorkflowEngine.restore(workflowDef, state, { ...options, journal_tail_seq: on_record.reduce((max, e) => Math.max(max, e.seq), 0) });
+        const journal_tails = await subworkflow_journal_tails(state, options.journal);
+        return WorkflowEngine.restore(workflowDef, state, {
+            ...options, journal_tail_seq: on_record.reduce((max, e) => Math.max(max, e.seq), 0),
+            ...(Object.keys(journal_tails).length ? { subworkflows: { ...options.subworkflows, journal_tails } } : {}),
+        });
     }
 
     /**
@@ -760,6 +784,8 @@ export class WorkflowEngine {
             };
             // The input given to an agent that asked for it is for this execution only (28.6)
             if (token.getData('_agent_continuation') !== undefined) delete token.contextData._agent_continuation;
+            // So is the outcome of a child run that waited (24.4)
+            if (token.getData('_subworkflow_continuation') !== undefined) delete token.contextData._subworkflow_continuation;
 
             // The service level of an activity counts from the moment the token reaches it, waits and retries included
             const enteredKey = `_entered_at:${activity.id}`;
@@ -801,6 +827,14 @@ export class WorkflowEngine {
             // An agent that asks for input parks the token until the host gives it (28.6)
             if (output._awaiting_agent_input) {
                 this.parkForAgent(token, activity, output._awaiting_agent_input as Record<string, unknown>, analytics, endTime);
+                return;
+            }
+
+            // A child run that waits parks the token on it (24.4)
+            if (output._awaiting_subworkflow) {
+                analytics.waste_categories?.push('waiting' as WasteCategory);
+                token.updateStatus('waiting', analytics);
+                this.calls.park(token, activity, output._awaiting_subworkflow as Parameters<SubworkflowCalls['park']>[2], endTime);
                 return;
             }
 
@@ -1012,6 +1046,8 @@ export class WorkflowEngine {
             await this.advanceToken(token, awaited.node_id);
             if (!awaited.broadcast) break;
         }
+        // The child runs the run waits on take the event too (24.4)
+        resumed += (await this.calls.deliver(event)).released;
 
         if (resumed > 0) {
             this.deliveredEvents.add(event.id);
@@ -1030,6 +1066,8 @@ export class WorkflowEngine {
      */
     public async cancel(reason: string): Promise<boolean> {
         if (['completed', 'failed', 'cancelled', 'idle'].includes(this.status)) return false;
+        // The children first: they were working for the run (24.5)
+        await this.calls.cancel_all('parent_cancelled');
         for (const token of this.tokens.filter(t => ['active', 'waiting', 'joining'].includes(t.status))) {
             token.updateStatus('cancelled');
             this.record({ type: 'token.cancelled', token_id: token.id, ...this.nodeRef(token.activityId), data: { reason: 'run_cancelled' } });
@@ -1045,6 +1083,8 @@ export class WorkflowEngine {
     /** The earliest time at which a waiting token's event wait runs out, in milliseconds */
     public nextEventDeadline(): number | undefined {
         const due = this.tokens.map(t => this.awaiting(t)?.due_at).filter((d): d is string => !!d).map(d => new Date(d).getTime());
+        const children = this.calls.deadline();
+        if (children !== undefined) due.push(children);
         return due.length ? Math.min(...due) : undefined;
     }
 
@@ -1216,6 +1256,9 @@ export class WorkflowEngine {
             }
         }
         result.warnings = this.slaRecorded.size - before - result.breaches;
+        // The work child runs wait on is held to its service levels too (24.4)
+        const children = await this.calls.check_service_levels(now);
+        result.warnings += children.warnings; result.breaches += children.breaches; result.failed += children.failed;
         if (result.failed > 0) {
             if (this.status === 'waiting_event' || this.status === 'waiting_human') this.status = 'running';
             await this.settle();
@@ -1249,6 +1292,8 @@ export class WorkflowEngine {
                 this.failToken(token, new ActivityError(`No "${awaited.name}" event arrived before ${awaited.due_at}, and the event has no timeout edge`, 'EVENT_TIMEOUT'));
             }
         }
+        // The child runs the run waits on let time pass too (24.4)
+        expired += (await this.calls.expire(now)).expired;
         if (expired > 0) {
             if (this.status === 'waiting_event' || this.status === 'waiting_human') this.status = 'running';
             await this.settle();
@@ -1331,7 +1376,7 @@ export class WorkflowEngine {
         for (;;) {
             attempt++;
             const attemptStart = this.now();
-            this.record({
+            const started = this.record({
                 type: 'activity.started', ...ref, attempt,
                 data: {
                     actor_type: activity.actor_type,
@@ -1348,6 +1393,7 @@ export class WorkflowEngine {
                 const context: ActorContext = {
                     record: event => this.record({ ...event, ...ref, attempt }),
                     payload: value => this.journal.payload(value),
+                    attempt_seq: started.seq,
                 };
                 if ((activity.tools || []).length > 0) {
                     const performer = this.performers.get(token.id);
@@ -1422,8 +1468,8 @@ export class WorkflowEngine {
             if (output._requires_human_action && this.options.wait_for_human_tasks) {
                 return { output, verificationRecords, attempts: attempt };
             }
-            // Nor is a task in which the agent asks for input (28.6)
-            if (output._awaiting_agent_input) {
+            // Nor is a task in which the agent asks for input (28.6), or a child run that waits (24.4)
+            if (output._awaiting_agent_input || output._awaiting_subworkflow) {
                 return { output, verificationRecords, attempts: attempt };
             }
 
@@ -1475,7 +1521,7 @@ export class WorkflowEngine {
                 if (violations.length > 0) {
                     const message = `Outcome contract violated: ${violations.map(v => v.message).join('; ')}`;
                     const overBudget = violations.some(v => v.kind === 'budget');
-                    const canRetry = !overBudget && activity.actor_type === 'ai_agent' && attempt < violationCap;
+                    const canRetry = !overBudget && activity.actor_type === 'ai_agent' && !is_call_activity(activity) && attempt < violationCap;
                     this.record({
                         type: 'activity.failed', ...ref, attempt,
                         data: { error: { message, code: 'CONTRACT_VIOLATION' }, retryable: canRetry, duration_ms: this.now() - attemptStart },
@@ -1561,6 +1607,7 @@ export class WorkflowEngine {
             rejections++;
             const canRetry = verification.verdict === 'fail'
                 && activity.actor_type === 'ai_agent'
+                && !is_call_activity(activity)
                 && policy!.retry_with_feedback
                 && rejections < maxVerifications
                 && attempt < hardCap;
@@ -2088,6 +2135,10 @@ export class WorkflowEngine {
      * Create the appropriate actor for an activity
      */
     private createActor(activity: Activity): Actor | undefined {
+        // A call activity is performed by a child run, whatever its actor type (24.1)
+        const call = this.calls.actor(activity);
+        if (call) return call;
+
         // An activity whose role, or which itself, names an agent over A2A is performed by that agent (28.1)
         const bound = a2a_binding(activity, this.roleMap.get(activity.role_id));
         // The identity the deployment gives the agent brings its credentials (spec 30.1)
@@ -2171,10 +2222,10 @@ export class WorkflowEngine {
 
     /** The tokens waiting for input an agent asked for, with what it asked (28.6) */
     public getAgentRequests(): { token_id: UUID; node_id: UUID; agent: string; task_id: string; context_id?: string; request: unknown }[] {
-        return this.tokens.filter(t => t.status === 'waiting' && t.getData('_awaiting_agent_input')).map(t => {
+        return [...this.tokens.filter(t => t.status === 'waiting' && t.getData('_awaiting_agent_input')).map(t => {
             const awaiting = t.getData('_awaiting_agent_input') as { agent: string; task_id: string; context_id?: string; request: unknown };
             return { token_id: t.id, node_id: t.activityId, ...awaiting };
-        });
+        }), ...this.calls.agent_requests()];   // and those of the child runs it waits on (24.4)
     }
 
     /**
@@ -2184,8 +2235,17 @@ export class WorkflowEngine {
      */
     public async answerAgent(tokenId: UUID, input: Record<string, unknown> | string): Promise<boolean> {
         const token = this.tokens.find(t => t.id === tokenId);
-        const awaiting = token?.status === 'waiting' ? token.getData('_awaiting_agent_input') as { task_id: string; context_id?: string } | undefined : undefined;
-        if (!token || !awaiting) return false;
+        if (!token) {
+            // An agent of a child run is answered through the parent (24.4)
+            const child = await this.calls.answer_agent(tokenId, input);
+            if (!child) return false;
+            if (child.woken > 0 && (this.status === 'waiting_event' || this.status === 'waiting_human')) this.status = 'running';
+            await this.settle();
+            await this.saveCheckpoint();
+            return child.answered;
+        }
+        const awaiting = token.status === 'waiting' ? token.getData('_awaiting_agent_input') as { task_id: string; context_id?: string } | undefined : undefined;
+        if (!awaiting) return false;
         const since = token.getData('_waiting_since');
         const waitedMs = since ? this.now() - new Date(since as string).getTime() : undefined;
         delete token.contextData._awaiting_agent_input;
@@ -2205,8 +2265,17 @@ export class WorkflowEngine {
      */
     public async resumeToken(tokenId: UUID, output: Record<string, unknown>, principal?: Principal): Promise<boolean> {
         const token = this.tokens.find(t => t.id === tokenId);
-        // A token waiting for an agent's input is answered with answerAgent, not resumed with an outcome (28.6)
-        if (!token || token.status !== 'waiting' || token.getData('_awaiting_agent_input')) {
+        if (!token) {
+            // A person's task in a child run is completed through the parent (24.4)
+            const child = await this.calls.resume(tokenId, output);
+            if (!child) return false;
+            if (child.woken > 0 && (this.status === 'waiting_event' || this.status === 'waiting_human')) this.status = 'running';
+            await this.settle();
+            await this.saveCheckpoint();
+            return child.resumed;
+        }
+        // A token waiting for an agent's input is answered with answerAgent, not resumed with an outcome (28.6); one waiting on a child run, by the child (24.4)
+        if (token.status !== 'waiting' || token.getData('_awaiting_agent_input') || token.getData('_awaiting_subworkflow')) {
             return false;
         }
         const answered = this.activityMap.get(token.activityId);
@@ -2306,6 +2375,39 @@ export class WorkflowEngine {
 
     public getStatus(): EngineStatus {
         return this.status;
+    }
+
+    // ---------------------------------------------------------------- child runs (spec 24)
+
+    /** Every child run this run started, with theirs, in the order they started (24.7) */
+    public getSubworkflowRuns(): SubworkflowRun[] {
+        return this.calls.list();
+    }
+
+    /** Whether a run is a child run of this one, at any depth */
+    public hasSubworkflowRun(runId: UUID): boolean {
+        return this.calls.has_run(runId);
+    }
+
+    /** The journal of a child run of this one, at any depth */
+    public async getSubworkflowEvents(runId: UUID): Promise<JournalEvent[]> {
+        await this.journal.flush();
+        return this.calls.events(runId);
+    }
+
+    /** The states of the child runs this run keeps, at any depth, and of those that settled since last asked: what a store keeps of each (24.8) */
+    public subworkflowStates(): { run_id: UUID; workflow_id: UUID; state: WorkflowState }[] {
+        return this.calls.states();
+    }
+
+    /** Whether a token belongs to this run or to a child run it waits on */
+    public ownsToken(tokenId: UUID): boolean {
+        return this.tokens.some(t => t.id === tokenId) || this.calls.owns_token(tokenId);
+    }
+
+    private subworkflowMetadata(): { subworkflows?: SubworkflowState } {
+        const state = this.calls.snapshot();
+        return state ? { subworkflows: state } : {};
     }
 
     public getContext(contextId: UUID): unknown {

@@ -35,6 +35,7 @@ NODE_PROPERTIES = {
     "controls": "controls are descriptive",
     "programs": "programs are not called: the activity is requested from whoever performs it",
     "analytics": "value stream metrics are descriptive",
+    "subworkflow": "the mapping of a child run's input and output (24.1) is not exported; a run task would express it as jq input and output expressions",
 }
 WORKFLOW_PROPERTIES = {
     "roles": "Serverless Workflow has no roles; the role of each activity is carried in the event that requests it",

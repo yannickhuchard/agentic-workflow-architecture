@@ -39,6 +39,7 @@ awa run workflow.awa.json --simulate --outputs simulation.json --journal run.jso
 | `-j, --journal <file>` | Write the execution journal to this JSON Lines file |
 | `-c, --checkpoint-dir <dir>` | Checkpoint the run after every step, so that it can be recovered in another process |
 | `-i, --input <json>` | The run's initial data, as a JSON object |
+| `-w, --workflows <files...>` | Workflow documents that call activities may run as child runs (specification 24). The workflow itself is always one, so a workflow may call itself. The status of each child run is printed when the run ends. With `--journal`, each child run's journal is written to the same file under its own run id |
 | `-p, --providers <list>` | Model providers in order of preference: `google`, `openai`, `ollama`, `embedded`. Each capability tier falls back down the list |
 | `-k, --key <key>` | Gemini API key (or `GEMINI_API_KEY`) |
 | `--allow-commands [list]` | Let tools run commands on this machine: all, or a comma-separated list of program names. None by default |
@@ -55,6 +56,8 @@ A simulation script names what each activity returns. An entry may give `output`
   "Charge card":   { "attempts": [{ "error": "gateway timeout", "code": "TIMEOUT" }, { "output": { "charged": true } }] }
 }
 ```
+
+In simulation a child run is simulated too, and the script applies to its activities by name; a script for the call activity itself is not used (specification 24.6).
 
 A simulated activity that is not scripted returns no business data, so a condition that reads data takes no edge and the run fails with `NO_ROUTE`: script the activities whose results drive the route. An activity bound to read a context nothing has written fails with `CONTEXT_MISSING`: script the activity that writes it, or give the context an `initial_value`.
 

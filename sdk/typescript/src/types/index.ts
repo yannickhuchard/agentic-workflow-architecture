@@ -424,6 +424,11 @@ export const ActivitySchema = z.object({
     analytics: AnalyticsSchema.optional(),
     is_expandable: z.boolean().default(false),
     expansion_workflow_id: UUID.optional(),
+    /** How a call activity's child run is given its input and how its output becomes the outcome (specification 24.1) */
+    subworkflow: z.object({
+        input: z.record(z.string(), z.string().min(1)).optional(),
+        output: z.record(z.string(), z.string().min(1)).optional(),
+    }).strict().optional(),
     skills: z.array(SkillBindingSchema).default([]),
     tool_requirements: z.array(ToolRequirementSchema).default([]),
     verification: VerificationPolicySchema.optional(),

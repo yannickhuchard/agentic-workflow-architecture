@@ -59,6 +59,7 @@ from awa.validator import validate_workflow_integrity
 from awa.runtime.expression import evaluate_expression, resolve_path
 from awa.runtime.duration import parse_iso_duration
 from awa.runtime.telemetry_export import open_run_telemetry
+from awa.runtime.subworkflow import SubworkflowCalls, is_call_activity
 from awa.runtime.journal import (
     InMemoryJournalStore, JournalEvent, JournalListener, JournalWriter,
     format_time, hash_payload, public_payload,
@@ -85,7 +86,7 @@ class EngineStatus(str, Enum):
 
 
 # Error codes that are never retried, whatever the retry policy says
-NEVER_RETRIED = {"VERIFICATION_FAILED", "CONTRACT_VIOLATION", "NO_ROUTE", "SLA_BREACH",
+NEVER_RETRIED = {"SUBWORKFLOW_NOT_FOUND", "SUBWORKFLOW_DEPTH_EXCEEDED", "VERIFICATION_FAILED", "CONTRACT_VIOLATION", "NO_ROUTE", "SLA_BREACH",
                  "CONTEXT_MISSING", "CONTEXT_ACCESS_DENIED", "CONTEXT_INVALID", "CONTEXT_NOT_FOUND", "AGENT_UNSUPPORTED", "PERMISSION_DENIED",
                  "FORBIDDEN"}
 # Access modes of a context binding that let an activity read, and write (specification 22.2, 22.3)
@@ -211,6 +212,9 @@ class WorkflowEngine:
                            document's (specification 31.1)
       guardrail_classifiers: classifiers that guardrails of kind "classifier" call, by name: each a callable taking
                            {"value", "stage", "guardrail", "config"} and returning {"flagged", "categories"} (31.8)
+      subworkflows:        {"workflows": the workflows call activities may run as child runs (a list, or a dict by id),
+                           "max_depth": how deep child runs may nest (default 8), "actor": an actor that performs
+                           call activities instead (replay uses it)} (specification 24)
 
     Contexts (22): while an actor executes an activity bound to contexts, the token's data holds
     `_contexts`, the values the activity may read, by context name. An actor writes to contexts by
@@ -323,6 +327,9 @@ class WorkflowEngine:
             "started_at": self._now(), "steps": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0,
         }
 
+        # The child runs of call activities (specification 24)
+        self._calls = SubworkflowCalls(self)
+
         # Validate workflow
         integrity = validate_workflow_integrity(workflow)
         if not integrity.valid:
@@ -358,16 +365,47 @@ class WorkflowEngine:
         return self._journal_store.read(self._run_id, after_seq)
 
     def on_event(self, listener: JournalListener) -> Callable[[], None]:
-        """Subscribe to journal events as they are recorded. Returns an unsubscribe function."""
-        return self._journal.subscribe(listener)
+        """Subscribe to journal events as they are recorded, the child runs' included. Returns an unsubscribe function."""
+        own = self._journal.subscribe(listener)
+        children = self._calls.subscribe(listener)
+
+        def off() -> None:
+            own()
+            children()
+        return off
 
     def result(self) -> dict[str, Any]:
         return {
             "status": self._status.value,
             "run_id": self._run_id,
             "tokens": [t.to_dict() for t in self._tokens.values()],
-            "contexts": self._context_manager.snapshot()
+            "contexts": self._context_manager.snapshot(),
+            "subworkflow_runs": self._calls.list(),
         }
+
+    # ------------------------------------------------------------------
+    # Child runs (specification 24)
+    # ------------------------------------------------------------------
+
+    def subworkflow_runs(self) -> list[dict[str, Any]]:
+        """Every child run this run started, with theirs, in the order they started (24.7)"""
+        return self._calls.list()
+
+    def has_subworkflow_run(self, run_id: str) -> bool:
+        """Whether a run is a child run of this one, at any depth"""
+        return self._calls.has_run(run_id)
+
+    def get_subworkflow_events(self, run_id: str) -> list[JournalEvent]:
+        """The journal of a child run of this one, at any depth"""
+        return self._calls.events(run_id)
+
+    def subworkflow_states(self) -> list[dict[str, Any]]:
+        """The states of the child runs this run keeps, at any depth, and of those that settled since last asked (24.8)"""
+        return self._calls.states()
+
+    def owns_token(self, token_id: str) -> bool:
+        """Whether a token belongs to this run or to a child run it waits on"""
+        return token_id in self._tokens or self._calls.owns_token(token_id)
 
     def get_contexts(self) -> dict[str, Any]:
         """The value of every context that has one now, by context name"""
@@ -434,6 +472,7 @@ class WorkflowEngine:
             "input": self._journal.payload(initial_data or {}),
             "simulate": bool(self.simulate),
             **({"principal": principal_ref(starter)} if starter else {}),
+            **self._calls.started_data(),
         })
         self._record("token.created", {}, token=token, node_id=start_node_id)
         self._log(f"Starting workflow: {self.workflow.name}")
@@ -496,6 +535,8 @@ class WorkflowEngine:
         # Fail fast: once a token has failed, the rest of the run is withdrawn
         if self._has(TokenStatus.FAILED):
             self._cancel_tokens("run_failed")
+        # A child run whose parent token no longer waits on it is withdrawn too (24.5)
+        self._calls.reap()
 
         if self._has(TokenStatus.ACTIVE):
             return
@@ -505,7 +546,7 @@ class WorkflowEngine:
         if self._has(TokenStatus.WAITING):
             waiting = [t for t in self._tokens.values() if t.status == TokenStatus.WAITING]
             # Waiting on a person takes precedence in the status; otherwise the run waits on events
-            on_human = any(not t.get_data("_awaiting_event") for t in waiting)
+            on_human = any(not t.get_data("_awaiting_event") and not self._calls.waits_for_event(t) for t in waiting)
             self._status = EngineStatus.WAITING_HUMAN if on_human else EngineStatus.WAITING_EVENT
             if previous != self._status:
                 self._record("run.waiting", {
@@ -625,6 +666,7 @@ class WorkflowEngine:
                 "sla_recorded": sorted(self._sla_recorded),
                 "context_times": self._context_manager.snapshot_times(),
                 "stats": dict(self._stats),
+                **self._subworkflow_metadata(),
             },
         })
 
@@ -634,6 +676,10 @@ class WorkflowEngine:
         given the run's payload mode (9.4), to apply to the data values the event carries.
         """
         return self._record("run.migrated", build(self._journal.payload))
+
+    def _subworkflow_metadata(self) -> dict[str, Any]:
+        state = self._calls.snapshot()
+        return {"subworkflows": state} if state else {}
 
     def _save_checkpoint(self) -> None:
         store = self.options.get("checkpoint")
@@ -674,11 +720,13 @@ class WorkflowEngine:
         engine._completed_activities = copy.deepcopy(meta.get("completed_activities") or [])
         engine._delivered_events = set(meta.get("delivered_events") or [])
         engine._stats.update(meta.get("stats") or {})
+        # The children the run waits on are restored with it, each from its own state (24.8)
+        engine._calls.restore(meta.get("subworkflows"), record_resumed)
 
         waiting = [t for t in engine._tokens.values() if t.status == TokenStatus.WAITING]
         if engine._has(TokenStatus.ACTIVE):
             engine._status = EngineStatus.RUNNING
-        elif any(not t.get_data("_awaiting_event") for t in waiting):
+        elif any(not t.get_data("_awaiting_event") and not engine._calls.waits_for_event(t) for t in waiting):
             engine._status = EngineStatus.WAITING_HUMAN
         elif waiting:
             engine._status = EngineStatus.WAITING_EVENT
@@ -741,6 +789,10 @@ class WorkflowEngine:
             continuation = token.context_data.pop("_agent_continuation", None)
             if isinstance(actor, A2AActor):
                 actor.continuation = continuation
+            # So is the outcome of a child run that waited (24.4)
+            child_continuation = token.context_data.pop("_subworkflow_continuation", None)
+            if hasattr(actor, "continuation") and is_call_activity(activity):
+                actor.continuation = child_continuation
 
             visit = sum(1 for h in token.history if h["node_id"] == node_id and h["action"] == "entered")
             token.merge_data({
@@ -809,6 +861,13 @@ class WorkflowEngine:
                 self._park_for_agent(token, activity, output["_awaiting_agent_input"], analytics, ended)
                 return
 
+            # A child run that waits parks the token on it (24.4)
+            if output.get("_awaiting_subworkflow"):
+                analytics["waste_categories"].append(WasteCategory.waiting.value)
+                token.update_status(TokenStatus.WAITING, analytics=analytics)
+                self._calls.park(token, activity, output["_awaiting_subworkflow"], self._iso(ended))
+                return
+
             # A human task that has not been completed yet parks the token
             if output.get("_requires_human_action"):
                 analytics["waste_categories"].append(WasteCategory.waiting.value)
@@ -866,6 +925,10 @@ class WorkflowEngine:
         `simulated_outputs` returns what is given there, unless the deployment
         supplied its own actor for the activity's actor type.
         """
+        # A call activity is performed by a child run, whatever its actor type (24.1)
+        call = self._calls.actor(activity)
+        if call is not None:
+            return call
         # An activity whose role, or which itself, names an agent over A2A is performed by that agent (28.1)
         agent = a2a_binding(activity, next((r for r in self.workflow.roles if str(r.id) == str(activity.role_id)), None))
         if agent is not None:
@@ -996,10 +1059,11 @@ class WorkflowEngine:
         timeout_ms = parse_iso_duration(budgets.max_duration) if budgets and budgets.max_duration else None
         max_tokens = budgets.max_tokens if budgets else None
         retry = self._retry_policy(activity)
-        is_agent = activity.actor_type == ActorType.ai_agent
+        # Only an ai_agent is re-executed with feedback; a call activity never is: a workflow takes no feedback (24.3)
+        is_agent = activity.actor_type == ActorType.ai_agent and not is_call_activity(activity)
 
-        def record(type: str, data: dict[str, Any], level: str = "execution") -> None:
-            self._record(type, data, token=token, node_id=node_id, attempt=attempt, level=level)
+        def record(type: str, data: dict[str, Any], level: str = "execution") -> JournalEvent:
+            return self._record(type, data, token=token, node_id=node_id, attempt=attempt, level=level)
 
         verification_records: list[dict[str, Any]] = []
         feedback: str | None = None
@@ -1023,7 +1087,7 @@ class WorkflowEngine:
             inputs = dict(token.context_data)
 
             performer = self._performers.get(token.id)
-            record("activity.started", {
+            started_event = record("activity.started", {
                 "actor_type": activity.actor_type.value,
                 "role_id": str(activity.role_id),
                 **({"principal": principal_ref(performer)} if performer else {}),
@@ -1033,7 +1097,7 @@ class WorkflowEngine:
 
             # --- execute -------------------------------------------------
             try:
-                context = ActorContext(record=record, payload=self._journal.payload)
+                context = ActorContext(record=record, payload=self._journal.payload, attempt_seq=started_event["seq"])
                 if activity.tools:
                     # One runner per attempt: every call is journalled with the attempt it belongs to (17.5)
                     tool_options = self._tool_options
@@ -1095,8 +1159,8 @@ class WorkflowEngine:
             # parked, and the contract is checked when the answer arrives (resume_token).
             if output.get("_requires_human_action"):
                 return output, verification_records, attempt
-            # Nor is a task in which the agent asks for input (28.6)
-            if output.get("_awaiting_agent_input"):
+            # Nor is a task in which the agent asks for input (28.6), or a child run that waits (24.4)
+            if output.get("_awaiting_agent_input") or output.get("_awaiting_subworkflow"):
                 return output, verification_records, attempt
 
             # --- guardrails at stage output: before the contract and verification (31.3)
@@ -1618,6 +1682,10 @@ class WorkflowEngine:
                 result["failed"] += 1
 
         result["warnings"] = len(self._sla_recorded) - before - result["breaches"]
+        # The work child runs wait on is held to its service levels too (24.4)
+        children = self._calls.check_service_levels(now)
+        for key in ("warnings", "breaches", "failed"):
+            result[key] += children[key]
         if result["failed"] > 0:
             if self._status in (EngineStatus.WAITING_EVENT, EngineStatus.WAITING_HUMAN):
                 self._status = EngineStatus.RUNNING
@@ -1987,6 +2055,8 @@ class WorkflowEngine:
             self._advance_token(token, node_id)
             if not awaited.get("broadcast"):
                 break
+        # The child runs the run waits on take the event too (24.4)
+        resumed += self._calls.deliver(event)[0]
 
         if resumed > 0:
             self._delivered_events.add(str(event_id))
@@ -1999,6 +2069,9 @@ class WorkflowEngine:
     def next_event_deadline(self) -> float | None:
         """The earliest time at which a waiting token's event wait runs out, in milliseconds since the epoch"""
         due = [_parse_time(a["due_at"]) for a in map(self._awaiting, self._tokens.values()) if a and a.get("due_at")]
+        children = self._calls.deadline()
+        if children is not None:
+            due.append(children)
         return min(due) if due else None
 
     def expire_events(self, now: float | None = None) -> int:
@@ -2029,6 +2102,8 @@ class WorkflowEngine:
                 self._fail_token(token, ActivityError(
                     f'No "{awaited["name"]}" event arrived before {awaited["due_at"]}, and the event has no timeout edge',
                     "EVENT_TIMEOUT"))
+        # The child runs the run waits on let time pass too (24.4)
+        expired += self._calls.expire(now)[0]
 
         if expired > 0:
             if self._status in (EngineStatus.WAITING_EVENT, EngineStatus.WAITING_HUMAN):
@@ -2046,6 +2121,8 @@ class WorkflowEngine:
         """
         if self._status in _OUTCOMES or self._status == EngineStatus.IDLE:
             return False
+        # The children first: they were working for the run (24.5)
+        self._calls.cancel_all("parent_cancelled")
         self._cancel_tokens("run_cancelled")
         compensation = self._compensate()
         self._status = EngineStatus.CANCELLED
@@ -2231,7 +2308,7 @@ class WorkflowEngine:
         """The tokens waiting for input an agent asked for, with what it asked (28.6)"""
         return [{"token_id": t.id, "node_id": str(t.activity_id), **t.get_data("_awaiting_agent_input")}
                 for t in self._tokens.values()
-                if t.status == TokenStatus.WAITING and t.get_data("_awaiting_agent_input")]
+                if t.status == TokenStatus.WAITING and t.get_data("_awaiting_agent_input")] + self._calls.agent_requests()
 
     def answer_agent(self, token_id: str, input: dict[str, Any] | str) -> bool:
         """
@@ -2240,8 +2317,19 @@ class WorkflowEngine:
         Returns whether the token was waiting for an agent's input.
         """
         token = self._tokens.get(token_id)
-        awaiting = token.get_data("_awaiting_agent_input") if token and token.status == TokenStatus.WAITING else None
-        if not token or not awaiting:
+        if token is None:
+            # An agent of a child run is answered through the parent (24.4)
+            child = self._calls.answer_agent(token_id, input)
+            if child is None:
+                return False
+            answered, woken = child
+            if woken and self._status in (EngineStatus.WAITING_EVENT, EngineStatus.WAITING_HUMAN):
+                self._status = EngineStatus.RUNNING
+            self._settle()
+            self._save_checkpoint()
+            return answered
+        awaiting = token.get_data("_awaiting_agent_input") if token.status == TokenStatus.WAITING else None
+        if not awaiting:
             return False
         since = token.get_data("_waiting_since")
         waited_ms = int(self._now() - _parse_time(since)) if since else None
@@ -2276,8 +2364,20 @@ class WorkflowEngine:
         rule it keeps waiting until enough distinct principals have approved.
         """
         token = self._tokens.get(token_id)
-        if (not token or token.status != TokenStatus.WAITING or token.get_data("_awaiting_event")
-                or token.get_data("_awaiting_agent_input")):
+        if token is None:
+            # A person's task in a child run is completed through the parent (24.4)
+            child = self._calls.resume(token_id, output)
+            if child is None:
+                return False
+            resumed, woken = child
+            if woken and self._status in (EngineStatus.WAITING_EVENT, EngineStatus.WAITING_HUMAN):
+                self._status = EngineStatus.RUNNING
+            self._settle()
+            self._save_checkpoint()
+            return resumed
+        # A token waiting on a child run is resumed by the child (24.4)
+        if (token.status != TokenStatus.WAITING or token.get_data("_awaiting_event")
+                or token.get_data("_awaiting_agent_input") or token.get_data("_awaiting_subworkflow")):
             return False
 
         node_id = str(token.activity_id)
