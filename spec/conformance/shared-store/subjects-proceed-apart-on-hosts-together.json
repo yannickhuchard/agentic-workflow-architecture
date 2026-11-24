@@ -1,0 +1,186 @@
+{
+  "id": "subjects-proceed-apart-on-hosts-together",
+  "level": "shared_store",
+  "spec": "29.2",
+  "description": "Events about different subjects, given to different hosts at the same moment, are each accepted and each kept, on their own instance.",
+  "start": "2026-03-02T09:00:00Z",
+  "hosts": [
+    "a",
+    "b"
+  ],
+  "workflows": [
+    {
+      "id": "34cf28d1-b9db-5855-8cca-d7c166c93153",
+      "name": "Claim",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "814be457-9df9-5314-99a9-aa6d4eac69a4",
+          "name": "Register",
+          "role_id": "8a33d99a-9550-5d49-aed8-8217acb9fd4b",
+          "actor_type": "application"
+        },
+        {
+          "id": "28ddc23a-4b1c-5423-a2a1-9a604e6eba38",
+          "name": "Settle",
+          "role_id": "8a33d99a-9550-5d49-aed8-8217acb9fd4b",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "74f0e3fe-5dde-580a-90d7-a05c78e67a87",
+          "source_id": "814be457-9df9-5314-99a9-aa6d4eac69a4",
+          "target_id": "8acf3f33-f1f2-53a7-aaee-0168f01bd410"
+        },
+        {
+          "id": "c12e1530-41ee-52d5-a8f6-9790629abd6f",
+          "source_id": "8acf3f33-f1f2-53a7-aaee-0168f01bd410",
+          "target_id": "28ddc23a-4b1c-5423-a2a1-9a604e6eba38"
+        }
+      ],
+      "events": [
+        {
+          "id": "8acf3f33-f1f2-53a7-aaee-0168f01bd410",
+          "name": "Documents",
+          "event_type": "message",
+          "event_definition": {
+            "name": "documents.uploaded",
+            "correlation_key": "customer_id"
+          }
+        }
+      ]
+    }
+  ],
+  "journeys": [
+    {
+      "id": "e461c4d3-ed3c-5c68-b42a-afe04bf9a516",
+      "name": "Claim",
+      "version": "1.0.0",
+      "subject": {
+        "name": "customer",
+        "key": "customer_id"
+      },
+      "stages": [
+        {
+          "id": "open",
+          "name": "Open",
+          "workflows": [
+            "34cf28d1-b9db-5855-8cca-d7c166c93153"
+          ],
+          "complete_when": "paid == true",
+          "transitions": []
+        }
+      ],
+      "triggers": [
+        {
+          "event": "claim.submitted",
+          "starts_journey": true,
+          "start_workflow": "34cf28d1-b9db-5855-8cca-d7c166c93153"
+        }
+      ]
+    }
+  ],
+  "actors": {
+    "Register": {
+      "output": {
+        "claim_id": "CLM-1"
+      }
+    },
+    "Settle": {
+      "output": {
+        "paid": true
+      }
+    }
+  },
+  "steps": [
+    {
+      "together": [
+        {
+          "host": "a",
+          "publish": {
+            "type": "claim.submitted",
+            "data": {
+              "customer_id": "c-1"
+            }
+          }
+        },
+        {
+          "host": "b",
+          "publish": {
+            "type": "claim.submitted",
+            "data": {
+              "customer_id": "c-2"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "accepted": 2
+      }
+    },
+    {
+      "together": [
+        {
+          "host": "a",
+          "publish": {
+            "type": "documents.uploaded",
+            "data": {
+              "customer_id": "c-2"
+            }
+          }
+        },
+        {
+          "host": "b",
+          "publish": {
+            "type": "documents.uploaded",
+            "data": {
+              "customer_id": "c-1"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "accepted": 2
+      }
+    }
+  ],
+  "expect": {
+    "accepted_events": 4,
+    "run_count": 2,
+    "instance_count": 2,
+    "instances": [
+      {
+        "journey": "Claim",
+        "subject_key": "c-1",
+        "status": "completed",
+        "events_exact": [
+          "journey.started",
+          "journey.stage_entered",
+          "journey.event_received",
+          "journey.run_started",
+          "journey.event_received",
+          "journey.run_ended",
+          "journey.stage_completed",
+          "journey.completed"
+        ]
+      },
+      {
+        "journey": "Claim",
+        "subject_key": "c-2",
+        "status": "completed",
+        "events_exact": [
+          "journey.started",
+          "journey.stage_entered",
+          "journey.event_received",
+          "journey.run_started",
+          "journey.event_received",
+          "journey.run_ended",
+          "journey.stage_completed",
+          "journey.completed"
+        ]
+      }
+    ]
+  }
+}

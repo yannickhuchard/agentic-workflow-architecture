@@ -67,9 +67,11 @@
         "@types/cors": "^2.8.19",
         "@types/express": "^5.0.6",
         "@types/node": "^22.20.5",
+        "@types/pg": "^8.23.0",
         "@typescript-eslint/eslint-plugin": "^8.73.0",
         "@typescript-eslint/parser": "^8.73.0",
         "eslint": "^8.56.0",
+        "pg": "^8.23.1",
         "prisma": "^6.19.2",
         "tsup": "^8.0.0",
         "typescript": "^5.4.0",
@@ -78,13 +80,17 @@
     },
     "peerDependencies": {
         "@huggingface/transformers": ">=3.0.0",
-        "typescript": ">=5.0.0"
+        "typescript": ">=5.0.0",
+        "pg": ">=8.11.0"
     },
     "engines": {
         "node": ">=20.0.0"
     },
     "peerDependenciesMeta": {
         "@huggingface/transformers": {
+            "optional": true
+        },
+        "pg": {
             "optional": true
         }
     },

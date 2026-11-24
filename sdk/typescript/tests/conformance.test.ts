@@ -2,7 +2,7 @@
  * AWA conformance runner (TypeScript reference implementation).
  * Runs the language-neutral cases in spec/conformance against this SDK.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import Ajv2020 from 'ajv/dist/2020';
@@ -23,13 +23,15 @@ import { compute_measures } from '../src/runtime/kpi';
 import { InMemoryJournalStore } from '../src/runtime/journal';
 import { counterfactual_replay } from '../src/runtime/counterfactual';
 import { KnowledgeBase, KnowledgeEntry } from '../src/runtime/knowledge';
+import { PostgresRuntimeStore } from '../src/runtime/postgres_store';
+import { postgres_unavailable, start_postgres, TestPostgres } from './postgres';
 
 const ROOT = path.resolve(__dirname, '../../..');
 const CONFORMANCE = path.join(ROOT, 'spec/conformance');
 const SCHEMAS = path.join(ROOT, 'spec/json-schema');
 
 /** Conformance levels this implementation claims. */
-const CLAIMED_LEVELS = new Set(['core', 'decision', 'verified', 'resilient', 'recorded', 'contract', 'flow', 'events', 'tools', 'model_decision', 'journeys', 'replay', 'routing', 'knowledge', 'measures', 'contexts', 'service_levels']);
+const CLAIMED_LEVELS = new Set(['core', 'decision', 'verified', 'resilient', 'recorded', 'contract', 'flow', 'events', 'tools', 'model_decision', 'journeys', 'replay', 'routing', 'knowledge', 'measures', 'contexts', 'service_levels', 'shared_store']);
 
 const read = (file: string) => JSON.parse(fs.readFileSync(file, 'utf-8'));
 const list = (dir: string) => fs.readdirSync(dir).filter(f => f.endsWith('.json')).sort().map(f => path.join(dir, f));
@@ -252,9 +254,46 @@ function in_order(wanted: string[], actual: string[]): string[] {
     return wanted.slice(cursor);
 }
 
+/** What a journey case expects of the journeys a host has recorded (Appendix A). Shared by the journey and shared store cases. */
+async function expect_journeys(runtime: AwaRuntime, expected: any): Promise<void> {
+    const validate_journey_event = ajv.getSchema('https://awa.io/schema/journey-event.schema.json')!;
+    const names = new Map(runtime.list_journeys().map(j => [j.id, j.name]));
+    const all = runtime.list_journey_instances();
+    if (expected.instance_count !== undefined) expect(all.length).toBe(expected.instance_count);
+    for (const wanted of expected.instances || []) {
+        const found = all.filter(i => names.get(i.journey_id) === wanted.journey && (!wanted.subject_key || i.subject_key === wanted.subject_key));
+        expect(found.length, `instances of ${wanted.journey} ${wanted.subject_key || ''}`).toBe(1);
+        const i = found[0], types = i.events.map(e => e.type);
+        // Every implementation that records journeys must record validly: schema-valid events, numbered from 1 without gaps
+        i.events.forEach((event, n) => {
+            expect(validate_journey_event(event), JSON.stringify(validate_journey_event.errors)).toBe(true);
+            expect(event.seq).toBe(n + 1);
+        });
+        for (const key of ['status', 'stage_id', 'stalled', 'sentiment'] as const) if (wanted[key] !== undefined) expect(i[key], key).toBe(wanted[key]);
+        if (wanted.goals_reached) expect(i.goals_reached).toEqual(wanted.goals_reached);
+        if (wanted.runs) expect(i.runs.map(r => r.status)).toEqual(wanted.runs);
+        if (wanted.data) expect(is_subset(wanted.data, i.data), JSON.stringify(i.data)).toBe(true);
+        if (wanted.events) expect(in_order(wanted.events, types), `record was: ${types.join(', ')}`).toEqual([]);
+        if (wanted.events_exact) expect(types).toEqual(wanted.events_exact);
+        for (const [type, n] of Object.entries(wanted.events_count || {})) expect(types.filter(t => t === type).length, `count of ${type}`).toBe(n);
+        for (const part of wanted.events_contain || []) {
+            const { has, ...rest } = part;
+            expect(i.events.some(e => is_subset(rest, e) && (has || []).every((p: string) => resolve_path(e, p) !== undefined)), `no journey event matches ${JSON.stringify(part)}`).toBe(true);
+        }
+        if (wanted.run_journal || wanted.run_journal_excludes) {
+            const events = (await runtime.export_journey(i.id)).runs[0].events;
+            expect(events.map(e => e.seq)).toEqual(events.map((_, n) => n + 1));
+            if (wanted.run_journal) expect(in_order(wanted.run_journal, events.map(e => e.type)), `journal was: ${events.map(e => e.type).join(', ')}`).toEqual([]);
+            for (const type of wanted.run_journal_excludes || []) expect(events.map(e => e.type), `journal was: ${events.map(e => e.type).join(', ')}`).not.toContain(type);
+        }
+    }
+    if (expected.transitions) {
+        expect(runtime.transitions().map(t => ({ from: names.get(t.from), to: names.get(t.to), count: t.count }))).toEqual(expected.transitions);
+    }
+}
+
 describe('Conformance: journeys', () => {
     const validate_journey_schema = ajv.getSchema('https://awa.io/schema/journey.schema.json')!;
-    const validate_journey_event = ajv.getSchema('https://awa.io/schema/journey-event.schema.json')!;
     for (const file of list(path.join(CONFORMANCE, 'journeys'))) {
         const c = read(file);
         const run = CLAIMED_LEVELS.has(c.level) ? it : it.skip;
@@ -290,39 +329,89 @@ describe('Conformance: journeys', () => {
                 }
             }
 
-            const names = new Map(runtime.list_journeys().map(j => [j.id, j.name]));
-            const all = runtime.list_journey_instances();
-            if (c.expect.instance_count !== undefined) expect(all.length).toBe(c.expect.instance_count);
-            for (const wanted of c.expect.instances || []) {
-                const found = all.filter(i => names.get(i.journey_id) === wanted.journey && (!wanted.subject_key || i.subject_key === wanted.subject_key));
-                expect(found.length, `instances of ${wanted.journey} ${wanted.subject_key || ''}`).toBe(1);
-                const i = found[0], types = i.events.map(e => e.type);
-                // Every implementation that records journeys must record validly: schema-valid events, numbered from 1 without gaps
-                i.events.forEach((event, n) => {
-                    expect(validate_journey_event(event), JSON.stringify(validate_journey_event.errors)).toBe(true);
-                    expect(event.seq).toBe(n + 1);
-                });
-                for (const key of ['status', 'stage_id', 'stalled', 'sentiment'] as const) if (wanted[key] !== undefined) expect(i[key], key).toBe(wanted[key]);
-                if (wanted.goals_reached) expect(i.goals_reached).toEqual(wanted.goals_reached);
-                if (wanted.runs) expect(i.runs.map(r => r.status)).toEqual(wanted.runs);
-                if (wanted.data) expect(is_subset(wanted.data, i.data), JSON.stringify(i.data)).toBe(true);
-                if (wanted.events) expect(in_order(wanted.events, types), `record was: ${types.join(', ')}`).toEqual([]);
-                if (wanted.events_exact) expect(types).toEqual(wanted.events_exact);
-                for (const [type, n] of Object.entries(wanted.events_count || {})) expect(types.filter(t => t === type).length, `count of ${type}`).toBe(n);
-                for (const part of wanted.events_contain || []) {
-                    const { has, ...rest } = part;
-                    expect(i.events.some(e => is_subset(rest, e) && (has || []).every((p: string) => resolve_path(e, p) !== undefined)), `no journey event matches ${JSON.stringify(part)}`).toBe(true);
-                }
-                if (wanted.run_journal) {
-                    const events = (await runtime.export_journey(i.id)).runs[0].events;
-                    expect(events.map(e => e.seq)).toEqual(events.map((_, n) => n + 1));
-                    expect(in_order(wanted.run_journal, events.map(e => e.type)), `journal was: ${events.map(e => e.type).join(', ')}`).toEqual([]);
-                }
-            }
-            if (c.expect.transitions) {
-                expect(runtime.transitions().map(t => ({ from: names.get(t.from), to: names.get(t.to), count: t.count }))).toEqual(c.expect.transitions);
-            }
+            await expect_journeys(runtime, c.expect);
         });
+    }
+});
+
+/**
+ * Several hosts on one store (section 29). Every host of a case is an AwaRuntime on its own
+ * connections to one PostgreSQL database; steps marked `together` are performed at once.
+ */
+describe('Conformance: shared store', () => {
+    const unavailable = postgres_unavailable();
+    if (unavailable) console.warn(`Shared store cases skipped: ${unavailable}`);
+    let server: TestPostgres | undefined;
+    beforeAll(async () => { if (!unavailable) server = await start_postgres(); }, 60_000);
+    afterAll(async () => { await server?.stop(); });
+
+    for (const file of list(path.join(CONFORMANCE, 'shared-store'))) {
+        const c = read(file);
+        const run = CLAIMED_LEVELS.has(c.level) && !unavailable ? it : it.skip;
+        run(`[${c.level}] ${c.id}: ${c.description}`, async () => {
+            const url = await server!.database();
+            let now = Date.parse(c.start);
+            const actor = new ConformanceActor(c.actors, ms => { now += ms; });
+            const stores: PostgresRuntimeStore[] = [];
+            const open_host = async (name: string) => {
+                const stopping = { now: false };
+                const store = await PostgresRuntimeStore.open(url, { host_id: name, before_commit: () => { if (stopping.now) throw new Error(`host ${name} stopped`); } });
+                stores.push(store);
+                const runtime = new AwaRuntime({ now: () => now, shared: store, engine: { actors: { application: actor, ai_agent: actor, human: actor, robot: actor }, execution_logger: silent_logger, sleep: async () => { } } });
+                for (const workflow of c.workflows) runtime.register_workflow(parse_document(workflow));
+                for (const journey of c.journeys) runtime.register_journey(JourneyDefinitionSchema.parse(journey));
+                await runtime.recover();
+                return { runtime, store, stopping };
+            };
+            const hosts = new Map<string, Awaited<ReturnType<typeof open_host>>>();
+            for (const name of c.hosts) hosts.set(name, await open_host(name));
+            const stop = async (name: string) => { await hosts.get(name)!.store.close(); hosts.delete(name); };
+            /** One host's step; what it counts towards the step's expectations */
+            const perform = async (step: any): Promise<{ accepted?: boolean; timed_out_runs?: number; stalled_journeys?: number }> => {
+                const host = hosts.get(step.host);
+                if (!host) throw new Error(`the case uses host ${step.host}, which is stopped`);
+                if (step.tick) { const r = await host.runtime.tick(); return { timed_out_runs: r.timed_out_runs.length, stalled_journeys: r.stalled_journeys.length }; }
+                const e = step.publish;
+                const event = { specversion: '1.0' as const, id: e.id || `evt-${Math.random()}`, source: '/conformance', type: e.type, data: e.data || {} };
+                if (step.stops_before_keeping) {
+                    host.stopping.now = true;
+                    await expect(host.runtime.publish(event)).rejects.toThrow(/stopped/);
+                    await stop(step.host);
+                    return {};
+                }
+                return { accepted: (await host.runtime.publish(event)).accepted };
+            };
+            const check = (wanted: any, results: Awaited<ReturnType<typeof perform>>[]) => {
+                if (!wanted) return;
+                const sum = (key: 'timed_out_runs' | 'stalled_journeys') => results.reduce((n, r) => n + (r[key] || 0), 0);
+                if (wanted.accepted !== undefined) expect(typeof wanted.accepted === 'boolean' ? results[0].accepted : results.filter(r => r.accepted).length, 'accepted').toBe(wanted.accepted);
+                if (wanted.timed_out_runs !== undefined) expect(sum('timed_out_runs'), 'runs timed out').toBe(wanted.timed_out_runs);
+                if (wanted.stalled_journeys !== undefined) expect(sum('stalled_journeys'), 'journeys newly stalled').toBe(wanted.stalled_journeys);
+            };
+            try {
+                for (const step of c.steps) {
+                    if (step.advance) now += parse_iso_duration(step.advance);
+                    else if (step.stop) await stop(step.stop);
+                    else if (step.start) hosts.set(step.start, await open_host(step.start));
+                    else if (step.together) check(step.expect, await Promise.all(step.together.map(perform)));
+                    else check(step.expect, [await perform(step)]);
+                }
+                // What the store keeps, read by a host that took no part
+                const reader = await open_host('reader');
+                await reader.runtime.refresh();
+                const stats = await reader.store.stats();
+                if (c.expect.accepted_events !== undefined) expect(stats.accepted_events, 'events accepted').toBe(c.expect.accepted_events);
+                if (c.expect.run_count !== undefined) expect(stats.runs, 'runs kept').toBe(c.expect.run_count);
+                // Every journal is numbered from 1 without a gap, whichever host wrote which part
+                for (const engine of reader.runtime.list_runs()) {
+                    const events = await engine.getEvents();
+                    expect(events.map(e => e.seq), `journal of ${engine.getRunId()}`).toEqual(events.map((_, n) => n + 1));
+                }
+                await expect_journeys(reader.runtime, c.expect);
+            } finally {
+                for (const store of stores) await store.close();
+            }
+        }, 60_000);
     }
 });
 

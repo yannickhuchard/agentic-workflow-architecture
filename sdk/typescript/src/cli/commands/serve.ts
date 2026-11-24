@@ -8,8 +8,11 @@ export const serveCommand = new Command('serve')
     .option('--api-key <key>', 'API key for authentication (format: key:role, can be repeated)', collectApiKeys, {})
     .option('--rate-limit <max>', 'Max requests per minute (0 to disable)', '0')
     .option('--no-auth', 'Disable authentication')
+    .option('--store <url>', 'Keep journeys and runs in this PostgreSQL runtime store, which several servers may share (default: $AWA_RUNTIME_STORE)')
     .action(async (options) => {
         try {
+            // The routes read the store from the environment, as a server started without this option would
+            if (options.store) process.env.AWA_RUNTIME_STORE = options.store;
             const port = parseInt(options.port, 10);
             const jwtSecret = options.jwtSecret || process.env.JWT_SECRET;
             const rateLimit = parseInt(options.rateLimit, 10);
@@ -39,6 +42,7 @@ export const serveCommand = new Command('serve')
                 if (authConfig.enabled) {
                     console.log(`  Authentication: ${jwtSecret ? 'JWT' : ''} ${Object.keys(options.apiKey).length > 0 ? 'API Keys' : ''}`.trim());
                 }
+                if (process.env.AWA_RUNTIME_STORE) console.log('  Journeys: kept in the shared runtime store');
                 if (rateLimit > 0) {
                     console.log(`  Rate limit: ${rateLimit} requests/minute`);
                 }

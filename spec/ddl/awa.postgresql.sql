@@ -765,3 +765,145 @@ JOIN LATERAL (
     ORDER BY n.started_at LIMIT 1
 ) b ON TRUE
 GROUP BY a.journey_id, b.journey_id;
+
+
+-- ============================================================================
+-- Runtime store: hosts that share a store (section 29)
+-- ============================================================================
+-- What a host of journeys and runs keeps (19.10) when several hosts share one
+-- PostgreSQL database. The SDKs create these tables themselves, by the same
+-- statements, recording each migration in awa_runtime.migrations. They are in a
+-- schema of their own, so that a database may also hold the tables above.
+--
+-- They follow the tables above for runs, journal events, business events,
+-- journeys and their events, with three differences: documents and states are
+-- kept whole as JSONB, as the SDKs read and write them; identifiers are TEXT,
+-- since they come from documents; and each row carries what concurrent hosts
+-- need: a partition key, a version, and when time next acts on it.
+--
+-- How hosts use them, per operation, in one transaction: hold each partition
+-- the operation touches with pg_advisory_xact_lock(hashtextextended(
+-- 'awa:' || partition_key, 0)); read the rows of those partitions; insert the
+-- ids of the events accepted; write back changed rows WHERE version = the
+-- version read; insert journal and journey events; commit. Deadlines are found
+-- by due_at and their partitions taken with pg_try_advisory_xact_lock, skipping
+-- those another host holds.
+
+CREATE SCHEMA IF NOT EXISTS awa_runtime;
+CREATE TABLE IF NOT EXISTS awa_runtime.migrations (
+    version INTEGER PRIMARY KEY,
+    description TEXT NOT NULL,
+    applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    applied_by TEXT NOT NULL
+);
+
+-- The workflow and journey documents every host on the store registers, kept whole
+CREATE TABLE awa_runtime.definitions (
+    kind TEXT NOT NULL CHECK (kind IN ('workflow', 'journey')),
+    id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    version TEXT,
+    document JSONB NOT NULL,
+    added_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (kind, id)
+);
+
+-- Every business event a host has accepted. Inserting the id in the operation's transaction is what accepts
+-- the event: the primary key makes a second acceptance, by any host, impossible (29.3).
+CREATE TABLE awa_runtime.business_events (
+    id TEXT PRIMARY KEY,
+    source TEXT NOT NULL,
+    type TEXT NOT NULL,
+    subject TEXT,
+    time TIMESTAMPTZ,
+    data JSONB NOT NULL DEFAULT '{}',
+    accepted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    accepted_by TEXT NOT NULL
+);
+CREATE INDEX business_events_type ON awa_runtime.business_events (type, accepted_at);
+
+-- One row per journey instance. document is the instance whole (19.4); the columns beside it are what the
+-- store finds instances by. partition_key is 'subject:<subject key>'; due_at is when a stage may outlast its
+-- limit; version is the optimistic check every write is made against (29.2).
+CREATE TABLE awa_runtime.journey_instances (
+    id TEXT PRIMARY KEY,
+    journey_id TEXT NOT NULL,
+    subject_key TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('active', 'completed', 'abandoned')),
+    stage_id TEXT NOT NULL,
+    stalled BOOLEAN NOT NULL DEFAULT FALSE,
+    started_at TIMESTAMPTZ NOT NULL,
+    ended_at TIMESTAMPTZ,
+    partition_key TEXT NOT NULL,
+    due_at TIMESTAMPTZ,
+    position BIGSERIAL NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1,
+    document JSONB NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_by TEXT NOT NULL
+);
+CREATE UNIQUE INDEX journey_instances_active ON awa_runtime.journey_instances (journey_id, subject_key) WHERE status = 'active';
+CREATE INDEX journey_instances_partition ON awa_runtime.journey_instances (partition_key);
+CREATE INDEX journey_instances_due ON awa_runtime.journey_instances (due_at) WHERE due_at IS NOT NULL;
+
+-- The record of each instance, one row per journey event, written with the instance: what the views of the
+-- journey layer above read
+CREATE TABLE awa_runtime.journey_events (
+    journey_instance_id TEXT NOT NULL REFERENCES awa_runtime.journey_instances(id) DEFERRABLE INITIALLY DEFERRED,
+    seq INTEGER NOT NULL CHECK (seq >= 1),
+    spec_version TEXT NOT NULL,
+    journey_id TEXT NOT NULL,
+    time TIMESTAMPTZ NOT NULL,
+    type TEXT NOT NULL,
+    stage_id TEXT,
+    run_id TEXT,
+    data JSONB NOT NULL DEFAULT '{}',
+    PRIMARY KEY (journey_instance_id, seq)
+);
+CREATE INDEX journey_events_type ON awa_runtime.journey_events (journey_id, type, time);
+
+-- One row per run: the state it can be continued from (checkpoint, 10.3), the events it published that were not
+-- yet accepted (outbox), and what the store finds it by: its partition (its journey's subject, or 'run:<id>'),
+-- the events its waiting tokens wait for (waits_for, waits) and when time next acts on it (due_at)
+CREATE TABLE awa_runtime.runs (
+    id TEXT PRIMARY KEY,
+    workflow_id TEXT NOT NULL,
+    workflow_version TEXT,
+    status TEXT NOT NULL,
+    journey_instance_id TEXT REFERENCES awa_runtime.journey_instances(id) DEFERRABLE INITIALLY DEFERRED,
+    partition_key TEXT NOT NULL,
+    due_at TIMESTAMPTZ,
+    waits_for TEXT[] NOT NULL DEFAULT '{}',
+    waits JSONB NOT NULL DEFAULT '[]',
+    outbox JSONB NOT NULL DEFAULT '[]',
+    checkpoint JSONB NOT NULL,
+    checkpoint_at TIMESTAMPTZ NOT NULL,
+    started_at TIMESTAMPTZ NOT NULL,
+    ended_at TIMESTAMPTZ,
+    position BIGSERIAL NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1,
+    updated_by TEXT NOT NULL
+);
+CREATE INDEX runs_partition ON awa_runtime.runs (partition_key) WHERE status NOT IN ('completed', 'failed', 'cancelled');
+CREATE INDEX runs_waits_for ON awa_runtime.runs USING GIN (waits_for);
+CREATE INDEX runs_due ON awa_runtime.runs (due_at) WHERE due_at IS NOT NULL;
+
+-- The journal of each run (section 9), written in the same transaction as the run's state: never behind it,
+-- never ahead of it, and numbered without a gap whichever host wrote which event
+CREATE TABLE awa_runtime.journal_events (
+    run_id TEXT NOT NULL REFERENCES awa_runtime.runs(id) DEFERRABLE INITIALLY DEFERRED,
+    seq INTEGER NOT NULL CHECK (seq >= 1),
+    id TEXT NOT NULL UNIQUE,
+    spec_version TEXT NOT NULL,
+    time TIMESTAMPTZ NOT NULL,
+    type TEXT NOT NULL,
+    level TEXT NOT NULL DEFAULT 'execution' CHECK (level IN ('execution', 'reasoning', 'meta')),
+    workflow_id TEXT NOT NULL,
+    token_id TEXT,
+    node_id TEXT,
+    node_name TEXT,
+    attempt INTEGER CHECK (attempt >= 1),
+    data JSONB NOT NULL DEFAULT '{}',
+    PRIMARY KEY (run_id, seq)
+);
+CREATE INDEX journal_events_type ON awa_runtime.journal_events (type);
