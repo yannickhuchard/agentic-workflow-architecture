@@ -131,8 +131,8 @@ class OtlpHttpExporter:
     # -- the host's side --------------------------------------------------------
 
     def flush(self, timeout_s: float | None = None) -> None:
-        """Send everything queued. Returns when it was sent or dropped, or when the timeout passes; never raises."""
-        deadline = time.monotonic() + (timeout_s if timeout_s is not None else max(1.0, self.timeout_ms / 1000 * self.max_attempts + 5))
+        """Send everything queued. Returns when it was sent or dropped, or after the export timeout (by default); never raises."""
+        deadline = time.monotonic() + (timeout_s if timeout_s is not None else self.timeout_ms / 1000 + 1)
         with self._lock:
             self._flush_requested = True
             self._lock.notify_all()
