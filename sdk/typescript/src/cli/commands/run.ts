@@ -74,6 +74,7 @@ export const runCommand = new Command('run')
             const telemetry = shared_telemetry_from_env();
             const engine = new WorkflowEngine(workflow, {
                 ...(deployment?.a2a ? { a2a: deployment.a2a } : {}),
+                ...(deployment?.guardrails.length ? { guardrails: deployment.guardrails } : {}),
                 telemetry,
                 ...(names.length ? {
                     model_providers: providers,

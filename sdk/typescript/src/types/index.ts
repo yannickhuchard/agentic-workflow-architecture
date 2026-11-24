@@ -296,6 +296,48 @@ export const ActivityRetrySchema = z.object({
 });
 export type ActivityRetry = z.infer<typeof ActivityRetrySchema>;
 
+// ============================================================================
+// GUARDRAILS (specification section 31)
+// ============================================================================
+
+const GuardrailPatternSchema = z.object({ name: z.string().min(1), pattern: z.string().min(1) });
+
+export const GuardrailCheckSchema = z.discriminatedUnion('kind', [
+    z.object({
+        kind: z.literal('personal_data'),
+        categories: z.array(z.enum(['email', 'phone', 'iban', 'credit_card'])).optional(),
+        patterns: z.array(GuardrailPatternSchema).optional(),
+    }),
+    z.object({
+        kind: z.literal('deny_list'),
+        terms: z.array(z.string()).optional(),
+        patterns: z.array(GuardrailPatternSchema).optional(),
+        whole_words: z.boolean().optional(),
+    }),
+    z.object({ kind: z.literal('prompt_injection'), markers: z.array(z.string()).optional(), patterns: z.array(GuardrailPatternSchema).optional() }),
+    z.object({ kind: z.literal('size'), max_characters: z.number().int().min(0).optional(), max_tokens: z.number().int().min(0).optional() }),
+    z.object({ kind: z.literal('json_schema'), schema: z.record(z.string(), z.unknown()) }),
+    z.object({ kind: z.literal('allowed_values'), path: z.string().min(1), values: z.array(z.unknown()) }),
+    z.object({ kind: z.literal('topic'), allow: z.array(z.string()).min(1) }),
+    z.object({ kind: z.literal('model'), instructions: z.string().min(1), model: z.string().optional(), categories: z.array(z.string()).optional() }),
+    z.object({ kind: z.literal('classifier'), name: z.string().min(1), config: z.record(z.string(), z.unknown()).optional() }),
+]);
+export type GuardrailCheck = z.infer<typeof GuardrailCheckSchema>;
+
+/** A check on what goes into or comes out of an AI agent or a tool, and what to do when it finds something (31.2) */
+export const GuardrailSchema = z.object({
+    id: UUID,
+    name: z.string().optional(),
+    stages: z.array(z.enum(['input', 'output', 'tool_call', 'tool_result'])).min(1),
+    check: GuardrailCheckSchema,
+    action: z.enum(['block', 'redact', 'retry_with_feedback', 'escalate', 'warn']),
+    actor_types: z.array(ActorType).optional(),
+    tools: z.array(z.string()).optional(),
+    fields: z.array(z.string()).optional(),
+    replacement: z.string().optional(),
+});
+export type Guardrail = z.infer<typeof GuardrailSchema>;
+
 export const ToolBindingSchema = z.discriminatedUnion('kind', [
     z.object({
         kind: z.literal('http'),
@@ -318,6 +360,8 @@ export const ToolDefinitionSchema = z.object({
     binding: ToolBindingSchema,
     documentation: z.string().url().optional(),
     timeout: Duration.optional(),
+    /** Guardrails on every call of this tool, at stages tool_call and tool_result (specification 31.1) */
+    guardrails: z.array(GuardrailSchema).optional(),
 });
 export type ToolDefinition = z.infer<typeof ToolDefinitionSchema>;
 
@@ -396,6 +440,8 @@ export const ActivitySchema = z.object({
     }).optional(),
     /** The agent that performs this activity over A2A, replacing its role's (specification 28.1) */
     a2a: A2AAgentSchema.optional(),
+    /** Guardrails on this activity's input, output and tool calls (specification 31.1) */
+    guardrails: z.array(GuardrailSchema).optional(),
 });
 export type Activity = z.infer<typeof ActivitySchema>;
 
@@ -521,6 +567,8 @@ export const RoleSchema = z.object({
     })).default([]),
     /** The agent, reached over A2A, that performs the activities of this role (specification 28.1) */
     a2a: A2AAgentSchema.optional(),
+    /** Guardrails on the activities of this role (specification 31.1) */
+    guardrails: z.array(GuardrailSchema).optional(),
 });
 export type Role = z.infer<typeof RoleSchema>;
 
@@ -542,6 +590,8 @@ export const WorkflowSchema = z.object({
     contexts: z.array(ContextSchema).default([]),
     sla: SLASchema.optional(),
     analytics: AnalyticsSchema.optional(),
+    /** Guardrails on every activity of the workflow (specification 31.1) */
+    guardrails: z.array(GuardrailSchema).optional(),
     metadata: z.record(z.string(), z.unknown()).optional(),
     created_at: DateTimeTz.optional(),
     updated_at: DateTimeTz.optional(),

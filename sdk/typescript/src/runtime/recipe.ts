@@ -129,6 +129,8 @@ export function required_levels(workflow: Workflow): string[] {
     if (workflow.events.length > 0 || [...fan_out.values()].some(n => n > 1)
         || workflow.activities.some(a => a.join === 'all' || a.compensation)) levels.add('flow');
     if (workflow.activities.some(a => (a as Activity & { knowledge?: unknown }).knowledge)) levels.add('learning');
+    if (workflow.guardrails?.length || (workflow.roles || []).some(r => r.guardrails?.length)
+        || workflow.activities.some(a => a.guardrails?.length || (a.tools || []).some(t => t.guardrails?.length))) levels.add('guardrails');
     return [...levels];
 }
 

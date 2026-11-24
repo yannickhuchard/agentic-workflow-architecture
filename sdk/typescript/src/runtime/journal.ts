@@ -39,6 +39,7 @@ export type JournalEventType =
     | 'knowledge.retrieved'
     | 'context.read' | 'context.written' | 'context.denied'
     | 'sla.warning' | 'sla.breached'
+    | 'guardrail.triggered'
     | 'checkpoint.saved';
 
 export interface JournalEvent {

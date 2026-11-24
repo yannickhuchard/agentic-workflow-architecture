@@ -54,7 +54,7 @@ export const serveCommand = new Command('serve')
                         public_url: options.publicUrl,
                         engine: () => ({
                             gemini_api_key: process.env.GEMINI_API_KEY,
-                            ...(deployment ? { tools: deployment.tools, a2a: deployment.a2a } : {}),
+                            ...(deployment ? { tools: deployment.tools, a2a: deployment.a2a, guardrails: deployment.guardrails } : {}),
                             journal: process.env.AWA_JOURNAL_DIR ? new FileJournalStore(process.env.AWA_JOURNAL_DIR) : undefined,
                         }),
                     },
