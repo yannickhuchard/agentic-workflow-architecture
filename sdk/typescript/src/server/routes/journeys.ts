@@ -129,7 +129,14 @@ journeyRouter.post('/migrations/check', async (req, res) => {
 // Move a run at rest to another version: the body is the plan, and ?dry_run=true says what would happen without doing it
 journeyRouter.post('/runs/:run_id/migrate', async (req, res) => {
     try {
-        const result = await (await host()).migrate(req.params.run_id, (req.body || {}) as MigrationPlan, { dry_run: req.query.dry_run === 'true' || req.query.dry_run === '1' });
+        // Who moves a run must be allowed to, under a policy (spec 30.4); a dry run is part of moving it
+        const h = await host();
+        if (!h.get_run(req.params.run_id)) await h.refresh();
+        const engine = h.get_run(req.params.run_id);
+        const resource = { ...(engine ? { workflow_id: engine.getWorkflow().id, workflow_name: engine.getWorkflow().name } : {}), run_id: req.params.run_id };
+        if (!await authorize_request(req, res, 'migrate_run', resource)) return;
+        const principal = server_authorization() ? request_principal(req) : undefined;
+        const result = await h.migrate(req.params.run_id, (req.body || {}) as MigrationPlan, { dry_run: req.query.dry_run === 'true' || req.query.dry_run === '1', principal });
         const status = result.refusals.some(r => r.code === 'not_found') ? 404 : result.refusals.length ? 409 : 200;
         res.status(status).json(result);
     } catch (error) { res.status(500).json(problem(error)); }

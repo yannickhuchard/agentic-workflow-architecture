@@ -23,6 +23,7 @@ import { resolve_path } from './expression';
 import { JourneyInstance, JourneyRunRef, record_journey_event } from './journey';
 import { public_payload } from './journal';
 import type { JournalEvent, JournalEventInput, JournalListener, JournalStore } from './journal';
+import type { Principal } from './authorization';
 import type { WorkflowState } from './persistence';
 import type { Token } from './token';
 import type { WorkflowEngine, WorkflowEngineOptions } from './workflow_engine';
@@ -62,9 +63,22 @@ export interface SubworkflowRun {
     ended_at?: string;
 }
 
+/** An activity completed with who performed it, in a run or one of its child runs: the record separation of duties is decided on (30.6) */
+export interface PerformedEntry {
+    run_id: UUID;
+    activity_id: UUID;
+    activity_name?: string;
+    principal_ids: string[];
+}
+
 export interface SubworkflowOptions {
     /** The workflows activities may call, by id. A host gives the workflows registered with it. */
     workflows?: Workflow[] | Map<string, Workflow>;
+    /**
+     * The version of a called workflow: with a version, that one; without, the one a new run of it starts on (25.1).
+     * A host that keeps several versions gives it, so that a child run keeps the version it started on.
+     */
+    version?: (workflow_id: string, version?: string) => Workflow | undefined;
     /** How deep child runs may nest. Default 8 */
     max_depth?: number;
     /** Performs every call activity instead of a child run. Counterfactual replay holds them as recorded (24.7). */
@@ -77,6 +91,8 @@ export interface SubworkflowOptions {
     depth?: number;
     /** On recovery: the last `seq` on record of each child run's journal, by run id */
     journal_tails?: Record<string, number>;
+    /** Set by an engine on the child runs it starts: the record of the run of depth 0 and all its child runs (30.6) */
+    record?: () => PerformedEntry[];
 }
 
 /** `metadata.subworkflows` of a run's state (24.8) */
@@ -85,6 +101,8 @@ export interface SubworkflowState {
     parent?: SubworkflowParent;
     runs?: SubworkflowRun[];
     live?: { run_id: UUID; workflow_id: UUID; state: WorkflowState }[];
+    /** Who performed the activities of the child runs that ended, at any depth (30.6) */
+    performed?: PerformedEntry[];
 }
 
 /** What the parent's token holds while it waits on a child */
@@ -100,6 +118,8 @@ export interface CallingEngine {
     node_ref(node_id: UUID): { node_id: UUID; node_name?: string };
     now(): number;
     tokens(): Token[];
+    /** The activities the run itself completed, with who performed them */
+    performed(): PerformedEntry[];
     make(workflow: Workflow, options: WorkflowEngineOptions): WorkflowEngine;
     restore(workflow: Workflow, state: WorkflowState, options: WorkflowEngineOptions, resumed: boolean): WorkflowEngine;
 }
@@ -203,6 +223,8 @@ export class SubworkflowCalls {
     private live = new Map<UUID, WorkflowEngine>();
     private listeners = new Set<JournalListener>();
     private settled: { run_id: UUID; workflow_id: UUID; state: WorkflowState }[] = [];
+    /** Who performed the activities of the children that ended, at any depth */
+    private performed: PerformedEntry[] = [];
 
     constructor(private engine: CallingEngine) {
         const options = engine.options().subworkflows || {};
@@ -214,6 +236,32 @@ export class SubworkflowCalls {
 
     private get max_depth(): number {
         return this.engine.options().subworkflows?.max_depth ?? DEFAULT_SUBWORKFLOW_DEPTH;
+    }
+
+    /** The workflow a call activity names: the version a new run of it starts on (24.1, 25.1) */
+    private called(workflow_id: string): Workflow | undefined {
+        return this.engine.options().subworkflows?.version?.(workflow_id) ?? this.registry.get(workflow_id);
+    }
+
+    /** The version of a workflow a child run is on, or undefined when it is not registered (25.1) */
+    private version_of(workflow_id: string, version?: string): Workflow | undefined {
+        const resolve = this.engine.options().subworkflows?.version;
+        if (resolve) return resolve(workflow_id, version);
+        const workflow = this.registry.get(workflow_id);
+        return workflow && (!version || workflow.version === version) ? workflow : undefined;
+    }
+
+    /** The activities this run and its child runs completed, with who performed them (30.6) */
+    tree(): PerformedEntry[] {
+        return [...this.engine.performed(), ...this.performed, ...[...this.live.values()].flatMap(child => child.performedRecord())];
+    }
+
+    /**
+     * The record separation of duties is decided on (30.6): that of the run of depth 0 and every one of its
+     * child runs, whichever of them decides
+     */
+    record(): PerformedEntry[] {
+        return this.engine.options().subworkflows?.record?.() ?? this.tree();
     }
 
     /** What a child run's `run.started` adds (24.2) */
@@ -235,7 +283,7 @@ export class SubworkflowCalls {
         const continued = inputs._subworkflow_continuation as { run_id?: UUID } | undefined;
         if (continued?.run_id && this.live.has(continued.run_id)) return this.conclude(continued.run_id, activity, context);
 
-        const workflow = this.registry.get(activity.expansion_workflow_id!);
+        const workflow = this.called(activity.expansion_workflow_id!);
         if (!workflow) {
             throw failure(`Activity "${activity.name}" calls workflow ${activity.expansion_workflow_id}, which is not registered with this engine`, SUBWORKFLOW_NOT_FOUND);
         }
@@ -260,7 +308,9 @@ export class SubworkflowCalls {
                 depth: this.depth + 1, input: context.payload ? context.payload(input) : input,
             },
         });
-        const child = this.engine.make(workflow, this.child_options(run_id, parent, this.depth + 1));
+        // A child run is started by whoever started the run of depth 0 (30.4)
+        const started_by = inputs._started_by as Principal | undefined;
+        const child = this.engine.make(workflow, { ...this.child_options(run_id, parent, this.depth + 1), principal: started_by });
         this.adopt(child);
         this.runs.push({
             run_id, parent_run_id: parent.run_id, workflow_id: workflow.id, workflow_name: workflow.name, node_id: activity.id,
@@ -318,7 +368,7 @@ export class SubworkflowCalls {
             // A child is saved with its parent, never on its own (24.8)
             checkpoint: undefined,
             journal_tail_seq: undefined,
-            subworkflows: { ...own, workflows: this.registry, parent, depth },
+            subworkflows: { ...own, workflows: this.registry, parent, depth, record: own.record ?? (() => this.tree()) },
         };
     }
 
@@ -332,6 +382,8 @@ export class SubworkflowCalls {
         const child = this.live.get(run_id);
         if (!child) return;
         this.refresh(child);
+        // What the child's activities were performed by stays on the record of the run (30.6)
+        this.performed.push(...child.performedRecord());
         this.live.delete(run_id);
         if (this.engine.options().subworkflows?.record_settled) {
             this.settled.push({ run_id, workflow_id: child.getWorkflow().id, state: child.snapshot() }, ...child.subworkflowStates());
@@ -413,10 +465,11 @@ export class SubworkflowCalls {
     }
 
     /** Complete a person's task in a child run (5.6). Undefined when no child holds the token. */
-    async resume(token_id: UUID, output: Record<string, unknown>): Promise<{ resumed: boolean; woken: number } | undefined> {
+    async resume(token_id: UUID, output: Record<string, unknown>, principal?: Principal): Promise<{ resumed: boolean; woken: number } | undefined> {
         for (const child of this.live.values()) {
             if (!child.ownsToken(token_id)) continue;
-            const resumed = await child.resumeToken(token_id, output);
+            // Who answers is held to the policy in the child run, as in any run (30.4)
+            const resumed = await child.resumeToken(token_id, output, principal);
             await child.run();
             return { resumed, woken: this.wake() };
         }
@@ -548,17 +601,20 @@ export class SubworkflowCalls {
     snapshot(): SubworkflowState | undefined {
         const live = [...this.live.values()].map(child => ({ run_id: child.getRunId(), workflow_id: child.getWorkflow().id, state: child.snapshot() }));
         if (!this.parent && !this.runs.length && !live.length) return undefined;
-        return { depth: this.depth, ...(this.parent ? { parent: this.parent } : {}), runs: this.list(), live };
+        return { depth: this.depth, ...(this.parent ? { parent: this.parent } : {}), runs: this.list(), live, ...(this.performed.length ? { performed: this.performed.map(p => ({ ...p })) } : {}) };
     }
 
     /** Rebuild the children a saved state holds, each from its own state, under the same deployment (24.8) */
     restore(saved: SubworkflowState | undefined, resumed: boolean): void {
         if (!saved) return;
         this.runs = (saved.runs || []).map(r => ({ ...r }));
+        this.performed = (saved.performed || []).map(p => ({ ...p }));
         const tails = this.engine.options().subworkflows?.journal_tails || {};
         for (const live of saved.live || []) {
-            const workflow = this.registry.get(live.workflow_id);
-            if (!workflow) throw new Error(`Run ${this.engine.run_id()} waits on child run ${live.run_id} of workflow ${live.workflow_id}, which is not registered. Nothing was changed.`);
+            // A child run goes on with the version it started on (25.1)
+            const version = live.state.workflow_version;
+            const workflow = this.version_of(live.workflow_id, version);
+            if (!workflow) throw new Error(`Run ${this.engine.run_id()} waits on child run ${live.run_id} of workflow ${live.workflow_id}${version ? ` version ${version}` : ''}, which is not registered. Nothing was changed.`);
             const own = (live.state.metadata?.subworkflows || {}) as SubworkflowState;
             const options = this.child_options(live.run_id, own.parent!, own.depth ?? this.depth + 1);
             const child = this.engine.restore(workflow, live.state, { ...options, ...(tails[live.run_id] ? { journal_tail_seq: tails[live.run_id] } : {}) }, resumed);

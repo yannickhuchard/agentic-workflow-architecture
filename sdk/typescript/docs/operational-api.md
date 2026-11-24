@@ -76,7 +76,7 @@ Registering a new version of a workflow (`POST /api/v1/journeys/definitions`) ke
 |---|---|
 | `GET /api/v1/journeys/workflows/{workflow_id}/versions` | The registered versions, oldest first, each with its live runs, and `newest`. 404 for a workflow not registered |
 | `POST /api/v1/journeys/migrations/check` | `{ workflow_id, from_version?, to_version?, plan? }`: each version with live runs compared with the version to move to, position by position (`compatible`, `needs_mapping` with `candidates`, `impossible`), and each run with whether it is `migratable` (25.4). 400 without `workflow_id` or for a version not registered |
-| `POST /api/v1/journeys/runs/{run_id}/migrate` | The body is the plan. Moves the run and answers the result (25.3): `{ applied, from_version, to_version, tokens, data_changes, status, refusals }`. With `?dry_run=true`, says what would happen and changes nothing. 409 when refused, with every reason in `refusals` (`code`, `message`, `token_id`, `node_id`); 404 when there is no such run |
+| `POST /api/v1/journeys/runs/{run_id}/migrate` | The body is the plan. Moves the run and answers the result (25.3): `{ applied, from_version, to_version, tokens, data_changes, status, refusals }`. With `?dry_run=true`, says what would happen and changes nothing. 409 when refused, with every reason in `refusals` (`code`, `message`, `token_id`, `node_id`); 404 when there is no such run. Under an authorization policy the caller must be allowed `migrate_run`, dry run included (403 `FORBIDDEN` otherwise), and `run.migrated` names them as `principal` (specification 30.4, 30.6) |
 
 ```bash
 curl -s -X POST 'localhost:3000/api/v1/journeys/runs/2b7e.../migrate?dry_run=true' -H 'content-type: application/json' -d '{"to_version":"2.0.0"}'
@@ -118,7 +118,7 @@ With `awa serve --a2a <file>`, each workflow named is an agent other agents can 
 |---|---|
 | `GET /a2a/{workflowId}/.well-known/agent-card.json` | The agent card: the workflow's name, description and version, its JSON-RPC interface, and one skill |
 | `GET /.well-known/agent-card.json` | The same, when one workflow is offered |
-| `POST /a2a/{workflowId}` | JSON-RPC 2.0. `SendMessage` starts a run with the message's data parts merged (text parts as `text`) and answers with the task, once the run has ended or waits, or at once with `configuration.returnImmediately`. `GetTask` and `CancelTask` by task id, which is the run id. A completed task has one artifact, `output`, holding the run's data |
+| `POST /a2a/{workflowId}` | JSON-RPC 2.0. `SendMessage` starts a run with the message's data parts merged (text parts as `text`) and answers with the task, once the run has ended or waits, or at once with `configuration.returnImmediately`. `GetTask` and `CancelTask` by task id, which is the run id. A completed task has one artifact, `output`, holding the run's data. Under an authorization policy the caller starts the run (`start_run`) and cancels it (`cancel_run`), and a refusal answers 403 `FORBIDDEN` (specification 30.4) |
 
 ```bash
 curl -s -X POST localhost:3000/a2a/<workflow id> -H 'content-type: application/json' -H 'A2A-Version: 1.0' \

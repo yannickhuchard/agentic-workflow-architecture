@@ -111,6 +111,8 @@ def mount_a2a(app: Any, workflows: list[Workflow], *, engine_options: Callable[[
     from fastapi import Request
     from fastapi.responses import JSONResponse
     from awa.runtime import WorkflowEngine
+    from awa.runtime.authorization import AuthorizationError
+    from awa.server.authorization import authorize_request, forbidden, request_principal
 
     by_id = {str(w.id): w for w in workflows}
     tasks: "OrderedDict[str, _Served]" = OrderedDict()
@@ -170,7 +172,13 @@ def mount_a2a(app: Any, workflows: list[Workflow], *, engine_options: Callable[[
                 # A run takes no further input over A2A once started
                 if message.get("taskId"):
                     return fail(ERRORS["unsupported"], "A task of this agent takes no further messages: each message starts a new run")
-                engine = WorkflowEngine(workflow, options=dict(engine_options() if engine_options else {}))
+                # The caller starts the run (30.1): a start the policy refuses leaves no run and answers 403
+                principal = request_principal(request)
+                engine = WorkflowEngine(workflow, options={**(engine_options() if engine_options else {}), "principal": principal})
+                try:
+                    engine.authorize_start(message_input(message["parts"]))
+                except AuthorizationError as error:
+                    return forbidden(error, principal)
                 served = _Served(engine, workflow_id, message.get("contextId") or str(uuid4()))
                 task_id = engine.run_id
                 keep(task_id, served)
@@ -193,6 +201,10 @@ def mount_a2a(app: Any, workflows: list[Workflow], *, engine_options: Callable[[
                     return reply(_task(str(params["id"]), served))
                 if served.engine.status.value in ENDED:
                     return fail(ERRORS["task_not_cancelable"], f"Task {params['id']} has ended")
+                refused = authorize_request("cancel_run", request_principal(request),
+                                            {"workflow_id": workflow_id, "workflow_name": workflow.name, "run_id": str(params["id"])})
+                if refused is not None:
+                    return refused
                 served.engine.cancel("Cancelled by the caller over A2A")
                 return reply(_task(str(params["id"]), served))
             if method in UNSUPPORTED:

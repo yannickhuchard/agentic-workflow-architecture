@@ -5,7 +5,8 @@
  * `/a2a/<workflow id>/.well-known/agent-card.json`, and the A2A 1.0 JSON-RPC
  * methods SendMessage, GetTask and CancelTask at `/a2a/<workflow id>`. When one
  * workflow is offered, its card is also at `/.well-known/agent-card.json`.
- * A message starts a run; the task is the run.
+ * A message starts a run; the task is the run. Under a policy (spec 30.4) the
+ * caller is who starts the run (`start_run`) and who cancels it (`cancel_run`).
  */
 
 import { randomUUID } from 'crypto';
@@ -13,6 +14,8 @@ import { Request, Response, Router } from 'express';
 import { Workflow } from '../types';
 import { WorkflowEngine, WorkflowEngineOptions } from '../runtime/workflow_engine';
 import { A2A_PROTOCOL_VERSION, A2APart, A2ATask, AgentCard, TASK_STATES } from '../runtime/protocols/a2a';
+import { AuthorizationError } from '../runtime/authorization';
+import { authorize_request, forbidden, request_principal } from './authorization';
 
 export interface A2AServeOptions {
     /** Options of the engines that perform the runs: the deployment's tools, agents, journal, model providers */
@@ -149,8 +152,13 @@ export function a2a_routes(workflows: Workflow[], options: A2AServeOptions = {})
                     if (!message || !Array.isArray(message.parts)) return fail(ERRORS.invalid_params, 'SendMessage needs a message with parts');
                     // A run takes no further input over A2A once started
                     if (message.taskId) return fail(ERRORS.unsupported, 'A task of this agent takes no further messages: each message starts a new run');
-                    const engine = new WorkflowEngine(workflow, { ...(options.engine?.() || {}) });
-                    await engine.start(message_input(message.parts));
+                    // The caller starts the run (spec 30.1): a start the policy refuses leaves no run and answers 403
+                    const principal = request_principal(req);
+                    const engine = new WorkflowEngine(workflow, { ...(options.engine?.() || {}), principal });
+                    try { await engine.start(message_input(message.parts)); } catch (error) {
+                        if (error instanceof AuthorizationError) return forbidden(res, error, principal);
+                        throw error;
+                    }
                     const id = engine.getRunId();
                     const served: Served = { engine, workflow_id: workflow.id, context_id: typeof message.contextId === 'string' && message.contextId ? message.contextId : randomUUID(), running: Promise.resolve() };
                     served.running = engine.run().catch(error => console.error(`Run ${id} failed:`, error));
@@ -167,6 +175,7 @@ export function a2a_routes(workflows: Workflow[], options: A2AServeOptions = {})
                     const served = tasks.get(String(params.id));
                     if (!served || served.workflow_id !== workflow.id) return fail(ERRORS.task_not_found, `Task ${params.id} was not found`);
                     if (ENDED.has(served.engine.getStatus())) return fail(ERRORS.task_not_cancelable, `Task ${params.id} has ended`);
+                    if (!await authorize_request(req, res, 'cancel_run', { workflow_id: workflow.id, workflow_name: workflow.name, run_id: String(params.id) })) return;
                     await served.engine.cancel('Cancelled by the caller over A2A');
                     return reply(task_of(String(params.id), served));
                 }

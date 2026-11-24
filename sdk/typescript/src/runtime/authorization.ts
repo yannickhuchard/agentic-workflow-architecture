@@ -488,8 +488,8 @@ export interface RunAuthorizationHost {
     workflow: Workflow;
     roles: Map<string, Role>;
     record: (event: JournalEventInput) => void;
-    /** The activities completed in the run, with who performed them */
-    performed: () => { activity_id: string; principal_ids?: string[] }[];
+    /** The activities completed in the run and in the runs it is one record with (its child runs and their parents, 24), with who performed them */
+    performed: () => { activity_id: string; activity_name?: string; principal_ids?: string[] }[];
 }
 
 /** The engine's side of authorization: one per run */
@@ -510,7 +510,7 @@ export class RunAuthorization {
             ...(started?.id ? { started_by: started.id } : {}),
             performed: this.host.performed().filter(p => (p.principal_ids || []).length > 0).map(p => ({
                 activity_id: p.activity_id,
-                activity_name: this.host.workflow.activities.find(a => a.id === p.activity_id)?.name,
+                activity_name: p.activity_name ?? this.host.workflow.activities.find(a => a.id === p.activity_id)?.name,
                 principal_ids: p.principal_ids || [],
             })),
             ...(approvals ? { approvals } : {}),

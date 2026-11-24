@@ -22,9 +22,9 @@ import { WorkflowEngine, WorkflowEngineOptions } from './workflow_engine';
 import { ShadowOptions, ShadowRunner } from './shadow';
 import { JourneyTelemetry, TelemetrySetting, resolve_telemetry } from './telemetry_export';
 import { HostView, SharedJournal, SharedOperation, SharedRuntimeStore, StoredRun } from './shared_store';
-import { Principal } from './authorization';
+import { HOST_PRINCIPAL, Principal, principal_ref } from './authorization';
 import { MigrationPlan, MigrationRefusalCode, MigrationResult, VersionComparison, compare_semver, compare_versions, plan_migration } from './migration';
-import { called_workflows, record_child_runs } from './subworkflow';
+import { SubworkflowOptions, called_workflows, record_child_runs } from './subworkflow';
 import fs from 'fs/promises';
 import { rmSync } from 'fs';
 import path from 'path';
@@ -316,8 +316,20 @@ export class AwaRuntime {
             ...(this.run_telemetry ? { telemetry: this.run_telemetry } : {}),
             ...this.options.engine, now: this.options.now, ...(this.shared_journal ? { journal: this.shared_journal } : {}),
             // Call activities run the workflows registered here (24.1); a shared store keeps each child run (24.8)
-            subworkflows: { workflows: this.workflows, ...(this.options.shared ? { record_settled: true } : {}), ...this.options.engine?.subworkflows },
+            subworkflows: { ...this.subworkflow_options(), ...(this.options.shared ? { record_settled: true } : {}), ...this.options.engine?.subworkflows },
             event_sink: async event => { this.outbox.set(run_id(), [...(this.outbox.get(run_id()) || []), event]); await outer_sink?.(event); },
+        };
+    }
+
+    /**
+     * The workflows call activities run (24.1): a new child run starts on the version a new run of the called
+     * workflow would start on here, and a child run keeps its version when restored or taken up (25.1)
+     */
+    private subworkflow_options(): SubworkflowOptions {
+        return {
+            workflows: this.workflows,
+            version: (workflow_id, version) => version ? this.workflow_of(workflow_id, version)
+                : this.get_workflow(workflow_id, this.options.pinned_versions?.[workflow_id]),
         };
     }
 
@@ -616,9 +628,11 @@ export class AwaRuntime {
     /**
      * Move a run at rest to another registered version of its workflow (spec 25.3): the newest,
      * or `plan.to_version`. The plan is checked in full first; a refusal names its reasons and
-     * changes nothing. With `dry_run`, says what would happen and changes nothing either.
+     * changes nothing. With `dry_run`, says what would happen and changes nothing either. `principal` is who moves
+     * the run, recorded on `run.migrated` where the deployment has an authorization section (spec 30.6); whether they
+     * may is decided by the route or command that calls this (30.4).
      */
-    async migrate(run_id: string, plan: MigrationPlan = {}, options: { dry_run?: boolean } = {}): Promise<MigrationResult> {
+    async migrate(run_id: string, plan: MigrationPlan = {}, options: { dry_run?: boolean; principal?: Principal } = {}): Promise<MigrationResult> {
         const dry_run = !!options.dry_run;
         const refused = (code: MigrationRefusalCode, message: string, extra: Partial<MigrationResult> = {}): MigrationResult => ({
             run_id, workflow_id: plan.workflow_id ?? '', from_version: '', to_version: plan.to_version ?? '', applied: false, dry_run,
@@ -647,6 +661,8 @@ export class AwaRuntime {
                     ...(c.value !== undefined ? { value: payload(c.value) } : {}), ...(c.previous !== undefined ? { previous: payload(c.previous) } : {}),
                 })),
                 ...(result.completed_work.length ? { completed_work: result.completed_work } : {}),
+                // Who moved the run, where the deployment has an authorization section (spec 30.6)
+                ...(this.options.engine?.authorization ? { principal: principal_ref(options.principal || this.options.engine.authorization.host_principal || HOST_PRINCIPAL) } : {}),
             }));
             this.runs.set(run_id, moved);
             const instance = this.instances.get(this.run_journey.get(run_id) || '');
@@ -813,7 +829,7 @@ export class AwaRuntime {
             for (const saved of kept.runs) {
                 const workflow = this.workflow_of(saved.workflow_id, saved.state.workflow_version);
                 if (!workflow) continue;
-                this.runs.set(saved.run_id, WorkflowEngine.restore(workflow, saved.state, { ...this.options.engine, now: this.options.now, journal: shared.journal, subworkflows: { workflows: this.workflows, ...this.options.engine?.subworkflows } }, false));
+                this.runs.set(saved.run_id, WorkflowEngine.restore(workflow, saved.state, { ...this.options.engine, now: this.options.now, journal: shared.journal, subworkflows: { ...this.subworkflow_options(), ...this.options.engine?.subworkflows } }, false));
                 if (saved.journey_instance_id) this.run_journey.set(saved.run_id, saved.journey_instance_id);
             }
         });

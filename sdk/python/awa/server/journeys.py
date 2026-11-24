@@ -189,10 +189,22 @@ def check_migration(body: dict[str, Any] | None = Body(default=None)) -> dict[st
 
 
 @journey_router.post("/runs/{run_id}/migrate")
-def migrate_run(run_id: str, body: dict[str, Any] | None = Body(default=None), dry_run: str | None = None) -> JSONResponse:
+def migrate_run(run_id: str, request: Request, body: dict[str, Any] | None = Body(default=None), dry_run: str | None = None) -> JSONResponse:
     """Move a run at rest to another version: the body is the plan, and ?dry_run=true says what would happen without doing it"""
+    principal = request_principal(request)
     with _guard:
-        result = _host().migrate(run_id, body or {}, dry_run=dry_run in ("true", "1"))
+        # Who moves a run must be allowed to, under a policy (30.4); a dry run is part of moving it
+        host = _host()
+        if host.get_run(run_id) is None:
+            host.refresh()
+        engine = host.get_run(run_id)
+        resource = {**({"workflow_id": str(engine.workflow.id), "workflow_name": engine.workflow.name} if engine is not None else {}),
+                    "run_id": run_id}
+        refused = authorize_request("migrate_run", principal, resource)
+        if refused is not None:
+            return refused
+        result = host.migrate(run_id, body or {}, dry_run=dry_run in ("true", "1"),
+                              principal=principal if server_authorization() is not None else None)
     codes = [r["code"] for r in result["refusals"]]
     return JSONResponse(result, status_code=404 if "not_found" in codes else 409 if codes else 200)
 

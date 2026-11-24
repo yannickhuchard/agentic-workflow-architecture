@@ -468,7 +468,7 @@ plan = {
     "data": [{"set": "currency", "value": "EUR"}, {"set": "priority", "expression": "amount > 1000"}, {"remove": "legacy_code"}],
 }
 runtime.migrate(run_id, plan, dry_run=True)    # what would happen: tokens, data changes, or every refusal with its code
-runtime.migrate(run_id, plan)                  # applied as one change, recorded in the journal as run.migrated
+runtime.migrate(run_id, plan, principal=who)   # applied as one change, recorded in the journal as run.migrated, naming who under authorization
 runtime.check_migration(workflow_id)           # each position of the older versions: compatible, needs_mapping or impossible; each run: migratable
 ```
 

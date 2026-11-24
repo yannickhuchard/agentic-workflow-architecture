@@ -22,6 +22,7 @@ from typing import Any, Callable, Protocol
 from uuid import uuid4
 
 from awa.runtime.telemetry_export import JourneyTelemetry, resolve_telemetry
+from awa.runtime.authorization import HOST_PRINCIPAL, principal_ref
 from awa.runtime.business_event import BusinessEvent
 from awa.runtime.expression import resolve_path
 from awa.runtime.journal import FileJournalStore, public_payload
@@ -407,6 +408,15 @@ class AwaRuntime:
 
     # -- runs ---------------------------------------------------------------
 
+    def _subworkflow_options(self) -> dict[str, Any]:
+        """
+        The workflows call activities run (24.1): a new child run starts on the version a new run of the called
+        workflow would start on here, and a child run keeps its version when restored or taken up (25.1)
+        """
+        def version(workflow_id: str, version: str | None) -> Workflow | None:
+            return self.get_workflow(workflow_id, version or self._pinned_versions.get(str(workflow_id)))
+        return {"workflows": self._workflows, "version": version}
+
     def _engine_options(self, run_id: str) -> dict[str, Any]:
         outer_sink = self._engine_defaults.get("event_sink")
 
@@ -418,7 +428,7 @@ class AwaRuntime:
 
         options = {**self._engine_defaults, "run_id": run_id, "event_sink": sink,
                    # Call activities run the workflows registered here (24.1); a shared store keeps each child run (24.8)
-                   "subworkflows": {"workflows": self._workflows, **({"record_settled": True} if self._shared is not None else {}),
+                   "subworkflows": {**self._subworkflow_options(), **({"record_settled": True} if self._shared is not None else {}),
                                     **(self._engine_defaults.get("subworkflows") or {})}}
         if self._shared_journal is not None:
             options["journal"] = self._shared_journal
@@ -759,11 +769,14 @@ class AwaRuntime:
 
     # -- changing a workflow while runs are in flight (25) ----------------------
 
-    def migrate(self, run_id: str, plan: dict[str, Any] | None = None, *, dry_run: bool = False) -> dict[str, Any]:
+    def migrate(self, run_id: str, plan: dict[str, Any] | None = None, *, dry_run: bool = False,
+                principal: dict[str, Any] | None = None) -> dict[str, Any]:
         """
         Move a run at rest to another registered version of its workflow (25.3): the newest, or
         `plan["to_version"]`. The plan is checked in full first; a refusal names its reasons and
-        changes nothing. With `dry_run`, says what would happen and changes nothing either.
+        changes nothing. With `dry_run`, says what would happen and changes nothing either. `principal`
+        is who moves the run, recorded on `run.migrated` where the deployment has an authorization section
+        (30.6); whether they may is decided by the route or command that calls this (30.4).
         """
         plan = dict(plan or {})
 
@@ -801,7 +814,11 @@ class AwaRuntime:
                                       **({"value": payload(c["value"])} if "value" in c else {}),
                                       **({"previous": payload(c["previous"])} if "previous" in c else {})} for c in result["data_changes"]],
                     **({"completed_work": result["completed_work"]} if result["completed_work"] else {}),
+                    # Who moved the run, where the deployment has an authorization section (30.6)
+                    **({"principal": principal_ref(principal or authorization.get("host_principal") or HOST_PRINCIPAL)}
+                       if authorization is not None else {}),
                 }
+            authorization = self._engine_defaults.get("authorization")
             moved.record_migrated(data)
             self._runs[run_id] = moved
             instance = self._instances.get(self._run_journey.get(run_id) or "")
@@ -987,7 +1004,7 @@ class AwaRuntime:
             self._instances = {i["id"]: i for i in kept["instances"]}
             self._runs, self._run_order, self._run_journey, self._outbox = {}, [], {}, {}
             options = {**self._engine_defaults, "journal": self._shared.journal,
-                       "subworkflows": {"workflows": self._workflows, **(self._engine_defaults.get("subworkflows") or {})}}
+                       "subworkflows": {**self._subworkflow_options(), **(self._engine_defaults.get("subworkflows") or {})}}
             if self._clock:
                 options["now"] = self._clock
             for saved in kept["runs"]:
