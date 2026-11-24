@@ -260,6 +260,11 @@ class _PostgresUnit:
         rows = self._run("SELECT pg_try_advisory_xact_lock(hashtextextended(%s, 0)) AS held", (f"awa:{partition}",))
         return bool(rows[0]["held"])
 
+    def lock_waits(self, keys: list[str], mode: str) -> None:
+        lock = "pg_advisory_xact_lock_shared" if mode == "shared" else "pg_advisory_xact_lock"
+        for key in keys:
+            self._run(f"SELECT {lock}(hashtextextended(%s, 0))", (f"awa:{key}",))
+
     def waiting_for(self, type: str) -> list[dict[str, Any]]:
         rows = self._run("SELECT partition_key, waits FROM awa_runtime.runs WHERE waits_for @> ARRAY[%s]::text[]", (type,))
         return [{"partition": r["partition_key"], "waits": r["waits"] or []} for r in rows]
@@ -367,6 +372,8 @@ class PostgresRuntimeStore:
         self._lock = threading.RLock()
         self._connection: Any = None
         self._closed = False
+        # How many operations were begun again because they met another host's: a measure of contention
+        self.retries = 0
         self.journal = _Journal(self._query)
         try:
             self._migrate()
@@ -440,6 +447,7 @@ class PostgresRuntimeStore:
                     code = getattr(error, "sqlstate", None)
                     if attempt < self._attempts and (isinstance(error, StoreConflict) or code in _RETRYABLE):
                         # Another host's operation was in the way: begin again, a little later, from what it kept
+                        self.retries += 1
                         time.sleep(min(0.2, 0.005 * attempt) * random.random())
                         continue
                     raise

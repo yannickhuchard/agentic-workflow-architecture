@@ -250,6 +250,11 @@ class PostgresUnit implements StoreUnit {
         return rows[0].held === true;
     }
 
+    async lock_waits(keys: string[], mode: 'shared' | 'exclusive'): Promise<void> {
+        const lock = mode === 'shared' ? 'pg_advisory_xact_lock_shared' : 'pg_advisory_xact_lock';
+        for (const key of keys) await this.client.query(`SELECT ${lock}(hashtextextended($1, 0))`, [`awa:${key}`]);
+    }
+
     async waiting_for(type: string): Promise<{ partition: string; waits: RunWait[] }[]> {
         const { rows } = await this.client.query('SELECT partition_key, waits FROM awa_runtime.runs WHERE waits_for @> ARRAY[$1]::text[]', [type]);
         return rows.map(r => ({ partition: String(r.partition_key), waits: (r.waits as RunWait[]) || [] }));
@@ -345,6 +350,8 @@ class PostgresUnit implements StoreUnit {
 export class PostgresRuntimeStore implements SharedRuntimeStore {
     readonly host_id: string;
     private attempts: number;
+    /** How many operations were begun again because they met another host's: a measure of contention */
+    retries = 0;
 
     private constructor(private pool: Pool, private options: PostgresRuntimeStoreOptions) {
         this.host_id = options.host_id || `${os.hostname()}:${process.pid}:${randomUUID().slice(0, 8)}`;
@@ -411,6 +418,7 @@ export class PostgresRuntimeStore implements SharedRuntimeStore {
                 const code = (error as { code?: string }).code;
                 if (attempt < this.attempts && (error instanceof StoreConflict || (code && RETRYABLE.has(code)))) {
                     // Another host's operation was in the way: begin again, a little later, from what it kept
+                    this.retries++;
                     await new Promise(resolve => setTimeout(resolve, Math.min(200, 5 * attempt) * Math.random()));
                     continue;
                 }

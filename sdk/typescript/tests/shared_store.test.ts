@@ -189,6 +189,7 @@ suite('PostgreSQL runtime store (spec 29)', () => {
         await run_phase(phase('notes', SUBJECTS, NOTES));
         await run_phase(phase('documents', SUBJECTS, NOTES));
         await Promise.all(hosts.map(h => h.tick()));
+        const retries = hosts.reduce((n, h) => n + (h.shared_store as PostgresRuntimeStore).retries, 0);
         await Promise.all(hosts.map(h => h.close()));
 
         const distinct = SUBJECTS * (2 + NOTES);
@@ -207,7 +208,7 @@ suite('PostgreSQL runtime store (spec 29)', () => {
             expect(i.status).toBe('completed');
             expect(i.runs.map(r => r.status)).toEqual(['completed']);
         }
-        console.log(`[shared store, one process] ${HOSTS} hosts, ${given} deliveries of ${distinct} events (${given - distinct} duplicates), ${accepted} accepted, ${counts.journal_events} journal events, ${counts.journey_events} journey events, ${counts.duplicates} applied twice`);
+        console.log(`[shared store, one process] ${HOSTS} hosts, ${given} deliveries of ${distinct} events (${given - distinct} duplicates), ${accepted} accepted, ${counts.journal_events} journal events, ${counts.journey_events} journey events, ${retries} operations begun again, ${counts.duplicates} applied twice`);
     }, 120_000);
 
     it('several processes take a burst of events and ticks at once: each event applied once, every record without a gap', async () => {
@@ -283,6 +284,49 @@ suite('PostgreSQL runtime store (spec 29)', () => {
         expect(claim.events.filter(e => e.type === 'journey.started')).toHaveLength(1);
         console.log(`[shared store, killed process] the survivor waited ${waited} ms for the killed host's subject; 3 events accepted once each`);
     }, 60_000);
+
+    it('an event and a run that starts waiting for it on another host at the same moment do not miss one another', async () => {
+        const url = await server.database();
+        const n = (i: number) => `3a7c9e1b-5d2f-4a6b-8c0d-${String(i).padStart(12, '0')}`;
+        // A run outside any journey, started by one event, that waits for another correlated by k: its partition is its own
+        const pinger = {
+            id: n(100), name: 'Pinger', version: '1.0.0', awa_version: '1.1',
+            activities: [{ id: n(1), name: 'Prepare', role_id: n(9), actor_type: 'application' }, { id: n(2), name: 'Done', role_id: n(9), actor_type: 'application' }],
+            events: [{ id: n(3), name: 'Go', event_type: 'start', event_definition: { name: 'start.go' } },
+            { id: n(4), name: 'Ping', event_type: 'message', event_definition: { name: 'ping', correlation_key: 'k' } }],
+            edges: [{ id: n(5), source_id: n(3), target_id: n(1) }, { id: n(6), source_id: n(1), target_id: n(4) }, { id: n(7), source_id: n(4), target_id: n(2) }],
+        };
+        const store = await PostgresRuntimeStore.open(url);
+        await store.add_definition(pinger);
+        await store.close();
+        let release!: () => void;
+        const held = new Promise<void>(resolve => { release = resolve; });
+        let paused!: () => void;
+        const pausing = new Promise<void>(resolve => { paused = resolve; });
+        // Host a keeps its run waiting for the ping, and pauses just before its operation is kept
+        const a = await host(url, new LoadActor(), { host_id: 'a', before_commit: async () => { paused(); await held; } });
+        const b = await host(url, new LoadActor(), { host_id: 'b' });
+        const c = await host(url, new LoadActor(), { host_id: 'c' });
+        const started = a.publish({ specversion: '1.0', id: 'go-1', source: '/test', type: 'start.go', data: { k: '1' } });
+        await pausing;
+        let pinged: Awaited<ReturnType<AwaRuntime['publish']>> | undefined;
+        const ping = b.publish({ specversion: '1.0', id: 'ping-1', source: '/test', type: 'ping', data: { k: '1' } }).then(r => { pinged = r; });
+        await new Promise(resolve => setTimeout(resolve, 300));
+        // The ping waits: it may reach the wait host a is keeping, so it is not looked for until that is kept
+        expect(pinged).toBeUndefined();
+        // Another ping, for another correlation, does not wait
+        expect((await c.publish({ specversion: '1.0', id: 'ping-2', source: '/test', type: 'ping', data: { k: '2' } })).resumed_runs).toEqual([]);
+        release();
+        const run_id = (await started).started_runs[0];
+        await ping;
+        expect(pinged!.resumed_runs).toEqual([run_id]);
+        await a.close(); await b.close(); await c.close();
+        const reader = await host(url);
+        await reader.refresh();
+        expect(reader.get_run(run_id)!.getStatus()).toBe('completed');
+        await reader.close();
+        await audit(url);
+    }, 30_000);
 
     it('a host that hangs loses its partitions when its lease runs out, and keeps nothing', async () => {
         const url = await server.database();

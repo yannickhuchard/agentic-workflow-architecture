@@ -220,6 +220,8 @@ def test_several_host_objects_take_a_burst_of_events_and_ticks_at_once(postgres)
             list(pool.map(take, range(HOSTS), queues))
     for h in hosts:
         h.tick()
+    retries = sum(h.shared_store.retries for h in hosts)
+    for h in hosts:
         h.close()
 
     distinct = SUBJECTS * (2 + NOTES)
@@ -238,7 +240,7 @@ def test_several_host_objects_take_a_burst_of_events_and_ticks_at_once(postgres)
         assert i["status"] == "completed" and [r["status"] for r in i["runs"]] == ["completed"]
     print(f"[shared store, one process] {HOSTS} hosts, {totals['given']} deliveries of {distinct} events "
           f"({totals['given'] - distinct} duplicates), {totals['accepted']} accepted, {counts['journal_events']} journal events, "
-          f"{counts['journey_events']} journey events, {counts['duplicates']} applied twice")
+          f"{counts['journey_events']} journey events, {retries} operations begun again, {counts['duplicates']} applied twice")
 
 
 def run_workers(url, plans, directory):
@@ -316,6 +318,61 @@ def test_a_process_killed_mid_operation_keeps_nothing_and_another_host_takes_ove
     assert claim["status"] == "completed"
     assert [e["type"] for e in claim["events"]].count("journey.started") == 1
     print(f"[shared store, killed process] the survivor waited {done['waited'] * 1000:.0f} ms for the killed host's subject")
+
+
+def test_an_event_and_a_run_starting_to_wait_for_it_on_another_host_do_not_miss_one_another(postgres):
+    from awa.runtime.postgres_store import PostgresRuntimeStore
+
+    def n(i):
+        return f"3a7c9e1b-5d2f-4a6b-8c0d-{i:012d}"
+    # A run outside any journey, started by one event, that waits for another correlated by k: its partition is its own
+    pinger = {"id": n(100), "name": "Pinger", "version": "1.0.0", "awa_version": "1.1",
+              "activities": [{"id": n(1), "name": "Prepare", "role_id": n(9), "actor_type": "application"},
+                             {"id": n(2), "name": "Done", "role_id": n(9), "actor_type": "application"}],
+              "events": [{"id": n(3), "name": "Go", "event_type": "start", "event_definition": {"name": "start.go"}},
+                         {"id": n(4), "name": "Ping", "event_type": "message", "event_definition": {"name": "ping", "correlation_key": "k"}}],
+              "edges": [{"id": n(5), "source_id": n(3), "target_id": n(1)}, {"id": n(6), "source_id": n(1), "target_id": n(4)},
+                        {"id": n(7), "source_id": n(4), "target_id": n(2)}]}
+    url = postgres.database()
+    store = PostgresRuntimeStore(url)
+    store.add_definition(pinger)
+    store.close()
+    paused, release = threading.Event(), threading.Event()
+
+    def pause():
+        paused.set()
+        release.wait(10)
+    # Host a keeps its run waiting for the ping, and pauses just before its operation is kept
+    a, b, c = host(url, host_id="a", before_commit=pause), host(url, host_id="b"), host(url, host_id="c")
+    results = {}
+
+    def start():
+        results["started"] = a.publish({"specversion": "1.0", "id": "go-1", "source": "/test", "type": "start.go", "data": {"k": "1"}})
+
+    def ping():
+        results["pinged"] = b.publish({"specversion": "1.0", "id": "ping-1", "source": "/test", "type": "ping", "data": {"k": "1"}})
+    starting = threading.Thread(target=start)
+    starting.start()
+    assert paused.wait(10)
+    pinging = threading.Thread(target=ping)
+    pinging.start()
+    time.sleep(0.3)
+    # The ping waits: it may reach the wait host a is keeping, so it is not looked for until that is kept
+    assert "pinged" not in results
+    # Another ping, for another correlation, does not wait
+    assert c.publish({"specversion": "1.0", "id": "ping-2", "source": "/test", "type": "ping", "data": {"k": "2"}})["resumed_runs"] == []
+    release.set()
+    starting.join()
+    pinging.join()
+    run_id = results["started"]["started_runs"][0]
+    assert results["pinged"]["resumed_runs"] == [run_id]
+    for h in (a, b, c):
+        h.close()
+    reader = host(url)
+    reader.refresh()
+    assert reader.get_run(run_id).status.value == "completed"
+    reader.close()
+    audit(url)
 
 
 def test_a_host_that_hangs_loses_its_partitions_when_its_lease_runs_out(postgres):

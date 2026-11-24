@@ -72,6 +72,12 @@ export interface StoreUnit {
     hold(partitions: string[]): Promise<void>;
     /** Hold this partition if no other operation does; false, at once, when one does */
     try_hold(partition: string): Promise<boolean>;
+    /**
+     * Hold these wait keys until the operation ends: shared by operations that look for the runs an event
+     * may reach, exclusive for one that keeps a run newly waiting. So an event and a new wait for it are
+     * never both unseen by one another (29.3).
+     */
+    lock_waits(keys: string[], mode: 'shared' | 'exclusive'): Promise<void>;
     /** The runs that wait for an event of this type: their partitions and what they wait for */
     waiting_for(type: string): Promise<{ partition: string; waits: RunWait[] }[]>;
     /** The partitions in which time acts at or before this instant */
@@ -128,6 +134,25 @@ export function run_waits_for(state: WorkflowState): string[] {
     return [...new Set(run_waits(state).map(w => w.name))].sort();
 }
 
+/** The key that orders a wait against the events that may reach it: its type, and its correlation if it has one */
+export function wait_key(wait: RunWait): string {
+    return wait.correlation_key ? `wait:${wait.name}:${wait.correlation_key}=${String(wait.correlation_value)}` : `wait:${wait.name}`;
+}
+
+/** The wait keys of every wait an event may reach, given the correlation keys the workflows use for its type */
+export function event_wait_keys(event: BusinessEvent, workflows: Iterable<Workflow>): string[] {
+    const keys = new Set([`wait:${event.type}`]);
+    for (const workflow of workflows) {
+        for (const node of workflow.events || []) {
+            const definition = node.event_definition as { name?: string; correlation_key?: string } | undefined;
+            if (node.event_type === 'message' && definition?.name === event.type && definition.correlation_key) {
+                keys.add(wait_key({ name: event.type, correlation_key: definition.correlation_key, correlation_value: resolve_path(event.data || {}, definition.correlation_key) }));
+            }
+        }
+    }
+    return [...keys].sort();
+}
+
 /** Whether an event may reach a waiting token: as the engine decides it (18.3) */
 export function may_reach(wait: RunWait, event: BusinessEvent): boolean {
     if (wait.name !== event.type) return false;
@@ -180,7 +205,7 @@ const run_text = (state: WorkflowState, outbox: BusinessEvent[]) => JSON.stringi
 export class SharedOperation {
     private held = new Set<string>();
     private kept_instances = new Map<string, { text: string; events: number; version: number }>();
-    private kept_runs = new Map<string, { text: string; version: number }>();
+    private kept_runs = new Map<string, { text: string; version: number; waits: string[] }>();
 
     constructor(readonly unit: StoreUnit, private view: HostView) { }
 
@@ -203,7 +228,7 @@ export class SharedOperation {
         }
         for (const kept of runs) {
             if (!this.view.workflows.has(kept.workflow_id)) throw new Error(`Run ${kept.run_id} needs workflow ${kept.workflow_id}, which is not registered on this host. Nothing was changed.`);
-            this.kept_runs.set(kept.run_id, { text: run_text(kept.state, kept.outbox), version: kept.version });
+            this.kept_runs.set(kept.run_id, { text: run_text(kept.state, kept.outbox), version: kept.version, waits: kept.waits.map(wait_key) });
             if (kept.outbox.length) this.view.outbox.set(kept.run_id, [...kept.outbox]);
             if (kept.journey_instance_id) this.view.run_journey.set(kept.run_id, kept.journey_instance_id);
             this.view.runs.set(kept.run_id, this.view.adopt(kept));
@@ -225,6 +250,8 @@ export class SharedOperation {
             if (key !== undefined && key !== null) subjects.push(subject_partition(String(key)));
         }
         await this.hold(subjects);
+        // No operation may keep a new wait this event could reach until this one has looked for the waits there are
+        await this.unit.lock_waits(event_wait_keys(event, this.view.workflows.values()), 'shared');
         // A run may start waiting in a partition not yet held while this one waited: ask again until nothing new appears.
         // Only runs whose correlation the event matches are held, so that events about different subjects do not wait for one another.
         for (; ;) {
@@ -272,6 +299,9 @@ export class SharedOperation {
                 due_at: run_due(workflow, state), waits_for: run_waits_for(state), waits: run_waits(state), version: kept?.version ?? 0,
             });
         }
+        // A wait that is new must not be kept while an event that could reach it is being accepted unseen (29.3)
+        const new_waits = runs.flatMap(r => r.waits.map(wait_key).filter(k => !this.kept_runs.get(r.run_id)?.waits.includes(k)));
+        if (new_waits.length) await this.unit.lock_waits([...new Set(new_waits)].sort(), 'exclusive');
         await this.unit.write(instances, runs);
     }
 }

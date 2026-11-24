@@ -51,6 +51,8 @@ class StoreUnit(Protocol):
 
     def try_hold(self, partition: str) -> bool: ...
 
+    def lock_waits(self, keys: list[str], mode: str) -> None: ...
+
     def waiting_for(self, type: str) -> list[dict[str, Any]]: ...
 
     def due(self, now: float) -> list[str]: ...
@@ -115,6 +117,30 @@ def run_waits(state: dict[str, Any]) -> list[dict[str, Any]]:
 def run_waits_for(state: dict[str, Any]) -> list[str]:
     """The business event types a run's waiting tokens wait for"""
     return sorted({w["name"] for w in run_waits(state)})
+
+
+def wait_key(wait: dict[str, Any]) -> str:
+    """The key that orders a wait against the events that may reach it: its type, and its correlation if it has one"""
+    from awa.runtime.workflow_engine import _ABSENT, _as_text
+    if wait.get("correlation_key"):
+        return f"wait:{wait['name']}:{wait['correlation_key']}={_as_text(wait.get('correlation_value', _ABSENT))}"
+    return f"wait:{wait['name']}"
+
+
+def event_wait_keys(event: BusinessEvent, workflows: Any) -> list[str]:
+    """The wait keys of every wait an event may reach, given the correlation keys the workflows use for its type"""
+    from awa.runtime.workflow_engine import _ABSENT
+    data: dict[str, Any] = event["data"] if isinstance(event.get("data"), dict) else {}
+    keys = {f"wait:{event['type']}"}
+    for workflow in workflows:
+        for node in workflow.events or []:
+            definition = node.event_definition or {}
+            if node.event_type == "message" and definition.get("name") == event["type"] and definition.get("correlation_key"):
+                key = definition["correlation_key"]
+                value = resolve_path(data, key, _ABSENT)
+                keys.add(wait_key({"name": event["type"], "correlation_key": key,
+                                   **({} if value is _ABSENT else {"correlation_value": value})}))
+    return sorted(keys)
 
 
 def may_reach(wait: dict[str, Any], event: BusinessEvent) -> bool:
@@ -226,7 +252,8 @@ class SharedOperation:
             if kept["workflow_id"] not in self._view.workflows:
                 raise RuntimeError(f"Run {kept['run_id']} needs workflow {kept['workflow_id']}, "
                                    "which is not registered on this host. Nothing was changed.")
-            self._kept_runs[kept["run_id"]] = {"text": _run_text(kept["state"], kept["outbox"]), "version": kept["version"]}
+            self._kept_runs[kept["run_id"]] = {"text": _run_text(kept["state"], kept["outbox"]), "version": kept["version"],
+                                               "waits": [wait_key(w) for w in kept["waits"]]}
             if kept["outbox"]:
                 self._view.outbox[kept["run_id"]] = list(kept["outbox"])
             if kept.get("journey_instance_id"):
@@ -249,6 +276,8 @@ class SharedOperation:
             if key is not None:
                 subjects.append(subject_partition(key))
         self.hold(subjects)
+        # No operation may keep a new wait this event could reach until this one has looked for the waits there are
+        self.unit.lock_waits(event_wait_keys(event, self._view.workflows.values()), "shared")
         # A run may start waiting in a partition not yet held while this one waited: ask again until nothing new appears.
         # Only runs whose correlation the event matches are held, so that events about different subjects do not wait for one another.
         while True:
@@ -300,6 +329,11 @@ class SharedOperation:
             if owner:
                 run["journey_instance_id"] = owner["id"]
             runs.append(run)
+        # A wait that is new must not be kept while an event that could reach it is being accepted unseen (29.3)
+        new_waits = {key for run in runs for key in map(wait_key, run["waits"])
+                     if key not in (self._kept_runs.get(run["run_id"]) or {}).get("waits", [])}
+        if new_waits:
+            self.unit.lock_waits(sorted(new_waits), "exclusive")
         self.unit.write(instances, runs)
 
 
