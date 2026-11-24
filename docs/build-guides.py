@@ -126,7 +126,7 @@ page("installation-guide.html", "Installation", "What you need, how to build, an
 <p>The package name on npm is <code>agentic-workflow-architecture</code>. Check which version is published before relying on it: what this guide describes is SDK {SDK}.</p>
 {table(["Command", "What it does"], [
     ["<code>awa run</code>", "Run a workflow file; keep its journal and checkpoints"],
-    ["<code>awa journey</code>", "Journeys kept in a runtime directory: add definitions, take in events, let time pass, list, show, export"],
+    ["<code>awa journey</code>", "Journeys kept in a runtime directory, or with <code>--store</code> in a PostgreSQL store several hosts share: add definitions, take in events, let time pass, list, show, export"],
     ["<code>awa measures</code>", "The measures of journeys and workflows, computed from what was recorded"],
     ["<code>awa replay</code>", "Counterfactual replay of a recorded run"],
     ["<code>awa recipe</code>", "Compile a workflow and a journal into a build-from-scratch recipe"],
@@ -148,6 +148,7 @@ page("installation-guide.html", "Installation", "What you need, how to build, an
 {code("AWA_DATA_DIR=./.awa awa serve --port 3000 --api-key mykey:admin")}
 {table(["Variable", "Effect"], [
     ["<code>AWA_DATA_DIR</code>", "Journeys, their runs and journals are kept in this directory and survive a restart. Without it they live in the process"],
+    ["<code>AWA_RUNTIME_STORE</code>", "A PostgreSQL URL: journeys, runs and journals are kept in that database, and several servers may share it (also <code>--store</code>). Not to be confused with <code>AWA_DATABASE_URL</code>, the database of tasks for people"],
     ["<code>AWA_WORKFLOWS_DIR</code>", "The only directory from which <code>POST /workflows/run</code> will run a file"],
     ["<code>AWA_SIMULATE=1</code>, <code>AWA_SIMULATED_OUTPUTS</code>", "Run activities without calling models or tools"],
     ["<code>JWT_SECRET</code>", "Accept signed tokens as well as API keys"]])}
@@ -354,14 +355,18 @@ page("architect-guide.html", "For architects", "How AWA is put together, what it
           ["A run's journal", "Append-only, one file per run, numbered without gaps across restarts"],
           ["Journeys", "Every instance with its record"],
           ["Events already accepted", "Their ids, so that redelivery has no further effect"],
-          ["Events runs have published", "An outbox, accepted as soon as the publishing run settles"]]) + '''
+          ["Events runs have published", "An outbox, accepted as soon as the publishing run settles"]]) + f'''
 <p>Activities are executed at least once: a run that stopped in the middle of an activity performs it again. Each attempt carries an idempotency key so that an activity with effects can be made safe to repeat.</p>
-<p>The reference host keeps all this in a directory of files, which one host holds at a time: a second is refused while the first is alive. Several hosts sharing one store need coordination the reference host does not do; the PostgreSQL DDL shows the shape a shared store would have.</p>'''),
+<p>The reference host keeps all this in one of two stores. A <strong>runtime directory</strong> of files belongs to one host at a time: a second is refused while the first is alive. A <strong>PostgreSQL store</strong> is shared: any number of hosts, in any number of processes and machines, open it and take any work (section 29).</p>
+<p>On a shared store each operation of a host (taking in an event, letting time pass, completing a task) is one transaction. It holds the partitions it touches, one per subject and one per run outside a journey, and others wait for them; work on different subjects goes on at once. An event's id is recorded in the same transaction, under a primary key, so no event is taken twice; rows are written back at the version read; a host that dies releases what it held when its connection drops, and one that hangs when its lease runs out, with nothing of its operation kept. The outcome is that of one host doing everything one operation at a time, and the TypeScript and Python SDKs share one store.</p>
+{code("awa journey add claim.awa.json claim.journey.json --store postgres://awa@db/awa")}
+{code("AWA_RUNTIME_STORE=postgres://awa@db/awa awa serve --port 3000   # on as many machines as you like")}
+<p>Install the optional database client first: <code>npm install pg</code>, or <code>pip install "agentic-workflow-architecture[postgres]"</code>.</p>'''),
       ("conformance", "Conformance levels", table(["Level", "Section", "TypeScript", "Python"], [
           ["document, core, decision", "4 to 6", "yes", "yes"], ["verified, contract", "7, 11", "yes", "yes"], ["recorded, resilient", "9, 10", "yes", "yes"],
           ["routing", "12", "yes", "yes"], ["flow, events", "13, 18", "yes", "yes"], ["knowledge", "15", "yes", "yes"],
           ["model_decision, tools", "16, 17", "yes", "yes"], ["journeys, replay", "19, 20", "yes", "yes"],
-          ["measures", "21", "yes", "yes"], ["contexts, service_levels", "22, 23", "yes", "yes"]]) + '''
+          ["measures", "21", "yes", "yes"], ["contexts, service_levels", "22, 23", "yes", "yes"], ["shared_store", "29", "yes, with PostgreSQL", "yes, with PostgreSQL"]]) + '''
 <p>Each level has language-neutral cases in <code>spec/conformance</code>; both SDKs run every case of every level, none skipped. What the cases cannot reach (live model providers, Open Knowledge Format exchange, the recipe) is fixed by each SDK's own tests.</p>'''),
       ("security", "What may run", '''
 <p>A workflow document can name any URL or program. What actually runs is the deployment's decision: command bindings need explicit permission, HTTP and JSON-RPC bindings can be restricted to listed hosts, and secrets are substituted at call time and never journalled. The link to what ran is always journalled, even when payloads are hashed or omitted.</p>'''),
@@ -370,7 +375,7 @@ page("architect-guide.html", "For architects", "How AWA is put together, what it
 <li><strong>Access rights to external resources are declared, not enforced.</strong> The document states them and they can be queried. Context bindings (section 22) and service levels (section 23) are enforced; the permissions of tools are the deployment's (section 17.4).</li>
 <li><strong>No built-in MCP or gRPC executor.</strong> The bindings are specified; a deployment supplies the executor.</li>
 <li><strong>No broker.</strong> Events enter and leave through the host. Connecting Kafka, a queue or a webhook is the host's job.</li>
-<li><strong>No multi-host coordination.</strong> See durability above.</li>
+<li><strong>One subject at a time.</strong> Hosts on a shared store share the work across subjects; the operations on one subject run one after another. Activities still run at least once, and the database's own replication is yours.</li>
 <li><strong>Model providers have not all been exercised against live services</strong> in the reference tests; they are tested against stubs.</li>
 </ul>''')])
 

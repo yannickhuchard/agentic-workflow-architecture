@@ -31,6 +31,7 @@ This document is normative. Where it and an SDK disagree, this document is right
 21. [Measures](#21-measures)
 22. [Contexts](#22-contexts)
 23. [Service levels](#23-service-levels)
+29. [Hosts that share a store](#29-hosts-that-share-a-store)
 
 ## 1. Scope
 
@@ -71,6 +72,7 @@ An implementation claims one or more levels. Each level has cases in `spec/confo
 | `measures` | Computes the measures of journeys and workflows from what was recorded | 21 |
 | `contexts` | Gives an activity the contexts it is bound to and no other, and refuses writes its bindings do not allow | 22 |
 | `service_levels` | Compares the time work takes with what was promised, and records warnings and breaches | 23 |
+| `shared_store` | Lets several hosts keep journeys and runs in one store and take any work, with the outcome of one host: no event taken twice or lost, no record with a gap | 29 |
 
 An implementation MUST NOT claim a level unless it passes every case tagged with that level. It MUST report the cases it skips; it MUST NOT silently omit them.
 
@@ -78,8 +80,8 @@ An implementation MUST NOT claim a level unless it passes every case tagged with
 
 | SDK | Levels claimed |
 |---|---|
-| TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels` |
-| Python | every level: `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`. Without a built-in AI agent that calls a model, the recipe, or Open Knowledge Format exchange |
+| TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `shared_store` (with PostgreSQL, through the optional package `pg`) |
+| Python | every level: `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `shared_store` (with PostgreSQL, through the extra `postgres`). Without a built-in AI agent that calls a model, the recipe, or Open Knowledge Format exchange. A Python host and a TypeScript host can share one store (29.5) |
 | Java | none: a data model that reads and writes 1.1 documents faithfully, without validating them, and no engine |
 
 ### 2.3 Versions
@@ -1286,7 +1288,7 @@ On starting again, once the workflows and journeys are registered, the host reco
 
 A host that cannot recover a run, because its workflow is no longer registered, MUST refuse to start rather than drop the run.
 
-Two hosts MUST NOT work from the same saved state at once: each would load it, and each would save over the other's work. A host that keeps its state where another process could open it MUST hold it exclusively and refuse to start while another holds it. It MAY take over from a holder that no longer exists. The reference host keeps a `runtime.lock` file naming the process in its directory.
+Two hosts MUST NOT work from the same saved state at once: each would load it, and each would save over the other's work. A host that keeps its state where another process could open it MUST hold it exclusively and refuse to start while another holds it. It MAY take over from a holder that no longer exists. The reference host keeps a `runtime.lock` file naming the process in its directory. Several hosts MAY share a store that meets the contract of section 29, which holds each part of the state only for the operation that works on it; a runtime directory does not, and belongs to one host at a time.
 
 The reference host keeps this in a **runtime directory**: `definitions/` holding the workflows and journeys, `runtime.json` holding the state above, `journals/` holding one journal per run. `awa journey` and the HTTP interface under `/journeys` both work on such a directory, so a command, a server and a scheduled job can each open it, do one thing and leave it for the next.
 
@@ -1521,6 +1523,105 @@ With `breach_action: fail`, work that is *not* finished stops being waited for:
 
 Level `service_levels` has execution cases (Appendix A) that run on a clock: actors take scripted time, and the case moves the clock and asks the engine to check what is waiting. A person's task that outlasts its service level is fixed by `sdk/typescript/tests/contexts_service_levels.test.ts`.
 
+## 29. Hosts that share a store
+
+A host of journeys keeps its state durably (19.10). One host is one point of failure and one machine's worth of work. This section lets several hosts, in several processes or on several machines, keep their state in one **shared store** and take any work, with the same outcome as one host would produce.
+
+**The guarantee.** The outcome of the operations of all hosts on a shared store is that of some order in which they ran one at a time on a single host. In particular, no event is accepted twice, no event is lost once accepted, a subject never has two active instances of one journey, every run journal and every journey record is numbered from 1 without a gap whichever host wrote which part, and the causal order of 19.5 holds for each subject.
+
+### 29.1 The store contract
+
+An **operation** is one thing a host does for the outside world, with everything it causes (19.5): accepting a business event, letting time pass, completing a person's task, starting a run.
+
+What a store keeps (19.10: journey instances with their records, run states and the instance each belongs to, run journals, accepted event ids, the events runs published that are not yet accepted) is divided into **partitions**. Each instance and each run belongs to exactly one:
+
+| Partition | What it holds |
+|---|---|
+| `subject:<key>` | Every journey instance whose subject key (19.1) is that text, whatever its journey, and every run started for one of them |
+| `run:<run id>` | One run that belongs to no journey |
+
+The subject key is written as text the same way by every host: an integral number without a decimal part, `true` or `false`, `null`, and anything else as written.
+
+A store MUST give each operation:
+
+1. **One unit.** What the operation changes (instances and their records, run states, journal events, accepted event ids, unaccepted published events) is kept entirely, or none of it is. A store whose unit is not atomic MUST at least never keep a journal behind the state that refers to it (19.10).
+2. **Holding.** An operation holds a partition before it reads it and until what it changed is kept or discarded. No other operation reads for changing, or changes, a partition another holds. What an operation reads of a partition it holds is what was last kept. Operations that hold no partition in common MAY run at the same time, on one host or on several.
+3. **Acceptance once.** Recording an event id as accepted is part of the operation's unit. An id on record, or being recorded by another operation, is not accepted again: the second operation waits for the first, and if the first is kept, the event is refused.
+4. **Finding.** The store finds the runs that wait for an event of a given type, with what each waits for and its correlation (18.3), and the partitions in which time acts at or before a given instant: a wait's deadline (18.3), a stage's limit (19.2), work held to a service level (23.2).
+5. **Ordering of waits.** An operation that accepts an event, and an operation that keeps a run newly waiting for an event the first could reach, are ordered: the first does not look for waiting runs while the second has not been kept, or the second does not keep its wait while the first is looking. Both name the wait by its **wait key**: `wait:<type>`, or `wait:<type>:<correlation key>=<correlation value>` for a correlated wait, the value written as a subject key is. An event looks under `wait:<type>` and under the key of each correlation the registered workflows use for its type.
+6. **Release.** When a host stops, crashes or loses the store during an operation, the operation is discarded and the partitions it held are released at once or within a bounded time. A host that holds partitions and is not heard from for longer than its **lease** loses its operation in the same way.
+7. **Versions.** Each instance and run is kept with a version. Writing it back names the version that was read; the store refuses it if another operation changed it meanwhile, and the operation is discarded.
+
+A host on a shared store MUST, in each operation:
+
+- to accept an event: record its id (item 3); hold the subject partition of each journey the event concerns (19.5); hold its wait keys shared (item 5); hold every partition with a run that waits for the event's type with a correlation the event matches, asking again until no new partition appears; then proceed as 19.5 says. Events the operation's runs publish are accepted in the same operation (19.5), each holding what it needs in turn;
+- to let time pass: hold the partitions in which time acts by now that no other operation holds, and act on them. It MAY leave a partition another operation holds to a later tick: what is due stays due until a tick acts on it;
+- to complete a person's task: hold the partition of the run;
+- hold partitions it knows together in one fixed order (the reference hosts sort their names), so that two operations seldom wait for one another;
+- work only on what it loaded under its hold in this operation, never on a copy kept from an earlier one, and change nothing outside the partitions it holds;
+- before keeping a run that newly waits for an event, hold that wait's key exclusively (item 5);
+- begin again from the start an operation the store discarded because it met another (a refused version, two operations each waiting for the other), and report any other failure to its caller with nothing kept;
+- tell its caller that an event was accepted only once the operation is kept. An event whose operation was discarded was not accepted: its producer gives it again, to any host, and item 3 makes that safe.
+
+Activities are still executed at least once (10.3): an operation begun again, or one whose host stopped, performs again the activities it had performed. Runs that existed before the operation do so under the same idempotency keys (10.4); runs the operation started are started again under new run ids, since the first were never kept.
+
+### 29.2 Hosts on one store
+
+- Every host on a store MUST register the same workflows and journeys. The store keeps their documents so that each host can register them from it. A host MUST refuse to start on a store that keeps a run not yet settled, or an instance, that needs a definition it has not registered (19.10), and MUST refuse, with nothing kept, an operation that would load one.
+- A run a host loads is taken up where it was kept, its journal going on at the next `seq`. A run kept at rest, waiting for a person, an event or time, was not interrupted: it is not resumed, and no `run.resumed` is recorded. A run kept in the middle of an activity (an operation that stopped at its step limit, or a store whose unit is not atomic) is continued at the next tick, with `run.resumed` (10.3).
+- What a host reads outside an operation (listings, analytics, exports, measures) is what the store held when it was read, and may already have been overtaken by another host.
+- The rule of 19.10 that two hosts MUST NOT work from the same saved state at once applies to stores that do not meet 29.1, such as a runtime directory. A store that meets it MAY be opened by any number of hosts.
+
+### 29.3 Two implementations of the contract
+
+| | Runtime directory (19.10) | PostgreSQL store (29.4) |
+|---|---|---|
+| Partitions | One: the whole directory | One per subject and one per run outside a journey |
+| Holding | `runtime.lock`, for the life of the host, which then does one operation at a time | Transaction-scoped advisory locks on `awa:<partition>` |
+| One unit | Journals appended, then `runtime.json` replaced atomically | One transaction |
+| Acceptance once | The ids in `runtime.json` | The primary key of `awa_runtime.business_events` |
+| Finding | Every run and instance is in memory | Columns `waits_for`, `waits` and `due_at` |
+| Ordering of waits | One operation at a time | Advisory locks on `awa:<wait key>`, shared to look and exclusive to keep a new wait |
+| Release | The lock names its process, and is taken over once that process has gone | The database ends the session of a host that has gone; the lease is the session's idle transaction timeout |
+| Versions | Not needed: there is one host | Column `version`, written back `WHERE version` is the one read |
+| Several hosts | No | Yes |
+
+### 29.4 The PostgreSQL store
+
+The tables are those of the section "Runtime store" of `spec/ddl/awa.postgresql.sql`, in schema `awa_runtime`. A store creates them itself by migrations, recorded in `awa_runtime.migrations` with the host that applied them; hosts that start together apply each migration once between them. An implementation MUST refuse to open a store migrated beyond what it knows.
+
+| Table | Keeps |
+|---|---|
+| `definitions` | The workflow and journey documents, whole |
+| `business_events` | Every accepted event, keyed by its id, with the host that accepted it |
+| `journey_instances` | Each instance whole (`document`, 19.4), its partition, `version`, and `due_at`, when its stage may outlast its limit |
+| `journey_events` | The record of each instance, one row per journey event |
+| `runs` | Each run's state (`checkpoint`, 10.3), its unaccepted published events (`outbox`), its partition, `version`, the event types it waits for (`waits_for`) with their correlations (`waits`), and `due_at` |
+| `journal_events` | Each run's journal (section 9), one row per event, keyed by run and `seq` |
+
+An operation is one transaction at isolation level read committed. A partition is held with `pg_advisory_xact_lock(hashtextextended('awa:' || partition, 0))`, a due partition taken with `pg_try_advisory_xact_lock`, a wait key held with `pg_advisory_xact_lock_shared` or `pg_advisory_xact_lock`. The lease is the session's `idle_in_transaction_session_timeout`, five minutes unless configured: longer than any one activity should take, since a host waiting for an activity is silent towards the database. Text is UTF-8.
+
+The reference hosts name the store by a URL, `postgres://…`, given as the option `--store` to `awa serve` and the `awa journey` commands, or in the environment variable `AWA_RUNTIME_STORE`. It is not `AWA_DATABASE_URL`, which names the database of tasks for people.
+
+### 29.5 Implementations that share a store
+
+A store keeps the forms this specification defines: instances as in 19.4, journal events as in section 9, business events in the form of 18.1, documents as written. A run's state is the checkpoint of 10.3, whose `metadata` this specification leaves partly to implementations. Hosts of different implementations MAY share a store when they read and write each other's run states, and write subject keys, correlation values and wait keys as text the same way (29.1). Hosts of implementations that do not MUST NOT share a store: each would take up runs it cannot continue faithfully.
+
+The TypeScript and Python SDKs share stores: they run the same migrations, keep the same forms, and are tested on one store together, each taking up runs the other began.
+
+### 29.6 Out of scope
+
+- How events reach hosts: any host may be given any event, by a queue, a load balancer or a person. Giving an event again after a failure is the producer's part.
+- Work on one subject is done one operation at a time. Hosts share work across subjects, not within one.
+- Activities run at least once (29.1); side effects outside the store are made safe by idempotency keys (10.4), not by the store.
+- The database's own availability: replication, failover and backups.
+- Moving a runtime directory into a shared store.
+- Clocks: hosts are assumed to agree on the time closely enough. A deadline takes effect at the first tick at or after it, on whichever host ticks.
+
+### 29.7 Conformance
+
+Level `shared_store` has its own cases, in `spec/conformance/shared-store/` (Appendix A): scenarios that several hosts play against one store, saying which host takes which event, which events arrive at the same moment, and when a host stops. An implementation claims the level only with a store that several hosts can share, and runs the cases against it.
+
 ## Appendix A. Conformance suite
 
 `spec/conformance/` holds language-neutral cases.
@@ -1570,6 +1671,17 @@ A runner replaces every actor with one that follows `actors`, runs the workflow,
 
 An actor script MAY give `takes`, a duration by which the activity moves the clock. `expect` gives `instance_count`, `transitions`, and `instances`: each names a `journey` and optionally a `subject_key`, and may state `status`, `stage_id`, `stalled`, `sentiment`, `goals_reached`, `runs` (their statuses in order), `data` (a subset), `events` (types in this order, others allowed between), `events_exact`, `events_count`, `events_contain` (partial events; `has` lists paths that must be present) and `run_journal` (types in order in the journal of the first run).
 
+**Shared store cases** (`shared-store/*.json`) are journey cases played by several hosts on one store (section 29). They add `hosts`, the names of the hosts, all started on an empty store at the beginning, each with the case's workflows and journeys and its scripted actors. A step is performed by the host it names in `host`. Besides the journey steps:
+
+| Step | Meaning |
+|---|---|
+| `{"together": [<step>, ...]}` | The steps, each by its own host, are performed at the same moment. In `expect`, `accepted` is how many of the events were accepted between them, and `timed_out_runs` and `stalled_journeys` are summed over the hosts |
+| `{"host": "a", "publish": {...}, "stops_before_keeping": true}` | The host does all the work of accepting the event and stops just before what it did is kept. Its caller is not told the event was accepted, and the host takes no further step |
+| `{"stop": "a"}` | The host stops between operations |
+| `{"start": "a"}` | A host of that name starts again on the store |
+
+A tick step's `expect` may also give `stalled_journeys`, how many journeys it newly found stalled. The case's `expect` is checked by a host that took no part, reading the whole store; besides the keys of a journey case it gives `accepted_events`, how many event ids the store holds as accepted, `run_count`, how many runs it keeps, and per instance `run_journal_excludes`, event types that must not appear in the journal of its first run. A runner MUST also check that every run's journal is numbered from 1 without a gap.
+
 **Replay cases** (`replay/*.json`) each give a `workflow`, `input` and `actors` that produce the baseline run; optionally a `candidate` workflow; `ai` (`recorded` or `live`); and for `live`, `candidate_actors` for the AI agents. `expect` gives `baseline_status`, `candidate_status`, `same_path`, `verdicts` by node name (20.3), `regressions` or `regressions_at_least`, `unrecorded` (how many situations had no recording), `divergence_after`, and `error_matches`.
 
 Execution cases at levels `contexts` and `service_levels` add: in an actor's script, `contexts`, what the actor writes by context name, and `takes`, the time the execution takes; `clock`, the instant at which the case's clock starts, on which the engine and the actors then run; in `deliver`, the steps `{"advance": <duration>}`, which moves the clock, and `{"check_service_levels": true, "expect": {warnings, breaches, failed}}`, which asks the engine to check the work that is waiting (23.2) and states how many it newly recorded and how many tokens it failed; in `expect`, `given_contexts`, for each activity named the contexts its actor was given at its last execution (`null` for none at all), and `contexts`, the value of every context that has one when the case ends.
@@ -1591,7 +1703,7 @@ An `<entry>` describes entries by `type`, `node` (the name of the node in the en
 
 A run's `expect` gives its `status`; optionally `given`, which for an activity name lists, in order, the entries its actor must have been given at each execution of that activity, an empty list meaning none; and `journal_contains` as in an execution case. The case's `expect` gives `entry_count`, the number of entries the knowledge base must hold at the end, and `entries`: each `<entry>` must describe exactly one entry, or as many as its `count` says. A runner MUST also check that every source of every entry names a run that was ingested and at least one event of that run's journal, each by its `seq` (15.2).
 
-Runners: `sdk/typescript/tests/conformance.test.ts`, `sdk/python/tests/test_conformance.py`.
+Runners: `sdk/typescript/tests/conformance.test.ts`, `sdk/python/tests/test_conformance.py`. Both run the shared store cases against a PostgreSQL they start, or the one `AWA_TEST_POSTGRES_URL` names, and report them skipped, with the reason, where there is none.
 
 ## Appendix B. Changes from 1.0
 
@@ -1628,3 +1740,4 @@ Runners: `sdk/typescript/tests/conformance.test.ts`, `sdk/python/tests/test_conf
 - Measures of journeys and workflows, computed from the record, with conformance level `measures` (section 21).
 - Context bindings are enforced: an activity is given the contexts it is bound to read and no other, and a write needs a binding that allows it (section 22, level `contexts`). **A workflow that binds a required context nothing has written now fails with `CONTEXT_MISSING`** where it used to run.
 - Service levels are compared with the time work takes, and warnings and breaches are journalled; `breach_action: fail` stops work that is still waited for (section 23, level `service_levels`).
+- Several hosts may share one store and take any work, with the outcome of one host: a store contract of partitions, holding, acceptance once and versions, met by a PostgreSQL store, with conformance level `shared_store` (section 29). A runtime directory still belongs to one host at a time (19.10).

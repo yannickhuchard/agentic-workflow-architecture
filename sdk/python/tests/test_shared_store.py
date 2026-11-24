@@ -451,3 +451,33 @@ def test_awa_journey_works_on_the_store_named_by_option_or_environment(postgres,
     assert "already" in awa("journey", "publish", "claim.submitted", "-d", '{"customer_id": "c-1"}', "--id", "cli-1", "--store", url)
     assert re.search(r"c-1\s+Claim\s+active", awa("journey", "list", store=url))
     assert not (tmp_path / ".awa").exists()  # the runtime directory was not used
+
+
+def test_the_server_keeps_journeys_in_the_store_awa_runtime_store_names(postgres, monkeypatch):
+    pytest.importorskip("fastapi")
+    pytest.importorskip("httpx")
+    from fastapi.testclient import TestClient
+    import awa.server as server
+    from awa.server import journeys as routes
+    url = postgres.database()
+    monkeypatch.setenv("AWA_RUNTIME_STORE", url)
+    monkeypatch.setenv("AWA_SIMULATE", "1")
+    key = next(iter(server.API_KEYS), None)
+    headers = {"x-api-key": key} if key else {}
+    client = TestClient(server.app)
+    server.set_journey_runtime(None)
+    try:
+        assert client.post("/api/v1/journeys/definitions", json=CLAIM_WORKFLOW, headers=headers).status_code == 201
+        assert client.post("/api/v1/journeys/definitions", json=CLAIM_JOURNEY, headers=headers).status_code == 201
+        taken = client.post("/api/v1/journeys/events", json={"id": "http-1", "type": "claim.submitted", "data": {"customer_id": "c-1"}}, headers=headers)
+        assert taken.json()["accepted"] is True
+        # Another host, elsewhere, on the same store: it finds the definitions the server added, and the server sees its work
+        other = host(url)
+        assert other.publish(event("claim.submitted", "c-2", "other-1"))["accepted"] is True
+        assert other.publish(event("claim.submitted", "c-1", "http-1"))["accepted"] is False
+        other.close()
+        assert sorted(i["subject_key"] for i in client.get("/api/v1/journeys/instances", headers=headers).json()) == ["c-1", "c-2"]
+    finally:
+        if routes._runtime is not None:
+            routes._runtime.close()
+        server.set_journey_runtime(None)

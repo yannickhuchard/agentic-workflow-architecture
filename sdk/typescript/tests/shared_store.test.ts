@@ -437,6 +437,40 @@ suite('PostgreSQL runtime store (spec 29)', () => {
         console.log(`[shared store, TypeScript and Python] 2 TypeScript hosts and 2 Python processes, ${given} deliveries of ${distinct} events (${given - distinct} duplicates), ${accepted.length} accepted, ${crossed} of ${SUBJECTS} claims begun by one implementation and settled by the other, ${counts.duplicates} applied twice`);
     }, 120_000);
 
+    it('the HTTP interface keeps journeys in the store AWA_RUNTIME_STORE names, and reads what other hosts did', async () => {
+        const url = await server.database();
+        const { createServer } = await import('../src/server');
+        const { set_journey_runtime, journey_runtime } = await import('../src/server/routes/journeys');
+        const saved = { store: process.env.AWA_RUNTIME_STORE, simulate: process.env.AWA_SIMULATE };
+        process.env.AWA_RUNTIME_STORE = url;
+        process.env.AWA_SIMULATE = '1';
+        set_journey_runtime(undefined);
+        const http = createServer({ request_logging: false }).listen(0);
+        await new Promise(resolve => http.once('listening', resolve));
+        const base = `http://127.0.0.1:${(http.address() as import('net').AddressInfo).port}/api/v1/journeys`;
+        const call = async (method: string, route: string, body?: unknown) => {
+            const response = await fetch(`${base}${route}`, { method, headers: { 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+            return { status: response.status, body: await response.json() as any };
+        };
+        try {
+            expect((await call('POST', '/definitions', claim_workflow)).status).toBe(201);
+            expect((await call('POST', '/definitions', claim_journey)).status).toBe(201);
+            expect((await call('POST', '/events', { id: 'http-1', type: 'claim.submitted', data: { customer_id: 'c-1' } })).body).toMatchObject({ accepted: true });
+            // Another host, elsewhere, on the same store: it finds the definitions the server added, and the server sees its work
+            const other = await host(url);
+            expect((await other.publish(event('claim.submitted', 'c-2', 'other-1'))).accepted).toBe(true);
+            expect((await other.publish(event('claim.submitted', 'c-1', 'http-1'))).accepted).toBe(false);
+            await other.close();
+            expect((await call('GET', '/instances')).body.map((i: { subject_key: string }) => i.subject_key).sort()).toEqual(['c-1', 'c-2']);
+        } finally {
+            await (await journey_runtime()?.catch(() => undefined))?.close();
+            set_journey_runtime(undefined);
+            await new Promise(resolve => http.close(resolve));
+            process.env.AWA_RUNTIME_STORE = saved.store ?? ''; if (saved.store === undefined) delete process.env.AWA_RUNTIME_STORE;
+            if (saved.simulate === undefined) delete process.env.AWA_SIMULATE; else process.env.AWA_SIMULATE = saved.simulate;
+        }
+    }, 30_000);
+
     it('awa journey works on the store named by --store or AWA_RUNTIME_STORE', async () => {
         const url = await server.database();
         const cli = bundle('src/cli/index.ts', 'cli.cjs');

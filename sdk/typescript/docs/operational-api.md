@@ -25,7 +25,7 @@ curl -s -X POST localhost:3000/api/v1/workflows/run -H 'content-type: applicatio
 
 ## Journeys
 
-Kept in `AWA_DATA_DIR` when it is set, in memory otherwise. `AWA_SIMULATE=1` with `AWA_SIMULATED_OUTPUTS=<file>` simulates the activities of the journeys' runs.
+Kept in the shared PostgreSQL store `AWA_RUNTIME_STORE` names when it is set (or `awa serve --store <url>`), which any number of servers use at once: each request is one operation that holds only the subjects it touches, and an event id is accepted once across all of them (specification section 29). Otherwise kept in `AWA_DATA_DIR` when it is set, in memory otherwise. Reading routes show the store as last kept, whichever server changed it. `AWA_SIMULATE=1` with `AWA_SIMULATED_OUTPUTS=<file>` simulates the activities of the journeys' runs.
 
 | Route | What it does |
 |---|---|

@@ -20,6 +20,8 @@ export const journeyRouter = Router();
 let runtime: Promise<AwaRuntime> | undefined;
 /** The runtime behind the routes. A host may supply its own, e.g. with real actors configured. */
 export function set_journey_runtime(instance: AwaRuntime | undefined): void { runtime = instance ? Promise.resolve(instance) : undefined; }
+/** The runtime behind the routes, if one was opened: to close it when the server stops */
+export function journey_runtime(): Promise<AwaRuntime> | undefined { return runtime; }
 const directory = () => process.env.AWA_DATA_DIR ? path.resolve(process.env.AWA_DATA_DIR) : undefined;
 const shared_store = () => process.env[RUNTIME_STORE_VARIABLE] || undefined;
 function host(): Promise<AwaRuntime> {
