@@ -1,0 +1,127 @@
+{
+  "id": "subworkflow-retry-starts-a-new-child",
+  "level": "subworkflows",
+  "spec": "24.3",
+  "description": "SUBWORKFLOW_FAILED is retried under the call activity's retry policy, and each retry starts a new child run; the failed one stays on record.",
+  "workflow": {
+    "id": "cb307a46-240b-58de-a519-1c57aa11d9c8",
+    "name": "subworkflow-retry-starts-a-new-child",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "19119755-03f9-5000-a10c-835f3c6b748c",
+        "name": "Gather",
+        "role_id": "a575ee17-6044-58a9-83d4-56e34a353c80",
+        "actor_type": "application",
+        "is_expandable": true,
+        "expansion_workflow_id": "a0a65df6-ad60-5825-885d-0bbc684bc134",
+        "retry": {
+          "max_attempts": 2,
+          "initial_delay": "PT0S",
+          "jitter": false
+        }
+      },
+      {
+        "id": "f18f8e95-6e7d-5edf-a823-c767cd913791",
+        "name": "Review",
+        "role_id": "a575ee17-6044-58a9-83d4-56e34a353c80",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "3a165a6a-74e7-5695-87f9-fbf331b35c42",
+        "source_id": "19119755-03f9-5000-a10c-835f3c6b748c",
+        "target_id": "f18f8e95-6e7d-5edf-a823-c767cd913791"
+      }
+    ]
+  },
+  "actors": {
+    "Fetch": {
+      "attempts": [
+        {
+          "error": "archive timed out",
+          "code": "TIMEOUT"
+        },
+        {
+          "output": {
+            "documents": 3
+          }
+        }
+      ]
+    }
+  },
+  "workflows": [
+    {
+      "id": "a0a65df6-ad60-5825-885d-0bbc684bc134",
+      "name": "Fetch documents",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "e0e015c2-a268-51d9-aa8d-e6cfb7296162",
+          "name": "Fetch",
+          "role_id": "ce1fe8dd-8222-55d9-b117-152ce498a5ae",
+          "actor_type": "application"
+        }
+      ],
+      "edges": []
+    }
+  ],
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "Fetch",
+      "Fetch",
+      "Review"
+    ],
+    "data": {
+      "documents": 3
+    },
+    "journal": [
+      "activity.started",
+      "subworkflow.started",
+      "subworkflow.failed",
+      "activity.failed",
+      "activity.retry_scheduled",
+      "activity.started",
+      "subworkflow.started",
+      "subworkflow.completed",
+      "activity.completed",
+      "run.completed"
+    ],
+    "journal_contains": [
+      {
+        "type": "activity.failed",
+        "node_name": "Gather",
+        "attempt": 1,
+        "data": {
+          "error": {
+            "code": "SUBWORKFLOW_FAILED"
+          },
+          "retryable": true
+        }
+      },
+      {
+        "type": "subworkflow.started",
+        "attempt": 2
+      }
+    ],
+    "journal_count": {
+      "subworkflow.started": 2
+    },
+    "subworkflow_runs": [
+      {
+        "workflow_name": "Fetch documents",
+        "attempt": 1,
+        "status": "failed"
+      },
+      {
+        "workflow_name": "Fetch documents",
+        "attempt": 2,
+        "status": "completed"
+      }
+    ]
+  }
+}

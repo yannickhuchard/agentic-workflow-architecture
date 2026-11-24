@@ -1,0 +1,140 @@
+{
+  "id": "subworkflow-cancelled-when-its-parent-fails",
+  "level": "subworkflows",
+  "spec": "24.5",
+  "description": "When the parent fails while a child waits, the waiting token is withdrawn and the child run is cancelled with reason parent_failed.",
+  "workflow": {
+    "id": "00d013e5-7508-59c4-bf3f-4f4c420626e9",
+    "name": "subworkflow-cancelled-when-its-parent-fails",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "c5a8ac33-1481-52e0-9771-226a95346f97",
+        "name": "Open",
+        "role_id": "1f25a0ff-b35f-5e91-b3f7-77874ddf0f26",
+        "actor_type": "application"
+      },
+      {
+        "id": "8c56cc69-a902-516f-a1f6-539b83377886",
+        "name": "Collect",
+        "role_id": "1f25a0ff-b35f-5e91-b3f7-77874ddf0f26",
+        "actor_type": "application",
+        "is_expandable": true,
+        "expansion_workflow_id": "d011ffc4-bd08-591a-ad5f-22d923151b04"
+      },
+      {
+        "id": "326bc983-8958-5b6a-92c8-0a4b16e3b6d6",
+        "name": "Validate",
+        "role_id": "1f25a0ff-b35f-5e91-b3f7-77874ddf0f26",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "5b802593-00f4-5081-86c4-49479cfe2585",
+        "source_id": "c5a8ac33-1481-52e0-9771-226a95346f97",
+        "target_id": "8c56cc69-a902-516f-a1f6-539b83377886"
+      },
+      {
+        "id": "766cfd43-da3c-5067-a6b7-fc988a7d2b55",
+        "source_id": "c5a8ac33-1481-52e0-9771-226a95346f97",
+        "target_id": "326bc983-8958-5b6a-92c8-0a4b16e3b6d6"
+      }
+    ]
+  },
+  "input": {
+    "claim_id": "CL-2"
+  },
+  "actors": {
+    "Validate": {
+      "error": "policy lapsed"
+    }
+  },
+  "workflows": [
+    {
+      "id": "d011ffc4-bd08-591a-ad5f-22d923151b04",
+      "name": "Collect documents",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "2fe8c941-d9d5-5643-84d2-e0db3249ee35",
+          "name": "Request",
+          "role_id": "48e2afc0-aedd-5f9a-b12f-f1cd4eb3e28c",
+          "actor_type": "application"
+        },
+        {
+          "id": "482bd119-e374-59db-93bd-3dedca18eb71",
+          "name": "File",
+          "role_id": "48e2afc0-aedd-5f9a-b12f-f1cd4eb3e28c",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "9092f1e7-ab3d-5356-8954-3c789114c5c8",
+          "source_id": "2fe8c941-d9d5-5643-84d2-e0db3249ee35",
+          "target_id": "00bf5f92-3548-5970-8e50-d8c7b0e9c49e"
+        },
+        {
+          "id": "6b6ee74e-bfac-5992-a513-3b023258e1f9",
+          "source_id": "00bf5f92-3548-5970-8e50-d8c7b0e9c49e",
+          "target_id": "482bd119-e374-59db-93bd-3dedca18eb71"
+        }
+      ],
+      "events": [
+        {
+          "id": "00bf5f92-3548-5970-8e50-d8c7b0e9c49e",
+          "name": "Documents received",
+          "event_type": "message",
+          "event_definition": {
+            "name": "documents.received",
+            "correlation_key": "claim_id"
+          }
+        }
+      ]
+    }
+  ],
+  "expect": {
+    "status": "failed",
+    "visited_unordered": [
+      "Open",
+      "Request",
+      "Validate"
+    ],
+    "not_visited": [
+      "File"
+    ],
+    "journal_contains": [
+      {
+        "type": "subworkflow.cancelled",
+        "node_name": "Collect",
+        "data": {
+          "reason": "parent_failed"
+        }
+      },
+      {
+        "type": "token.cancelled",
+        "node_name": "Collect",
+        "data": {
+          "reason": "run_failed"
+        }
+      }
+    ],
+    "subworkflow_runs": [
+      {
+        "workflow_name": "Collect documents",
+        "status": "cancelled",
+        "journal_contains": [
+          {
+            "type": "run.cancelled",
+            "data": {
+              "reason": "parent_failed"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,101 @@
+{
+  "id": "subworkflow-simulated-with-its-parent",
+  "level": "subworkflows",
+  "spec": "24.6",
+  "description": "In simulation the child run is simulated too: the scripts given by activity name apply to the child's activities, and one given for the call activity itself is not used.",
+  "workflow": {
+    "id": "25ee56bf-b2bc-5ad1-86eb-41132a5ddf89",
+    "name": "subworkflow-simulated-with-its-parent",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "8175ad76-02ce-5897-9168-0083b3b626a1",
+        "name": "Check",
+        "role_id": "c641f11c-974c-58b3-a732-7dc0119835ae",
+        "actor_type": "application",
+        "is_expandable": true,
+        "expansion_workflow_id": "9994e732-94a9-5826-90b2-69a72ad4be34"
+      }
+    ],
+    "edges": []
+  },
+  "options": {
+    "simulate": true,
+    "simulated_outputs": {
+      "Score": {
+        "output": {
+          "score": 700
+        }
+      },
+      "Check": {
+        "output": {
+          "score": 1
+        }
+      }
+    }
+  },
+  "workflows": [
+    {
+      "id": "9994e732-94a9-5826-90b2-69a72ad4be34",
+      "name": "Scoring",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "5c93fb9f-3805-5699-8d98-6e754d7ad1e4",
+          "name": "Score",
+          "role_id": "70c4b0a1-14c4-5bda-a4d0-df40b0872548",
+          "actor_type": "ai_agent"
+        }
+      ],
+      "edges": []
+    }
+  ],
+  "expect": {
+    "status": "completed",
+    "data": {
+      "score": 700
+    },
+    "journal_contains": [
+      {
+        "type": "run.started",
+        "data": {
+          "simulate": true
+        }
+      },
+      {
+        "type": "subworkflow.completed",
+        "data": {
+          "output": {
+            "score": 700
+          }
+        }
+      }
+    ],
+    "subworkflow_runs": [
+      {
+        "workflow_name": "Scoring",
+        "status": "completed",
+        "journal_contains": [
+          {
+            "type": "run.started",
+            "data": {
+              "simulate": true,
+              "depth": 1
+            }
+          },
+          {
+            "type": "activity.completed",
+            "node_name": "Score",
+            "data": {
+              "output": {
+                "score": 700
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

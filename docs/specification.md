@@ -31,6 +31,7 @@ This document is normative. Where it and an SDK disagree, this document is right
 21. [Measures](#21-measures)
 22. [Contexts](#22-contexts)
 23. [Service levels](#23-service-levels)
+24. [Sub-workflows](#24-sub-workflows)
 26. [Telemetry](#26-telemetry)
 27. [Interchange](#27-interchange)
 28. [Agents over A2A](#28-agents-over-a2a)
@@ -77,6 +78,7 @@ An implementation claims one or more levels. Each level has cases in `spec/confo
 | `measures` | Computes the measures of journeys and workflows from what was recorded | 21 |
 | `contexts` | Gives an activity the contexts it is bound to and no other, and refuses writes its bindings do not allow | 22 |
 | `service_levels` | Compares the time work takes with what was promised, and records warnings and breaches | 23 |
+| `subworkflows` | Performs an activity by a child run of another workflow, under the activity's contract, verification, retries, waits and cancellation, with both runs linked in their journals | 24 |
 | `telemetry` | Derives OpenTelemetry traces from the journal and the journey record, with identifiers every implementation shares, and exports them without ever holding up a run | 26 |
 | `interchange` | Imports and exports BPMN 2.0 and DMN without loss, refuses what AWA cannot express, and exports CNCF Serverless Workflow 1.0 | 27 |
 | `a2a` | Lets an agent reached over the Agent2Agent protocol perform an activity, under the same contract, verification, permissions and record as any actor | 28 |
@@ -90,8 +92,8 @@ An implementation MUST NOT claim a level unless it passes every case tagged with
 
 | SDK | Levels claimed |
 |---|---|
-| TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `telemetry`, `interchange`, `shared_store`, `a2a`, `evidence`, `evaluation` (`shared_store` with PostgreSQL, through the optional package `pg`). Built-in MCP and gRPC executors (17.7, 17.8); serves workflows as A2A agents (28.8) |
-| Python | every level: `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `telemetry`, `interchange`, `shared_store`, `a2a`, `evidence`, `evaluation` (`shared_store` with PostgreSQL, through the extra `postgres`). Built-in MCP and gRPC executors (gRPC with the `grpc` extra); serves workflows as A2A agents. Without the recipe, or Open Knowledge Format exchange |
+| TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `subworkflows`, `telemetry`, `interchange`, `shared_store`, `a2a`, `evidence`, `evaluation` (`shared_store` with PostgreSQL, through the optional package `pg`). Built-in MCP and gRPC executors (17.7, 17.8); serves workflows as A2A agents (28.8) |
+| Python | every level: `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `subworkflows`, `telemetry`, `interchange`, `shared_store`, `a2a`, `evidence`, `evaluation` (`shared_store` with PostgreSQL, through the extra `postgres`). Built-in MCP and gRPC executors (gRPC with the `grpc` extra); serves workflows as A2A agents. Without the recipe, or Open Knowledge Format exchange |
 | Java | none: a data model that reads and writes 1.1 documents faithfully, without validating them, and no engine |
 
 ### 2.3 Versions
@@ -1582,6 +1584,107 @@ With `breach_action: fail`, work that is *not* finished stops being waited for:
 
 Level `service_levels` has execution cases (Appendix A) that run on a clock: actors take scripted time, and the case moves the clock and asks the engine to check what is waiting. A person's task that outlasts its service level is fixed by `sdk/typescript/tests/contexts_service_levels.test.ts`.
 
+## 24. Sub-workflows
+
+A workflow can do one of its steps by running another workflow. The step is an activity like any other: it is given data, it returns an outcome, the outcome is held to the activity's contract and verification, and it can fail, be retried, wait and be cancelled. What performs it is a **child run** of the called workflow, with its own run id and its own journal, linked to the **parent run** in both journals.
+
+### 24.1 Calling a workflow
+
+An activity with `is_expandable: true` and an `expansion_workflow_id` is a **call activity**. It is performed by a child run of the workflow that `expansion_workflow_id` names, whatever its `actor_type`: an actor the deployment registers for an actor type does not replace it, and its `a2a`, `tools` and `programs` are not used. An activity with `is_expandable: true` and no `expansion_workflow_id` names no workflow; it is performed by its actor, as before.
+
+An activity MAY carry `subworkflow`:
+
+| Field | Meaning |
+|---|---|
+| `input` | An object. Each property is a property of the child run's input, and its value a path (6.1) in the parent token's data. A path that resolves to nothing gives no property. When absent: see 24.2 |
+| `output` | An object. Each property is a property of the activity's outcome, and its value a path in the child run's output (24.3). A path that resolves to nothing gives no property. When absent, the outcome is the child run's output |
+
+**Where the called workflow comes from.** An engine is given the workflows it may call: the reference engines take them in the option `subworkflows.workflows`, and a host (section 19) gives every run the workflows registered with it. A child run is started only from a workflow given so; an engine MUST NOT fetch one from elsewhere. If the named workflow is not among them, the attempt fails with error code `SUBWORKFLOW_NOT_FOUND`, and no child run is started.
+
+**Depth.** A run that a host or a caller starts has depth 0; a child run has the depth of its parent plus one. An engine has a **depth limit**, 8 unless the deployment sets another (`subworkflows.max_depth`). An attempt that would start a child run deeper than the limit fails with `SUBWORKFLOW_DEPTH_EXCEEDED`, and no child run is started. A workflow MAY call itself; the limit bounds how deep it goes.
+
+`SUBWORKFLOW_NOT_FOUND` and `SUBWORKFLOW_DEPTH_EXCEEDED` are never retried.
+
+### 24.2 Starting the child run
+
+Each attempt of a call activity (11.3) starts a new child run, except an attempt that takes the outcome of a child run that waited (24.4).
+
+- **Input.** With `subworkflow.input`, the child's input is the object it maps. Without it, the child is given the data the activity would be given: the parent token's data without the properties whose names begin with `_` and without the engine's records `activities` and `decisions` (5.2, 5.5.3).
+- **Identity.** The child run has a new run id. Its `run.started` carries, besides what 9.3 lists, `depth` and `parent`: the parent's `run_id`, `workflow_id`, the call activity's `node_id`, the `token_id`, the `attempt`, the `seq` of the attempt's `activity.started` in the parent's journal, and `root_run_id`, the run of depth 0 above it.
+- **Record in the parent.** Between the attempt's `activity.started` and the event that ends it, the parent records `subworkflow.started` (24.7).
+- **Contexts.** The parent's contexts (section 22) are not shared with the child, and the contexts the call activity is given are not passed on: the child has the contexts its own workflow declares.
+- **Deployment.** The child runs under the parent's deployment: the same actors, model providers, tools and their permissions, payload mode (9.4), journal store, business event sink, knowledge base, clock and simulation setting, and the same workflows to call. Each run keeps its own journal, numbered from 1.
+
+### 24.3 Completion and failure
+
+A child run is run until it reaches an outcome (5.7) or waits (24.4).
+
+**Output.** The output of a child run that completed is the data of its `completed` tokens, merged in the order the tokens were created, without the properties whose names begin with `_` and without `activities` and `decisions`: the output 28.8 defines. With `subworkflow.output` it is mapped as 24.1 says.
+
+**Completed.** The parent records `subworkflow.completed`. The attempt's result is `{"output": <the outcome>}`, and from there it is any actor's result: the outcome contract is checked, then verification (11.3); an accepted result is merged into the token's data (5.2), and recorded under `activities.<id>.output`. A call activity is never re-executed with feedback after a rejected outcome (7.4, 11.3), whatever its `actor_type`: a workflow takes no feedback. With `on_violation: "escalate_human"`, a rejected outcome is handed to a person as 11.5 says.
+
+**Failed.** When the child run fails, the parent records `subworkflow.failed` and the attempt fails with error code `SUBWORKFLOW_FAILED`, whose message names the called workflow and gives the message of the child's first failure. `SUBWORKFLOW_FAILED` is retried under the activity's retry policy (10.1) like any error that is not excluded; each retry is a new attempt, which starts a **new child run** with a new run id. The failed child stays on record. A child's compensation (13.6) is its own: it compensates what it completed before it records `run.failed`, and the parent compensates the call activity, if the activity names a handler, as any other.
+
+A parent's totals (`run.completed`, `run.failed`: tokens, cost, steps) count its own work only. A child's are in its own journal.
+
+### 24.4 Waiting
+
+A child run that waits (5.6, 18.3, 28.6) leaves the parent's token waiting.
+
+- The attempt ends without an outcome, with `token.waiting` in place of `activity.completed` or `activity.failed`, as 28.6 says, with `reason: "subworkflow"`, the child's `run_id` and `workflow_id`, and `waiting_for`: `human` when the child waits for a person, `event` otherwise.
+- The parent's status follows 5.7, a token waiting on a child counting as waiting for what the child waits for: the parent is `waiting_human` when any child it waits on waits for a person.
+- The parent is the run a host knows. Every operation a host performs on the parent reaches the child runs it waits on: a business event delivered to the parent is delivered to them (18.3), each run ignoring an event id it has already accepted; a person's task in a child run is completed through the parent, named by the child's run id and the token's id, and an agent of a child run that asks for input (28.6) is answered through the parent; the next deadline of the parent is the earliest of its own and theirs; letting time pass, and checking service levels (23.2), act on them too. A delivery returns the number of tokens it released in the parent and in its children.
+- When a child run that was resumed reaches an outcome, the parent records `token.resumed` with `reason: "subworkflow"`, the child's `run_id` and its `status`, and performs the activity again from a new `activity.started`. That attempt starts no child run: it takes the outcome of the child that waited, as 24.3 says. When the child waits again, the parent's token keeps waiting.
+
+### 24.5 Cancellation
+
+Cancelling a parent run (5.8) first cancels every child run it waits on, which records `run.cancelled` with reason `parent_cancelled` and compensates as 5.8 says; the parent records `subworkflow.cancelled`. When a token waiting on a child run is withdrawn or failed for another reason (13.3, 23.3), the child run is cancelled in the same way with reason `parent_failed`. A child run is not cancelled on its own: a host cancels the run of depth 0, and a journey that ends cancels its runs (19.5) and so their children.
+
+### 24.6 Simulation
+
+When a run is simulated (the reference option `simulate`), its child runs are simulated too: a child run executes in simulation, its `run.started` says so, and the scripted results a deployment gives for activities by name (`simulated_outputs`) apply to the activities of the child runs as well. A script given for the call activity's own name is not used: the activity is performed by its child run.
+
+### 24.7 Record
+
+| Event, in the parent's journal | `data` |
+|---|---|
+| `subworkflow.started` | `run_id`, `workflow_id`, `workflow_name`, `workflow_version`, `depth` of the child, and `input` under the payload mode |
+| `subworkflow.completed` | `run_id`, `workflow_id`, `duration_ms` of the child run, and `output`, the outcome after mapping, under the payload mode |
+| `subworkflow.failed` | `run_id`, `workflow_id`, and `error`: the `message` and `code` of the child's first failed token |
+| `subworkflow.cancelled` | `run_id`, `workflow_id`, `reason` |
+
+Each carries the call activity's `token_id`, `node_id` and `attempt`. A child run's own journal is a journal like any other (section 9); its `run.started` carries `parent` and `depth` (24.2).
+
+The **result of a run** lists its child runs and theirs, in the order they started, each with `run_id`, `parent_run_id`, `workflow_id`, `workflow_name`, `node_id`, `token_id`, `attempt`, `depth`, `status`, `started_at` and, once it has an outcome, `ended_at`. The reference engines give it as `getSubworkflowRuns()` and `subworkflow_runs()`, and in the Python `result()` as `subworkflow_runs`.
+
+What reads the record sees this:
+
+| Reader | What it sees |
+|---|---|
+| Explaining a run (14) | The parent's recipe shows each attempt of a call activity with the child run it started, by run id, and how it ended. A child run is explained by its own recipe, from its own journal and the workflow it ran |
+| Counterfactual replay (20) | The result of a call activity is taken from the baseline journal, as an application's is (20.1). No child run is started: a replay has no side effects |
+| Measures (21) | A child run is a run of the called workflow and counts in that workflow's measures; the call activity counts in the parent's, as any activity. The parent's wait on a child is not a wait for a person: `token.resumed` with reason `subworkflow` carries no `waited_ms` |
+| Journeys (19) | A child run of a run started for a journey instance belongs to that instance: the instance's `runs` lists it with `parent_run_id`, and the host records `journey.run_started` and `journey.run_ended` for it, with `parent_run_id`, as it records them for the parent, before the parent's own `journey.run_ended`. Its activities and tool calls realise touchpoints (19.8); the business events it publishes are accepted when the parent settles (19.5); a workflow that the journey's workflows call is one of the journey's workflows for deciding which events concern it. A child's failure does not stall the journey; the parent's does |
+| Telemetry (26) | A child run is a trace of its own, whose run span links to the parent's attempt span (26.2) |
+| Evidence (32) | A child run is a run, cited by its own run id; a report that covers the called workflow covers its child runs |
+
+### 24.8 Durability
+
+A parent's state (10.3) holds the state of every child run it waits on, so that the parent and its children are saved, restored and taken up together. A child run is never restored, saved or taken up on its own.
+
+The checkpoint's `metadata.subworkflows` holds, where the run has any: `depth`; `parent`, as in 24.2, for a child; `runs`, the list of 24.7 for the run's own children and their descendants; and `live`, for each child run the run waits on or whose outcome it has not yet taken, `{run_id, workflow_id, state}` with that child's own state. Implementations that share a store (29.5) MUST write this form.
+
+- **Runtime directory (19.10).** `runtime.json` holds runs of depth 0 only, each with its children inside. Each child run's journal is a file of `journals/` under its own run id. On recovery a child run is continued with its parent, its journal going on at the next `seq` of its own journal with `run.resumed`; the workflows it runs must be registered, or the host refuses to start.
+- **Shared store (29).** A child run belongs to the partition of its run of depth 0: a child of a run started for a journey instance is in the subject's partition, a child of a run outside any journey in `run:<root run id>`. A child and its parent are therefore never in different partitions, and one hold covers both. The store keeps each child run as a run of its own (in the PostgreSQL store, a row of `runs` in that partition), so that its journal belongs to a run and a reader finds it, but a host takes up only runs of depth 0, each with its children; it never adopts a child. The waits and deadlines a store finds for a run (29.1, item 4) include those of its children. A host asked to complete a task of a child run holds the partition the store gives for that run.
+
+### 24.9 Out of scope
+
+Calling a workflow on another host or over A2A as a child run (an A2A agent that is a workflow is an actor, section 28); passing a child data after it has started, other than by business events; a child that outlives its parent; running a child of one workflow version against a parent that registered another; compensating a completed child run's activities when the parent later fails (the parent compensates the call activity through its handler).
+
+### 24.10 Conformance
+
+Level `subworkflows` has execution cases (Appendix A) whose workflow calls the case's other `workflows`, with scripted actors for the activities of all of them, and expectations on the parent's journal and on each child run's. A run restored with a child that waits, on a runtime directory and on a PostgreSQL store, is fixed by `sdk/typescript/tests/subworkflow.test.ts` and `sdk/python/tests/test_subworkflow.py`.
+
 ## 26. Telemetry
 
 The journal (section 9) and the journey record (19.4) are AWA's account of what happened. Operations teams watch OpenTelemetry. This section fixes how the one becomes the other, so that a run looks the same in a tracing system whichever implementation ran it, and the same whether its spans were sent as it ran or exported from its journal afterwards.
@@ -1619,6 +1722,8 @@ A run is one trace. Its spans, with the event that opens each (its key event, un
 A span starts at the time of the event that opens it and ends at the time of the event that ends it. Times are converted to nanoseconds since the Unix epoch; anything finer than a millisecond is discarded. Where a name needs `node_name` and the event has none, `node_id` is used. Deciding which nodes are decision nodes needs the workflow, which an export is therefore given.
 
 A `tool.failed` with no `tool.invoked` before it (a call refused before it ran, 17.3) is a tool call span of no duration whose key event is the `tool.failed`. A `meta.recorded` with subject `model_selection` when no attempt or decision is open for it, and an ending event with no open span to end, are span events instead.
+
+A child run (section 24) is a trace of its own. Its run span carries `awa.run.parent_run_id` and `awa.run.depth` from its `run.started`, and links to the span of the parent's attempt that started it: in the parent run's trace, the span whose key event has the `seq` that `parent.seq` gives (24.2).
 
 When `token.failed` or `token.cancelled` is recorded, it is first a span event (26.4); then every span of that token still open ends at its time, the most recently opened first: with status error and the event's `error.message` for `token.failed`, unset for `token.cancelled`. When the run ends, every span still open other than the run ends at that time, unset, before the run span ends.
 
@@ -2396,6 +2501,8 @@ A tick step's `expect` may also give `stalled_journeys`, how many journeys it ne
 
 Execution cases at levels `contexts` and `service_levels` add: in an actor's script, `contexts`, what the actor writes by context name, and `takes`, the time the execution takes; `clock`, the instant at which the case's clock starts, on which the engine and the actors then run; in `deliver`, the steps `{"advance": <duration>}`, which moves the clock, and `{"check_service_levels": true, "expect": {warnings, breaches, failed}}`, which asks the engine to check the work that is waiting (23.2) and states how many it newly recorded and how many tokens it failed; in `expect`, `given_contexts`, for each activity named the contexts its actor was given at its last execution (`null` for none at all), and `contexts`, the value of every context that has one when the case ends.
 
+Execution cases at level `subworkflows` add `workflows`: the other workflows the case's workflow may call. A runner gives the engine those and the case's workflow itself (24.1). `actors` scripts the activities of all of them, by name. An actor's script MAY give `human_task: true`: the actor hands the activity to a person, and the token waits (the case's `options` set `wait_for_human_tasks`). In `deliver`, `{"complete_task": {"activity": <name>, "output": <object>}}` completes, through the run, the task of every token waiting for a person at an activity of that name, in the run or in any run it called, and `resumes` says how many there must be; `{"cancel": <reason>}` cancels the run (5.8). In a case whose `options` set `simulate`, the runner registers no actors, and activities return what `options.simulated_outputs` scripts (24.6). `expect.subworkflow_runs` lists every child run, at any depth, in the order they started: each gives fields its record in the run's result must have (24.7), and MAY give `journal`, `journal_contains` and `journal_excludes`, which apply to that child run's own journal as they do to the parent's. A runner MUST also check that every child run's journal is valid and numbered from 1 without a gap, that its `run.started` names its parent run and the `seq` of the `activity.started` of the parent's attempt, and that the parent's journal records `subworkflow.started` for it.
+
 Execution cases at level `a2a` add `agents`: for the URL of each agent card, the `card` and the agent's `replies`. A runner stands in for every agent: a `GET` of a card's URL answers with the card, and each JSON-RPC request to the interface URL the card names takes that agent's next reply, the last repeating. A reply is `{"result": ...}` or `{"error": ...}`, sent as the JSON-RPC response to the request; any other address cannot be reached. In `deliver`, the step `{"agent_input": <object or text>}` gives that input to every token waiting for an agent's input (28.6), and `resumes` says how many there must be. In `expect`, `agent_card_reads` is how many times cards were read, `agent_requests` the JSON-RPC methods of every request sent to an agent, in order, and `agent_requests_contain` partial requests, each with `agent` (the card's URL), `method` and `params`, that some request must contain.
 
 **Measure cases** (`measures/*.json`) each give `recorded`, what the measures are computed from in the form a host exports (journeys with their instances and the journals of their runs), the `options` of the report (21.1), and `expect`: for journeys, stages, workflows and activities named, the value of each measure listed, `null` meaning no value; and where given the channels, artefacts, currency and the list of what needs attention. Numbers are compared to within 1e-9.
@@ -2482,4 +2589,5 @@ Runners: `sdk/typescript/tests/conformance.test.ts`, `sdk/python/tests/test_conf
 - Built-in executors for `mcp` bindings, over standard input and output or Streamable HTTP, and for unary `grpc` calls, held to the deployment's permissions (17.7, 17.8). An agent reached over A2A 1.0 can perform an activity, under the same contract, verification and record as any actor, and a host can offer a workflow as an A2A agent (section 28, level `a2a`).
 - The journal and the journey record as OpenTelemetry traces, with identifiers derived from the run and the journey instance, the generative AI semantic conventions, OTLP export that never holds up a run, the standard `OTEL_EXPORTER_OTLP_*` variables, and measures as OpenTelemetry gauges; conformance level `telemetry` (section 26).
 - Several hosts may share one store and take any work, with the outcome of one host: a store contract of partitions, holding, acceptance once and versions, met by a PostgreSQL store, with conformance level `shared_store` (section 29). A runtime directory still belongs to one host at a time (19.10).
+- Sub-workflows: an activity with `is_expandable` and `expansion_workflow_id` is performed by a child run of that workflow, with input and output mapping (`subworkflow`), its outcome held to the activity's contract and verification, retries that start a new child, waits that reach the parent, cancellation that reaches the child, `subworkflow.*` journal events, a depth limit, child runs kept with their parent in a runtime directory and in the parent's partition of a shared store, and conformance level `subworkflows` (section 24). **Such an activity used to be performed by its actor; it now runs the named workflow, and fails with `SUBWORKFLOW_NOT_FOUND` where that workflow is not given to the engine.**
 - Interchange with BPMN 2.0 and DMN 1.x, import and export without loss through the `awa:` extension namespace (`spec/xsd/awa-interchange.xsd`), with what is not imported refused and named; export to CNCF Serverless Workflow 1.0 with the list of what does not map; conformance level `interchange` (section 27).

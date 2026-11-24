@@ -81,7 +81,7 @@ class Case:
             case["actors"] = self.actors
         if getattr(self, "deliver", None):
             case["deliver"] = self.deliver
-        for extra in ("tools", "model", "clock", "agents"):
+        for extra in ("tools", "model", "clock", "agents", "workflows"):
             if getattr(self, extra, None):
                 case[extra] = getattr(self, extra)
         case["expect"] = self.expect
@@ -2399,6 +2399,388 @@ def a2a_cases() -> list[Case]:
     return cases
 
 
+# ---------------------------------------------------------------------------
+# Sub-workflows (section 24)
+# ---------------------------------------------------------------------------
+
+def subworkflow_cases() -> list[Case]:
+    """Level `subworkflows`: a workflow that calls the case's other `workflows`, with expectations on every journal."""
+    cases = []
+    retry = {"initial_delay": "PT0S", "jitter": False}
+
+    def child(case: Case, name: str) -> Case:
+        """Another workflow of the case, named `name`; its identifiers are derived from the case and the name."""
+        sub = Case(f"{case.id}/{name}", case.level, case.spec, name)
+        sub.name = name
+        return sub
+
+    def workflow_of(sub: Case) -> dict:
+        built = sub.build()["workflow"]
+        built["name"] = sub.name
+        return built
+
+    def calls(case: Case, name: str, sub: Case, actor_type: str = "application", **extra):
+        return case.act(name, actor_type, is_expandable=True, expansion_workflow_id=sub.u("workflow"), **extra)
+
+    def credit_check(case: Case) -> Case:
+        sub = child(case, "Credit check")
+        sub.act("Score").act("Grade").edge("Score", "Grade")
+        return sub
+
+    # --- 1. Output mapping ---------------------------------------------------------------------
+    c = Case("subworkflow-output-becomes-the-outcome", "subworkflows", "24.3",
+             "A call activity is performed by a child run: its input is mapped from the parent's data, the child's output is mapped to the "
+             "activity's outcome, which is merged into the parent's data and routes it. Both journals name each other.")
+    sub = credit_check(c)
+    c.act("Prepare")
+    calls(c, "Check", sub, subworkflow={"input": {"applicant": "applicant", "amount": "request.amount"},
+                                        "output": {"credit_grade": "grade", "credit_score": "score"}})
+    c.act("Approve").act("Refer").edge("Prepare", "Check").edge("Check", "Approve", condition='credit_grade == "A"').edge("Check", "Refer", is_default=True)
+    c.workflows = [workflow_of(sub)]
+    c.input = {"applicant": {"name": "Ada", "income": 5000}}
+    c.actors = {"Prepare": {"output": {"request": {"amount": 300}}},
+                "Score": {"output": {"score": 720, "bureau": "north"}}, "Grade": {"output": {"grade": "A"}}}
+    c.expect = {
+        "status": "completed", "visited": ["Prepare", "Score", "Grade", "Approve"],
+        "data": {"credit_grade": "A", "credit_score": 720, "output": {"credit_grade": "A", "credit_score": 720}},
+        "journal": ["activity.started", "subworkflow.started", "subworkflow.completed", "activity.completed", "run.completed"],
+        "journal_contains": [
+            {"type": "subworkflow.started", "node_name": "Check", "attempt": 1,
+             "data": {"workflow_id": sub.u("workflow"), "workflow_name": "Credit check", "depth": 1,
+                      "input": {"applicant": {"name": "Ada", "income": 5000}, "amount": 300}}},
+            {"type": "subworkflow.completed", "node_name": "Check", "data": {"workflow_id": sub.u("workflow"), "output": {"credit_grade": "A", "credit_score": 720}}},
+            {"type": "activity.completed", "node_name": "Check", "data": {"output": {"output": {"credit_grade": "A", "credit_score": 720}}}},
+        ],
+        "journal_excludes": ["subworkflow.failed"],
+        "subworkflow_runs": [{
+            "workflow_name": "Credit check", "workflow_id": sub.u("workflow"), "node_id": c.u("Check"), "attempt": 1, "depth": 1, "status": "completed",
+            "journal": ["run.started", "activity.started", "activity.completed", "activity.started", "activity.completed", "run.completed"],
+            "journal_contains": [{"type": "run.started", "data": {"depth": 1, "input": {"applicant": {"name": "Ada", "income": 5000}, "amount": 300}}}],
+        }],
+    }
+    cases.append(c)
+
+    # --- 2. Default input and output -----------------------------------------------------------
+    c = Case("subworkflow-default-input-and-output", "subworkflows", "24.2",
+             "Without a mapping the child is given the parent's data without engine properties and without the records of activities, "
+             "and its output, the data of its completed tokens, is the outcome.")
+    sub = child(c, "Enrich")
+    sub.act("Lookup")
+    c.act("Take order")
+    calls(c, "Enrich order", sub)
+    c.act("Ship").edge("Take order", "Enrich order").edge("Enrich order", "Ship", condition='segment == "gold"')
+    c.workflows = [workflow_of(sub)]
+    c.input = {"customer": "C-7"}
+    c.actors = {"Take order": {"output": {"order": {"total": 90}}}, "Lookup": {"output": {"segment": "gold"}}}
+    c.expect = {
+        "status": "completed", "visited": ["Take order", "Lookup", "Ship"],
+        "data": {"customer": "C-7", "segment": "gold", "output": {"customer": "C-7", "order": {"total": 90}, "segment": "gold"}},
+        "journal_contains": [{"type": "subworkflow.started", "data": {"input": {"customer": "C-7", "order": {"total": 90}}}}],
+        "subworkflow_runs": [{"workflow_name": "Enrich", "status": "completed", "depth": 1,
+                              "journal_contains": [{"type": "run.started", "data": {"input": {"customer": "C-7", "order": {"total": 90}}}}]}],
+    }
+    cases.append(c)
+
+    # --- 3. Contract on the child's output -----------------------------------------------------
+    c = Case("subworkflow-output-breaking-the-contract-fails", "subworkflows", "24.3",
+             "The child's output is held to the call activity's outcome contract like any actor's; a rejected outcome is not tried again "
+             "with feedback, even for an ai_agent activity, because a workflow takes no feedback.")
+    sub = credit_check(c)
+    calls(c, "Check", sub, "ai_agent", outcome_contract={"postconditions": [{"name": "good grade", "expression": 'grade == "A"'}]})
+    c.act("Approve").edge("Check", "Approve")
+    c.workflows = [workflow_of(sub)]
+    c.actors = {"Score": {"output": {"score": 540}}, "Grade": {"output": {"grade": "C"}}}
+    c.expect = {
+        "status": "failed", "visited": ["Score", "Grade"], "not_visited": ["Approve"], "error_matches": "Outcome contract violated",
+        "journal": ["subworkflow.started", "subworkflow.completed", "contract.checked", "activity.failed", "token.failed", "run.failed"],
+        "journal_contains": [{"type": "contract.checked", "data": {"passed": False}},
+                             {"type": "activity.failed", "node_name": "Check", "data": {"error": {"code": "CONTRACT_VIOLATION"}, "retryable": False}}],
+        "journal_count": {"subworkflow.started": 1, "activity.started": 1},
+        "subworkflow_runs": [{"workflow_name": "Credit check", "status": "completed"}],
+    }
+    cases.append(c)
+
+    # --- 4. The child fails --------------------------------------------------------------------
+    c = Case("subworkflow-failure-fails-the-activity", "subworkflows", "24.3",
+             "When the child run fails, the parent records why and the attempt fails with SUBWORKFLOW_FAILED, naming the workflow and "
+             "giving the child's error.")
+    sub = credit_check(c)
+    calls(c, "Check", sub)
+    c.act("Approve").edge("Check", "Approve")
+    c.workflows = [workflow_of(sub)]
+    c.actors = {"Score": {"error": "bureau unavailable", "code": "UPSTREAM_DOWN"}}
+    c.expect = {
+        "status": "failed", "visited": ["Score"], "not_visited": ["Grade", "Approve"],
+        "error_matches": "Credit check.*bureau unavailable",
+        "journal": ["subworkflow.started", "subworkflow.failed", "activity.failed", "token.failed", "run.failed"],
+        "journal_contains": [
+            {"type": "subworkflow.failed", "node_name": "Check", "data": {"workflow_id": sub.u("workflow"), "error": {"message": "bureau unavailable", "code": "UPSTREAM_DOWN"}}},
+            {"type": "activity.failed", "node_name": "Check", "data": {"error": {"code": "SUBWORKFLOW_FAILED"}}},
+        ],
+        "subworkflow_runs": [{"workflow_name": "Credit check", "status": "failed",
+                              "journal": ["run.started", "activity.failed", "token.failed", "run.failed"]}],
+    }
+    cases.append(c)
+
+    # --- 5. Missing workflow -------------------------------------------------------------------
+    c = Case("subworkflow-missing-workflow-fails", "subworkflows", "24.1",
+             "A call activity whose workflow is not registered fails with SUBWORKFLOW_NOT_FOUND, is never retried, and starts no run.")
+    c.act("Check", "application", is_expandable=True, expansion_workflow_id=c.u("unregistered"), retry={"max_attempts": 3, **retry})
+    c.act("Approve").edge("Check", "Approve")
+    c.expect = {
+        "status": "failed", "visited": [],
+        "journal_contains": [{"type": "activity.failed", "node_name": "Check", "data": {"error": {"code": "SUBWORKFLOW_NOT_FOUND"}, "retryable": False}}],
+        "journal_count": {"activity.started": 1},
+        "journal_excludes": ["subworkflow.started", "activity.retry_scheduled"],
+        "subworkflow_runs": [],
+    }
+    cases.append(c)
+
+    # --- 6. Recursion --------------------------------------------------------------------------
+    c = Case("subworkflow-recursion-is-bounded", "subworkflows", "24.1",
+             "A workflow may call itself. The depth limit, 8 by default, stops it: the attempt that would start a run at depth 9 fails "
+             "with SUBWORKFLOW_DEPTH_EXCEEDED and starts nothing, and each run above it fails in turn.")
+    c.act("Count")
+    c.act("Again", "application", is_expandable=True, expansion_workflow_id=c.u("workflow"))
+    c.edge("Count", "Again")
+    c.actors = {"Count": {"output": {"counted": True}}}
+    deepest = {"journal_contains": [{"type": "activity.failed", "node_name": "Again", "data": {"error": {"code": "SUBWORKFLOW_DEPTH_EXCEEDED"}}}],
+               "journal_excludes": ["subworkflow.started"]}
+    c.expect = {
+        "status": "failed", "visited": ["Count"] * 9,
+        "journal_contains": [{"type": "subworkflow.failed", "node_name": "Again", "data": {"workflow_id": c.u("workflow")}},
+                             {"type": "activity.failed", "node_name": "Again", "data": {"error": {"code": "SUBWORKFLOW_FAILED"}}}],
+        "subworkflow_runs": [{"workflow_name": c.id, "depth": d, "status": "failed", **(deepest if d == 8 else {})} for d in range(1, 9)],
+    }
+    cases.append(c)
+
+    # --- 7. Retry ------------------------------------------------------------------------------
+    c = Case("subworkflow-retry-starts-a-new-child", "subworkflows", "24.3",
+             "SUBWORKFLOW_FAILED is retried under the call activity's retry policy, and each retry starts a new child run; the failed one "
+             "stays on record.")
+    sub = child(c, "Fetch documents")
+    sub.act("Fetch")
+    calls(c, "Gather", sub, retry={"max_attempts": 2, **retry})
+    c.act("Review").edge("Gather", "Review")
+    c.workflows = [workflow_of(sub)]
+    c.actors = {"Fetch": {"attempts": [{"error": "archive timed out", "code": "TIMEOUT"}, {"output": {"documents": 3}}]}}
+    c.expect = {
+        "status": "completed", "visited": ["Fetch", "Fetch", "Review"], "data": {"documents": 3},
+        "journal": ["activity.started", "subworkflow.started", "subworkflow.failed", "activity.failed", "activity.retry_scheduled",
+                    "activity.started", "subworkflow.started", "subworkflow.completed", "activity.completed", "run.completed"],
+        "journal_contains": [{"type": "activity.failed", "node_name": "Gather", "attempt": 1, "data": {"error": {"code": "SUBWORKFLOW_FAILED"}, "retryable": True}},
+                             {"type": "subworkflow.started", "attempt": 2}],
+        "journal_count": {"subworkflow.started": 2},
+        "subworkflow_runs": [{"workflow_name": "Fetch documents", "attempt": 1, "status": "failed"},
+                             {"workflow_name": "Fetch documents", "attempt": 2, "status": "completed"}],
+    }
+    cases.append(c)
+
+    # --- 8. Cancellation -----------------------------------------------------------------------
+    def awaiting_documents(case: Case) -> Case:
+        sub = child(case, "Collect documents")
+        sub.act("Request").event("Documents received", "message", name="documents.received", correlation_key="claim_id").act("File")
+        sub.edge("Request", "Documents received").edge("Documents received", "File")
+        return sub
+
+    c = Case("subworkflow-cancelled-with-its-parent", "subworkflows", "24.5",
+             "Cancelling the parent cancels the child run it waits on first, with reason parent_cancelled; neither run goes on.")
+    sub = awaiting_documents(c)
+    calls(c, "Collect", sub)
+    c.act("Assess").edge("Collect", "Assess")
+    c.workflows = [workflow_of(sub)]
+    c.input = {"claim_id": "CL-1"}
+    c.deliver = [{"cancel": "the customer withdrew the claim"}]
+    c.expect = {
+        "status": "cancelled", "visited": ["Request"], "not_visited": ["File", "Assess"],
+        "journal": ["subworkflow.started", "token.waiting", "run.waiting", "subworkflow.cancelled", "token.cancelled", "run.cancelled"],
+        "journal_contains": [{"type": "subworkflow.cancelled", "node_name": "Collect", "data": {"workflow_id": sub.u("workflow"), "reason": "parent_cancelled"}},
+                             {"type": "run.cancelled", "data": {"reason": "the customer withdrew the claim"}}],
+        "subworkflow_runs": [{"workflow_name": "Collect documents", "status": "cancelled",
+                              "journal": ["event.waiting", "run.waiting", "token.cancelled", "run.cancelled"],
+                              "journal_contains": [{"type": "run.cancelled", "data": {"reason": "parent_cancelled"}}]}],
+    }
+    cases.append(c)
+
+    c = Case("subworkflow-cancelled-when-its-parent-fails", "subworkflows", "24.5",
+             "When the parent fails while a child waits, the waiting token is withdrawn and the child run is cancelled with reason parent_failed.")
+    sub = awaiting_documents(c)
+    c.act("Open")
+    calls(c, "Collect", sub)
+    c.act("Validate").edge("Open", "Collect").edge("Open", "Validate")
+    c.workflows = [workflow_of(sub)]
+    c.input = {"claim_id": "CL-2"}
+    c.actors = {"Validate": {"error": "policy lapsed"}}
+    c.expect = {
+        "status": "failed", "visited_unordered": ["Open", "Request", "Validate"], "not_visited": ["File"],
+        "journal_contains": [{"type": "subworkflow.cancelled", "node_name": "Collect", "data": {"reason": "parent_failed"}},
+                             {"type": "token.cancelled", "node_name": "Collect", "data": {"reason": "run_failed"}}],
+        "subworkflow_runs": [{"workflow_name": "Collect documents", "status": "cancelled",
+                              "journal_contains": [{"type": "run.cancelled", "data": {"reason": "parent_failed"}}]}],
+    }
+    cases.append(c)
+
+    # --- 9. A child that waits for a person ----------------------------------------------------
+    c = Case("subworkflow-child-waits-for-a-person", "subworkflows", "24.4",
+             "A child run that hands work to a person leaves the parent waiting_human. The person's task is completed through the parent; "
+             "the child goes on to its end, and the parent takes its outcome in a new attempt.")
+    sub = child(c, "Approval")
+    sub.act("Review", "human").act("Record").edge("Review", "Record")
+    calls(c, "Approve", sub)
+    c.act("Pay").edge("Approve", "Pay", condition="approved == true")
+    c.workflows = [workflow_of(sub)]
+    c.options = {"wait_for_human_tasks": True}
+    c.actors = {"Review": {"human_task": True}, "Record": {"output": {"recorded": True}}}
+    c.deliver = [{"complete_task": {"activity": "Review", "output": {"approved": True}}, "resumes": 1}]
+    c.expect = {
+        "status": "completed", "visited": ["Review", "Record", "Pay"], "data": {"approved": True, "recorded": True},
+        "journal": ["activity.started", "subworkflow.started", "token.waiting", "run.waiting", "token.resumed",
+                    "activity.started", "subworkflow.completed", "activity.completed", "run.completed"],
+        "journal_contains": [
+            {"type": "token.waiting", "node_name": "Approve", "data": {"reason": "subworkflow", "workflow_id": sub.u("workflow"), "waiting_for": "human"}},
+            {"type": "run.waiting", "data": {"waiting_for": "human"}},
+            {"type": "token.resumed", "node_name": "Approve", "data": {"reason": "subworkflow", "status": "completed"}},
+        ],
+        "journal_count": {"subworkflow.started": 1},
+        "subworkflow_runs": [{"workflow_name": "Approval", "status": "completed",
+                              "journal": ["token.waiting", "run.waiting", "token.resumed", "activity.completed", "activity.started", "run.completed"],
+                              "journal_contains": [{"type": "token.waiting", "node_name": "Review", "data": {"reason": "human_task"}}]}],
+    }
+    cases.append(c)
+
+    # --- 10. A child that waits for a business event -------------------------------------------
+    c = Case("subworkflow-child-waits-for-an-event", "subworkflows", "24.4",
+             "A child run that waits for a business event leaves the parent waiting_event. Events delivered to the parent reach the child, "
+             "by its own correlation; the one that matches resumes the child and then the parent.")
+    sub = awaiting_documents(c)
+    calls(c, "Collect", sub)
+    c.act("Assess").edge("Collect", "Assess")
+    c.workflows = [workflow_of(sub)]
+    c.input = {"claim_id": "CL-3"}
+    c.actors = {"File": {"output": {"filed": True}}}
+    c.deliver = [{"event": {"type": "documents.received", "id": "evt-other", "data": {"claim_id": "CL-9", "pages": 1}}, "resumes": 0},
+                 {"event": {"type": "documents.received", "id": "evt-mine", "data": {"claim_id": "CL-3", "pages": 4}}, "resumes": 1},
+                 {"event": {"type": "documents.received", "id": "evt-mine", "data": {"claim_id": "CL-3", "pages": 4}}, "resumes": 0}]
+    c.expect = {
+        "status": "completed", "visited": ["Request", "File", "Assess"], "data": {"pages": 4, "filed": True},
+        "journal": ["subworkflow.started", "token.waiting", "run.waiting", "token.resumed", "activity.started", "subworkflow.completed", "activity.completed", "run.completed"],
+        "journal_contains": [{"type": "token.waiting", "node_name": "Collect", "data": {"reason": "subworkflow", "waiting_for": "event"}},
+                             {"type": "run.waiting", "data": {"waiting_for": "event"}}],
+        "subworkflow_runs": [{"workflow_name": "Collect documents", "status": "completed",
+                              "journal": ["event.waiting", "run.waiting", "event.received", "activity.completed", "run.completed"],
+                              "journal_contains": [{"type": "event.received", "data": {"event_id": "evt-mine"}}]}],
+    }
+    cases.append(c)
+
+    # --- 11. A child whose agent asks for input -------------------------------------------------
+    card_url, rpc = "https://agents.example/claims/.well-known/agent-card.json", "https://agents.example/claims/a2a"
+    c = Case("subworkflow-child-agent-asks-for-input", "subworkflows", "24.4",
+             "A child run whose agent, reached over A2A, asks for input leaves the parent waiting_human; the host answers through the "
+             "parent, and the child and then the parent go on.")
+    sub = child(c, "Assessment")
+    sub.act("Assess", "ai_agent", a2a={"agent_card": card_url})
+    calls(c, "Assess claim", sub)
+    c.act("Settle").edge("Assess claim", "Settle")
+    c.workflows = [workflow_of(sub)]
+    c.input = {"claim_id": "C-7"}
+
+    def a2a_task(state, artifacts=None, message=None):
+        status = {"state": f"TASK_STATE_{state}"}
+        if message:
+            status["message"] = {"messageId": f"m-{state.lower()}", "role": "ROLE_AGENT", "parts": [{"text": message}]}
+        return {"result": {"task": {"id": "task-1", "contextId": "ctx-1", "status": status,
+                                    **({"artifacts": [{"artifactId": "a0", "parts": [{"data": a, "mediaType": "application/json"}]} for a in artifacts]}
+                                       if artifacts else {})}}}
+
+    c.agents = {card_url: {
+        "card": {"name": "Claims assessor", "description": "Claims assessor, reached over A2A", "version": "1.0.0",
+                 "supportedInterfaces": [{"url": rpc, "protocolBinding": "JSONRPC", "protocolVersion": "1.0"}],
+                 "capabilities": {"streaming": False, "pushNotifications": False},
+                 "defaultInputModes": ["application/json", "text/plain"], "defaultOutputModes": ["application/json"],
+                 "skills": [{"id": "assess", "name": "Assess", "description": "Assess a claim", "tags": ["claims"]}]},
+        "replies": [a2a_task("INPUT_REQUIRED", message="Which policy covers the claim?"), a2a_task("COMPLETED", [{"decision": "approve"}])]}}
+    c.deliver = [{"agent_input": {"policy": "P-9"}, "resumes": 1}]
+    c.expect = {
+        "status": "completed", "visited": ["Settle"], "data": {"decision": "approve"},
+        "journal": ["subworkflow.started", "token.waiting", "run.waiting", "token.resumed", "subworkflow.completed", "activity.completed"],
+        "journal_contains": [{"type": "token.waiting", "node_name": "Assess claim", "data": {"reason": "subworkflow", "waiting_for": "human"}},
+                             {"type": "run.waiting", "data": {"waiting_for": "human"}}],
+        "agent_requests": ["SendMessage", "SendMessage"],
+        "agent_requests_contain": [{"agent": card_url, "method": "SendMessage", "params": {"message": {"taskId": "task-1", "contextId": "ctx-1"}}}],
+        "subworkflow_runs": [{"workflow_name": "Assessment", "status": "completed",
+                              "journal": ["agent.message_sent", "token.waiting", "run.waiting", "token.resumed", "agent.message_sent", "activity.completed", "run.completed"],
+                              "journal_contains": [{"type": "token.waiting", "node_name": "Assess", "data": {"reason": "agent_input", "task_id": "task-1"}}]}],
+    }
+    cases.append(c)
+
+    # --- 11. Simulation ------------------------------------------------------------------------
+    c = Case("subworkflow-simulated-with-its-parent", "subworkflows", "24.6",
+             "In simulation the child run is simulated too: the scripts given by activity name apply to the child's activities, and one "
+             "given for the call activity itself is not used.")
+    sub = child(c, "Scoring")
+    sub.act("Score", "ai_agent")
+    calls(c, "Check", sub)
+    c.workflows = [workflow_of(sub)]
+    c.options = {"simulate": True, "simulated_outputs": {"Score": {"output": {"score": 700}}, "Check": {"output": {"score": 1}}}}
+    c.expect = {
+        "status": "completed", "data": {"score": 700},
+        "journal_contains": [{"type": "run.started", "data": {"simulate": True}},
+                             {"type": "subworkflow.completed", "data": {"output": {"score": 700}}}],
+        "subworkflow_runs": [{"workflow_name": "Scoring", "status": "completed",
+                              "journal_contains": [{"type": "run.started", "data": {"simulate": True, "depth": 1}},
+                                                   {"type": "activity.completed", "node_name": "Score", "data": {"output": {"score": 700}}}]}],
+    }
+    cases.append(c)
+    return cases
+
+
+def subworkflow_telemetry_cases() -> list[dict]:
+    """Level `subworkflows` (24.7, 26.2): a child run's trace links its run span to the parent's attempt span."""
+    import hashlib
+
+    def digest(text: str, size: int) -> str:
+        raw = bytearray(hashlib.sha256(text.encode("utf-8")).digest()[:size])
+        if not any(raw):
+            raw[-1] = 1
+        return raw.hex()
+
+    case_id = "telemetry-child-run-links-to-its-parent"
+    u = lambda name: uid(case_id, name)
+    run, parent = u("child run"), u("parent run")
+    events = []
+
+    def ev(type_, ms, token=None, node=None, attempt=None, **data):
+        event = {"spec_version": "1.1", "id": u(f"event-{len(events) + 1}"), "run_id": run, "seq": len(events) + 1,
+                 "time": f"2026-03-02T09:00:{ms // 1000:02d}.{ms % 1000:03d}Z", "type": type_, "level": "execution", "workflow_id": u("child workflow")}
+        if token:
+            event["token_id"] = u(token)
+        if node:
+            event["node_id"], event["node_name"] = u(node), node
+        if attempt:
+            event["attempt"] = attempt
+        event["data"] = data
+        events.append(event)
+
+    ev("run.started", 0, workflow_name="Credit check", workflow_version="1.0.0", input={"amount": 300}, simulate=False, depth=1,
+       parent={"run_id": parent, "workflow_id": u("parent workflow"), "node_id": u("Check"), "token_id": u("parent token"), "attempt": 1, "seq": 4, "root_run_id": parent})
+    ev("token.created", 0, "T", "Score")
+    ev("activity.started", 10, "T", "Score", 1, actor_type="application")
+    ev("activity.completed", 210, "T", "Score", 1, actor_type="application", output={"score": 720}, duration_ms=200, attempts=1)
+    ev("token.completed", 210, "T", "Score")
+    ev("run.completed", 220, duration_ms=220, steps=1, input_tokens=0, output_tokens=0, cost=0, currency="USD")
+    return [{
+        "id": case_id, "level": "subworkflows", "spec": "24.7",
+        "description": "A child run is a trace of its own. Its run span carries the parent's run id and its depth, and links to the span of the parent's attempt that started it.",
+        "decision_nodes": [], "journal": events, "options": {"payloads": False},
+        "expect": {
+            "trace_id": digest(f"awa:run:{run}", 16), "span_count": 2,
+            "spans": [{"span_id": digest(f"awa:run:{run}:1", 8), "parent_span_id": None, "name": "invoke_workflow Credit check",
+                       "attributes": {"awa.run.id": run, "awa.run.parent_run_id": parent, "awa.run.depth": 1},
+                       "links": [{"trace_id": digest(f"awa:run:{parent}", 16), "span_id": digest(f"awa:run:{parent}:4", 8)}]}],
+        },
+    }]
+
+
 def telemetry_cases() -> list[dict]:
     """Level `telemetry` (section 26): a record, and the trace every implementation must derive from it."""
     import hashlib
@@ -2890,7 +3272,7 @@ def main() -> None:
         (ROOT / folder).mkdir(exist_ok=True)
         for old in (ROOT / folder).glob("*.json"):
             old.unlink()
-    execution = execution_cases() + tool_cases() + model_decision_cases() + routing_cases() + context_cases() + service_level_cases() + a2a_cases()
+    execution = execution_cases() + tool_cases() + model_decision_cases() + routing_cases() + context_cases() + service_level_cases() + a2a_cases() + subworkflow_cases()
     for case in execution:
         write(ROOT / "execution" / f"{case.id}.json", case.build())
     for case in journey_cases():
@@ -2905,7 +3287,7 @@ def main() -> None:
         write(ROOT / "measures" / f"{case['id']}.json", case)
     for doc in document_cases():
         write(ROOT / "documents" / f"{doc['id']}.json", doc)
-    for case in telemetry_cases():
+    for case in telemetry_cases() + subworkflow_telemetry_cases():
         write(ROOT / "telemetry" / f"{case['id']}.json", case)
     for case in evidence_cases():
         write(ROOT / "evidence" / f"{case['id']}.json", case)

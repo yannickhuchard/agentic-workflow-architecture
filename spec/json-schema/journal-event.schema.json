@@ -85,7 +85,11 @@
                 "context.written",
                 "context.denied",
                 "sla.warning",
-                "sla.breached"
+                "sla.breached",
+                "subworkflow.started",
+                "subworkflow.completed",
+                "subworkflow.failed",
+                "subworkflow.cancelled"
             ]
         },
         "level": {

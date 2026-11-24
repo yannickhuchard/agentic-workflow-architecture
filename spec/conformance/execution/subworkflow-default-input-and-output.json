@@ -1,0 +1,133 @@
+{
+  "id": "subworkflow-default-input-and-output",
+  "level": "subworkflows",
+  "spec": "24.2",
+  "description": "Without a mapping the child is given the parent's data without engine properties and without the records of activities, and its output, the data of its completed tokens, is the outcome.",
+  "workflow": {
+    "id": "74eeaa14-1417-5828-a1a8-7e2d3631ebe9",
+    "name": "subworkflow-default-input-and-output",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "a3a8b963-1928-5879-b5d6-d53121d56975",
+        "name": "Take order",
+        "role_id": "bd0572b0-07b3-5ad5-9174-07a498eaf580",
+        "actor_type": "application"
+      },
+      {
+        "id": "d72b2233-58ee-5217-beee-541fd5db4859",
+        "name": "Enrich order",
+        "role_id": "bd0572b0-07b3-5ad5-9174-07a498eaf580",
+        "actor_type": "application",
+        "is_expandable": true,
+        "expansion_workflow_id": "97fca2e9-c35d-5b87-bede-4dab081a0970"
+      },
+      {
+        "id": "d78923ba-b83a-5b25-b413-3d33d7823db4",
+        "name": "Ship",
+        "role_id": "bd0572b0-07b3-5ad5-9174-07a498eaf580",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "cd16adb0-7944-5b0f-bd7f-22120838d58a",
+        "source_id": "a3a8b963-1928-5879-b5d6-d53121d56975",
+        "target_id": "d72b2233-58ee-5217-beee-541fd5db4859"
+      },
+      {
+        "id": "5b48a0c0-0ea8-50b7-8b32-9f58f2839fc6",
+        "source_id": "d72b2233-58ee-5217-beee-541fd5db4859",
+        "target_id": "d78923ba-b83a-5b25-b413-3d33d7823db4",
+        "condition": "segment == \"gold\""
+      }
+    ]
+  },
+  "input": {
+    "customer": "C-7"
+  },
+  "actors": {
+    "Take order": {
+      "output": {
+        "order": {
+          "total": 90
+        }
+      }
+    },
+    "Lookup": {
+      "output": {
+        "segment": "gold"
+      }
+    }
+  },
+  "workflows": [
+    {
+      "id": "97fca2e9-c35d-5b87-bede-4dab081a0970",
+      "name": "Enrich",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "a00ab259-d633-5507-985a-aee4dffea8cb",
+          "name": "Lookup",
+          "role_id": "8abfc49d-e100-52a6-8ed7-e0f777b9d088",
+          "actor_type": "application"
+        }
+      ],
+      "edges": []
+    }
+  ],
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "Take order",
+      "Lookup",
+      "Ship"
+    ],
+    "data": {
+      "customer": "C-7",
+      "segment": "gold",
+      "output": {
+        "customer": "C-7",
+        "order": {
+          "total": 90
+        },
+        "segment": "gold"
+      }
+    },
+    "journal_contains": [
+      {
+        "type": "subworkflow.started",
+        "data": {
+          "input": {
+            "customer": "C-7",
+            "order": {
+              "total": 90
+            }
+          }
+        }
+      }
+    ],
+    "subworkflow_runs": [
+      {
+        "workflow_name": "Enrich",
+        "status": "completed",
+        "depth": 1,
+        "journal_contains": [
+          {
+            "type": "run.started",
+            "data": {
+              "input": {
+                "customer": "C-7",
+                "order": {
+                  "total": 90
+                }
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

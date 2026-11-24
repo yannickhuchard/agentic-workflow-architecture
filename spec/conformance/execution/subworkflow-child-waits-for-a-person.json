@@ -1,0 +1,163 @@
+{
+  "id": "subworkflow-child-waits-for-a-person",
+  "level": "subworkflows",
+  "spec": "24.4",
+  "description": "A child run that hands work to a person leaves the parent waiting_human. The person's task is completed through the parent; the child goes on to its end, and the parent takes its outcome in a new attempt.",
+  "workflow": {
+    "id": "3d188197-7f18-5a34-b20f-ea474c7fb0f9",
+    "name": "subworkflow-child-waits-for-a-person",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "2411bb00-9e12-5dd7-9e9d-6e7ec2106ed8",
+        "name": "Approve",
+        "role_id": "1100045a-c8d5-56eb-8e1f-8ca5783abed6",
+        "actor_type": "application",
+        "is_expandable": true,
+        "expansion_workflow_id": "a45292af-98cc-5e3b-976e-17b045e5fb51"
+      },
+      {
+        "id": "195184be-dc6c-507f-a0ee-f4181c1ef782",
+        "name": "Pay",
+        "role_id": "1100045a-c8d5-56eb-8e1f-8ca5783abed6",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "2cf04c0a-52ed-5063-94fa-212c251cf2bb",
+        "source_id": "2411bb00-9e12-5dd7-9e9d-6e7ec2106ed8",
+        "target_id": "195184be-dc6c-507f-a0ee-f4181c1ef782",
+        "condition": "approved == true"
+      }
+    ]
+  },
+  "options": {
+    "wait_for_human_tasks": true
+  },
+  "actors": {
+    "Review": {
+      "human_task": true
+    },
+    "Record": {
+      "output": {
+        "recorded": true
+      }
+    }
+  },
+  "deliver": [
+    {
+      "complete_task": {
+        "activity": "Review",
+        "output": {
+          "approved": true
+        }
+      },
+      "resumes": 1
+    }
+  ],
+  "workflows": [
+    {
+      "id": "a45292af-98cc-5e3b-976e-17b045e5fb51",
+      "name": "Approval",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "dc04e72f-2bf4-529f-8e7a-38384c7f18c3",
+          "name": "Review",
+          "role_id": "1d8f5195-21c0-5562-9881-4a41ac5530a1",
+          "actor_type": "human"
+        },
+        {
+          "id": "66af9f1b-f22e-5fb4-9f16-cdb155d60aa5",
+          "name": "Record",
+          "role_id": "1d8f5195-21c0-5562-9881-4a41ac5530a1",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "6973175d-5a42-5243-8485-99d96e3f93c7",
+          "source_id": "dc04e72f-2bf4-529f-8e7a-38384c7f18c3",
+          "target_id": "66af9f1b-f22e-5fb4-9f16-cdb155d60aa5"
+        }
+      ]
+    }
+  ],
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "Review",
+      "Record",
+      "Pay"
+    ],
+    "data": {
+      "approved": true,
+      "recorded": true
+    },
+    "journal": [
+      "activity.started",
+      "subworkflow.started",
+      "token.waiting",
+      "run.waiting",
+      "token.resumed",
+      "activity.started",
+      "subworkflow.completed",
+      "activity.completed",
+      "run.completed"
+    ],
+    "journal_contains": [
+      {
+        "type": "token.waiting",
+        "node_name": "Approve",
+        "data": {
+          "reason": "subworkflow",
+          "workflow_id": "a45292af-98cc-5e3b-976e-17b045e5fb51",
+          "waiting_for": "human"
+        }
+      },
+      {
+        "type": "run.waiting",
+        "data": {
+          "waiting_for": "human"
+        }
+      },
+      {
+        "type": "token.resumed",
+        "node_name": "Approve",
+        "data": {
+          "reason": "subworkflow",
+          "status": "completed"
+        }
+      }
+    ],
+    "journal_count": {
+      "subworkflow.started": 1
+    },
+    "subworkflow_runs": [
+      {
+        "workflow_name": "Approval",
+        "status": "completed",
+        "journal": [
+          "token.waiting",
+          "run.waiting",
+          "token.resumed",
+          "activity.completed",
+          "activity.started",
+          "run.completed"
+        ],
+        "journal_contains": [
+          {
+            "type": "token.waiting",
+            "node_name": "Review",
+            "data": {
+              "reason": "human_task"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
