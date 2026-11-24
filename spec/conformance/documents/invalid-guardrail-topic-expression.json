@@ -1,0 +1,39 @@
+{
+  "id": "invalid-guardrail-topic-expression",
+  "level": "guardrails",
+  "description": "The expressions of a topic check are condition expressions.",
+  "valid": false,
+  "document": {
+    "id": "35ca34a7-29c9-5269-9d5e-5731949fc4d2",
+    "name": "invalid-guardrail-topic-expression",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "d6c2b131-b21c-50ef-a084-2e7d09d68db8",
+        "name": "A",
+        "role_id": "ed0964c4-b083-5fd2-811d-03f5c992aa2b",
+        "actor_type": "ai_agent",
+        "guardrails": [
+          {
+            "id": "5be8fce1-237f-51cd-8845-46d9fe365ea5",
+            "name": "g",
+            "stages": [
+              "input"
+            ],
+            "check": {
+              "kind": "topic",
+              "allow": [
+                "intent =="
+              ]
+            },
+            "action": "block"
+          }
+        ]
+      }
+    ],
+    "edges": []
+  },
+  "stage": "integrity",
+  "error_code": "invalid_expression"
+}

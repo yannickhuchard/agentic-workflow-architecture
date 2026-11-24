@@ -35,6 +35,7 @@ This document is normative. Where it and an SDK disagree, this document is right
 27. [Interchange](#27-interchange)
 28. [Agents over A2A](#28-agents-over-a2a)
 29. [Hosts that share a store](#29-hosts-that-share-a-store)
+31. [Guardrails](#31-guardrails)
 32. [Evidence](#32-evidence)
 33. [Evaluation](#33-evaluation)
 
@@ -81,6 +82,7 @@ An implementation claims one or more levels. Each level has cases in `spec/confo
 | `interchange` | Imports and exports BPMN 2.0 and DMN without loss, refuses what AWA cannot express, and exports CNCF Serverless Workflow 1.0 | 27 |
 | `a2a` | Lets an agent reached over the Agent2Agent protocol perform an activity, under the same contract, verification, permissions and record as any actor | 28 |
 | `shared_store` | Lets several hosts keep journeys and runs in one store and take any work, with the outcome of one host: no event taken twice or lost, no record with a gap | 29 |
+| `guardrails` | Checks what goes into and comes out of AI agents and tools at run time, blocks, redacts, retries, escalates or warns as declared, and records each finding without what it matched | 31 |
 | `evidence` | Computes evidence reports from journals and journey records, every statement citing the records it rests on | 32 |
 | `evaluation` | Builds evaluation datasets from journals and scores a candidate against them | 33.1 to 33.4 |
 
@@ -90,8 +92,8 @@ An implementation MUST NOT claim a level unless it passes every case tagged with
 
 | SDK | Levels claimed |
 |---|---|
-| TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `telemetry`, `interchange`, `shared_store`, `a2a`, `evidence`, `evaluation` (`shared_store` with PostgreSQL, through the optional package `pg`). Built-in MCP and gRPC executors (17.7, 17.8); serves workflows as A2A agents (28.8) |
-| Python | every level: `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `telemetry`, `interchange`, `shared_store`, `a2a`, `evidence`, `evaluation` (`shared_store` with PostgreSQL, through the extra `postgres`). Built-in MCP and gRPC executors (gRPC with the `grpc` extra); serves workflows as A2A agents. Without the recipe, or Open Knowledge Format exchange |
+| TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `telemetry`, `interchange`, `shared_store`, `a2a`, `guardrails`, `evidence`, `evaluation` (`shared_store` with PostgreSQL, through the optional package `pg`). Built-in MCP and gRPC executors (17.7, 17.8); serves workflows as A2A agents (28.8) |
+| Python | every level: `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `telemetry`, `interchange`, `shared_store`, `a2a`, `guardrails`, `evidence`, `evaluation` (`shared_store` with PostgreSQL, through the extra `postgres`). Built-in MCP and gRPC executors (gRPC with the `grpc` extra); serves workflows as A2A agents. Without the recipe, or Open Knowledge Format exchange |
 | Java | none: a data model that reads and writes 1.1 documents faithfully, without validating them, and no engine |
 
 ### 2.3 Versions
@@ -161,6 +163,7 @@ A processor MUST validate a document in two stages and MUST reject a document th
 | Every timer event has a valid `event_definition.duration` | `invalid_timer` |
 | Every message or signal event has `event_definition.name`; a `timeout` is a valid duration; a `timeout_edge_id` names an edge leaving the event | `invalid_event` |
 | No node is the source of more than one edge with `is_default: true` | `multiple_default_edges` |
+| Every guardrail is consistent: its action is allowed at each of its stages, it redacts only with a check that gives positions, a guardrail on a tool has only tool stages, its patterns compile and its markers exist, a size check has a limit, and no two guardrails share an `id` (31.11). An expression of a `topic` check is a valid condition expression (`invalid_expression`) | `invalid_guardrail` |
 
 ### 4.4 Extension
 
@@ -408,6 +411,7 @@ The JSON Schemas are authoritative for field names and types. This section summa
 | `contexts` | Context[] | Shared contexts |
 | `sla` | SLA | Service level of the run as a whole (section 23) |
 | `analytics` | Analytics | Value stream metrics |
+| `guardrails` | Guardrail[] | Guardrails on every activity and its tool calls (section 31). A role may carry its own as well |
 
 ### 8.2 Activity
 
@@ -435,6 +439,7 @@ The JSON Schemas are authoritative for field names and types. This section summa
 | `outcome_contract` | OutcomeContract | What must be true of the outcome (section 11) |
 | `sla` | SLA | Activity-level service level (section 23) |
 | `analytics` | Analytics | Activity-level metrics |
+| `guardrails` | Guardrail[] | Checks on the input, the output and the tool calls of the activity (section 31) |
 
 ### 8.3 Edge
 
@@ -530,7 +535,8 @@ An engine MUST NOT alter or remove an event once written.
 | `retry` | An attempt raised and will be retried |
 | `verification_retry` | An output was rejected by verification and the activity will be re-executed with feedback |
 | `contract_retry` | An outcome violated its contract and the activity will be re-executed with feedback |
-| `escalation` | A rejected outcome is handed to a human |
+| `guardrail_retry` | An output was rejected by a guardrail and the activity will be re-executed with feedback (31.5) |
+| `escalation` | A rejected outcome, or what a guardrail escalated, is handed to a human |
 
 ### 9.3 Event types
 
@@ -570,6 +576,7 @@ An engine MUST NOT alter or remove an event once written.
 | `verification.completed` | execution | An output has been verified | `mode`, `verdict`, `score`, `criteria`, `feedback`, `output_hash` |
 | `contract.checked` | execution | An outcome has been checked against its contract | `passed`, `violations`, `tokens_used`, `output_hash`, `decided_by` |
 | `contract.escalated` | execution | A rejected outcome is handed to a human | `code`, `message`, `rejected_output` |
+| `guardrail.triggered` | execution | A guardrail found something, or could not check (31.7) | `guardrail_id`, `name`, `source`, `stage`, `check`, `action`, `categories`, `findings`, `tool`, `call_id`, `error`; never the text found |
 | `knowledge.retrieved` | execution | An actor is given knowledge entries | `entries` (id, type, title, status, observations) |
 | `reasoning.recorded` | reasoning | An actor reports its reasoning | `plan`, `rationale`, `alternatives_considered`, `confidence` |
 | `meta.recorded` | meta | The engine makes a decision listed in 9.2 | `subject`, `decision`, `rationale` |
@@ -656,6 +663,8 @@ For each attempt that returns, an engine MUST check in this order and stop at th
 
 1. **Contract**: `output_schema`, then `postconditions`, then `budgets.max_tokens`. Deterministic and free.
 2. **Verification** (section 7), if the activity has a policy. May call a model.
+
+Guardrails at stage `output` (31.3) run before step 1, on every attempt that returns; the contract and verification see the output as they left it, and never see one they blocked.
 
 An outcome is accepted only if every check that applies passes. When the contract rejects an outcome, the actor is `ai_agent`, and attempts remain within `budgets.max_attempts` (default 3), the engine re-executes the activity with the violated terms as feedback. Other actor types are not re-executed.
 
@@ -1009,6 +1018,7 @@ An activity lists its tools in `tools`. Tool names MUST be unique within the act
 | `binding` | What runs (17.2) |
 | `documentation` | Where the underlying interface is documented, for example an OpenAPI document |
 | `timeout` | Longest a call may take (default `PT30S`) |
+| `guardrails` | Guardrails on every call of the tool, at stages `tool_call` and `tool_result` (section 31) |
 
 ### 17.2 Bindings
 
@@ -1037,6 +1047,8 @@ For each call, in this order, the engine MUST:
 4. Record `tool.invoked`.
 5. Run the binding, bounded by `timeout`.
 6. Record `tool.completed` with the result, or `tool.failed` with the error.
+
+Guardrails (section 31) at stage `tool_call` run between steps 1 and 2, and at stage `tool_result` between steps 5 and 6.
 
 A failed or refused call does not fail the activity by itself. The failure is returned to the actor as the result of the call, so that an agent can read it and act on it. It is journalled either way: `tool.failed` with `invoked: false` for a call refused before it ran.
 
@@ -1366,7 +1378,7 @@ A journal records what a run did. **Counterfactual replay** asks what it would h
 | The run's input | AI agents, under the candidate configuration |
 | Results of activities performed by applications, robots and people | Model decisions (section 16) |
 | Results of tool calls, matched by tool and arguments | Verification and judges (section 7) |
-| Business events received, and timeouts | Contracts, decision tables and routing |
+| Business events received, and timeouts | Contracts, guardrails (31.9), decision tables and routing |
 | The passing of time: timers and backoff do not wait | |
 
 With `ai: "recorded"`, the recorded outputs of AI agents and model decisions are replayed as well. Nothing calls a model, and the comparison isolates the effect of a changed contract, criterion, table or edge.
@@ -1466,6 +1478,8 @@ A median is the nearest-rank 50th percentile: of *n* values in ascending order, 
 | `workflow.contract_pass_rate`, `workflow.verification_pass_rate` | `contract.checked` that passed; `verification.completed` with verdict `pass`; each over all of its kind |
 | `workflow.decision_default_rate`, `workflow.model_decision_share` | Decisions that took the default edge; decisions whose method is `model`; over all decisions |
 | `workflow.input_tokens`, `workflow.output_tokens`, `workflow.cost`, `workflow.cost_per_run` | As recorded by the ended runs |
+
+Guardrail records (`guardrail.triggered`, section 31) are counted by no measure of this version; a reader counts them from the journal.
 
 ### 21.5 Activity measures
 
@@ -2151,6 +2165,174 @@ The TypeScript and Python SDKs share stores: they run the same migrations, keep 
 
 Level `shared_store` has its own cases, in `spec/conformance/shared-store/` (Appendix A): scenarios that several hosts play against one store, saying which host takes which event, which events arrive at the same moment, and when a host stops. An implementation claims the level only with a store that several hosts can share, and runs the cases against it.
 
+## 31. Guardrails
+
+Verification (section 7) and outcome contracts (section 11) judge whether an outcome is right. A **guardrail** judges whether something may pass at all: whether an input may reach an AI agent, whether an output may leave one, whether a tool call may run and whether what a tool returned may be given back. It applies a check to that value at run time and, when the check finds something, takes a declared action: block, redact, retry with feedback, escalate to a person, or warn.
+
+Guardrails are declarative. A document states them, a deployment adds its own, and an engine at level `guardrails` applies both the same way whichever implementation runs them, records every time one acts, and never records what it found.
+
+### 31.1 Where guardrails are declared
+
+A guardrail is declared in a `guardrails` list on one of:
+
+| Declared on | Applies to |
+|---|---|
+| The deployment | Every run the engine performs. A document cannot remove or weaken it |
+| The workflow | Every activity of the workflow, and every tool call they make |
+| A role | Every activity of that role, and every tool call they make |
+| An activity | That activity, and every tool call it makes |
+| A tool (17.1) | Every call of that tool, whatever the activity's actor |
+
+A guardrail declared on the deployment, the workflow, a role or an activity applies at stages `input` and `output` to activities whose actor type is among its `actor_types`, by default `["ai_agent"]`, and at stages `tool_call` and `tool_result` to the tool calls of those activities, restricted to the tools named in its `tools` when it has one. A guardrail declared on a tool applies to that tool's calls only, at stages `tool_call` and `tool_result`; any other stage on a tool is an error (31.11). The role of an activity is the one its `role_id` names, among the roles of the document and those the deployment supplies (12.3).
+
+A deployment's guardrails are given to the engine with its configuration (the reference SDKs take them in the option `guardrails`). They are guardrails in the same form as a document's.
+
+### 31.2 The guardrail
+
+| Field | Meaning |
+|---|---|
+| `id` | UUID. Unique among the guardrails of the document |
+| `name` | Optional. Carried by the record |
+| `stages` | One or more of `input`, `output`, `tool_call`, `tool_result` (31.3) |
+| `check` | What is looked for (31.4). An object with a `kind` |
+| `action` | `block`, `redact`, `retry_with_feedback`, `escalate` or `warn` (31.5) |
+| `actor_types` | The actor types of the activities it applies to. Default `["ai_agent"]`. Not used on a tool |
+| `tools` | The names of the tools it applies to at `tool_call` and `tool_result`. Default: every tool. Not used on a tool |
+| `fields` | Paths (6.2) within the value checked, through object properties only. When given, the checks `personal_data`, `deny_list`, `prompt_injection` and `size` look only at what those paths hold; findings keep their path within the whole value |
+| `replacement` | For `redact`: the text that replaces each match, in which `{category}` is replaced by the match's category. Default `[REDACTED:{category}]` |
+
+### 31.3 Stages
+
+| Stage | The value checked | When |
+|---|---|---|
+| `input` | The input the actor is about to be given: the token's data without the properties reserved to the engine (5.2), with the contexts the activity is given (22.2) under `_contexts` | Once for each visit of a token to the activity, after its contexts and knowledge are gathered and before the first attempt. An `input` guardrail is not an attempt: retries and feedback attempts do not check the input again |
+| `output` | The actor's result without the properties reserved to the engine, with what it writes to contexts (22.3) under `_context_writes` | In every attempt that returns a result, **before the outcome contract (11.3) and before verification (section 7)**. A result that is not yet an outcome (a person's task still pending, 5.6; an agent asking for input, 28.6) is not checked |
+| `tool_call` | The arguments of a call | Between steps 1 and 2 of 17.3: after an unknown tool and the call budget are refused, before the arguments are validated, permissions applied and `tool.invoked` recorded |
+| `tool_result` | The result of a call that returned | Between steps 5 and 6 of 17.3: after the binding ran, before `tool.completed` is recorded and the result given to the actor |
+
+Because an output guardrail runs first, the contract and verification see the output as the guardrails left it, and an output a guardrail blocked is never judged. The checks `json_schema`, `allowed_values` and `topic` at stage `output` apply to the outcome (11.1); the other checks apply to the whole value of the table.
+
+A guardrail of stage `input` or `output` does not apply to an activity performed by a person who answers an escalation (31.5), nor to a human decision given when a token resumes (5.6). The terms of an outcome contract still bind those (11.5).
+
+### 31.4 Checks
+
+Every check is deterministic except `model` and `classifier`, whose result is what the model or classifier says. A check either finds nothing or makes **findings**. A finding has a `category`, and where it has one, the `path` of what it concerns within the value checked, as a JSON Pointer (RFC 6901), and for a match within a string the `start` and `end` of the match, counted in Unicode code points from the start of that string, `end` excluded.
+
+| `kind` | Fields | Finds |
+|---|---|---|
+| `personal_data` | `categories`: any of `email`, `phone`, `iban`, `credit_card` (default all four); `patterns`: custom patterns, each a `name` and a `pattern` | Matches of the built-in patterns of 31.4.1 and of the custom patterns. A custom pattern's category is its `name` |
+| `deny_list` | `terms`: words or phrases; `patterns`: custom patterns as above; `whole_words` (default true) | Each occurrence of a term, compared without regard to case, and each match of a pattern. With `whole_words`, a term matches only where it is neither preceded nor followed by an ASCII letter, digit or underscore. The category of a term is `term`, of a pattern its `name` |
+| `prompt_injection` | `markers`: ids of the markers of 31.4.2 (default all); `patterns`: custom patterns as above | Matches of the markers and patterns. The category of a marker is its id |
+| `size` | `max_characters`, `max_tokens` (at least one) | Characters: the number of code points of all the strings in the value checked. Tokens: that number divided by four and rounded up, the approximation the reference SDKs make where a provider reports no usage. A finding of category `max_characters` or `max_tokens`, with `limit` and `actual`, for each limit exceeded |
+| `json_schema` | `schema`: a JSON Schema (2020-12) | A finding of category `schema` for each error, with the `path` of the instance and the `keyword` that failed. Never the value |
+| `allowed_values` | `path` (6.2, object properties only), `values` | A finding of category `allowed_values` with that path when the value there is missing or equal to none of `values` (as JSON values) |
+| `topic` | `allow`: condition expressions (section 6) | A finding of category `off_topic` when none of the expressions is true of the value checked. A topic allow-list over data: the value's own fields (an intent, a product, a classification an earlier activity made) say what it is about |
+| `model` | `instructions`: what to flag; `model`: a model reference (12.1); `categories`: the categories it may name | What a guard model says (31.8) |
+| `classifier` | `name`: a classifier the deployment registers; `config`: given to it unchanged | What the classifier says (31.8) |
+
+Only strings are scanned by the pattern checks (`personal_data`, `deny_list`, `prompt_injection`): object keys, numbers and booleans are not. Strings are visited in document order: the properties of an object in the order they appear, the items of an array in order.
+
+Within one string, the matches of a pattern are found from left to right without overlapping, as a regular expression engine of the ECMAScript or Python kind finds them. A candidate that fails a check that follows the pattern (31.4.1) is not a match, and the search continues after it. Patterns are applied in this order: for `personal_data`, `email`, `iban`, `credit_card`, `phone`, then the custom patterns; for `deny_list`, the terms, then the patterns; for `prompt_injection`, the markers in the order of 31.4.2, then the patterns; each list in the order given. A match that overlaps a match already kept is dropped. The findings are then put in the order their strings were visited, and within a string in order of `start`.
+
+A custom pattern SHOULD keep to the syntax that ECMAScript (with the `u` flag) and Python's `re` module read the same way: literal characters, character classes with ASCII ranges, groups, alternation, quantifiers and anchors. A pattern that does not compile is an error in the document (31.11).
+
+#### 31.4.1 Personal data
+
+| Category | Pattern | Followed by |
+|---|---|---|
+| `email` | `[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}` | |
+| `iban` | `(?<![A-Za-z0-9])[A-Z]{2}[0-9]{2}(?: ?[A-Z0-9]{4}){2,7}(?: ?[A-Z0-9]{1,4})?(?![A-Za-z0-9])` | Without its spaces, 15 to 34 characters whose ISO 13616 checksum holds: the first four characters moved to the end, letters replaced by 10 to 35, the number modulo 97 is 1 |
+| `credit_card` | `(?<![0-9])[0-9](?:[ -]?[0-9]){12,18}(?![0-9])` | Its digits pass the Luhn check |
+| `phone` | `(?<![A-Za-z0-9+])(?:\+\|00)[1-9][0-9]{0,3}(?:[ .-]?\(?[0-9]{1,4}\)?){2,6}(?![A-Za-z0-9])` | 8 to 15 digits after the `+` or `00` |
+| | `(?<![A-Za-z0-9])\(?[2-9][0-9]{2}\)?[ .-][0-9]{3}[ .-][0-9]{4}(?![A-Za-z0-9])` | |
+| | `(?<![A-Za-z0-9])\(?0[1-9][0-9]{0,3}\)?(?:[ .-]?[0-9]{2,4}){2,4}(?![A-Za-z0-9])` | 9 to 11 digits |
+
+The three `phone` patterns are applied in that order, as three patterns of one category.
+
+#### 31.4.2 Prompt injection markers
+
+Markers are looked for in data that reaches an agent from outside its instructions: the input of an activity, which holds what earlier activities, people, business events and contexts put there, and the results of tools. They are compared without regard to case. `\s` below stands for `[ \t\r\n]`.
+
+| Id | Pattern |
+|---|---|
+| `ignore_instructions` | `(?<![A-Za-z])(?:ignore\|disregard\|forget\|override)\s+(?:all\s+\|any\s+)?(?:(?:the\|your\|my\|these)\s+)?(?:previous\|prior\|above\|earlier\|preceding\|original)\s+(?:instructions\|directions\|prompts?\|rules\|guidelines)` |
+| `new_instructions` | `(?<![A-Za-z])(?:new\|updated\|revised\|real\|actual)\s+(?:system\s+)?instructions\s*:` |
+| `reveal_instructions` | `(?<![A-Za-z])(?:reveal\|print\|show\|repeat\|output\|leak)\s+(?:me\s+)?(?:the\|your)\s+(?:system\s+prompt\|hidden\s+instructions\|initial\s+instructions)` |
+| `jailbreak_mode` | `(?<![A-Za-z])(?:(?:developer\|god\|jailbreak\|unrestricted)\s+mode\|do\s+anything\s+now)` |
+| `chat_template_token` | `<\|(?:im_start\|im_end\|system\|user\|assistant\|endoftext)\|>\|\[/?INST\]\|<</?SYS>>` |
+| `role_header` | `(?:^\|[\r\n])[ \t]*(?:#{1,6}[ \t]*)?(?:system\|assistant)[ \t]*:` |
+
+**These lists are a floor, not a defence.** They find the crudest attempts at instructing a model through data, and the most common forms of personal data in the forms they are most often written in. A paraphrase, another language, an encoding, an instruction spread over two fields, a phone number written in words, an IBAN in lower case or a personal identifier of a kind not listed all pass them. A deployment that gives an agent data it does not control MUST NOT rely on detection to make that safe: what the agent can do is bounded by its tools and the deployment's permissions (17.4), the contexts it is bound to (section 22), its outcome contract (section 11) and verification (section 7). Pattern checks are cheap and predictable, which is why they come first; a deployment that needs more adds a `model` or `classifier` check, which is neither cheap nor predictable.
+
+### 31.5 Actions
+
+| Action | Stages | What happens |
+|---|---|---|
+| `warn` | all | Nothing but the record. The value goes on unchanged |
+| `redact` | all | Every match is replaced by the guardrail's `replacement`. The redacted value is what goes on, everywhere the value would have gone: to the actor, to the next guardrail, to the contract and verification, into the token's data and contexts, to the tool, back to the agent, and into the journal. The original is never journalled. Allowed only with the checks `personal_data`, `deny_list` and `prompt_injection` |
+| `block` | all | At `input`: the actor is not called; the token fails with error code `GUARDRAIL_BLOCKED`. At `output`: the attempt fails with `GUARDRAIL_BLOCKED` (`activity.failed`, `retryable: false`) and so does the activity; neither the retry policy (10.1) nor verification retries it. At `tool_call`: the call is refused before it runs, as 17.3 refuses a call: `tool.failed` with `invoked: false` and code `GUARDRAIL_BLOCKED`, the refusal returned to the actor. At `tool_result`: the result is withheld; `tool.failed` with `invoked: true` and code `GUARDRAIL_BLOCKED` is recorded instead of `tool.completed`, and the refusal is returned to the actor |
+| `retry_with_feedback` | `output` | As a contract violation (11.3): when the actor is `ai_agent` and attempts remain within the contract's `budgets.max_attempts` (default 3), the attempt fails (`activity.failed`, code `GUARDRAIL_BLOCKED`, `retryable: true`), the engine records `meta.recorded` with subject `guardrail_retry`, and executes the activity again with feedback naming the guardrail and the categories found, never the text. Otherwise it is `block` |
+| `escalate` | `input`, `output` | The activity is handed to a person, as 11.5 hands a rejected outcome, with the guardrail, the categories found and, at `output`, the output: the engine records `meta.recorded` with subject `escalation` and the human actor performs the activity. At `output` the attempt is first recorded as failed with `GUARDRAIL_BLOCKED`. The token waits (5.6) until the person decides; their decision is bound by the terms of the outcome contract (11.5). An engine that cannot wait for a person fails the activity with `GUARDRAIL_BLOCKED`. An escalation at `input` is not an attempt: the activity is completed by the person with `attempts: 0`. On an activity performed by a person, `escalate` is `block` |
+
+A check that cannot be carried out (a classifier not registered, a model that fails or whose reply cannot be read) is an error, whatever the action: the guardrail **fails closed**. The engine records `guardrail.triggered` with the `error` and action `block`, and acts as `block` does, with error code `GUARDRAIL_ERROR`. Neither code is retried by a retry policy.
+
+### 31.6 Order
+
+The guardrails that apply at a stage are taken in this order: the deployment's, the workflow's, the role's, the activity's, then, at `tool_call` and `tool_result`, the tool's; within each, in the order listed.
+
+They are evaluated one at a time, each on the value as the guardrails before it left it. A guardrail that finds nothing does nothing. One that finds something is recorded, then: with `warn` or `redact` the next guardrail is evaluated, on the redacted value after a `redact`; with `block`, `retry_with_feedback` or `escalate`, evaluation at that stage stops and the action is taken. The first guardrail to stop decides. A deployment's guardrails therefore always run, and run first.
+
+For one attempt the order is: `input` (once for the visit), the actor with its `tool_call` and `tool_result` guardrails around each call, `output`, then the outcome contract and verification (11.3).
+
+### 31.7 Record
+
+Each guardrail that finds something is recorded as a `guardrail.triggered` event, with the token, node and, except at `input`, the attempt:
+
+| Field | Content |
+|---|---|
+| `guardrail_id`, `name` | The guardrail |
+| `source` | Where it was declared: `deployment`, `workflow`, `role`, `activity` or `tool` |
+| `stage` | The stage |
+| `check` | The check's `kind` |
+| `action` | The action taken |
+| `categories` | The distinct categories found, sorted |
+| `findings` | Each finding (31.4): `category`, and where it has them `path`, `start`, `end`, `limit`, `actual`, `keyword` |
+| `tool`, `call_id` | At `tool_call` and `tool_result`: the call (17.5) |
+| `error` | When the check could not be carried out |
+
+The record MUST NOT hold the text a check matched, nor the value checked, whatever the payload mode (9.4): positions and categories say where and what, and the value they point into is journalled only as the guardrails left it. A guardrail that finds nothing is not recorded. A model's rationale is not recorded either, since it may quote what it flagged.
+
+Every guardrail that acted can thus be counted from the journal. Measures (section 21) define no measure of them in this version; evidence reports (section 32) do not yet make statements about them.
+
+### 31.8 Model and external classifiers
+
+Some things cannot be found by a pattern. Two kinds of check hand the value to something else.
+
+A **`model`** check asks a guard model, through the model router (12.5). The model is the check's `model` reference if it has one, otherwise the engine default (12.3): the model the deployment configures, never one fixed by an implementation. The model is given the guardrail's `instructions` and the value as canonical JSON (9.4), and asked to answer with a JSON object holding `flagged` (a boolean) and optionally `categories` (strings). When `flagged` is true, each category becomes a finding, `flagged` if it names none; when the check declares `categories`, a category it does not declare becomes `flagged`. The engine records the model it used as `meta.recorded` with subject `model_selection` (12.3), and the route as 12.5 says.
+
+A **`classifier`** check calls a function the deployment registers by name (in the reference SDKs, the option `guardrail_classifiers`). It is given the value, the stage, the guardrail and its `config`, and returns `flagged` and optionally `categories`. A deployment uses it for an external moderation or data-loss-prevention service, or a guard model it hosts itself.
+
+Neither can redact, since neither says where in the value it found something. Both fail closed (31.5). In conformance, and wherever a run must be repeatable, the model is scripted (Appendix A) and the classifier is a function of its input.
+
+### 31.9 Simulation and replay
+
+In simulation guardrails apply as in any run, to the inputs and to the scripted outputs and tool results; a `model` check calls the models the deployment registered, which in simulation are usually scripted. In counterfactual replay (section 20) the candidate's guardrails, and the deployment's, are evaluated again on the values the replay holds, so adding or changing a guardrail can be tested against recorded runs. A recorded output that a redaction changed is held as redacted, since the original was never recorded; a blocked output was never accepted and is not held.
+
+### 31.10 What guardrails do not do
+
+- Detection is a floor (31.4.2). Guardrails reduce what reaches a model and what leaves it; they do not make an agent safe to give untrusted data or dangerous tools.
+- The input of a run (`run.started`, 9.3) is recorded before any guardrail sees it. A deployment that receives personal data journals payloads as `hash` or `none` (9.4), or redacts before starting the run.
+- An input guardrail decides what the actor is given. It does not change the token's data, which an application or a person later in the flow may need.
+- Prompts an AI agent builds from its input, its instructions and knowledge, and messages exchanged with a model within an attempt, are not checked one by one: the input is checked before the attempt, tool calls and results as they happen, and the output at the end.
+- A guardrail checks values, not behaviour over time: rates, quotas and patterns across runs are a deployment's monitoring.
+- Natural-language categories (toxicity, advice of a kind, off-topic in a sense no field states) are what `model` and `classifier` checks are for; AWA fixes how they are called and recorded, not what they decide.
+
+### 31.11 Validation and conformance
+
+A document whose guardrails are inconsistent is invalid at the integrity stage (4.3) with error code `invalid_guardrail`: a guardrail whose action is not allowed at one of its stages (31.5), `redact` with a check other than `personal_data`, `deny_list` or `prompt_injection`, a stage other than `tool_call` and `tool_result` on a tool, a pattern that does not compile, a marker id that 31.4.2 does not define, a `size` check without a limit, or two guardrails with the same `id`. An expression of a `topic` check that is not a valid condition expression is `invalid_expression`.
+
+Level `guardrails` has execution cases (Appendix A) for each check and each action, the order of guardrails, a tool call refused, a tool result redacted, a deployment guardrail added to a document's, and a guard model scripted to flag an output; document cases for the rules above; and a replay case. Each states what the run must do, what value goes on, and which records must and must not be in the journal, including that the text a guardrail matched appears in no event.
+
 ## 32. Evidence
 
 Rules on AI systems ask for records: that a system logs what it does over its lifetime, that the people who deploy it can monitor it and keep its logs, that a person can oversee it, and that its accuracy and robustness can be shown. The journal (section 9) and the journey records (section 19) already hold most of what such rules ask about. An **evidence report** gathers it for a period and a set of workflows, in a form a deployer can hand to an auditor, a regulator or its own risk function.
@@ -2238,6 +2420,8 @@ Each part names the provisions to which its records are relevant. The EU AI Act 
 | `tools` | Art. 12(2); Art. 26(5) | MAP (third parties) | Annex A.10 |
 | `data` | Art. 12(1); Art. 26(6) keeping logs, subject to the law on personal data | GOVERN | Annex A.7 |
 | `retention` | Art. 12(1); Art. 13(3)(f) collecting, storing and interpreting logs; Art. 26(6) keeping logs for at least six months unless other law provides otherwise | GOVERN | Annex A.6 |
+
+Guardrail records (`guardrail.triggered`, 31.7) are relevant to the same provisions as `refusals` and `failures`. This version of the report makes no statement about them.
 
 Article 26(6) asks a deployer to keep the logs under its control for a period appropriate to the system's purpose, of at least six months unless other law provides otherwise. The `retention` part states which records are held and over what span; it does not judge whether that period is met, since that depends on when the system was put into use and on other law, notably on personal data.
 
@@ -2338,7 +2522,7 @@ Level `evaluation` covers 33.1 to 33.4. Its cases are in `spec/conformance/evalu
 
 **Expression and entry tables.** `expressions.json` holds condition expressions (section 6) with the data they are evaluated against and their results. `unary-tests.json` holds decision table entries (5.5.1) with values and results. Both list inputs that must be rejected. An implementation of level `core` MUST reproduce the first; of level `decision`, the second.
 
-**Document cases** (`documents/*.json`) each give a `document`, whether it is `valid`, and for invalid documents the `stage` at which it must be rejected (`schema` or `integrity`) and the `error_code`.
+**Document cases** (`documents/*.json`) each give a `document`, whether it is `valid`, and for invalid documents the `stage` at which it must be rejected (`schema` or `integrity`) and the `error_code`. A document case MAY give a `level`; it then belongs to that level (for example `guardrails`, 31.11) instead of `document`.
 
 **Execution cases** (`execution/*.json`) each give:
 
@@ -2370,6 +2554,8 @@ Level `evaluation` covers 33.1 to 33.4. Its cases are in `spec/conformance/evalu
 
 A runner replaces every actor with one that follows `actors`, runs the workflow, and compares. An activity not listed in `actors` returns an empty object.
 
+Execution cases at level `guardrails` add: in `options`, `guardrails`, the deployment's guardrails, given to the engine with its configuration (31.1); `classifiers`, for the name of each classifier the deployment registers, the verdict it gives every time (`flagged` and `categories`); and in `expect`, `given_inputs`, for an activity name, a subset that the input its actor was given at its last execution must contain (properties reserved to the engine left out), `journal_excludes_text`, strings that no journal event may contain anywhere, serialised as JSON, and `guardrail_sources`, the `source` of every `guardrail.triggered`, in journal order. A guard model is scripted as `model.replies`, each reply a `text`.
+
 **Journey cases** (`journeys/*.json`) each give `workflows`, `journeys`, `actors` as above, a `start` time for the case's clock, and `steps` performed in order:
 
 | Step | Meaning |
@@ -2392,7 +2578,7 @@ An actor script MAY give `takes`, a duration by which the activity moves the clo
 
 A tick step's `expect` may also give `stalled_journeys`, how many journeys it newly found stalled. The case's `expect` is checked by a host that took no part, reading the whole store; besides the keys of a journey case it gives `accepted_events`, how many event ids the store holds as accepted, `run_count`, how many runs it keeps, and per instance `run_journal_excludes`, event types that must not appear in the journal of its first run. A runner MUST also check that every run's journal is numbered from 1 without a gap.
 
-**Replay cases** (`replay/*.json`) each give a `workflow`, `input` and `actors` that produce the baseline run; optionally a `candidate` workflow; `ai` (`recorded` or `live`); and for `live`, `candidate_actors` for the AI agents. `expect` gives `baseline_status`, `candidate_status`, `same_path`, `verdicts` by node name (20.3), `regressions` or `regressions_at_least`, `unrecorded` (how many situations had no recording), `divergence_after`, and `error_matches`.
+**Replay cases** (`replay/*.json`), at level `replay` unless they give another `level`, each give a `workflow`, `input` and `actors` that produce the baseline run; optionally a `candidate` workflow; `ai` (`recorded` or `live`); and for `live`, `candidate_actors` for the AI agents. `expect` gives `baseline_status`, `candidate_status`, `same_path`, `verdicts` by node name (20.3), `regressions` or `regressions_at_least`, `unrecorded` (how many situations had no recording), `divergence_after`, and `error_matches`.
 
 Execution cases at levels `contexts` and `service_levels` add: in an actor's script, `contexts`, what the actor writes by context name, and `takes`, the time the execution takes; `clock`, the instant at which the case's clock starts, on which the engine and the actors then run; in `deliver`, the steps `{"advance": <duration>}`, which moves the clock, and `{"check_service_levels": true, "expect": {warnings, breaches, failed}}`, which asks the engine to check the work that is waiting (23.2) and states how many it newly recorded and how many tokens it failed; in `expect`, `given_contexts`, for each activity named the contexts its actor was given at its last execution (`null` for none at all), and `contexts`, the value of every context that has one when the case ends.
 
@@ -2483,3 +2669,4 @@ Runners: `sdk/typescript/tests/conformance.test.ts`, `sdk/python/tests/test_conf
 - The journal and the journey record as OpenTelemetry traces, with identifiers derived from the run and the journey instance, the generative AI semantic conventions, OTLP export that never holds up a run, the standard `OTEL_EXPORTER_OTLP_*` variables, and measures as OpenTelemetry gauges; conformance level `telemetry` (section 26).
 - Several hosts may share one store and take any work, with the outcome of one host: a store contract of partitions, holding, acceptance once and versions, met by a PostgreSQL store, with conformance level `shared_store` (section 29). A runtime directory still belongs to one host at a time (19.10).
 - Interchange with BPMN 2.0 and DMN 1.x, import and export without loss through the `awa:` extension namespace (`spec/xsd/awa-interchange.xsd`), with what is not imported refused and named; export to CNCF Serverless Workflow 1.0 with the list of what does not map; conformance level `interchange` (section 27).
+- Guardrails on what goes into and comes out of AI agents and tools: declared on the deployment, the workflow, a role, an activity or a tool, at stages `input`, `output` (before the contract and verification), `tool_call` and `tool_result`; deterministic checks for personal data, deny-lists, prompt injection markers, size, JSON Schema, allowed values and topics, and model or external classifiers; actions block, redact, retry with feedback, escalate and warn; the record `guardrail.triggered`, with positions and categories and never the text found; integrity error `invalid_guardrail`; conformance level `guardrails` (section 31).

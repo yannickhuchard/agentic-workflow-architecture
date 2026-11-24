@@ -1,0 +1,107 @@
+{
+  "id": "tool-call-arguments-are-redacted",
+  "level": "guardrails",
+  "spec": "31.5",
+  "description": "A guardrail at stage tool_call that redacts changes the arguments before they are validated, run and journalled.",
+  "workflow": {
+    "id": "551e9b66-b747-5fd0-84b0-20c1805f3b98",
+    "name": "tool-call-arguments-are-redacted",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "c679663d-4913-5f9a-836d-5c726451e1eb",
+        "name": "Lookup",
+        "role_id": "682c2d0b-6b99-5890-9a6e-8eb5efa95218",
+        "actor_type": "ai_agent",
+        "tools": [
+          {
+            "name": "search",
+            "description": "The search tool",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "q": {
+                  "type": "string"
+                },
+                "account": {
+                  "type": "string"
+                }
+              }
+            },
+            "binding": {
+              "kind": "function",
+              "name": "search"
+            }
+          }
+        ],
+        "guardrails": [
+          {
+            "id": "bc2acdef-0091-5a83-b084-6b003318a68d",
+            "name": "No personal data to tools",
+            "stages": [
+              "tool_call"
+            ],
+            "check": {
+              "kind": "personal_data"
+            },
+            "action": "redact"
+          }
+        ]
+      }
+    ],
+    "edges": []
+  },
+  "actors": {
+    "Lookup": {
+      "calls": [
+        {
+          "tool": "search",
+          "arguments": {
+            "q": "orders of jane@example.com"
+          }
+        }
+      ],
+      "output": {}
+    }
+  },
+  "tools": {
+    "search": {
+      "result": []
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "journal": [
+      "guardrail.triggered",
+      "tool.invoked",
+      "tool.completed"
+    ],
+    "journal_contains": [
+      {
+        "type": "guardrail.triggered",
+        "data": {
+          "source": "activity",
+          "stage": "tool_call",
+          "tool": "search",
+          "action": "redact",
+          "categories": [
+            "email"
+          ]
+        }
+      },
+      {
+        "type": "tool.invoked",
+        "data": {
+          "tool": "search",
+          "arguments": {
+            "q": "orders of [REDACTED:email]"
+          }
+        }
+      }
+    ],
+    "journal_excludes_text": [
+      "jane@example.com"
+    ]
+  }
+}

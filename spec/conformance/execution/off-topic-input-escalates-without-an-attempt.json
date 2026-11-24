@@ -1,0 +1,83 @@
+{
+  "id": "off-topic-input-escalates-without-an-attempt",
+  "level": "guardrails",
+  "spec": "31.5",
+  "description": "Off-topic input escalated at stage input is handed to a person instead of the agent. No attempt is made: the activity is completed with attempts 0.",
+  "workflow": {
+    "id": "0d819d3b-71ba-583f-b9e6-87344ae9e001",
+    "name": "off-topic-input-escalates-without-an-attempt",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "444d29c5-0ce6-58c7-a952-d39e791f15e1",
+        "name": "Answer",
+        "role_id": "1171a732-dd96-5e3a-95be-df81d3562e73",
+        "actor_type": "ai_agent",
+        "guardrails": [
+          {
+            "id": "66e086cf-97a0-53b4-8d21-3e617a72c8e2",
+            "name": "Billing and claims only",
+            "stages": [
+              "input"
+            ],
+            "check": {
+              "kind": "topic",
+              "allow": [
+                "intent == billing",
+                "intent == claims"
+              ]
+            },
+            "action": "escalate"
+          }
+        ]
+      }
+    ],
+    "edges": []
+  },
+  "input": {
+    "intent": "weather"
+  },
+  "actors": {
+    "Answer": {
+      "output": {
+        "answered": true
+      }
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "Answer"
+    ],
+    "journal": [
+      "guardrail.triggered",
+      "meta.recorded",
+      "activity.completed"
+    ],
+    "journal_contains": [
+      {
+        "type": "guardrail.triggered",
+        "data": {
+          "stage": "input",
+          "check": "topic",
+          "action": "escalate",
+          "findings": [
+            {
+              "category": "off_topic"
+            }
+          ]
+        }
+      },
+      {
+        "type": "activity.completed",
+        "data": {
+          "attempts": 0
+        }
+      }
+    ],
+    "journal_excludes": [
+      "activity.started"
+    ]
+  }
+}

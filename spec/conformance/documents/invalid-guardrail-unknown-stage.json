@@ -1,0 +1,35 @@
+{
+  "id": "invalid-guardrail-unknown-stage",
+  "level": "guardrails",
+  "description": "A stage is one of input, output, tool_call and tool_result.",
+  "valid": false,
+  "stage": "schema",
+  "document": {
+    "id": "2deaca49-6e7c-5e0f-aabc-7eedff33dd65",
+    "name": "invalid-guardrail-unknown-stage",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "77a5767b-07df-5bcd-9041-920c546417e2",
+        "name": "A",
+        "role_id": "ccda8f78-ca57-5877-8077-62e0fc8ea26b",
+        "actor_type": "ai_agent",
+        "guardrails": [
+          {
+            "id": "f28cced3-eb22-5f24-8d92-a4c7a09716a8",
+            "name": "g",
+            "stages": [
+              "prompt"
+            ],
+            "check": {
+              "kind": "personal_data"
+            },
+            "action": "warn"
+          }
+        ]
+      }
+    ],
+    "edges": []
+  }
+}

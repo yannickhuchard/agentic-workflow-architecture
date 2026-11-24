@@ -1,0 +1,71 @@
+{
+  "id": "classifier-flags-and-warns",
+  "level": "guardrails",
+  "spec": "31.8",
+  "description": "A classifier check calls what the deployment registers under its name. Its categories become the findings.",
+  "workflow": {
+    "id": "464524d9-209e-5ba4-9d0f-335b07b7fda6",
+    "name": "classifier-flags-and-warns",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "03825428-f7e9-5b63-a293-73b4a6df8706",
+        "name": "Reply",
+        "role_id": "35da21ec-2a48-5aeb-8913-1c9a338994ed",
+        "actor_type": "ai_agent",
+        "guardrails": [
+          {
+            "id": "21e6a41d-598f-57cf-ac2b-b27186c458ed",
+            "name": "Tone",
+            "stages": [
+              "output"
+            ],
+            "check": {
+              "kind": "classifier",
+              "name": "tone",
+              "config": {
+                "threshold": 0.8
+              }
+            },
+            "action": "warn"
+          }
+        ]
+      }
+    ],
+    "edges": []
+  },
+  "actors": {
+    "Reply": {
+      "output": {
+        "reply": "Whatever."
+      }
+    }
+  },
+  "classifiers": {
+    "tone": {
+      "flagged": true,
+      "categories": [
+        "dismissive"
+      ]
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "data": {
+      "reply": "Whatever."
+    },
+    "journal_contains": [
+      {
+        "type": "guardrail.triggered",
+        "data": {
+          "check": "classifier",
+          "action": "warn",
+          "categories": [
+            "dismissive"
+          ]
+        }
+      }
+    ]
+  }
+}

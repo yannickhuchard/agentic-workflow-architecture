@@ -1,0 +1,42 @@
+{
+  "id": "invalid-guardrail-pattern",
+  "level": "guardrails",
+  "description": "A custom pattern must compile.",
+  "valid": false,
+  "document": {
+    "id": "9cf4e9b8-70b4-5349-bac8-530f2e5f51ac",
+    "name": "invalid-guardrail-pattern",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "3e25d176-3674-554b-82e5-182f9fe0fc85",
+        "name": "A",
+        "role_id": "fa1c684d-5761-5c1d-bf65-a983ccbb08e2",
+        "actor_type": "ai_agent",
+        "guardrails": [
+          {
+            "id": "f093400b-30b5-528c-b577-094fe8b2cda0",
+            "name": "g",
+            "stages": [
+              "output"
+            ],
+            "check": {
+              "kind": "deny_list",
+              "patterns": [
+                {
+                  "name": "p",
+                  "pattern": "([a-z"
+                }
+              ]
+            },
+            "action": "warn"
+          }
+        ]
+      }
+    ],
+    "edges": []
+  },
+  "stage": "integrity",
+  "error_code": "invalid_guardrail"
+}

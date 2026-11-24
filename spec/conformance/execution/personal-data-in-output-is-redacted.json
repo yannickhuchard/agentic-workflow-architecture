@@ -1,0 +1,123 @@
+{
+  "id": "personal-data-in-output-is-redacted",
+  "level": "guardrails",
+  "spec": "31.5",
+  "description": "Personal data in an agent's output is replaced before anything else sees it. The redacted value is what the contract checks, what goes on in the token's data and what is journalled; the record gives positions and categories, and the original text appears in no event.",
+  "workflow": {
+    "id": "8405ffb8-39c5-51dc-9ad9-7dd7356d3792",
+    "name": "personal-data-in-output-is-redacted",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "15a740ca-3876-5339-99b2-2197de05b1b9",
+        "name": "Draft",
+        "role_id": "3f3fb118-0941-5bff-b466-f2b10d3f7b55",
+        "actor_type": "ai_agent",
+        "guardrails": [
+          {
+            "id": "563952c0-02b6-5bca-82c3-06033a90c1fc",
+            "name": "No personal data out",
+            "stages": [
+              "output"
+            ],
+            "check": {
+              "kind": "personal_data"
+            },
+            "action": "redact"
+          }
+        ],
+        "outcome_contract": {
+          "postconditions": [
+            {
+              "name": "has a reply",
+              "expression": "reply exists"
+            }
+          ]
+        }
+      },
+      {
+        "id": "eeb91487-4fe5-52f9-8e91-4128aace1ee4",
+        "name": "Send",
+        "role_id": "3f3fb118-0941-5bff-b466-f2b10d3f7b55",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "3ef928f1-23be-584c-8ae7-7b12c22bb9bf",
+        "source_id": "15a740ca-3876-5339-99b2-2197de05b1b9",
+        "target_id": "eeb91487-4fe5-52f9-8e91-4128aace1ee4"
+      }
+    ]
+  },
+  "actors": {
+    "Draft": {
+      "output": {
+        "reply": "Write to jane.doe@example.com or call +44 20 7946 0958"
+      }
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "Draft",
+      "Send"
+    ],
+    "data": {
+      "reply": "Write to [REDACTED:email] or call [REDACTED:phone]"
+    },
+    "journal": [
+      "activity.started",
+      "guardrail.triggered",
+      "contract.checked",
+      "activity.completed"
+    ],
+    "journal_contains": [
+      {
+        "type": "guardrail.triggered",
+        "node_name": "Draft",
+        "attempt": 1,
+        "data": {
+          "guardrail_id": "563952c0-02b6-5bca-82c3-06033a90c1fc",
+          "name": "No personal data out",
+          "source": "activity",
+          "stage": "output",
+          "check": "personal_data",
+          "action": "redact",
+          "categories": [
+            "email",
+            "phone"
+          ],
+          "findings": [
+            {
+              "category": "email",
+              "path": "/reply",
+              "start": 9,
+              "end": 29
+            },
+            {
+              "category": "phone",
+              "path": "/reply",
+              "start": 38,
+              "end": 54
+            }
+          ]
+        }
+      },
+      {
+        "type": "activity.completed",
+        "node_name": "Draft",
+        "data": {
+          "output": {
+            "reply": "Write to [REDACTED:email] or call [REDACTED:phone]"
+          }
+        }
+      }
+    ],
+    "journal_excludes_text": [
+      "jane.doe@example.com",
+      "7946"
+    ]
+  }
+}

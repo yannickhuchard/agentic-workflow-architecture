@@ -102,6 +102,13 @@
             "$ref": "analytics.schema.json",
             "description": "VSM metrics for this workflow"
         },
+        "guardrails": {
+            "type": "array",
+            "items": {
+                "$ref": "guardrail.schema.json"
+            },
+            "description": "Guardrails on every activity of the workflow and their tool calls (section 31)"
+        },
         "metadata": {
             "type": "object",
             "additionalProperties": true,

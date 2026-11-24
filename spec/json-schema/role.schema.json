@@ -81,6 +81,13 @@
         "a2a": {
             "$ref": "activity.schema.json#/$defs/a2a_agent",
             "description": "The agent, reached over A2A, that performs the activities of this role"
+        },
+        "guardrails": {
+            "type": "array",
+            "items": {
+                "$ref": "guardrail.schema.json"
+            },
+            "description": "Guardrails on the activities of this role and their tool calls (section 31)"
         }
     }
 }

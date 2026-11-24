@@ -1,0 +1,37 @@
+{
+  "id": "invalid-guardrail-redact-without-positions",
+  "level": "guardrails",
+  "description": "Only checks that say where they found something can redact.",
+  "valid": false,
+  "document": {
+    "id": "5201b02e-7789-5d49-8c88-2815e765bcde",
+    "name": "invalid-guardrail-redact-without-positions",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "f4bec655-c619-59e9-b4f7-8e805320bdb7",
+        "name": "A",
+        "role_id": "1476ccb2-78f9-5bd6-beda-989c26175a34",
+        "actor_type": "ai_agent",
+        "guardrails": [
+          {
+            "id": "c1247ad8-64b7-5349-b017-ff6d2a5bc83b",
+            "name": "g",
+            "stages": [
+              "output"
+            ],
+            "check": {
+              "kind": "size",
+              "max_characters": 10
+            },
+            "action": "redact"
+          }
+        ]
+      }
+    ],
+    "edges": []
+  },
+  "stage": "integrity",
+  "error_code": "invalid_guardrail"
+}
