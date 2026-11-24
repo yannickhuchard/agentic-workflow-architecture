@@ -91,4 +91,7 @@ public class Workflow extends AwaObject {
 
     @JsonProperty("updated_at")
     private String updatedAt;
+
+    /** Guardrails on every activity of the workflow (section 31). */
+    private List<Guardrail> guardrails;
 }

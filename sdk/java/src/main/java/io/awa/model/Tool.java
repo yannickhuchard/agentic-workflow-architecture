@@ -38,4 +38,7 @@ public class Tool extends AwaObject {
 
     /** ISO 8601 duration. Schema default: PT30S. */
     private String timeout;
+
+    /** Guardrails on this tool's calls and results (section 31). */
+    private java.util.List<Guardrail> guardrails;
 }

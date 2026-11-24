@@ -38,6 +38,15 @@ dev = [
     "opentelemetry-proto>=1.20.0",  # the telemetry tests decode OTLP protobuf with the OpenTelemetry proto definitions
     "ruff>=0.1.0",
     "psycopg[binary]>=3.1",  # the tests of the shared runtime store, where PostgreSQL is installed
+    # The interoperability tests: gRPC tools (17.8), the reference MCP server (17.7), the reference A2A agent
+    # and client (28), and the awa: interchange namespace checked against its XSD (27)
+    "grpcio>=1.60.0",
+    "grpcio-tools>=1.60.0",
+    "grpcio-reflection>=1.60.0",
+    "protobuf>=4.25.0",
+    "mcp>=2.0",
+    "a2a-sdk>=1.0,<2",
+    "lxml>=5.0",
 ]
 contracts = [
     "jsonschema>=4.18.0",  # checks outcome_contract.output_schema; without it such a contract fails closed
