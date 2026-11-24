@@ -1,0 +1,80 @@
+{
+  "id": "iban-and-card-numbers-need-their-checksum",
+  "level": "guardrails",
+  "spec": "31.4.1",
+  "description": "An IBAN is personal data only if its ISO 13616 checksum holds, a card number only if it passes the Luhn check. warn records and changes nothing.",
+  "workflow": {
+    "id": "68103829-54ab-55a1-96d1-b9fe25d707c5",
+    "name": "iban-and-card-numbers-need-their-checksum",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "b3fca7bc-8ee3-57fa-b2da-cea2c94f994c",
+        "name": "Draft",
+        "role_id": "f39d70b6-8118-5d7d-9e9b-e0ccc7ce7040",
+        "actor_type": "ai_agent",
+        "guardrails": [
+          {
+            "id": "a9b29535-d0e8-5a1a-a893-035b4a1efdad",
+            "name": "Bank details",
+            "stages": [
+              "output"
+            ],
+            "check": {
+              "kind": "personal_data",
+              "categories": [
+                "iban",
+                "credit_card"
+              ]
+            },
+            "action": "warn"
+          }
+        ]
+      }
+    ],
+    "edges": []
+  },
+  "actors": {
+    "Draft": {
+      "output": {
+        "note": "Not DE00 3704 0044 0532 0130 00 nor 4111 1111 1111 1112. Pay DE89 3704 0044 0532 0130 00 by 4111 1111 1111 1111."
+      }
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "data": {
+      "note": "Not DE00 3704 0044 0532 0130 00 nor 4111 1111 1111 1112. Pay DE89 3704 0044 0532 0130 00 by 4111 1111 1111 1111."
+    },
+    "journal_count": {
+      "guardrail.triggered": 1
+    },
+    "journal_contains": [
+      {
+        "type": "guardrail.triggered",
+        "data": {
+          "action": "warn",
+          "categories": [
+            "credit_card",
+            "iban"
+          ],
+          "findings": [
+            {
+              "category": "iban",
+              "path": "/note",
+              "start": 61,
+              "end": 88
+            },
+            {
+              "category": "credit_card",
+              "path": "/note",
+              "start": 92,
+              "end": 111
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

@@ -40,6 +40,8 @@ import { resolve_path } from './expression';
 import { KnowledgeBase, guidance } from './knowledge';
 import { RunTelemetry, TelemetrySetting, open_run_telemetry } from './telemetry_export';
 import { AuthorizationOptions, Principal, RunAuthorization, principal_ref } from './authorization';
+import { Guardrail } from '../types';
+import { GuardrailClassifier, GuardrailContext, GuardrailSet, GuardrailStop, guardrail_feedback, input_value, merge_guarded, output_value } from './guardrails';
 
 export type EngineStatus = 'running' | 'paused' | 'completed' | 'failed' | 'idle' | 'waiting_human' | 'waiting_event' | 'cancelled';
 
@@ -133,6 +135,10 @@ export interface WorkflowEngineOptions {
     authorization?: AuthorizationOptions;
     /** Who starts the run (spec 30.1). Default: the host's principal */
     principal?: Principal;
+    /** The deployment's guardrails, applied to every run before the document's (spec 31.1) */
+    guardrails?: Guardrail[];
+    /** Classifiers that guardrails of kind "classifier" call, by name (spec 31.8) */
+    guardrail_classifiers?: Record<string, GuardrailClassifier>;
 }
 
 export interface SimulatedOutput {
@@ -238,6 +244,8 @@ export class WorkflowEngine {
     private sleep: (ms: number) => Promise<void>;
     private models: ModelRegistry;
     private router: ModelRouter;
+    /** The guardrails of the document and the deployment (spec 31) */
+    private guardrails: GuardrailSet;
     private executionStats: {
         startTime: Date;
         stepsCount: number;
@@ -312,6 +320,7 @@ export class WorkflowEngine {
                 workflow: workflowDef, roles: this.roleMap, record: event => this.record(event), performed: () => this.completedActivities,
             });
         }
+        this.guardrails = new GuardrailSet(workflowDef, options.guardrails, activity => this.roleMap.get(activity.role_id));
     }
 
     private initializeMaps(): void {
@@ -774,7 +783,10 @@ export class WorkflowEngine {
 
             this.log(`Executing activity "${activity.name}" with ${activity.actor_type} actor`);
 
-            const { output, verificationRecords, attempts } = await this.executeActivity(token, actor, activity, inputs);
+            // Guardrails at stage input decide what the actor is given, once per visit (spec 31.3)
+            const guarded = await this.guardInput(token, activity, inputs);
+            const { output, verificationRecords, attempts } = guarded.escalated
+                || await this.executeActivity(token, actor, activity, guarded.inputs);
 
             const endTime = new Date(this.now());
             const processTime = calculate_duration(startTime, endTime);
@@ -826,7 +838,7 @@ export class WorkflowEngine {
 
             const performer = this.performers.get(token.id);
             this.record({
-                type: 'activity.completed', token_id: token.id, ...this.nodeRef(activity.id), attempt: attempts,
+                type: 'activity.completed', token_id: token.id, ...this.nodeRef(activity.id), ...(attempts > 0 ? { attempt: attempts } : {}),
                 data: {
                     actor_type: activity.actor_type,
                     output: this.journal.payload(public_payload(output)),
@@ -1348,7 +1360,15 @@ export class WorkflowEngine {
                         },
                         event => this.record({ ...event, ...ref, attempt }),
                         value => this.journal.payload(value),
-                        { max_calls: budgets?.max_tool_calls ?? 16, simulate: this.simulate },
+                        {
+                            max_calls: budgets?.max_tool_calls ?? 16, simulate: this.simulate,
+                            ...(this.guardrails.empty ? {} : {
+                                guard: async (stage, tool, value, call_id) => {
+                                    const result = await this.guardrails.apply(stage, activity, value, { ...this.guardContext(ref, attempt), tool, call_id });
+                                    return { value: result.value, ...(result.stop ? { refused: { code: result.stop.code, message: result.stop.message } } : {}) };
+                                },
+                            }),
+                        },
                     );
                 }
                 const raw = await this.withTimeout(
@@ -1405,6 +1425,34 @@ export class WorkflowEngine {
             // Nor is a task in which the agent asks for input (28.6)
             if (output._awaiting_agent_input) {
                 return { output, verificationRecords, attempts: attempt };
+            }
+
+            // --- guardrails at stage output: before the contract and verification (spec 31.3)
+            if (!this.guardrails.empty) {
+                const checked = output_value(output);
+                const guarded = await this.guardrails.apply('output', activity, checked, this.guardContext(ref, attempt));
+                if (guarded.value !== checked) output = merge_guarded(output, guarded.value);
+                const stop = guarded.stop;
+                if (stop) {
+                    const canRetry = stop.action === 'retry_with_feedback' && activity.actor_type === 'ai_agent' && attempt < violationCap && attempt < hardCap;
+                    this.record({
+                        type: 'activity.failed', ...ref, attempt,
+                        data: { error: { message: stop.message, code: stop.code }, retryable: canRetry, duration_ms: this.now() - attemptStart },
+                    });
+                    if (stop.action === 'escalate') return this.escalateGuardrail(token, activity, inputs, stop, attempt, output);
+                    if (!canRetry) throw new ActivityError(stop.message, stop.code);
+                    currentInputs = { ...inputs, _verification_feedback: guardrail_feedback(stop), _verification_attempt: attempt + 1 };
+                    this.record({
+                        type: 'meta.recorded', level: 'meta', ...ref, attempt,
+                        data: {
+                            subject: 'guardrail_retry',
+                            decision: 'Re-execute with what the guardrail found as feedback',
+                            rationale: `${stop.message}; the guardrail's action is "retry_with_feedback" and ${violationCap - attempt} of ${violationCap} attempts remained.`,
+                            guardrail_id: stop.guardrail.id, categories: stop.categories,
+                        },
+                    });
+                    continue;
+                }
             }
 
             const usage = output.usage as { input_tokens?: number; output_tokens?: number } | undefined;
@@ -1540,6 +1588,62 @@ export class WorkflowEngine {
                 },
             });
         }
+    }
+
+    /** What the guardrails are given to check a value of this token and node (spec 31) */
+    private guardContext(ref: { token_id: UUID; node_id: UUID; node_name?: string }, attempt?: number): GuardrailContext {
+        return {
+            record: event => this.record({ ...event, ...ref, ...(attempt ? { attempt } : {}) }),
+            router: this.router, default_model: this.defaultAIModelId, classifiers: this.options.guardrail_classifiers,
+        };
+    }
+
+    /** Guardrails at stage input (spec 31.3): the input as they leave it, or the person's answer when one escalates */
+    private async guardInput(token: Token, activity: Activity, inputs: Record<string, unknown>): Promise<{
+        inputs: Record<string, unknown>; escalated?: { output: Record<string, unknown>; verificationRecords: VerificationRecord[]; attempts: number };
+    }> {
+        if (this.guardrails.empty) return { inputs };
+        const checked = input_value(inputs);
+        const guarded = await this.guardrails.apply('input', activity, checked, this.guardContext({ token_id: token.id, ...this.nodeRef(activity.id) }));
+        if (!guarded.stop) return { inputs: guarded.value === checked ? inputs : merge_guarded(inputs, guarded.value) };
+        if (guarded.stop.action !== 'escalate') throw new ActivityError(guarded.stop.message, guarded.stop.code);
+        return { inputs, escalated: await this.escalateGuardrail(token, activity, inputs, guarded.stop, 0) };
+    }
+
+    /**
+     * A guardrail whose action is escalate hands the activity to a person (spec 31.5), as an outcome
+     * contract does (11.5). At stage input no attempt was made, so `attempts` is 0.
+     */
+    private async escalateGuardrail(token: Token, activity: Activity, inputs: Record<string, unknown>, stop: GuardrailStop, attempts: number,
+        rejected?: Record<string, unknown>): Promise<{ output: Record<string, unknown>; verificationRecords: VerificationRecord[]; attempts: number }> {
+        const ref = { token_id: token.id, ...this.nodeRef(activity.id) };
+        const at = attempts > 0 ? { attempt: attempts } : {};
+        this.record({
+            type: 'meta.recorded', level: 'meta', ...ref, ...at,
+            data: { subject: 'escalation', decision: 'Hand the activity to a human', rationale: `${stop.message}, and the guardrail's action is "escalate".` },
+        });
+        const human = this.options.actors?.human
+            || new HumanAgent({ wait_for_completion: false, simulate: this.simulate && !this.options.wait_for_human_tasks });
+        const escalation = {
+            code: stop.code, message: stop.message, guardrail: { id: stop.guardrail.id, name: stop.guardrail.name }, categories: stop.categories,
+            ...(rejected ? { rejected_outcome: outcome_of(rejected) } : {}),
+        };
+        const result = this.extractTraces(await human.execute(activity, { ...inputs, _escalation: escalation }), ref, Math.max(attempts, 1));
+        if (result._requires_human_action) {
+            // Fail closed: a pending task is not an answer
+            if (!this.options.wait_for_human_tasks) throw new ActivityError(`${stop.message}. Escalated to a human, but the engine is not configured to wait for human tasks.`, stop.code);
+            return { output: { ...result, _escalated: true }, verificationRecords: [], attempts };
+        }
+        // A human answered at once. The deterministic terms of the contract still bind (11.5)
+        const contract = activity.outcome_contract;
+        if (contract) {
+            const violations = check_contract(contract, outcome_of(result));
+            this.record({ type: 'contract.checked', ...ref, ...at, data: { passed: violations.length === 0, violations, decided_by: 'human', output_hash: hash_payload(outcome_of(result)) } });
+            if (violations.length > 0) {
+                throw new ActivityError(`Outcome contract violated by the human decision: ${violations.map(v => v.message).join('; ')}`, 'CONTRACT_VIOLATION', { _contract_violations: violations });
+            }
+        }
+        return { output: { ...result, _escalated: true }, verificationRecords: [], attempts };
     }
 
     /** Fail an attempt that takes longer than the contract's duration budget */

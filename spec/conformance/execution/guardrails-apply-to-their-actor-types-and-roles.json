@@ -1,0 +1,138 @@
+{
+  "id": "guardrails-apply-to-their-actor-types-and-roles",
+  "level": "guardrails",
+  "spec": "31.1",
+  "description": "A guardrail applies to activities of the actor types it names, ai_agent by default, and a role's guardrail to the activities of that role only.",
+  "workflow": {
+    "id": "d77e9922-814e-56e4-bef9-fc78d379d978",
+    "name": "guardrails-apply-to-their-actor-types-and-roles",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "47ff6715-0af0-559d-9d83-b06449c03cb6",
+        "name": "Export",
+        "role_id": "8e227610-b187-54ba-b9ab-5dda59a94243",
+        "actor_type": "application"
+      },
+      {
+        "id": "f95acdfb-f6eb-59ed-a14f-b9faf6d632de",
+        "name": "Draft",
+        "role_id": "b3491707-45e6-5590-8ba8-61c419c0398d",
+        "actor_type": "ai_agent"
+      },
+      {
+        "id": "22e0cac6-9aef-501e-8afc-4199c86ab062",
+        "name": "Check",
+        "role_id": "8e227610-b187-54ba-b9ab-5dda59a94243",
+        "actor_type": "ai_agent"
+      }
+    ],
+    "edges": [
+      {
+        "id": "7ff55ec9-ae8a-5de6-9725-f2ae1b41a8f1",
+        "source_id": "47ff6715-0af0-559d-9d83-b06449c03cb6",
+        "target_id": "f95acdfb-f6eb-59ed-a14f-b9faf6d632de"
+      },
+      {
+        "id": "1f0cd046-70f2-5628-baa0-977f6e19a318",
+        "source_id": "f95acdfb-f6eb-59ed-a14f-b9faf6d632de",
+        "target_id": "22e0cac6-9aef-501e-8afc-4199c86ab062"
+      }
+    ],
+    "roles": [
+      {
+        "id": "b3491707-45e6-5590-8ba8-61c419c0398d",
+        "name": "Writer",
+        "actor_type": "ai_agent",
+        "guardrails": [
+          {
+            "id": "e6bdb961-8b4e-5ffc-b9a7-39199a8028d2",
+            "name": "Writer: no phone numbers",
+            "stages": [
+              "output"
+            ],
+            "check": {
+              "kind": "personal_data",
+              "categories": [
+                "phone"
+              ]
+            },
+            "action": "redact"
+          }
+        ]
+      },
+      {
+        "id": "8e227610-b187-54ba-b9ab-5dda59a94243",
+        "name": "Default",
+        "actor_type": "application"
+      }
+    ],
+    "guardrails": [
+      {
+        "id": "c81df3a7-8304-525a-8589-c4ec6403d5c4",
+        "name": "Emails",
+        "stages": [
+          "output"
+        ],
+        "check": {
+          "kind": "personal_data",
+          "categories": [
+            "email"
+          ]
+        },
+        "action": "redact"
+      }
+    ]
+  },
+  "actors": {
+    "Export": {
+      "output": {
+        "export": "jane@example.com"
+      }
+    },
+    "Draft": {
+      "output": {
+        "draft": "+44 20 7946 0958, jane@example.com"
+      }
+    },
+    "Check": {
+      "output": {
+        "check": "+44 20 7946 0958"
+      }
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "data": {
+      "export": "jane@example.com",
+      "draft": "[REDACTED:phone], [REDACTED:email]",
+      "check": "+44 20 7946 0958"
+    },
+    "journal_count": {
+      "guardrail.triggered": 2
+    },
+    "journal_contains": [
+      {
+        "type": "guardrail.triggered",
+        "node_name": "Draft",
+        "data": {
+          "source": "workflow",
+          "categories": [
+            "email"
+          ]
+        }
+      },
+      {
+        "type": "guardrail.triggered",
+        "node_name": "Draft",
+        "data": {
+          "source": "role",
+          "categories": [
+            "phone"
+          ]
+        }
+      }
+    ]
+  }
+}

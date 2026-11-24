@@ -42,7 +42,7 @@ awa run workflow.awa.json --simulate --outputs simulation.json --journal run.jso
 | `-p, --providers <list>` | Model providers in order of preference: `google`, `openai`, `ollama`, `embedded`. Each capability tier falls back down the list |
 | `-k, --key <key>` | Gemini API key (or `GEMINI_API_KEY`) |
 | `--allow-commands [list]` | Let tools run commands on this machine: all, or a comma-separated list of program names. None by default |
-| `--deployment <file>` | What the workflow may reach: the commands, hosts, MCP servers and gRPC services of its tools, and the hosts of its agents; and who may do what in it, under `authorization` (see below). `--allow-commands` takes precedence over the file's `allow_commands` |
+| `--deployment <file>` | What the workflow may reach: the commands, hosts, MCP servers and gRPC services of its tools, and the hosts of its agents; who may do what in it, under `authorization`; and the guardrails the deployment adds to every run (see below). `--allow-commands` takes precedence over the file's `allow_commands` |
 | `--as <principal>` | Start the run as this principal, by its id in the deployment's `authorization.principals`. Without it the run is started by the host (`{"id": "host", "kind": "service"}`) |
 | `--db` | Also log the run's cost and duration to the task database |
 | `-v, --verbose` | Print each step |
@@ -71,7 +71,11 @@ A deployment file says what a workflow may reach (specification 17.4, 17.7, 17.8
     },
     "grpc": { "protos": ["pricing.proto"], "include_dirs": ["protos"], "plaintext_hosts": [] }
   },
-  "a2a": { "poll_interval_ms": 1000, "max_wait_ms": 600000 }
+  "a2a": { "poll_interval_ms": 1000, "max_wait_ms": 600000 },
+  "guardrails": [
+    { "id": "0b6f5a52-3c2e-4d7b-9a51-6d0f8f1c2e10", "name": "Organisation: personal data",
+      "stages": ["output", "tool_call"], "check": { "kind": "personal_data" }, "action": "redact" }
+  ]
 }
 ```
 
@@ -102,6 +106,8 @@ Its `authorization` section says who acts and who may do what (specification 30)
 ```
 
 An invalid section is refused when the file is read, naming every problem. Without `policy` nothing is checked, but who started the run and who performed each activity are still journalled.
+
+`guardrails` are the deployment's guardrails (specification 31.1): they apply to every run, before the document's, and a document cannot remove them. They are written as a document's are, and a file whose guardrails are inconsistent (an action a stage does not allow, `redact` with a check that gives no positions, a pattern that does not compile) is refused when it is read. A guardrail that finds something is journalled as `guardrail.triggered`, with where and what it found and never the text.
 
 | Provider | Needs |
 |---|---|

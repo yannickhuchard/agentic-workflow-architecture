@@ -28,6 +28,7 @@ from awa.types import (
     DecisionOption,
     ToolDefinition,
     ToolBinding,
+    Guardrail,
     Role,
     System,
     Machine,
@@ -81,6 +82,7 @@ from awa.runtime.shadow import ShadowRunner
 from awa.runtime.authorization import (
     AuthorizationError, PolicyDecider, load_authorization, validate_policy, principal_from_claims, principal_named,
 )
+from awa.runtime.guardrails import GuardrailSet
 
 __version__ = "2.0.0"
 __all__ = [
@@ -178,6 +180,9 @@ __all__ = [
     "ShadowRunner",
     # Identity and authorization (specification 30)
     "AuthorizationError", "PolicyDecider", "load_authorization", "validate_policy", "principal_from_claims", "principal_named",
+    # Guardrails on what goes into and comes out of agents and tools (specification 31)
+    "Guardrail",
+    "GuardrailSet",
     "run_spans",
     "journey_spans",
     "spans_to_otlp_json",

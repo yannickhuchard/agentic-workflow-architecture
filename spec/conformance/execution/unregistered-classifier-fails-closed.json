@@ -1,0 +1,55 @@
+{
+  "id": "unregistered-classifier-fails-closed",
+  "level": "guardrails",
+  "spec": "31.5",
+  "description": "A classifier the deployment does not register cannot be called: the activity fails with GUARDRAIL_ERROR.",
+  "workflow": {
+    "id": "e80feb78-4e7d-54bb-a300-72f739fc4674",
+    "name": "unregistered-classifier-fails-closed",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "b1014d7a-4d8d-5ef0-92e1-1bdd2e970174",
+        "name": "Reply",
+        "role_id": "df781153-dd77-5410-b010-ea660394d99f",
+        "actor_type": "ai_agent",
+        "guardrails": [
+          {
+            "id": "370df206-ccfa-52b9-9326-be5516a0a9ae",
+            "name": "Tone",
+            "stages": [
+              "output"
+            ],
+            "check": {
+              "kind": "classifier",
+              "name": "tone"
+            },
+            "action": "warn"
+          }
+        ]
+      }
+    ],
+    "edges": []
+  },
+  "actors": {
+    "Reply": {
+      "output": {
+        "reply": "Whatever."
+      }
+    }
+  },
+  "expect": {
+    "status": "failed",
+    "journal_contains": [
+      {
+        "type": "token.failed",
+        "data": {
+          "error": {
+            "code": "GUARDRAIL_ERROR"
+          }
+        }
+      }
+    ]
+  }
+}

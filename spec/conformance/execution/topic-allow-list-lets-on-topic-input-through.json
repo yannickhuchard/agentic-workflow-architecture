@@ -1,0 +1,57 @@
+{
+  "id": "topic-allow-list-lets-on-topic-input-through",
+  "level": "guardrails",
+  "spec": "31.4",
+  "description": "A topic allow-list is condition expressions over the data: input for which one holds goes through, and a guardrail that finds nothing records nothing.",
+  "workflow": {
+    "id": "f21d009f-7ea0-59ad-8a98-61d1820e9a24",
+    "name": "topic-allow-list-lets-on-topic-input-through",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "aebc79a6-22a3-5b0b-98a2-1b1cff610d82",
+        "name": "Answer",
+        "role_id": "7aab3104-af6c-5ff5-b694-6e70ab673452",
+        "actor_type": "ai_agent",
+        "guardrails": [
+          {
+            "id": "97049825-3aa4-5da6-8409-94dafed5d3a0",
+            "name": "Billing and claims only",
+            "stages": [
+              "input"
+            ],
+            "check": {
+              "kind": "topic",
+              "allow": [
+                "intent == billing",
+                "intent == claims"
+              ]
+            },
+            "action": "escalate"
+          }
+        ]
+      }
+    ],
+    "edges": []
+  },
+  "input": {
+    "intent": "billing"
+  },
+  "actors": {
+    "Answer": {
+      "output": {
+        "answered": true
+      }
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "Answer"
+    ],
+    "journal_excludes": [
+      "guardrail.triggered"
+    ]
+  }
+}

@@ -462,8 +462,12 @@ class ToolRunner:
         max_calls: int = 16,
         simulate: bool = False,
         now: Callable[[], float] | None = None,
+        guard: Callable[..., Any] | None = None,
     ):
         self._tools = list(tools)
+        # Guardrails around a call (specification 31.3): guard(stage, tool, value, call_id) returns the value as
+        # they left it and a refusal ({"code", "message"}) or None. Stage tool_call is the arguments, tool_result the result.
+        self._guard = guard
         self._options = ToolOptions.of(options)
         recorder = record or (lambda type, data: None)
         # Absent values are left out of the record
@@ -519,6 +523,16 @@ class ToolRunner:
         if self._calls > self._max_calls:
             return failure(ToolError(f"Tool call budget of {self._max_calls} exceeded", "TOOL_BUDGET_EXCEEDED"), False)
 
+        # Guardrails on the call come before anything else is checked, so that what they redact is what is validated and run (31.3)
+        if self._guard is not None:
+            args, refused = self._guard("tool_call", tool, args, call_id)
+            if refused:
+                return failure(ToolError(refused["message"], refused["code"]), False)
+            try:
+                link = tool_link(tool.binding, args)
+            except Exception:
+                link = None
+
         # 2. to 3. Arguments, then permissions, are checked before anything runs
         try:
             self._check_arguments(tool, args)
@@ -552,6 +566,12 @@ class ToolRunner:
                 execution = self._execute(tool, args, call_id, timeout_ms)
         except Exception as error:
             return failure(error, True)
+        # Guardrails on what came back, before it is recorded or given to the actor (31.3)
+        if self._guard is not None:
+            result, refused = self._guard("tool_result", tool, execution.result, call_id)
+            if refused:
+                return failure(ToolError(refused["message"], refused["code"]), True)
+            execution = ToolExecution(result, execution.status)
 
         self._record("tool.completed", {
             "call_id": call_id, "tool": name, "link": link, "status": execution.status,

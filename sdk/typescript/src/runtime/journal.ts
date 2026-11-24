@@ -40,6 +40,7 @@ export type JournalEventType =
     | 'context.read' | 'context.written' | 'context.denied'
     | 'sla.warning' | 'sla.breached'
     | 'authorization.decided'
+    | 'guardrail.triggered'
     | 'checkpoint.saved';
 
 export interface JournalEvent {

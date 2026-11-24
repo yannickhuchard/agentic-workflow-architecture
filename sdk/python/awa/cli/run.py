@@ -139,6 +139,7 @@ def run_command(args: argparse.Namespace) -> int:
             "a2a": deployment["a2a"],
             # Who may do what, and who starts the run (specification 30)
             **({"authorization": deployment["authorization"]} if deployment.get("authorization") else {}),
+            "guardrails": deployment.get("guardrails") or [],
             "pricing_config": dict(PRICING),
             # The execution record goes to the database only when asked; otherwise it is printed
             "log_execution": bool(args.db),

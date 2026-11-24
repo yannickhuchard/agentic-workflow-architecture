@@ -79,6 +79,7 @@ export const runCommand = new Command('run')
                 // Who may do what, and who starts the run (spec 30)
                 ...(deployment?.authorization ? { authorization: deployment.authorization } : {}),
                 ...(options.as ? { principal: principal_named(deployment?.authorization, String(options.as)) } : {}),
+                ...(deployment?.guardrails.length ? { guardrails: deployment.guardrails } : {}),
                 telemetry,
                 ...(names.length ? {
                     model_providers: providers,

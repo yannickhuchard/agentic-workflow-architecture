@@ -255,6 +255,13 @@ const built_in: Partial<Record<ToolBinding['kind'], ToolExecutor>> = {
 export type ToolRecorder = (event: JournalEventInput) => void;
 
 /**
+ * Guardrails around a call (specification 31.3): at tool_call on the arguments, at tool_result on the result.
+ * Returns the value as the guardrails left it, or a refusal.
+ */
+export type ToolGuard = (stage: 'tool_call' | 'tool_result', tool: ToolDefinition, value: unknown, call_id: string)
+    => Promise<{ value: unknown; refused?: { code: string; message: string } }>;
+
+/**
  * Runs the tools of one activity attempt and journals each call.
  * A failed call does not raise: the failure is returned, so an agent can
  * read it and try something else. It is journalled either way.
@@ -268,7 +275,7 @@ export class ToolRunner {
         private options: ToolOptions,
         private record: ToolRecorder,
         private payload: (value: unknown) => unknown,
-        private limits: { max_calls: number; simulate: boolean },
+        private limits: { max_calls: number; simulate: boolean; guard?: ToolGuard },
     ) { }
 
     /** The tools in the form given to a model */
@@ -287,7 +294,7 @@ export class ToolRunner {
     async call(name: string, args: Record<string, unknown>, call_id: string = randomUUID()): Promise<ToolResult> {
         const started = Date.now();
         const tool = this.tools.find(t => t.name === name);
-        const link = tool ? safe_link(tool.binding, JSON.stringify(this.payload({ probe: 1 })) === '{"probe":1}' ? args : {}) : undefined;
+        let link = tool ? safe_link(tool.binding, JSON.stringify(this.payload({ probe: 1 })) === '{"probe":1}' ? args : {}) : undefined;
         const failure = (error: unknown, invoked: boolean): ToolResult => {
             const message = error instanceof Error ? error.message : String(error);
             const code = (error as { code?: string })?.code || 'TOOL_ERROR';
@@ -309,6 +316,14 @@ export class ToolRunner {
         }
         if (this.calls > this.limits.max_calls) {
             return failure(new ToolError(`Tool call budget of ${this.limits.max_calls} exceeded`, 'TOOL_BUDGET_EXCEEDED'), false);
+        }
+
+        // Guardrails on the call come before anything else is checked, so that what they redact is what is validated and run (31.3)
+        if (this.limits.guard) {
+            const guarded = await this.limits.guard('tool_call', tool, args, call_id);
+            if (guarded.refused) return failure(new ToolError(guarded.refused.message, guarded.refused.code), false);
+            args = guarded.value as Record<string, unknown>;
+            link = safe_link(tool.binding, JSON.stringify(this.payload({ probe: 1 })) === '{"probe":1}' ? args : {});
         }
 
         // Arguments are checked before anything runs
@@ -346,8 +361,14 @@ export class ToolRunner {
 
         try {
             const execution = this.limits.simulate
-                ? { status: 'simulated', result: this.options.simulated_results?.[name] ?? { _simulated: true } }
+                ? { status: 'simulated' as string | number | undefined, result: this.options.simulated_results?.[name] ?? { _simulated: true } }
                 : await this.execute(tool, args, call_id);
+            // Guardrails on what came back, before it is recorded or given to the actor (31.3)
+            if (this.limits.guard) {
+                const guarded = await this.limits.guard('tool_result', tool, execution.result, call_id);
+                if (guarded.refused) return failure(new ToolError(guarded.refused.message, guarded.refused.code), true);
+                execution.result = guarded.value;
+            }
             this.record({
                 type: 'tool.completed',
                 data: {

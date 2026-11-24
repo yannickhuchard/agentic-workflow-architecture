@@ -87,7 +87,8 @@
                 "context.denied",
                 "sla.warning",
                 "sla.breached",
-    "authorization.decided"
+                "authorization.decided",
+                "guardrail.triggered"
             ]
         },
         "level": {

@@ -38,6 +38,7 @@ from .shadow import ShadowRunner
 from .authorization import (
     AuthorizationError, PolicyDecider, RunAuthorization, load_authorization, validate_policy, principal_from_claims, principal_named,
 )
+from .guardrails import GuardrailSet, GuardrailContext, run_check, redact, guardrail_integrity_errors, check_guardrail
 from .telemetry import (
     RunTraceMapper, JourneyTraceMapper, TelemetrySpan, run_spans, journey_spans, run_trace_id, run_span_id,
     journey_trace_id, journey_span_id, spans_to_otlp_json, spans_to_otlp_protobuf, measures_to_gauges,
@@ -154,4 +155,10 @@ __all__ = [
     "ShadowRunner",
     # Identity and authorization (specification 30)
     "AuthorizationError", "PolicyDecider", "RunAuthorization", "load_authorization", "validate_policy", "principal_from_claims", "principal_named",
+    "GuardrailSet",
+    "GuardrailContext",
+    "run_check",
+    "redact",
+    "guardrail_integrity_errors",
+    "check_guardrail",
 ]

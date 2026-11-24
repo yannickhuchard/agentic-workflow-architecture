@@ -1,6 +1,6 @@
 """
 A deployment file: what the workflows run by this host may reach (specification 17.4, 17.7, 17.8, 28.2),
-and who may do what in them (specification 30).
+and who may do what in them (specification 30), and the guardrails the deployment adds to every run (31.1).
 
     {
       "tools": {
@@ -17,7 +17,8 @@ and who may do what in them (specification 30).
         "policy": {"rules": [...], "separation_of_duties": [...], "four_eyes": [...]},
         "classifications": {"Claim settlement": "confidential"},
         "record_allows": false
-      }
+      },
+      "guardrails": [{"id": "...", "stages": ["output"], "check": {"kind": "personal_data"}, "action": "redact"}]
     }
 
 Relative paths of .proto files, include directories and root certificates are taken from the
@@ -35,11 +36,11 @@ A2A_KEYS = {"allowed_hosts", "poll_interval_ms", "max_wait_ms", "max_output_byte
 
 
 def load_deployment(file: str) -> dict[str, Any]:
-    """The engine options `tools`, `a2a` and, when the file has that section, `authorization` a deployment file gives"""
+    """The engine options `tools`, `a2a`, `guardrails` and, when the file has that section, `authorization` a deployment file gives"""
     with open(file, encoding="utf-8") as handle:
         raw = json.load(handle)
     directory = os.path.dirname(os.path.abspath(file))
-    extra = set(raw or {}) - {"tools", "a2a", "authorization"}
+    extra = set(raw or {}) - {"tools", "a2a", "authorization", "guardrails"}
     if extra:
         raise ValueError(f"Unknown section(s) in {file}: {', '.join(sorted(extra))}")
     for section, keys in (("tools", TOOL_KEYS), ("a2a", A2A_KEYS)):
@@ -57,7 +58,16 @@ def load_deployment(file: str) -> dict[str, Any]:
         if grpc.get("root_certificates"):
             grpc["root_certificates"] = local(grpc["root_certificates"])
         tools["grpc"] = grpc
-    deployment: dict[str, Any] = {"tools": tools, "a2a": dict(raw.get("a2a") or {})}
+    # Held to the rules of a document's guardrails (31.11): an inconsistent one is refused when the file is read
+    from awa.runtime.guardrails import check_guardrail
+    from awa.types import Guardrail
+    if not isinstance(raw.get("guardrails", []), list):
+        raise ValueError(f'"guardrails" in {file} must be a list')
+    guardrails = [Guardrail.model_validate(g) for g in raw.get("guardrails") or []]
+    issues = [message for g in guardrails for _, message, _ in check_guardrail(g, f"guardrails[{g.id}]")]
+    if issues:
+        raise ValueError(f"Invalid guardrails in {file}: {'; '.join(issues)}")
+    deployment: dict[str, Any] = {"tools": tools, "a2a": dict(raw.get("a2a") or {}), "guardrails": guardrails}
     if raw.get("authorization") is not None:
         deployment["authorization"] = load_authorization(raw["authorization"])
     return deployment

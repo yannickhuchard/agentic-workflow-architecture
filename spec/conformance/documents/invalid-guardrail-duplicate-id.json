@@ -1,0 +1,47 @@
+{
+  "id": "invalid-guardrail-duplicate-id",
+  "level": "guardrails",
+  "description": "Guardrail identifiers are unique.",
+  "valid": false,
+  "document": {
+    "id": "aa3447ae-8eb9-5a1d-97da-9a267ec7f20f",
+    "name": "invalid-guardrail-duplicate-id",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "64d0484e-a96e-579e-b881-360a0a05dba4",
+        "name": "A",
+        "role_id": "9b6329bb-e462-5a98-84b7-4d6ce4f80992",
+        "actor_type": "ai_agent",
+        "guardrails": [
+          {
+            "id": "0de27331-b245-54a2-a6de-4d6cc92ace20",
+            "name": "g",
+            "stages": [
+              "output"
+            ],
+            "check": {
+              "kind": "personal_data"
+            },
+            "action": "warn"
+          },
+          {
+            "id": "0de27331-b245-54a2-a6de-4d6cc92ace20",
+            "name": "g",
+            "stages": [
+              "input"
+            ],
+            "check": {
+              "kind": "personal_data"
+            },
+            "action": "warn"
+          }
+        ]
+      }
+    ],
+    "edges": []
+  },
+  "stage": "integrity",
+  "error_code": "invalid_guardrail"
+}

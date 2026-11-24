@@ -1,0 +1,122 @@
+{
+  "id": "deny-list-blocks-output-before-the-contract",
+  "level": "guardrails",
+  "spec": "31.5",
+  "description": "A blocked output fails the activity with GUARDRAIL_BLOCKED. It is not retried by the retry policy, it never reaches the outcome contract, and it is not journalled.",
+  "workflow": {
+    "id": "80ae21f9-b575-509f-ba77-353a5566d494",
+    "name": "deny-list-blocks-output-before-the-contract",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "fab70f18-fe46-5d15-b0ba-3978ae3edb47",
+        "name": "Draft",
+        "role_id": "33454229-1277-5058-abee-f143ddaee28a",
+        "actor_type": "ai_agent",
+        "guardrails": [
+          {
+            "id": "007bf767-97f3-5ef9-b0e0-7eb2cebb740a",
+            "name": "Code names",
+            "stages": [
+              "output"
+            ],
+            "check": {
+              "kind": "deny_list",
+              "terms": [
+                "project falcon"
+              ]
+            },
+            "action": "block"
+          }
+        ],
+        "retry": {
+          "max_attempts": 3,
+          "initial_delay": "PT0S"
+        },
+        "outcome_contract": {
+          "postconditions": [
+            {
+              "name": "has a reply",
+              "expression": "reply exists"
+            }
+          ]
+        }
+      },
+      {
+        "id": "70521d50-cfea-5e71-9766-fe9588e08dfa",
+        "name": "Send",
+        "role_id": "33454229-1277-5058-abee-f143ddaee28a",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "e7f1aaae-0be4-5bc4-931f-0c89adb4cf5a",
+        "source_id": "fab70f18-fe46-5d15-b0ba-3978ae3edb47",
+        "target_id": "70521d50-cfea-5e71-9766-fe9588e08dfa"
+      }
+    ]
+  },
+  "actors": {
+    "Draft": {
+      "output": {
+        "reply": "The launch of Project Falcon moves to May."
+      }
+    }
+  },
+  "expect": {
+    "status": "failed",
+    "visited": [
+      "Draft"
+    ],
+    "not_visited": [
+      "Send"
+    ],
+    "error_matches": "Code names",
+    "journal": [
+      "activity.started",
+      "guardrail.triggered",
+      "activity.failed",
+      "token.failed",
+      "run.failed"
+    ],
+    "journal_contains": [
+      {
+        "type": "guardrail.triggered",
+        "data": {
+          "check": "deny_list",
+          "action": "block",
+          "categories": [
+            "term"
+          ]
+        }
+      },
+      {
+        "type": "activity.failed",
+        "data": {
+          "error": {
+            "code": "GUARDRAIL_BLOCKED"
+          },
+          "retryable": false
+        }
+      },
+      {
+        "type": "token.failed",
+        "data": {
+          "error": {
+            "code": "GUARDRAIL_BLOCKED"
+          }
+        }
+      }
+    ],
+    "journal_excludes": [
+      "contract.checked",
+      "activity.retry_scheduled",
+      "activity.completed"
+    ],
+    "journal_excludes_text": [
+      "Falcon"
+    ]
+  }
+}

@@ -227,4 +227,9 @@ def validate_workflow_integrity(workflow: Workflow) -> ValidationResult:
         for name in sorted({n for n in names if names.count(n) > 1}):
             add(f"activities[{activity.id}].tools", f"Duplicate tool name '{name}'", "duplicate_id")
 
+    # Guardrails must be consistent: actions their stages allow, patterns that compile (specification 31.11)
+    from awa.runtime.guardrails import guardrail_integrity_errors
+    for path, message, code in guardrail_integrity_errors(workflow):
+        add(path, message, code)
+
     return ValidationResult(valid=len(errors) == 0, errors=errors)

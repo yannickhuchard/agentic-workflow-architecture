@@ -1,0 +1,122 @@
+{
+  "id": "size-limit-retries-with-feedback",
+  "level": "guardrails",
+  "spec": "31.5",
+  "description": "An output over its size limits is rejected and the agent is executed again with feedback naming the limits, as a contract violation would be. Characters count the code points of the strings; tokens are characters divided by four, rounded up.",
+  "workflow": {
+    "id": "21c25cbe-0f75-5483-a6a1-60d22004a077",
+    "name": "size-limit-retries-with-feedback",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "6ca95bb9-d6c7-5c32-909b-03727b387699",
+        "name": "Summarise",
+        "role_id": "4810afe4-d88f-5dd8-8d96-056382c481f0",
+        "actor_type": "ai_agent",
+        "guardrails": [
+          {
+            "id": "6efbb2c7-f08f-51a9-a220-a17519c38ba2",
+            "name": "Short",
+            "stages": [
+              "output"
+            ],
+            "check": {
+              "kind": "size",
+              "max_characters": 40,
+              "max_tokens": 10
+            },
+            "action": "retry_with_feedback"
+          }
+        ]
+      }
+    ],
+    "edges": []
+  },
+  "actors": {
+    "Summarise": {
+      "attempts": [
+        {
+          "output": {
+            "summary": "The claim is covered under section 4 of the policy"
+          }
+        },
+        {
+          "output": {
+            "summary": "Covered (section 4)"
+          }
+        }
+      ]
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "Summarise",
+      "Summarise"
+    ],
+    "data": {
+      "summary": "Covered (section 4)"
+    },
+    "journal": [
+      "activity.started",
+      "guardrail.triggered",
+      "activity.failed",
+      "meta.recorded",
+      "activity.started",
+      "activity.completed"
+    ],
+    "journal_contains": [
+      {
+        "type": "guardrail.triggered",
+        "data": {
+          "check": "size",
+          "action": "retry_with_feedback",
+          "findings": [
+            {
+              "category": "max_characters",
+              "limit": 40,
+              "actual": 50
+            },
+            {
+              "category": "max_tokens",
+              "limit": 10,
+              "actual": 13
+            }
+          ]
+        }
+      },
+      {
+        "type": "activity.failed",
+        "attempt": 1,
+        "data": {
+          "error": {
+            "code": "GUARDRAIL_BLOCKED"
+          },
+          "retryable": true
+        }
+      },
+      {
+        "type": "meta.recorded",
+        "level": "meta",
+        "data": {
+          "subject": "guardrail_retry"
+        }
+      }
+    ],
+    "journal_mentions": [
+      {
+        "event": {
+          "type": "activity.started",
+          "attempt": 2
+        },
+        "mentions": [
+          "max_characters"
+        ]
+      }
+    ],
+    "journal_count": {
+      "guardrail.triggered": 1
+    }
+  }
+}

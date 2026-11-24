@@ -1,0 +1,65 @@
+{
+  "id": "deny-list-matches-whole-words",
+  "level": "guardrails",
+  "spec": "31.4",
+  "description": "A term matches only as a whole word by default: 'cat' is not found in 'concatenate'.",
+  "workflow": {
+    "id": "383cf576-7a9c-5c10-a5b6-a01989fc8f57",
+    "name": "deny-list-matches-whole-words",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "dedfe585-5678-5ab0-aedf-3c86eb0c6010",
+        "name": "Draft",
+        "role_id": "9ad8dfb2-dabc-5cf9-89e3-68a2237c3699",
+        "actor_type": "ai_agent",
+        "guardrails": [
+          {
+            "id": "cb6b0b7a-ec5f-520f-a56e-9f82696b561c",
+            "name": "Cats",
+            "stages": [
+              "output"
+            ],
+            "check": {
+              "kind": "deny_list",
+              "terms": [
+                "CAT"
+              ]
+            },
+            "action": "warn"
+          }
+        ]
+      }
+    ],
+    "edges": []
+  },
+  "actors": {
+    "Draft": {
+      "output": {
+        "text": "concatenate; the cat sat"
+      }
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "journal_count": {
+      "guardrail.triggered": 1
+    },
+    "journal_contains": [
+      {
+        "type": "guardrail.triggered",
+        "data": {
+          "findings": [
+            {
+              "category": "term",
+              "path": "/text",
+              "start": 17,
+              "end": 20
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

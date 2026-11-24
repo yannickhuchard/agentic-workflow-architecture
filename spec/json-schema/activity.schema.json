@@ -213,6 +213,13 @@
         "a2a": {
             "$ref": "#/$defs/a2a_agent",
             "description": "The agent that performs this activity over A2A, replacing its role's"
+        },
+        "guardrails": {
+            "type": "array",
+            "items": {
+                "$ref": "guardrail.schema.json"
+            },
+            "description": "Guardrails on this activity's input, output and tool calls (section 31)"
         }
     },
     "$defs": {
@@ -579,6 +586,13 @@
                 "timeout": {
                     "$ref": "awa.schema.json#/$defs/duration",
                     "default": "PT30S"
+                },
+                "guardrails": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "guardrail.schema.json"
+                    },
+                    "description": "Guardrails on every call of this tool, at stages tool_call and tool_result (section 31)"
                 }
             }
         },

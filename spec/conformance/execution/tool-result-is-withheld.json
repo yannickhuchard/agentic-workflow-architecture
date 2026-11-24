@@ -1,0 +1,105 @@
+{
+  "id": "tool-result-is-withheld",
+  "level": "guardrails",
+  "spec": "31.5",
+  "description": "A tool result a guardrail blocks is withheld: tool.failed with invoked true replaces tool.completed, and the actor is given the refusal.",
+  "workflow": {
+    "id": "cf91194a-a15d-5d28-925c-c308afa25c27",
+    "name": "tool-result-is-withheld",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "d6a6af5c-f0b7-5641-9feb-fcb0354f451b",
+        "name": "Lookup",
+        "role_id": "33d74920-78da-5810-ab4e-e80d7e639c50",
+        "actor_type": "ai_agent",
+        "tools": [
+          {
+            "name": "search",
+            "description": "The search tool",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "q": {
+                  "type": "string"
+                },
+                "account": {
+                  "type": "string"
+                }
+              }
+            },
+            "binding": {
+              "kind": "function",
+              "name": "search"
+            },
+            "guardrails": [
+              {
+                "id": "9d0f86ed-9af8-5ec3-b8da-2e672d243ca8",
+                "name": "Card numbers",
+                "stages": [
+                  "tool_result"
+                ],
+                "check": {
+                  "kind": "personal_data",
+                  "categories": [
+                    "credit_card"
+                  ]
+                },
+                "action": "block"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "edges": []
+  },
+  "actors": {
+    "Lookup": {
+      "calls": [
+        {
+          "tool": "search",
+          "arguments": {
+            "q": "customer 7"
+          }
+        }
+      ],
+      "output": {}
+    }
+  },
+  "tools": {
+    "search": {
+      "result": {
+        "card": "4111-1111-1111-1111"
+      }
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "journal": [
+      "tool.invoked",
+      "guardrail.triggered",
+      "tool.failed",
+      "activity.completed"
+    ],
+    "journal_contains": [
+      {
+        "type": "tool.failed",
+        "data": {
+          "tool": "search",
+          "invoked": true,
+          "error": {
+            "code": "GUARDRAIL_BLOCKED"
+          }
+        }
+      }
+    ],
+    "journal_excludes": [
+      "tool.completed"
+    ],
+    "journal_excludes_text": [
+      "4111"
+    ]
+  }
+}

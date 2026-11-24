@@ -2,6 +2,7 @@
  * AWA Validator - Schema validation for AWA entities
  */
 
+import { guardrail_integrity_errors } from '../runtime/guardrails';
 import { WorkflowSchema, ActivitySchema, ContextSchema, type Workflow, type Activity, type Context } from '../types';
 import type { ZodError } from 'zod';
 import { validate_expression } from '../runtime/expression';
@@ -276,6 +277,9 @@ export function validate_workflow_integrity(workflow: Workflow): ValidationResul
             }
         }
     }
+
+    // Guardrails must be consistent: actions their stages allow, patterns that compile (spec 31.11)
+    errors.push(...guardrail_integrity_errors(workflow));
 
     return { valid: errors.length === 0, errors };
 }

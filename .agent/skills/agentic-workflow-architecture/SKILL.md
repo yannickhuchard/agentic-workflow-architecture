@@ -1,7 +1,7 @@
 ---
 name: agentic-workflow-architecture
 description: Expert guide for working with the Agentic Workflow Architecture (AWA) framework. Use this skill when users need to create, edit, validate, execute, or visualize AI-native workflow processes using AWA's SDK (TypeScript & Python), CLI, API, or visualization tools. This skill covers workflow building with the fluent API, running workflows via CLI, triggering workflows via REST API, creating workflow JSON files, understanding AWA concepts (actors, contexts, skills, access rights, decision nodes), and rendering workflow diagrams.
-Sync: Updated for AWA 1.1 (normative specification, outcome contracts, model routing, tools with MCP and gRPC, agents over A2A, identity and authorization, journal, knowledge)
+Sync: Updated for AWA 1.1 (normative specification, outcome contracts, model routing, tools with MCP and gRPC, agents over A2A, identity and authorization, guardrails, journal, knowledge)
 ---
 
 # Agentic Workflow Architecture (AWA) Skill
@@ -250,6 +250,20 @@ Roles in the document say what kind of actor performs an activity; the deploymen
 ```
 
 Under a policy what no rule allows is denied, and a denial wins over an allow. Actions: `start_run`, `perform_activity`, `reach_agent`, `call_tool`, `claim_task`, `assign_task`, `complete_task`, `approve`, `answer_agent`, `publish_event`, `read_journal`, `cancel_run`, `migrate_run`. A refusal fails with `FORBIDDEN` (a refused tool call is returned to the agent; a refused answer leaves the task waiting) and is journalled as `authorization.decided`; `run.started`, `activity.started`, `activity.completed` and `token.resumed` name their `principal`. People come from the request (JWT claims, API keys); runs started without a principal are started by the host (`{"id": "host", "kind": "service"}`), which a policy must allow too. `awa run --deployment d.json --as alice`, `awa serve --deployment d.json`, `awa task complete <id> --deployment d.json --as bob`. An external policy engine plugs in as `authorization.decider` in code.
+
+### Guardrails
+
+Put guardrails on what goes into and comes out of agents and tools (specification section 31). Declare them in `guardrails` on the workflow, a role, an activity or a tool; a deployment adds its own (`guardrails` in the deployment file), which run first and cannot be removed by a document.
+
+```json
+"guardrails": [
+  { "id": "…", "name": "No personal data out", "stages": ["output", "tool_call"], "check": { "kind": "personal_data" }, "action": "redact" },
+  { "id": "…", "name": "Injection in data", "stages": ["input"], "check": { "kind": "prompt_injection" }, "action": "block" },
+  { "id": "…", "name": "Known decisions", "stages": ["output"], "check": { "kind": "allowed_values", "path": "decision", "values": ["approve", "refer"] }, "action": "retry_with_feedback" }
+]
+```
+
+Stages: `input` (what the actor is given), `output` (before the outcome contract and verification), `tool_call`, `tool_result`. Checks: `personal_data`, `deny_list`, `prompt_injection`, `size`, `json_schema`, `allowed_values`, `topic` (condition expressions), `model` (a guard model; the engine default unless a reference is named) and `classifier` (registered by the deployment). Actions: `block` (`GUARDRAIL_BLOCKED`), `redact`, `retry_with_feedback` (output only), `escalate` (to a person; input and output) and `warn`; a guardrail on a tool takes only `tool_call` and `tool_result`. The journal records `guardrail.triggered` with positions and categories, never the matched text. Pattern lists are a floor, not a defence: bound what an agent can do with tools, permissions and contracts.
 
 ### After a run: journal, recipe, replay, knowledge
 

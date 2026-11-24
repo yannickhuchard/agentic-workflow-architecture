@@ -1,0 +1,85 @@
+{
+  "id": "guard-model-flags-an-output",
+  "level": "guardrails",
+  "spec": "31.8",
+  "description": "A model check asks the guard model, the engine default when the guardrail names none. What it flags becomes the findings; the model it used is recorded.",
+  "workflow": {
+    "id": "e3ef8abd-de03-54a0-b1ac-893558fae108",
+    "name": "guard-model-flags-an-output",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "96c3f9fc-2bc1-52e3-a564-4597b818962c",
+        "name": "Advise",
+        "role_id": "de3a80ac-e5a9-583d-b0b5-0efa7bdfd493",
+        "actor_type": "ai_agent",
+        "guardrails": [
+          {
+            "id": "60ea96a4-08a7-5b34-b9ec-673093d44ddc",
+            "name": "No medical advice",
+            "stages": [
+              "output"
+            ],
+            "check": {
+              "kind": "model",
+              "instructions": "Flag advice on medication or dosage.",
+              "categories": [
+                "medical_advice"
+              ]
+            },
+            "action": "block"
+          }
+        ]
+      }
+    ],
+    "edges": []
+  },
+  "actors": {
+    "Advise": {
+      "output": {
+        "advice": "Take two of them twice a day."
+      }
+    }
+  },
+  "model": {
+    "replies": [
+      {
+        "text": "{\"flagged\": true, \"categories\": [\"medical_advice\"]}"
+      }
+    ]
+  },
+  "expect": {
+    "status": "failed",
+    "model_calls": 1,
+    "error_matches": "No medical advice",
+    "journal": [
+      "activity.started",
+      "meta.recorded",
+      "guardrail.triggered",
+      "activity.failed"
+    ],
+    "journal_contains": [
+      {
+        "type": "guardrail.triggered",
+        "data": {
+          "check": "model",
+          "action": "block",
+          "categories": [
+            "medical_advice"
+          ]
+        }
+      },
+      {
+        "type": "meta.recorded",
+        "data": {
+          "subject": "model_selection",
+          "model": {
+            "provider": "conformance",
+            "source": "guardrail"
+          }
+        }
+      }
+    ]
+  }
+}
