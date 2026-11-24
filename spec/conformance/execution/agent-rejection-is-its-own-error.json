@@ -1,0 +1,96 @@
+{
+  "id": "agent-rejection-is-its-own-error",
+  "level": "a2a",
+  "spec": "28.4",
+  "description": "A task the agent rejects fails the attempt with AGENT_REJECTED.",
+  "workflow": {
+    "id": "2facbb1b-9282-5e04-a73c-a2e5f9f9fee1",
+    "name": "agent-rejection-is-its-own-error",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "60c431e0-7a73-523e-b2ce-6f58b9688df4",
+        "name": "Assess",
+        "role_id": "abd984e7-1ab1-559b-a7b2-c21af03afb84",
+        "actor_type": "ai_agent",
+        "a2a": {
+          "agent_card": "https://agents.example/claims/.well-known/agent-card.json"
+        }
+      }
+    ],
+    "edges": []
+  },
+  "agents": {
+    "https://agents.example/claims/.well-known/agent-card.json": {
+      "card": {
+        "name": "Claims assessor",
+        "description": "Claims assessor, reached over A2A",
+        "version": "1.0.0",
+        "supportedInterfaces": [
+          {
+            "url": "https://agents.example/claims/a2a",
+            "protocolBinding": "JSONRPC",
+            "protocolVersion": "1.0"
+          }
+        ],
+        "capabilities": {
+          "streaming": false,
+          "pushNotifications": false
+        },
+        "defaultInputModes": [
+          "application/json",
+          "text/plain"
+        ],
+        "defaultOutputModes": [
+          "application/json"
+        ],
+        "skills": [
+          {
+            "id": "assess",
+            "name": "Assess",
+            "description": "Assess a claim",
+            "tags": [
+              "claims"
+            ]
+          }
+        ]
+      },
+      "replies": [
+        {
+          "result": {
+            "task": {
+              "id": "task-1",
+              "contextId": "ctx-1",
+              "status": {
+                "state": "TASK_STATE_REJECTED",
+                "message": {
+                  "messageId": "m-rejected",
+                  "role": "ROLE_AGENT",
+                  "parts": [
+                    {
+                      "text": "Out of scope"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "expect": {
+    "status": "failed",
+    "journal_contains": [
+      {
+        "type": "activity.failed",
+        "data": {
+          "error": {
+            "code": "AGENT_REJECTED"
+          }
+        }
+      }
+    ]
+  }
+}

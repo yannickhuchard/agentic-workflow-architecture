@@ -321,6 +321,16 @@ export const ToolDefinitionSchema = z.object({
 });
 export type ToolDefinition = z.infer<typeof ToolDefinitionSchema>;
 
+/** An agent reached over the Agent2Agent protocol (A2A 1.0) that performs an activity (specification 28.1) */
+export const A2AAgentSchema = z.object({
+    agent_card: z.string().url(),
+    skill: z.string().optional(),
+    on_input_required: z.enum(['wait', 'fail']).default('wait'),
+    /** Sent with every request to the agent. {{secret:NAME}} is replaced by a deployment secret. Never journalled. */
+    headers: z.record(z.string(), z.string()).optional(),
+});
+export type A2AAgent = z.infer<typeof A2AAgentSchema>;
+
 export const JoinMode = z.enum(['any', 'all']);
 export type JoinMode = z.infer<typeof JoinMode>;
 
@@ -384,6 +394,8 @@ export const ActivitySchema = z.object({
         max_entries: z.number().int().min(1).max(20).optional(),
         min_status: z.enum(['draft', 'reviewed']).optional(),
     }).optional(),
+    /** The agent that performs this activity over A2A, replacing its role's (specification 28.1) */
+    a2a: A2AAgentSchema.optional(),
 });
 export type Activity = z.infer<typeof ActivitySchema>;
 
@@ -507,6 +519,8 @@ export const RoleSchema = z.object({
         server_name: z.string(),
         tool_name: z.string(),
     })).default([]),
+    /** The agent, reached over A2A, that performs the activities of this role (specification 28.1) */
+    a2a: A2AAgentSchema.optional(),
 });
 export type Role = z.infer<typeof RoleSchema>;
 

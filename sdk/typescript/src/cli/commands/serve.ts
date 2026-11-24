@@ -1,5 +1,11 @@
 import { Command } from 'commander';
+import fs from 'fs';
+import path from 'path';
 import { createServer, AuthConfig } from '../../server';
+import { parse_document } from '../../validator';
+import { FileJournalStore } from '../../runtime/journal';
+import { load_deployment } from '../deployment';
+import { Workflow } from '../../types';
 
 export const serveCommand = new Command('serve')
     .description('Start the AWA Operational API Server')
@@ -8,6 +14,9 @@ export const serveCommand = new Command('serve')
     .option('--api-key <key>', 'API key for authentication (format: key:role, can be repeated)', collectApiKeys, {})
     .option('--rate-limit <max>', 'Max requests per minute (0 to disable)', '0')
     .option('--no-auth', 'Disable authentication')
+    .option('--a2a <file>', 'Offer this workflow to other agents over A2A (can be repeated)', (value: string, previous: string[]) => [...previous, value], [] as string[])
+    .option('--public-url <url>', 'The address callers reach this server at, written in agent cards. Default: taken from each request')
+    .option('--deployment <file>', 'JSON file saying what the workflows may reach: tools.allow_commands, tools.allowed_hosts, tools.mcp_servers, tools.grpc, a2a')
     .action(async (options) => {
         try {
             const port = parseInt(options.port, 10);
@@ -28,10 +37,25 @@ export const serveCommand = new Command('serve')
                 public_paths: ['/health']
             };
 
+            // Workflows offered over A2A run under the deployment's permissions, like any other run
+            const deployment = options.deployment ? load_deployment(path.resolve(process.cwd(), options.deployment)) : undefined;
+            const offered: Workflow[] = (options.a2a as string[]).map(file => parse_document(JSON.parse(fs.readFileSync(path.resolve(process.cwd(), file), 'utf-8'))));
+
             const app = createServer({
                 auth: authConfig.enabled ? authConfig as AuthConfig : undefined,
                 rate_limit: rateLimit > 0 ? { window_ms: 60000, max_requests: rateLimit } : undefined,
-                request_logging: true
+                request_logging: true,
+                a2a: offered.length ? {
+                    workflows: offered,
+                    options: {
+                        public_url: options.publicUrl,
+                        engine: () => ({
+                            gemini_api_key: process.env.GEMINI_API_KEY,
+                            ...(deployment ? { tools: deployment.tools, a2a: deployment.a2a } : {}),
+                            journal: process.env.AWA_JOURNAL_DIR ? new FileJournalStore(process.env.AWA_JOURNAL_DIR) : undefined,
+                        }),
+                    },
+                } : undefined,
             });
 
             app.listen(port, () => {
@@ -41,6 +65,9 @@ export const serveCommand = new Command('serve')
                 }
                 if (rateLimit > 0) {
                     console.log(`  Rate limit: ${rateLimit} requests/minute`);
+                }
+                for (const workflow of offered) {
+                    console.log(`  A2A agent "${workflow.name}": ${options.publicUrl || `http://localhost:${port}`}/a2a/${workflow.id}/.well-known/agent-card.json`);
                 }
             });
         } catch (error: unknown) {

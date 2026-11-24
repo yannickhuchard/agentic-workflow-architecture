@@ -1,0 +1,178 @@
+{
+  "id": "agent-retried-with-feedback-in-its-context",
+  "level": "a2a",
+  "spec": "28.5",
+  "description": "An agent's outcome is held to the contract as any actor's. An AI agent whose outcome is rejected is sent the feedback in the context it answered in.",
+  "workflow": {
+    "id": "af56a6c0-7cd3-5c13-a74b-7fbba817bbca",
+    "name": "agent-retried-with-feedback-in-its-context",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "43f6e614-57d9-5a89-b51d-19acbfe80e1c",
+        "name": "Assess",
+        "role_id": "88ab5bec-55aa-5612-b648-b45623e5ee61",
+        "actor_type": "ai_agent",
+        "a2a": {
+          "agent_card": "https://agents.example/claims/.well-known/agent-card.json"
+        },
+        "outcome_contract": {
+          "postconditions": [
+            {
+              "name": "confident",
+              "expression": "score >= 0.5"
+            }
+          ]
+        }
+      }
+    ],
+    "edges": []
+  },
+  "agents": {
+    "https://agents.example/claims/.well-known/agent-card.json": {
+      "card": {
+        "name": "Claims assessor",
+        "description": "Claims assessor, reached over A2A",
+        "version": "1.0.0",
+        "supportedInterfaces": [
+          {
+            "url": "https://agents.example/claims/a2a",
+            "protocolBinding": "JSONRPC",
+            "protocolVersion": "1.0"
+          }
+        ],
+        "capabilities": {
+          "streaming": false,
+          "pushNotifications": false
+        },
+        "defaultInputModes": [
+          "application/json",
+          "text/plain"
+        ],
+        "defaultOutputModes": [
+          "application/json"
+        ],
+        "skills": [
+          {
+            "id": "assess",
+            "name": "Assess",
+            "description": "Assess a claim",
+            "tags": [
+              "claims"
+            ]
+          }
+        ]
+      },
+      "replies": [
+        {
+          "result": {
+            "task": {
+              "id": "task-1",
+              "contextId": "ctx-1",
+              "status": {
+                "state": "TASK_STATE_COMPLETED"
+              },
+              "artifacts": [
+                {
+                  "artifactId": "a0",
+                  "parts": [
+                    {
+                      "data": {
+                        "decision": "approve",
+                        "score": 0.2
+                      },
+                      "mediaType": "application/json"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "result": {
+            "task": {
+              "id": "task-2",
+              "contextId": "ctx-1",
+              "status": {
+                "state": "TASK_STATE_COMPLETED"
+              },
+              "artifacts": [
+                {
+                  "artifactId": "a0",
+                  "parts": [
+                    {
+                      "data": {
+                        "decision": "approve",
+                        "score": 0.9
+                      },
+                      "mediaType": "application/json"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "data": {
+      "score": 0.9
+    },
+    "agent_requests": [
+      "SendMessage",
+      "SendMessage"
+    ],
+    "journal": [
+      "agent.task_updated",
+      "contract.checked",
+      "activity.failed",
+      "agent.message_sent",
+      "agent.task_updated",
+      "contract.checked",
+      "activity.completed"
+    ],
+    "journal_contains": [
+      {
+        "type": "contract.checked",
+        "attempt": 1,
+        "data": {
+          "passed": false
+        }
+      },
+      {
+        "type": "contract.checked",
+        "attempt": 2,
+        "data": {
+          "passed": true
+        }
+      },
+      {
+        "type": "agent.message_sent",
+        "attempt": 2,
+        "data": {
+          "context_id": "ctx-1"
+        }
+      }
+    ],
+    "agent_requests_contain": [
+      {
+        "method": "SendMessage",
+        "params": {
+          "message": {
+            "contextId": "ctx-1",
+            "metadata": {
+              "awa": {
+                "attempt": 2
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

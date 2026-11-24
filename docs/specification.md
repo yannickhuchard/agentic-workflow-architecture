@@ -31,6 +31,7 @@ This document is normative. Where it and an SDK disagree, this document is right
 21. [Measures](#21-measures)
 22. [Contexts](#22-contexts)
 23. [Service levels](#23-service-levels)
+28. [Agents over A2A](#28-agents-over-a2a)
 32. [Evidence](#32-evidence)
 33. [Evaluation](#33-evaluation)
 
@@ -73,6 +74,7 @@ An implementation claims one or more levels. Each level has cases in `spec/confo
 | `measures` | Computes the measures of journeys and workflows from what was recorded | 21 |
 | `contexts` | Gives an activity the contexts it is bound to and no other, and refuses writes its bindings do not allow | 22 |
 | `service_levels` | Compares the time work takes with what was promised, and records warnings and breaches | 23 |
+| `a2a` | Lets an agent reached over the Agent2Agent protocol perform an activity, under the same contract, verification, permissions and record as any actor | 28 |
 | `evidence` | Computes evidence reports from journals and journey records, every statement citing the records it rests on | 32 |
 | `evaluation` | Builds evaluation datasets from journals and scores a candidate against them | 33.1 to 33.4 |
 
@@ -82,8 +84,8 @@ An implementation MUST NOT claim a level unless it passes every case tagged with
 
 | SDK | Levels claimed |
 |---|---|
-| TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `evidence`, `evaluation` |
-| Python | every level: `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `evidence`, `evaluation`. Without a built-in AI agent that calls a model, the recipe, or Open Knowledge Format exchange |
+| TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `a2a`, `evidence`, `evaluation`. Built-in MCP and gRPC executors (17.7, 17.8); serves workflows as A2A agents (28.8) |
+| Python | every level: `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `a2a`, `evidence`, `evaluation`. Built-in MCP and gRPC executors (gRPC with the `grpc` extra); serves workflows as A2A agents. Without the recipe, or Open Knowledge Format exchange |
 | Java | none: a data model that reads and writes 1.1 documents faithfully, without validating them, and no engine |
 
 ### 2.3 Versions
@@ -557,6 +559,8 @@ An engine MUST NOT alter or remove an event once written.
 | `tool.invoked` | execution | A tool call is about to run | `call_id`, `tool`, `link`, `binding`, `arguments`, `documentation` |
 | `tool.completed` | execution | A tool call returned | `call_id`, `tool`, `link`, `status`, `duration_ms`, `result` |
 | `tool.failed` | execution | A tool call failed, or was refused before running | `call_id`, `tool`, `link`, `invoked`, `error`, `status`, `duration_ms` |
+| `agent.message_sent` | execution | A message is sent to an agent over A2A (28.7) | `agent`, `link`, `message_id`, `context_id`, `task_id`, `parts`, `simulated` |
+| `agent.task_updated` | execution | An agent answered, or its task changed state (28.7) | `agent`, `task_id`, `context_id`, `state`, `duration_ms`, `reply` |
 | `verification.completed` | execution | An output has been verified | `mode`, `verdict`, `score`, `criteria`, `feedback`, `output_hash` |
 | `contract.checked` | execution | An outcome has been checked against its contract | `passed`, `violations`, `tokens_used`, `output_hash`, `decided_by` |
 | `contract.escalated` | execution | A rejected outcome is handed to a human | `code`, `message`, `rejected_output` |
@@ -1015,7 +1019,7 @@ In `url` and in each element of `args`, `{name}` is replaced by the argument of 
 
 In `headers`, `{{secret:NAME}}` is replaced by a secret the deployment supplies. Headers and secrets MUST NOT be journalled.
 
-An engine MUST implement `http`, `jsonrpc`, `command` and `function`. It MAY implement `grpc` and `mcp` through executors the deployment registers; a call to a kind with no executor fails with `VALIDATION_ERROR`.
+An engine MUST implement `http`, `jsonrpc`, `command` and `function`. It SHOULD implement `mcp` and `grpc`, and where it does, it MUST behave as 17.7 and 17.8 say. A deployment MAY register its own executor for any kind, which then replaces the engine's. A call to a kind with no executor fails with `VALIDATION_ERROR`.
 
 ### 17.3 Calling
 
@@ -1041,6 +1045,8 @@ A workflow document can name any URL or program. What may actually run is for th
 - `http` and `jsonrpc` bindings reach `http` and `https` addresses only. Any other scheme (a file, a data URL) is refused with `VALIDATION_ERROR` before anything is called.
 - A redirect is a call to another address: each hop is held to the list of hosts, and a hop to a host not on it is refused with `PERMISSION_DENIED`. Headers set by the binding, which may carry secrets, MUST NOT be sent on to a different origin.
 - An engine MUST bound what a call may return, and fail a call whose reply is larger. The reference bound is 4 MiB, configurable by the deployment.
+- An `mcp` binding run by the engine's own executor reaches only a server the deployment declares (17.7), by its name. A binding that names any other server is refused with `PERMISSION_DENIED`. A server the engine starts as a program is held to the rule for `command` bindings, by its program: it does not start unless the deployment allows commands, all or that one. A server reached over HTTP is held to the list of hosts, redirects included, as `http` bindings are.
+- A `grpc` binding's endpoint is held to the list of hosts. The call is made over TLS unless the deployment allows plaintext for that host (17.8).
 
 ### 17.5 Record
 
@@ -1061,6 +1067,51 @@ A recipe (14.1) lists every tool with its binding among the prerequisites, and u
 ### 17.6 Conformance
 
 Level `tools` covers 17.3 to 17.5, and level `model_decision` covers section 16. Their cases are execution cases (Appendix A) with a scripted `tools` or `model`. Bindings other than `function`, and agents that choose their own tool calls, are fixed by `sdk/typescript/tests/router_tools_decisions.test.ts`.
+
+The executors of 17.7 and 17.8 do not belong to level `tools`: an implementation can claim `tools` without them, and no case reaches them, since each needs a live server. They are fixed by `sdk/typescript/tests/protocols_mcp.test.ts` and `sdk/typescript/tests/protocols_grpc.test.ts`, and their Python counterparts, against servers the tests start.
+
+### 17.7 Model Context Protocol servers
+
+A deployment declares the Model Context Protocol (MCP) servers its tools may use, by name, in `mcp_servers`. A binding of kind `mcp` names one of them in `server` and the server's tool in `tool`.
+
+| Declaration | Fields | The engine reaches the server |
+|---|---|---|
+| A program | `command`, `args`, `env`, `cwd` | By starting the program and speaking to it over its standard input and output. `args` are passed one element per argument, with no shell; `env` is added to the environment of the program |
+| An address | `url`, `headers` | Over Streamable HTTP at that `url`. In `headers`, `{{secret:NAME}}` is replaced as in 17.2; headers are never journalled |
+
+The engine speaks MCP as revision 2025-11-25 defines it, opening each connection with the `initialize` handshake; it accepts a server that answers with revision 2024-11-05 or any later one it knows, and fails the call with `TOOL_ERROR` otherwise. Revisions without the handshake are not used.
+
+A connection is opened at the first call of a run to that server, and reused by every later call of the run to it, whichever activity or attempt makes it. The engine closes every connection of a run when the run ends and when it stops to wait (5.6); a later call opens a new one. Closing stops a server the engine started. In simulation no connection is opened (17.5).
+
+A call is a `tools/call` request with `name` set to the binding's `tool` and `arguments` set to the call's arguments. Its outcome:
+
+| The server answers | The engine records |
+|---|---|
+| A result without `isError` | `tool.completed`. The `result` is the result's `structuredContent` when it has one. Otherwise, when its `content` is a single text block, the text, parsed as JSON when it is JSON. Otherwise the `content` list as received |
+| A result with `isError: true` | `tool.failed` with `TOOL_ERROR` and the text of its content as the message |
+| A JSON-RPC error | `tool.failed` with `TOOL_ERROR`, the error's message, and its code as `status` |
+| Nothing within the tool's `timeout` | `tool.failed` with `TIMEOUT`. The engine sends `notifications/cancelled` for the request |
+| A program that fails to start or exits, a connection refused or closed, a reply that is not MCP | `tool.failed` with `TOOL_ERROR` |
+
+The bound on what a call may return (17.4) applies to each message the server sends.
+
+### 17.8 gRPC
+
+A binding of kind `grpc` makes one unary call: `method` of `service` (its full name, with package) at `endpoint` (`host:port`; a `grpc://` or `grpcs://` prefix is ignored). Streaming methods are refused with `VALIDATION_ERROR`.
+
+The engine learns the request and response messages from the `.proto` files the deployment provides (`grpc.protos`, with `grpc.include_dirs` for their imports). When none of them defines the service, it asks the server, through gRPC server reflection (version `v1` or `v1alpha`), unless the deployment turns reflection off (`grpc.reflection: false`). A service that neither describes fails the call with `VALIDATION_ERROR`.
+
+The arguments are the request message in JSON, with the field names written in the `.proto` file. The result is the response message in the same form: scalar, enumeration and repeated fields present with their default values when not set, a message field that is not set absent, enumerations by name, 64-bit integers as strings, bytes in base64.
+
+The call is made over TLS, with the host's trusted roots or the deployment's `grpc.root_certificates`. It is made in plaintext only to a host the deployment lists in `grpc.plaintext_hosts`. Its deadline is the tool's `timeout`.
+
+| The call ends with | The engine records |
+|---|---|
+| `OK` | `tool.completed`, with `status` `OK` |
+| `DEADLINE_EXCEEDED` | `tool.failed` with `TIMEOUT` and `status` `DEADLINE_EXCEEDED` |
+| Any other status | `tool.failed` with `TOOL_ERROR`, the status details as the message, and the name of the status code, for example `NOT_FOUND`, as `status`. A server's own `PERMISSION_DENIED` is such a status, not the deployment's refusal of 17.4 |
+
+Channels are reused within a run and closed when it ends, as MCP connections are (17.7). Call metadata, client certificates and streaming calls are out of scope; a deployment that needs them registers its own executor (17.2).
 
 ## 18. Business events
 
@@ -1525,6 +1576,105 @@ With `breach_action: fail`, work that is *not* finished stops being waited for:
 
 Level `service_levels` has execution cases (Appendix A) that run on a clock: actors take scripted time, and the case moves the clock and asks the engine to check what is waiting. A person's task that outlasts its service level is fixed by `sdk/typescript/tests/contexts_service_levels.test.ts`.
 
+## 28. Agents over A2A
+
+An activity's actor may be an agent that runs elsewhere, reached over the Agent2Agent protocol (A2A). The engine sends it the work, follows the task it opens until it ends, and treats its reply as any actor's result: the same outcome contract, the same verification, the same record. A host can also offer a workflow to other agents as an A2A agent of its own.
+
+This section follows the A2A specification version 1.0, over its JSON-RPC binding, as implemented by `@a2a-js/sdk` 1.x and `a2a-sdk` 1.x. Every request the engine sends carries the header `A2A-Version: 1.0`. Task states are written as A2A 1.0 writes them, for example `TASK_STATE_COMPLETED`.
+
+### 28.1 The binding
+
+A role or an activity names an agent in `a2a`:
+
+| Field | Meaning |
+|---|---|
+| `agent_card` | URL of the agent's card. Required |
+| `skill` | The id of the skill on the card the work is for. Sent with the message (28.3) |
+| `on_input_required` | `wait` (default) or `fail`: what happens when the agent asks for input (28.6) |
+| `headers` | Headers sent with every request to the agent. `{{secret:NAME}}` is replaced as in 17.2. Never journalled |
+
+An activity's `a2a` replaces its role's. An activity that has one, or whose role has one, is performed by that agent, whatever its `actor_type`; an actor the deployment registers for an actor type does not replace it. The `actor_type` keeps its meaning elsewhere: only an `ai_agent` is tried again with feedback after a rejected outcome (11.3, 7.4). The activity's `tools` (section 17) are not offered to a remote agent.
+
+### 28.2 Reaching the agent
+
+The engine reads the card with `GET` once per run and agent, and uses the first entry of its `supportedInterfaces` whose `protocolBinding` is `JSONRPC` and whose `protocolVersion` is 1.x or absent. A card without one fails the activity with `AGENT_UNSUPPORTED`.
+
+An agent is held to the deployment's permissions as an `http` tool is (17.4): the card's URL and the interface's URL MUST be `http` or `https` addresses, or the activity fails with `VALIDATION_ERROR`; when the deployment restricts hosts, each of them, and every redirect, MUST be on its list, or the activity fails with `PERMISSION_DENIED` before anything is sent to that host; headers are not sent on to another origin; replies are bounded in size. A deployment MAY give agents a list of hosts of their own, which then applies to them in place of the tools' list. `AGENT_UNSUPPORTED` and `PERMISSION_DENIED` are never retried.
+
+### 28.3 The message
+
+Each attempt (11.3) sends one `SendMessage` request whose message has a new `messageId`, the role `ROLE_USER`, and these parts, in order:
+
+1. A `text` part: the activity's `name`, `description` and `procedure`, those it has, separated by blank lines, followed by the corrective feedback when the attempt is a retry with feedback (7.4, 11.3).
+2. A `data` part with media type `application/json`: the run's data as the activity is given it, without the properties whose names begin with `_`.
+3. When the activity is given contexts (22.2), a `data` part holding them by context name, whose `metadata` is `{"awa": "contexts"}`.
+
+The message's `metadata.awa` holds the `run_id`, the `activity_id`, the `activity` name, the `attempt`, the idempotency key (10.4) as `idempotency_key`, and the `skill` when the binding names one. The first attempt sends no `contextId`; every later message of the same visit to the activity carries the `contextId` the agent answered with, so that the agent sees one conversation.
+
+### 28.4 Following the task
+
+The agent answers with a message or a task.
+
+- A message is the agent's reply (28.5).
+- A task in state `TASK_STATE_SUBMITTED` or `TASK_STATE_WORKING` is followed: the engine asks for it with `GetTask` at an interval the deployment sets (the reference is one second) until its state is another. An engine MAY follow it by streaming instead, when the card says the agent streams; what it records and returns is the same. When the deployment's longest wait for an agent passes first (the reference is ten minutes), the engine sends `CancelTask` and the attempt fails with `TIMEOUT`. An outcome contract's `max_duration` (11.4) bounds the attempt as for any actor.
+
+| The task ends in | The attempt |
+|---|---|
+| `TASK_STATE_COMPLETED` | Has the reply of 28.5 |
+| `TASK_STATE_INPUT_REQUIRED` | Waits for input, or fails (28.6) |
+| `TASK_STATE_FAILED` | Fails with `AGENT_FAILED` |
+| `TASK_STATE_REJECTED` | Fails with `AGENT_REJECTED` |
+| `TASK_STATE_CANCELED` | Fails with `AGENT_CANCELED` |
+| `TASK_STATE_AUTH_REQUIRED` | Fails with `AGENT_AUTH_REQUIRED` |
+
+The message of each failure is the text of the task's status message, when it has one. A JSON-RPC error, an HTTP status other than success, an agent that cannot be reached, or a reply that is not what A2A 1.0 says, fails the attempt with `AGENT_ERROR`, with the JSON-RPC error code or the HTTP status in the error. These failures are retried as any actor's error is, under the activity's retry policy (10.1); each retry sends a new message.
+
+### 28.5 The reply
+
+The output of the attempt is built from the artifacts of the completed task, in order, or, for a message, from its parts as one artifact without a name. A completed task without artifacts gives its status message, if any, as one artifact without a name.
+
+The value of an artifact is the `data` of its part when it has exactly one part and that part is `data`; the text of its parts, joined by line breaks, when every part is `text`; and otherwise the list of its parts as received. A value that is a JSON object has its properties merged into the output, a later artifact's replacing an earlier one's of the same name. Any other value becomes the output's property named after the artifact's `name`, or `result` when it has none.
+
+The output is then checked as any actor's result: the outcome contract (section 11), then verification (section 7). A retry with feedback sends a new message in the same context (28.3).
+
+### 28.6 When the agent asks for input
+
+With `on_input_required: wait`, a task in `TASK_STATE_INPUT_REQUIRED` ends the attempt without an outcome, and the token waits (5.6): the attempt ends with `token.waiting` in place of `activity.completed` or `activity.failed`, as an attempt that hands work to a person does. The engine journals `token.waiting` with `reason: "agent_input"`, the `agent`, the `task_id`, the `context_id`, and the agent's status message as `request`, under the payload mode (9.4). The run's status is `waiting_human`: the input is the host's to give, usually from a person. The wait counts toward service levels (23.2) as a wait for a person does.
+
+The host gives the input for that token, as an object or as text. The engine journals `token.resumed` and performs the activity again from a new `activity.started`: that attempt sends the input as a message with the task's `taskId` and `contextId` (a `data` part for an object, a `text` part for text) and follows the task as in 28.4. The input is not part of the run's data. The outcome, when the task completes, is checked as in 28.5.
+
+With `on_input_required: fail`, the attempt fails with `AGENT_INPUT_REQUIRED`.
+
+### 28.7 Record
+
+| Event | `data` |
+|---|---|
+| `agent.message_sent` | `agent` (the card's URL), `link` (the interface's URL, or the card's when nothing was sent), `message_id`, `context_id` and `task_id` when the message continues them, `parts` under the payload mode, and `simulated` in simulation |
+| `agent.task_updated` | `agent`, `task_id` and `context_id` when there is a task, `state` (the task's state, or `message` for a message reply), `duration_ms` since the message was sent, and, when the state ends the attempt, `reply`: the artifacts, the status message or the message's parts, under the payload mode |
+
+`agent.task_updated` is recorded for the first answer and for every change of state seen while the task is followed; an answer in the same state as the last is not recorded again. Both events carry the `node_id` and `attempt` and fall between the `activity.started` of their attempt and the event that ends it. The card's URL is never hashed or omitted, whatever the payload mode; headers never appear.
+
+In simulation the engine MUST NOT read the card or send anything. It records `agent.message_sent` with `simulated: true`, and the attempt returns what the deployment scripted for the activity, or no business data.
+
+### 28.8 A workflow offered as an A2A agent
+
+A host MAY offer a workflow to other agents. When it does, it MUST serve:
+
+- **The card**, at `<base>/.well-known/agent-card.json`, where `<base>` is the address it serves the workflow at, and also at `/.well-known/agent-card.json` when it offers one workflow only. The card gives the workflow's `name`, `description` and `version`; one entry in `supportedInterfaces`, `{"url": <base>, "protocolBinding": "JSONRPC", "protocolVersion": "1.0"}`; `capabilities` with `streaming` and `pushNotifications` false; `defaultInputModes` `application/json` and `text/plain`; `defaultOutputModes` `application/json`; and one skill whose `id` is the workflow's id. When the host requires authentication, the card says how, in `securitySchemes` and `securityRequirements`. The card itself needs none.
+- **`SendMessage`**, which starts a run of the workflow. The run's input is the properties of the message's `data` parts that are objects, merged in order, and the text of its `text` parts, joined by line breaks, as `text`. The task's id is the run's id; its `contextId` is the message's, or a new one. Unless the request's `configuration.returnImmediately` is true, the host answers once the run has ended or waits; otherwise at once.
+- **`GetTask`**, which answers with the task as it stands, and **`CancelTask`**, which cancels the run (5.8) and answers with the task.
+
+The task's state follows the run's status: `running`, `waiting_human` and `waiting_event` are `TASK_STATE_WORKING`, since what the run waits for is the host's to handle; `completed` is `TASK_STATE_COMPLETED`, with one artifact named `output` whose one `data` part is the run's output: the data of its completed tokens merged, without the properties whose names begin with `_` and without the engine's own records of each activity's output and each decision (`activities`, `decisions`); `failed` is `TASK_STATE_FAILED`, with the error as the status message; `cancelled` is `TASK_STATE_CANCELED`.
+
+A request for a task the host does not know is answered with error `-32001`; cancelling a task that has ended, with `-32002`; a message that continues an existing task, and any other A2A method, with `-32004`, since a run takes no further input over A2A; an unknown method, with `-32601`; a request whose `A2A-Version` is not 1.x, with `-32009`. The run is performed under the host's own permissions: a caller gains no way to reach a host or run a program the deployment did not allow.
+
+### 28.9 Out of scope
+
+Streaming and push notifications on the served side; the HTTP+JSON and gRPC bindings of A2A; extended and signed agent cards; carrying out an agent's authentication request (`TASK_STATE_AUTH_REQUIRED` fails the attempt); fetching the content of `url` and `raw` parts, which are passed on as received; A2A versions before 1.0.
+
+### 28.10 Conformance
+
+Level `a2a` covers 28.1 to 28.7. Its cases are execution cases (Appendix A) with scripted agents: the case gives each agent's card and replies, and the runner stands in for the agent. Serving a workflow (28.8) is fixed by `sdk/typescript/tests/protocols_a2a.test.ts` and `sdk/python/tests/test_protocols_a2a.py`, in which each SDK's client calls the other SDK's host.
 ## 32. Evidence
 
 Rules on AI systems ask for records: that a system logs what it does over its lifetime, that the people who deploy it can monitor it and keep its logs, that a person can oversee it, and that its accuracy and robustness can be shown. The journal (section 9) and the journey records (section 19) already hold most of what such rules ask about. An **evidence report** gathers it for a period and a set of workflows, in a form a deployer can hand to an auditor, a regulator or its own risk function.
@@ -1759,6 +1909,8 @@ An actor script MAY give `takes`, a duration by which the activity moves the clo
 
 Execution cases at levels `contexts` and `service_levels` add: in an actor's script, `contexts`, what the actor writes by context name, and `takes`, the time the execution takes; `clock`, the instant at which the case's clock starts, on which the engine and the actors then run; in `deliver`, the steps `{"advance": <duration>}`, which moves the clock, and `{"check_service_levels": true, "expect": {warnings, breaches, failed}}`, which asks the engine to check the work that is waiting (23.2) and states how many it newly recorded and how many tokens it failed; in `expect`, `given_contexts`, for each activity named the contexts its actor was given at its last execution (`null` for none at all), and `contexts`, the value of every context that has one when the case ends.
 
+Execution cases at level `a2a` add `agents`: for the URL of each agent card, the `card` and the agent's `replies`. A runner stands in for every agent: a `GET` of a card's URL answers with the card, and each JSON-RPC request to the interface URL the card names takes that agent's next reply, the last repeating. A reply is `{"result": ...}` or `{"error": ...}`, sent as the JSON-RPC response to the request; any other address cannot be reached. In `deliver`, the step `{"agent_input": <object or text>}` gives that input to every token waiting for an agent's input (28.6), and `resumes` says how many there must be. In `expect`, `agent_card_reads` is how many times cards were read, `agent_requests` the JSON-RPC methods of every request sent to an agent, in order, and `agent_requests_contain` partial requests, each with `agent` (the card's URL), `method` and `params`, that some request must contain.
+
 **Measure cases** (`measures/*.json`) each give `recorded`, what the measures are computed from in the form a host exports (journeys with their instances and the journals of their runs), the `options` of the report (21.1), and `expect`: for journeys, stages, workflows and activities named, the value of each measure listed, `null` meaning no value; and where given the channels, artefacts, currency and the list of what needs attention. Numbers are compared to within 1e-9.
 
 **Knowledge cases** (`knowledge/*.json`) each give a `workflow` and `steps` performed in order against one knowledge base, which starts empty:
@@ -1827,3 +1979,4 @@ Runners: `sdk/typescript/tests/conformance.test.ts`, `sdk/python/tests/test_conf
 - Context bindings are enforced: an activity is given the contexts it is bound to read and no other, and a write needs a binding that allows it (section 22, level `contexts`). **A workflow that binds a required context nothing has written now fails with `CONTEXT_MISSING`** where it used to run.
 - Service levels are compared with the time work takes, and warnings and breaches are journalled; `breach_action: fail` stops work that is still waited for (section 23, level `service_levels`).
 - Evidence reports computed from journals and journey records, every statement citing the records it rests on and naming the provisions of the EU AI Act, the NIST AI RMF and ISO/IEC 42001 it can serve, without certifying compliance (section 32, level `evidence`); evaluation datasets built from journals and a candidate scored against them, and shadow runs beside production (section 33, level `evaluation`).
+- Built-in executors for `mcp` bindings, over standard input and output or Streamable HTTP, and for unary `grpc` calls, held to the deployment's permissions (17.7, 17.8). An agent reached over A2A 1.0 can perform an activity, under the same contract, verification and record as any actor, and a host can offer a workflow as an A2A agent (section 28, level `a2a`).

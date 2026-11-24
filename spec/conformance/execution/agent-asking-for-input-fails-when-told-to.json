@@ -1,0 +1,100 @@
+{
+  "id": "agent-asking-for-input-fails-when-told-to",
+  "level": "a2a",
+  "spec": "28.6",
+  "description": "With on_input_required fail, a task that needs input fails the attempt with AGENT_INPUT_REQUIRED.",
+  "workflow": {
+    "id": "565cc103-d2dd-5fe9-b18b-529a7178a685",
+    "name": "agent-asking-for-input-fails-when-told-to",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "df818bd9-5109-5c4d-9dd4-4ef91de46e2c",
+        "name": "Assess",
+        "role_id": "bb3eb159-b523-50a9-a155-f7749c065759",
+        "actor_type": "ai_agent",
+        "a2a": {
+          "agent_card": "https://agents.example/claims/.well-known/agent-card.json",
+          "on_input_required": "fail"
+        }
+      }
+    ],
+    "edges": []
+  },
+  "agents": {
+    "https://agents.example/claims/.well-known/agent-card.json": {
+      "card": {
+        "name": "Claims assessor",
+        "description": "Claims assessor, reached over A2A",
+        "version": "1.0.0",
+        "supportedInterfaces": [
+          {
+            "url": "https://agents.example/claims/a2a",
+            "protocolBinding": "JSONRPC",
+            "protocolVersion": "1.0"
+          }
+        ],
+        "capabilities": {
+          "streaming": false,
+          "pushNotifications": false
+        },
+        "defaultInputModes": [
+          "application/json",
+          "text/plain"
+        ],
+        "defaultOutputModes": [
+          "application/json"
+        ],
+        "skills": [
+          {
+            "id": "assess",
+            "name": "Assess",
+            "description": "Assess a claim",
+            "tags": [
+              "claims"
+            ]
+          }
+        ]
+      },
+      "replies": [
+        {
+          "result": {
+            "task": {
+              "id": "task-1",
+              "contextId": "ctx-1",
+              "status": {
+                "state": "TASK_STATE_INPUT_REQUIRED",
+                "message": {
+                  "messageId": "m-input_required",
+                  "role": "ROLE_AGENT",
+                  "parts": [
+                    {
+                      "text": "Which policy?"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "expect": {
+    "status": "failed",
+    "journal_excludes": [
+      "token.waiting"
+    ],
+    "journal_contains": [
+      {
+        "type": "activity.failed",
+        "data": {
+          "error": {
+            "code": "AGENT_INPUT_REQUIRED"
+          }
+        }
+      }
+    ]
+  }
+}

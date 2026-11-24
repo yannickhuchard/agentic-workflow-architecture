@@ -209,6 +209,10 @@
                 "$ref": "#/$defs/tool"
             },
             "description": "Functions the actor may call while performing the activity. Every call is journalled with a link to what it ran."
+        },
+        "a2a": {
+            "$ref": "#/$defs/a2a_agent",
+            "description": "The agent that performs this activity over A2A, replacing its role's"
         }
     },
     "$defs": {
@@ -718,6 +722,41 @@
                     }
                 }
             ]
+        },
+        "a2a_agent": {
+            "type": "object",
+            "description": "An agent reached over the Agent2Agent protocol (A2A 1.0) that performs the activity (specification section 28)",
+            "required": [
+                "agent_card"
+            ],
+            "properties": {
+                "agent_card": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "URL of the agent's card"
+                },
+                "skill": {
+                    "type": "string",
+                    "description": "Id of the skill on the card the work is for"
+                },
+                "on_input_required": {
+                    "type": "string",
+                    "enum": [
+                        "wait",
+                        "fail"
+                    ],
+                    "default": "wait",
+                    "description": "wait: the token waits for the host to give the input the agent asks for. fail: the attempt fails with AGENT_INPUT_REQUIRED"
+                },
+                "headers": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    },
+                    "description": "Headers sent with every request to the agent. {{secret:NAME}} is replaced by a secret the deployment supplies. Never journalled."
+                }
+            },
+            "additionalProperties": false
         }
     }
 }

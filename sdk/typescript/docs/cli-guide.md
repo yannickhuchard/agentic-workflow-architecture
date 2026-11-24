@@ -39,6 +39,7 @@ awa run workflow.awa.json --simulate --outputs simulation.json --journal run.jso
 | `-p, --providers <list>` | Model providers in order of preference: `google`, `openai`, `ollama`, `embedded`. Each capability tier falls back down the list |
 | `-k, --key <key>` | Gemini API key (or `GEMINI_API_KEY`) |
 | `--allow-commands [list]` | Let tools run commands on this machine: all, or a comma-separated list of program names. None by default |
+| `--deployment <file>` | What the workflow may reach: the commands, hosts, MCP servers and gRPC services of its tools, and the hosts of its agents (see below). `--allow-commands` takes precedence over the file's `allow_commands` |
 | `--db` | Also log the run's cost and duration to the task database |
 | `-v, --verbose` | Print each step |
 
@@ -52,6 +53,25 @@ A simulation script names what each activity returns. An entry may give `output`
 ```
 
 A simulated activity that is not scripted returns no business data, so a condition that reads data takes no edge and the run fails with `NO_ROUTE`: script the activities whose results drive the route. An activity bound to read a context nothing has written fails with `CONTEXT_MISSING`: script the activity that writes it, or give the context an `initial_value`.
+
+A deployment file says what a workflow may reach (specification 17.4, 17.7, 17.8, 28.2). A workflow document can name any address, program or agent; only what this file allows runs:
+
+```json
+{
+  "tools": {
+    "allow_commands": ["python3"],
+    "allowed_hosts": ["api.example.com", "mcp.example.com", "pricing.example.com:443", "agents.example.com"],
+    "mcp_servers": {
+      "docs":   { "command": "python3", "args": ["docs_server.py"] },
+      "search": { "url": "https://mcp.example.com/mcp" }
+    },
+    "grpc": { "protos": ["pricing.proto"], "include_dirs": ["protos"], "plaintext_hosts": [] }
+  },
+  "a2a": { "poll_interval_ms": 1000, "max_wait_ms": 600000 }
+}
+```
+
+An `mcp` binding names a server declared under `mcp_servers`: a program, started only when `allow_commands` allows it, or a Streamable HTTP address, held to `allowed_hosts`. A `grpc` binding is described by `grpc.protos`, or by the server's reflection service, and uses TLS unless its host is in `plaintext_hosts`; gRPC needs `npm install @grpc/grpc-js @grpc/proto-loader`. An activity whose role or itself has an `a2a` binding is performed by that agent; agents are held to `a2a.allowed_hosts`, or to the tools' `allowed_hosts` when that is absent. Paths are taken from the file's directory. Secrets are not read from this file.
 
 | Provider | Needs |
 |---|---|
@@ -180,6 +200,12 @@ AWA_DATA_DIR=.awa awa serve --port 3000 --no-auth
 
 `-p, --port`; `--jwt-secret` (or `JWT_SECRET`); `--api-key key:role`, repeatable; `--rate-limit` requests per minute; `--no-auth` for local development. The routes are in [operational-api.md](operational-api.md).
 
+`--a2a <file>`, repeatable, offers a workflow to other agents over A2A 1.0 (specification 28.8): its agent card is at `/a2a/<workflow id>/.well-known/agent-card.json`, and at `/.well-known/agent-card.json` when one workflow is offered. `--public-url <url>` is the address written in the cards, when callers reach the server at another one than the request shows. `--deployment <file>` says what those runs may reach, as for `awa run`.
+
+```bash
+awa serve --port 3000 --a2a examples/claims-settlement/claims-settlement.awa.json --deployment deployment.json
+```
+
 ## awa task
 
 `list`, `show <id>`, `assign <id> <user_id>`, `complete <id> [json_outputs]`, `reject <id> [reason]`. These use the task database: see "The task database" in the [SDK README](../README.md).
@@ -209,5 +235,6 @@ AWA_DATA_DIR=.awa awa serve --port 3000 --no-auth
 | `CONTEXT_ACCESS_DENIED` | An activity wrote to a context it has no binding to write |
 | `CONTRACT_VIOLATION` | The result did not meet the activity's outcome contract. The journal's `contract.checked` event says which term |
 | `SLA_BREACH` | Work still waited for passed its service level, whose breach action is `fail` |
-| `PERMISSION_DENIED` | A tool's command or host is not allowed by this deployment (`--allow-commands`) |
+| `PERMISSION_DENIED` | A tool's command, host or MCP server, or an agent's host, is not allowed by this deployment (`--allow-commands`, `--deployment`) |
+| `AGENT_FAILED`, `AGENT_REJECTED`, `AGENT_ERROR`, `AGENT_UNSUPPORTED` | An agent reached over A2A failed or refused the task, could not be reached, or offers no JSON-RPC interface of A2A 1.0. The journal's `agent.task_updated` event has its reply |
 | `The runtime directory ... is in use by process N` | Another process holds the directory. Stop it, or talk to it over HTTP |

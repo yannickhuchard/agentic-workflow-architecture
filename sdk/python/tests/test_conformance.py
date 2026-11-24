@@ -29,7 +29,7 @@ CONFORMANCE = Path(__file__).resolve().parents[3] / "spec" / "conformance"
 SCHEMAS = Path(__file__).resolve().parents[3] / "spec" / "json-schema"
 CLAIMED_LEVELS = {"core", "decision", "verified", "recorded", "resilient", "contract", "flow", "events",
                   "tools", "model_decision", "routing", "journeys", "measures",
-                  "replay", "contexts", "service_levels", "knowledge", "evidence", "evaluation"}
+                  "replay", "contexts", "service_levels", "knowledge", "evidence", "evaluation", "a2a"}
 # Integrity rules the Python SDK does not enforce. None at present.
 UNSUPPORTED_INTEGRITY_RULES: set[str] = set()
 
@@ -125,6 +125,33 @@ def scripted_models(script):
     }, calls
 
 
+def scripted_agents(agents):
+    """
+    Stands in for the agents a case scripts (level a2a): a GET of a card's URL answers with the card, and
+    each JSON-RPC request to the interface the card names takes the agent's next reply, the last repeating.
+    Any other address cannot be reached.
+    """
+    agents = agents or {}
+    seen = {"requests": [], "card_reads": 0, "served": {}}
+
+    def transport(method, url, headers, body):
+        if method == "GET" and url in agents:
+            seen["card_reads"] += 1
+            return 200, json.dumps(agents[url]["card"])
+        agent = next((card_url for card_url, script in agents.items()
+                      if any(i.get("url") == url for i in script["card"].get("supportedInterfaces") or [])), None)
+        if method != "POST" or agent is None:
+            raise ConnectionRefusedError(f"connection refused: {url}")
+        request = json.loads(body or "{}")
+        seen["requests"].append({"agent": agent, "method": request.get("method"), "params": request.get("params")})
+        n = seen["served"].get(agent, 0)
+        seen["served"][agent] = n + 1
+        replies = agents[agent]["replies"]
+        return 200, json.dumps({"jsonrpc": "2.0", "id": request.get("id"), **replies[min(n, len(replies) - 1)]})
+
+    return transport, seen
+
+
 def is_subset(expected, actual):
     """Every property of `expected` is in `actual` with an equal value, at any depth"""
     if isinstance(expected, dict):
@@ -193,8 +220,10 @@ def test_execution(case):
     # Every actor is replaced by one that follows the case's script
     actor = ConformanceActor(case.get("actors"), spend)
     model_options, model_calls = scripted_models(case.get("model", {}))
+    agent_transport, agents = scripted_agents(case.get("agents"))
     engine = WorkflowEngine(Workflow.model_validate(case["workflow"]), options={
         "actors": {actor_type: actor for actor_type in ActorType},
+        "a2a": {"transport": agent_transport, "poll_interval_ms": 0},
         **({"tools": scripted_tools(case["tools"])} if "tools" in case else {}),
         **(model_options if "model" in case else {}),
         **({"now": lambda: clock["now"], "sleep": lambda ms: None} if "clock" in case else {}),
@@ -213,6 +242,11 @@ def test_execution(case):
             assert is_subset(step.get("expect", {}), checked), f"service levels checked: {checked}"
         elif step.get("expire"):
             engine.expire_events(float("inf"))
+        elif "agent_input" in step:
+            # The host gives every agent that asked for input what the case says (28.6)
+            resumed = sum(1 for request in engine.agent_requests() if engine.answer_agent(request["token_id"], step["agent_input"]))
+            if "resumes" in step:
+                assert resumed == step["resumes"], "tokens given agent input"
         else:
             event = step["event"]
             resumed = engine.deliver_event({
@@ -263,6 +297,12 @@ def test_execution(case):
             for e in events), f"no event matching {json.dumps(wanted['event'])} mentions {', '.join(wanted['mentions'])}"
     if "model_calls" in expect:
         assert sum(model_calls.values()) == expect["model_calls"], "calls to the model"
+    if "agent_card_reads" in expect:
+        assert agents["card_reads"] == expect["agent_card_reads"], "agent cards read"
+    if "agent_requests" in expect:
+        assert [r["method"] for r in agents["requests"]] == expect["agent_requests"], "requests to agents"
+    for wanted in expect.get("agent_requests_contain", []):
+        assert any(is_subset(wanted, r) for r in agents["requests"]), f"no request to an agent matches {json.dumps(wanted)}: {agents['requests']}"
     for provider_id, count in expect.get("provider_calls", {}).items():
         assert model_calls.get(provider_id) == count, f"calls to provider {provider_id}"
     if "error_matches" in expect:

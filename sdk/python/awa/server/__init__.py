@@ -319,6 +319,33 @@ def _tracked(run_id: str) -> Optional[WorkflowEngine]:
     return active_engines.get(run_id)
 
 
+@app.get("/api/v1/workflows/runs/{run_id}/agent-requests", dependencies=[Depends(rate_limiter)])
+async def get_agent_requests(run_id: str, user: Dict[str, Any] = Depends(get_current_user)):
+    """The tokens of a run waiting for input an agent over A2A asked for, with what it asked (specification 28.6)"""
+    engine = _tracked(run_id)
+    if not engine:
+        return _error(404, "NOT_FOUND", "Run not found")
+    return engine.agent_requests()
+
+
+@app.post("/api/v1/workflows/runs/{run_id}/tokens/{token_id}/agent-input", dependencies=[Depends(rate_limiter)])
+async def give_agent_input(run_id: str, token_id: str, body: Dict[str, Any] = Body(...),
+                           user: Dict[str, Any] = Depends(get_current_user)):
+    """Give an agent the input it asked for: `{"input": <object or text>}`. The run goes on in the background."""
+    engine = _tracked(run_id)
+    if not engine:
+        return _error(404, "NOT_FOUND", "Run not found")
+    if not isinstance(body.get("input"), (dict, str)):
+        return _error(400, "VALIDATION_ERROR", 'An "input" object or text is required')
+    lock = run_locks.setdefault(engine.run_id, threading.Lock())
+    with lock:
+        answered = engine.answer_agent(token_id, body["input"])
+    if not answered:
+        return _error(409, "CONFLICT", "That token is not waiting for an agent's input")
+    _continue(engine, f"after agent input for token {token_id}")
+    return {"runId": engine.run_id, "status": engine.status.value}
+
+
 @app.get("/api/v1/workflows/runs/{run_id}", dependencies=[Depends(rate_limiter)])
 async def get_run(run_id: str, user: Dict[str, Any] = Depends(get_current_user)):
     engine = _tracked(run_id)

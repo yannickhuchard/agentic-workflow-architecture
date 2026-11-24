@@ -363,10 +363,20 @@ class KnowledgeBinding(BaseModel):
     min_status: Literal["draft", "reviewed"] | None = None
 
 
+class A2AAgent(BaseModel):
+    """An agent reached over the Agent2Agent protocol (A2A 1.0) that performs an activity (specification 28.1)"""
+    agent_card: str
+    skill: str | None = None
+    on_input_required: Literal["wait", "fail"] = "wait"
+    # Sent with every request to the agent. {{secret:NAME}} is replaced by a deployment secret. Never journalled.
+    headers: dict[str, str] | None = None
+
+
 class Activity(BaseModel):
     id: UUID
     name: str
     description: str | None = None
+    procedure: str | None = None
     role_id: UUID
     actor_type: ActorType
     system_id: UUID | None = None
@@ -390,6 +400,8 @@ class Activity(BaseModel):
     compensation: Compensation | None = None
     knowledge: KnowledgeBinding | None = None
     join: Literal["any", "all"] = "any"
+    # The agent that performs this activity over A2A, replacing its role's (specification 28.1)
+    a2a: A2AAgent | None = None
 
 
 class Edge(BaseModel):
@@ -525,6 +537,8 @@ class Role(BaseModel):
     is_embedded: bool = False
     ai_model_config: AIModelConfig | None = None
     mcp_tools: list[MCPTool] = Field(default_factory=list)
+    # The agent, reached over A2A, that performs the activities of this role (specification 28.1)
+    a2a: A2AAgent | None = None
 
 
 class System(BaseModel):

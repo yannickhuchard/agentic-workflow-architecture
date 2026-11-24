@@ -13,6 +13,8 @@ export * from './runtime';
 export * from './runtime/evidence';
 export * from './runtime/evaluation';
 export * from './runtime/shadow';
+// A workflow offered to other agents over A2A (specification 28.8)
+export { a2a_routes, workflow_agent_card, message_input, run_output, type A2AServeOptions } from './server/a2a';
 
 // Builder
 export { WorkflowBuilder, workflow, type ActivityConfig, type ContextConfig } from './builder';

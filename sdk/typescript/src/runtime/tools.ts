@@ -16,6 +16,12 @@ import { ToolBinding, ToolDefinition } from '../types';
 import { parse_iso_duration } from './duration_utils';
 import { JournalEventInput } from './journal';
 import { ToolSpec } from './models';
+import { ToolError, web_url } from './protocols/errors';
+import { McpServerConfig, call_mcp_tool } from './protocols/mcp';
+import { GrpcOptions, call_grpc, check_grpc_permission } from './protocols/grpc';
+import { ToolSessions } from './protocols/sessions';
+
+export { ToolError } from './protocols/errors';
 
 const ajv = new Ajv2020({ allErrors: true, strict: false });
 addFormats(ajv);
@@ -36,7 +42,15 @@ export interface ToolExecution {
 
 export type ToolExecutor = (
     binding: ToolBinding, args: Record<string, unknown>,
-    context: { call_id: string; secrets: Record<string, string>; signal: AbortSignal; allowed_hosts?: string[]; max_output_bytes?: number }
+    context: {
+        call_id: string; secrets: Record<string, string>; signal: AbortSignal; allowed_hosts?: string[]; max_output_bytes?: number;
+        /** How long the call may take, in milliseconds: the tool's timeout */
+        timeout_ms?: number;
+        /** Connections kept for the run (MCP servers, gRPC channels), reused by later calls */
+        sessions?: ToolSessions;
+        /** The deployment's tool options */
+        options?: ToolOptions;
+    }
 ) => Promise<ToolExecution>;
 
 export type ToolHandler = (args: Record<string, unknown>) => unknown | Promise<unknown>;
@@ -60,12 +74,18 @@ export interface ToolOptions {
     secrets?: Record<string, string>;
     /** In simulation mode, what each tool returns, by tool name */
     simulated_results?: Record<string, unknown>;
-}
-
-class ToolError extends Error {
-    constructor(message: string, public readonly code: string) {
-        super(message);
-    }
+    /**
+     * The MCP servers "mcp" bindings may call, by name (17.7): a program, started and spoken to over its
+     * standard input and output, which is held to allow_commands; or a Streamable HTTP address, held to allowed_hosts.
+     */
+    mcp_servers?: Record<string, McpServerConfig>;
+    /** How "grpc" bindings learn their services and reach them (17.8) */
+    grpc?: GrpcOptions;
+    /**
+     * Connections kept open between calls. The engine gives each run its own, and closes them when the
+     * run ends or waits. A runner used on its own closes its connections after each call.
+     */
+    sessions?: ToolSessions;
 }
 
 const fill = (template: string, args: Record<string, unknown>, encode: (v: string) => string, used: Set<string>) =>
@@ -121,20 +141,12 @@ export function tool_link(binding: ToolBinding, args: Record<string, unknown>): 
 
 const DEFAULT_MAX_OUTPUT = 4 * 1024 * 1024;
 
-/** A tool reaches the web over http or https and nothing else: no file:, no data:, no other scheme a URL can carry */
-function web_url(text: string): URL {
-    let url: URL;
-    try { url = new URL(text); } catch { throw new ToolError(`"${text}" is not a URL`, 'VALIDATION_ERROR'); }
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new ToolError(`Tools call http and https addresses only, not ${url.protocol}`, 'VALIDATION_ERROR');
-    return url;
-}
-
 /**
  * fetch for tools: redirects are followed here, one at a time, so that each hop is held to the
  * allowed hosts and headers that may carry secrets never follow a redirect to another origin;
  * and the reply is read up to a bound.
  */
-async function bounded_fetch(address: string, init: { method: string; headers: Record<string, string>; body?: string },
+export async function bounded_fetch(address: string, init: { method: string; headers: Record<string, string>; body?: string },
     context: { signal: AbortSignal; allowed_hosts?: string[]; max_output_bytes?: number }): Promise<{ status: number; ok: boolean; text: string; host: string }> {
     let url = web_url(address);
     let { method, headers, body } = init;
@@ -218,6 +230,20 @@ const built_in: Partial<Record<ToolBinding['kind'], ToolExecutor>> = {
         // Arguments not placed on the command line are given as JSON on standard input
         child.stdin?.end(binding.args?.some(a => /\{\w+\}/.test(a)) ? '' : JSON.stringify(args));
     }),
+
+    mcp: async (binding, args, context) => {
+        if (binding.kind !== 'mcp') throw new Error('unreachable');
+        const result = await call_mcp_tool(binding, args, {
+            servers: context.options?.mcp_servers, sessions: context.sessions!, secrets: context.secrets,
+            allowed_hosts: context.allowed_hosts, max_output_bytes: context.max_output_bytes ?? DEFAULT_MAX_OUTPUT, signal: context.signal,
+        });
+        return { result };
+    },
+
+    grpc: async (binding, args, context) => {
+        if (binding.kind !== 'grpc') throw new Error('unreachable');
+        return call_grpc(binding, args, { options: context.options?.grpc, sessions: context.sessions!, timeout_ms: context.timeout_ms ?? 30000, signal: context.signal });
+    },
 };
 
 export type ToolRecorder = (event: JournalEventInput) => void;
@@ -333,6 +359,24 @@ export class ToolRunner {
                 throw new ToolError(`This deployment does not allow the command "${binding.command}"`, 'PERMISSION_DENIED');
             }
         }
+        if (binding.kind === 'mcp' && !this.options.executors?.mcp) {
+            // Unless the deployment registered its own MCP executor, a binding reaches only a server the deployment declares; a program is held to the rule for commands,
+            // an address to the list of hosts (17.4)
+            const server = this.options.mcp_servers?.[binding.server];
+            if (!server) throw new ToolError(`This deployment declares no MCP server "${binding.server}"`, 'PERMISSION_DENIED');
+            if ('command' in server) {
+                const allowed = this.options.allow_commands;
+                if (!allowed || (Array.isArray(allowed) && !allowed.includes(server.command))) {
+                    throw new ToolError(`This deployment does not allow the command "${server.command}" that starts MCP server "${binding.server}"`, 'PERMISSION_DENIED');
+                }
+            } else {
+                const host = web_url(server.url).host;
+                if (this.options.allowed_hosts && !this.options.allowed_hosts.includes(host)) {
+                    throw new ToolError(`This deployment does not allow calls to host "${host}"`, 'PERMISSION_DENIED');
+                }
+            }
+        }
+        if (binding.kind === 'grpc') check_grpc_permission(binding.endpoint, this.options.allowed_hosts);
         if (binding.kind === 'http' || binding.kind === 'jsonrpc') {
             // Refused before anything is called: an address that is not a web address, or a host the deployment does not allow
             const host = web_url(binding.kind === 'http' ? http_request(binding, args).url : binding.endpoint).host;
@@ -358,14 +402,20 @@ export class ToolRunner {
         const timeout = tool.timeout ? parse_iso_duration(tool.timeout) : 30000;
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), timeout);
+        // Connections live as long as the run's sessions; a runner used on its own keeps them for this call only
+        const sessions = this.options.sessions || new ToolSessions();
         try {
             return await Promise.race([
-                executor(binding, args, { call_id, secrets: this.options.secrets || {}, signal: controller.signal, allowed_hosts: this.options.allowed_hosts, max_output_bytes: this.options.max_output_bytes }),
+                executor(binding, args, {
+                    call_id, secrets: this.options.secrets || {}, signal: controller.signal, allowed_hosts: this.options.allowed_hosts,
+                    max_output_bytes: this.options.max_output_bytes, timeout_ms: timeout, sessions, options: this.options,
+                }),
                 new Promise<never>((_, reject) => controller.signal.addEventListener('abort',
                     () => reject(new ToolError(`Tool "${tool.name}" timed out after ${timeout} ms`, 'TIMEOUT')))),
             ]);
         } finally {
             clearTimeout(timer);
+            if (!this.options.sessions) await sessions.close();
         }
     }
 }

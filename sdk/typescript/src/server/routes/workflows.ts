@@ -117,6 +117,32 @@ workflowRouter.get('/runs/:runId', (req, res) => {
     });
 });
 
+// The tokens of a run waiting for input an agent over A2A asked for, with what it asked (spec 28.6)
+workflowRouter.get('/runs/:runId/agent-requests', (req, res) => {
+    const engine = runs.get(req.params.runId);
+    if (!engine) return res.status(404).json({ error: 'Run not found' });
+    res.json(engine.getAgentRequests());
+});
+
+// Give an agent the input it asked for: { "input": <object or text> }. The run goes on in the background.
+workflowRouter.post('/runs/:runId/tokens/:tokenId/agent-input', async (req, res) => {
+    const engine = runs.get(req.params.runId);
+    if (!engine) return res.status(404).json({ error: 'Run not found' });
+    const input = req.body?.input;
+    if (input === null || (typeof input !== 'string' && (typeof input !== 'object' || Array.isArray(input)))) {
+        return res.status(400).json({ error: 'An "input" object or text is required' });
+    }
+    if (!await engine.answerAgent(req.params.tokenId, input)) return res.status(409).json({ error: 'That token is not waiting for an agent\'s input' });
+    (async () => {
+        try {
+            while (engine.getStatus() === 'running') await engine.runStep();
+        } catch (err) {
+            console.error(`Run ${engine.getRunId()} failed after agent input:`, err);
+        }
+    })();
+    res.json({ runId: engine.getRunId(), status: engine.getStatus() });
+});
+
 // The workflow definition of a run, for visualisers
 workflowRouter.get('/runs/:runId/workflow', (req, res) => {
     const engine = runs.get(req.params.runId);

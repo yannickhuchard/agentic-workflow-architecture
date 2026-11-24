@@ -337,14 +337,16 @@ def test_unknown_tools_missing_handlers_and_missing_executors_are_failures_the_c
         tool("orphan", ToolBinding(kind="function", name="nobody")),
         tool("remote", ToolBinding(kind="mcp", server="crm", tool="find")),
         tool("rpc", ToolBinding(kind="grpc", endpoint="dns:///billing:443", service="Billing", method="Charge")),
-    ])
+    ], {"allowed_hosts": ["localhost"]})
     assert tools.call("nothing").result["code"] == "UNKNOWN_TOOL"
     assert "link" not in events[-1][1]
     assert tools.call("orphan").result["code"] == "VALIDATION_ERROR"
+    # The engine has MCP and gRPC executors (17.7, 17.8), but a binding reaches only a server the deployment
+    # declares, and an endpoint on its list of hosts: both are refused before anything runs, with their link
     for name, link in (("remote", "mcp://crm/find"), ("rpc", "grpc://billing:443/Billing/Charge")):
         result = tools.call(name)
-        assert result.result["code"] == "VALIDATION_ERROR" and "No executor is registered" in result.result["error"]
-        assert events[-1][1]["link"] == link and events[-1][1]["invoked"] is True
+        assert result.result["code"] == "PERMISSION_DENIED"
+        assert events[-1][1]["link"] == link and events[-1][1]["invoked"] is False
     assert tools.call_count == 4
 
 

@@ -7,6 +7,7 @@ import { parse_document } from '../../validator';
 import { FileJournalStore } from '../../runtime/journal';
 import { EmbeddedModelProvider, ModelProvider, OpenAIModelProvider, ollama_provider, tier_fallbacks } from '../../runtime/models';
 import { FilePersistenceAdapter } from '../../runtime/persistence';
+import { load_deployment } from '../deployment';
 
 export const runCommand = new Command('run')
     .description('Run a workflow file')
@@ -17,6 +18,7 @@ export const runCommand = new Command('run')
     .option('-s, --simulate', 'Run in simulation mode (no real API calls)')
     .option('-p, --providers <list>', 'Model providers in order of preference, comma separated: google, openai, ollama, embedded. Each capability tier falls back down the list')
     .option('--allow-commands [list]', 'Let tools run commands on this machine: all, or a comma-separated list of program names')
+    .option('--deployment <file>', 'JSON file saying what the workflow may reach: tools.allow_commands, tools.allowed_hosts, tools.mcp_servers, tools.grpc, a2a')
     .option('--outputs <file>', 'With --simulate: JSON file giving what each activity returns, by activity name')
     .option('-j, --journal <file>', 'Write the execution journal to this .jsonl file')
     .option('-c, --checkpoint-dir <dir>', 'Checkpoint the run state to this directory after every step')
@@ -66,7 +68,9 @@ export const runCommand = new Command('run')
                 }
             }
 
+            const deployment = options.deployment ? load_deployment(path.resolve(process.cwd(), options.deployment)) : undefined;
             const engine = new WorkflowEngine(workflow, {
+                ...(deployment?.a2a ? { a2a: deployment.a2a } : {}),
                 ...(names.length ? {
                     model_providers: providers,
                     default_model_provider: names[0],
@@ -74,8 +78,10 @@ export const runCommand = new Command('run')
                     default_ai_model_id: 'tier:balanced',
                 } : {}),
                 tools: {
+                    ...(deployment?.tools || {}),
                     allow_commands: options.allowCommands === true ? true
-                        : typeof options.allowCommands === 'string' ? options.allowCommands.split(',').map((c: string) => c.trim()) : false,
+                        : typeof options.allowCommands === 'string' ? options.allowCommands.split(',').map((c: string) => c.trim())
+                            : deployment?.tools.allow_commands ?? false,
                 },
                 gemini_api_key: names.length && !names.includes('google') ? undefined : apiKey,
                 simulate: options.simulate,

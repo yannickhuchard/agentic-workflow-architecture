@@ -10,6 +10,8 @@ pip install agentic-workflow-architecture
 
 The distribution is named `agentic-workflow-architecture`; the package you import, and the command, are `awa`. Do not install the unrelated PyPI project named `awa`.
 
+Extras: `web` for `awa serve`, `grpc` for tools with `grpc` bindings (`pip install "agentic-workflow-architecture[grpc]"`), `contracts` for outcome contracts with an output schema.
+
 ## Usage
 
 ```python
@@ -55,9 +57,9 @@ What it still lacks compared with the TypeScript reference implementation, none 
 
 ```
 awa run claim.awa.json [-s] [--outputs simulation.json] [-j run.jsonl] [-c checkpoints/] [-i '{"claim_id": "C-1"}']
-                       [-p openai,ollama] [--allow-commands [all|git,jq]] [--db] [-v]
+                       [-p openai,ollama] [--allow-commands [all|git,jq]] [--deployment deployment.json] [--db] [-v]
 awa validate claim.awa.json
-awa serve [--port 3000] [--host 0.0.0.0]
+awa serve [--port 3000] [--host 0.0.0.0] [--a2a claim.awa.json ...] [--public-url URL] [--deployment deployment.json]
 awa task list [-s pending] [-r <role id>] [-a <assignee>]
 awa task show <id> | assign <id> <user_id> | complete <id> ['{"approved": true}'] | reject <id> [reason]
 awa knowledge ingest claim.awa.json run1.jsonl run2.jsonl [--kb knowledge.json]
@@ -77,6 +79,7 @@ awa knowledge deprecate <id> [--superseded-by <id>] [--kb knowledge.json]
 | `-i, --input <json>` | The data the run starts with, a JSON object |
 | `-p, --providers <list>` | Model providers in order of preference: `openai` (reads `OPENAI_API_KEY`) and `ollama` (reads `OLLAMA_BASE_URL`, default `http://localhost:11434/v1`, which can point at any OpenAI-compatible server). `google` and `embedded` are refused: the Python SDK does not have them |
 | `--allow-commands [list]` | Let tools run commands on this machine: all, or a comma-separated list of program names |
+| `--deployment <file>` | What the workflow may reach: `tools.allow_commands`, `tools.allowed_hosts`, `tools.mcp_servers`, `tools.grpc` and `a2a`, in the format of the reference's [CLI guide](../typescript/docs/cli-guide.md). `--allow-commands` takes precedence over the file's `allow_commands` |
 | `--db` | Write the execution record to the database (`AWA_DATABASE_URL`, default `awa.db`) instead of printing it |
 | `-k, --key` | Accepted for compatibility; the Python SDK has no Google provider |
 
@@ -118,11 +121,24 @@ engine = WorkflowEngine(workflow, options={
 | `http` | An HTTP request, with the standard library | Only `http` and `https` URLs. Redirects are followed only to allowed hosts |
 | `jsonrpc` | A JSON-RPC 2.0 call over HTTP | |
 | `command` | A program, without a shell | Refused unless `allow_commands` is `True` or lists the program |
-| `mcp`, `grpc` | An executor from `tools.executors` | Without one the call fails with `VALIDATION_ERROR` |
+| `mcp` | A tool on a server named in `tools.mcp_servers` (17.7): `{"command", "args", "env", "cwd"}`, started and spoken to over standard input and output, or `{"url", "headers"}`, over Streamable HTTP | A server not declared there is refused. A program is held to `allow_commands`, an address to `allowed_hosts`. MCP revision 2025-11-25, standard library only |
+| `grpc` | A unary call (17.8), described by `tools.grpc.protos` (with `include_dirs`) or by server reflection | The `grpc` extra. TLS unless the host is in `grpc.plaintext_hosts`; the endpoint is held to `allowed_hosts`. Arguments and results use the field names of the `.proto` file |
+
+A deployment may still register its own executor for any kind in `tools.executors`; it replaces the built-in one. MCP connections and gRPC channels are opened at a run's first call, reused by every later call of the run, and closed when the run ends or waits.
 
 The output of a command and the body of an HTTP response are limited to `max_output_bytes` (4 MiB by default); a longer one fails the call. A handler that is still running at the timeout cannot be interrupted in Python: the call fails with `TIMEOUT` and the handler's result is ignored. In simulation mode no binding runs: the call is journalled with `simulated: true` and returns `tools.simulated_results[<tool name>]`.
 
 The built-in `AIAgent` calls tools when the model asks for them (see [The AI agent](#the-ai-agent)); an actor you supply calls them through `context.tools`.
+
+### Agents over A2A
+
+Level `a2a` (specification section 28). A role or an activity that names an agent card in `a2a` is performed by that agent over A2A 1.0 (JSON-RPC binding), whatever its actor type:
+
+```json
+{ "a2a": { "agent_card": "https://agents.example.com/.well-known/agent-card.json", "on_input_required": "wait" } }
+```
+
+The engine reads the card once per run, sends the activity and its public data as a message, follows the task with `GetTask` until it ends, and turns the artifacts into the output, which the outcome contract and verification then check as any actor's. `agent.message_sent` and `agent.task_updated` record the exchange. A task that asks for input parks the token (`waiting_human`); `engine.agent_requests()` lists what the agents ask, and `engine.answer_agent(token_id, input)` sends the answer on the same task, after which `run()` goes on. Options under `a2a`: `allowed_hosts` (default: the tools' `allowed_hosts`), `secrets`, `poll_interval_ms`, `max_wait_ms`, `transport`. In simulation nothing is called.
 
 ### Model references and routing
 
@@ -373,6 +389,8 @@ awa measures --list
 | `GET /api/v1/workflows/runs/{run_id}/events` | The journal; `?after=<seq>` for later events only |
 | `GET /api/v1/workflows/runs/{run_id}/events/stream` | The journal as Server-Sent Events, from `?after=` or `Last-Event-ID`; the stream ends once the run has completed, failed or been cancelled |
 | `GET /api/v1/workflows/run/{run_id}` | The route of earlier versions: status and tokens in full |
+| `GET /api/v1/workflows/runs/{run_id}/agent-requests` | The tokens waiting for input an agent over A2A asked for, with what it asked |
+| `POST /api/v1/workflows/runs/{run_id}/tokens/{token_id}/agent-input` | `{"input": <object or text>}`: the answer, sent on the agent's task; the run goes on in the background. `409` when the token is not waiting for an agent |
 
 Errors of these routes are `{"code", "message"}`, as the OpenAPI description gives them. With `AWA_JOURNAL_DIR` set, each run's journal is written there.
 
@@ -392,3 +410,5 @@ Errors of these routes are `{"code", "message"}`, as the OpenAPI description giv
 | `GET /api/v1/evidence` | The evidence report (`from`, `to`, `workflow_id` repeated); `format=md` or `html` for a document |
 
 With `AWA_DATA_DIR` set the server keeps a runtime directory there and survives a restart; without it journeys live in the process. `AWA_SIMULATE=1` and `AWA_SIMULATED_OUTPUTS=<file>` simulate activities as on the command line.
+
+`awa serve --a2a <file>` offers a workflow to other agents over A2A 1.0, with the routes of the reference's [operational-api.md](../typescript/docs/operational-api.md): the card at `/a2a/<workflow id>/.well-known/agent-card.json` (and at `/.well-known/agent-card.json` for a single workflow), and `SendMessage`, `GetTask` and `CancelTask` at `POST /a2a/<workflow id>`. `mount_a2a(app, workflows, ...)` in `awa.server.a2a` adds them to any FastAPI application.

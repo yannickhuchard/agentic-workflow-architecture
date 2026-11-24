@@ -43,6 +43,13 @@ def main(argv: list[str] | None = None) -> int:
         default="0.0.0.0",
         help="Host to bind to (default: 0.0.0.0)"
     )
+    serve_parser.add_argument("--a2a", action="append", default=[], metavar="FILE",
+                              help="Offer this workflow to other agents over A2A (can be repeated)")
+    serve_parser.add_argument("--public-url", metavar="URL",
+                              help="The address callers reach this server at, written in agent cards. Default: taken from each request")
+    serve_parser.add_argument("--deployment", metavar="FILE",
+                              help="JSON file saying what the workflows may reach: tools.allow_commands, tools.allowed_hosts, "
+                                   "tools.mcp_servers, tools.grpc, a2a")
     
     # Journeys kept in a runtime directory, the measures of what was recorded, and counterfactual replay
     from awa.cli import journey as journey_commands, measures as measures_command, replay as replay_command
@@ -114,7 +121,28 @@ def serve_api(args: argparse.Namespace) -> int:
     try:
         import uvicorn
         from awa.server import app
-        
+
+        # Workflows offered over A2A run under the deployment's permissions, like any other run (28.8)
+        if args.a2a:
+            import os
+            from fastapi import Depends
+            from awa.cli.deployment import load_deployment
+            from awa.runtime.journal import FileJournalStore
+            from awa.server import AUTH_ENABLED, rate_limiter
+            from awa.server.a2a import mount_a2a
+            deployment = load_deployment(args.deployment) if args.deployment else {"tools": {}, "a2a": {}}
+
+            def engine_options() -> dict:
+                journal_dir = os.environ.get("AWA_JOURNAL_DIR")
+                return {"tools": deployment["tools"], "a2a": deployment["a2a"],
+                        **({"journal": FileJournalStore(journal_dir)} if journal_dir else {})}
+            from awa.cli.run import read_workflow
+            offered = [read_workflow(file) for file in args.a2a]
+            mount_a2a(app, offered, engine_options=engine_options, public_url=args.public_url,
+                      authenticated=AUTH_ENABLED, dependencies=[Depends(rate_limiter)])
+            for workflow in offered:
+                print(f"  A2A agent \"{workflow.name}\": {args.public_url or f'http://{args.host}:{args.port}'}/a2a/{workflow.id}/.well-known/agent-card.json")
+
         print(f"Starting AWA Operational API on http://{args.host}:{args.port}")
         uvicorn.run(app, host=args.host, port=args.port)
         return 0

@@ -1,0 +1,122 @@
+{
+  "id": "agent-error-is-retried-under-the-policy",
+  "level": "a2a",
+  "spec": "28.4",
+  "description": "A JSON-RPC error fails the attempt with AGENT_ERROR, which the retry policy retries with a new message.",
+  "workflow": {
+    "id": "63204468-0c5c-5ed0-aac6-5518e36e15f9",
+    "name": "agent-error-is-retried-under-the-policy",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "b2655452-f4d2-5868-9733-0dae85a7ef87",
+        "name": "Assess",
+        "role_id": "9508c201-b5cd-57d4-8a4d-3528a0181f36",
+        "actor_type": "ai_agent",
+        "a2a": {
+          "agent_card": "https://agents.example/claims/.well-known/agent-card.json"
+        },
+        "retry": {
+          "max_attempts": 2,
+          "initial_delay": "PT0S"
+        }
+      }
+    ],
+    "edges": []
+  },
+  "agents": {
+    "https://agents.example/claims/.well-known/agent-card.json": {
+      "card": {
+        "name": "Claims assessor",
+        "description": "Claims assessor, reached over A2A",
+        "version": "1.0.0",
+        "supportedInterfaces": [
+          {
+            "url": "https://agents.example/claims/a2a",
+            "protocolBinding": "JSONRPC",
+            "protocolVersion": "1.0"
+          }
+        ],
+        "capabilities": {
+          "streaming": false,
+          "pushNotifications": false
+        },
+        "defaultInputModes": [
+          "application/json",
+          "text/plain"
+        ],
+        "defaultOutputModes": [
+          "application/json"
+        ],
+        "skills": [
+          {
+            "id": "assess",
+            "name": "Assess",
+            "description": "Assess a claim",
+            "tags": [
+              "claims"
+            ]
+          }
+        ]
+      },
+      "replies": [
+        {
+          "error": {
+            "code": -32603,
+            "message": "Internal error"
+          }
+        },
+        {
+          "result": {
+            "task": {
+              "id": "task-1",
+              "contextId": "ctx-1",
+              "status": {
+                "state": "TASK_STATE_COMPLETED"
+              },
+              "artifacts": [
+                {
+                  "artifactId": "a0",
+                  "parts": [
+                    {
+                      "data": {
+                        "decision": "approve"
+                      },
+                      "mediaType": "application/json"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "data": {
+      "decision": "approve"
+    },
+    "agent_requests": [
+      "SendMessage",
+      "SendMessage"
+    ],
+    "journal_contains": [
+      {
+        "type": "activity.failed",
+        "attempt": 1,
+        "data": {
+          "error": {
+            "code": "AGENT_ERROR"
+          },
+          "retryable": true
+        }
+      }
+    ],
+    "journal_count": {
+      "agent.message_sent": 2
+    }
+  }
+}

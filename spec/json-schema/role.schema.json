@@ -77,6 +77,10 @@
                 }
             },
             "description": "Available MCP tools for this role"
+        },
+        "a2a": {
+            "$ref": "activity.schema.json#/$defs/a2a_agent",
+            "description": "The agent, reached over A2A, that performs the activities of this role"
         }
     }
 }
