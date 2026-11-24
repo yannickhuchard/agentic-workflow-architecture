@@ -381,7 +381,7 @@ result = (
 )
 ```
 
-The Python SDK passes every conformance level and has the same commands as the TypeScript one (`awa run`, `validate`, `journey`, `measures`, `replay`, `knowledge`, `task`, `serve`), with the same options. It has no recipe, Open Knowledge Format exchange, Google or embedded provider, or views.
+The Python SDK passes every conformance level and has the same commands as the TypeScript one (`awa run`, `validate`, `journey`, `measures`, `replay`, `evidence`, `eval`, `knowledge`, `task`, `serve`), with the same options. It has no recipe, Open Knowledge Format exchange, Google or embedded provider, or views.
 
 ### Key Builder Methods
 
@@ -432,6 +432,8 @@ awa serve --port 8080
 | `awa journey <add\|publish\|tick\|resume\|list\|show\|analytics\|export>` | Journeys in a runtime directory | `--dir <dir>`, `--simulate`, `--outputs <file>` |
 | `awa measures` | The measures of journeys and workflows | `--dir`, `--file`, `--from`, `--to`, `--json`, `--openmetrics`, `--html <file>`, `--list` |
 | `awa replay <workflow> <journal>` | Counterfactual replay; exit status 2 on a regression | `--candidate <file>`, `--ai live\|recorded`, `-o`, `--json` |
+| `awa evidence <sources...>` | An evidence report from journals and journey records, every statement citing its records | `--from`, `--to`, `--workflow <id or name...>`, `--as-of`, `--format json\|md\|html`, `-o` |
+| `awa eval <build\|run>` | Evaluation datasets from journals; a candidate scored against one, exit status 2 on a regression | `build <journals...> -o`; `run <workflow> <dataset> --candidate <file> --providers <list> --json -o` |
 | `awa task <list\|show\|assign\|complete\|reject>` | Human tasks in the task database | - |
 | `awa init` / `awa generate <prompt>` | Create a starter workflow / generate one from a description | - |
 | `awa serve` | Start REST API server | `-p, --port <port>`, `--jwt-secret <secret>`, `--api-key <key:role>`, `--rate-limit <max>`, `--no-auth` |
@@ -652,6 +654,23 @@ report.attention;                                         // who is stuck, in wh
 ```
 
 A measure is `{ value, n }`: `n` is what it was computed over, and `value` is `null`, never 0, when that is nothing. `GET /api/v1/measures` serves the report and `?format=openmetrics` gives it to a metrics system. `tools/visualization/dashboard.html` shows it (`?live=http://localhost:3000` reads a running server). Give a stage an `owner` so that a stalled journey names who must act.
+
+### Evidence, evaluation and shadow runs (specification sections 32 and 33)
+
+**Evidence** for regulators and auditors, computed from the record: what ran, which models decided what, every human decision, override and escalation, every contract and verification result, refusals, failures, compensations, service level breaches, tool calls by target, data by payload mode, and the records held. Each statement cites the journal records it rests on (run id and `seq`); each part names the EU AI Act articles (12, 13, 14, 15, 26), NIST AI RMF functions and ISO/IEC 42001 clauses it can serve. Say it as the report does: evidence a deployer can use, **not a certification of compliance**.
+
+```bash
+awa evidence .awa --from 2026-09-01 --to 2026-10-01 --format html -o evidence.html   # also md (default) or json
+```
+
+**Evaluation** turns recorded runs into a dataset, one case per visit to an AI activity (its input; the outcome accepted by contract, verification or a person, or what rejected it), and scores a candidate against it per activity, through counterfactual replay: tools answer as recorded.
+
+```bash
+awa eval build runs/*.jsonl -o dataset.jsonl
+awa eval run claims.awa.json dataset.jsonl --candidate changed.awa.json --providers ollama   # exit 2 on a regression
+```
+
+**Shadow runs**: `new AwaRuntime({ ..., shadow: { candidates: { [workflow.id]: candidate }, engine: { model_providers, model_tiers } } })`. Each production run that ends is replayed under the candidate; tools, people and other actors never run. `runtime.shadow.report()` gives the measures of both and the runs where they part.
 
 ## Production Infrastructure
 

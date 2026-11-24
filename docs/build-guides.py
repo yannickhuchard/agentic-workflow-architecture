@@ -103,7 +103,8 @@ page("getting-started.html", "Workflows where the outcome is fixed and the strat
           ["Business events", "Workflows publish events and wait for them, with correlation and a deadline that has its own path."],
           ["Journeys", "The life of a customer across several workflows: stages, goals, touchpoints, what changes hands, and an estimate of mood that always says whether it was measured or inferred."],
           ["Explanation", "A replay, a recipe that explains how to rebuild the workflow, and counterfactual replay: what would this run have done under another model or rule?"],
-          ["Knowledge", "Strategies and failure patterns distilled from runs, reviewed by people, exported as an Open Knowledge Format bundle."]])),
+          ["Knowledge", "Strategies and failure patterns distilled from runs, reviewed by people, exported as an Open Knowledge Format bundle."],
+          ["Evidence and evaluation", "A report for regulators computed from the record, every statement citing its records; evaluation datasets built from recorded runs; a candidate run in the shadow of production."]])),
       ("first-run", "A first run", f'''
 <p>From a clone of the repository, with Node.js 20 or later:</p>
 {code("cd sdk/typescript && npm install && npm run build")}
@@ -129,6 +130,8 @@ page("installation-guide.html", "Installation", "What you need, how to build, an
     ["<code>awa journey</code>", "Journeys kept in a runtime directory: add definitions, take in events, let time pass, list, show, export"],
     ["<code>awa measures</code>", "The measures of journeys and workflows, computed from what was recorded"],
     ["<code>awa replay</code>", "Counterfactual replay of a recorded run"],
+    ["<code>awa evidence</code>", "An evidence report from journals and journey records: evidence a deployer can use, not a certification"],
+    ["<code>awa eval</code>", "Build an evaluation dataset from journals, and score a candidate against it"],
     ["<code>awa recipe</code>", "Compile a workflow and a journal into a build-from-scratch recipe"],
     ["<code>awa knowledge</code>", "Distil, review and exchange knowledge from journals"],
     ["<code>awa serve</code>", "The HTTP interface"],
@@ -137,7 +140,7 @@ page("installation-guide.html", "Installation", "What you need, how to build, an
       ("python", "Python SDK", f'''
 <p>Python 3.10 or later.</p>
 {code("cd sdk/python\npip install -e '.[dev,web]'\npytest -q")}
-<p>The Python SDK passes every conformance level, as the reference does: the engine rules, tools, model routing and model decisions, journeys, measures, replay, contexts and service levels. Install it with <code>pip install agentic-workflow-architecture</code>; the package you import is <code>awa</code>. Its built-in AI agent calls no model: supply your own actor, or an OpenAI-compatible provider. It has no recipe and no Open Knowledge Format exchange.</p>'''),
+<p>The Python SDK passes every conformance level, as the reference does: the engine rules, tools, model routing and model decisions, journeys, measures, replay, contexts, service levels, evidence and evaluation. Install it with <code>pip install agentic-workflow-architecture</code>; the package you import is <code>awa</code>. Its built-in AI agent calls no model: supply your own actor, or an OpenAI-compatible provider. It has no recipe and no Open Knowledge Format exchange.</p>'''),
       ("models", "Model providers", f'''
 <p>Activities name a capability tier (<code>tier:fast</code>, <code>tier:balanced</code>, <code>tier:reasoning</code>), not a vendor. A deployment maps each tier to providers in order of preference; when one fails the next is tried.</p>
 {table(["Provider", "Needs"], [["google", "<code>GEMINI_API_KEY</code>"], ["openai", "<code>OPENAI_API_KEY</code>"], ["ollama", "A running Ollama; <code>OLLAMA_BASE_URL</code> if not on localhost"],
@@ -272,6 +275,14 @@ curl localhost:3000/api/v1/measures?format=openmetrics
 <p>Counterfactual replay runs a recorded run again with something changed, holding everything else as it was recorded: the input, what applications and people returned, tool results, events and time.</p>
 {code("awa replay workflow.awa.json run.journal.jsonl --candidate changed.awa.json --ai recorded")}
 <p>It exits with status 2 on a regression, so a folder of recorded journals is a regression suite for a change of model, prompt, contract or rule. A step the baseline never performed is reported as unrecorded; nothing is invented and no real call is made.</p>'''),
+      ("evaluation", "Evaluate a candidate on recorded work", f'''
+<p>Every visit to an AI activity is a labelled example: what the agent was given, and the outcome its contract, its verification or a person accepted, or what rejected it. Build a dataset from journals and score a candidate model or workflow against it, per activity:</p>
+{code("awa eval build runs/*.jsonl -o dataset.jsonl\nawa eval run workflow.awa.json dataset.jsonl --candidate changed.awa.json --providers ollama")}
+<p>The tools the candidate calls answer as they did when the case was recorded. The command exits with status 2 when the candidate loses a case the recording had accepted. A host can also run a candidate in the <em>shadow</em> of production: each run that ends is replayed under the candidate, nothing it does reaches the outside world, and the host reports where the two part.</p>'''),
+      ("evidence", "Evidence for regulators", f'''
+<p>An evidence report gathers, for a period and a set of workflows, what ran, which models decided what, every human decision and escalation, every contract and verification result, refusals, failures, compensations, tool calls by target, how data was journalled, and the records held. Every statement cites the journal records it rests on, and each part names the EU AI Act articles, NIST AI RMF functions and ISO/IEC 42001 clauses it can serve.</p>
+{code("awa evidence .awa --from 2026-09-01 --to 2026-10-01 --format html -o evidence.html")}
+<p>It is evidence a deployer can use. It is not a certification of compliance, and it says so.</p>'''),
       ("http", "Over HTTP", table(["Request", "Does"], [
           ["<code>POST /api/v1/workflows/run</code>", "Run a workflow file"],
           ["<code>GET /api/v1/workflows/runs/{id}/events</code>", "The journal of a run; <code>/events/stream</code> for Server-Sent Events"],
@@ -279,7 +290,8 @@ curl localhost:3000/api/v1/measures?format=openmetrics
           ["<code>POST /api/v1/journeys/events</code>", "Take in a business event (CloudEvents 1.0). The same id twice has no further effect"],
           ["<code>POST /api/v1/journeys/tick</code>", "Let time pass"],
           ["<code>GET /api/v1/journeys/instances</code>", "Journey instances; <code>?stalled=true</code> for those that need someone to act"],
-          ["<code>GET /api/v1/journeys/portfolio</code>", "Everything recorded, as the journey view loads it"]]))])
+          ["<code>GET /api/v1/journeys/portfolio</code>", "Everything recorded, as the journey view loads it"],
+          ["<code>GET /api/v1/evidence</code>", "The evidence report of what was recorded; <code>?format=md</code> or <code>html</code> for a document"]]))])
 
 # --------------------------------------------------------------------------- data model
 page("data-model-guide.html", "Data model", "The things AWA names, what each is for, and where each is defined. The JSON Schemas in spec/json-schema are normative; OpenAPI, GraphQL, Avro and the PostgreSQL DDL are projections of them.",

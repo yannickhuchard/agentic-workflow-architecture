@@ -10,12 +10,14 @@ Language-neutral test cases that define what it means to implement AWA. The rule
 | `replay/` | A recorded run, a change, and what a counterfactual replay must report |
 | `knowledge/` | Scripted runs, the ingestion of their journals and reviews, and what the knowledge base must then hold and give to actors |
 | `measures/` | A record of journeys and runs, and the measures that follow from it (section 21) |
+| `evidence/` | A record of journeys and runs, and the statements an evidence report must make about it, with their exact citations (section 32) |
+| `evaluation/` | Journals and the evaluation dataset built from them; a dataset, a scripted candidate and the scores that follow (section 33) |
 | `expressions.json` | Condition expressions, the data they are evaluated against, and their results |
 | `unary-tests.json` | Decision table entries, values, and whether each value satisfies the entry |
 
 Each execution case is tagged with a conformance level. An implementation claims a level only if it passes every case at that level, and reports the cases it skips.
 
-Levels: `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `measures`, `contexts`, `service_levels`, `replay`. Cases at level `events` carry a `deliver` list: business events to deliver, or deadlines to let pass, once the run has settled. Cases at level `routing` are execution cases whose scripted `model` lists several providers and the tier map; cases at level `knowledge` are in `knowledge/`.
+Levels: `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `measures`, `contexts`, `service_levels`, `replay`, `evidence`, `evaluation`. Cases at level `events` carry a `deliver` list: business events to deliver, or deadlines to let pass, once the run has settled. Cases at level `routing` are execution cases whose scripted `model` lists several providers and the tier map; cases at level `knowledge` are in `knowledge/`, at level `evidence` in `evidence/` and at level `evaluation` in `evaluation/`. Shadow runs (section 33.5) have no cases: they are fixed by unit tests in both SDKs.
 
 ## Running
 

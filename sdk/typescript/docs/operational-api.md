@@ -1,6 +1,6 @@
 # The HTTP interface
 
-`awa serve` (TypeScript SDK 2.0) offers runs, business events, journeys, measures, human tasks and the views over HTTP. The machine-readable description is [`spec/openapi/awa-api.yaml`](../../../spec/openapi/awa-api.yaml); this page is the guide to it. The Python SDK's `awa serve` offers the same routes.
+`awa serve` (TypeScript SDK 2.0) offers runs, business events, journeys, measures, evidence, human tasks and the views over HTTP. The machine-readable description is [`spec/openapi/awa-api.yaml`](../../../spec/openapi/awa-api.yaml); this page is the guide to it. The Python SDK's `awa serve` offers the same routes.
 
 ```bash
 AWA_DATA_DIR=.awa awa serve --port 3000 --no-auth
@@ -50,6 +50,7 @@ curl -s -X POST localhost:3000/api/v1/journeys/events -H 'content-type: applicat
 | `GET /api/v1/measures?from=&to=&journey_id=&workflow_id=` | The measure report (specification section 21). Each measure is `{ value, n }`; `value` is null when there was nothing to compute it from |
 | `GET /api/v1/measures?format=openmetrics` | The same in the OpenMetrics text format, for a metrics system to scrape |
 | `GET /api/v1/measures/definitions` | Every measure with its unit and its rule |
+| `GET /api/v1/evidence?from=&to=&workflow_id=&format=` | The evidence report (specification section 32) of what the host recorded, journeys and runs that belong to none alike: `format` is `json` (the default, `spec/json-schema/evidence-report.schema.json`), `md` or `html`. `workflow_id` may be repeated. Evidence a deployer can use, not a certification of compliance |
 
 ## Human tasks
 

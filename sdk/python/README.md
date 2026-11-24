@@ -40,7 +40,7 @@ print(result)
 
 ## Conformance
 
-The Python SDK passes every case of every conformance level of the specification (`docs/specification.md`, section 2.1): `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts` and `service_levels`. No case is skipped. Run them with `pytest tests/test_conformance.py -rs`.
+The Python SDK passes every case of every conformance level of the specification (`docs/specification.md`, section 2.1): `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `evidence` and `evaluation`. No case is skipped. Run them with `pytest tests/test_conformance.py -rs`.
 
 What it still lacks compared with the TypeScript reference implementation, none of which belongs to a conformance level:
 
@@ -237,6 +237,35 @@ awa replay claim.awa.json run.journal.jsonl [--candidate changed.awa.json] [--js
 
 The command replays recorded AI outputs (`ai: "recorded"`), so it tests a changed contract, criterion, table or edge without a model. It exits with status 2 when the candidate regresses, 1 on an error, and 0 otherwise. The reference command's `--ai live`, `--providers` and `--key` options are not available: a live replay is made in code.
 
+## Evidence, evaluation and shadow runs
+
+The levels `evidence` (specification section 32) and `evaluation` (section 33). They follow the reference: on the claims examples both SDKs give identical reports and datasets.
+
+```python
+from awa import compute_evidence, render_evidence_markdown, build_dataset, evaluate_dataset, render_evaluation_report
+from awa.runtime.evidence_sources import read_evidence_input, read_journals
+
+record = read_evidence_input([".awa", "more-runs/"])        # runtime directories, journals, exports
+report = compute_evidence(record, {"from": "2026-09-01T00:00:00Z", "workflow_ids": [...]})
+print(render_evidence_markdown(report))                     # or render_evidence_html(report)
+
+cases = build_dataset(read_journals(["runs/"]))["cases"]    # one case per visit to an AI activity
+scores = evaluate_dataset(workflow, cases, candidate=changed, engine={"model_providers": [...], "model_tiers": {...}})
+print(render_evaluation_report(scores))                     # pass rates per activity, regressions, improvements
+```
+
+Every statement of an evidence report cites the journal records it rests on (`run_id` and `seq`), and each part names the EU AI Act articles, NIST AI RMF functions and ISO/IEC 42001 clauses it can serve. It is evidence a deployer can use, not a certification of compliance. `unresolved_citations(report, record)` lists any citation that does not point at a record: none, for a report computed here.
+
+A host runs a candidate beside production with `AwaRuntime(..., shadow={"candidates": {workflow_id: candidate}, "engine": {...}})`. Each production run that completes or fails is replayed under the candidate as it ends: tools, people and other actors are answered from production's record and never run, and nothing is published or learnt. `runtime.shadow.report()` gives the measures of section 21 for production and shadow and the runs where they part. Comparisons are kept in memory. Shadow runs have no conformance cases; `tests/test_evidence_evaluation.py` fixes them.
+
+```
+awa evidence <dir-or-journals...> [--from <instant>] [--to <instant>] [--workflow <id or name>...] [--as-of <instant>] [--format json|md|html] [-o file]
+awa eval build <journals...> -o dataset.jsonl
+awa eval run <workflow> dataset.jsonl [--candidate changed.awa.json] --providers ollama [--json] [-o report.md]
+```
+
+`awa eval run` exits with status 2 when the candidate loses a case the recording had accepted. Of the reference command's providers it offers `ollama` (any OpenAI-compatible server, from `OLLAMA_BASE_URL`); other providers are given to `evaluate_dataset` in code.
+
 ## Business events, journeys and measures
 
 The levels `journeys` (specification section 19) and `measures` (section 21). The cases are run by `tests/test_conformance.py`; `tests/test_journeys_measures.py` covers what the cases cannot reach: recovery from files by a second host, the lock on a runtime directory, duplicate event ids, the form of an export, the command line and the HTTP routes.
@@ -360,5 +389,6 @@ Errors of these routes are `{"code", "message"}`, as the OpenAPI description giv
 | `GET /api/v1/journeys/transitions`, `/portfolio` | Movement between journeys; the full export |
 | `GET /api/v1/measures` | The report (`from`, `to`, `journey_id`, `workflow_id`); `format=openmetrics` for the text format |
 | `GET /api/v1/measures/definitions` | The measures and their definitions |
+| `GET /api/v1/evidence` | The evidence report (`from`, `to`, `workflow_id` repeated); `format=md` or `html` for a document |
 
 With `AWA_DATA_DIR` set the server keeps a runtime directory there and survives a restart; without it journeys live in the process. `AWA_SIMULATE=1` and `AWA_SIMULATED_OUTPUTS=<file>` simulate activities as on the command line.

@@ -727,6 +727,32 @@ paths:
         '400':
           description: from or to is not an instant
 
+  /evidence:
+    get:
+      tags: [journeys]
+      summary: The evidence report of what the host recorded (specification section 32)
+      description: Computed from journals and journey records; every statement cites the records it rests on. Evidence a deployer can use, not a certification of compliance.
+      operationId: getEvidence
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date-time }, description: Keep runs and journeys started at or after this instant }
+        - { name: to, in: query, schema: { type: string, format: date-time }, description: Keep runs and journeys started before this instant }
+        - { name: workflow_id, in: query, schema: { type: array, items: { type: string } }, style: form, explode: true, description: Keep only runs of these workflows }
+        - { name: format, in: query, schema: { type: string, enum: [json, md, html], default: json } }
+      responses:
+        '200':
+          description: The report (32.1), as spec/json-schema/evidence-report.schema.json fixes it, or as Markdown or HTML
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [spec_version, report, as_of, period, scope, notice, frameworks, parts]
+            text/markdown:
+              schema: { type: string }
+            text/html:
+              schema: { type: string }
+        '400':
+          description: from or to is not an instant, or the format is unknown
+
   /measures/definitions:
     get:
       tags: [journeys]
