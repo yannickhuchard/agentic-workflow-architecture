@@ -1,0 +1,146 @@
+{
+  "id": "separation-of-duties-includes-the-requester",
+  "level": "authorization",
+  "spec": "30.3",
+  "description": "With includes_starter, the person who started the run counts as having performed an activity of the set: the requester may not approve their own request.",
+  "workflow": {
+    "id": "49c806d1-f4ea-5d3c-9540-82b663e73304",
+    "name": "separation-of-duties-includes-the-requester",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "b097b694-af4e-5acf-8cbb-dd14e7407a35",
+        "name": "Approve",
+        "role_id": "51389153-5cc6-5e3e-96f8-b03127c7e43f",
+        "actor_type": "human"
+      }
+    ],
+    "edges": [],
+    "roles": [
+      {
+        "id": "51389153-5cc6-5e3e-96f8-b03127c7e43f",
+        "name": "Approver",
+        "actor_type": "human"
+      }
+    ]
+  },
+  "authorization": {
+    "policy": {
+      "rules": [
+        {
+          "id": "anyone-starts",
+          "effect": "allow",
+          "actions": [
+            "start_run"
+          ],
+          "subject": {
+            "kinds": [
+              "person"
+            ]
+          }
+        },
+        {
+          "id": "people-complete",
+          "effect": "allow",
+          "actions": [
+            "complete_task"
+          ],
+          "subject": {
+            "kinds": [
+              "person"
+            ]
+          }
+        }
+      ],
+      "separation_of_duties": [
+        {
+          "id": "not-your-own",
+          "activities": [
+            "Approve"
+          ],
+          "includes_starter": true
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "start": {
+        "principal": {
+          "id": "alice",
+          "kind": "person",
+          "attributes": {
+            "roles": [
+              "requester",
+              "approver"
+            ],
+            "department": "claims"
+          }
+        }
+      },
+      "expect": {
+        "allowed": true
+      }
+    },
+    {
+      "complete": {
+        "activity": "Approve",
+        "principal": {
+          "id": "alice",
+          "kind": "person",
+          "attributes": {
+            "roles": [
+              "requester",
+              "approver"
+            ],
+            "department": "claims"
+          }
+        },
+        "output": {
+          "approved": true
+        }
+      },
+      "expect": {
+        "allowed": false,
+        "code": "FORBIDDEN"
+      }
+    },
+    {
+      "complete": {
+        "activity": "Approve",
+        "principal": {
+          "id": "bob",
+          "kind": "person",
+          "attributes": {
+            "roles": [
+              "approver"
+            ],
+            "clearance": 3
+          }
+        },
+        "output": {
+          "approved": true
+        }
+      },
+      "expect": {
+        "allowed": true
+      }
+    }
+  ],
+  "expect": {
+    "status": "completed",
+    "decisions": [
+      {
+        "action": "complete_task",
+        "decision": "deny",
+        "principal": {
+          "id": "alice",
+          "kind": "person"
+        },
+        "rule": "not-your-own",
+        "reason": "separation_of_duties"
+      }
+    ]
+  }
+}

@@ -1,0 +1,93 @@
+{
+  "id": "start-by-an-allowed-principal",
+  "level": "authorization",
+  "spec": "30.4",
+  "description": "A caller the policy allows starts the run, and run.started names them. The start decision is not journalled: an allowed start is on record through run.started.",
+  "workflow": {
+    "id": "c8bf56c0-b169-5f5b-b93a-0f62db09bf79",
+    "name": "start-by-an-allowed-principal",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "5a83c98c-df8b-5238-982a-4c8c10ac3f26",
+        "name": "Submit",
+        "role_id": "f9fc597b-5542-576d-9585-6dadb742c011",
+        "actor_type": "human"
+      }
+    ],
+    "edges": [],
+    "roles": [
+      {
+        "id": "f9fc597b-5542-576d-9585-6dadb742c011",
+        "name": "Requester",
+        "actor_type": "human"
+      }
+    ]
+  },
+  "authorization": {
+    "policy": {
+      "rules": [
+        {
+          "id": "requesters-start",
+          "effect": "allow",
+          "actions": [
+            "start_run"
+          ],
+          "subject": {
+            "roles": [
+              "requester"
+            ]
+          },
+          "resource": {
+            "workflows": [
+              "start-by-an-allowed-principal"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "start": {
+        "principal": {
+          "id": "alice",
+          "kind": "person",
+          "attributes": {
+            "roles": [
+              "requester",
+              "approver"
+            ],
+            "department": "claims"
+          }
+        },
+        "input": {
+          "claim": "C-1"
+        }
+      },
+      "expect": {
+        "allowed": true,
+        "status": "waiting_human"
+      }
+    }
+  ],
+  "expect": {
+    "status": "waiting_human",
+    "decisions": [],
+    "journal_contains": [
+      {
+        "type": "run.started",
+        "data": {
+          "principal": {
+            "id": "alice",
+            "kind": "person"
+          },
+          "input": {
+            "claim": "C-1"
+          }
+        }
+      }
+    ]
+  }
+}

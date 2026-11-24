@@ -35,6 +35,7 @@ This document is normative. Where it and an SDK disagree, this document is right
 27. [Interchange](#27-interchange)
 28. [Agents over A2A](#28-agents-over-a2a)
 29. [Hosts that share a store](#29-hosts-that-share-a-store)
+30. [Identity and authorization](#30-identity-and-authorization)
 32. [Evidence](#32-evidence)
 33. [Evaluation](#33-evaluation)
 
@@ -80,6 +81,7 @@ An implementation claims one or more levels. Each level has cases in `spec/confo
 | `telemetry` | Derives OpenTelemetry traces from the journal and the journey record, with identifiers every implementation shares, and exports them without ever holding up a run | 26 |
 | `interchange` | Imports and exports BPMN 2.0 and DMN without loss, refuses what AWA cannot express, and exports CNCF Serverless Workflow 1.0 | 27 |
 | `a2a` | Lets an agent reached over the Agent2Agent protocol perform an activity, under the same contract, verification, permissions and record as any actor | 28 |
+| `authorization` | Knows who acts (people, agents, applications), decides with the deployment's policy whether they may, with deny-overrides, default deny, separation of duties and four eyes, refuses with `FORBIDDEN`, and records who did what and who was refused | 30.1 to 30.6 |
 | `shared_store` | Lets several hosts keep journeys and runs in one store and take any work, with the outcome of one host: no event taken twice or lost, no record with a gap | 29 |
 | `evidence` | Computes evidence reports from journals and journey records, every statement citing the records it rests on | 32 |
 | `evaluation` | Builds evaluation datasets from journals and scores a candidate against them | 33.1 to 33.4 |
@@ -90,8 +92,8 @@ An implementation MUST NOT claim a level unless it passes every case tagged with
 
 | SDK | Levels claimed |
 |---|---|
-| TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `telemetry`, `interchange`, `shared_store`, `a2a`, `evidence`, `evaluation` (`shared_store` with PostgreSQL, through the optional package `pg`). Built-in MCP and gRPC executors (17.7, 17.8); serves workflows as A2A agents (28.8) |
-| Python | every level: `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `telemetry`, `interchange`, `shared_store`, `a2a`, `evidence`, `evaluation` (`shared_store` with PostgreSQL, through the extra `postgres`). Built-in MCP and gRPC executors (gRPC with the `grpc` extra); serves workflows as A2A agents. Without the recipe, or Open Knowledge Format exchange |
+| TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `telemetry`, `interchange`, `shared_store`, `a2a`, `authorization`, `evidence`, `evaluation` (`shared_store` with PostgreSQL, through the optional package `pg`). Built-in MCP and gRPC executors (17.7, 17.8); serves workflows as A2A agents (28.8) |
+| Python | every level: `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `telemetry`, `interchange`, `shared_store`, `a2a`, `authorization`, `evidence`, `evaluation` (`shared_store` with PostgreSQL, through the extra `postgres`). Built-in MCP and gRPC executors (gRPC with the `grpc` extra); serves workflows as A2A agents. Without the recipe, or Open Knowledge Format exchange |
 | Java | none: a data model that reads and writes 1.1 documents faithfully, without validating them, and no engine |
 
 ### 2.3 Versions
@@ -567,6 +569,7 @@ An engine MUST NOT alter or remove an event once written.
 | `tool.failed` | execution | A tool call failed, or was refused before running | `call_id`, `tool`, `link`, `invoked`, `error`, `status`, `duration_ms` |
 | `agent.message_sent` | execution | A message is sent to an agent over A2A (28.7) | `agent`, `link`, `message_id`, `context_id`, `task_id`, `parts`, `simulated` |
 | `agent.task_updated` | execution | An agent answered, or its task changed state (28.7) | `agent`, `task_id`, `context_id`, `state`, `duration_ms`, `reply` |
+| `authorization.decided` | execution | The policy denied an action in the run, allowed an approval, or allowed an action when allows are recorded (30.6) | `action`, `decision`, `principal`, `resource`, `rule`, `reason`, `approval` |
 | `verification.completed` | execution | An output has been verified | `mode`, `verdict`, `score`, `criteria`, `feedback`, `output_hash` |
 | `contract.checked` | execution | An outcome has been checked against its contract | `passed`, `violations`, `tokens_used`, `output_hash`, `decided_by` |
 | `contract.escalated` | execution | A rejected outcome is handed to a human | `code`, `message`, `rejected_output` |
@@ -1033,7 +1036,7 @@ For each call, in this order, the engine MUST:
 
 1. Refuse an unknown tool (`UNKNOWN_TOOL`) and a call beyond `budgets.max_tool_calls` (`TOOL_BUDGET_EXCEEDED`). Every call counts toward the budget, refused ones included.
 2. Validate the arguments against `parameters`, and refuse invalid ones (`VALIDATION_ERROR`). Nothing runs.
-3. Apply the deployment's permissions (17.4), and refuse what they forbid (`PERMISSION_DENIED`).
+3. Apply the deployment's permissions (17.4), and refuse what they forbid (`PERMISSION_DENIED`). Under an authorization policy, then refuse a call the principal performing the activity may not make (`FORBIDDEN`, 30.4).
 4. Record `tool.invoked`.
 5. Run the binding, bounded by `timeout`.
 6. Record `tool.completed` with the result, or `tool.failed` with the error.
@@ -2151,6 +2154,179 @@ The TypeScript and Python SDKs share stores: they run the same migrations, keep 
 
 Level `shared_store` has its own cases, in `spec/conformance/shared-store/` (Appendix A): scenarios that several hosts play against one store, saying which host takes which event, which events arrive at the same moment, and when a host stops. An implementation claims the level only with a store that several hosts can share, and runs the cases against it.
 
+## 30. Identity and authorization
+
+A role says what kind of actor performs an activity (8.2). It does not say who. This section says who: who started a run, which agent performed an activity, which person completed a task. It says how a host knows them, how a deployment decides whether they may act, where the engine asks, and what it records, so that a run can show who did what and who was refused.
+
+The decision belongs to the deployment, in a declarative policy that every implementation evaluates the same way. A deployment that runs its own policy engine can plug it in (30.7); the built-in policy is the reference.
+
+### 30.1 Principals
+
+A **principal** is whoever acts: a person, an AI agent, a robot, an application or a service.
+
+| Field | Meaning |
+|---|---|
+| `id` | Identifies the principal within the deployment. Required |
+| `kind` | `person`, `ai_agent`, `robot`, `application` or `service`. Required |
+| `name` | For a person to read |
+| `attributes` | An object a policy tests: `roles` and `groups` (lists of text) by convention, and anything else, such as `clearance` or `department` |
+
+A host learns principals in three ways.
+
+**From the authenticated request**, for people who complete tasks and for callers who start runs, publish events or read journals. A request authenticated by a JWT is the principal whose `id` is the claim `sub`; whose `kind` is the claim `kind` when it is one of the five kinds, and `person` otherwise; whose `name` is the claim `name`; whose `roles` attribute is the union of the claims `roles` (a list) and `role` (a value); and whose other attributes are the other claims, except the registered claims `iss`, `sub`, `aud`, `exp`, `nbf`, `iat` and `jti`. A request authenticated by an API key is the principal the host associates with the key; the reference servers make it `{"id": <the key's user>, "kind": "application", "attributes": {"roles": [<its role>], "permissions": [...]}}`. A request that is not authenticated, where the host does not require authentication, is the principal `{"id": "anonymous", "kind": "application"}`.
+
+**From the deployment**, for the agents, robots and applications that perform activities, and for agents reached over A2A (section 28). The `principals` of the deployment's `authorization` section (30.2) are identities:
+
+| Field | Meaning |
+|---|---|
+| `id`, `kind`, `name`, `attributes` | As above |
+| `acts_for` | `activities` and `roles`, each by id or name; `actor_types`; `agents`, by agent card URL |
+| `credentials` | Headers sent with the identity's requests. In their values `{{secret:NAME}}` is replaced as in 17.2 |
+
+The principal that performs an activity whose actor is not a person is the first identity, in the order of the list, that acts for the activity; failing that, the first that acts for its agent over A2A; then for its role; then for its actor type. Without one, it is the principal `{"id": <the agent card URL>, "kind": "ai_agent"}` for an agent over A2A, and otherwise `{"id": "<actor_type>:<role_id>", "kind": <the kind of the actor type>}`, with no attributes: `human` is `person`, and the other actor types are the kinds of the same name.
+
+An identity's `credentials` are sent with its `http` tool calls (17.2) and with every request to its agent over A2A (28.1). Header names are compared without regard to case, and a credential replaces a header of the same name the workflow document sets: who the agent is, is the deployment's to say. Secrets are those the deployment supplies for tools, or for agents. Credentials are never journalled, and they are not sent with `jsonrpc`, `command`, `mcp` or `grpc` bindings.
+
+**The host itself.** What the host does on its own account, without naming who asked, is done as the **host principal**: `{"id": "host", "kind": "service"}` unless the deployment names another as `host_principal`. A run a journey starts (19.3) is started by the host. A program that embeds an engine and starts a run, or gives a person's answer, without a principal, does so as the host.
+
+When a request names a principal only by its id, as when a task is assigned to someone, the principal is the deployment's entry of that id, with its attributes, or a `person` of that id with no attributes.
+
+### 30.2 The policy
+
+The policy is part of the deployment, in its `authorization` section, beside what the deployment allows tools and agents to reach (17.4, 28.2):
+
+| Field | Meaning |
+|---|---|
+| `principals` | The identities of 30.1 |
+| `policy` | `rules`, `separation_of_duties` and `four_eyes` |
+| `classifications` | The data classification of workflows and activities, by id or name |
+| `record_allows` | `true` to journal allowed decisions as well as denials (30.6). Default `false` |
+| `host_principal` | The host principal (30.1) |
+
+A workflow document carries no policy. Who may act in a workflow is the decision of the organisation that deploys it, changes without the workflow changing, and differs between deployments of the same workflow; a policy in the document would be a second place to audit, which whoever edits the workflow could change. A policy names activities and roles by id or by name, so that it reads as the workflow does.
+
+A **rule** has:
+
+| Field | Meaning |
+|---|---|
+| `id` | Unique within the policy, across rules, separations of duties and four-eyes rules |
+| `effect` | `allow` or `deny` |
+| `actions` | The actions it concerns, or `["*"]` for every action |
+| `subject` | Which principals it concerns. Absent: all |
+| `resource` | Which resources it concerns. Absent: all |
+| `condition` | A condition expression (section 6). Absent: true |
+
+The **actions** are fixed:
+
+| Action | Taken when |
+|---|---|
+| `start_run` | A run is started |
+| `perform_activity` | An agent, robot or application performs an activity |
+| `reach_agent` | The engine sends the work of an activity to an agent over A2A |
+| `call_tool` | An actor calls a tool |
+| `claim_task` | A task is assigned to a principal, who then holds it |
+| `assign_task` | A principal assigns a task to another |
+| `complete_task` | A person completes or rejects a task |
+| `approve` | A person approves a task under a four-eyes rule |
+| `answer_agent` | Someone gives the input an agent over A2A asked for (28.6) |
+| `publish_event` | Someone gives the host a business event (18) |
+| `read_journal` | Someone reads the journal of a run |
+| `cancel_run` | Someone withdraws a run (5.8), where a host offers it |
+| `migrate_run` | Someone moves a run to another version of its workflow, where a host offers it |
+
+A `subject` matches a principal when every field it has matches: `ids`, the principal's id is listed; `kinds`, its kind is listed; `roles` and `groups`, one of its `roles` or `groups` attributes is listed; `attributes`, for each name given, the principal's attribute of that name, or one of its values when it is a list, equals the value given, or one of the values given when that is a list. Values are compared as JSON values.
+
+The **resource** of an action is what it is taken on: `workflow_id` and `workflow_name`; for an activity, `activity_id`, `activity_name`, `role_id` and, when the role is known, `role_name`; `classification`, the activity's entry in `classifications`, else its workflow's; and, as the action has them, `run_id`, `tool` and `link` (17.5), `agent` (the card URL), `task_id` and `event_type`. A rule's `resource` matches when every field it has matches: `workflows`, `activities` and `roles` list an id or a name of the resource's; `tools`, `agents` and `classifications` list the resource's.
+
+A `condition` is evaluated against an object with four properties: `principal` (`id`, `kind`, `name`, and `attributes`), `resource`, `run` and `action`. `run` is the run's data where the decision is taken: the token's data in a run, the input of a run being started, the inputs of a task in a task queue. `principal.attributes.clearance >= 3` and `run.amount < 10000` are conditions.
+
+A deployment's `authorization` MUST be validated when it is loaded, and refused, naming every problem, when a rule has an unknown field or action, a condition that is not a valid expression, or an id used twice, and when the other requirements of this section are not met. A host MUST NOT start with an `authorization` it refused.
+
+### 30.3 Deciding
+
+The decision on an action is **deny-overrides with default deny**:
+
+1. A rule applies when one of its `actions` is the action and its `subject`, `resource` and `condition` all match.
+2. A separation of duties or a four-eyes rule denies as below.
+3. If anything denies, the action is denied, and the decision names the first that denied: in the order of `rules`, then of `separation_of_duties`, then of `four_eyes`.
+4. Otherwise, if a rule allows, the action is allowed, and the decision names the first rule that allowed it.
+5. Otherwise the action is denied, and the decision names no rule.
+
+A decision has `decision` (`allow` or `deny`), `rule` (its id, absent when none decided), `reason` (`rule`, `no_rule`, `separation_of_duties`, `four_eyes` or `decider_error`) and a `message` whose wording is the implementation's. A decision depends only on the action, the principal, the resource, the run's data and the run's record: the same request is decided the same way by every implementation, every time.
+
+**Separation of duties.** An entry of `separation_of_duties` has an `id`, the `activities` of a set (at least two, by id or name), the `actions` it governs (`perform_activity`, `complete_task` and `approve` unless it names fewer), and `includes_starter`. It denies a governed action on an activity of the set to a principal who, in the same run, performed another activity of the set; with `includes_starter: true`, also to the principal who started the run, and then the set may name a single activity. The person who submitted a claim may not approve it; the requester may not approve their own request. A principal performed an activity when its completion names them (30.6): the agent that performed it, the person who completed its task, and each approver under a four-eyes rule. Performing the same activity again, as in a loop, is not a breach.
+
+**Four eyes.** An entry of `four_eyes` has an `id`, the `activities` it covers and `approvals`, a whole number of at least 2. A person's answer to the task of a covered activity is an **approval**: the action decided is `approve`, not `complete_task`. An allowed approval is kept with the token, and the token keeps waiting until `approvals` distinct principals have approved; the answer that completes the count completes the activity, whose output is the answers merged in the order they were given, a later answer's property replacing an earlier one's. An approval by a principal who has already approved that task is denied by the four-eyes rule. The approvals already given survive a checkpoint and a recovery (10.3), as the token does.
+
+**Without a policy.** When the deployment's `authorization` has no `policy` (and no other decider, 30.7), nothing is decided and nothing is refused. The principals of 30.1 are still recorded (30.6). When the deployment has no `authorization` at all, nothing of this section applies.
+
+### 30.4 Enforcement points
+
+Under a policy, an engine and a host MUST ask before each of these, and MUST NOT take the action when the decision is a denial:
+
+| Point | Action | Principal | On denial |
+|---|---|---|---|
+| A run is started | `start_run` | The caller, or the host (30.1) | No run is created and nothing is journalled. The caller is refused with `FORBIDDEN` |
+| Before the first attempt of each visit of a token to an activity whose actor is not a person | `perform_activity` | The identity that performs it (30.1) | The activity is not started: no `activity.started`. The token fails with `FORBIDDEN` |
+| Before the engine reads the card of an agent over A2A or sends it anything, after `perform_activity` | `reach_agent` | The agent's identity | Nothing is sent. The token fails with `FORBIDDEN` |
+| A tool call, after the deployment's permissions (17.3, step 3) | `call_tool` | The principal performing the activity | The call is refused: `tool.failed` with `invoked: false` and code `FORBIDDEN`, returned to the actor. It does not fail the activity |
+| A person's answer reaches the run (5.6) | `complete_task`, or `approve` under a four-eyes rule | Who answers | Nothing of the answer is applied, and the token keeps waiting. The caller is refused with `FORBIDDEN` |
+| A task in a task queue is assigned | `claim_task` for the assignee; `assign_task` for the caller, when the caller is not the assignee | | The task is unchanged. `FORBIDDEN` |
+| A task in a task queue is completed or rejected | `complete_task` | The caller | The task is unchanged. `FORBIDDEN` |
+| An agent's input is given; a business event is published; a journal is read; a run is cancelled or migrated, where a host offers it | `answer_agent`, `publish_event`, `read_journal`, `cancel_run`, `migrate_run` | The caller | `FORBIDDEN` |
+
+Retries of an activity (10.1, 7.4, 11.3) are attempts of the same visit and are not decided again. The attempt that resumes an agent's task after the host gave it input (28.6) continues the visit and is not decided again either. A compensation handler (13.6) is run by the engine to undo work already allowed, and is not decided.
+
+A task queue that does not host the run decides with the task's inputs as the run's data and without the run's record: separation of duties and four-eyes rules are applied when the answer reaches the run, which may still refuse it.
+
+Authorization comes after authentication and never replaces it. A host that requires authentication refuses an unauthenticated request as before; a policy can only refuse more.
+
+### 30.5 Errors
+
+A denial fails with the error code `FORBIDDEN`. It is distinct from `PERMISSION_DENIED`, which says that the deployment does not let anything reach a host or run a program (17.4, 28.2), whoever asks. A token that fails with `FORBIDDEN` is not retried, whatever its retry policy says. An HTTP host answers a denial with status 403 and a body that holds `code: "FORBIDDEN"`, a `message`, and the `decision` with its `action` and the principal's `id` and `kind`. A host SHOULD log a denial that belongs to no run, such as a refused start or a refusal in a task queue, since it has no journal to go to.
+
+### 30.6 Record
+
+What a run records says who did what:
+
+| Event | Carries |
+|---|---|
+| `run.started` | `principal`: who started the run |
+| `activity.started`, `activity.completed` | `principal`: the identity that performed the activity, when its actor is not a person |
+| `token.resumed`, `activity.completed` | `principal`: who answered a person's task; under a four-eyes rule, `approvals` on `activity.completed`: every approver, in order |
+| `authorization.decided` | A decision, as below |
+
+These are recorded whenever the deployment has an `authorization` section, with or without a policy. A principal is journalled as its `id` and `kind` only; its attributes, which may be personal data, and its credentials, never.
+
+`authorization.decided` is an `execution` event with the `token_id`, `node_id` and, for a tool call, the `attempt` it concerns, and `data`:
+
+| Field | Content |
+|---|---|
+| `action` | The action decided |
+| `decision` | `allow` or `deny` |
+| `principal` | `id` and `kind` |
+| `resource` | The resource of 30.2 |
+| `rule`, `reason`, `message` | As in 30.3 |
+| `approval` | For an approval under a four-eyes rule, `given` (how many with this one) and `required` |
+
+An engine MUST record a denial within a run, MUST record every allowed approval under a four-eyes rule, and records other allowed decisions when the deployment sets `record_allows`. The decision to start a run is not journalled: a refused start has no run, and an allowed one names its principal on `run.started`.
+
+The record a separation of duties is decided on is the run's own: the principals that completed its activities, kept with the run across checkpoints and recovery (10.3).
+
+### 30.7 Other deciders
+
+A deployment MAY replace the built-in policy by another **decider**: a function given the request (`action`, `principal` with its attributes, `resource`, `run`, and `history`: `started_by`, the activities `performed` with the ids of their principals, and the `approvals` already given) that returns a decision of 30.3. It is the extension point for an external policy engine, such as Open Policy Agent or Cedar; how the request maps to that engine's input is the deployment's. The engine enforces and records a decider's decisions exactly as the built-in policy's. A decider that fails, or that returns anything other than a decision, denies, with reason `decider_error`: an engine MUST fail closed.
+
+The reference implementations take a decider as `authorization.decider` in the engine's options, an object with `decide(request)`; in TypeScript it may return a promise.
+
+### 30.8 Out of scope
+
+How people sign in, and how tokens are issued: OAuth 2.0 and OpenID Connect flows, token refresh, signature algorithms other than the HS256 of the reference servers. Provisioning principals and keeping a directory in step (SCIM, LDAP). Delegation and acting on behalf of another. Fetching attributes at the time of a decision. Obligations and advice attached to decisions. Administering policies: their versions, distribution and review. Credentials for `jsonrpc`, `command`, `mcp` and `grpc` bindings. Masking fields of data by classification. Who may see which tasks in a list, and who may read or register definitions.
+
+### 30.9 Conformance
+
+Level `authorization` covers 30.1 to 30.6. Its cases are in `spec/conformance/authorization/` (Appendix A): a workflow, a deployment's `authorization`, a run played step by step by named principals, and the decisions, error codes and journal entries that must follow. The HTTP routes, credentials, other deciders and their failures, and recovery are fixed by `sdk/typescript/tests/authorization.test.ts` and `sdk/python/tests/test_authorization.py`.
+
 ## 32. Evidence
 
 Rules on AI systems ask for records: that a system logs what it does over its lifetime, that the people who deploy it can monitor it and keep its logs, that a person can oversee it, and that its accuracy and robustness can be shown. The journal (section 9) and the journey records (section 19) already hold most of what such rules ask about. An **evidence report** gathers it for a period and a set of workflows, in a form a deployer can hand to an auditor, a regulator or its own risk function.
@@ -2218,6 +2394,8 @@ Unless a row says otherwise, a statement is made for each record of the type nam
 | | `context` | Context name, over `context.read`, `context.written` and `context.denied` | `context_name`, `reads`, `writes`, `denied` | Those records |
 | `retention` | `held` | The report: one statement | `runs`, `events`, `journey_instances`, `journey_events`, `oldest_record`, `newest_record` | Every record, of a run or of a journey, at the oldest instant and at the newest |
 | | `gap` | Run whose journal lacks a `seq` between 1 and its last, or lacks `run.started` | `run_id`, `missing` (the sequence numbers), `starts` | For each missing number, the records just before and just after it; for a journal that is merely without `run.started`, its first record |
+
+Who completed a person's task is on record (30.6): the `activity.completed` that a `human_decision` statement cites carries its `principal`, and a refusal under the deployment's policy is an `authorization.decided` event of the same journal.
 
 Each part's `summary` gives counts over its statements: for `operation` the runs by status and the journeys; for `models` the distinct models, the selections, routes and model decisions; for `oversight` the human decisions, the **overrides** (human decisions taken on an escalated outcome: a person decided in place of an automated outcome that was rejected), the escalations and the cancellations; for `outcomes` contracts and verifications checked and passed, overall and by activity; for `refusals` the refusals of tool calls and of context writes, and tool refusals by code; for `failures` the failed attempts, dead letters, tool failures, failed runs and stalled journeys, and failed attempts by code; for `compensations` those that succeeded and failed; for `service_levels` the warnings and breaches; for `tools` the targets and calls; for `data` the runs by payload mode and the payloads by kind; for `retention` the records held, the oldest and newest, `held_for_ms` (from the oldest record to `as_of`) and the runs with gaps.
 
@@ -2441,6 +2619,15 @@ A runner MUST also check that the report validates against `evidence-report.sche
 
 **Evaluation cases** (`evaluation/*.json`) are of two kinds. A case of kind `build` gives `journals`, journal events of several runs, and `expect`: `case_count`, the number of cases built; `skipped`, the number of visits left out; and `cases`, each naming a case by `id` with fields it must have exactly as given (33.1). A case of kind `run` gives a `workflow`, a `dataset` of cases recorded with it, optionally a `candidate` workflow, and `candidate_actors`: for an activity name, the script of the candidate's AI agent as in an execution case, which a script under `cases` replaces for the case of that id. Its `expect` gives `evaluated`, and the number of `skipped`, `regressions` and `improvements`; `activities`, for an activity name, its `cases`, the `value` of each rate (`null` meaning no value), and the case ids of its `regressions` and `improvements`; and `results`, for a case id, fields of its result, `unrecorded` being the number of tool calls without a recording. A runner MUST validate each case built against `evaluation-case.schema.json` and each report against `evaluation-report.schema.json`.
 
+**Authorization cases** (`authorization/*.json`, level `authorization`) each give a `workflow`, the deployment's `authorization` (30.2), and, as in an execution case, `actors`, `tools` and `agents`. An activity whose actor type is `human` waits for a person: its actor opens a task and the token waits (5.6). The other activities follow `actors`. The case gives `steps`, performed in order:
+
+| Step | Meaning |
+|---|---|
+| `{"start": {"principal", "input"}}` | The run is started by that principal, or by the host when none is given, with that input; then it runs until it settles |
+| `{"complete": {"activity", "principal", "output"}}` | That principal answers the task of the token waiting at the activity of that name with that output; then the run goes on until it settles |
+
+Each step's `expect` gives `allowed`, whether the step was accepted; for a refusal, `code` (`FORBIDDEN`) and, where given, the `reason` of the decision; and, where given, the run's `status` after the step. The case's `expect` gives `started: false` for a run that must not exist, with no journal; otherwise `status`, and `decisions`: the `data` of every `authorization.decided` event, in order, each compared as a subset, and exactly as many as listed. It may also give `visited` (the activities the scripted actors performed), `data`, `journal`, `journal_contains`, `journal_excludes`, `journal_count`, `agent_card_reads` and `agent_requests`, as in an execution case.
+
 Runners: `sdk/typescript/tests/conformance.test.ts`, `sdk/python/tests/test_conformance.py`. Both run the shared store cases against a PostgreSQL they start, or the one `AWA_TEST_POSTGRES_URL` names, and report them skipped, with the reason, where there is none.
 
 ## Appendix B. Changes from 1.0
@@ -2482,4 +2669,5 @@ Runners: `sdk/typescript/tests/conformance.test.ts`, `sdk/python/tests/test_conf
 - Built-in executors for `mcp` bindings, over standard input and output or Streamable HTTP, and for unary `grpc` calls, held to the deployment's permissions (17.7, 17.8). An agent reached over A2A 1.0 can perform an activity, under the same contract, verification and record as any actor, and a host can offer a workflow as an A2A agent (section 28, level `a2a`).
 - The journal and the journey record as OpenTelemetry traces, with identifiers derived from the run and the journey instance, the generative AI semantic conventions, OTLP export that never holds up a run, the standard `OTEL_EXPORTER_OTLP_*` variables, and measures as OpenTelemetry gauges; conformance level `telemetry` (section 26).
 - Several hosts may share one store and take any work, with the outcome of one host: a store contract of partitions, holding, acceptance once and versions, met by a PostgreSQL store, with conformance level `shared_store` (section 29). A runtime directory still belongs to one host at a time (19.10).
+- Identity and authorization: principals for people, agents and applications, from the authenticated request and from the deployment; a declarative policy in the deployment with deny-overrides, default deny, conditions over the principal and the run's data, separation of duties and four-eyes approvals; enforcement when a run starts, before an agent performs an activity or reaches an agent over A2A, on tool calls and when a person completes a task; denials fail with `FORBIDDEN`; `principal` on run and activity events and the journal event `authorization.decided`; an external policy engine can be plugged in as the decider; conformance level `authorization` (section 30).
 - Interchange with BPMN 2.0 and DMN 1.x, import and export without loss through the `awa:` extension namespace (`spec/xsd/awa-interchange.xsd`), with what is not imported refused and named; export to CNCF Serverless Workflow 1.0 with the list of what does not map; conformance level `interchange` (section 27).

@@ -410,6 +410,8 @@ paths:
                     $ref: '#/components/schemas/RunStatus'
         '400':
           description: The file is not an allowed workflow file, or the workflow is invalid
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /workflows/runs/{run_id}:
     parameters:
@@ -469,6 +471,8 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/JournalEvent'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -577,6 +581,8 @@ paths:
                 $ref: '#/components/schemas/PublishResult'
         '400':
           description: The event has no type
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /journeys/tick:
     post:
@@ -791,6 +797,8 @@ paths:
       responses:
         '200':
           description: Resumed
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           description: No such waiting task
 
@@ -838,6 +846,31 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: The deployment's authorization policy does not let the caller take this action (specification 30.5). A refusal within a run is also journalled as authorization.decided
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [code, message, decision]
+            properties:
+              error: { type: string, example: Forbidden }
+              code: { type: string, enum: [FORBIDDEN] }
+              message: { type: string }
+              decision:
+                type: object
+                required: [action, decision, reason]
+                properties:
+                  action: { type: string, description: 'The action decided, e.g. start_run, complete_task, read_journal' }
+                  decision: { type: string, enum: [deny] }
+                  rule: { type: string, description: The rule that denied; absent when no rule allowed the action }
+                  reason: { type: string, enum: [rule, no_rule, separation_of_duties, four_eyes, decider_error] }
+                  message: { type: string }
+                  principal:
+                    type: object
+                    properties:
+                      id: { type: string }
+                      kind: { type: string, enum: [person, ai_agent, robot, application, service] }
 
   schemas:
     BusinessEvent:

@@ -1,0 +1,148 @@
+{
+  "id": "without-a-policy-nothing-is-checked",
+  "level": "authorization",
+  "spec": "30.2",
+  "description": "Principals without a policy: nothing is checked and nothing is decided, but who started the run, who performed each activity and who completed each task are recorded.",
+  "workflow": {
+    "id": "e25b915a-779d-5084-85d5-0d04f04fdae9",
+    "name": "without-a-policy-nothing-is-checked",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "1fff5858-6adc-500a-8999-5ff3bf7729b4",
+        "name": "Prepare",
+        "role_id": "3606b25b-44e3-58e3-ac4b-bb6a8fd8e574",
+        "actor_type": "ai_agent"
+      },
+      {
+        "id": "53874ca9-6500-5654-9209-49dd72b118b5",
+        "name": "Approve",
+        "role_id": "3606b25b-44e3-58e3-ac4b-bb6a8fd8e574",
+        "actor_type": "human"
+      }
+    ],
+    "edges": [
+      {
+        "id": "a3ddef14-92ac-58da-b3af-949c34a17236",
+        "source_id": "1fff5858-6adc-500a-8999-5ff3bf7729b4",
+        "target_id": "53874ca9-6500-5654-9209-49dd72b118b5"
+      }
+    ],
+    "roles": [
+      {
+        "id": "3606b25b-44e3-58e3-ac4b-bb6a8fd8e574",
+        "name": "Approver",
+        "actor_type": "human"
+      }
+    ]
+  },
+  "authorization": {
+    "principals": [
+      {
+        "id": "agent:drafter",
+        "kind": "ai_agent",
+        "acts_for": {
+          "activities": [
+            "Prepare"
+          ]
+        }
+      }
+    ]
+  },
+  "steps": [
+    {
+      "start": {
+        "principal": {
+          "id": "carol",
+          "kind": "person",
+          "attributes": {
+            "roles": [
+              "clerk"
+            ],
+            "contractor": true
+          }
+        }
+      },
+      "expect": {
+        "allowed": true
+      }
+    },
+    {
+      "complete": {
+        "activity": "Approve",
+        "principal": {
+          "id": "carol",
+          "kind": "person",
+          "attributes": {
+            "roles": [
+              "clerk"
+            ],
+            "contractor": true
+          }
+        },
+        "output": {
+          "approved": true
+        }
+      },
+      "expect": {
+        "allowed": true
+      }
+    }
+  ],
+  "expect": {
+    "status": "completed",
+    "decisions": [],
+    "journal_contains": [
+      {
+        "type": "run.started",
+        "data": {
+          "principal": {
+            "id": "carol",
+            "kind": "person"
+          }
+        }
+      },
+      {
+        "type": "activity.started",
+        "node_name": "Prepare",
+        "data": {
+          "principal": {
+            "id": "agent:drafter",
+            "kind": "ai_agent"
+          }
+        }
+      },
+      {
+        "type": "activity.completed",
+        "node_name": "Prepare",
+        "data": {
+          "principal": {
+            "id": "agent:drafter",
+            "kind": "ai_agent"
+          }
+        }
+      },
+      {
+        "type": "token.resumed",
+        "node_name": "Approve",
+        "data": {
+          "principal": {
+            "id": "carol",
+            "kind": "person"
+          }
+        }
+      },
+      {
+        "type": "activity.completed",
+        "node_name": "Approve",
+        "data": {
+          "principal": {
+            "id": "carol",
+            "kind": "person"
+          }
+        }
+      }
+    ]
+  }
+}

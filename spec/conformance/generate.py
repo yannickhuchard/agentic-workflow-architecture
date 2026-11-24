@@ -2399,6 +2399,236 @@ def a2a_cases() -> list[Case]:
     return cases
 
 
+def authorization_cases() -> list[dict]:
+    """Level `authorization` (section 30): a policy and principals, a run played step by step, and the decisions,
+    error codes and journal entries that must follow. Activities of human actors wait for a person; the others
+    follow `actors` as in an execution case."""
+    cases = []
+    CARD = "https://agents.example/claims/.well-known/agent-card.json"
+    RPC = "https://agents.example/claims/a2a"
+
+    def person(pid, **attributes):
+        return {"id": pid, "kind": "person", "attributes": attributes}
+
+    alice = person("alice", roles=["requester", "approver"], department="claims")
+    bob = person("bob", roles=["approver"], clearance=3)
+    carol = person("carol", roles=["clerk"], contractor=True)
+    dave = person("dave", roles=["approver"], clearance=2)
+
+    def ref(p):
+        return {"id": p["id"], "kind": p["kind"]}
+
+    def roles(c, *names):
+        c.roles = [{"id": c.u(f"role-{n}"), "name": n, "actor_type": "human"} for n in names]
+
+    def human(c, name, role):
+        return c.act(name, "human", role_id=c.u(f"role-{role}"))
+
+    def case(c, authorization, steps, expect, **extra):
+        built = c.build()
+        body = {k: built[k] for k in ("id", "level", "spec", "description", "workflow")}
+        body["authorization"] = authorization
+        for key in ("actors", "tools", "agents"):
+            if key in built:
+                body[key] = built[key]
+        body.update(extra)
+        body["steps"] = steps
+        body["expect"] = expect
+        cases.append(body)
+
+    def start(principal=None, input=None, allowed=True, **expect):
+        step = {"start": {**({"principal": principal} if principal else {}), **({"input": input} if input else {})},
+                "expect": {"allowed": allowed, **({} if allowed else {"code": "FORBIDDEN"}), **expect}}
+        return step
+
+    def complete(activity, principal, output=None, allowed=True, **expect):
+        return {"complete": {"activity": activity, "principal": principal, "output": output or {}},
+                "expect": {"allowed": allowed, **({} if allowed else {"code": "FORBIDDEN"}), **expect}}
+
+    host_may_start = {"id": "host-starts", "effect": "allow", "actions": ["start_run"], "subject": {"ids": ["host"]}}
+    people_complete = {"id": "people-complete", "effect": "allow", "actions": ["complete_task"], "subject": {"kinds": ["person"]}}
+
+    # --- starting a run ----------------------------------------------------------------------------------
+    c = Case("start-by-an-allowed-principal", "authorization", "30.4", "A caller the policy allows starts the run, and run.started names them. The start decision is not journalled: an allowed start is on record through run.started.")
+    roles(c, "Requester")
+    human(c, "Submit", "Requester")
+    case(c, {"policy": {"rules": [{"id": "requesters-start", "effect": "allow", "actions": ["start_run"], "subject": {"roles": ["requester"]}, "resource": {"workflows": [c.id]}}]}},
+         [start(alice, {"claim": "C-1"}, status="waiting_human")],
+         {"status": "waiting_human", "decisions": [],
+          "journal_contains": [{"type": "run.started", "data": {"principal": ref(alice), "input": {"claim": "C-1"}}}]})
+
+    c = Case("default-deny-refuses-a-start", "authorization", "30.3", "Under a policy, what no rule allows is denied: a caller no rule allows to start the run is refused with FORBIDDEN, and no run exists.")
+    roles(c, "Requester")
+    human(c, "Submit", "Requester")
+    case(c, {"policy": {"rules": [{"id": "requesters-start", "effect": "allow", "actions": ["start_run"], "subject": {"roles": ["requester"]}}]}},
+         [start(carol, allowed=False, reason="no_rule")],
+         {"started": False})
+
+    c = Case("without-a-policy-nothing-is-checked", "authorization", "30.2", "Principals without a policy: nothing is checked and nothing is decided, but who started the run, who performed each activity and who completed each task are recorded.")
+    roles(c, "Approver")
+    c.act("Prepare", "ai_agent", role_id=c.u("role-Approver"))
+    human(c, "Approve", "Approver").edge("Prepare", "Approve")
+    case(c, {"principals": [{"id": "agent:drafter", "kind": "ai_agent", "acts_for": {"activities": ["Prepare"]}}]},
+         [start(carol), complete("Approve", carol, {"approved": True})],
+         {"status": "completed", "decisions": [],
+          "journal_contains": [{"type": "run.started", "data": {"principal": ref(carol)}},
+                               {"type": "activity.started", "node_name": "Prepare", "data": {"principal": {"id": "agent:drafter", "kind": "ai_agent"}}},
+                               {"type": "activity.completed", "node_name": "Prepare", "data": {"principal": {"id": "agent:drafter", "kind": "ai_agent"}}},
+                               {"type": "token.resumed", "node_name": "Approve", "data": {"principal": ref(carol)}},
+                               {"type": "activity.completed", "node_name": "Approve", "data": {"principal": ref(carol)}}]})
+
+    # --- completing a person's task ----------------------------------------------------------------------
+    c = Case("deny-overrides-allow", "authorization", "30.3", "A rule that denies wins over a rule that allows. The refused answer leaves the task waiting, and the denial is journalled with the rule that decided; another person then completes it.")
+    roles(c, "Reviewer")
+    human(c, "Review", "Reviewer")
+    case(c, {"policy": {"rules": [host_may_start, people_complete,
+                                  {"id": "no-contractors", "effect": "deny", "actions": ["complete_task"], "subject": {"attributes": {"contractor": True}}}]}},
+         [start(), complete("Review", carol, {"ok": True}, allowed=False, status="waiting_human"), complete("Review", bob, {"ok": True}, status="completed")],
+         {"status": "completed", "data": {"ok": True},
+          "decisions": [{"action": "complete_task", "decision": "deny", "principal": ref(carol), "rule": "no-contractors", "reason": "rule",
+                         "resource": {"activity_name": "Review", "workflow_name": c.id}}],
+          "journal_contains": [{"type": "authorization.decided", "node_name": "Review", "data": {"decision": "deny"}},
+                               {"type": "activity.completed", "node_name": "Review", "data": {"principal": ref(bob)}}],
+          "journal_count": {"activity.completed": 1, "token.resumed": 1}})
+
+    c = Case("separation-of-duties-in-a-run", "authorization", "30.3", "The person who submitted a claim may not approve it in the same run: separation of duties denies them, and another approver completes it.")
+    roles(c, "Requester", "Approver")
+    human(c, "Submit", "Requester")
+    human(c, "Approve", "Approver").edge("Submit", "Approve")
+    case(c, {"policy": {"rules": [host_may_start, people_complete],
+                        "separation_of_duties": [{"id": "maker-checker", "activities": ["Submit", "Approve"]}]}},
+         [start(), complete("Submit", alice, {"amount": 400}), complete("Approve", alice, {"approved": True}, allowed=False, status="waiting_human"),
+          complete("Approve", bob, {"approved": True}, status="completed")],
+         {"status": "completed", "data": {"amount": 400, "approved": True},
+          "decisions": [{"action": "complete_task", "decision": "deny", "principal": ref(alice), "rule": "maker-checker", "reason": "separation_of_duties"}],
+          "journal_contains": [{"type": "activity.completed", "node_name": "Submit", "data": {"principal": ref(alice)}},
+                               {"type": "activity.completed", "node_name": "Approve", "data": {"principal": ref(bob)}}]})
+
+    c = Case("separation-of-duties-includes-the-requester", "authorization", "30.3", "With includes_starter, the person who started the run counts as having performed an activity of the set: the requester may not approve their own request.")
+    roles(c, "Approver")
+    human(c, "Approve", "Approver")
+    case(c, {"policy": {"rules": [{"id": "anyone-starts", "effect": "allow", "actions": ["start_run"], "subject": {"kinds": ["person"]}}, people_complete],
+                        "separation_of_duties": [{"id": "not-your-own", "activities": ["Approve"], "includes_starter": True}]}},
+         [start(alice), complete("Approve", alice, {"approved": True}, allowed=False), complete("Approve", bob, {"approved": True})],
+         {"status": "completed",
+          "decisions": [{"action": "complete_task", "decision": "deny", "principal": ref(alice), "rule": "not-your-own", "reason": "separation_of_duties"}]})
+
+    c = Case("four-eyes-needs-two-distinct-approvers", "authorization", "30.3", "Under a four-eyes rule each answer is an approval. The first keeps the task waiting; the same person approving again is denied; a principal no rule allows is denied; the second distinct approver completes the activity, whose record names both.")
+    roles(c, "Approver")
+    human(c, "Approve", "Approver").act("Pay").edge("Approve", "Pay")
+    case(c, {"policy": {"rules": [host_may_start, {"id": "approvers-approve", "effect": "allow", "actions": ["approve"], "subject": {"roles": ["approver"]}},
+                                  {"id": "applications-run", "effect": "allow", "actions": ["perform_activity"], "subject": {"kinds": ["application"]}}],
+                        "four_eyes": [{"id": "two-approvers", "activities": ["Approve"], "approvals": 2}]}},
+         [start(), complete("Approve", alice, {"approved": True, "note": "fine"}, status="waiting_human"),
+          complete("Approve", alice, {"approved": True}, allowed=False, status="waiting_human"),
+          complete("Approve", carol, {"approved": True}, allowed=False, status="waiting_human"),
+          complete("Approve", bob, {"approved": True}, status="completed")],
+         {"status": "completed", "visited": ["Pay"], "data": {"approved": True, "note": "fine"},
+          "decisions": [{"action": "approve", "decision": "allow", "principal": ref(alice), "rule": "approvers-approve", "approval": {"given": 1, "required": 2}},
+                        {"action": "approve", "decision": "deny", "principal": ref(alice), "rule": "two-approvers", "reason": "four_eyes"},
+                        {"action": "approve", "decision": "deny", "principal": ref(carol), "reason": "no_rule"},
+                        {"action": "approve", "decision": "allow", "principal": ref(bob), "rule": "approvers-approve", "approval": {"given": 2, "required": 2}}],
+          "journal_contains": [{"type": "activity.completed", "node_name": "Approve", "data": {"principal": ref(bob), "approvals": [ref(alice), ref(bob)]}}],
+          "journal_count": {"activity.completed": 2, "token.resumed": 1}})
+
+    # --- conditions over the principal and the run's data --------------------------------------------------
+    rules = [host_may_start,
+             {"id": "clerks-small", "effect": "allow", "actions": ["complete_task"], "subject": {"roles": ["clerk"]}, "condition": "run.amount < 10000"},
+             {"id": "cleared-approvers", "effect": "allow", "actions": ["complete_task"], "subject": {"roles": ["approver"]}, "condition": "principal.attributes.clearance >= 3"}]
+    c = Case("condition-on-run-data", "authorization", "30.2", "A rule's condition is a section 6 expression over the principal, the resource and the run's data. A clerk may not settle a large claim, nor an approver without the clearance; an approver with it may.")
+    roles(c, "Settler")
+    human(c, "Settle", "Settler")
+    case(c, {"policy": {"rules": rules}},
+         [start(None, {"amount": 25000}), complete("Settle", carol, {"paid": True}, allowed=False), complete("Settle", dave, {"paid": True}, allowed=False),
+          complete("Settle", bob, {"paid": True})],
+         {"status": "completed", "data": {"amount": 25000, "paid": True},
+          "decisions": [{"action": "complete_task", "decision": "deny", "principal": ref(carol), "reason": "no_rule"},
+                        {"action": "complete_task", "decision": "deny", "principal": ref(dave), "reason": "no_rule"}]})
+
+    c = Case("condition-on-run-data-allows-small-amounts", "authorization", "30.2", "The same policy lets a clerk settle a claim whose amount is below the threshold.")
+    roles(c, "Settler")
+    human(c, "Settle", "Settler")
+    case(c, {"policy": {"rules": rules}, "record_allows": True},
+         [start(None, {"amount": 500}), complete("Settle", carol, {"paid": True})],
+         {"status": "completed",
+          "decisions": [{"action": "complete_task", "decision": "allow", "principal": ref(carol), "rule": "clerks-small", "reason": "rule",
+                         "resource": {"workflow_name": c.id, "activity_name": "Settle", "role_name": "Settler"}}]})
+
+    # --- agents, tools and agents over A2A ---------------------------------------------------------------
+    def bot(roles_):
+        return {"id": "agent:triage-bot", "kind": "ai_agent", "attributes": {"roles": roles_}, "acts_for": {"roles": ["Underwriter"]}}
+
+    agent_rules = [host_may_start,
+                   {"id": "underwriters-assess", "effect": "allow", "actions": ["perform_activity"], "subject": {"roles": ["underwriter"]}, "resource": {"roles": ["Underwriter"]}},
+                   {"id": "applications-run", "effect": "allow", "actions": ["perform_activity"], "subject": {"kinds": ["application"]}}]
+    c = Case("ai-agent-not-allowed-in-a-role", "authorization", "30.4", "An AI agent whose identity has no role the policy allows in the activity's role is refused before its first attempt: nothing is started, the token fails with FORBIDDEN and the denial is journalled.")
+    c.roles = [{"id": c.u("role-Underwriter"), "name": "Underwriter", "actor_type": "ai_agent"}]
+    c.act("Assess", "ai_agent", role_id=c.u("role-Underwriter")).act("Settle").edge("Assess", "Settle")
+    c.actors = {"Assess": {"output": {"decision": "approve"}}}
+    case(c, {"principals": [bot(["triage"])], "policy": {"rules": agent_rules}},
+         [start()],
+         {"status": "failed", "visited": [],
+          "decisions": [{"action": "perform_activity", "decision": "deny", "principal": {"id": "agent:triage-bot", "kind": "ai_agent"}, "reason": "no_rule",
+                         "resource": {"activity_name": "Assess", "role_name": "Underwriter"}}],
+          "journal_contains": [{"type": "token.failed", "node_name": "Assess", "data": {"error": {"code": "FORBIDDEN"}}}],
+          "journal_excludes": ["activity.started", "activity.completed"]})
+
+    c = Case("ai-agent-allowed-in-its-role", "authorization", "30.6", "An agent allowed in its role performs the activity; its principal is on activity.started and activity.completed. With record_allows the allows are journalled too, and an application with no identity of its own acts as <actor_type>:<role_id>.")
+    c.roles = [{"id": c.u("role-Underwriter"), "name": "Underwriter", "actor_type": "ai_agent"}]
+    c.act("Assess", "ai_agent", role_id=c.u("role-Underwriter")).act("Settle").edge("Assess", "Settle")
+    c.actors = {"Assess": {"output": {"decision": "approve"}}}
+    case(c, {"principals": [bot(["underwriter"])], "policy": {"rules": agent_rules}, "record_allows": True},
+         [start()],
+         {"status": "completed", "visited": ["Assess", "Settle"],
+          "decisions": [{"action": "perform_activity", "decision": "allow", "principal": {"id": "agent:triage-bot", "kind": "ai_agent"}, "rule": "underwriters-assess"},
+                        {"action": "perform_activity", "decision": "allow", "principal": {"id": f"application:{c.u('role')}", "kind": "application"}, "rule": "applications-run"}],
+          "journal_contains": [{"type": "activity.started", "node_name": "Assess", "data": {"principal": {"id": "agent:triage-bot", "kind": "ai_agent"}}},
+                               {"type": "activity.completed", "node_name": "Assess", "data": {"principal": {"id": "agent:triage-bot", "kind": "ai_agent"}}}]})
+
+    def fn_tool(name):
+        return {"name": name, "description": f"The {name} tool", "parameters": {"type": "object", "properties": {"q": {"type": "string"}}},
+                "binding": {"kind": "function", "name": name}}
+
+    c = Case("tool-call-denied", "authorization", "30.4", "A tool call the policy does not allow the agent is refused with FORBIDDEN before it runs, after the deployment's permissions: it is journalled as tool.failed with invoked false, beside the denial, and returned to the agent. It does not fail the activity.")
+    c.act("Assess", "ai_agent", tools=[fn_tool("lookup"), fn_tool("refund")])
+    c.actors = {"Assess": {"calls": [{"tool": "lookup", "arguments": {"q": "C-1"}}, {"tool": "refund", "arguments": {"q": "C-1"}}], "output": {"done": True}}}
+    c.tools = {"lookup": {"result": {"found": True}}, "refund": {"result": {"refunded": True}}}
+    case(c, {"principals": [{"id": "agent:claims-bot", "kind": "ai_agent", "attributes": {"roles": ["assessor"]}, "acts_for": {"activities": ["Assess"]}}],
+             "policy": {"rules": [host_may_start,
+                                  {"id": "assessors-assess", "effect": "allow", "actions": ["perform_activity"], "subject": {"roles": ["assessor"]}},
+                                  {"id": "assessors-look-up", "effect": "allow", "actions": ["call_tool"], "subject": {"roles": ["assessor"]}, "resource": {"tools": ["lookup"]}}]}},
+         [start()],
+         {"status": "completed", "data": {"done": True},
+          "decisions": [{"action": "call_tool", "decision": "deny", "principal": {"id": "agent:claims-bot", "kind": "ai_agent"}, "reason": "no_rule",
+                         "resource": {"tool": "refund", "activity_name": "Assess"}}],
+          "journal": ["activity.started", "tool.invoked", "tool.completed", "authorization.decided", "tool.failed", "activity.completed"],
+          "journal_contains": [{"type": "tool.failed", "data": {"tool": "refund", "invoked": False, "error": {"code": "FORBIDDEN"}}},
+                               {"type": "tool.completed", "data": {"tool": "lookup"}}],
+          "journal_count": {"tool.invoked": 1}})
+
+    c = Case("agent-over-a2a-not-reached-with-confidential-data", "authorization", "30.4", "Before anything is sent to an agent over A2A, its identity must be allowed to reach_agent with the activity's data classification. A deny rule for partners on confidential data overrides the allow: the card is not read, nothing is sent, and the token fails with FORBIDDEN.")
+    c.act("Assess", "ai_agent", a2a={"agent_card": CARD})
+    c.actors = {}
+    c.agents = {CARD: {"card": {"name": "Claims assessor", "version": "1.0.0", "supportedInterfaces": [{"url": RPC, "protocolBinding": "JSONRPC", "protocolVersion": "1.0"}],
+                                "capabilities": {"streaming": False, "pushNotifications": False}, "defaultInputModes": ["application/json"], "defaultOutputModes": ["application/json"],
+                                "skills": [{"id": "assess", "name": "Assess", "description": "Assess a claim", "tags": []}]},
+                       "replies": [{"result": {"task": {"id": "task-1", "contextId": "ctx-1", "status": {"state": "TASK_STATE_COMPLETED"},
+                                                         "artifacts": [{"artifactId": "a0", "parts": [{"data": {"decision": "approve"}, "mediaType": "application/json"}]}]}}}]}}
+    case(c, {"principals": [{"id": "agent:partner-assessor", "kind": "ai_agent", "attributes": {"groups": ["partners"]}, "acts_for": {"agents": [CARD]}}],
+             "classifications": {c.id: "confidential"},
+             "policy": {"rules": [host_may_start,
+                                  {"id": "agents-perform", "effect": "allow", "actions": ["perform_activity", "reach_agent"], "subject": {"kinds": ["ai_agent"]}},
+                                  {"id": "no-confidential-to-partners", "effect": "deny", "actions": ["reach_agent"], "subject": {"groups": ["partners"]}, "resource": {"classifications": ["confidential"]}}]}},
+         [start()],
+         {"status": "failed", "agent_card_reads": 0, "agent_requests": [],
+          "decisions": [{"action": "reach_agent", "decision": "deny", "principal": {"id": "agent:partner-assessor", "kind": "ai_agent"}, "rule": "no-confidential-to-partners",
+                         "resource": {"agent": CARD, "classification": "confidential"}}],
+          "journal_contains": [{"type": "token.failed", "data": {"error": {"code": "FORBIDDEN"}}}],
+          "journal_excludes": ["agent.message_sent", "activity.started"]})
+
+    return cases
+
+
 def telemetry_cases() -> list[dict]:
     """Level `telemetry` (section 26): a record, and the trace every implementation must derive from it."""
     import hashlib
@@ -2886,7 +3116,7 @@ def write_interchange_cases() -> int:
 
 
 def main() -> None:
-    for folder in ("execution", "documents", "journeys", "replay", "knowledge", "measures", "telemetry", "shared-store", "evidence", "evaluation"):
+    for folder in ("execution", "documents", "journeys", "replay", "knowledge", "measures", "telemetry", "shared-store", "evidence", "evaluation", "authorization"):
         (ROOT / folder).mkdir(exist_ok=True)
         for old in (ROOT / folder).glob("*.json"):
             old.unlink()
@@ -2911,6 +3141,8 @@ def main() -> None:
         write(ROOT / "evidence" / f"{case['id']}.json", case)
     for case in evaluation_cases():
         write(ROOT / "evaluation" / f"{case['id']}.json", case)
+    for case in authorization_cases():
+        write(ROOT / "authorization" / f"{case['id']}.json", case)
     tests = unary_tests()
     write(ROOT / "unary-tests.json", tests)
     exprs = expressions()
@@ -2924,6 +3156,7 @@ def main() -> None:
     print(f"wrote {len(execution)} execution cases, {len(document_cases())} document cases "
           f"and {len(tests['cases']) + len(tests['invalid'])} unary tests")
     print(f"wrote {interchange} interchange cases")
+    print(f"wrote {len(authorization_cases())} authorization cases")
 
 
 if __name__ == "__main__":
