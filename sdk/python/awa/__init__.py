@@ -28,6 +28,7 @@ from awa.types import (
     DecisionOption,
     ToolDefinition,
     ToolBinding,
+    Guardrail,
     Role,
     System,
     Machine,
@@ -77,6 +78,7 @@ from awa.runtime.counterfactual import counterfactual_replay, render_counterfact
 from awa.runtime.evidence import compute_evidence, render_evidence_html, render_evidence_markdown
 from awa.runtime.evaluation import build_dataset, evaluate_dataset, render_evaluation_report
 from awa.runtime.shadow import ShadowRunner
+from awa.runtime.guardrails import GuardrailSet
 
 __version__ = "2.0.0"
 __all__ = [
@@ -169,6 +171,9 @@ __all__ = [
     "evaluate_dataset",
     "render_evaluation_report",
     "ShadowRunner",
+    # Guardrails on what goes into and comes out of agents and tools (specification 31)
+    "Guardrail",
+    "GuardrailSet",
     "run_spans",
     "journey_spans",
     "spans_to_otlp_json",

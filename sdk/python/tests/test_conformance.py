@@ -29,7 +29,7 @@ CONFORMANCE = Path(__file__).resolve().parents[3] / "spec" / "conformance"
 SCHEMAS = Path(__file__).resolve().parents[3] / "spec" / "json-schema"
 CLAIMED_LEVELS = {"interchange", "core", "decision", "verified", "recorded", "resilient", "contract", "flow", "events",
                   "tools", "model_decision", "routing", "journeys", "measures",
-                  "replay", "contexts", "service_levels", "knowledge", "telemetry", "shared_store", "evidence", "evaluation", "a2a"}
+                  "replay", "contexts", "service_levels", "knowledge", "telemetry", "shared_store", "evidence", "evaluation", "a2a", "guardrails"}
 # Integrity rules the Python SDK does not enforce. None at present.
 UNSUPPORTED_INTEGRITY_RULES: set[str] = set()
 
@@ -53,11 +53,15 @@ class ConformanceActor:
         self.given = []
         # The contexts the actor was handed at its last execution of each activity; None when it was handed none
         self.contexts = {}
+        # The input the actor was given at its last execution of each activity, without what is reserved to the engine
+        self.inputs = {}
 
     def execute(self, activity, token, context=None):
         self.visited.append(activity.name)
         self.given.append({"activity": activity.name, "ids": [k["id"] for k in token.get_data("_knowledge") or []]})
         self.contexts[activity.name] = copy.deepcopy(token.context_data.get("_contexts"))
+        self.inputs[activity.name] = copy.deepcopy(
+            {k: v for k, v in token.context_data.items() if not str(k).startswith("_") and k != "activities"})
         n = self.counts[activity.name] = self.counts.get(activity.name, 0) + 1
         script = self.scripts.get(activity.name, {})
         if "attempts" in script:
@@ -226,6 +230,9 @@ def test_execution(case):
         "a2a": {"transport": agent_transport, "poll_interval_ms": 0},
         **({"tools": scripted_tools(case["tools"])} if "tools" in case else {}),
         **(model_options if "model" in case else {}),
+        # Classifiers that guardrails call (31.8): each gives the case's verdict
+        **({"guardrail_classifiers": {name: (lambda request, verdict=verdict: verdict)
+                                      for name, verdict in case["classifiers"].items()}} if "classifiers" in case else {}),
         **({"now": lambda: clock["now"], "sleep": lambda ms: None} if "clock" in case else {}),
         **case.get("options", {}),
     })
@@ -272,6 +279,8 @@ def test_execution(case):
         assert actor.contexts.get(name) == given, f"contexts given to {name}"
     if "contexts" in expect:
         assert engine.get_contexts() == expect["contexts"]
+    for name, given in expect.get("given_inputs", {}).items():
+        assert is_subset(given, actor.inputs.get(name)), f"input given to {name}: {actor.inputs.get(name)}"
     if "data" in expect:
         assert any(is_subset(expect["data"], t.context_data) for t in engine.tokens)
 
@@ -289,6 +298,12 @@ def test_execution(case):
         assert any(is_subset(wanted, e) for e in events), f"no event matches {json.dumps(wanted)}"
     for excluded in expect.get("journal_excludes", []):
         assert excluded not in [e["type"] for e in events]
+    # Text that no event may hold, whatever its field: what a guardrail matched is never journalled (31.7)
+    for text in expect.get("journal_excludes_text", []):
+        holding = [e["type"] for e in events if text in json.dumps(e, ensure_ascii=False)]
+        assert holding == [], f'events holding "{text}": {holding}'
+    if "guardrail_sources" in expect:
+        assert [e["data"]["source"] for e in events if e["type"] == "guardrail.triggered"] == expect["guardrail_sources"]
     for event_type, count in expect.get("journal_count", {}).items():
         assert len([e for e in events if e["type"] == event_type]) == count, f"count of {event_type}"
     for wanted in expect.get("journal_mentions", []):
@@ -312,6 +327,9 @@ def test_execution(case):
 
 @pytest.mark.parametrize("case", DOCUMENTS, ids=[c["id"] for c in DOCUMENTS])
 def test_documents(case):
+    # A document case of a level other than `document` runs when that level is claimed
+    if case.get("level") and case["level"] not in CLAIMED_LEVELS:
+        pytest.skip(f"level '{case['level']}' is not claimed by the Python SDK")
     document = unwrap(case["document"])
     if case["valid"]:
         assert validate_workflow_integrity(Workflow.model_validate(document)).valid

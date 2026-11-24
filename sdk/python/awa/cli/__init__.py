@@ -143,7 +143,7 @@ def serve_api(args: argparse.Namespace) -> int:
 
             def engine_options() -> dict:
                 journal_dir = os.environ.get("AWA_JOURNAL_DIR")
-                return {"tools": deployment["tools"], "a2a": deployment["a2a"],
+                return {"tools": deployment["tools"], "a2a": deployment["a2a"], "guardrails": deployment.get("guardrails") or [],
                         **({"journal": FileJournalStore(journal_dir)} if journal_dir else {})}
             from awa.cli.run import read_workflow
             offered = [read_workflow(file) for file in args.a2a]

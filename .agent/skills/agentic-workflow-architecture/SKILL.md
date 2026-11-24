@@ -1,7 +1,7 @@
 ---
 name: agentic-workflow-architecture
 description: Expert guide for working with the Agentic Workflow Architecture (AWA) framework. Use this skill when users need to create, edit, validate, execute, or visualize AI-native workflow processes using AWA's SDK (TypeScript & Python), CLI, API, or visualization tools. This skill covers workflow building with the fluent API, running workflows via CLI, triggering workflows via REST API, creating workflow JSON files, understanding AWA concepts (actors, contexts, skills, access rights, decision nodes), and rendering workflow diagrams.
-Sync: Updated for AWA 1.1 (normative specification, outcome contracts, model routing, tools with MCP and gRPC, agents over A2A, journal, knowledge)
+Sync: Updated for AWA 1.1 (normative specification, outcome contracts, model routing, tools with MCP and gRPC, agents over A2A, guardrails, journal, knowledge)
 ---
 
 # Agentic Workflow Architecture (AWA) Skill
@@ -234,6 +234,20 @@ An activity can be performed by an agent reached over the Agent2Agent protocol 1
 ```
 
 The agent gets the activity and its data as a message; its artifacts become the output, held to the outcome contract and verification like any actor's. If the agent asks for input, the run waits (`waiting_human`) until the host answers with `answerAgent` (`answer_agent` in Python). Agents are held to the deployment's allowed hosts; in simulation nothing is called. `awa serve --a2a workflow.awa.json` offers a workflow to other agents, with its card at `/.well-known/agent-card.json`.
+
+### Guardrails
+
+Put guardrails on what goes into and comes out of agents and tools (specification section 31). Declare them in `guardrails` on the workflow, a role, an activity or a tool; a deployment adds its own (`guardrails` in the deployment file), which run first and cannot be removed by a document.
+
+```json
+"guardrails": [
+  { "id": "…", "name": "No personal data out", "stages": ["output", "tool_call"], "check": { "kind": "personal_data" }, "action": "redact" },
+  { "id": "…", "name": "Injection in data", "stages": ["input"], "check": { "kind": "prompt_injection" }, "action": "block" },
+  { "id": "…", "name": "Known decisions", "stages": ["output"], "check": { "kind": "allowed_values", "path": "decision", "values": ["approve", "refer"] }, "action": "retry_with_feedback" }
+]
+```
+
+Stages: `input` (what the actor is given), `output` (before the outcome contract and verification), `tool_call`, `tool_result`. Checks: `personal_data`, `deny_list`, `prompt_injection`, `size`, `json_schema`, `allowed_values`, `topic` (condition expressions), `model` (a guard model; the engine default unless a reference is named) and `classifier` (registered by the deployment). Actions: `block` (`GUARDRAIL_BLOCKED`), `redact`, `retry_with_feedback` (output only), `escalate` (to a person; input and output) and `warn`; a guardrail on a tool takes only `tool_call` and `tool_result`. The journal records `guardrail.triggered` with positions and categories, never the matched text. Pattern lists are a floor, not a defence: bound what an agent can do with tools, permissions and contracts.
 
 ### After a run: journal, recipe, replay, knowledge
 

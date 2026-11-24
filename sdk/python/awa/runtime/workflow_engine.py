@@ -66,6 +66,9 @@ from awa.runtime.logger import Logger
 from awa.runtime.outcome_contract import check_contract, contract_feedback, outcome_of
 from awa.runtime.retry import RetryConfig, RetryState, DeadLetterQueue, calculate_retry_delay
 from awa.runtime.verification import VerificationEngine
+from awa.runtime.guardrails import (
+    GuardrailContext, GuardrailSet, GuardrailStop, guardrail_feedback, input_value, merge_guarded, output_value,
+)
 
 
 class EngineStatus(str, Enum):
@@ -202,6 +205,10 @@ class WorkflowEngine:
       learn:               True to distil the run's journal into that knowledge base when the run ends
       telemetry:           where the run's spans go as its journal is written (specification 26): an exporter
                            (an object with export(spans)), or {"endpoint", "headers", "protocol", "payloads"}
+      guardrails:          the deployment's guardrails (Guardrail or dict), applied to every run before the
+                           document's (specification 31.1)
+      guardrail_classifiers: classifiers that guardrails of kind "classifier" call, by name: each a callable taking
+                           {"value", "stage", "guardrail", "config"} and returning {"flagged", "categories"} (31.8)
 
     Contexts (22): while an actor executes an activity bound to contexts, the token's data holds
     `_contexts`, the values the activity may read, by context name. An actor writes to contexts by
@@ -298,6 +305,9 @@ class WorkflowEngine:
         # Service level warnings and breaches already journalled, so that each is recorded once (23.2)
         self._sla_recorded: set[str] = set()
         self._knowledge = opts.get("knowledge")
+        # The guardrails of the document and the deployment (specification 31)
+        roles = {str(r.id): r for r in workflow.roles}
+        self._guardrails = GuardrailSet(workflow, opts.get("guardrails"), lambda a: roles.get(str(a.role_id)))
         self._stats: dict[str, Any] = {
             "started_at": self._now(), "steps": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0,
         }
@@ -737,11 +747,16 @@ class WorkflowEngine:
             for key in _HANDED:
                 token.context_data.pop(key, None)
             token.context_data.update(copy.deepcopy(handed))
+            # Guardrails at stage input decide what the actor is given, once per visit (31.3)
+            originals: dict[str, Any] = {}
             try:
-                output, verification_records, attempts = self._execute_activity(token, actor, activity)
+                escalated = self._guard_input(token, activity, originals)
+                output, verification_records, attempts = escalated or self._execute_activity(token, actor, activity)
             finally:
                 for key in _HANDED:
                     token.context_data.pop(key, None)
+                # What the guardrails redacted was for the actor only: the token's data keeps the original
+                token.context_data.update(originals)
             # An actor that echoes what it was given must not carry it into the token's data
             for key in _HANDED:
                 output.pop(key, None)
@@ -794,7 +809,7 @@ class WorkflowEngine:
                 "duration_ms": duration_ms,
                 "attempts": attempts,
                 "usage": output.get("usage"),
-            }, token=token, node_id=node_id, attempt=attempts)
+            }, token=token, node_id=node_id, attempt=attempts or None)
 
             self._completed_activities.append({
                 "activity_id": node_id, "token_id": token.id, "output": copy.deepcopy(public_payload(output)),
@@ -985,7 +1000,8 @@ class WorkflowEngine:
                     context.tools = ToolRunner(
                         activity.tools, self._tool_options, record, self._journal.payload,
                         max_calls=budgets.max_tool_calls if budgets and budgets.max_tool_calls is not None else 16,
-                        simulate=bool(self.simulate), now=self._now)
+                        simulate=bool(self.simulate), now=self._now,
+                        guard=None if self._guardrails.empty else self._tool_guard(token, activity, attempt))
                 raw = self._call_actor(actor, activity, token, context)
                 # The engine cannot interrupt the actor, so a result that arrives late is ignored (11.4)
                 if timeout_ms is not None and self._now() - attempt_start > timeout_ms:
@@ -1035,6 +1051,33 @@ class WorkflowEngine:
             # Nor is a task in which the agent asks for input (28.6)
             if output.get("_awaiting_agent_input"):
                 return output, verification_records, attempt
+
+            # --- guardrails at stage output: before the contract and verification (31.3)
+            if not self._guardrails.empty:
+                checked = output_value(output)
+                guarded = self._guardrails.apply("output", activity, checked, self._guard_context(token, node_id, attempt))
+                if guarded.value is not checked:
+                    output = merge_guarded(output, guarded.value)
+                stop = guarded.stop
+                if stop is not None:
+                    can_retry = stop.action == "retry_with_feedback" and is_agent and attempt < violation_cap and attempt < hard_cap
+                    record("activity.failed", {
+                        "error": {"message": stop.message, "code": stop.code}, "retryable": can_retry,
+                        "duration_ms": int(self._now() - attempt_start),
+                    })
+                    if stop.action == "escalate":
+                        return self._escalate_guardrail(token, activity, stop, attempt, output)
+                    if not can_retry:
+                        raise ActivityError(stop.message, stop.code)
+                    feedback, feedback_attempt = guardrail_feedback(stop), attempt + 1
+                    record("meta.recorded", {
+                        "subject": "guardrail_retry",
+                        "decision": "Re-execute with what the guardrail found as feedback",
+                        "rationale": f'{stop.message}; the guardrail\'s action is "retry_with_feedback" and '
+                                     f"{violation_cap - attempt} of {violation_cap} attempts remained.",
+                        "guardrail_id": str(stop.guardrail.id), "categories": stop.categories,
+                    }, level="meta")
+                    continue
 
             usage = output.get("usage") if isinstance(output.get("usage"), dict) else {}
             tokens_used += int(usage.get("input_tokens") or 0) + int(usage.get("output_tokens") or 0)
@@ -1142,6 +1185,85 @@ class WorkflowEngine:
                              f"{policy.pass_threshold * 100:.0f}%. {max_verifications - rejections} verification attempt(s) remained.",
                 "failed_criteria": [c["criterion_name"] for c in verification["criteria_results"] if not c["passed"]],
             }, level="meta")
+
+    # ------------------------------------------------------------------
+    # Guardrails (specification 31)
+    # ------------------------------------------------------------------
+
+    def _guard_context(self, token: Token, node_id: str, attempt: int | None = None) -> GuardrailContext:
+        def record(type: str, data: dict[str, Any], level: str = "execution") -> None:
+            self._record(type, data, token=token, node_id=node_id, attempt=attempt, level=level)
+        return GuardrailContext(record=record, router=self._router, default_model=self._default_model_ref,
+                                classifiers=self.options.get("guardrail_classifiers"))
+
+    def _tool_guard(self, token: Token, activity: Activity, attempt: int) -> Callable[..., Any]:
+        """Guardrails around each tool call of an attempt (31.3): the value they leave, or a refusal"""
+        def guard(stage: str, tool: Any, value: Any, call_id: str) -> tuple[Any, dict[str, str] | None]:
+            context = self._guard_context(token, str(activity.id), attempt)
+            context.tool, context.call_id = tool, call_id
+            result = self._guardrails.apply(stage, activity, value, context)
+            return result.value, ({"code": result.stop.code, "message": result.stop.message} if result.stop else None)
+        return guard
+
+    def _guard_input(self, token: Token, activity: Activity, originals: dict[str, Any]) -> tuple[dict[str, Any], list[Any], int] | None:
+        """
+        Guardrails at stage input (31.3). What they redact replaces the token's data for the actor's
+        execution only; `originals` receives what to put back. A guardrail that escalates hands the
+        activity to a person, whose answer is returned; one that blocks raises.
+        """
+        if self._guardrails.empty:
+            return None
+        node_id = str(activity.id)
+        guarded = self._guardrails.apply("input", activity, input_value(token.context_data), self._guard_context(token, node_id))
+        if guarded.stop is not None:
+            if guarded.stop.action != "escalate":
+                raise ActivityError(guarded.stop.message, guarded.stop.code)
+            return self._escalate_guardrail(token, activity, guarded.stop, 0)
+        for key, value in guarded.value.items():
+            if token.context_data.get(key) != value:
+                if key != "_contexts":
+                    originals[key] = token.context_data.get(key)
+                token.context_data[key] = value
+        return None
+
+    def _escalate_guardrail(self, token: Token, activity: Activity, stop: GuardrailStop, attempts: int,
+                            rejected: dict[str, Any] | None = None) -> tuple[dict[str, Any], list[Any], int]:
+        """
+        A guardrail whose action is escalate hands the activity to a person (31.5), as an outcome contract
+        does (11.5). At stage input no attempt was made, so `attempts` is 0.
+        """
+        node_id = str(activity.id)
+        self._record("meta.recorded", {
+            "subject": "escalation", "decision": "Hand the activity to a human",
+            "rationale": f'{stop.message}, and the guardrail\'s action is "escalate".',
+        }, token=token, node_id=node_id, attempt=attempts or None, level="meta")
+        human = self._actors.get(ActorType.human)
+        if human is None:
+            raise ActivityError(f"{stop.message}. Escalation to a human is required, but no human actor is configured.", stop.code)
+        token.set_data("_escalation", {
+            "code": stop.code, "message": stop.message, "guardrail": {"id": str(stop.guardrail.id), "name": stop.guardrail.name},
+            "categories": stop.categories, **({"rejected_outcome": outcome_of(rejected)} if rejected is not None else {}),
+        })
+        try:
+            result = self._extract_traces(self._call_actor(human, activity, token), token, node_id, max(attempts, 1))
+        finally:
+            token.context_data.pop("_escalation", None)
+        if result.get("_requires_human_action"):
+            # The token waits; the contract is checked when the person answers (resume_token)
+            return {**result, "_escalated": True}, [], attempts
+        # A human answered at once. The deterministic terms of the contract still bind (11.5)
+        contract = activity.outcome_contract
+        if contract is not None:
+            violations = check_contract(contract, outcome_of(result))
+            self._record("contract.checked", {
+                "passed": not violations, "violations": violations, "decided_by": "human",
+                "output_hash": hash_payload(outcome_of(result)),
+            }, token=token, node_id=node_id, attempt=attempts or None)
+            if violations:
+                raise ActivityError(
+                    "Outcome contract violated by the human decision: " + "; ".join(v["message"] for v in violations),
+                    "CONTRACT_VIOLATION", {"_contract_violations": violations})
+        return {**result, "_escalated": True}, [], attempts
 
     def _reject_outcome(self, token: Token, activity: Activity, rejected: dict[str, Any], code: str, message: str,
                         details: dict[str, Any], verification_records: list[dict[str, Any]],

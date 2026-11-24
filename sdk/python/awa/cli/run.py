@@ -137,6 +137,7 @@ def run_command(args: argparse.Namespace) -> int:
             "tools": {**deployment["tools"], "allow_commands": _allow_commands(args.allow_commands)
                       if args.allow_commands is not None else deployment["tools"].get("allow_commands", False)},
             "a2a": deployment["a2a"],
+            "guardrails": deployment.get("guardrails") or [],
             "pricing_config": dict(PRICING),
             # The execution record goes to the database only when asked; otherwise it is printed
             "log_execution": bool(args.db),

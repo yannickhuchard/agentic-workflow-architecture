@@ -43,7 +43,7 @@ print(result)
 
 ## Conformance
 
-The Python SDK passes every case of every conformance level of the specification (`docs/specification.md`, section 2.1): `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `telemetry`, `interchange`, `shared_store` (with the extra `postgres`), `a2a`, `evidence` and `evaluation`. No case is skipped. Run them with `pytest tests/test_conformance.py -rs`.
+The Python SDK passes every case of every conformance level of the specification (`docs/specification.md`, section 2.1): `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `telemetry`, `interchange`, `shared_store` (with the extra `postgres`), `a2a`, `guardrails`, `evidence` and `evaluation`. No case is skipped. Run them with `pytest tests/test_conformance.py -rs`.
 
 What it still lacks compared with the TypeScript reference implementation, none of which belongs to a conformance level:
 
@@ -87,7 +87,7 @@ awa export serverless-workflow claim.awa.json [--format json|yaml]
 | `-i, --input <json>` | The data the run starts with, a JSON object |
 | `-p, --providers <list>` | Model providers in order of preference: `openai` (reads `OPENAI_API_KEY`) and `ollama` (reads `OLLAMA_BASE_URL`, default `http://localhost:11434/v1`, which can point at any OpenAI-compatible server). `google` and `embedded` are refused: the Python SDK does not have them |
 | `--allow-commands [list]` | Let tools run commands on this machine: all, or a comma-separated list of program names |
-| `--deployment <file>` | What the workflow may reach: `tools.allow_commands`, `tools.allowed_hosts`, `tools.mcp_servers`, `tools.grpc` and `a2a`, in the format of the reference's [CLI guide](../typescript/docs/cli-guide.md). `--allow-commands` takes precedence over the file's `allow_commands` |
+| `--deployment <file>` | What the workflow may reach: `tools.allow_commands`, `tools.allowed_hosts`, `tools.mcp_servers`, `tools.grpc` and `a2a`; and `guardrails`, the deployment's guardrails (specification 31.1). In the format of the reference's [CLI guide](../typescript/docs/cli-guide.md). `--allow-commands` takes precedence over the file's `allow_commands` |
 | `--db` | Write the execution record to the database (`AWA_DATABASE_URL`, default `awa.db`) instead of printing it |
 | `-k, --key` | Accepted for compatibility; the Python SDK has no Google provider |
 
@@ -220,6 +220,25 @@ A decision node with a `decision_model` lets a model choose among the options th
 `model_decision_override` (a callable taking the decision node) supplies a decision without calling a model. In simulation mode no model is called; `simulated_outputs[<node name>]["output"]` scripts the decision.
 
 External decision engines (specification 5.5.4) are registered by name in `decision_engines`: a callable, or an object with `decide(request)`, that returns `{"option": ..., "outputs": ..., "explanation": ..., "fired_rules": ...}`.
+
+## Guardrails
+
+Guardrails (specification section 31) check what goes into and comes out of AI agents and tools while a run executes. A document declares them in `guardrails` on the workflow, a role, an activity or a tool; a deployment adds its own with the engine option `guardrails` (or `guardrails` in a deployment file), which apply first and which a document cannot remove.
+
+```python
+engine = WorkflowEngine(workflow, options={
+    "guardrails": [{"id": "0b6f5a52-3c2e-4d7b-9a51-6d0f8f1c2e10", "name": "Organisation: personal data",
+                    "stages": ["output", "tool_call"], "check": {"kind": "personal_data"}, "action": "redact"}],
+    "guardrail_classifiers": {"tone": lambda request: {"flagged": False}},
+})
+```
+
+- **Stages**: `input` (what the actor is given, once per visit), `output` (the result, before the outcome contract and verification), `tool_call` (a call's arguments, before they are validated and run) and `tool_result` (what a call returned, before it is recorded or given back).
+- **Checks**: `personal_data` (emails, phone numbers, IBANs with their checksum, card numbers with the Luhn check, and custom patterns), `deny_list`, `prompt_injection` (a documented list of markers: a floor, not a defence), `size` (characters, and tokens as a quarter of them), `json_schema`, `allowed_values`, `topic` (condition expressions over the data), `model` (a guard model through the router, the engine default unless the guardrail names a reference) and `classifier` (a function registered in `guardrail_classifiers`).
+- **Actions**: `block` (`GUARDRAIL_BLOCKED`, never retried by a retry policy), `redact` (the redacted value is what goes on and what is journalled), `retry_with_feedback` (as a contract violation), `escalate` (to the human actor, as an outcome contract does) and `warn`. A check that cannot be carried out fails closed with `GUARDRAIL_ERROR`.
+- **Record**: `guardrail.triggered` with the guardrail, its source, stage, check, action, categories and findings (JSON Pointer paths and code point positions), never the text it matched.
+
+`awa.runtime.guardrails` holds `GuardrailSet`, `run_check`, `redact` and the built-in pattern lists, `PERSONAL_DATA_PATTERNS` and `INJECTION_MARKERS`, identical to the reference's.
 
 ## Contexts and service levels
 
