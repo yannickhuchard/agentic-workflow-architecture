@@ -1630,6 +1630,7 @@ An activity MAY carry `subworkflow`:
 Each attempt of a call activity (11.3) starts a new child run, except an attempt that takes the outcome of a child run that waited (24.4).
 
 - **Input.** With `subworkflow.input`, the child's input is the object it maps. Without it, the child is given the data the activity would be given: the parent token's data without the properties whose names begin with `_` and without the engine's records `activities` and `decisions` (5.2, 5.5.3).
+- **Version.** The child run starts on the version of the called workflow that a new run of it would start on at that host (25.1: the newest registered, or the one the host pins), and is bound to it as any run is: it is restored, recovered and taken up on that version, whatever version is registered after it started.
 - **Identity.** The child run has a new run id. Its `run.started` carries, besides what 9.3 lists, `depth` and `parent`: the parent's `run_id`, `workflow_id`, the call activity's `node_id`, the `token_id`, the `attempt`, the `seq` of the attempt's `activity.started` in the parent's journal, and `root_run_id`, the run of depth 0 above it.
 - **Record in the parent.** Between the attempt's `activity.started` and the event that ends it, the parent records `subworkflow.started` (24.7).
 - **Contexts.** The parent's contexts (section 22) are not shared with the child, and the contexts the call activity is given are not passed on: the child has the contexts its own workflow declares.
@@ -1692,9 +1693,9 @@ What reads the record sees this:
 
 A parent's state (10.3) holds the state of every child run it waits on, so that the parent and its children are saved, restored and taken up together. A child run is never restored, saved or taken up on its own.
 
-The checkpoint's `metadata.subworkflows` holds, where the run has any: `depth`; `parent`, as in 24.2, for a child; `runs`, the list of 24.7 for the run's own children and their descendants; and `live`, for each child run the run waits on or whose outcome it has not yet taken, `{run_id, workflow_id, state}` with that child's own state. Implementations that share a store (29.5) MUST write this form.
+The checkpoint's `metadata.subworkflows` holds, where the run has any: `depth`; `parent`, as in 24.2, for a child; `runs`, the list of 24.7 for the run's own children and their descendants; `live`, for each child run the run waits on or whose outcome it has not yet taken, `{run_id, workflow_id, state}` with that child's own state; and `performed`, for each activity completed with a principal (30.6) in a child run that has ended, at any depth, `{run_id, activity_id, activity_name, principal_ids}`. Implementations that share a store (29.5) MUST write this form.
 
-- **Runtime directory (19.10).** `runtime.json` holds runs of depth 0 only, each with its children inside. Each child run's journal is a file of `journals/` under its own run id. On recovery a child run is continued with its parent, its journal going on at the next `seq` of its own journal with `run.resumed`; the workflows it runs must be registered, or the host refuses to start.
+- **Runtime directory (19.10).** `runtime.json` holds runs of depth 0 only, each with its children inside. Each child run's journal is a file of `journals/` under its own run id. On recovery a child run is continued with its parent, its journal going on at the next `seq` of its own journal with `run.resumed`; the version of the workflow each child runs (its state's `workflow_version`) must be registered, or the host refuses to start.
 - **Shared store (29).** A child run belongs to the partition of its run of depth 0: a child of a run started for a journey instance is in the subject's partition, a child of a run outside any journey in `run:<root run id>`. A child and its parent are therefore never in different partitions, and one hold covers both. The store keeps each child run as a run of its own (in the PostgreSQL store, a row of `runs` in that partition), so that its journal belongs to a run and a reader finds it, but a host takes up only runs of depth 0, each with its children; it never adopts a child. The waits and deadlines a store finds for a run (29.1, item 4) include those of its children. A host asked to complete a task of a child run holds the partition the store gives for that run.
 
 ### 24.9 Out of scope
@@ -1719,7 +1720,7 @@ A run is bound to the version it started on. `run.started` records it as `workfl
 
 A host MAY have several versions of one workflow registered at once. It MUST:
 
-- start a new run on the **newest** registered version, by semantic version order, unless the caller names a version, or the host is configured to **pin** the workflow to a version, which new runs then start on. This holds for runs a caller starts, runs a journey's trigger or stage starts (19.2, 19.3) and runs a business event starts (18.4);
+- start a new run on the **newest** registered version, by semantic version order, unless the caller names a version, or the host is configured to **pin** the workflow to a version, which new runs then start on. This holds for runs a caller starts, runs a journey's trigger or stage starts (19.2, 19.3), runs a business event starts (18.4) and child runs (24.2);
 - keep each run under way on its own version when another version is registered, and after the host restarts (19.10) or another host takes the run up (29.2);
 - keep every version a run that has not ended is on. A runtime directory (19.10) keeps each version of a workflow in its own file, `definitions/workflow-<id>@<version>.json`; a shared store keeps each version as its own row of `definitions` (29.4). Registering a version does not remove another. A version no run is on MAY be removed.
 
@@ -1814,6 +1815,7 @@ On a store that holds operations (29.1), a migration is one operation on the run
 | `tokens` | For each token at rest: `token_id`, `status` before, `from_node_id`, `from_node_name`, `to_node_id`, `to_node_name`, `wait`, and `outcome`, `kept` or `restarted` |
 | `data_changes` | For each change made: `token_id`, `path`, `change` (`set` or `removed`), and `value` and `previous` where there are any. The values are payloads: the run's payload mode (9.4) applies to them |
 | `completed_work` | Where the plan maps the node of completed work elsewhere: `from_node_id` and `to_node_id` |
+| `principal` | Where the deployment has an `authorization` section: who moved the run (30.6), the host principal when the host was not told |
 
 **Dry run.** An engine MUST offer a dry run: it performs every check and reports what the migration would do (its refusals, or the tokens, the changes to data and the run's status after it), and changes nothing and journals nothing.
 
@@ -2563,6 +2565,8 @@ Under a policy, an engine and a host MUST ask before each of these, and MUST NOT
 | A task in a task queue is completed or rejected | `complete_task` | The caller | The task is unchanged. `FORBIDDEN` |
 | An agent's input is given; a business event is published; a journal is read; a run is cancelled or migrated, where a host offers it | `answer_agent`, `publish_event`, `read_journal`, `cancel_run`, `migrate_run` | The caller | `FORBIDDEN` |
 
+A child run (section 24) is not decided as `start_run`: starting it is how its parent performs the call activity, which is decided as any activity is. Its `run.started` names as `principal` whoever started the run of depth 0 above it. A person's answer to a task of a child run, given through its parent (24.4), is decided in the child run, for who answers, as in any run. A host that offers a workflow as an A2A agent (28.8) decides `start_run` for the caller whose message starts a run and `cancel_run` for the caller that cancels its task.
+
 Retries of an activity (10.1, 7.4, 11.3) are attempts of the same visit and are not decided again. The attempt that resumes an agent's task after the host gave it input (28.6) continues the visit and is not decided again either. A compensation handler (13.6) is run by the engine to undo work already allowed, and is not decided.
 
 A task queue that does not host the run decides with the task's inputs as the run's data and without the run's record: separation of duties and four-eyes rules are applied when the answer reaches the run, which may still refuse it.
@@ -2582,6 +2586,7 @@ What a run records says who did what:
 | `run.started` | `principal`: who started the run |
 | `activity.started`, `activity.completed` | `principal`: the identity that performed the activity, when its actor is not a person |
 | `token.resumed`, `activity.completed` | `principal`: who answered a person's task; under a four-eyes rule, `approvals` on `activity.completed`: every approver, in order |
+| `run.migrated` | `principal`: who moved the run to another version (25.3) |
 | `authorization.decided` | A decision, as below |
 
 These are recorded whenever the deployment has an `authorization` section, with or without a policy. A principal is journalled as its `id` and `kind` only; its attributes, which may be personal data, and its credentials, never.
@@ -2599,7 +2604,7 @@ These are recorded whenever the deployment has an `authorization` section, with 
 
 An engine MUST record a denial within a run, MUST record every allowed approval under a four-eyes rule, and records other allowed decisions when the deployment sets `record_allows`. The decision to start a run is not journalled: a refused start has no run, and an allowed one names its principal on `run.started`.
 
-The record a separation of duties is decided on is the run's own: the principals that completed its activities, kept with the run across checkpoints and recovery (10.3).
+The record a separation of duties is decided on is the run's own: the principals that completed its activities, kept with the run across checkpoints, recovery (10.3) and migration (25.3). A run of depth 0 and its child runs (section 24) are one record: in any of them, a separation of duties is decided on the activities completed in all of them, those of child runs that have ended included (24.8), and `includes_starter` names whoever started the run of depth 0.
 
 ### 30.7 Other deciders
 

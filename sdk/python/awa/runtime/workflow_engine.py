@@ -319,7 +319,8 @@ class WorkflowEngine:
             self._authorization = RunAuthorization(
                 opts["authorization"], workflow, {str(r.id): r for r in workflow.roles},
                 record=lambda type, data, **ref: self._record(type, data, **ref),
-                performed=lambda: self._completed_activities)
+                # Separation of duties is decided on the record of the run of depth 0 and all its child runs (30.6, 24)
+                performed=lambda: self._calls.record())
         # The guardrails of the document and the deployment (specification 31)
         roles = {str(r.id): r for r in workflow.roles}
         self._guardrails = GuardrailSet(workflow, opts.get("guardrails"), lambda a: roles.get(str(a.role_id)))
@@ -403,6 +404,18 @@ class WorkflowEngine:
         """The states of the child runs this run keeps, at any depth, and of those that settled since last asked (24.8)"""
         return self._calls.states()
 
+    def _performed_own(self) -> list[dict[str, Any]]:
+        """The activities this run itself completed, with who performed them"""
+        names = {str(a.id): a.name for a in self.workflow.activities}
+        return [{"run_id": self.run_id, "activity_id": done["activity_id"],
+                 **({"activity_name": names[str(done["activity_id"])]} if str(done["activity_id"]) in names else {}),
+                 "principal_ids": list(done["principal_ids"])}
+                for done in self._completed_activities if done.get("principal_ids")]
+
+    def performed_record(self) -> list[dict[str, Any]]:
+        """Who performed the activities of this run and of its child runs, at any depth (30.6)"""
+        return self._calls.tree()
+
     def owns_token(self, token_id: str) -> bool:
         """Whether a token belongs to this run or to a child run it waits on"""
         return token_id in self._tokens or self._calls.owns_token(token_id)
@@ -448,8 +461,12 @@ class WorkflowEngine:
         if not start_node_id:
             self._status = EngineStatus.FAILED
             raise ValueError("No start activity found")
-        # Who starts the run, refused before anything is recorded when the policy says no (30.4)
-        starter = self._authorization.start(initial_data or {}, self.options.get("principal")) if self._authorization else None
+        # Who starts the run, refused before anything is recorded when the policy says no (30.4).
+        # A child run is not decided: starting it performs its parent's call activity, decided as that (24.2, 30.4)
+        starter = None
+        if self._authorization is not None:
+            starter = ((self.options.get("principal") or self._authorization.host_principal) if self._calls.parent
+                       else self._authorization.start(initial_data or {}, self.options.get("principal")))
 
         self._stats["started_at"] = self._now()
         token = Token(
@@ -2366,7 +2383,7 @@ class WorkflowEngine:
         token = self._tokens.get(token_id)
         if token is None:
             # A person's task in a child run is completed through the parent (24.4)
-            child = self._calls.resume(token_id, output)
+            child = self._calls.resume(token_id, output, principal)
             if child is None:
                 return False
             resumed, woken = child

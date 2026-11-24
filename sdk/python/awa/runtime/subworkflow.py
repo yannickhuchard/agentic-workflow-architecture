@@ -144,6 +144,8 @@ class SubworkflowCalls:
         self.live: dict[str, "WorkflowEngine"] = {}
         self.listeners: list[Callable[[dict[str, Any]], None]] = []
         self.settled: list[dict[str, Any]] = []
+        # Who performed the activities of the children that ended, at any depth (30.6)
+        self.performed: list[dict[str, Any]] = []
 
     @property
     def _options(self) -> dict[str, Any]:
@@ -153,6 +155,33 @@ class SubworkflowCalls:
     def max_depth(self) -> int:
         value = self._options.get("max_depth")
         return DEFAULT_SUBWORKFLOW_DEPTH if value is None else int(value)
+
+    def _called(self, workflow_id: str) -> "Workflow | None":
+        """The workflow a call activity names: the version a new run of it starts on (24.1, 25.1)"""
+        resolve = self._options.get("version")
+        workflow = resolve(workflow_id, None) if resolve else None
+        return workflow or self.registry.get(workflow_id)
+
+    def _version_of(self, workflow_id: str, version: str | None) -> "Workflow | None":
+        """The version of a workflow a child run is on, or None when it is not registered (25.1)"""
+        resolve = self._options.get("version")
+        if resolve:
+            return resolve(workflow_id, version)
+        workflow = self.registry.get(workflow_id)
+        return workflow if workflow is not None and (not version or workflow.version == version) else None
+
+    def tree(self) -> list[dict[str, Any]]:
+        """The activities this run and its child runs completed, with who performed them (30.6)"""
+        return [*self.engine._performed_own(), *self.performed,
+                *(entry for child in self.live.values() for entry in child.performed_record())]
+
+    def record(self) -> list[dict[str, Any]]:
+        """
+        The record separation of duties is decided on (30.6): that of the run of depth 0 and every one of its
+        child runs, whichever of them decides
+        """
+        record = self._options.get("record")
+        return record() if record else self.tree()
 
     def started_data(self) -> dict[str, Any]:
         """What a child run's `run.started` adds (24.2)"""
@@ -171,7 +200,7 @@ class SubworkflowCalls:
         if continuation and continuation.get("run_id") in self.live:
             return self._conclude(continuation["run_id"], activity, context)
 
-        workflow = self.registry.get(str(activity.expansion_workflow_id))
+        workflow = self._called(str(activity.expansion_workflow_id))
         if workflow is None:
             raise SubworkflowError(
                 f'Activity "{activity.name}" calls workflow {activity.expansion_workflow_id}, which is not registered with this engine',
@@ -199,7 +228,9 @@ class SubworkflowCalls:
             "run_id": run_id, "workflow_id": str(workflow.id), "workflow_name": workflow.name,
             "workflow_version": workflow.version, "depth": self.depth + 1, "input": payload(child_input),
         })
-        child = type(self.engine)(workflow, options=self._child_options(run_id, parent, self.depth + 1))
+        # A child run is started by whoever started the run of depth 0 (30.4)
+        child = type(self.engine)(workflow, options={**self._child_options(run_id, parent, self.depth + 1),
+                                                     "principal": data.get("_started_by")})
         self._adopt(child)
         self.runs.append({
             "run_id": run_id, "parent_run_id": parent["run_id"], "workflow_id": str(workflow.id), "workflow_name": workflow.name,
@@ -250,7 +281,8 @@ class SubworkflowCalls:
             "journal": self.engine._journal_store,
             # A child is saved with its parent, never on its own (24.8)
             "checkpoint": None,
-            "subworkflows": {**self._options, "workflows": self.registry, "parent": parent, "depth": depth},
+            "subworkflows": {**self._options, "workflows": self.registry, "parent": parent, "depth": depth,
+                             "record": self._options.get("record") or self.tree},
         }
 
     def _adopt(self, child: "WorkflowEngine") -> None:
@@ -264,6 +296,8 @@ class SubworkflowCalls:
         if child is None:
             return
         self._refresh(child)
+        # What the child's activities were performed by stays on the record of the run (30.6)
+        self.performed.extend(child.performed_record())
         del self.live[run_id]
         if self._options.get("record_settled"):
             self.settled.append({"run_id": run_id, "workflow_id": str(child.workflow.id), "state": child.snapshot()})
@@ -340,12 +374,13 @@ class SubworkflowCalls:
                 child.run()
         return released, (self._wake() if released else 0)
 
-    def resume(self, token_id: str, output: dict[str, Any]) -> tuple[bool, int] | None:
+    def resume(self, token_id: str, output: dict[str, Any], principal: dict[str, Any] | None = None) -> tuple[bool, int] | None:
         """Complete a person's task in a child run (5.6). None when no child holds the token."""
         for child in list(self.live.values()):
             if not child.owns_token(token_id):
                 continue
-            resumed = child.resume_token(token_id, output)
+            # Who answers is held to the policy in the child run, as in any run (30.4)
+            resumed = child.resume_token(token_id, output, principal)
             child.run()
             return resumed, self._wake()
         return None
@@ -475,19 +510,23 @@ class SubworkflowCalls:
                 for child in self.live.values()]
         if not self.parent and not self.runs and not live:
             return None
-        return {"depth": self.depth, **({"parent": self.parent} if self.parent else {}), "runs": self.list(), "live": live}
+        return {"depth": self.depth, **({"parent": self.parent} if self.parent else {}), "runs": self.list(), "live": live,
+                **({"performed": copy.deepcopy(self.performed)} if self.performed else {})}
 
     def restore(self, saved: dict[str, Any] | None, resumed: bool) -> None:
         """Rebuild the children a saved state holds, each from its own state, under the same deployment (24.8)"""
         if not saved:
             return
         self.runs = [dict(r) for r in saved.get("runs") or []]
+        self.performed = copy.deepcopy(saved.get("performed") or [])
         for live in saved.get("live") or []:
-            workflow = self.registry.get(str(live["workflow_id"]))
+            # A child run goes on with the version it started on (25.1)
+            version = live["state"].get("workflow_version")
+            workflow = self._version_of(str(live["workflow_id"]), version)
             if workflow is None:
                 raise ValueError(
-                    f"Run {self.engine.run_id} waits on child run {live['run_id']} of workflow {live['workflow_id']}, "
-                    "which is not registered. Nothing was changed.")
+                    f"Run {self.engine.run_id} waits on child run {live['run_id']} of workflow {live['workflow_id']}"
+                    f"{f' version {version}' if version else ''}, which is not registered. Nothing was changed.")
             own = ((live["state"].get("metadata") or {}).get("subworkflows") or {})
             options = self._child_options(live["run_id"], own.get("parent"), int(own.get("depth") or self.depth + 1))
             child = type(self.engine).restore(workflow, live["state"], options, resumed)

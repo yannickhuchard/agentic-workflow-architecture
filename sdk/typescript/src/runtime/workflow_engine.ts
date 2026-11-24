@@ -42,7 +42,7 @@ import { RunTelemetry, TelemetrySetting, open_run_telemetry } from './telemetry_
 import { AuthorizationOptions, Principal, RunAuthorization, principal_ref } from './authorization';
 import { Guardrail } from '../types';
 import { GuardrailClassifier, GuardrailContext, GuardrailSet, GuardrailStop, guardrail_feedback, input_value, merge_guarded, output_value } from './guardrails';
-import { SubworkflowCalls, SubworkflowOptions, SubworkflowRun, SubworkflowState, is_call_activity, subworkflow_journal_tails } from './subworkflow';
+import { PerformedEntry, SubworkflowCalls, SubworkflowOptions, SubworkflowRun, SubworkflowState, is_call_activity, subworkflow_journal_tails } from './subworkflow';
 
 export type EngineStatus = 'running' | 'paused' | 'completed' | 'failed' | 'idle' | 'waiting_human' | 'waiting_event' | 'cancelled';
 
@@ -322,13 +322,17 @@ export class WorkflowEngine {
         this.initializeContexts();
         if (options.authorization) {
             this.authorization = new RunAuthorization(options.authorization, {
-                workflow: workflowDef, roles: this.roleMap, record: event => this.record(event), performed: () => this.completedActivities,
+                // Separation of duties is decided on the record of the run of depth 0 and all its child runs (30.6, 24)
+                workflow: workflowDef, roles: this.roleMap, record: event => this.record(event), performed: () => this.calls.record(),
             });
         }
         this.guardrails = new GuardrailSet(workflowDef, options.guardrails, activity => this.roleMap.get(activity.role_id));
         this.calls = new SubworkflowCalls({
             run_id: () => this.runId, workflow: () => this.workflow, options: () => this.options, journal: () => this.journalStore,
             record: input => this.record(input), node_ref: id => this.nodeRef(id), now: () => this.now(), tokens: () => this.tokens,
+            performed: () => this.completedActivities.filter(done => done.principal_ids?.length).map(done => ({
+                run_id: this.runId, activity_id: done.activity_id, activity_name: this.activityMap.get(done.activity_id)?.name, principal_ids: done.principal_ids!,
+            })),
             make: (workflow, options) => new WorkflowEngine(workflow, options),
             restore: (workflow, state, options, resumed) => WorkflowEngine.restore(workflow, state, options, resumed),
         });
@@ -393,7 +397,10 @@ export class WorkflowEngine {
 
         const startNodeId = this.findStartNode();
         // Who starts the run, refused before anything is recorded when the policy says no (spec 30.4)
-        const starter = this.authorization ? await this.authorization.start(initialData, this.options.principal) : undefined;
+        // A child run is not decided: starting it performs its parent's call activity, decided as that (spec 24.2, 30.4)
+        const starter = !this.authorization ? undefined
+            : this.calls.parent ? (this.options.principal || this.authorization.host_principal)
+                : await this.authorization.start(initialData, this.options.principal);
 
         // Add workflow metadata to initial data
         const tokenData = {
@@ -2267,7 +2274,7 @@ export class WorkflowEngine {
         const token = this.tokens.find(t => t.id === tokenId);
         if (!token) {
             // A person's task in a child run is completed through the parent (24.4)
-            const child = await this.calls.resume(tokenId, output);
+            const child = await this.calls.resume(tokenId, output, principal);
             if (!child) return false;
             if (child.woken > 0 && (this.status === 'waiting_event' || this.status === 'waiting_human')) this.status = 'running';
             await this.settle();
@@ -2398,6 +2405,11 @@ export class WorkflowEngine {
     /** The states of the child runs this run keeps, at any depth, and of those that settled since last asked: what a store keeps of each (24.8) */
     public subworkflowStates(): { run_id: UUID; workflow_id: UUID; state: WorkflowState }[] {
         return this.calls.states();
+    }
+
+    /** Who performed the activities of this run and of its child runs, at any depth (spec 30.6) */
+    public performedRecord(): PerformedEntry[] {
+        return this.calls.tree();
     }
 
     /** Whether a token belongs to this run or to a child run it waits on */

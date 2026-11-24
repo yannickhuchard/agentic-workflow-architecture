@@ -483,7 +483,8 @@ class RunAuthorization:
         started = data.get("_started_by") or {}
         names = {str(a.id): a.name for a in self.workflow.activities}
         history: dict[str, Any] = {"performed": [
-            {"activity_id": p["activity_id"], "activity_name": names.get(str(p["activity_id"])), "principal_ids": list(p["principal_ids"])}
+            {"activity_id": p["activity_id"], "activity_name": p.get("activity_name") or names.get(str(p["activity_id"])),
+             "principal_ids": list(p["principal_ids"])}
             for p in self.performed() if p.get("principal_ids")]}
         if started.get("id"):
             history["started_by"] = started["id"]
