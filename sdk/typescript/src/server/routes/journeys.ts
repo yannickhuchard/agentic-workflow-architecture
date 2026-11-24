@@ -9,6 +9,8 @@ import { parse_document } from '../../validator';
 import { compute_measures, measures_to_openmetrics, MEASURES } from '../../runtime/kpi';
 import { gauges_to_otlp_json, measures_to_gauges } from '../../runtime/telemetry';
 import { shared_telemetry_from_env } from '../../runtime/telemetry_export';
+import { AuthorizationError } from '../../runtime/authorization';
+import { authorize_request, forbidden, request_principal, server_authorization } from '../authorization';
 
 /**
  * Journeys over HTTP (specification 19). With AWA_RUNTIME_STORE set to a
@@ -30,7 +32,12 @@ function host(): Promise<AwaRuntime> {
     if (!runtime) {
         // AWA_SIMULATE=1 runs activities without calling models or tools; AWA_SIMULATED_OUTPUTS names a file saying what each returns
         const simulated = process.env.AWA_SIMULATED_OUTPUTS ? JSON.parse(readFileSync(path.resolve(process.env.AWA_SIMULATED_OUTPUTS), 'utf-8')) : undefined;
-        const engine = { wait_for_human_tasks: true, execution_logger: { log_execution: async () => { } }, ...(process.env.AWA_SIMULATE === '1' ? { simulate: true, simulated_outputs: simulated } : {}) };
+        const authorization = server_authorization();
+        const engine = {
+            wait_for_human_tasks: true, execution_logger: { log_execution: async () => { } },
+            ...(process.env.AWA_SIMULATE === '1' ? { simulate: true, simulated_outputs: simulated } : {}),
+            ...(authorization ? { authorization } : {}),
+        };
         const telemetry = shared_telemetry_from_env();
         runtime = shared_store() ? open_runtime_store(shared_store()!, { engine, telemetry })
             : directory() ? open_runtime_directory(directory()!, { engine, telemetry }) : Promise.resolve(new AwaRuntime({ engine, telemetry }));
@@ -76,6 +83,7 @@ journeyRouter.post('/events', async (req, res) => {
     try {
         const body = req.body as Partial<BusinessEvent>;
         if (!body.type) return res.status(400).json({ error: 'type is required' });
+        if (!await authorize_request(req, res, 'publish_event', { event_type: body.type }, (body.data || {}) as Record<string, unknown>)) return;
         const event = business_event(body.type, (body.data || {}) as Record<string, unknown>, { ...(body.id ? { id: body.id } : {}), source: body.source || '/api', ...(body.subject ? { subject: body.subject } : {}), ...(body.time ? { time: body.time } : {}) });
         res.status(202).json({ event_id: event.id, ...(await (await host()).publish(event)) });
     } catch (error) { res.status(500).json(problem(error)); }
@@ -86,11 +94,16 @@ journeyRouter.post('/tick', async (req, res) => {
     try { res.json(await (await host()).tick(req.body?.at ? Date.parse(req.body.at) : undefined)); } catch (error) { res.status(500).json(problem(error)); }
 });
 
+// A person completes a task: who they are is the request's principal, held to the policy where the run is hosted (spec 30.4)
 journeyRouter.post('/runs/:run_id/tokens/:token_id/resume', async (req, res) => {
+    const principal = request_principal(req);
     try {
-        const resumed = await (await host()).resume(req.params.run_id, req.params.token_id, req.body || {});
+        const resumed = await (await host()).resume(req.params.run_id, req.params.token_id, req.body || {}, server_authorization() ? principal : undefined);
         res.status(resumed ? 200 : 404).json({ resumed });
-    } catch (error) { res.status(500).json(problem(error)); }
+    } catch (error) {
+        if (error instanceof AuthorizationError) return forbidden(res, error, principal);
+        res.status(500).json(problem(error));
+    }
 });
 
 journeyRouter.get('/instances', async (req, res) => {

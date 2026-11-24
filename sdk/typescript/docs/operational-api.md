@@ -8,6 +8,29 @@ AWA_DATA_DIR=.awa awa serve --port 3000 --no-auth
 
 `--no-auth` is for local development. Otherwise every route but `/health` needs an `x-api-key` header (`--api-key key:role`) or a bearer token signed with `--jwt-secret`. Roles are `admin`, `operator` and `viewer`. `--rate-limit` sets requests per minute.
 
+## Authorization
+
+Authentication says who calls; the deployment's policy (`awa serve --deployment <file>`, its `authorization` section, specification section 30) says what they may do. Without a policy nothing below is checked. A caller's principal is taken from the request: from a JWT, `sub` is its id, `kind` its kind (default `person`), `roles` and `role` its roles, and the other claims but the registered ones its attributes, such as `groups`, `clearance` or `department`; an API key stands for `{ id, kind: "application", attributes: { roles: [role], permissions } }`; without authentication the caller is `anonymous`. A policy never lets through a request the authentication refuses.
+
+| Route | Action decided |
+|---|---|
+| `POST /api/v1/workflows/run` | `start_run`, as the caller. The run's agents are then held to `perform_activity`, `call_tool` and `reach_agent` |
+| `POST /api/v1/workflows/events`, `POST /api/v1/journeys/events` | `publish_event` |
+| `POST /api/v1/workflows/runs/{runId}/tokens/{tokenId}/agent-input` | `answer_agent` |
+| `GET /api/v1/workflows/runs/{runId}/events`, `.../events/stream` | `read_journal` |
+| `POST /api/v1/journeys/runs/{run_id}/tokens/{token_id}/resume` | `complete_task`, or `approve` under a four-eyes rule, with separation of duties: the run is hosted here |
+| `POST /api/v1/tasks/{id}/assign` | `claim_task` for the assignee and, when the caller is someone else, `assign_task` for the caller |
+| `POST /api/v1/tasks/{id}/complete`, `POST /api/v1/tasks/{id}/reject` | `complete_task`, with the task's inputs as the run's data |
+
+A refusal is answered with `403`:
+
+```json
+{ "error": "Forbidden", "code": "FORBIDDEN", "message": "No rule allows complete_task to mallory",
+  "decision": { "action": "complete_task", "decision": "deny", "reason": "no_rule", "principal": { "id": "mallory", "kind": "person" } } }
+```
+
+A refusal within a run is also journalled as `authorization.decided`, and the task keeps waiting; a refused start creates no run. A host that supplies its own runtime to the journey routes gives it the same `authorization` in its engine options.
+
 ## Workflow runs
 
 | Route | What it does |

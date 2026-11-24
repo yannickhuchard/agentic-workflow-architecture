@@ -86,6 +86,12 @@ export interface ToolOptions {
      * run ends or waits. A runner used on its own closes its connections after each call.
      */
     sessions?: ToolSessions;
+    /**
+     * Asked before a call runs, after the deployment's permissions (17.3, 30.4): whether the principal performing the
+     * activity may call this tool. A call it does not allow is refused with FORBIDDEN. The engine sets it when the
+     * deployment has an authorization policy.
+     */
+    authorize?: (call: { tool: string; link?: string }) => Promise<{ allowed: boolean; message?: string }>;
 }
 
 const fill = (template: string, args: Record<string, unknown>, encode: (v: string) => string, used: Set<string>) =>
@@ -319,6 +325,10 @@ export class ToolRunner {
             this.check_permission(tool.binding, args);
         } catch (error) {
             return failure(error, false);
+        }
+        if (this.options.authorize) {
+            const verdict = await this.options.authorize({ tool: name, ...(link ? { link } : {}) });
+            if (!verdict.allowed) return failure(new ToolError(verdict.message || `Calling "${name}" is not allowed`, 'FORBIDDEN'), false);
         }
 
         // Argument values follow the payload mode (17.5): unless payloads are journalled in full, the binding is recorded as declared, not as filled

@@ -54,6 +54,7 @@ from awa.runtime.models import ModelRegistry, ModelRouter, RouteAttempt
 from awa.runtime.tools import ActorContext, ToolOptions, ToolRunner
 from awa.runtime.protocols.sessions import ToolSessions
 from awa.runtime.protocols.a2a import A2AActor, A2AOptions, A2ARunState, a2a_binding
+from awa.runtime.authorization import RunAuthorization, principal_ref
 from awa.validator import validate_workflow_integrity
 from awa.runtime.expression import evaluate_expression, resolve_path
 from awa.runtime.duration import parse_iso_duration
@@ -82,7 +83,8 @@ class EngineStatus(str, Enum):
 
 # Error codes that are never retried, whatever the retry policy says
 NEVER_RETRIED = {"VERIFICATION_FAILED", "CONTRACT_VIOLATION", "NO_ROUTE", "SLA_BREACH",
-                 "CONTEXT_MISSING", "CONTEXT_ACCESS_DENIED", "CONTEXT_INVALID", "CONTEXT_NOT_FOUND", "AGENT_UNSUPPORTED", "PERMISSION_DENIED"}
+                 "CONTEXT_MISSING", "CONTEXT_ACCESS_DENIED", "CONTEXT_INVALID", "CONTEXT_NOT_FOUND", "AGENT_UNSUPPORTED", "PERMISSION_DENIED",
+                 "FORBIDDEN"}
 # Access modes of a context binding that let an activity read, and write (specification 22.2, 22.3)
 CAN_READ = {"read", "read_write", "subscribe"}
 CAN_WRITE = {"write", "read_write", "publish"}
@@ -298,6 +300,15 @@ class WorkflowEngine:
         # Service level warnings and breaches already journalled, so that each is recorded once (23.2)
         self._sla_recorded: set[str] = set()
         self._knowledge = opts.get("knowledge")
+        # Who may do what in this run, and the principal performing each token's activity (specification 30).
+        # `authorization` holds the principals and the policy; `principal` is who starts the run.
+        self._authorization: RunAuthorization | None = None
+        self._performers: dict[str, dict[str, Any]] = {}
+        if opts.get("authorization") is not None:
+            self._authorization = RunAuthorization(
+                opts["authorization"], workflow, {str(r.id): r for r in workflow.roles},
+                record=lambda type, data, **ref: self._record(type, data, **ref),
+                performed=lambda: self._completed_activities)
         self._stats: dict[str, Any] = {
             "started_at": self._now(), "steps": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0,
         }
@@ -389,6 +400,8 @@ class WorkflowEngine:
         if not start_node_id:
             self._status = EngineStatus.FAILED
             raise ValueError("No start activity found")
+        # Who starts the run, refused before anything is recorded when the policy says no (30.4)
+        starter = self._authorization.start(initial_data or {}, self.options.get("principal")) if self._authorization else None
 
         self._stats["started_at"] = self._now()
         token = Token(
@@ -398,6 +411,7 @@ class WorkflowEngine:
                 "_workflow_id": str(self.workflow.id),
                 "_workflow_name": self.workflow.name,
                 "_started_at": self._iso(),
+                **({"_started_by": principal_ref(starter)} if starter else {}),
             },
             workflow_id=str(self.workflow.id)
         )
@@ -409,6 +423,7 @@ class WorkflowEngine:
             "workflow_version": self.workflow.version,
             "input": self._journal.payload(initial_data or {}),
             "simulate": bool(self.simulate),
+            **({"principal": principal_ref(starter)} if starter else {}),
         })
         self._record("token.created", {}, token=token, node_id=start_node_id)
         self._log(f"Starting workflow: {self.workflow.name}")
@@ -696,6 +711,15 @@ class WorkflowEngine:
             if actor is None:
                 self._advance_token(token, node_id)
                 return
+            # The agent, robot or application that performs the activity must be allowed to, in its role (30.4)
+            if self._authorization is not None and token.get_data("_agent_continuation") is None:
+                agent = a2a_binding(activity, next((r for r in self.workflow.roles if str(r.id) == str(activity.role_id)), None))
+                performer = self._authorization.before_activity(
+                    activity, agent, token.context_data, {"token_id": token.id, "node_id": node_id})
+                if performer is not None:
+                    self._performers[token.id] = performer
+                else:
+                    self._performers.pop(token.id, None)
             # The input given to an agent that asked for it is for this execution only (28.6)
             continuation = token.context_data.pop("_agent_continuation", None)
             if isinstance(actor, A2AActor):
@@ -788,16 +812,19 @@ class WorkflowEngine:
             duration_ms = int(ended - started)
             self._track_usage(output, activity, duration_ms)
             self._stats["steps"] += 1
+            performer = self._performers.get(token.id)
             self._record("activity.completed", {
                 "actor_type": activity.actor_type.value,
                 "output": self._journal.payload(public_payload(output)),
                 "duration_ms": duration_ms,
                 "attempts": attempts,
                 "usage": output.get("usage"),
+                **({"principal": principal_ref(performer)} if performer else {}),
             }, token=token, node_id=node_id, attempt=attempts)
 
             self._completed_activities.append({
                 "activity_id": node_id, "token_id": token.id, "output": copy.deepcopy(public_payload(output)),
+                **({"principal_ids": [performer["id"]]} if performer else {}),
             })
 
             self._advance_token(token, node_id, analytics)
@@ -820,6 +847,9 @@ class WorkflowEngine:
         # An activity whose role, or which itself, names an agent over A2A is performed by that agent (28.1)
         agent = a2a_binding(activity, next((r for r in self.workflow.roles if str(r.id) == str(activity.role_id)), None))
         if agent is not None:
+            # The identity the deployment gives the agent brings its credentials (30.1)
+            if self._authorization is not None:
+                agent = self._authorization.agent_for(activity, agent)
             script = (self.options.get("simulated_outputs") or {}).get(activity.name) if self.simulate else None
             return A2AActor(agent, self._a2a_options, self._a2a_state, simulate=bool(self.simulate),
                             scripted=_ScriptedOutputActor(script) if isinstance(script, dict) else None,
@@ -970,9 +1000,11 @@ class WorkflowEngine:
                 token.context_data.pop("_verification_attempt", None)
             inputs = dict(token.context_data)
 
+            performer = self._performers.get(token.id)
             record("activity.started", {
                 "actor_type": activity.actor_type.value,
                 "role_id": str(activity.role_id),
+                **({"principal": principal_ref(performer)} if performer else {}),
                 "input": self._journal.payload(public_payload(inputs)),
                 "feedback": feedback,
             })
@@ -982,8 +1014,16 @@ class WorkflowEngine:
                 context = ActorContext(record=record, payload=self._journal.payload)
                 if activity.tools:
                     # One runner per attempt: every call is journalled with the attempt it belongs to (17.5)
+                    tool_options = self._tool_options
+                    tools = activity.tools
+                    if self._authorization is not None:
+                        # Whether the principal performing the activity may call each tool (30.4), with its credentials
+                        tools = self._authorization.tools_for(activity.tools, performer)
+                        if self._authorization.enforced:
+                            tool_options = dataclasses.replace(tool_options, authorize=self._authorization.tool_check(
+                                activity, performer, token.context_data, {"token_id": token.id, "node_id": node_id, "attempt": attempt}))
                     context.tools = ToolRunner(
-                        activity.tools, self._tool_options, record, self._journal.payload,
+                        tools, tool_options, record, self._journal.payload,
                         max_calls=budgets.max_tool_calls if budgets and budgets.max_tool_calls is not None else 16,
                         simulate=bool(self.simulate), now=self._now)
                 raw = self._call_actor(actor, activity, token, context)
@@ -2087,7 +2127,12 @@ class WorkflowEngine:
         self._save_checkpoint()
         return True
 
-    def resume_token(self, token_id: str, output: dict[str, Any]) -> bool:
+    def authorize_start(self, initial_data: dict[str, Any] | None = None) -> None:
+        """Whether the run may be started with this input, by the principal it was given (30.4). Raises AuthorizationError if not"""
+        if self._authorization is not None:
+            self._authorization.start(initial_data or {}, self.options.get("principal"))
+
+    def resume_token(self, token_id: str, output: dict[str, Any], principal: dict[str, Any] | None = None) -> bool:
         """
         Resume a token that was waiting for a person, with the person's answer.
         The answer is merged into the token's data, checked against the
@@ -2096,6 +2141,10 @@ class WorkflowEngine:
         bindings as any actor's result; the writes are applied once the answer
         is accepted. Returns False if the token was not waiting for a person or
         the answer was rejected. Call run() afterwards.
+
+        `principal` is who answers (30.4): under a policy the answer is refused with an AuthorizationError
+        (code FORBIDDEN) when they may not complete the task, and the token keeps waiting; under a four-eyes
+        rule it keeps waiting until enough distinct principals have approved.
         """
         token = self._tokens.get(token_id)
         if (not token or token.status != TokenStatus.WAITING or token.get_data("_awaiting_event")
@@ -2104,6 +2153,21 @@ class WorkflowEngine:
 
         node_id = str(token.activity_id)
         activity = self._activities_by_id.get(node_id)
+        gate = None
+        if self._authorization is not None and activity is not None:
+            gate = self._authorization.before_completion(
+                activity, token.context_data, dict(output or {}), principal, {"token_id": token.id, "node_id": node_id})
+            if gate["pending"]:
+                token.set_data("_approvals", gate["kept"])
+                self._save_checkpoint()
+                return True
+            output = gate["output"]
+            token.context_data.pop("_approvals", None)
+        answered_by: dict[str, Any] = {}
+        if gate is not None:
+            answered_by["principal"] = principal_ref(gate["principal"])
+            if gate.get("approvals"):
+                answered_by["approvals"] = gate["approvals"]
         output = dict(output or {})
         writes = output.pop("_context_writes", _ABSENT)
         for key in _HANDED:
@@ -2122,7 +2186,8 @@ class WorkflowEngine:
         token.merge_activity_output(node_id, output)
         token.merge_data({"_human_task_status": "completed", "_requires_human_action": False})
         token.update_status(TokenStatus.ACTIVE, analytics=analytics)
-        self._record("token.resumed", {"waited_ms": waited_ms}, token=token, node_id=node_id)
+        self._record("token.resumed", {"waited_ms": waited_ms, **({"principal": answered_by["principal"]} if gate else {})},
+                     token=token, node_id=node_id)
 
         if self._status == EngineStatus.WAITING_HUMAN:
             self._status = EngineStatus.RUNNING
@@ -2159,11 +2224,14 @@ class WorkflowEngine:
             "actor_type": activity.actor_type.value if activity else "human",
             "output": self._journal.payload(public_payload(output)),
             "waited_ms": waited_ms,
+            **answered_by,
         }, token=token, node_id=node_id)
 
         # The activity is now complete: if the run fails later, its effects are undone like any other's
         self._completed_activities.append({
             "activity_id": node_id, "token_id": token.id, "output": copy.deepcopy(public_payload(output)),
+            **({"principal_ids": [a["id"] for a in gate["approvals"]] if gate.get("approvals") else [gate["principal"]["id"]]}
+               if gate is not None else {}),
         })
 
         self._advance_token(token, node_id)

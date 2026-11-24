@@ -404,14 +404,20 @@ class AwaRuntime:
         engine.on_event(listener)
 
     def start(self, workflow_id: str, input: dict[str, Any] | None = None, *, instance: JourneyInstance | None = None,
-              caused_by_event: str | None = None) -> WorkflowEngine:
-        """Start a run. With a journey instance, the run belongs to that journey."""
+              caused_by_event: str | None = None, principal: dict[str, Any] | None = None) -> WorkflowEngine:
+        """
+        Start a run. With a journey instance, the run belongs to that journey. `principal` is who starts it
+        (specification 30.1); without one, the host does. Under a policy that refuses it, an AuthorizationError
+        is raised and no run exists.
+        """
         def work() -> WorkflowEngine:
             workflow = self._workflows.get(str(workflow_id))
             if not workflow:
                 raise KeyError(f"Workflow {workflow_id} is not registered")
             run_id = str(uuid4())
-            engine = WorkflowEngine(workflow, options=self._engine_options(run_id))
+            engine = WorkflowEngine(workflow, options={**self._engine_options(run_id), **({"principal": principal} if principal else {})})
+            # A start the policy refuses leaves no run behind (30.4)
+            engine.authorize_start(_jsonable(input or {}))
             self._runs[run_id] = engine
             self._run_order.append(run_id)
 
@@ -677,8 +683,9 @@ class AwaRuntime:
 
         return self._op(work)
 
-    def resume(self, run_id: str, token_id: str, output: dict[str, Any] | None = None) -> bool:
-        """A person completed a task in one of the runs"""
+    def resume(self, run_id: str, token_id: str, output: dict[str, Any] | None = None,
+               principal: dict[str, Any] | None = None) -> bool:
+        """A person completed a task in one of the runs. `principal` is who (30.4); a refusal raises an AuthorizationError and the task keeps waiting"""
         if self._shared is None and run_id not in self._runs:
             return False
 
@@ -688,7 +695,7 @@ class AwaRuntime:
             engine = self._runs.get(run_id)
             if not engine:
                 return False
-            resumed = engine.resume_token(token_id, output or {})
+            resumed = engine.resume_token(token_id, output or {}, principal)
             engine.run()
             self._sync(engine)
             return resumed

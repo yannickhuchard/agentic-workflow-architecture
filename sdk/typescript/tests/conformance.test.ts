@@ -32,13 +32,14 @@ import { postgres_unavailable, start_postgres, TestPostgres } from './postgres';
 import { import_bpmn, export_bpmn, import_dmn, export_serverless_workflow } from '../src/interchange';
 import { feel_unary_to_awa, awa_unary_to_feel, feel_condition_to_awa, awa_condition_to_feel } from '../src/interchange/expressions';
 import { json_equal } from '../src/interchange/common';
+import { AuthorizationError } from '../src/runtime/authorization';
 
 const ROOT = path.resolve(__dirname, '../../..');
 const CONFORMANCE = path.join(ROOT, 'spec/conformance');
 const SCHEMAS = path.join(ROOT, 'spec/json-schema');
 
 /** Conformance levels this implementation claims. */
-const CLAIMED_LEVELS = new Set(['core', 'decision', 'verified', 'resilient', 'recorded', 'contract', 'flow', 'events', 'tools', 'model_decision', 'journeys', 'replay', 'routing', 'knowledge', 'measures', 'contexts', 'service_levels', 'telemetry', 'interchange', 'shared_store', 'evidence', 'evaluation', 'a2a']);
+const CLAIMED_LEVELS = new Set(['core', 'decision', 'verified', 'resilient', 'recorded', 'contract', 'flow', 'events', 'tools', 'model_decision', 'journeys', 'replay', 'routing', 'knowledge', 'measures', 'contexts', 'service_levels', 'telemetry', 'interchange', 'shared_store', 'evidence', 'evaluation', 'a2a', 'authorization']);
 
 const read = (file: string) => JSON.parse(fs.readFileSync(file, 'utf-8'));
 const list = (dir: string) => fs.readdirSync(dir).filter(f => f.endsWith('.json')).sort().map(f => path.join(dir, f));
@@ -814,6 +815,81 @@ describe('Conformance: interchange', () => {
     for (const t of feel.conditions) run(`the condition ${JSON.stringify(t.bpmn)} is ${JSON.stringify(t.awa)}`, () => expect(feel_condition_to_awa(t.bpmn)).toBe(t.awa));
     for (const t of feel.conditions_invalid) run(`the condition ${JSON.stringify(t)} is refused`, () => expect(() => feel_condition_to_awa(t)).toThrow(/cannot be read/));
     for (const t of feel.conditions_export) run(`${JSON.stringify(t.awa)} in FEEL is ${JSON.stringify(t.feel)}`, () => expect(awa_condition_to_feel(t.awa) ?? null).toBe(t.feel));
+});
+
+describe('Conformance: authorization', () => {
+    for (const file of list(path.join(CONFORMANCE, 'authorization'))) {
+        const c = read(file);
+        const run = CLAIMED_LEVELS.has(c.level) ? it : it.skip;
+        run(`[${c.level}] ${c.id}: ${c.description}`, async () => {
+            expect(validate_schema(c.workflow), JSON.stringify(validate_schema.errors)).toBe(true);
+            const workflow = parse_document(c.workflow);
+            // Activities of human actors wait for a person; the others follow the case's scripts
+            const actor = new ConformanceActor(c.actors);
+            const person: Actor = { execute: async activity => ({ _requires_human_action: true, _human_task_id: `task-${activity.name}` }) };
+            const agents = scripted_agents(c.agents);
+            let engine: WorkflowEngine | undefined;
+            const outcome = async (work: () => Promise<unknown>) => {
+                try { await work(); return { allowed: true } as { allowed: boolean; code?: string; reason?: string }; } catch (error) {
+                    if (!(error instanceof AuthorizationError)) throw error;
+                    return { allowed: false, code: error.code, reason: error.decision.reason };
+                }
+            };
+            for (const step of c.steps) {
+                let result: { allowed: boolean; code?: string; reason?: string };
+                if (step.start) {
+                    engine = new WorkflowEngine(workflow, {
+                        actors: { application: actor, ai_agent: actor, robot: actor, human: person },
+                        wait_for_human_tasks: true,
+                        a2a: { transport: agents.transport, poll_interval_ms: 0 },
+                        execution_logger: silent_logger,
+                        authorization: c.authorization,
+                        ...(step.start.principal ? { principal: step.start.principal } : {}),
+                        ...(c.tools ? { tools: { handlers: Object.fromEntries(Object.entries(c.tools as Record<string, { result?: unknown; error?: string }>).map(([name, script]) => [name, () => { if (script.error) throw new Error(script.error); return script.result; }])) } } : {}),
+                    });
+                    const started = engine;
+                    result = await outcome(() => started.start(step.start.input || {}));
+                    if (result.allowed) await engine.run();
+                } else {
+                    const name = step.complete.activity;
+                    const id = workflow.activities.find(a => a.name === name)!.id;
+                    const token = engine!.getTokens().find(t => t.status === 'waiting' && t.activityId === id);
+                    expect(token, `a token waits at ${name}`).toBeDefined();
+                    const current = engine!;
+                    result = await outcome(async () => { expect(await current.resumeToken(token!.id, step.complete.output || {}, step.complete.principal)).toBe(true); });
+                    await engine!.run();
+                }
+                expect(result.allowed, `step ${JSON.stringify(step)}`).toBe(step.expect.allowed);
+                if (step.expect.code) expect(result.code).toBe(step.expect.code);
+                if (step.expect.reason) expect(result.reason).toBe(step.expect.reason);
+                if (step.expect.status) expect(engine!.getStatus(), 'status after the step').toBe(step.expect.status);
+            }
+
+            const events = engine ? await engine.getEvents() : [];
+            if (c.expect.started === false) {
+                expect(events, 'a refused start leaves no journal').toEqual([]);
+                return;
+            }
+            expect(engine!.getStatus()).toBe(c.expect.status);
+            events.forEach((event, i) => {
+                expect(validate_event(event), JSON.stringify(validate_event.errors)).toBe(true);
+                expect(event.seq).toBe(i + 1);
+            });
+            const decisions = events.filter(e => e.type === 'authorization.decided').map(e => e.data);
+            if (c.expect.decisions) {
+                expect(decisions.length, `decisions were ${JSON.stringify(decisions)}`).toBe(c.expect.decisions.length);
+                c.expect.decisions.forEach((wanted: unknown, i: number) => expect(is_subset(wanted, decisions[i]), `decision ${i}: ${JSON.stringify(decisions[i])}`).toBe(true));
+            }
+            if (c.expect.visited) expect(actor.visited).toEqual(c.expect.visited);
+            if (c.expect.data) expect(engine!.getTokens().some(t => is_subset(c.expect.data, t.contextData)), 'data').toBe(true);
+            if (c.expect.journal) expect(in_order(c.expect.journal, events.map(e => e.type)), `journal was: ${events.map(e => e.type).join(', ')}`).toEqual([]);
+            for (const wanted of c.expect.journal_contains || []) expect(events.some(e => is_subset(wanted, e)), `no event matches ${JSON.stringify(wanted)}`).toBe(true);
+            for (const type of c.expect.journal_excludes || []) expect(events.map(e => e.type)).not.toContain(type);
+            for (const [type, n] of Object.entries(c.expect.journal_count || {})) expect(events.filter(e => e.type === type).length, `count of ${type}`).toBe(n);
+            if (c.expect.agent_card_reads !== undefined) expect(agents.card_reads(), 'agent cards read').toBe(c.expect.agent_card_reads);
+            if (c.expect.agent_requests) expect(agents.requests.map(r => r.method), 'requests to agents').toEqual(c.expect.agent_requests);
+        });
+    }
 });
 
 describe('Conformance: published examples', () => {

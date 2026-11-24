@@ -1,7 +1,7 @@
 ---
 name: agentic-workflow-architecture
 description: Expert guide for working with the Agentic Workflow Architecture (AWA) framework. Use this skill when users need to create, edit, validate, execute, or visualize AI-native workflow processes using AWA's SDK (TypeScript & Python), CLI, API, or visualization tools. This skill covers workflow building with the fluent API, running workflows via CLI, triggering workflows via REST API, creating workflow JSON files, understanding AWA concepts (actors, contexts, skills, access rights, decision nodes), and rendering workflow diagrams.
-Sync: Updated for AWA 1.1 (normative specification, outcome contracts, model routing, tools with MCP and gRPC, agents over A2A, journal, knowledge)
+Sync: Updated for AWA 1.1 (normative specification, outcome contracts, model routing, tools with MCP and gRPC, agents over A2A, identity and authorization, journal, knowledge)
 ---
 
 # Agentic Workflow Architecture (AWA) Skill
@@ -234,6 +234,22 @@ An activity can be performed by an agent reached over the Agent2Agent protocol 1
 ```
 
 The agent gets the activity and its data as a message; its artifacts become the output, held to the outcome contract and verification like any actor's. If the agent asks for input, the run waits (`waiting_human`) until the host answers with `answerAgent` (`answer_agent` in Python). Agents are held to the deployment's allowed hosts; in simulation nothing is called. `awa serve --a2a workflow.awa.json` offers a workflow to other agents, with its card at `/.well-known/agent-card.json`.
+
+### Who may do what (identity and authorization)
+
+Roles in the document say what kind of actor performs an activity; the deployment says who, and whether they may (specification section 30). Put the policy in the deployment file, never in the workflow document:
+
+```json
+{ "authorization": {
+    "principals": [{ "id": "agent:assessor", "kind": "ai_agent", "attributes": { "roles": ["underwriter"] }, "acts_for": { "roles": ["Underwriter"] } }],
+    "policy": {
+      "rules": [{ "id": "underwriters", "effect": "allow", "actions": ["perform_activity", "call_tool"], "subject": { "roles": ["underwriter"] } },
+                { "id": "managers", "effect": "allow", "actions": ["start_run", "complete_task", "approve"], "subject": { "roles": ["manager"] }, "condition": "run.amount < 50000" }],
+      "separation_of_duties": [{ "id": "maker-checker", "activities": ["Submit", "Approve"] }],
+      "four_eyes": [{ "id": "two-approvers", "activities": ["Approve"], "approvals": 2 }] } } }
+```
+
+Under a policy what no rule allows is denied, and a denial wins over an allow. Actions: `start_run`, `perform_activity`, `reach_agent`, `call_tool`, `claim_task`, `assign_task`, `complete_task`, `approve`, `answer_agent`, `publish_event`, `read_journal`, `cancel_run`, `migrate_run`. A refusal fails with `FORBIDDEN` (a refused tool call is returned to the agent; a refused answer leaves the task waiting) and is journalled as `authorization.decided`; `run.started`, `activity.started`, `activity.completed` and `token.resumed` name their `principal`. People come from the request (JWT claims, API keys); runs started without a principal are started by the host (`{"id": "host", "kind": "service"}`), which a policy must allow too. `awa run --deployment d.json --as alice`, `awa serve --deployment d.json`, `awa task complete <id> --deployment d.json --as bob`. An external policy engine plugs in as `authorization.decider` in code.
 
 ### After a run: journal, recipe, replay, knowledge
 
