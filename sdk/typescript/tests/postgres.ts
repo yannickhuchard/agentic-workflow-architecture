@@ -70,7 +70,7 @@ export async function start_postgres(): Promise<TestPostgres> {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'awa-pg-'));
     if (as_postgres) { fs.chmodSync(dir, 0o755); execFileSync('chown', ['postgres', dir]); }
     const data = path.join(dir, 'data'), port = await free_port();
-    run('initdb', ['-D', data, '-A', 'trust', '-U', 'awa', '--no-sync']);
+    run('initdb', ['-D', data, '-A', 'trust', '-U', 'awa', '-E', 'UTF8', '--no-locale', '--no-sync']);
     run('pg_ctl', ['-D', data, '-l', path.join(dir, 'log'), '-w', '-o', `-p ${port} -k ${dir} -c listen_addresses=127.0.0.1 -c fsync=off -c max_connections=300`, 'start']);
     const admin = `postgres://awa@127.0.0.1:${port}/postgres`;
     return {

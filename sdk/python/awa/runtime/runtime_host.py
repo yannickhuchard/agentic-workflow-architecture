@@ -29,6 +29,7 @@ from awa.runtime.journey import (
     journey_analytics, journey_transitions, new_journey_instance, parse_journey, record_journey_event,
     record_touchpoint, time_text, touchpoints_for, validate_journey,
 )
+from awa.runtime.shared_store import SharedJournal, SharedOperation, StoredRun
 from awa.runtime.token import TokenStatus
 from awa.runtime.workflow_engine import EngineStatus, WorkflowEngine
 from awa.types import ActorType, Workflow
@@ -131,10 +132,12 @@ class AwaRuntime:
       engine: options given to every run the host starts (see WorkflowEngine)
       now:    callable returning the current time in milliseconds; tests replace it to move time forward
       store:  where the host keeps what it knows (19.10). Without it, everything is in memory.
+      shared: a store that several hosts use at once (29), instead of `store`. Each operation then works on
+              what it holds of the store, and keeps it there.
     """
 
     def __init__(self, engine: dict[str, Any] | None = None, now: Callable[[], float] | None = None,
-                 store: RuntimeStore | None = None) -> None:
+                 store: RuntimeStore | None = None, shared: Any = None) -> None:
         self._engine_defaults = dict(engine or {})
         self._clock = now
         self._store = store
@@ -154,6 +157,11 @@ class AwaRuntime:
         self._concerns: dict[str, set[str]] = {}
         self._depth = 0
         self._release: Callable[[], None] | None = None
+        # On a shared store: the operation under way, its journal, and one operation of this host at a time (29)
+        self._shared = shared
+        self._operation: SharedOperation | None = None
+        self._operation_guard = threading.RLock()
+        self._shared_journal = SharedJournal(shared, lambda: self._operation) if shared is not None else None
 
     # -- time ---------------------------------------------------------------
 
@@ -242,6 +250,8 @@ class AwaRuntime:
 
     def _op(self, work: Callable[[], Any]) -> Any:
         """One operation of the host. When the outermost one ends, what the host knows is saved."""
+        if self._shared is not None:
+            return self._shared_op(work)
         self._depth += 1
         try:
             return work()
@@ -279,6 +289,8 @@ class AwaRuntime:
         execute it again, so activities are executed at least once (10.3).
         Raises, and changes nothing, when a run or a journey on record cannot be continued.
         """
+        if self._shared is not None:
+            return self._check_shared_store()
         state = self._store.load() if self._store else None
         if not state:
             return {"instances": 0, "runs": 0, "continued": []}
@@ -342,6 +354,8 @@ class AwaRuntime:
                 outer_sink(event)
 
         options = {**self._engine_defaults, "run_id": run_id, "event_sink": sink}
+        if self._shared_journal is not None:
+            options["journal"] = self._shared_journal
         if self._clock:
             options["now"] = self._clock
         return options
@@ -503,9 +517,14 @@ class AwaRuntime:
     def _accept(self, event: BusinessEvent) -> dict[str, Any]:
         result: dict[str, Any] = {"accepted": False, "resumed_runs": [], "started_runs": [], "journeys": []}
         event_id = str(event["id"])
-        if event_id in self._seen_events:
-            return result
-        self._seen_events[event_id] = None
+        if self._operation is not None:
+            # Accepted once across every host of the store, and everything it can touch held (29.3)
+            if not self._operation.accept(event):
+                return result
+        else:
+            if event_id in self._seen_events:
+                return result
+            self._seen_events[event_id] = None
         result["accepted"] = True
         data = event.get("data") if isinstance(event.get("data"), dict) else {}
         time = self._time()
@@ -615,8 +634,14 @@ class AwaRuntime:
         moment = self._now() if now is None else now
 
         def work() -> dict[str, list[str]]:
+            if self._operation is not None:
+                self._operation.hold_due(moment)
             timed_out_runs: list[str] = []
             for engine in self._each_run():
+                # A run left in the middle of an activity is continued (10.3)
+                if engine.status == EngineStatus.RUNNING:
+                    engine.run()
+                    self._sync(engine)
                 if engine.expire_events(moment) > 0:
                     timed_out_runs.append(engine.run_id)
                     engine.run()
@@ -635,11 +660,15 @@ class AwaRuntime:
 
     def resume(self, run_id: str, token_id: str, output: dict[str, Any] | None = None) -> bool:
         """A person completed a task in one of the runs"""
-        engine = self._runs.get(run_id)
-        if not engine:
+        if self._shared is None and run_id not in self._runs:
             return False
 
         def work() -> bool:
+            if self._operation is not None:
+                self._operation.hold_run(run_id)
+            engine = self._runs.get(run_id)
+            if not engine:
+                return False
             resumed = engine.resume_token(token_id, output or {})
             engine.run()
             self._sync(engine)
@@ -654,6 +683,10 @@ class AwaRuntime:
 
     def export_journey(self, instance_id: str) -> dict[str, Any]:
         """Everything about one journey, for a view or an audit: its definition, its record, and the journal of each of its runs"""
+        self.refresh()
+        return self._bundle(instance_id)
+
+    def _bundle(self, instance_id: str) -> dict[str, Any]:
         instance = self._instances.get(instance_id)
         if not instance:
             raise KeyError(f"Journey instance {instance_id} not found")
@@ -675,13 +708,14 @@ class AwaRuntime:
         Every journey with everything recorded about it: what tools/visualization/journey.html
         and dashboard.html load, and what compute_measures() reads.
         """
+        self.refresh()
         journeys = []
         for definition in self._journeys.values():
             instances = self.list_journey_instances(definition.id)
             journeys.append({
                 "definition": definition.to_json(),
                 "analytics": journey_analytics(definition, instances),
-                "instances": [{"instance": i, "runs": self.export_journey(i["id"])["runs"]} for i in instances],
+                "instances": [{"instance": i, "runs": self._bundle(i["id"])["runs"]} for i in instances],
             })
         return _jsonable({
             "as_of": self._time(),
@@ -689,6 +723,98 @@ class AwaRuntime:
             "transitions": self.transitions(),
             "journeys": journeys,
         })
+
+    # -- a shared store (29) -------------------------------------------------
+
+    @property
+    def shared_store(self) -> Any:
+        """The store this host shares with others (29), if it has one"""
+        return self._shared
+
+    def _shared_op(self, work: Callable[[], Any]) -> Any:
+        """One operation as one unit of the store: the working set starts empty and holds what the operation takes"""
+        with self._operation_guard:
+            if self._operation is not None:
+                return work()  # within the operation under way: the guard is held by this thread
+            def unit_work(unit: Any) -> Any:
+                self._instances, self._runs, self._run_order, self._run_journey, self._outbox = {}, {}, [], {}, {}
+                self._operation = SharedOperation(unit, _SharedView(self))
+                try:
+                    result = work()
+                    self._operation.write()
+                    return result
+                finally:
+                    self._operation = None
+            return self._shared.operation(unit_work)
+
+    def _adopt(self, saved: StoredRun) -> WorkflowEngine:
+        """A run taken up where another operation left it. Only one left in the middle of an activity is resumed (10.3)."""
+        resumed = any(t.get("status") == "active" for t in saved["state"].get("tokens") or [])
+        engine = WorkflowEngine.restore(self._workflows[saved["workflow_id"]], saved["state"],
+                                        self._engine_options(saved["run_id"]), record_resumed=resumed)
+        self._runs[saved["run_id"]] = engine
+        self._run_order.append(saved["run_id"])
+        instance = self._instances.get(saved.get("journey_instance_id") or "")
+        if instance:
+            self._watch(engine, self._journeys[instance["journey_id"]], instance, saved["run_id"])
+        return engine
+
+    def _check_shared_store(self) -> dict[str, Any]:
+        """A host refuses to start on a store that keeps work it could not continue (19.10)"""
+        needed = self._shared.required_definitions()
+        missing = [f"workflow {w}" for w in needed["workflows"] if w not in self._workflows]
+        missing += [f"journey {j}" for j in needed["journeys"] if j not in self._journeys]
+        if missing:
+            raise RuntimeError(f"Cannot work on this store: what it keeps needs {', '.join(missing)}, "
+                               "which this host has not registered. Nothing was changed.")
+        return {"instances": needed["instances"], "runs": needed["runs"], "continued": []}
+
+    def refresh(self) -> None:
+        """
+        On a shared store, load everything as last kept, for reading: list_journey_instances(),
+        analytics(), transitions() and get_run() then show the whole store rather than what this
+        host's last operation held. Exports do this themselves. Without a shared store it does nothing.
+        """
+        if self._shared is None:
+            return
+        with self._operation_guard:
+            if self._operation is not None:
+                return
+            kept = self._shared.read_all()
+            self._instances = {i["id"]: i for i in kept["instances"]}
+            self._runs, self._run_order, self._run_journey, self._outbox = {}, [], {}, {}
+            options = {**self._engine_defaults, "journal": self._shared.journal}
+            if self._clock:
+                options["now"] = self._clock
+            for saved in kept["runs"]:
+                workflow = self._workflows.get(saved["workflow_id"])
+                if workflow is None:
+                    continue
+                self._runs[saved["run_id"]] = WorkflowEngine.restore(workflow, saved["state"], options, record_resumed=False)
+                self._run_order.append(saved["run_id"])
+                if saved.get("journey_instance_id"):
+                    self._run_journey[saved["run_id"]] = saved["journey_instance_id"]
+
+
+class _SharedView:
+    """What a host lends an operation on a shared store (shared_store.HostView)"""
+
+    def __init__(self, host: AwaRuntime) -> None:
+        self._host = host
+        self.workflows = host._workflows
+        self.journeys = host._journeys
+        self.concerns = host._concerns
+        self.instances = host._instances
+        self.runs = host._runs
+        self.run_journey = host._run_journey
+        self.outbox = host._outbox
+
+    def adopt(self, saved: StoredRun) -> WorkflowEngine:
+        return self._host._adopt(saved)
+
+    def subject_of(self, definition: JourneyDefinition, event: BusinessEvent) -> str | None:
+        data: dict[str, Any] = event["data"] if isinstance(event.get("data"), dict) else {}
+        return self._host._subject_of(definition, event, data)
 
 
 # ---------------------------------------------------------------------------

@@ -590,7 +590,8 @@ class WorkflowEngine:
             store.save(self._run_id, self.snapshot())
 
     @classmethod
-    def restore(cls, workflow: Workflow, state: dict[str, Any], options: dict[str, Any] | None = None) -> "WorkflowEngine":
+    def restore(cls, workflow: Workflow, state: dict[str, Any], options: dict[str, Any] | None = None,
+                record_resumed: bool = True) -> "WorkflowEngine":
         """
         Continue a run from a checkpoint. The run keeps its run id and its
         journal continues at the next sequence number. Tokens that were active
@@ -631,11 +632,13 @@ class WorkflowEngine:
         else:
             engine._status = EngineStatus(state.get("engine_status", "idle"))
 
-        engine._record("run.resumed", {
-            "from_checkpoint_at": state.get("checkpoint_at"),
-            "from_seq": int(meta.get("journal_seq") or 0),
-            "active_tokens": sum(1 for t in engine._tokens.values() if t.status == TokenStatus.ACTIVE),
-        })
+        # A run another host left at rest is taken up, not resumed: nothing was interrupted (specification 29.2)
+        if record_resumed:
+            engine._record("run.resumed", {
+                "from_checkpoint_at": state.get("checkpoint_at"),
+                "from_seq": int(meta.get("journal_seq") or 0),
+                "active_tokens": sum(1 for t in engine._tokens.values() if t.status == TokenStatus.ACTIVE),
+            })
         return engine
 
     # ------------------------------------------------------------------

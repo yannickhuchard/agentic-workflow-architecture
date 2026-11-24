@@ -1,8 +1,10 @@
 """
 Journeys and measures over HTTP (specification sections 19 and 21).
 
-With AWA_DATA_DIR set, definitions, journeys and journals are kept in that
-directory and survive a restart; without it they live in this process.
+With AWA_RUNTIME_STORE set to a PostgreSQL URL, definitions, journeys and
+journals are kept in that shared store, which several servers may use at once
+(29). Otherwise, with AWA_DATA_DIR set, they are kept in that directory and
+survive a restart; without either they live in this process.
 AWA_SIMULATE=1 runs activities without calling models, tools or people, and
 AWA_SIMULATED_OUTPUTS names a JSON file saying what each activity returns.
 """
@@ -49,9 +51,20 @@ def _host() -> AwaRuntime:
                 with open(os.environ["AWA_SIMULATED_OUTPUTS"], encoding="utf-8") as handle:
                     outputs = json.load(handle)
             engine = {"simulate": True, "actors": simulated_actors(outputs)}
-        directory = _directory()
-        _runtime = open_runtime_directory(directory, engine=engine) if directory else AwaRuntime(engine=engine)
+        directory, store = _directory(), os.environ.get("AWA_RUNTIME_STORE")
+        if store:
+            from awa.runtime.postgres_store import open_runtime_store
+            _runtime = open_runtime_store(store, engine=engine)
+        else:
+            _runtime = open_runtime_directory(directory, engine=engine) if directory else AwaRuntime(engine=engine)
     return _runtime
+
+
+def _reading() -> AwaRuntime:
+    """The host, having read what its store keeps: on a shared store, other hosts may have changed it since"""
+    host = _host()
+    host.refresh()
+    return host
 
 
 def _instant(text: str | None) -> float | None:
@@ -79,7 +92,9 @@ def register_definition(document: dict[str, Any] = Body(...)) -> dict[str, Any]:
                 host.register_journey(document)
             else:
                 host.register_workflow(document)
-            if _directory():
+            if host.shared_store is not None:
+                host.shared_store.add_definition(document)
+            elif _directory():
                 add_definition(_directory() or "", document)
         except HTTPException:
             raise
@@ -93,7 +108,7 @@ def register_definition(document: dict[str, Any] = Body(...)) -> dict[str, Any]:
 @journey_router.get("/", include_in_schema=False)
 def list_journeys() -> list[dict[str, Any]]:
     with _guard:
-        host = _host()
+        host = _reading()
         return [{
             "id": j.id, "name": j.name, "version": j.version, "description": j.description,
             "stages": [{"id": s.id, "name": s.name} for s in j.stages], "analytics": host.analytics(j.id),
@@ -130,7 +145,7 @@ def resume(run_id: str, token_id: str, body: dict[str, Any] | None = Body(defaul
 @journey_router.get("/instances")
 def list_instances(journey_id: str | None = None, subject: str | None = None, stalled: str | None = None) -> list[dict[str, Any]]:
     with _guard:
-        return [_summary(i) for i in _host().list_journey_instances(journey_id)
+        return [_summary(i) for i in _reading().list_journey_instances(journey_id)
                 if (not subject or i["subject_key"] == subject)
                 and (stalled is None or (i["stalled"] and i["status"] == "active") == (stalled != "false"))]
 
@@ -148,7 +163,7 @@ def get_instance(instance_id: str) -> dict[str, Any]:
 @journey_router.get("/transitions")
 def transitions() -> list[dict[str, Any]]:
     with _guard:
-        return _host().transitions()
+        return _reading().transitions()
 
 
 @journey_router.get("/portfolio")

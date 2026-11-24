@@ -36,12 +36,16 @@ dev = [
     "jsonschema>=4.18.0",  # outcome contract schemas, and journal events in the conformance tests
     "mypy>=1.0.0",
     "ruff>=0.1.0",
+    "psycopg[binary]>=3.1",  # the tests of the shared runtime store, where PostgreSQL is installed
 ]
 contracts = [
     "jsonschema>=4.18.0",  # checks outcome_contract.output_schema; without it such a contract fails closed
 ]
 ai = [
     "google-generativeai>=0.3.0",
+]
+postgres = [
+    "psycopg[binary]>=3.1",  # the shared runtime store: several hosts on one PostgreSQL database (specification 29)
 ]
 web = [
     "fastapi>=0.100.0",

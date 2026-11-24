@@ -326,6 +326,73 @@ suite('PostgreSQL runtime store (spec 29)', () => {
         await audit(url);
     });
 
+    const PYTHON_SDK = path.join(ROOT, 'sdk/python');
+    // The Python SDK reads AWA_DATABASE_URL in its own way (a SQLite file for human tasks): its processes do without the one these tests set
+    const python_env = (() => { const env: NodeJS.ProcessEnv = { ...process.env, PYTHONPATH: PYTHON_SDK }; delete env.AWA_DATABASE_URL; return env; })();
+    const python_ready = spawnSync('python3', ['-c', 'import awa.runtime.postgres_store, psycopg'], { env: python_env, cwd: os.tmpdir() }).status === 0;
+    if (!python_ready) console.warn('The test of a TypeScript and a Python host on one store is skipped: python3 cannot import the Python SDK with psycopg');
+    (python_ready ? it : it.skip)('TypeScript hosts and Python hosts share one store: each takes up what the other left, every event once', async () => {
+        const url = await server.database();
+        await with_definitions(url);
+        const SUBJECTS = 20, NOTES = 3;
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'awa-shared-mixed-'));
+        const ts_hosts = await Promise.all([0, 1].map(n => host(url, new LoadActor(), { host_id: `typescript-${n}` })));
+        const accepted: string[] = [];
+        let given = 0;
+        for (const name of ['submit', 'notes', 'documents'] as const) {
+            // Four hosts: two TypeScript objects here, two Python processes. Each phase deals the subjects out afresh,
+            // so that a run started by one implementation is woken by the other.
+            const queues = deal(phase(name, SUBJECTS, NOTES), 4, 2);
+            if (name === 'documents') queues.reverse();
+            given += queues.flat().length;
+            const python = queues.slice(2).map((queue, n) => new Promise<{ accepted: string[]; failures: unknown[] }>((resolve, reject) => {
+                const plan = path.join(dir, `${name}-${n}.json`);
+                fs.writeFileSync(plan, JSON.stringify({ url, host_id: `python-${n}`, queue, tick_every: 4 }));
+                // In a directory of its own: the Python SDK makes its task database in the current directory
+                const child = spawn('python3', [path.join(PYTHON_SDK, 'tests/shared_store_worker.py'), plan], { env: python_env, cwd: dir });
+                let out = '', err = '';
+                child.stdout.on('data', d => { out += d; });
+                child.stderr.on('data', d => { err += d; });
+                child.on('exit', code => code === 0 ? resolve(JSON.parse(out.trim().split('\n').pop()!)) : reject(new Error(`python worker exited ${code}: ${err}`)));
+            }));
+            const typescript = queues.slice(0, 2).map(async (queue, h) => {
+                const mine: string[] = [];
+                for (const [n, e] of queue.entries()) {
+                    if ((await ts_hosts[h].publish(e)).accepted) mine.push(e.id);
+                    if (n % 4 === 0) await ts_hosts[h].tick();
+                }
+                return { accepted: mine, failures: [] as unknown[] };
+            });
+            for (const outcome of await Promise.all([...typescript, ...python])) {
+                expect(outcome.failures).toEqual([]);
+                accepted.push(...outcome.accepted);
+            }
+        }
+        await Promise.all(ts_hosts.map(h => h.close()));
+        fs.rmSync(dir, { recursive: true, force: true });
+        const distinct = SUBJECTS * (2 + NOTES);
+        expect(new Set(accepted).size).toBe(accepted.length);
+        expect(accepted).toHaveLength(distinct);
+        const counts = await audit(url);
+        expect(counts.accepted).toBe(distinct);
+        const instances = await records(url);
+        expect(instances).toHaveLength(SUBJECTS);
+        for (const i of instances) {
+            expect(i.events.filter(e => e.type === 'journey.event_received')).toHaveLength(2 + NOTES);
+            expect(i.status).toBe('completed');
+            expect(i.runs.map(r => r.status)).toEqual(['completed']);
+        }
+        // Subjects whose claim one implementation accepted and the other completed
+        const { Client } = await import('pg');
+        const client = new Client({ connectionString: url });
+        await client.connect();
+        const crossed = (await client.query(`SELECT COUNT(*)::int AS n FROM awa_runtime.business_events s JOIN awa_runtime.business_events d
+            ON s.id = 'submit-' || substr(d.id, 11) AND d.id LIKE 'documents-%' WHERE split_part(s.accepted_by, '-', 1) <> split_part(d.accepted_by, '-', 1)`)).rows[0].n;
+        await client.end();
+        expect(crossed).toBeGreaterThan(0);
+        console.log(`[shared store, TypeScript and Python] 2 TypeScript hosts and 2 Python processes, ${given} deliveries of ${distinct} events (${given - distinct} duplicates), ${accepted.length} accepted, ${crossed} of ${SUBJECTS} claims begun by one implementation and settled by the other, ${counts.duplicates} applied twice`);
+    }, 120_000);
+
     it('awa journey works on the store named by --store or AWA_RUNTIME_STORE', async () => {
         const url = await server.database();
         const cli = bundle('src/cli/index.ts', 'cli.cjs');
