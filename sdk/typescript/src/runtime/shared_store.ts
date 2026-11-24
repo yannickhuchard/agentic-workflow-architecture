@@ -23,6 +23,7 @@ import { JournalEvent, JournalStore } from './journal';
 import { JourneyDefinition, JourneyInstance } from './journey';
 import { WorkflowState } from './persistence';
 import { WorkflowEngine } from './workflow_engine';
+import { is_child_state, nested_states } from './subworkflow';
 
 /** Run statuses after which a run never changes again */
 export const SETTLED_STATUSES = ['completed', 'failed', 'cancelled'];
@@ -123,9 +124,12 @@ type SavedToken = { status?: string; activity_id?: string; context_data?: Record
 type Awaited = { name?: string; due_at?: string; correlation_key?: string; correlation_value?: unknown };
 const awaited = (token: SavedToken) => (token.status === 'waiting' ? token.context_data?._awaiting_event as Awaited | undefined : undefined);
 
-/** What a run's waiting tokens wait for */
+/** The tokens of a run and of the child runs it holds (24.8): what the run waits for is what they wait for */
+const all_tokens = (state: WorkflowState): SavedToken[] => [state, ...nested_states(state)].flatMap(s => s.tokens as SavedToken[]);
+
+/** What a run's waiting tokens wait for, and its child runs' */
 export function run_waits(state: WorkflowState): RunWait[] {
-    return (state.tokens as SavedToken[]).map(awaited).filter((a): a is Awaited & { name: string } => !!a?.name)
+    return all_tokens(state).map(awaited).filter((a): a is Awaited & { name: string } => !!a?.name)
         .map(a => ({ name: a.name, ...(a.correlation_key ? { correlation_key: a.correlation_key, correlation_value: a.correlation_value } : {}) }));
 }
 
@@ -164,11 +168,12 @@ export function may_reach(wait: RunWait, event: BusinessEvent): boolean {
  * due at every tick while it has not settled: the store reports it as due from
  * the epoch on.
  */
-export function run_due(workflow: Workflow | undefined, state: WorkflowState): number | null {
+export function run_due(workflow: Workflow | undefined, state: WorkflowState, workflows?: Map<string, Workflow>): number | null {
     if (SETTLED_STATUSES.includes(String(state.engine_status))) return null;
-    const tokens = state.tokens as SavedToken[];
+    const tokens = all_tokens(state);
     if (tokens.some(t => t.status === 'active')) return 0;     // left in the middle of an activity: continued at the next tick
-    if (workflow && (workflow.sla || workflow.activities.some(a => a.sla))) return 0;
+    const held = [workflow, ...nested_states(state).map(s => workflows?.get(s.workflow_id))];
+    if (held.some(w => w && (w.sla || w.activities.some(a => a.sla)))) return 0;
     const deadlines = tokens.map(t => awaited(t)?.due_at).filter((d): d is string => !!d).map(d => Date.parse(d)).filter(d => !isNaN(d));
     return deadlines.length ? Math.min(...deadlines) : null;
 }
@@ -234,6 +239,8 @@ export class SharedOperation {
         for (const kept of runs) {
             if (!this.view.workflows.has(kept.workflow_id)) throw new Error(`Run ${kept.run_id} needs workflow ${kept.workflow_id}, which is not registered on this host. Nothing was changed.`);
             this.kept_runs.set(kept.run_id, { text: run_text(kept.state, kept.outbox), version: kept.version, waits: kept.waits.map(wait_key) });
+            // A child run is taken up with the run that holds it, never on its own (24.8)
+            if (is_child_state(kept.state)) continue;
             if (kept.outbox.length) this.view.outbox.set(kept.run_id, [...kept.outbox]);
             if (kept.journey_instance_id) this.view.run_journey.set(kept.run_id, kept.journey_instance_id);
             this.view.runs.set(kept.run_id, this.view.adopt(kept));
@@ -301,8 +308,17 @@ export class SharedOperation {
             const workflow = this.view.workflows.get(state.workflow_id);
             runs.push({
                 run_id, workflow_id: state.workflow_id, ...(instance ? { journey_instance_id: instance.id } : {}), state, outbox, partition,
-                due_at: run_due(workflow, state), waits_for: run_waits_for(state), waits: run_waits(state), version: kept?.version ?? 0,
+                due_at: run_due(workflow, state, this.view.workflows), waits_for: run_waits_for(state), waits: run_waits(state), version: kept?.version ?? 0,
             });
+            // Each child run is kept as a run of its own, in the partition of the run that holds it; its waits are that run's (24.8)
+            for (const held of engine.subworkflowStates()) {
+                const kept_child = this.kept_runs.get(held.run_id);
+                if (kept_child?.text === run_text(held.state, [])) continue;
+                runs.push({
+                    run_id: held.run_id, workflow_id: held.workflow_id, ...(instance ? { journey_instance_id: instance.id } : {}), state: held.state, outbox: [], partition,
+                    due_at: null, waits_for: [], waits: [], version: kept_child?.version ?? 0,
+                });
+            }
         }
         // A wait that is new must not be kept while an event that could reach it is being accepted unseen (29.3)
         const new_waits = runs.flatMap(r => r.waits.map(wait_key).filter(k => !this.kept_runs.get(r.run_id)?.waits.includes(k)));

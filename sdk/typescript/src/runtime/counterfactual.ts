@@ -321,6 +321,8 @@ export async function counterfactual_replay(
             },
         } : {}),
         wait_for_human_tasks: false,
+        // A call activity's result is held as recorded: no child run is started (24.7)
+        subworkflows: { ...options.engine?.subworkflows, actor: recorded_actor },
         sleep: async () => { },
         execution_logger: options.engine?.execution_logger || { log_execution: async () => { } },
         actors: {

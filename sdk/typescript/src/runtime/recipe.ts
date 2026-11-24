@@ -12,6 +12,7 @@
 
 import { Activity, DecisionNode, Edge, Workflow } from '../types';
 import { JournalEvent } from './journal';
+import { is_call_activity } from './subworkflow';
 
 export interface RecipeOptions {
     /** Append the full workflow definition, so the recipe alone suffices to rebuild it. Default true. */
@@ -129,6 +130,7 @@ export function required_levels(workflow: Workflow): string[] {
     if (workflow.events.length > 0 || [...fan_out.values()].some(n => n > 1)
         || workflow.activities.some(a => a.join === 'all' || a.compensation)) levels.add('flow');
     if (workflow.activities.some(a => (a as Activity & { knowledge?: unknown }).knowledge)) levels.add('learning');
+    if (workflow.activities.some(is_call_activity)) levels.add('subworkflows');
     return [...levels];
 }
 
@@ -307,6 +309,11 @@ export function compile_recipe(workflow: Workflow, events: JournalEvent[], optio
             const role = handlers.has(id) ? ' compensation handler' : '';
             push(`### Step ${step}: ${activity.name}${not_reached}`, '');
             push(`- **Kind**: activity${role}, performed by ${code(activity.actor_type)}, role ${role_name(activity.role_id)}`);
+            if (is_call_activity(activity)) {
+                push(`- **Performed by a child run** of workflow ${code(activity.expansion_workflow_id)}, which must be registered with the engine (spec 24)`
+                    + `${activity.subworkflow?.input ? `; input mapped as ${code(JSON.stringify(activity.subworkflow.input))}` : ''}`
+                    + `${activity.subworkflow?.output ? `; outcome mapped as ${code(JSON.stringify(activity.subworkflow.output))}` : ''}`);
+            }
             if (activity.description) push(`- **Purpose**: ${one_line(activity.description)}`);
             if (activity.procedure) push(`- **Procedure**: ${one_line(activity.procedure)}`);
             if (activity.inputs.length > 0) {
@@ -416,8 +423,18 @@ export function compile_recipe(workflow: Workflow, events: JournalEvent[], optio
                     }
                 }
 
+                // The child runs a call activity started, each explained by its own recipe (24.7)
+                for (const e of trace.events.filter(e => e.type.startsWith('subworkflow.'))) {
+                    const what = e.type === 'subworkflow.started' ? `started child run ${code(e.data.run_id)} of ${one_line(e.data.workflow_name)} at depth ${e.data.depth}`
+                        : e.type === 'subworkflow.completed' ? `child run ${code(e.data.run_id)} completed in ${ms(e.data.duration_ms)}`
+                            : e.type === 'subworkflow.failed' ? `child run ${code(e.data.run_id)} failed: ${one_line((e.data.error as { message?: string })?.message)}`
+                                : `child run ${code(e.data.run_id)} was cancelled (${one_line(e.data.reason)})`;
+                    push(`- Attempt ${e.attempt ?? '?'}: ${what}`);
+                }
                 const waited = trace.events.find(e => e.type === 'token.waiting');
-                if (waited) push(`- The token waited here for a human (${one_line(waited.data.reason)}).`);
+                if (waited) push(waited.data.reason === 'subworkflow'
+                    ? `- The token waited here for its child run ${code(waited.data.run_id)}, which waited for ${waited.data.waiting_for === 'human' ? 'a person' : 'a business event'}.`
+                    : `- The token waited here for a human (${one_line(waited.data.reason)}).`);
                 const escalated = trace.events.find(e => e.type === 'contract.escalated');
                 if (escalated) push(`- Escalated to a human: ${one_line(escalated.data.message)}`);
 

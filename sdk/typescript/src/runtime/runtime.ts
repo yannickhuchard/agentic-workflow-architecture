@@ -22,6 +22,7 @@ import { WorkflowEngine, WorkflowEngineOptions } from './workflow_engine';
 import { ShadowOptions, ShadowRunner } from './shadow';
 import { JourneyTelemetry, TelemetrySetting, resolve_telemetry } from './telemetry_export';
 import { HostView, SharedJournal, SharedOperation, SharedRuntimeStore, StoredRun } from './shared_store';
+import { called_workflows, record_child_runs } from './subworkflow';
 import fs from 'fs/promises';
 import { rmSync } from 'fs';
 import path from 'path';
@@ -165,7 +166,9 @@ export class AwaRuntime {
             ...definition.touchpoints.map(t => t.on.event).filter((t): t is string => !!t),
             ...(definition.sentiment?.rules || []).map(r => r.event).filter((t): t is string => !!t),
         ]);
-        const workflow_ids = [...definition.stages.flatMap(s => [...s.workflows, ...(s.on_enter ? [s.on_enter.start_workflow] : [])]), ...definition.triggers.map(t => t.start_workflow)];
+        const started_ids = [...definition.stages.flatMap(s => [...s.workflows, ...(s.on_enter ? [s.on_enter.start_workflow] : [])]), ...definition.triggers.map(t => t.start_workflow)];
+        // The workflows they call are the journey's too (24.7)
+        const workflow_ids = [...started_ids, ...called_workflows(started_ids.filter((id): id is string => !!id), this.workflows).map(w => w.id)];
         for (const id of workflow_ids) {
             for (const event of (id && this.workflows.get(id)?.events) || []) {
                 const name = (event.event_definition as { name?: string } | undefined)?.name;
@@ -266,6 +269,8 @@ export class AwaRuntime {
         return {
             ...(this.run_telemetry ? { telemetry: this.run_telemetry } : {}),
             ...this.options.engine, now: this.options.now, ...(this.shared_journal ? { journal: this.shared_journal } : {}),
+            // Call activities run the workflows registered here (24.1); a shared store keeps each child run (24.8)
+            subworkflows: { workflows: this.workflows, ...(this.options.shared ? { record_settled: true } : {}), ...this.options.engine?.subworkflows },
             event_sink: async event => { this.outbox.set(run_id(), [...(this.outbox.get(run_id()) || []), event]); await outer_sink?.(event); },
         };
     }
@@ -283,7 +288,7 @@ export class AwaRuntime {
             if (!occasion) return;
             for (const touchpoint of touchpoints_for(definition, occasion)) {
                 if (occasion.event && touchpoint.direction !== 'outbound') continue;
-                record_touchpoint(definition, instance, touchpoint, event.time, { data: occasion.data, run_id, event_id: (occasion as { event_id?: string }).event_id, link: (occasion as { link?: string }).link });
+                record_touchpoint(definition, instance, touchpoint, event.time, { data: occasion.data, run_id: event.run_id || run_id, event_id: (occasion as { event_id?: string }).event_id, link: (occasion as { link?: string }).link });
             }
         });
     }
@@ -330,6 +335,8 @@ export class AwaRuntime {
         if (!instance) return flush();
         const ref = instance.runs.find(r => r.run_id === engine.getRunId())!;
         const status = engine.getStatus();
+        // The runs it called belong to the journey too, and end before it does (24.7)
+        record_child_runs(engine, instance, ref, this.time());
         if (ref.status === status) return flush();
         ref.status = status;
         if (status !== 'completed' && status !== 'failed' && status !== 'cancelled') return flush();
@@ -539,16 +546,22 @@ export class AwaRuntime {
 
     /** A person completed a task in one of the runs */
     async resume(run_id: string, token_id: string, output: Record<string, unknown>): Promise<boolean> {
-        if (!this.options.shared && !this.runs.get(run_id)) return false;
+        if (!this.options.shared && !this.holding(run_id)) return false;
         return this.op(async () => {
             await this.operation?.hold_run(run_id);
-            const engine = this.runs.get(run_id);
+            // A task of a child run is completed through the run that holds it (24.4)
+            const engine = this.holding(run_id);
             if (!engine) return false;
             const resumed = await engine.resumeToken(token_id, output);
             await engine.run();
             await this.sync(engine);
             return resumed;
         });
+    }
+
+    /** The run of this id, or the run that holds it as a child run (24.8) */
+    private holding(run_id: string): WorkflowEngine | undefined {
+        return this.runs.get(run_id) ?? [...this.runs.values()].find(engine => engine.hasSubworkflowRun(run_id));
     }
 
     /** Every journey with everything recorded about it, for a view or an audit */
@@ -575,7 +588,8 @@ export class AwaRuntime {
         const runs = [];
         for (const ref of instance.runs) {
             const engine = this.runs.get(ref.run_id);
-            runs.push({ run_id: ref.run_id, workflow_id: ref.workflow_id, stage_id: ref.stage_id, events: engine ? await engine.getEvents() : [] });
+            const holder = engine ? undefined : this.holding(ref.run_id);
+            runs.push({ run_id: ref.run_id, workflow_id: ref.workflow_id, stage_id: ref.stage_id, events: engine ? await engine.getEvents() : holder ? await holder.getSubworkflowEvents(ref.run_id) : [] });
         }
         const workflow_ids = new Set(instance.runs.map(r => r.workflow_id));
         return { definition, instance, workflows: [...workflow_ids].map(id => this.workflows.get(id)!).filter(Boolean), runs };
@@ -662,7 +676,7 @@ export class AwaRuntime {
             for (const saved of kept.runs) {
                 const workflow = this.workflows.get(saved.workflow_id);
                 if (!workflow) continue;
-                this.runs.set(saved.run_id, WorkflowEngine.restore(workflow, saved.state, { ...this.options.engine, now: this.options.now, journal: shared.journal }, false));
+                this.runs.set(saved.run_id, WorkflowEngine.restore(workflow, saved.state, { ...this.options.engine, now: this.options.now, journal: shared.journal, subworkflows: { workflows: this.workflows, ...this.options.engine?.subworkflows } }, false));
                 if (saved.journey_instance_id) this.run_journey.set(saved.run_id, saved.journey_instance_id);
             }
         });

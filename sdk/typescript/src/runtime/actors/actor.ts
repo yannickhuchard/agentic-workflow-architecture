@@ -10,6 +10,8 @@ export interface ActorContext {
     record?: (event: Pick<JournalEventInput, 'type' | 'data' | 'level'>) => void;
     /** Applies the journal's payload mode (9.4) to a value before it is journalled */
     payload?: (value: unknown) => unknown;
+    /** The `seq` of the attempt's `activity.started` in the run's journal */
+    attempt_seq?: number;
 }
 
 export interface Actor {

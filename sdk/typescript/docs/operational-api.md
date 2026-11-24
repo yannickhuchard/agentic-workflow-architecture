@@ -35,9 +35,9 @@ Kept in the shared PostgreSQL store `AWA_RUNTIME_STORE` names when it is set (or
 | `GET /api/v1/journeys` | The journeys, each with its funnel |
 | `POST /api/v1/journeys/events` | A business event `{ id?, type, source?, data }`. Answers what it did: `{ accepted, started_runs, resumed_runs, journeys }`. An id seen before is accepted once |
 | `POST /api/v1/journeys/tick` | Let time pass, optionally to `{ "at": "<instant>" }`: deadlines, stalled stages, service levels |
-| `POST /api/v1/journeys/runs/{run_id}/tokens/{token_id}/resume` | Complete a task a run waits on a person for; the body is what they decided |
+| `POST /api/v1/journeys/runs/{run_id}/tokens/{token_id}/resume` | Complete a task a run waits on a person for; the body is what they decided. For a task of a child run (specification 24), `run_id` is the child's: the host completes it through the run that waits on the child |
 | `GET /api/v1/journeys/instances?journey_id=&subject=&stalled=true` | Journey instances |
-| `GET /api/v1/journeys/instances/{id}` | One instance with its record and the journals of its runs |
+| `GET /api/v1/journeys/instances/{id}` | One instance with its record and the journals of its runs, child runs included: each child run is listed in the instance's `runs` with its `parent_run_id` (specification 24.7) |
 | `GET /api/v1/journeys/transitions` | How subjects move from one journey to the next |
 | `GET /api/v1/journeys/portfolio` | Everything recorded: what the journey view and the measures page open |
 
