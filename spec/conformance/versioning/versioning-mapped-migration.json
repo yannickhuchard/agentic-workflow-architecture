@@ -1,0 +1,206 @@
+{
+  "id": "versioning-mapped-migration",
+  "level": "versioning",
+  "spec": "25.3",
+  "description": "A plan maps a node the new version replaced to its replacement. A token waiting for a business event moves to a node that waits for the same event with the same correlation; the event then reaches it there, and the run finishes on the new version.",
+  "start": "2026-05-04T09:00:00Z",
+  "workflows": [
+    {
+      "id": "9ef8a9a5-9909-5784-9a23-af39a34cfad9",
+      "name": "Claim",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "216d4c2e-16a1-5970-9c60-48fdec7508e9",
+          "name": "Register",
+          "role_id": "b628ffd4-494e-53b9-bd8c-a06c68e0b258",
+          "actor_type": "application"
+        },
+        {
+          "id": "a083d036-4315-521e-b219-1869a43ba99d",
+          "name": "Settle",
+          "role_id": "b628ffd4-494e-53b9-bd8c-a06c68e0b258",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "da05ee2d-49ee-5d34-b7b2-c32498678790",
+          "source_id": "216d4c2e-16a1-5970-9c60-48fdec7508e9",
+          "target_id": "af63766a-b58c-5256-a74d-1078512b239f"
+        },
+        {
+          "id": "ade9102e-2d63-5aff-9806-4dc67f39e376",
+          "source_id": "af63766a-b58c-5256-a74d-1078512b239f",
+          "target_id": "a083d036-4315-521e-b219-1869a43ba99d"
+        }
+      ],
+      "events": [
+        {
+          "id": "af63766a-b58c-5256-a74d-1078512b239f",
+          "name": "Documents",
+          "event_type": "message",
+          "event_definition": {
+            "name": "documents.uploaded",
+            "correlation_key": "claim_id"
+          }
+        }
+      ]
+    },
+    {
+      "id": "9ef8a9a5-9909-5784-9a23-af39a34cfad9",
+      "name": "Claim",
+      "version": "2.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "216d4c2e-16a1-5970-9c60-48fdec7508e9",
+          "name": "Register",
+          "role_id": "b628ffd4-494e-53b9-bd8c-a06c68e0b258",
+          "actor_type": "application"
+        },
+        {
+          "id": "a083d036-4315-521e-b219-1869a43ba99d",
+          "name": "Settle",
+          "role_id": "b628ffd4-494e-53b9-bd8c-a06c68e0b258",
+          "actor_type": "application"
+        },
+        {
+          "id": "cbc03c43-a75a-5634-afcd-4b76ae19531d",
+          "name": "Notify",
+          "role_id": "b628ffd4-494e-53b9-bd8c-a06c68e0b258",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "08ab7e0e-b206-5fcd-9496-e4d85bb85bf5",
+          "source_id": "216d4c2e-16a1-5970-9c60-48fdec7508e9",
+          "target_id": "67b4cbb4-9573-5992-a4f2-24fa7d4b6ce0"
+        },
+        {
+          "id": "930907c5-9748-5f9c-8edd-e4d4fd723855",
+          "source_id": "67b4cbb4-9573-5992-a4f2-24fa7d4b6ce0",
+          "target_id": "a083d036-4315-521e-b219-1869a43ba99d"
+        },
+        {
+          "id": "fb00ddde-58d7-57d7-8d82-dcb5335442c1",
+          "source_id": "a083d036-4315-521e-b219-1869a43ba99d",
+          "target_id": "cbc03c43-a75a-5634-afcd-4b76ae19531d"
+        }
+      ],
+      "events": [
+        {
+          "id": "67b4cbb4-9573-5992-a4f2-24fa7d4b6ce0",
+          "name": "Papers",
+          "event_type": "message",
+          "event_definition": {
+            "name": "documents.uploaded",
+            "correlation_key": "claim_id"
+          }
+        }
+      ]
+    }
+  ],
+  "actors": {
+    "Register": {
+      "output": {
+        "claim_id": "CLM-1"
+      }
+    },
+    "Review": {
+      "waits": true
+    },
+    "Settle": {
+      "output": {
+        "paid": true
+      }
+    },
+    "Notify": {
+      "output": {
+        "notified": true
+      }
+    },
+    "Archive": {
+      "output": {
+        "archived": true
+      }
+    }
+  },
+  "steps": [
+    {
+      "register": "1.0.0"
+    },
+    {
+      "start": {},
+      "as": "r1",
+      "expect": {
+        "status": "waiting_event"
+      }
+    },
+    {
+      "register": "2.0.0"
+    },
+    {
+      "migrate": {
+        "run": "r1",
+        "plan": {
+          "to_version": "2.0.0",
+          "nodes": {
+            "af63766a-b58c-5256-a74d-1078512b239f": "67b4cbb4-9573-5992-a4f2-24fa7d4b6ce0"
+          }
+        }
+      },
+      "expect": {
+        "applied": true,
+        "refusals": [],
+        "status": "waiting_event",
+        "run_version": "2.0.0",
+        "tokens": [
+          {
+            "from": "Documents",
+            "to": "Papers",
+            "wait": "event",
+            "outcome": "kept"
+          }
+        ]
+      }
+    },
+    {
+      "publish": {
+        "type": "documents.uploaded",
+        "data": {
+          "claim_id": "CLM-1"
+        }
+      }
+    }
+  ],
+  "expect": {
+    "visited": [
+      "Register",
+      "Settle",
+      "Notify"
+    ],
+    "runs": {
+      "r1": {
+        "status": "completed",
+        "version": "2.0.0",
+        "journal_contains": [
+          {
+            "type": "run.migrated",
+            "data": {
+              "nodes": {
+                "af63766a-b58c-5256-a74d-1078512b239f": "67b4cbb4-9573-5992-a4f2-24fa7d4b6ce0"
+              }
+            }
+          },
+          {
+            "type": "event.received",
+            "node_id": "67b4cbb4-9573-5992-a4f2-24fa7d4b6ce0"
+          }
+        ]
+      }
+    }
+  }
+}

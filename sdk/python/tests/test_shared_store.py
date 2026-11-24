@@ -94,13 +94,13 @@ def records(url):
 def test_migrations_run_once_and_a_newer_store_is_refused(postgres):
     import psycopg
 
-    from awa.runtime.postgres_store import PostgresRuntimeStore
+    from awa.runtime.postgres_store import RUNTIME_STORE_MIGRATIONS, PostgresRuntimeStore
     url = postgres.database()
     PostgresRuntimeStore(url).close()
     with ThreadPoolExecutor(3) as pool:  # several hosts starting at once migrate once between them
         list(pool.map(lambda _: PostgresRuntimeStore(url).close(), range(3)))
     with psycopg.connect(url, autocommit=True) as connection:
-        assert connection.execute("SELECT version FROM awa_runtime.migrations").fetchall() == [(1,)]
+        assert connection.execute("SELECT version FROM awa_runtime.migrations ORDER BY version").fetchall() == [(m["version"],) for m in RUNTIME_STORE_MIGRATIONS]
         connection.execute("INSERT INTO awa_runtime.migrations (version, description, applied_by) VALUES (99, 'from the future', 'test')")
     with pytest.raises(RuntimeError, match="version 99, newer than this SDK knows"):
         PostgresRuntimeStore(url)

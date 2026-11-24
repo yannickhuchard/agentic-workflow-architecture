@@ -912,7 +912,16 @@ CREATE TABLE awa_runtime.journal_events (
 );
 CREATE INDEX journal_events_type ON awa_runtime.journal_events (type);
 
--- A database made from this file holds the tables migration 1 creates: recorded as applied, so that a
+-- Migration 2: every version of a workflow is kept, for the runs that started on it (section 25.1). A journey
+-- is kept once, with version ''.
+ALTER TABLE awa_runtime.definitions DROP CONSTRAINT definitions_pkey;
+UPDATE awa_runtime.definitions SET version = '' WHERE version IS NULL OR kind = 'journey';
+ALTER TABLE awa_runtime.definitions ALTER COLUMN version SET DEFAULT '';
+ALTER TABLE awa_runtime.definitions ALTER COLUMN version SET NOT NULL;
+ALTER TABLE awa_runtime.definitions ADD PRIMARY KEY (kind, id, version);
+
+-- A database made from this file holds the tables migrations 1 and 2 make: recorded as applied, so that a
 -- store opened on it goes on from there
 INSERT INTO awa_runtime.migrations (version, description, applied_by)
-VALUES (1, 'Runtime store: definitions, accepted events, journey instances and events, runs and journals', 'spec/ddl/awa.postgresql.sql');
+VALUES (1, 'Runtime store: definitions, accepted events, journey instances and events, runs and journals', 'spec/ddl/awa.postgresql.sql'),
+       (2, 'Every version of a workflow is kept, for the runs that started on it', 'spec/ddl/awa.postgresql.sql');

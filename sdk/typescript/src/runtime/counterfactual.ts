@@ -19,6 +19,7 @@ import { business_event } from './business_event';
 import { JournalEvent, canonical_json, hash_payload } from './journal';
 import { ToolExecutor } from './tools';
 import { EngineStatus, WorkflowEngine, WorkflowEngineOptions } from './workflow_engine';
+import { as_migrated } from './migration';
 
 export interface CounterfactualOptions {
     /** The workflow to run instead of the recorded one. Node ids must be kept for nodes that are the same. */
@@ -247,7 +248,8 @@ export async function counterfactual_replay(
     baseline: JournalEvent[],
     options: CounterfactualOptions = {},
 ): Promise<{ report: CounterfactualReport; events: JournalEvent[]; status: EngineStatus }> {
-    const recorded = [...baseline].sort((a, b) => a.seq - b.seq);
+    // A run moved to another version is matched node by node as its migrations mapped it (spec 25.5)
+    const recorded = as_migrated(baseline);
     require_payloads(recorded);
     const ai = options.ai || 'live';
     const candidate = options.candidate || workflow;

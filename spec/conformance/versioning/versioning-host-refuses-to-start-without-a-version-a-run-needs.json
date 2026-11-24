@@ -1,0 +1,171 @@
+{
+  "id": "versioning-host-refuses-to-start-without-a-version-a-run-needs",
+  "level": "versioning",
+  "spec": "25.1",
+  "description": "A host that keeps a run of a version it has not registered refuses to start, and changes nothing; given the version, it takes the run up on it.",
+  "start": "2026-05-04T09:00:00Z",
+  "workflows": [
+    {
+      "id": "2bbc744d-eb6e-5a1c-a2fa-28a506cbe955",
+      "name": "Claim",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "87538afb-73fa-52b6-ae53-96d7454f0507",
+          "name": "Register",
+          "role_id": "7b4d76dd-e4b8-5284-9324-825936abe46a",
+          "actor_type": "application"
+        },
+        {
+          "id": "6e2de760-365c-59a4-8129-32d2219a62e3",
+          "name": "Review",
+          "role_id": "7b4d76dd-e4b8-5284-9324-825936abe46a",
+          "actor_type": "human"
+        },
+        {
+          "id": "2fadccaf-936d-5922-becb-57c989201e28",
+          "name": "Settle",
+          "role_id": "7b4d76dd-e4b8-5284-9324-825936abe46a",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "0dffc890-c822-5c7f-8988-7c48775d082a",
+          "source_id": "87538afb-73fa-52b6-ae53-96d7454f0507",
+          "target_id": "6e2de760-365c-59a4-8129-32d2219a62e3"
+        },
+        {
+          "id": "38f847a8-7905-5849-b2d6-f7f452c792a6",
+          "source_id": "6e2de760-365c-59a4-8129-32d2219a62e3",
+          "target_id": "2fadccaf-936d-5922-becb-57c989201e28"
+        }
+      ]
+    },
+    {
+      "id": "2bbc744d-eb6e-5a1c-a2fa-28a506cbe955",
+      "name": "Claim",
+      "version": "2.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "87538afb-73fa-52b6-ae53-96d7454f0507",
+          "name": "Register",
+          "role_id": "7b4d76dd-e4b8-5284-9324-825936abe46a",
+          "actor_type": "application"
+        },
+        {
+          "id": "6e2de760-365c-59a4-8129-32d2219a62e3",
+          "name": "Review",
+          "role_id": "7b4d76dd-e4b8-5284-9324-825936abe46a",
+          "actor_type": "human"
+        },
+        {
+          "id": "2fadccaf-936d-5922-becb-57c989201e28",
+          "name": "Settle",
+          "role_id": "7b4d76dd-e4b8-5284-9324-825936abe46a",
+          "actor_type": "application"
+        },
+        {
+          "id": "f5dac0ac-cb2d-5295-83a3-923c3191b2f9",
+          "name": "Notify",
+          "role_id": "7b4d76dd-e4b8-5284-9324-825936abe46a",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "0dffc890-c822-5c7f-8988-7c48775d082a",
+          "source_id": "87538afb-73fa-52b6-ae53-96d7454f0507",
+          "target_id": "6e2de760-365c-59a4-8129-32d2219a62e3"
+        },
+        {
+          "id": "38f847a8-7905-5849-b2d6-f7f452c792a6",
+          "source_id": "6e2de760-365c-59a4-8129-32d2219a62e3",
+          "target_id": "2fadccaf-936d-5922-becb-57c989201e28"
+        },
+        {
+          "id": "c0862705-4f59-5a68-afc1-49007234c42a",
+          "source_id": "2fadccaf-936d-5922-becb-57c989201e28",
+          "target_id": "f5dac0ac-cb2d-5295-83a3-923c3191b2f9"
+        }
+      ]
+    }
+  ],
+  "actors": {
+    "Register": {
+      "output": {
+        "claim_id": "CLM-1"
+      }
+    },
+    "Review": {
+      "waits": true
+    },
+    "Settle": {
+      "output": {
+        "paid": true
+      }
+    },
+    "Notify": {
+      "output": {
+        "notified": true
+      }
+    },
+    "Archive": {
+      "output": {
+        "archived": true
+      }
+    }
+  },
+  "steps": [
+    {
+      "register": "1.0.0"
+    },
+    {
+      "start": {},
+      "as": "r1"
+    },
+    {
+      "register": "2.0.0"
+    },
+    {
+      "restart": {
+        "versions": [
+          "2.0.0"
+        ]
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "restart": {
+        "versions": [
+          "1.0.0",
+          "2.0.0"
+        ]
+      }
+    },
+    {
+      "complete": {
+        "run": "r1",
+        "node": "Review",
+        "output": {}
+      }
+    }
+  ],
+  "expect": {
+    "runs": {
+      "r1": {
+        "status": "completed",
+        "version": "1.0.0"
+      }
+    },
+    "visited": [
+      "Register",
+      "Review",
+      "Settle"
+    ]
+  }
+}

@@ -802,6 +802,129 @@ paths:
         '404':
           description: No such waiting task
 
+  /journeys/workflows/{workflow_id}/versions:
+    get:
+      tags: [journeys]
+      summary: The registered versions of a workflow, oldest first, each with its live runs (specification 25.1)
+      operationId: listWorkflowVersions
+      parameters:
+        - $ref: '#/components/parameters/workflow_id'
+      responses:
+        '200':
+          description: The versions
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [workflow_id, newest, versions]
+                properties:
+                  workflow_id: { type: string }
+                  newest: { type: string }
+                  versions:
+                    type: array
+                    items:
+                      type: object
+                      required: [version, live_runs]
+                      properties:
+                        version: { type: string }
+                        live_runs: { type: array, items: { type: string } }
+        '404':
+          description: The workflow is not registered
+
+  /journeys/migrations/check:
+    post:
+      tags: [journeys]
+      summary: Compare the versions with live runs with the version to move to, position by position, and say which runs can move (specification 25.4)
+      operationId: checkMigration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [workflow_id]
+              properties:
+                workflow_id: { type: string }
+                from_version: { type: string }
+                to_version: { type: string, description: Default the newest registered }
+                plan: { $ref: '#/components/schemas/MigrationPlan' }
+      responses:
+        '200':
+          description: The comparison of each version, and each run with whether it can move
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [workflow_id, to_version, comparisons, runs]
+                properties:
+                  workflow_id: { type: string }
+                  to_version: { type: string }
+                  comparisons:
+                    type: array
+                    items:
+                      type: object
+                      required: [from_version, to_version, automatic, positions]
+                      properties:
+                        from_version: { type: string }
+                        to_version: { type: string }
+                        automatic: { type: boolean }
+                        positions:
+                          type: array
+                          items:
+                            type: object
+                            required: [node_id, node_name, wait, class]
+                            properties:
+                              node_id: { type: string }
+                              node_name: { type: string }
+                              wait: { type: string, enum: [human, agent, event, timer, join] }
+                              class: { type: string, enum: [compatible, needs_mapping, impossible] }
+                              to_node_id: { type: string }
+                              outcome: { type: string, enum: [kept, restarted] }
+                              candidates: { type: array, items: { type: object } }
+                              reason: { type: string }
+                  runs:
+                    type: array
+                    items:
+                      type: object
+                      required: [run_id, version, status, migratable, refusals]
+                      properties:
+                        run_id: { type: string }
+                        version: { type: string }
+                        status: { type: string }
+                        migratable: { type: boolean }
+                        refusals: { type: array, items: { $ref: '#/components/schemas/MigrationRefusal' } }
+        '400':
+          description: No workflow_id, or a version that is not registered
+
+  /journeys/runs/{run_id}/migrate:
+    post:
+      tags: [journeys]
+      summary: Move a run at rest to another version of its workflow, or say what doing so would do (specification 25.3)
+      operationId: migrateRun
+      parameters:
+        - $ref: '#/components/parameters/RunId'
+        - { name: dry_run, in: query, required: false, schema: { type: boolean }, description: Report what would happen and change nothing }
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MigrationPlan' }
+      responses:
+        '200':
+          description: Moved, or for a dry run what would happen
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MigrationResult' }
+        '404':
+          description: No such run
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MigrationResult' }
+        '409':
+          description: Refused, with every reason; nothing changed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MigrationResult' }
+
 components:
   parameters:
     RunId:
@@ -873,6 +996,62 @@ components:
                       kind: { type: string, enum: [person, ai_agent, robot, application, service] }
 
   schemas:
+    MigrationPlan:
+      type: object
+      description: How to move a run from one version of its workflow to another (specification 25.3)
+      properties:
+        workflow_id: { type: string }
+        from_version: { type: string }
+        to_version: { type: string, description: Default the newest registered }
+        nodes: { type: object, additionalProperties: { type: string }, description: Old node id to new node id; a node not listed keeps its id }
+        restart: { type: array, items: { type: string }, description: Old node ids whose tokens give up their wait and start afresh at their new node }
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              set: { type: string }
+              remove: { type: string }
+              value: {}
+              from: { type: string }
+              expression: { type: string }
+              when: { type: string }
+    MigrationRefusal:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum: [not_found, unknown_version, different_workflow, wrong_version, same_version, run_ended, run_in_activity, unknown_source, unknown_target, unmapped_token, wait_incompatible, invalid_assignment]
+        message: { type: string }
+        token_id: { type: string }
+        node_id: { type: string }
+        node_name: { type: string }
+    MigrationResult:
+      type: object
+      required: [run_id, from_version, to_version, applied, dry_run, refusals, tokens, data_changes]
+      properties:
+        run_id: { type: string }
+        workflow_id: { type: string }
+        from_version: { type: string }
+        to_version: { type: string }
+        applied: { type: boolean }
+        dry_run: { type: boolean }
+        status: { type: string, description: The run's status after the migration }
+        refusals: { type: array, items: { $ref: '#/components/schemas/MigrationRefusal' } }
+        tokens:
+          type: array
+          items:
+            type: object
+            properties:
+              token_id: { type: string }
+              status: { type: string }
+              from_node_id: { type: string }
+              to_node_id: { type: string }
+              wait: { type: [string, 'null'], enum: [human, agent, event, timer, join, null] }
+              outcome: { type: string, enum: [kept, restarted, unchanged] }
+        data_changes: { type: array, items: { type: object } }
+        completed_work: { type: array, items: { type: object } }
     BusinessEvent:
       description: A statement that something happened, with the attributes of CloudEvents 1.0 (specification 18.1).
       type: object

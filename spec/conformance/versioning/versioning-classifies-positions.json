@@ -1,0 +1,256 @@
+{
+  "id": "versioning-classifies-positions",
+  "level": "versioning",
+  "spec": "25.4",
+  "description": "Two versions compared position by position. A position whose node the new version keeps, with a wait that keeps its meaning, is compatible. One whose node is gone, where another node of the new version would keep the wait, needs a mapping, and the candidates are named. One that no node of the new version can keep is impossible. A plan that maps the first and restarts the second makes every position compatible. A run at a compatible position can be moved, whatever the other positions are.",
+  "start": "2026-05-04T09:00:00Z",
+  "workflows": [
+    {
+      "id": "96b93934-90ea-5b10-8268-38c3c3019e1b",
+      "name": "Claim",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "276b5503-f756-5144-bbf2-c91b2c80f9f9",
+          "name": "Register",
+          "role_id": "4ffc7f46-8f37-5f97-934c-eccd19c72cfd",
+          "actor_type": "application"
+        },
+        {
+          "id": "1e202a8e-1321-5d4c-8521-898434329f12",
+          "name": "Review",
+          "role_id": "4ffc7f46-8f37-5f97-934c-eccd19c72cfd",
+          "actor_type": "human"
+        },
+        {
+          "id": "6edb7464-5531-5149-8236-27b9cf41d835",
+          "name": "Settle",
+          "role_id": "4ffc7f46-8f37-5f97-934c-eccd19c72cfd",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "309f43c0-285a-57a3-85b4-c5db85748c11",
+          "source_id": "276b5503-f756-5144-bbf2-c91b2c80f9f9",
+          "target_id": "1e202a8e-1321-5d4c-8521-898434329f12"
+        },
+        {
+          "id": "b381bfd5-409a-56db-acf9-c5f86eafe9f2",
+          "source_id": "1e202a8e-1321-5d4c-8521-898434329f12",
+          "target_id": "e8925691-c8c2-5e19-9021-e14439b158a4"
+        },
+        {
+          "id": "bd99e34f-1d22-58ea-8381-d129a73112e1",
+          "source_id": "e8925691-c8c2-5e19-9021-e14439b158a4",
+          "target_id": "3ea35e9d-69a7-50dd-9473-03841e5bc7ad"
+        },
+        {
+          "id": "e91af68d-4247-59c8-88c6-fe01a30fa78e",
+          "source_id": "3ea35e9d-69a7-50dd-9473-03841e5bc7ad",
+          "target_id": "6edb7464-5531-5149-8236-27b9cf41d835"
+        }
+      ],
+      "events": [
+        {
+          "id": "e8925691-c8c2-5e19-9021-e14439b158a4",
+          "name": "Documents",
+          "event_type": "message",
+          "event_definition": {
+            "name": "documents.uploaded",
+            "correlation_key": "claim_id"
+          }
+        },
+        {
+          "id": "3ea35e9d-69a7-50dd-9473-03841e5bc7ad",
+          "name": "Cool off",
+          "event_type": "timer",
+          "event_definition": {
+            "duration": "PT1H"
+          }
+        }
+      ]
+    },
+    {
+      "id": "96b93934-90ea-5b10-8268-38c3c3019e1b",
+      "name": "Claim",
+      "version": "2.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "276b5503-f756-5144-bbf2-c91b2c80f9f9",
+          "name": "Register",
+          "role_id": "4ffc7f46-8f37-5f97-934c-eccd19c72cfd",
+          "actor_type": "application"
+        },
+        {
+          "id": "1e202a8e-1321-5d4c-8521-898434329f12",
+          "name": "Review",
+          "role_id": "4ffc7f46-8f37-5f97-934c-eccd19c72cfd",
+          "actor_type": "human"
+        },
+        {
+          "id": "6edb7464-5531-5149-8236-27b9cf41d835",
+          "name": "Settle",
+          "role_id": "4ffc7f46-8f37-5f97-934c-eccd19c72cfd",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "309f43c0-285a-57a3-85b4-c5db85748c11",
+          "source_id": "276b5503-f756-5144-bbf2-c91b2c80f9f9",
+          "target_id": "1e202a8e-1321-5d4c-8521-898434329f12"
+        },
+        {
+          "id": "d20ee9f8-49db-510e-bd81-cc4e32b417eb",
+          "source_id": "1e202a8e-1321-5d4c-8521-898434329f12",
+          "target_id": "d63b374e-72c4-5084-8fdb-b887ac746b98"
+        },
+        {
+          "id": "184523f3-ae7b-59da-a437-ab0cbb4674a8",
+          "source_id": "d63b374e-72c4-5084-8fdb-b887ac746b98",
+          "target_id": "6edb7464-5531-5149-8236-27b9cf41d835"
+        }
+      ],
+      "events": [
+        {
+          "id": "d63b374e-72c4-5084-8fdb-b887ac746b98",
+          "name": "Papers",
+          "event_type": "message",
+          "event_definition": {
+            "name": "documents.uploaded",
+            "correlation_key": "claim_id"
+          }
+        }
+      ]
+    }
+  ],
+  "actors": {
+    "Register": {
+      "output": {
+        "claim_id": "CLM-1"
+      }
+    },
+    "Review": {
+      "waits": true
+    },
+    "Settle": {
+      "output": {
+        "paid": true
+      }
+    },
+    "Notify": {
+      "output": {
+        "notified": true
+      }
+    },
+    "Archive": {
+      "output": {
+        "archived": true
+      }
+    }
+  },
+  "steps": [
+    {
+      "register": "1.0.0"
+    },
+    {
+      "start": {},
+      "as": "r1"
+    },
+    {
+      "register": "2.0.0"
+    },
+    {
+      "check": {
+        "to_version": "2.0.0"
+      },
+      "expect": {
+        "automatic": false,
+        "positions": [
+          {
+            "node": "Review",
+            "wait": "human",
+            "class": "compatible",
+            "to": "Review"
+          },
+          {
+            "node": "Documents",
+            "wait": "event",
+            "class": "needs_mapping",
+            "candidates": [
+              "Papers"
+            ]
+          },
+          {
+            "node": "Cool off",
+            "wait": "timer",
+            "class": "impossible"
+          }
+        ],
+        "runs": [
+          {
+            "run": "r1",
+            "migratable": true
+          }
+        ]
+      }
+    },
+    {
+      "check": {
+        "to_version": "2.0.0",
+        "plan": {
+          "nodes": {
+            "e8925691-c8c2-5e19-9021-e14439b158a4": "d63b374e-72c4-5084-8fdb-b887ac746b98",
+            "3ea35e9d-69a7-50dd-9473-03841e5bc7ad": "6edb7464-5531-5149-8236-27b9cf41d835"
+          },
+          "restart": [
+            "3ea35e9d-69a7-50dd-9473-03841e5bc7ad"
+          ]
+        }
+      },
+      "expect": {
+        "automatic": true,
+        "positions": [
+          {
+            "node": "Review",
+            "wait": "human",
+            "class": "compatible",
+            "to": "Review",
+            "outcome": "kept"
+          },
+          {
+            "node": "Documents",
+            "wait": "event",
+            "class": "compatible",
+            "to": "Papers",
+            "outcome": "kept"
+          },
+          {
+            "node": "Cool off",
+            "wait": "timer",
+            "class": "compatible",
+            "to": "Settle",
+            "outcome": "restarted"
+          }
+        ],
+        "runs": [
+          {
+            "run": "r1",
+            "migratable": true
+          }
+        ]
+      }
+    }
+  ],
+  "expect": {
+    "runs": {
+      "r1": {
+        "status": "waiting_human",
+        "version": "1.0.0"
+      }
+    }
+  }
+}

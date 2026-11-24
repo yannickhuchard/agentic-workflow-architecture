@@ -216,7 +216,7 @@ describe('Authorization: the runtime host', () => {
         runtime.register_workflow(wf);
         await expect(runtime.start(wf.id, {})).rejects.toBeInstanceOf(AuthorizationError);   // the host itself is not allowed
         expect(runtime.list_runs()).toEqual([]);
-        const run = await runtime.start(wf.id, {}, undefined, alice);
+        const run = await runtime.start(wf.id, {}, undefined, { principal: alice });
         const token = waiting(run).id;
         await expect(runtime.resume(run.getRunId(), token, {}, { id: 'mallory', kind: 'person' })).rejects.toMatchObject({ code: 'FORBIDDEN' });
         expect(run.getStatus()).toBe('waiting_human');

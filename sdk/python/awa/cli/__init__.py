@@ -62,10 +62,12 @@ def main(argv: list[str] | None = None) -> int:
     from awa.cli import evaluate as evaluate_commands, evidence as evidence_command
     from awa.cli import telemetry as telemetry_commands
     from awa.cli import interchange as interchange_commands
+    from awa.cli import migrate as migrate_commands
     run_command.add_parser(subparsers)
     task_commands.add_parser(subparsers)
     knowledge_commands.add_parser(subparsers)
     journey_commands.add_parser(subparsers)
+    migrate_commands.add_parser(subparsers)
     measures_command.add_parser(subparsers)
     replay_command.add_parser(subparsers)
     evidence_command.add_parser(subparsers)

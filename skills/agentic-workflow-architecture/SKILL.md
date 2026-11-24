@@ -420,7 +420,7 @@ result = (
 )
 ```
 
-The Python SDK passes every conformance level and has the same commands as the TypeScript one (`awa run`, `validate`, `journey`, `measures`, `replay`, `evidence`, `eval`, `knowledge`, `task`, `telemetry`, `serve`), with the same options. It has no recipe, Open Knowledge Format exchange, Google or embedded provider, or views.
+The Python SDK passes every conformance level and has the same commands as the TypeScript one (`awa run`, `validate`, `journey`, `migrate`, `measures`, `replay`, `evidence`, `eval`, `knowledge`, `task`, `telemetry`, `serve`), with the same options. It has no recipe, Open Knowledge Format exchange, Google or embedded provider, or views.
 
 ### Key Builder Methods
 
@@ -472,6 +472,7 @@ awa serve --a2a workflow.awa.json --deployment deployment.json
 | `awa recipe <workflow> [journal]` | Compile a build-from-scratch recipe | `-o, --output <file>`, `--no-definition`, `--no-payloads` |
 | `awa knowledge <ingest\|list\|review\|deprecate\|export\|import>` | Build, review and exchange knowledge | `--kb <file>` |
 | `awa journey <add\|publish\|tick\|resume\|list\|show\|analytics\|export>` | Journeys in a runtime directory, or a shared PostgreSQL store | `--dir <dir>`, `--store <url>` (or `AWA_RUNTIME_STORE`), `--simulate`, `--outputs <file>` |
+| `awa migrate <check\|plan\|apply>` | Compare versions of a workflow, and move runs at rest to another version by a plan (section 25) | `--dir`, `--store`, `--plan <file>`, `--to <version>`, `--from <version>` (check), `--json` |
 | `awa measures` | The measures of journeys and workflows | `--dir`, `--file`, `--from`, `--to`, `--json`, `--openmetrics`, `--html <file>`, `--list` |
 | `awa telemetry export <workflow> <journal>` | A recorded run as OpenTelemetry traces; also `journeys` and `measures` | `--endpoint <url>`, `--file <out.json>`, `--protocol`, `--header k=v`, `--service-name`, `--payloads` |
 | `awa replay <workflow> <journal>` | Counterfactual replay; exit status 2 on a regression | `--candidate <file>`, `--ai live\|recorded`, `-o`, `--json` |
@@ -677,6 +678,24 @@ const runtime = await open_runtime_store(process.env.AWA_RUNTIME_STORE!);  // re
 await runtime.publish(event);       // one transaction, holding only this subject
 await runtime.refresh();            // read the whole store, as every host left it
 ```
+
+**Changing a workflow while runs are in flight** (specification section 25). Give the new document the same `id` and a higher `version` and add it: every version is kept, runs under way stay on the version they started on, new runs (and those journeys start) take the newest. Nothing moves by itself. To move a run that is at rest (waiting for a person, an event, an agent, a timer or a join), write a plan and check it first:
+
+```bash
+awa migrate check <workflow_id>                     # per waiting step of the old version: compatible, needs_mapping (with candidates) or impossible; and which runs can move
+awa migrate plan <run_id> --plan plan.json          # dry run; exit 2 with every reason when it would be refused
+awa migrate apply <run_id> --plan plan.json         # one change, recorded as run.migrated
+```
+
+```json
+{ "to_version": "2.0.0", "nodes": { "<old node id>": "<new node id>" }, "restart": ["<old node id>"],
+  "data": [{ "set": "currency", "value": "EUR" }, { "set": "priority", "expression": "amount > 1000" }, { "remove": "legacy_code" }] }
+```
+
+- Keep node ids for steps that stay the same: the identity mapping then moves runs without a plan.
+- A waiting token is kept only where its wait still means something: a person's task at an activity of the same actor type, an event wait at a node waiting for the same event and correlation, a timer at a timer, a join at a join. Otherwise map it elsewhere, or list it in `restart` to withdraw the wait and start the step afresh.
+- A run in the middle of an activity is refused (`run_in_activity`): wait for it to come to rest.
+- `runtime.migrate(run_id, plan, { dry_run })`, `runtime.check_migration(workflow_id)`; HTTP `POST /api/v1/journeys/runs/{run_id}/migrate[?dry_run=true]`, `POST /api/v1/journeys/migrations/check`.
 
 **Counterfactual replay** answers "what if this run had used another model or rule":
 

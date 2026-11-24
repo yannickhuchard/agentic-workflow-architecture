@@ -1,0 +1,153 @@
+{
+  "id": "versioning-refuses-an-unmapped-token",
+  "level": "versioning",
+  "spec": "25.3",
+  "description": "A token waits at a node the new version does not have, and the plan does not say where it goes: the migration is refused, naming the token, and nothing changes. The run goes on and finishes on its own version.",
+  "start": "2026-05-04T09:00:00Z",
+  "workflows": [
+    {
+      "id": "671ffbf8-a0d2-5ab6-b13b-47648d445a0f",
+      "name": "Claim",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "27fa100c-03dd-5eac-83e9-0c49c7c3f290",
+          "name": "Register",
+          "role_id": "3ace461b-7d2c-5e26-9ba2-e1cb15e8a5e1",
+          "actor_type": "application"
+        },
+        {
+          "id": "db79f071-f4ba-5500-ab03-067231470fd0",
+          "name": "Settle",
+          "role_id": "3ace461b-7d2c-5e26-9ba2-e1cb15e8a5e1",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "b87da91a-cc11-58c3-942a-905d5dd2f15a",
+          "source_id": "27fa100c-03dd-5eac-83e9-0c49c7c3f290",
+          "target_id": "3d2c9af7-fb87-5563-adb9-fdce63e5f369"
+        },
+        {
+          "id": "be4a079b-df83-52b8-891f-9de8d7606cc5",
+          "source_id": "3d2c9af7-fb87-5563-adb9-fdce63e5f369",
+          "target_id": "db79f071-f4ba-5500-ab03-067231470fd0"
+        }
+      ],
+      "events": [
+        {
+          "id": "3d2c9af7-fb87-5563-adb9-fdce63e5f369",
+          "name": "Documents",
+          "event_type": "message",
+          "event_definition": {
+            "name": "documents.uploaded",
+            "correlation_key": "claim_id"
+          }
+        }
+      ]
+    },
+    {
+      "id": "671ffbf8-a0d2-5ab6-b13b-47648d445a0f",
+      "name": "Claim",
+      "version": "2.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "27fa100c-03dd-5eac-83e9-0c49c7c3f290",
+          "name": "Register",
+          "role_id": "3ace461b-7d2c-5e26-9ba2-e1cb15e8a5e1",
+          "actor_type": "application"
+        },
+        {
+          "id": "db79f071-f4ba-5500-ab03-067231470fd0",
+          "name": "Settle",
+          "role_id": "3ace461b-7d2c-5e26-9ba2-e1cb15e8a5e1",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "bacdd5d6-597c-5fa2-a41b-748ffeda455e",
+          "source_id": "27fa100c-03dd-5eac-83e9-0c49c7c3f290",
+          "target_id": "db79f071-f4ba-5500-ab03-067231470fd0"
+        }
+      ]
+    }
+  ],
+  "actors": {
+    "Register": {
+      "output": {
+        "claim_id": "CLM-1"
+      }
+    },
+    "Review": {
+      "waits": true
+    },
+    "Settle": {
+      "output": {
+        "paid": true
+      }
+    },
+    "Notify": {
+      "output": {
+        "notified": true
+      }
+    },
+    "Archive": {
+      "output": {
+        "archived": true
+      }
+    }
+  },
+  "steps": [
+    {
+      "register": "1.0.0"
+    },
+    {
+      "start": {},
+      "as": "r1"
+    },
+    {
+      "register": "2.0.0"
+    },
+    {
+      "migrate": {
+        "run": "r1",
+        "plan": {}
+      },
+      "expect": {
+        "applied": false,
+        "refusals": [
+          "unmapped_token"
+        ],
+        "run_version": "1.0.0",
+        "run_status": "waiting_event"
+      }
+    },
+    {
+      "publish": {
+        "type": "documents.uploaded",
+        "data": {
+          "claim_id": "CLM-1"
+        }
+      }
+    }
+  ],
+  "expect": {
+    "visited": [
+      "Register",
+      "Settle"
+    ],
+    "runs": {
+      "r1": {
+        "status": "completed",
+        "version": "1.0.0",
+        "journal_excludes": [
+          "run.migrated"
+        ]
+      }
+    }
+  }
+}

@@ -3115,6 +3115,19 @@ def write_interchange_cases() -> int:
     return len(cases)
 
 
+def write_versioning_cases() -> int:
+    """Level versioning (section 25): runs that outlive the version of their workflow, and their migration"""
+    import versioning_cases as vc
+    folder = ROOT / "versioning"
+    folder.mkdir(exist_ok=True)
+    for old in folder.glob("*.json"):
+        old.unlink()
+    cases = vc.versioning_cases(Case, uid)
+    for c in cases:
+        write(folder / f"{c['id']}.json", c)
+    return len(cases)
+
+
 def main() -> None:
     for folder in ("execution", "documents", "journeys", "replay", "knowledge", "measures", "telemetry", "shared-store", "evidence", "evaluation", "authorization"):
         (ROOT / folder).mkdir(exist_ok=True)
@@ -3157,6 +3170,7 @@ def main() -> None:
           f"and {len(tests['cases']) + len(tests['invalid'])} unary tests")
     print(f"wrote {interchange} interchange cases")
     print(f"wrote {len(authorization_cases())} authorization cases")
+    print(f"wrote {write_versioning_cases()} versioning cases")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,224 @@
+{
+  "id": "versioning-refusal-names-every-reason",
+  "level": "versioning",
+  "spec": "25.3",
+  "description": "A plan is checked whole before anything changes, and every reason it cannot be applied is named: a version the run is not on, a node the old version does not have, a node the new one does not have, a property reserved to the engine, a condition that is not one. A version not registered, and the version the run is already on, are refused too.",
+  "start": "2026-05-04T09:00:00Z",
+  "workflows": [
+    {
+      "id": "a07de40e-f0da-5b1e-838a-ec0d932597a8",
+      "name": "Claim",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "67c598a0-3065-5635-8c46-896c24994e63",
+          "name": "Register",
+          "role_id": "02cc652a-d972-5840-9b86-5a03332236a4",
+          "actor_type": "application"
+        },
+        {
+          "id": "b9027d27-8d01-5462-8074-387e2a83d2d1",
+          "name": "Review",
+          "role_id": "02cc652a-d972-5840-9b86-5a03332236a4",
+          "actor_type": "human"
+        },
+        {
+          "id": "c4d1b6d6-f78a-5da8-81e4-e16a321c4434",
+          "name": "Settle",
+          "role_id": "02cc652a-d972-5840-9b86-5a03332236a4",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "6fc6d736-4dda-5b09-9ec9-9ea4560a23da",
+          "source_id": "67c598a0-3065-5635-8c46-896c24994e63",
+          "target_id": "b9027d27-8d01-5462-8074-387e2a83d2d1"
+        },
+        {
+          "id": "07a8b3bf-8572-5c1d-870d-be67417f2127",
+          "source_id": "b9027d27-8d01-5462-8074-387e2a83d2d1",
+          "target_id": "c4d1b6d6-f78a-5da8-81e4-e16a321c4434"
+        }
+      ]
+    },
+    {
+      "id": "a07de40e-f0da-5b1e-838a-ec0d932597a8",
+      "name": "Claim",
+      "version": "2.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "67c598a0-3065-5635-8c46-896c24994e63",
+          "name": "Register",
+          "role_id": "02cc652a-d972-5840-9b86-5a03332236a4",
+          "actor_type": "application"
+        },
+        {
+          "id": "b9027d27-8d01-5462-8074-387e2a83d2d1",
+          "name": "Review",
+          "role_id": "02cc652a-d972-5840-9b86-5a03332236a4",
+          "actor_type": "human"
+        },
+        {
+          "id": "c4d1b6d6-f78a-5da8-81e4-e16a321c4434",
+          "name": "Settle",
+          "role_id": "02cc652a-d972-5840-9b86-5a03332236a4",
+          "actor_type": "application"
+        },
+        {
+          "id": "f351e15a-c66c-5276-b3db-5a47b7861598",
+          "name": "Archive",
+          "role_id": "02cc652a-d972-5840-9b86-5a03332236a4",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "6fc6d736-4dda-5b09-9ec9-9ea4560a23da",
+          "source_id": "67c598a0-3065-5635-8c46-896c24994e63",
+          "target_id": "b9027d27-8d01-5462-8074-387e2a83d2d1"
+        },
+        {
+          "id": "07a8b3bf-8572-5c1d-870d-be67417f2127",
+          "source_id": "b9027d27-8d01-5462-8074-387e2a83d2d1",
+          "target_id": "c4d1b6d6-f78a-5da8-81e4-e16a321c4434"
+        },
+        {
+          "id": "d7a55d9a-0743-52ab-acda-b088ce7bcd7e",
+          "source_id": "c4d1b6d6-f78a-5da8-81e4-e16a321c4434",
+          "target_id": "f351e15a-c66c-5276-b3db-5a47b7861598"
+        }
+      ]
+    }
+  ],
+  "actors": {
+    "Register": {
+      "output": {
+        "claim_id": "CLM-1"
+      }
+    },
+    "Review": {
+      "waits": true
+    },
+    "Settle": {
+      "output": {
+        "paid": true
+      }
+    },
+    "Notify": {
+      "output": {
+        "notified": true
+      }
+    },
+    "Archive": {
+      "output": {
+        "archived": true
+      }
+    }
+  },
+  "steps": [
+    {
+      "register": "1.0.0"
+    },
+    {
+      "start": {},
+      "as": "r1"
+    },
+    {
+      "register": "2.0.0"
+    },
+    {
+      "migrate": {
+        "run": "r1",
+        "plan": {
+          "from_version": "0.9.0",
+          "nodes": {
+            "14c3458f-5b22-537a-8c04-316c7b86cc5d": "b9027d27-8d01-5462-8074-387e2a83d2d1",
+            "b9027d27-8d01-5462-8074-387e2a83d2d1": "8e78ec77-aa21-51d5-b0d7-f09f683d83ab"
+          },
+          "data": [
+            {
+              "set": "_secret",
+              "value": 1
+            },
+            {
+              "set": "flag",
+              "expression": "amount >"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "applied": false,
+        "refusals": [
+          "invalid_assignment",
+          "invalid_assignment",
+          "unknown_source",
+          "unknown_target",
+          "wrong_version"
+        ],
+        "run_version": "1.0.0"
+      }
+    },
+    {
+      "migrate": {
+        "run": "r1",
+        "plan": {
+          "to_version": "3.0.0"
+        }
+      },
+      "expect": {
+        "applied": false,
+        "refusals": [
+          "unknown_version"
+        ]
+      }
+    },
+    {
+      "migrate": {
+        "run": "r1",
+        "plan": {
+          "to_version": "1.0.0"
+        }
+      },
+      "expect": {
+        "applied": false,
+        "refusals": [
+          "same_version"
+        ]
+      }
+    },
+    {
+      "complete": {
+        "run": "r1",
+        "node": "Review",
+        "output": {}
+      }
+    },
+    {
+      "migrate": {
+        "run": "r1",
+        "plan": {}
+      },
+      "expect": {
+        "applied": false,
+        "refusals": [
+          "run_ended"
+        ]
+      }
+    }
+  ],
+  "expect": {
+    "runs": {
+      "r1": {
+        "status": "completed",
+        "version": "1.0.0",
+        "journal_excludes": [
+          "run.migrated"
+        ]
+      }
+    }
+  }
+}

@@ -31,6 +31,7 @@ This document is normative. Where it and an SDK disagree, this document is right
 21. [Measures](#21-measures)
 22. [Contexts](#22-contexts)
 23. [Service levels](#23-service-levels)
+25. [Changing a workflow while runs are in flight](#25-changing-a-workflow-while-runs-are-in-flight)
 26. [Telemetry](#26-telemetry)
 27. [Interchange](#27-interchange)
 28. [Agents over A2A](#28-agents-over-a2a)
@@ -78,6 +79,7 @@ An implementation claims one or more levels. Each level has cases in `spec/confo
 | `measures` | Computes the measures of journeys and workflows from what was recorded | 21 |
 | `contexts` | Gives an activity the contexts it is bound to and no other, and refuses writes its bindings do not allow | 22 |
 | `service_levels` | Compares the time work takes with what was promised, and records warnings and breaches | 23 |
+| `versioning` | Keeps runs on the version of their workflow they started on, and moves a run at rest to another version by an explicit plan that is checked in full first, refused with named reasons, and recorded | 25 |
 | `telemetry` | Derives OpenTelemetry traces from the journal and the journey record, with identifiers every implementation shares, and exports them without ever holding up a run | 26 |
 | `interchange` | Imports and exports BPMN 2.0 and DMN without loss, refuses what AWA cannot express, and exports CNCF Serverless Workflow 1.0 | 27 |
 | `a2a` | Lets an agent reached over the Agent2Agent protocol perform an activity, under the same contract, verification, permissions and record as any actor | 28 |
@@ -92,8 +94,8 @@ An implementation MUST NOT claim a level unless it passes every case tagged with
 
 | SDK | Levels claimed |
 |---|---|
-| TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `telemetry`, `interchange`, `shared_store`, `a2a`, `authorization`, `evidence`, `evaluation` (`shared_store` with PostgreSQL, through the optional package `pg`). Built-in MCP and gRPC executors (17.7, 17.8); serves workflows as A2A agents (28.8) |
-| Python | every level: `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `telemetry`, `interchange`, `shared_store`, `a2a`, `authorization`, `evidence`, `evaluation` (`shared_store` with PostgreSQL, through the extra `postgres`). Built-in MCP and gRPC executors (gRPC with the `grpc` extra); serves workflows as A2A agents. Without the recipe, or Open Knowledge Format exchange |
+| TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `versioning`, `telemetry`, `interchange`, `shared_store`, `a2a`, `authorization`, `evidence`, `evaluation` (`shared_store` with PostgreSQL, through the optional package `pg`). Built-in MCP and gRPC executors (17.7, 17.8); serves workflows as A2A agents (28.8) |
+| Python | every level: `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `versioning`, `telemetry`, `interchange`, `shared_store`, `a2a`, `authorization`, `evidence`, `evaluation` (`shared_store` with PostgreSQL, through the extra `postgres`). Built-in MCP and gRPC executors (gRPC with the `grpc` extra); serves workflows as A2A agents. Without the recipe, or Open Knowledge Format exchange |
 | Java | none: a data model that reads and writes 1.1 documents faithfully, without validating them, and no engine |
 
 ### 2.3 Versions
@@ -543,6 +545,7 @@ An engine MUST NOT alter or remove an event once written.
 | `run.cancelled` | execution | The host withdrew the run (5.8) | `reason`, `compensation` |
 | `run.waiting` | execution | No token is active and at least one waits | `waiting_tokens` |
 | `run.resumed` | execution | A run continues from a checkpoint (10.3) | `from_seq`, `from_checkpoint_at` |
+| `run.migrated` | execution | A run at rest was moved to another version of its workflow (25.3) | `from_version`, `to_version`, `nodes`, `restart`, `tokens`, `data_changes` |
 | `token.created` | execution | A token comes into existence | `parent_token_id` and `reason: parallel_split` for a split |
 | `token.joined` | execution | Tokens are merged at a join | `merged_token_ids`, `incoming_edge_ids` |
 | `token.cancelled` | execution | A token is withdrawn because the run failed | `reason` |
@@ -1348,7 +1351,7 @@ It MUST save this after each operation it performs for the outside world (accept
 
 On starting again, once the workflows and journeys are registered, the host recovers: instances are as they were; each run is continued from its saved state under its `run_id`, its journal going on at the next `seq` with `run.resumed`; a run that was in the middle of an activity performs it again (activities are executed at least once, 10.3); a recovered run reports to its journey as before. An event accepted before the restart is not accepted again. A deadline fixed before the restart passes at the time it was fixed for.
 
-A host that cannot recover a run, because its workflow is no longer registered, MUST refuse to start rather than drop the run.
+A host that cannot recover a run, because its workflow, or the version of it the run is on (25.1), is no longer registered, MUST refuse to start rather than drop the run.
 
 Two hosts MUST NOT work from the same saved state at once: each would load it, and each would save over the other's work. A host that keeps its state where another process could open it MUST hold it exclusively and refuse to start while another holds it. It MAY take over from a holder that no longer exists. The reference host keeps a `runtime.lock` file naming the process in its directory. Several hosts MAY share a store that meets the contract of section 29, which holds each part of the state only for the operation that works on it; a runtime directory does not, and belongs to one host at a time.
 
@@ -1584,6 +1587,171 @@ With `breach_action: fail`, work that is *not* finished stops being waited for:
 ### 23.5 Conformance
 
 Level `service_levels` has execution cases (Appendix A) that run on a clock: actors take scripted time, and the case moves the clock and asks the engine to check what is waiting. A person's task that outlasts its service level is fixed by `sdk/typescript/tests/contexts_service_levels.test.ts`.
+
+## 25. Changing a workflow while runs are in flight
+
+A run that waits for a person, a business event or a deadline can last weeks, and a journey (section 19) months. Its workflow changes meanwhile: a step is added, a review is automated, a wait is replaced. This section fixes what happens to the runs under way when a new version of their workflow is registered, how an operator moves a run from one version to another, and how two versions are compared to know which runs can move.
+
+The rule is that **nothing moves by itself**. A run keeps the version it started on until a migration, asked for explicitly and checked in full, moves it.
+
+### 25.1 Versions and pinning
+
+A workflow is identified by its `id`; its `version` (8.1) is a semantic version. Two documents with the same `id` and `version` are the same workflow: a version on which runs have started SHOULD NOT be changed, since changing it changes the runs under way.
+
+A run is bound to the version it started on. `run.started` records it as `workflow_version` (9.3) and the run's state (10.3) carries it. An engine MUST execute every step of a run against the document of that version, until a migration (25.3) moves the run to another.
+
+A host MAY have several versions of one workflow registered at once. It MUST:
+
+- start a new run on the **newest** registered version, by semantic version order, unless the caller names a version, or the host is configured to **pin** the workflow to a version, which new runs then start on. This holds for runs a caller starts, runs a journey's trigger or stage starts (19.2, 19.3) and runs a business event starts (18.4);
+- keep each run under way on its own version when another version is registered, and after the host restarts (19.10) or another host takes the run up (29.2);
+- keep every version a run that has not ended is on. A runtime directory (19.10) keeps each version of a workflow in its own file, `definitions/workflow-<id>@<version>.json`; a shared store keeps each version as its own row of `definitions` (29.4). Registering a version does not remove another. A version no run is on MAY be removed.
+
+A host MUST refuse to start on a saved state or a store that keeps a run not yet ended on a version it has not registered, naming the run, the workflow and the version, and change nothing (19.10, 29.2). On a shared store it MUST refuse, with nothing kept, an operation that would load such a run.
+
+A journey names workflows by `id` (19.1). Versions do not change that: the runs of a journey may be on different versions of the same workflow.
+
+### 25.2 Runs at rest
+
+A token is **at rest** when it waits for something outside the engine:
+
+| The token | waits for | `wait` |
+|---|---|---|
+| is `waiting` for a business event (18.3) | the event, or its deadline | `event` |
+| is `waiting` for an agent's input (28.6) | the input | `agent` |
+| is `waiting` otherwise: a person's task (5.6), or an outcome escalated to a person (11.5) | a person | `human` |
+| is `active` at a timer event whose due time is fixed (13.5) | time | `timer` |
+| is `joining` (13.2) | the other branches of the join | `join` |
+
+Any other `active` token is **in the middle of work**: an activity under way, or a node the engine is about to process. A token that is `completed`, `joined`, `failed` or `cancelled` has ended. A run is at rest when it has not ended (5.7) and each of its tokens is at rest or has ended. Only a run at rest can be migrated: work in progress is never moved.
+
+### 25.3 Migration
+
+A **migration** moves one run at rest from the version it is on to another version of the same workflow, as a **plan** says:
+
+| Field | Meaning |
+|---|---|
+| `to_version` | The version to move to. Default: the newest registered |
+| `from_version` | Optional. The version the run must be on |
+| `workflow_id` | Optional. The workflow the run must be a run of |
+| `nodes` | Old node id → new node id. A node the plan does not list keeps its id: the **identity mapping** |
+| `restart` | Old node ids. A token at rest at one of them gives up what it waits for and starts afresh at the node it is mapped to |
+| `data` | Changes to the data of every token that has not ended, applied in order |
+
+A change to data (an **assignment**) is one of:
+
+| Form | Effect |
+|---|---|
+| `{"set": <path>, "value": <JSON>}` | Sets the property at the path (6.1) to the value |
+| `{"set": <path>, "from": <path>}` | Copies the value at the second path. When that path is missing (6.2), the assignment changes nothing |
+| `{"set": <path>, "expression": <condition>}` | Sets the property to the result, `true` or `false`, of the condition expression (section 6) |
+| `{"remove": <path>}` | Removes the property, if it is there |
+
+Each MAY have `when`, a condition expression: the assignment applies to a token only if its data satisfies it. Each sees the data as the assignments before it left them. Setting a path creates the objects it passes through.
+
+**Checks.** Before anything changes, an engine MUST check the whole plan against the run and refuse it if any check fails, naming every reason, each with a code, and with the token and node where it concerns one:
+
+| Code | Reason |
+|---|---|
+| `not_found` | The host has no such run |
+| `unknown_version` | `to_version` names a version the host has not registered |
+| `different_workflow` | The plan, or the version to move to, belongs to another workflow. A migration never changes a run's workflow |
+| `wrong_version` | The run is not on `from_version` |
+| `same_version` | The run is already on `to_version` |
+| `run_ended` | The run has ended |
+| `run_in_activity` | A token is in the middle of work (25.2) |
+| `unknown_source` | `nodes` or `restart` names a node the run's version does not have |
+| `unknown_target` | `nodes` maps a node to one the new version does not have |
+| `unmapped_token` | A token at rest is at a node the new version does not have, and the plan does not map it |
+| `wait_incompatible` | A token whose wait is kept would wait at a node where the wait means nothing (below) |
+| `invalid_assignment` | An assignment does not have one of the forms above, sets or removes a property reserved to the engine (any segment of its path begins with `_`, 5.2), or has an expression or a `when` that is not a condition expression |
+
+A wait is **kept** at the node a token is mapped to only where it keeps its meaning:
+
+| `wait` | The new node must be |
+|---|---|
+| `human` | An activity performed by the same actor type as the old node |
+| `agent` | An activity performed by the same actor type, by an agent over A2A (28.1) |
+| `event` | An event of the same type (`message` or `signal`) that waits rather than publishes, for an event of the same name, with the same correlation key |
+| `timer` | A timer event |
+| `join` | A synchronising join (13.2) with an incoming edge that has the id of the edge the token arrived by |
+
+A plan that cannot keep a wait says what replaces it by listing the old node in `restart`: the wait is withdrawn and no check of this table applies.
+
+**Applying.** When every check passes, the engine, in one change of the run's state:
+
+1. Moves each token at rest to its new node. A token whose wait is **kept** waits on there for the same thing: the same person's task, the same event with the correlation value and the deadline fixed when the wait began, the same due time. When a deadline passes, what follows is the new node's (its `timeout_edge_id`, 18.3). A token that is **restarted** loses what it waited for and becomes `active` at its new node, which it then performs from the start. Tokens that have ended are left as they are.
+2. Applies the assignments to the data of each token that has not ended.
+3. Records the run's state on the new version. Work completed before the migration is compensated, if the run later fails (13.6), by the handler of the node the plan maps it to; work at a node the new version does not have is not compensated.
+4. Records `run.migrated` in the run's journal, which goes on at the next `seq`. No `run.resumed` is recorded: the run was not interrupted.
+5. Continues the run on the new version. A restarted token is processed at once, in the same operation; kept waits end as they would have.
+
+On a store that holds operations (29.1), a migration is one operation on the run's partition: it is kept whole or not at all.
+
+`run.migrated` concerns the run, not one token or node. Its `data`:
+
+| Property | Content |
+|---|---|
+| `from_version`, `to_version` | The versions |
+| `nodes`, `restart` | The plan's, as given |
+| `tokens` | For each token at rest: `token_id`, `status` before, `from_node_id`, `from_node_name`, `to_node_id`, `to_node_name`, `wait`, and `outcome`, `kept` or `restarted` |
+| `data_changes` | For each change made: `token_id`, `path`, `change` (`set` or `removed`), and `value` and `previous` where there are any. The values are payloads: the run's payload mode (9.4) applies to them |
+| `completed_work` | Where the plan maps the node of completed work elsewhere: `from_node_id` and `to_node_id` |
+
+**Dry run.** An engine MUST offer a dry run: it performs every check and reports what the migration would do (its refusals, or the tokens, the changes to data and the run's status after it), and changes nothing and journals nothing.
+
+**The result** of a migration or a dry run gives `run_id`, `workflow_id`, `from_version`, `to_version`, `applied` (true only when the run was moved), `dry_run`, `refusals` (each `code`, `message`, and `token_id`, `node_id`, `node_name` where they apply), `tokens` (as in `run.migrated`, and with `outcome: unchanged` the tokens that have ended), `data_changes`, `completed_work` and `status`, the run's status after it. Tokens a migration leaves where they are, those that have ended and, in a refusal, every token, have `outcome: unchanged`.
+
+### 25.4 Compatibility
+
+Before moving runs, an operator wants to know which can move. Comparing two versions gives, for every **position** of the old version, a node at which a run can be at rest with what it waits for there (25.2: an activity performed by a person or with `on_violation: escalate_human` waits for a person, one performed over A2A for an agent; a waiting message or signal event for an event; a timer event for time; a join for its branches), one class:
+
+| Class | Meaning |
+|---|---|
+| `compatible` | A run at rest here moves as the plan says (the identity mapping without one): its wait is kept at the node the plan or the identity maps it to, or the plan restarts it there. `to_node_id` and `outcome` say where and how |
+| `needs_mapping` | As things stand it cannot move, but the new version has nodes where the wait keeps its meaning: `candidates` names them. A plan that maps it to one makes it compatible |
+| `impossible` | No node of the new version keeps the wait. A run here moves only under a plan that restarts it |
+
+A comparison also gives `reason` for each position that is not compatible, `automatic` (every position is compatible), and the nodes the new version `removed` and `added`. A run is **migratable** under a plan when the plan would be applied to it without refusal. Since a run occupies only some positions, a run may be migratable by the identity mapping while other positions of its version are not compatible: a check lists, for each run not ended on another version than the one to move to, whether it is migratable and, if not, the refusals.
+
+### 25.5 What other parts see of a migrated run
+
+A migrated run is still one run: one `run_id`, one journal numbered from 1 without a gap, one `workflow_id`. Its journal reads in two parts, before and after `run.migrated`; the events after it concern nodes of the new version.
+
+| Part | What it sees |
+|---|---|
+| Journeys (19) | The run stays the journey's run. Nothing is recorded on the journey. Touchpoints (19.8) after the migration are realised by the activities and tools of the new version |
+| Replay (20) | A migrated run is replayed against one candidate, normally the version it ended on. Its recorded results are matched by node as the migrations mapped them: an event recorded at a node before a migration counts as recorded at the node that migration's `nodes` maps it to, through each later migration in turn. The migration itself is not replayed. Against the version it started on, a replay matches only what happened before the migration |
+| Measures (21) | The run counts once, under its `workflow_id`: measures are not divided by version. Its lead time runs from `run.started` to its end, across the migration. Activity measures stay with the node at which each attempt was recorded |
+| Evidence (32) | The `run` statement's `workflow_version` is the version `run.started` records, the one the run started on. Besides the kinds of 32.3, the `operation` part has one statement of kind `migration` for each `run.migrated` kept, with facts `run_id`, `from_version`, `to_version`, `tokens_kept`, `tokens_restarted` and `data_changes` (the number of changes), citing that event alone. The part's `summary` counts `migrations`, and the versions of each workflow in `scope` include those runs moved to |
+| Telemetry (26) | `run.migrated` is a span event of the run span (26.4), its data as `awa.data.*` attributes. The run span's `awa.workflow.version` stays the version the run started on. For each token restarted, every span of that token still open ends at the time of `run.migrated`, most recently opened first, with status unset; a wait span among them carries `awa.wait.outcome` = `withdrawn`. The spans of kept waits stay open and end as they would have |
+
+### 25.6 Interfaces of the reference implementations
+
+Both SDKs give a host (`AwaRuntime`) `register_workflow` for every version, `workflow_versions`, `get_workflow(id, version)`, `start(..., version)`, the option `pinned_versions` (workflow id → version), `migrate(run_id, plan, dry_run)` and `check_migration(workflow_id, from_version, to_version, plan)`; and, without a host, `plan_migration(old, new, state, plan)`, `compare_versions(old, new, plan)` and `as_migrated(journal)`.
+
+The command `awa migrate` works on a runtime directory (`--dir`, default `.awa`) or a shared store (`--store <url>` or `AWA_RUNTIME_STORE`), as `awa journey` does. A plan is a JSON file given with `--plan`; `--to` names the version to move to.
+
+| Command | Does |
+|---|---|
+| `awa migrate check <workflow_id> [--from <version>]` | Compares each version with live runs with the version to move to, position by position, and lists the runs with whether each can move |
+| `awa migrate plan <run_id>` | A dry run. Exits with status 2 when the migration would be refused |
+| `awa migrate apply <run_id...>` | Moves the runs. Exits with status 2 when one is refused |
+
+`awa serve` offers `GET /api/v1/journeys/workflows/{workflow_id}/versions`, `POST /api/v1/journeys/migrations/check` and `POST /api/v1/journeys/runs/{run_id}/migrate[?dry_run=true]`, described in the operational API guide.
+
+### 25.7 Out of scope
+
+- Moving work in progress: a run in the middle of an activity is refused, and the operator waits for it to come to rest.
+- Moving a run to another workflow, or a run that has ended.
+- Migrating on registration: a host never migrates a run of its own accord.
+- Versions of journeys: a journey instance follows the journey definition registered, as before.
+- Computing new values: the data changes copy, set and test values; the expression language has no arithmetic.
+- Context values (section 22) are kept as they are.
+- Withdrawing a person's task from a task system outside the host when its token is restarted: a host that holds such tasks SHOULD withdraw it.
+
+### 25.8 Conformance
+
+Level `versioning` has its own cases, in `spec/conformance/versioning/` (Appendix A): versions registered with a host, runs brought to rest by scripted steps, plans refused with their reasons or applied, compared versions, and runs continued to their end on the new version. Runs on a shared store, the runtime directory's files, replay, measures, evidence and telemetry of migrated runs, the command line and the HTTP routes are fixed by `sdk/typescript/tests/migration.test.ts` and `sdk/python/tests/test_migration.py`.
 
 ## 26. Telemetry
 
@@ -2099,7 +2267,7 @@ Activities are still executed at least once (10.3): an operation begun again, or
 
 ### 29.2 Hosts on one store
 
-- Every host on a store MUST register the same workflows and journeys. The store keeps their documents so that each host can register them from it. A host MUST refuse to start on a store that keeps a run not yet settled, or an instance, that needs a definition it has not registered (19.10), and MUST refuse, with nothing kept, an operation that would load one.
+- Every host on a store MUST register the same workflows and journeys. The store keeps their documents so that each host can register them from it. A host MUST refuse to start on a store that keeps a run not yet settled, or an instance, that needs a definition it has not registered (19.10; for a run, the version of its workflow it is on, 25.1), and MUST refuse, with nothing kept, an operation that would load one.
 - A run a host loads is taken up where it was kept, its journal going on at the next `seq`. A run kept at rest, waiting for a person, an event or time, was not interrupted: it is not resumed, and no `run.resumed` is recorded. A run kept in the middle of an activity (an operation that stopped at its step limit, or a store whose unit is not atomic) is continued at the next tick, with `run.resumed` (10.3).
 - What a host reads outside an operation (listings, analytics, exports, measures) is what the store held when it was read, and may already have been overtaken by another host.
 - The rule of 19.10 that two hosts MUST NOT work from the same saved state at once applies to stores that do not meet 29.1, such as a runtime directory. A store that meets it MAY be opened by any number of hosts.
@@ -2124,7 +2292,7 @@ The tables are those of the section "Runtime store" of `spec/ddl/awa.postgresql.
 
 | Table | Keeps |
 |---|---|
-| `definitions` | The workflow and journey documents, whole |
+| `definitions` | The workflow and journey documents, whole: every version of a workflow, keyed by `kind`, `id` and `version` (25.1), and a journey once, with `version` empty |
 | `business_events` | Every accepted event, keyed by its id, with the host that accepted it |
 | `journey_instances` | Each instance whole (`document`, 19.4), its partition, `version`, and `due_at`, when its stage may outlast its limit |
 | `journey_events` | The record of each instance, one row per journey event |
@@ -2628,6 +2796,23 @@ A runner MUST also check that the report validates against `evidence-report.sche
 
 Each step's `expect` gives `allowed`, whether the step was accepted; for a refusal, `code` (`FORBIDDEN`) and, where given, the `reason` of the decision; and, where given, the run's `status` after the step. The case's `expect` gives `started: false` for a run that must not exist, with no journal; otherwise `status`, and `decisions`: the `data` of every `authorization.decided` event, in order, each compared as a subset, and exactly as many as listed. It may also give `visited` (the activities the scripted actors performed), `data`, `journal`, `journal_contains`, `journal_excludes`, `journal_count`, `agent_card_reads` and `agent_requests`, as in an execution case.
 
+**Versioning cases** (`versioning/*.json`, level `versioning`) each give `workflows`, several versions of one workflow (same `id`, different `version`), optionally `journeys`, `actors` as in an execution case, where `{"waits": true}` makes the actor a person who has not answered yet, so that the token waits (5.6), and a `start` time for the case's clock. Most give `steps`, performed in order by one host over one store:
+
+| Step | Meaning |
+|---|---|
+| `{"register": "<version>"}` | The host registers that version. The case's journeys are registered with the first |
+| `{"start": {"input", "version"}, "as": "<name>"}` | The host starts a run of the workflow, on `version` if given, and the case calls it by that name |
+| `{"publish": {...}, "as": "<name>"}` | As in a journey case; with `as`, the first run the event started is called by that name |
+| `{"complete": {"run", "node", "output"}}` | The person the named run waits for at the node of that name answers with `output` |
+| `{"restart": true}` | A new host over what the first one kept, with every version registered so far. With `{"versions": [...]}`, with those versions only; `expect.refused` then says it must refuse to start (25.1), and the case goes on with the host it had |
+| `{"advance": "<duration>"}`, `{"tick": true}` | As in a journey case |
+| `{"migrate": {"run", "plan", "dry_run"}}` | The host migrates the named run as the plan says, or performs a dry run (25.3) |
+| `{"check": {"to_version", "from_version", "plan"}}` | The host checks the workflow's runs and versions (25.4) |
+
+A `start` or `publish` step's `expect` may give the run's `version` and `status`. A `migrate` step's `expect` gives `refusals`, the codes of every refusal, compared in any order (an empty list: none), and may give `applied`, `dry_run`, `status` (of the result), `tokens` (the tokens at rest, each as `from` and `to` node names, `wait` and `outcome`, exactly and in order), `data_changes` (exactly as many changes, each containing what is given, in order), and `run_version` and `run_status`, the version and status of the run after the step. A `check` step's `expect` gives `automatic` (over every version compared), `positions` (every position of every version compared, in order, each as `node`, `wait`, `class`, and where given `to`, `outcome` and `candidates`, by node name) and `runs`, whether each named run is `migratable`. The case's `expect` gives `visited`, the activity names the actors performed, in order, over the whole case, and `runs`: for each named run its `version` and `status` at the end, `data` (a subset of some token's data), `data_absent` (paths no token has), and `journal`, `journal_contains`, `journal_excludes` and `journal_count` as in an execution case. A runner MUST also check that every journal is numbered from 1 without a gap and that its events validate.
+
+A case that gives `state` instead of steps gives a run's state as recorded: its `version`, `status` and `tokens`, each with an `id`, the name of its `node`, its `status`, its `data` and, for a token at rest, `waits` (`kind`, and for a timer its `due_at`). A runner writes the state in the form its engine keeps (10.3), checks the case's `migrate.plan` against it without a host, and compares `refusals`, `refused_tokens` (the token named by each refusal, in order), `tokens`, and `timers`, the due time each token's timer keeps.
+
 Runners: `sdk/typescript/tests/conformance.test.ts`, `sdk/python/tests/test_conformance.py`. Both run the shared store cases against a PostgreSQL they start, or the one `AWA_TEST_POSTGRES_URL` names, and report them skipped, with the reason, where there is none.
 
 ## Appendix B. Changes from 1.0
@@ -2671,3 +2856,4 @@ Runners: `sdk/typescript/tests/conformance.test.ts`, `sdk/python/tests/test_conf
 - Several hosts may share one store and take any work, with the outcome of one host: a store contract of partitions, holding, acceptance once and versions, met by a PostgreSQL store, with conformance level `shared_store` (section 29). A runtime directory still belongs to one host at a time (19.10).
 - Identity and authorization: principals for people, agents and applications, from the authenticated request and from the deployment; a declarative policy in the deployment with deny-overrides, default deny, conditions over the principal and the run's data, separation of duties and four-eyes approvals; enforcement when a run starts, before an agent performs an activity or reaches an agent over A2A, on tool calls and when a person completes a task; denials fail with `FORBIDDEN`; `principal` on run and activity events and the journal event `authorization.decided`; an external policy engine can be plugged in as the decider; conformance level `authorization` (section 30).
 - Interchange with BPMN 2.0 and DMN 1.x, import and export without loss through the `awa:` extension namespace (`spec/xsd/awa-interchange.xsd`), with what is not imported refused and named; export to CNCF Serverless Workflow 1.0 with the list of what does not map; conformance level `interchange` (section 27).
+- Runs keep the version of their workflow they started on while newer versions are registered, in a runtime directory and in a shared store alike (migration 2 of the store keeps every version); a run at rest moves to another version only by an explicit migration plan, checked whole and refused with named reasons, applied as one change and recorded as `run.migrated`; two versions are compared position by position; conformance level `versioning` (section 25).

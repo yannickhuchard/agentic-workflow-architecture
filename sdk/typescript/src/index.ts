@@ -9,6 +9,9 @@ export * from './types';
 // Runtime
 export * from './runtime';
 
+// Changing a workflow while runs are in flight (specification section 25)
+export * from './runtime/migration';
+
 // Evidence, evaluation from journals, and shadow runs (specification sections 32 and 33)
 export * from './runtime/evidence';
 export * from './runtime/evaluation';

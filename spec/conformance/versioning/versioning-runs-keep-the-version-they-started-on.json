@@ -1,0 +1,255 @@
+{
+  "id": "versioning-runs-keep-the-version-they-started-on",
+  "level": "versioning",
+  "spec": "25.1",
+  "description": "A run is bound to the version it started on. Once a newer version is registered, runs already under way go on, and finish, on their own version, also after the host restarts; new runs, those a journey's trigger starts among them, start on the newest. A run started with a version named starts on that one.",
+  "start": "2026-05-04T09:00:00Z",
+  "workflows": [
+    {
+      "id": "181d89a1-f5d9-58b6-9102-7d0bd9032d5e",
+      "name": "Claim",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "da4a3e2d-62c3-5147-96a3-239256bd597b",
+          "name": "Register",
+          "role_id": "0084fa43-29a3-5a33-a36c-794d7c47056a",
+          "actor_type": "application"
+        },
+        {
+          "id": "341a5d56-b1a8-5cfe-a3c7-fae70ef810d0",
+          "name": "Review",
+          "role_id": "0084fa43-29a3-5a33-a36c-794d7c47056a",
+          "actor_type": "human"
+        },
+        {
+          "id": "53503cbd-b746-53d1-abee-69b178ebb9ab",
+          "name": "Settle",
+          "role_id": "0084fa43-29a3-5a33-a36c-794d7c47056a",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "974ea7e9-b6bd-5f48-b9e0-31ba4015ced4",
+          "source_id": "da4a3e2d-62c3-5147-96a3-239256bd597b",
+          "target_id": "341a5d56-b1a8-5cfe-a3c7-fae70ef810d0"
+        },
+        {
+          "id": "c367635e-abe9-5eed-a790-c030f61f97f4",
+          "source_id": "341a5d56-b1a8-5cfe-a3c7-fae70ef810d0",
+          "target_id": "53503cbd-b746-53d1-abee-69b178ebb9ab"
+        }
+      ]
+    },
+    {
+      "id": "181d89a1-f5d9-58b6-9102-7d0bd9032d5e",
+      "name": "Claim",
+      "version": "2.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "da4a3e2d-62c3-5147-96a3-239256bd597b",
+          "name": "Register",
+          "role_id": "0084fa43-29a3-5a33-a36c-794d7c47056a",
+          "actor_type": "application"
+        },
+        {
+          "id": "341a5d56-b1a8-5cfe-a3c7-fae70ef810d0",
+          "name": "Review",
+          "role_id": "0084fa43-29a3-5a33-a36c-794d7c47056a",
+          "actor_type": "human"
+        },
+        {
+          "id": "53503cbd-b746-53d1-abee-69b178ebb9ab",
+          "name": "Settle",
+          "role_id": "0084fa43-29a3-5a33-a36c-794d7c47056a",
+          "actor_type": "application"
+        },
+        {
+          "id": "171b6746-6842-59d7-9d56-a7fb282c75fe",
+          "name": "Notify",
+          "role_id": "0084fa43-29a3-5a33-a36c-794d7c47056a",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "974ea7e9-b6bd-5f48-b9e0-31ba4015ced4",
+          "source_id": "da4a3e2d-62c3-5147-96a3-239256bd597b",
+          "target_id": "341a5d56-b1a8-5cfe-a3c7-fae70ef810d0"
+        },
+        {
+          "id": "c367635e-abe9-5eed-a790-c030f61f97f4",
+          "source_id": "341a5d56-b1a8-5cfe-a3c7-fae70ef810d0",
+          "target_id": "53503cbd-b746-53d1-abee-69b178ebb9ab"
+        },
+        {
+          "id": "c3541f1b-1b2b-5241-a763-afb43bf58d87",
+          "source_id": "53503cbd-b746-53d1-abee-69b178ebb9ab",
+          "target_id": "171b6746-6842-59d7-9d56-a7fb282c75fe"
+        }
+      ]
+    }
+  ],
+  "journeys": [
+    {
+      "id": "6dc1d0b1-58f2-59bc-822a-f7d8ad53adea",
+      "name": "Claim",
+      "version": "1.0.0",
+      "subject": {
+        "name": "customer",
+        "key": "customer_id"
+      },
+      "stages": [
+        {
+          "id": "open",
+          "name": "Open",
+          "workflows": [
+            "181d89a1-f5d9-58b6-9102-7d0bd9032d5e"
+          ]
+        }
+      ],
+      "triggers": [
+        {
+          "event": "claim.submitted",
+          "starts_journey": true,
+          "start_workflow": "181d89a1-f5d9-58b6-9102-7d0bd9032d5e"
+        }
+      ]
+    }
+  ],
+  "actors": {
+    "Register": {
+      "output": {
+        "claim_id": "CLM-1"
+      }
+    },
+    "Review": {
+      "waits": true
+    },
+    "Settle": {
+      "output": {
+        "paid": true
+      }
+    },
+    "Notify": {
+      "output": {
+        "notified": true
+      }
+    },
+    "Archive": {
+      "output": {
+        "archived": true
+      }
+    }
+  },
+  "steps": [
+    {
+      "register": "1.0.0"
+    },
+    {
+      "publish": {
+        "type": "claim.submitted",
+        "data": {
+          "customer_id": "c-1"
+        }
+      },
+      "as": "r1",
+      "expect": {
+        "version": "1.0.0",
+        "status": "waiting_human"
+      }
+    },
+    {
+      "register": "2.0.0"
+    },
+    {
+      "publish": {
+        "type": "claim.submitted",
+        "data": {
+          "customer_id": "c-2"
+        }
+      },
+      "as": "r2",
+      "expect": {
+        "version": "2.0.0",
+        "status": "waiting_human"
+      }
+    },
+    {
+      "start": {
+        "input": {
+          "customer_id": "c-3"
+        },
+        "version": "1.0.0"
+      },
+      "as": "r3",
+      "expect": {
+        "version": "1.0.0"
+      }
+    },
+    {
+      "restart": true
+    },
+    {
+      "complete": {
+        "run": "r1",
+        "node": "Review",
+        "output": {
+          "approved": true
+        }
+      }
+    },
+    {
+      "complete": {
+        "run": "r2",
+        "node": "Review",
+        "output": {
+          "approved": true
+        }
+      }
+    },
+    {
+      "complete": {
+        "run": "r3",
+        "node": "Review",
+        "output": {
+          "approved": true
+        }
+      }
+    }
+  ],
+  "expect": {
+    "visited": [
+      "Register",
+      "Review",
+      "Register",
+      "Review",
+      "Register",
+      "Review",
+      "Settle",
+      "Settle",
+      "Notify",
+      "Settle"
+    ],
+    "runs": {
+      "r1": {
+        "status": "completed",
+        "version": "1.0.0",
+        "journal_excludes": [
+          "run.migrated"
+        ]
+      },
+      "r2": {
+        "status": "completed",
+        "version": "2.0.0"
+      },
+      "r3": {
+        "status": "completed",
+        "version": "1.0.0"
+      }
+    }
+  }
+}

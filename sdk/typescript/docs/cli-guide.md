@@ -13,6 +13,7 @@ The command is then `npx awa`, or `awa` after `npm install -g agentic-workflow-a
 | [`awa run`](#awa-run) | Run a workflow file, keeping its journal and checkpoints |
 | [`awa validate`](#awa-validate) | Check workflow and journey documents before running them |
 | [`awa journey`](#awa-journey) | Journeys kept in a runtime directory or a shared PostgreSQL store: add definitions, take in events, let time pass, inspect, export |
+| [`awa migrate`](#awa-migrate) | Move runs at rest to another version of their workflow, check which can move (specification section 25) |
 | [`awa measures`](#awa-measures) | The measures of journeys and workflows (specification section 21) |
 | [`awa telemetry`](#awa-telemetry) | Runs, journeys and measures as OpenTelemetry traces and metrics (specification section 26) |
 | [`awa replay`](#awa-replay) | Counterfactual replay of a recorded run under a changed workflow or model |
@@ -157,6 +158,45 @@ awa journey list --stalled
 | `export` | Everything recorded, in one file (`-o`): what the journey view and the measures page open |
 
 `publish`, `tick` and `resume` take `--simulate` and `--outputs` as `awa run` does. Every subcommand takes `--store <url>`; with it, or with `AWA_RUNTIME_STORE` set, `--dir` is not used.
+
+`add` keeps every version of a workflow beside the others (`definitions/workflow-<id>@<version>.json`, or one row per version in a shared store): runs under way stay on the version they started on, and new runs start on the newest (specification 25.1). A host refuses to open a directory or store that keeps a run of a version it does not have.
+
+## awa migrate
+
+Moves runs that are at rest (waiting for a person, an event, an agent, a timer or a join) to another version of their workflow, by an explicit plan that is checked whole before anything changes (specification section 25). It works on a runtime directory (`--dir`) or a shared store (`--store`, `AWA_RUNTIME_STORE`), as `awa journey` does.
+
+```bash
+awa journey add claim-v2.awa.json                       # register the new version
+awa migrate check 6f1c...-workflow-id                   # which positions and runs can move
+awa migrate plan 2b7e...-run-id --plan plan.json        # a dry run: what would happen
+awa migrate apply 2b7e...-run-id --plan plan.json       # move it
+```
+
+A plan is a JSON object:
+
+```json
+{
+  "to_version": "2.0.0",
+  "nodes": { "<old node id>": "<new node id>" },
+  "restart": ["<old node id>"],
+  "data": [
+    { "set": "currency", "value": "EUR" },
+    { "set": "total", "from": "amount" },
+    { "set": "priority", "expression": "amount > 1000" },
+    { "remove": "legacy_code", "when": "legacy_code exists" }
+  ]
+}
+```
+
+A node the plan does not map keeps its id. A token whose wait would mean nothing at its new node is refused unless the plan lists its old node in `restart`, which withdraws the wait and starts the token afresh there.
+
+| Subcommand | What it does |
+|---|---|
+| `check <workflow_id>` | Compares each version that has live runs with the version to move to, position by position (`compatible`, `needs_mapping` with the candidate nodes, `impossible`), and says of each run whether it can move. `--from <version>` keeps the runs of one version |
+| `plan <run_id>` | A dry run: the tokens, where each goes, the changes to data, or every reason it would be refused. Changes nothing |
+| `apply <run_ids...>` | Moves the runs, each in one change recorded in its journal as `run.migrated` |
+
+Every subcommand takes `--plan <file>`, `--to <version>` (over the plan's `to_version`; the newest registered by default) and `--json`. `plan` and `apply` exit with status 2 when a migration is refused, and 1 on an error.
 
 ## awa measures
 

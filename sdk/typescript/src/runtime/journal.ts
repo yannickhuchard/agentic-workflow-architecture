@@ -21,7 +21,7 @@ export const JOURNAL_SPEC_VERSION = '1.1';
 export type TraceLevel = 'execution' | 'reasoning' | 'meta';
 
 export type JournalEventType =
-    | 'run.started' | 'run.completed' | 'run.failed' | 'run.cancelled' | 'run.waiting' | 'run.resumed'
+    | 'run.started' | 'run.completed' | 'run.failed' | 'run.cancelled' | 'run.waiting' | 'run.resumed' | 'run.migrated'
     | 'token.created' | 'token.moved' | 'token.completed' | 'token.failed'
     | 'token.waiting' | 'token.resumed' | 'token.joined' | 'token.cancelled'
     | 'activity.started' | 'activity.completed' | 'activity.failed'

@@ -159,6 +159,44 @@ def resume(run_id: str, token_id: str, request: Request, body: dict[str, Any] | 
     return JSONResponse({"resumed": resumed}, status_code=200 if resumed else 404)
 
 
+# -- changing a workflow while runs are in flight (specification section 25) --
+
+@journey_router.get("/workflows/{workflow_id}/versions")
+def workflow_versions(workflow_id: str) -> dict[str, Any]:
+    """The registered versions of a workflow, oldest first, with the live runs on each"""
+    with _guard:
+        host = _reading()
+        versions = host.workflow_versions(workflow_id)
+        if not versions:
+            raise HTTPException(status_code=404, detail=f"Workflow {workflow_id} is not registered")
+        live = [e for e in host.list_runs() if str(e.workflow.id) == workflow_id and e.status.value not in ("completed", "failed", "cancelled")]
+        return {"workflow_id": workflow_id, "newest": versions[-1],
+                "versions": [{"version": v, "live_runs": [e.run_id for e in live if e.workflow.version == v]} for v in versions]}
+
+
+@journey_router.post("/migrations/check")
+def check_migration(body: dict[str, Any] | None = Body(default=None)) -> dict[str, Any]:
+    """How each position of the versions with live runs fares under a move, and which runs can move"""
+    body = body or {}
+    if not body.get("workflow_id"):
+        raise HTTPException(status_code=400, detail="workflow_id is required")
+    with _guard:
+        try:
+            return _host().check_migration(body["workflow_id"], from_version=body.get("from_version"),
+                                           to_version=body.get("to_version"), plan=body.get("plan"))
+        except KeyError as error:
+            raise HTTPException(status_code=400, detail=str(error.args[0] if error.args else error)) from error
+
+
+@journey_router.post("/runs/{run_id}/migrate")
+def migrate_run(run_id: str, body: dict[str, Any] | None = Body(default=None), dry_run: str | None = None) -> JSONResponse:
+    """Move a run at rest to another version: the body is the plan, and ?dry_run=true says what would happen without doing it"""
+    with _guard:
+        result = _host().migrate(run_id, body or {}, dry_run=dry_run in ("true", "1"))
+    codes = [r["code"] for r in result["refusals"]]
+    return JSONResponse(result, status_code=404 if "not_found" in codes else 409 if codes else 200)
+
+
 @journey_router.get("/instances")
 def list_instances(journey_id: str | None = None, subject: str | None = None, stalled: str | None = None) -> list[dict[str, Any]]:
     with _guard:

@@ -28,7 +28,7 @@ from awa.validator import validate_workflow_integrity
 
 CONFORMANCE = Path(__file__).resolve().parents[3] / "spec" / "conformance"
 SCHEMAS = Path(__file__).resolve().parents[3] / "spec" / "json-schema"
-CLAIMED_LEVELS = {"interchange", "core", "decision", "verified", "recorded", "resilient", "contract", "flow", "events",
+CLAIMED_LEVELS = {"versioning", "interchange", "core", "decision", "verified", "recorded", "resilient", "contract", "flow", "events",
                   "tools", "model_decision", "routing", "journeys", "measures",
                   "replay", "contexts", "service_levels", "knowledge", "telemetry", "shared_store", "evidence", "evaluation", "a2a",
                   "authorization"}
@@ -73,6 +73,9 @@ class ConformanceActor:
             context.tools.call(call["tool"], call.get("arguments", {}))
         if "error" in script:
             raise ScriptedError(script["error"], script.get("code"))
+        if script.get("waits"):
+            # A person who has not answered yet: the token waits for them (5.6)
+            return {"_requires_human_action": True, "_human_task_id": f"task:{activity.name}"}
         return {
             **script.get("output", {}),
             **({"_reasoning": script["reasoning"]} if "reasoning" in script else {}),
@@ -1128,3 +1131,190 @@ def test_authorization(case):
         assert agents["card_reads"] == expect["agent_card_reads"], "agent cards read"
     if "agent_requests" in expect:
         assert [r["method"] for r in agents["requests"]] == expect["agent_requests"], "requests to agents"
+
+
+VERSIONING = [json.loads(p.read_text()) for p in sorted((CONFORMANCE / "versioning").glob("*.json"))]
+
+
+@pytest.mark.parametrize("case", VERSIONING, ids=[c["id"] for c in VERSIONING])
+def test_versioning(case):
+    """Changing a workflow while runs are in flight (section 25). A host plays the steps; a case that gives a
+    run's `state` instead has its plan checked against that state, without a host."""
+    if case["level"] not in CLAIMED_LEVELS:
+        pytest.skip(f"level '{case['level']}' is not claimed by the Python SDK")
+    from awa.runtime.migration import plan_migration
+
+    versions = {w["version"]: w for w in case["workflows"]}
+    models = {v: Workflow.model_validate(w) for v, w in versions.items()}
+    names = {str(n.id): n.name for w in models.values() for n in [*w.activities, *w.events, *w.decision_nodes]}
+
+    def token_view(t):
+        return {"from": names.get(t["from_node_id"]), "to": names.get(t["to_node_id"]), "wait": t["wait"], "outcome": t["outcome"]}
+
+    def codes(refusals):
+        return sorted(r["code"] for r in refusals)
+
+    expect = case["expect"]
+    if "state" in case:
+        # A run's state as recorded, in the form this implementation keeps it (10.3)
+        old, new = models[case["state"]["version"]], models[case["migrate"]["plan"]["to_version"]]
+        by_name = {n.name: str(n.id) for n in [*old.activities, *old.events]}
+        tokens = []
+        for t in case["state"]["tokens"]:
+            node = by_name[t["node"]]
+            waits = t.get("waits") or {}
+            data = dict(t.get("data") or {})
+            if waits.get("kind") == "timer":
+                data[f"_timer_due:{node}"] = waits["due_at"]
+            if waits.get("kind") == "human":
+                data.update({"_requires_human_action": True, "_human_task_id": "task"})
+            if waits.get("kind") == "event":
+                data["_awaiting_event"] = {"node_id": node, "name": waits["name"], "correlation_key": waits.get("correlation_key"),
+                                           "correlation_value": waits.get("correlation_value")}
+            tokens.append({"id": t["id"], "activity_id": node, "status": t["status"], "context_data": data})
+        state = {"version": "1.0", "workflow_id": str(old.id), "workflow_name": old.name, "workflow_version": old.version,
+                 "engine_status": case["state"]["status"], "contexts": {}, "checkpoint_at": case["start"], "tokens": tokens,
+                 "metadata": {"run_id": "recorded-run"}}
+        result = plan_migration(old, new, state, case["migrate"]["plan"])
+        assert codes(result["refusals"]) == sorted(expect["refusals"]), result["refusals"]
+        if "refused_tokens" in expect:
+            assert [r.get("token_id") for r in result["refusals"]] == expect["refused_tokens"]
+        if "tokens" in expect:
+            assert [token_view(t) for t in result["tokens"] if t["wait"]] == expect["tokens"]
+        for token_id, due in (expect.get("timers") or {}).items():
+            token = next(t for t in result["state"]["tokens"] if t["id"] == token_id)
+            assert token["context_data"][f"_timer_due:{token['activity_id']}"] == due
+        return
+
+    clock = {"now": time_ms(case["start"])}
+    store, journal = InMemoryRuntimeStore(), InMemoryJournalStore()
+
+    def spend(ms):
+        clock["now"] += ms
+
+    actor = ConformanceActor(case.get("actors"), spend)
+    registered: list[str] = []
+    runs: dict[str, str] = {}
+    workflow_id = case["workflows"][0]["id"]
+
+    def host(with_versions):
+        runtime = AwaRuntime(now=lambda: clock["now"], store=store,
+                             engine={"actors": {actor_type: actor for actor_type in ActorType}, "journal": journal, "sleep": lambda ms: None})
+        for version in with_versions:
+            runtime.register_workflow(versions[version])
+        if with_versions:
+            for journey in case.get("journeys") or []:
+                runtime.register_journey(journey)
+        return runtime
+
+    runtime = host([])
+
+    def engine_of(name):
+        return runtime.get_run(runs[name])
+
+    def check_run(name, wanted):
+        if not wanted:
+            return
+        engine = engine_of(name)
+        if "version" in wanted:
+            assert engine.workflow.version == wanted["version"], f"version of {name}"
+        if "status" in wanted:
+            assert engine.status.value == wanted["status"], f"status of {name}"
+
+    for number, step in enumerate(case["steps"]):
+        wanted = step.get("expect") or {}
+        if "register" in step:
+            runtime.register_workflow(versions[step["register"]])
+            if not registered:
+                for journey in case.get("journeys") or []:
+                    runtime.register_journey(journey)
+            registered.append(step["register"])
+        elif "restart" in step:
+            with_versions = step["restart"]["versions"] if isinstance(step["restart"], dict) else registered
+            following = host(with_versions)
+            if wanted.get("refused"):
+                with pytest.raises(RuntimeError, match="not registered"):
+                    following.recover()
+                continue
+            following.recover()
+            runtime, registered = following, list(with_versions)
+        elif "advance" in step:
+            spend(parse_iso_duration(step["advance"]))
+        elif step.get("tick"):
+            runtime.tick()
+        elif "publish" in step:
+            event = step["publish"]
+            result = runtime.publish({"specversion": "1.0", "id": event.get("id") or f"evt-{number}-{uuid4()}", "source": "/conformance",
+                                      "type": event["type"], "data": event.get("data", {})})
+            if "as" in step:
+                runs[step["as"]] = result["started_runs"][0]
+                check_run(step["as"], wanted)
+        elif "start" in step:
+            engine = runtime.start(workflow_id, step["start"].get("input") or {}, version=step["start"].get("version"))
+            runs[step["as"]] = engine.run_id
+            check_run(step["as"], wanted)
+        elif "complete" in step:
+            engine = engine_of(step["complete"]["run"])
+            token = next((t for t in engine.tokens if t.status.value == "waiting" and names.get(str(t.activity_id)) == step["complete"]["node"]), None)
+            assert token is not None, f"a token of {step['complete']['run']} waiting at {step['complete']['node']}"
+            assert runtime.resume(engine.run_id, token.id, step["complete"].get("output") or {}) is True
+        elif "migrate" in step:
+            result = runtime.migrate(runs[step["migrate"]["run"]], step["migrate"]["plan"], dry_run=bool(step["migrate"].get("dry_run")))
+            assert codes(result["refusals"]) == sorted(wanted.get("refusals") or []), result["refusals"]
+            for key in ("applied", "dry_run", "status"):
+                if key in wanted:
+                    assert result.get(key) == wanted[key], key
+            if "tokens" in wanted:
+                assert [token_view(t) for t in result["tokens"] if t["wait"]] == wanted["tokens"]
+            if "data_changes" in wanted:
+                assert len(result["data_changes"]) == len(wanted["data_changes"]), result["data_changes"]
+                for change, got in zip(wanted["data_changes"], result["data_changes"]):
+                    assert is_subset(change, got), got
+            engine = engine_of(step["migrate"]["run"])
+            if "run_version" in wanted:
+                assert engine.workflow.version == wanted["run_version"], "the version the run is on"
+            if "run_status" in wanted:
+                assert engine.status.value == wanted["run_status"], "the status of the run"
+        elif "check" in step:
+            check = step["check"]
+            report = runtime.check_migration(workflow_id, from_version=check.get("from_version"), to_version=check.get("to_version"), plan=check.get("plan"))
+            positions = [p for c in report["comparisons"] for p in c["positions"]]
+            if "automatic" in wanted:
+                assert all(c["automatic"] for c in report["comparisons"]) is wanted["automatic"]
+            if "positions" in wanted:
+                assert len(positions) == len(wanted["positions"]), positions
+                for p, got in zip(wanted["positions"], positions):
+                    view = {"node": got["node_name"], "wait": got["wait"], "class": got["class"]}
+                    if "to" in p:
+                        view["to"] = got.get("to_node_name")
+                    if "outcome" in p:
+                        view["outcome"] = got.get("outcome")
+                    if "candidates" in p:
+                        view["candidates"] = [n["node_name"] for n in got.get("candidates") or []]
+                    assert view == p
+            for r in wanted.get("runs") or []:
+                got = next((x for x in report["runs"] if x["run_id"] == runs[r["run"]]), None)
+                assert got is not None, f"run {r['run']} in the check"
+                assert got["migratable"] is r["migratable"], f"{r['run']} migratable"
+
+    if "visited" in expect:
+        assert actor.visited == expect["visited"]
+    for name, wanted in (expect.get("runs") or {}).items():
+        check_run(name, wanted)
+        engine = engine_of(name)
+        if "data" in wanted:
+            assert any(is_subset(wanted["data"], t.context_data) for t in engine.tokens), [t.context_data for t in engine.tokens]
+        for key in wanted.get("data_absent") or []:
+            assert all(resolve_path(t.context_data, key) is None for t in engine.tokens), f"{key} absent"
+        events = engine.get_events()
+        for position, event in enumerate(events, 1):
+            check_journal_event(event, position)
+        types = [e["type"] for e in events]
+        if "journal" in wanted:
+            assert in_order(wanted["journal"], types) == [], f"journal was: {', '.join(types)}"
+        for type_ in wanted.get("journal_excludes") or []:
+            assert type_ not in types
+        for type_, n in (wanted.get("journal_count") or {}).items():
+            assert types.count(type_) == n, f"count of {type_}"
+        for part in wanted.get("journal_contains") or []:
+            assert any(is_subset(part, e) for e in events), f"no event matches {part}"

@@ -103,10 +103,10 @@ export interface SharedRuntimeStore {
     /** The journals as kept, for reading */
     journal: JournalStore;
     /** The workflows and journeys that what is kept needs: a host that lacks one must not start (19.10) */
-    required_definitions(): Promise<{ workflows: string[]; journeys: string[]; instances: number; runs: number }>;
+    required_definitions(): Promise<{ workflows: string[]; journeys: string[]; instances: number; runs: number; workflow_versions?: { id: string; version: string }[] }>;
     /** The workflow and journey documents kept in the store, workflows first */
     definitions(): Promise<Record<string, unknown>[]>;
-    /** Keep a workflow or journey document in the store, replacing one with the same id */
+    /** Keep a workflow or journey document in the store, replacing a journey with the same id or a workflow with the same id and version (spec 25.1) */
     add_definition(document: Record<string, unknown>): Promise<{ kind: 'workflow' | 'journey'; id: string; name: string }>;
     close(): Promise<void>;
 }
@@ -191,6 +191,10 @@ export interface HostView {
     runs: Map<string, WorkflowEngine>;
     run_journey: Map<string, string>;
     outbox: Map<string, BusinessEvent[]>;
+    /** Whether the host has registered this version of a workflow (the newest when none is named) (spec 25.1) */
+    has_workflow?(id: string, version?: string): boolean;
+    /** Every version of every workflow registered: their waits may all be live */
+    all_workflows?(): Workflow[];
     /** Rebuild a kept run as part of the working set, journalling into the operation */
     adopt(saved: StoredRun): WorkflowEngine;
 }
@@ -232,7 +236,10 @@ export class SharedOperation {
             this.kept_instances.set(kept.instance.id, { text: JSON.stringify(kept.instance), events: kept.instance.events.length, version: kept.version });
         }
         for (const kept of runs) {
-            if (!this.view.workflows.has(kept.workflow_id)) throw new Error(`Run ${kept.run_id} needs workflow ${kept.workflow_id}, which is not registered on this host. Nothing was changed.`);
+            const version = kept.state.workflow_version;
+            if (!(this.view.has_workflow ? this.view.has_workflow(kept.workflow_id, version) : this.view.workflows.has(kept.workflow_id))) {
+                throw new Error(`Run ${kept.run_id} needs workflow ${kept.workflow_id}${version ? ` version ${version}` : ''}, which is not registered on this host. Nothing was changed.`);
+            }
             this.kept_runs.set(kept.run_id, { text: run_text(kept.state, kept.outbox), version: kept.version, waits: kept.waits.map(wait_key) });
             if (kept.outbox.length) this.view.outbox.set(kept.run_id, [...kept.outbox]);
             if (kept.journey_instance_id) this.view.run_journey.set(kept.run_id, kept.journey_instance_id);
@@ -256,7 +263,7 @@ export class SharedOperation {
         }
         await this.hold(subjects);
         // No operation may keep a new wait this event could reach until this one has looked for the waits there are
-        await this.unit.lock_waits(event_wait_keys(event, this.view.workflows.values()), 'shared');
+        await this.unit.lock_waits(event_wait_keys(event, this.view.all_workflows ? this.view.all_workflows() : this.view.workflows.values()), 'shared');
         // A run may start waiting in a partition not yet held while this one waited: ask again until nothing new appears.
         // Only runs whose correlation the event matches are held, so that events about different subjects do not wait for one another.
         for (; ;) {
