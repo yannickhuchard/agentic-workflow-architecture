@@ -80,8 +80,8 @@ An implementation MUST NOT claim a level unless it passes every case tagged with
 
 | SDK | Levels claimed |
 |---|---|
-| TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels` |
-| Python | every level: `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`. Without a built-in AI agent that calls a model, the recipe, or Open Knowledge Format exchange |
+| TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `telemetry` |
+| Python | every level: `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `telemetry`. Without a built-in AI agent that calls a model, the recipe, or Open Knowledge Format exchange |
 | Java | none: a data model that reads and writes 1.1 documents faithfully, without validating them, and no engine |
 
 ### 2.3 Versions
@@ -1573,7 +1573,7 @@ Every span of a run carries `awa.run.id`. Spans that concern a node also carry `
 | Attempt | `awa.actor.type`, `awa.role.id`; for an `ai_agent` also `gen_ai.operation.name` = `invoke_agent`, `gen_ai.agent.name` (the node name) and `gen_ai.agent.id` (the node id); on failure `error.type` and `awa.error.retryable` |
 | Tool call | `gen_ai.operation.name` = `execute_tool`, `gen_ai.tool.name`, `gen_ai.tool.call.id`, `awa.tool.link`, `awa.tool.binding` (the binding's `kind`), `awa.tool.invoked`; from the ending event `awa.tool.status`, and `error.type` on failure |
 | Model call | `gen_ai.operation.name` = `chat`, `gen_ai.provider.name`, `gen_ai.request.model` and `gen_ai.response.model` (both `model.id`: the journal records the model that served), `gen_ai.request.temperature`, `gen_ai.usage.input_tokens` and `gen_ai.usage.output_tokens` (26.5), `awa.model.provider`, `awa.model.requested`, `awa.model.tier`, `awa.model.source` |
-| Decision | `awa.decision.method`, `awa.decision.strategy`, `awa.decision.hit_policy`, `awa.decision.edge_id`, `awa.decision.used_default`, `awa.decision.matched_rules` (the rules' indexes), `awa.decision.outputs`, and for a model decision `awa.decision.option` and `awa.decision.confidence` |
+| Decision | `awa.decision.method`, `awa.decision.strategy`, `awa.decision.hit_policy`, `awa.decision.edge_id`, `awa.decision.used_default`, `awa.decision.matched_rules` (the rules' indexes, an array of integers), `awa.decision.outputs`, and for a model decision `awa.decision.option` and `awa.decision.confidence` |
 | Wait | `awa.wait.kind` (`human`, `event`, `timer`), `awa.wait.outcome` (`resumed`, `received`, `timed_out`, `fired`); for a person `awa.wait.reason`, `awa.human_task.id`, `awa.wait.waited_ms`; for a business event `awa.business_event.name`, `awa.business_event.correlation_key`, `awa.business_event.due_at`, and on receipt `awa.business_event.id` and `awa.business_event.source`; for a timer `awa.timer.duration`, `awa.timer.due_at` |
 
 An attribute whose value the record does not hold is absent. `gen_ai.provider.name` is the provider id of 12.4, except that `google` becomes `gcp.gemini`, the value the conventions give the Gemini API. `error.type` is the error's `code`, or `_OTHER` when it has none. `awa.decision.outputs` holds the outputs as canonical JSON (9.4), which also holds for any other value that is neither a string, a number nor a boolean. A number with no fractional part is an integer attribute; any other number is a double.
@@ -1593,7 +1593,7 @@ Status ok means the record says the work succeeded; it is not the absence of an 
 
 Every journal event that neither opens nor ends a span is a span event, named by its `type`, at its time. So are `token.created`, `token.moved` and `token.joined`, also when they open a decision. Its span is the most recently opened span still open, other than a tool call, whose token and node are the event's and whose attempt, where both have one, is the event's; failing that, the run span. Events recorded where no run span is open are not exported.
 
-A span event carries `awa.journal.seq`, `awa.journal.level`, and `awa.token.id`, `awa.node.id`, `awa.node.name` and `awa.attempt` where the event has them. Each property of the event's `data` becomes `awa.data.<property>` by the rules of 26.3, except a null and the payload properties of 26.6.
+A span event carries `awa.journal.seq`, `awa.journal.level`, and `awa.token.id`, `awa.node.id`, `awa.node.name` and `awa.attempt` where the event has them. Each property of the event's `data` becomes `awa.data.<property>` by the rules of 26.3, except a null and, unless the deployment opts in, the payload properties of 26.6.
 
 An implementation MUST NOT drop span events itself. A receiver may limit the number of events per span; the journal keeps them all.
 
@@ -1626,7 +1626,7 @@ A journey instance is one trace:
 | Stage | `journey.stage_entered` | `journey.stage_completed` of that stage; or the next `journey.stage_entered`, or the end of the journey, unset | Journey | `stage <stage_name>` |
 | Run | `journey.run_started` | `journey.run_ended` with the same `run_id` | The open stage with the event's `stage_id`, else the journey | `run <workflow_name>` |
 
-Each run span **links** to the run's own trace: to the trace and span identifiers of that run's run span (26.1). This is how a tracing system goes from a customer's journey to every step of every run done for it, as `run_id` does in the record (19.4). Every span carries `awa.journey.instance_id`. The journey span carries `awa.journey.id`, `awa.journey.name`, `awa.journey.subject`, and on its end `awa.journey.status` and `awa.journey.reason`; it is ok when completed and unset when abandoned. A stage span carries `awa.journey.stage.id`, `awa.journey.stage.name` and `awa.journey.stage.outcome` (`completed` or `left`), and is ok when completed. A run span carries `awa.run.id`, `awa.workflow.id`, `awa.workflow.name`, `awa.journey.stage.id`, `awa.business_event.id` for the event that caused it, and `awa.run.status`; its status follows the run's as in 26.3. All spans are internal.
+Each run span **links** to the run's own trace: to the trace and span identifiers of that run's run span (26.1). This is how a tracing system goes from a customer's journey to every step of every run done for it, as `run_id` does in the record (19.4). Every span carries `awa.journey.instance_id`. The journey span carries `awa.journey.id`, `awa.journey.name`, `awa.journey.subject`, and on its end `awa.journey.status` and `awa.journey.reason`; it is ok when completed and unset when abandoned. A stage span carries `awa.journey.stage.id`, `awa.journey.stage.name` and `awa.journey.stage.outcome` (`completed` or `left`), and is ok when completed. A run span carries `awa.run.id`, `awa.workflow.id`, `awa.workflow.name`, `awa.journey.stage.id`, `awa.business_event.id` for the event that caused it, and `awa.run.status`; it is ok when the run completed, an error described by the run's `error` when it failed, and unset otherwise. All spans are internal.
 
 Other journey events are span events, with `awa.journey.seq` in place of `awa.journal.seq`, on the open run span of their `run_id`, else the open stage span of their `stage_id`, else the journey span.
 
@@ -1662,6 +1662,7 @@ A host that runs workflows from the command line or as a server SHOULD honour th
 | `OTEL_EXPORTER_OTLP_TRACES_PROTOCOL`, `OTEL_EXPORTER_OTLP_PROTOCOL` | `http/protobuf` (default) or `http/json`. `grpc` is not supported: the host says so and sends nothing |
 | `OTEL_EXPORTER_OTLP_TRACES_TIMEOUT`, `OTEL_EXPORTER_OTLP_TIMEOUT` | Export timeout in milliseconds, default 10000 |
 | `OTEL_EXPORTER_OTLP_TRACES_COMPRESSION`, `OTEL_EXPORTER_OTLP_COMPRESSION` | `gzip` or `none` |
+| `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` | Where measures are sent (26.12), as given; otherwise `/v1/metrics` under the endpoint |
 | `OTEL_SERVICE_NAME`, `OTEL_RESOURCE_ATTRIBUTES` | The resource |
 | `OTEL_SDK_DISABLED` = `true`, `OTEL_TRACES_EXPORTER` = `none` | No telemetry |
 | `OTEL_BSP_SCHEDULE_DELAY`, `OTEL_BSP_MAX_QUEUE_SIZE`, `OTEL_BSP_MAX_EXPORT_BATCH_SIZE` | Batching |
@@ -1681,7 +1682,7 @@ Telemetry does not replace the journal: nothing in this section makes a trace a 
 
 ### 26.14 Conformance
 
-Level `telemetry` has its own cases, in `spec/conformance/telemetry/` (Appendix A): a record, and the trace that must be derived from it. Live export, retries and failure are fixed by the reference implementation's tests, `sdk/typescript/tests/telemetry.test.ts`.
+Level `telemetry` has its own cases, in `spec/conformance/telemetry/` (Appendix A): a record, and the trace that must be derived from it. Live export, retries, failure, recovery and the environment are fixed by each SDK's own tests, `sdk/typescript/tests/telemetry.test.ts` and `sdk/python/tests/test_telemetry.py`, which also check that both export the claims-settlement example (`examples/claims-settlement/telemetry/`) identically, and decode protobuf with the OpenTelemetry proto definitions.
 
 ## Appendix A. Conformance suite
 
@@ -1753,6 +1754,8 @@ An `<entry>` describes entries by `type`, `node` (the name of the node in the en
 
 A run's `expect` gives its `status`; optionally `given`, which for an activity name lists, in order, the entries its actor must have been given at each execution of that activity, an empty list meaning none; and `journal_contains` as in an execution case. The case's `expect` gives `entry_count`, the number of entries the knowledge base must hold at the end, and `entries`: each `<entry>` must describe exactly one entry, or as many as its `count` says. A runner MUST also check that every source of every entry names a run that was ingested and at least one event of that run's journal, each by its `seq` (15.2).
 
+**Telemetry cases** (`telemetry/*.json`) each give a record and the trace that must be derived from it (section 26). A run's record is `journal`, its events in order, with `decision_nodes`, the ids of the workflow's decision nodes; a journey's is `journey`, the events of one instance. `options.payloads` says whether the deployment opts in to payloads (26.6). `expect` gives the `trace_id` every span must carry, `span_count`, the exact number of spans, and `spans`: each names a `span_id`, which exactly one span must have, and may state `parent_span_id` (`null` for the root), `name`, `kind` (`internal` or `client`), `start` and `end` (compared as instants), `status` (`ok`, `error`, `unset`) and `status_message`, `attributes` (a subset, with JSON values compared exactly, so that `1` and `1.5` and `true` stay apart), `absent` (attributes that must not be there), `events` (the names of its span events, exactly and in order), `events_contain` (partial span events: a `name`, `attributes`, and `absent`) and `links` (exactly). `expect.otlp_json` gives the whole OTLP/JSON request, compared with attributes in any order. A case with `report` gives a measure report instead (21.1), and `expect` gives `metric_count`, the gauges that must be `absent`, and for each gauge named its `unit` and its data points (`attributes` and `value`, exactly), with the `time` and `start_time` of every point.
+
 Runners: `sdk/typescript/tests/conformance.test.ts`, `sdk/python/tests/test_conformance.py`.
 
 ## Appendix B. Changes from 1.0
@@ -1790,3 +1793,4 @@ Runners: `sdk/typescript/tests/conformance.test.ts`, `sdk/python/tests/test_conf
 - Measures of journeys and workflows, computed from the record, with conformance level `measures` (section 21).
 - Context bindings are enforced: an activity is given the contexts it is bound to read and no other, and a write needs a binding that allows it (section 22, level `contexts`). **A workflow that binds a required context nothing has written now fails with `CONTEXT_MISSING`** where it used to run.
 - Service levels are compared with the time work takes, and warnings and breaches are journalled; `breach_action: fail` stops work that is still waited for (section 23, level `service_levels`).
+- The journal and the journey record as OpenTelemetry traces, with identifiers derived from the run and the journey instance, the generative AI semantic conventions, OTLP export that never holds up a run, the standard `OTEL_EXPORTER_OTLP_*` variables, and measures as OpenTelemetry gauges; conformance level `telemetry` (section 26).

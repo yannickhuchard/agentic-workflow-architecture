@@ -11,6 +11,7 @@ One workflow that exercises most of AWA 1.1, with two recorded runs, the documen
 | `RECIPE.md` | Recipe compiled from the completed run |
 | `runs/failed-and-compensated.recipe.md` | Recipe compiled from the failed run |
 | `knowledge/` | Knowledge distilled from both runs, as an Open Knowledge Format bundle |
+| `telemetry/*.otlp.json` | Each run as OpenTelemetry traces (OTLP/JSON, specification section 26): the same trace and span ids in both SDKs |
 | `make-runs.mjs` | Regenerates all of the above |
 | `simulation.json` | What each activity returns when the workflow is run with `--simulate` |
 
@@ -58,6 +59,16 @@ awa recipe claims-settlement.awa.json runs/completed.journal.jsonl -o RECIPE.md
 
 ```bash
 awa knowledge ingest claims-settlement.awa.json runs/*.jsonl --kb knowledge.json
+```
+
+```bash
+awa telemetry export claims-settlement.awa.json runs/completed.journal.jsonl --file telemetry/completed.otlp.json
+```
+
+Or send a run to an OpenTelemetry collector or backend, and see its model calls, tool calls, retries and the decision as spans:
+
+```bash
+awa telemetry export claims-settlement.awa.json runs/failed-and-compensated.journal.jsonl --endpoint http://localhost:4318
 ```
 
 ```bash

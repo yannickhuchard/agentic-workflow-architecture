@@ -40,7 +40,7 @@ print(result)
 
 ## Conformance
 
-The Python SDK passes every case of every conformance level of the specification (`docs/specification.md`, section 2.1): `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts` and `service_levels`. No case is skipped. Run them with `pytest tests/test_conformance.py -rs`.
+The Python SDK passes every case of every conformance level of the specification (`docs/specification.md`, section 2.1): `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels` and `telemetry`. No case is skipped. Run them with `pytest tests/test_conformance.py -rs`.
 
 What it still lacks compared with the TypeScript reference implementation, none of which belongs to a conformance level:
 
@@ -64,6 +64,9 @@ awa knowledge ingest claim.awa.json run1.jsonl run2.jsonl [--kb knowledge.json]
 awa knowledge list [--status draft|reviewed|deprecated] [--kb knowledge.json]
 awa knowledge review <id...|all> --by <reviewer> [--kb knowledge.json]
 awa knowledge deprecate <id> [--superseded-by <id>] [--kb knowledge.json]
+awa telemetry export claim.awa.json run.jsonl (--endpoint http://collector:4318 | --file run.otlp.json) [--protocol http/json] [--header k=v] [--payloads]
+awa telemetry journeys [--dir .awa | --portfolio journeys.json] (--endpoint <url> | --file <out.json>)
+awa telemetry measures [--dir .awa | --portfolio journeys.json] [--from <instant>] [--to <instant>] (--endpoint <url> | --file <out.json>)
 ```
 
 `awa run` takes the options of the reference command, with the same meaning:
@@ -83,6 +86,25 @@ awa knowledge deprecate <id> [--superseded-by <id>] [--kb knowledge.json]
 The reference maps each provider's capability tiers to its preset models. This SDK names no models, so the model behind a tier is read from `AWA_<PROVIDER>_MODEL_<TIER>` (for example `AWA_OLLAMA_MODEL_FAST`) or `AWA_<PROVIDER>_MODEL`; each tier falls back down the list of providers, and a tier none of them names is `<first provider>:default`. At the end the command prints the run's metrics (status, duration, steps, tokens and cost, at the reference's example rates), `Workflow finished with status: ...` and, with `--journal`, where the journal was written. It exits with status 1 when the run fails.
 
 `awa task` works on the human tasks in the database named by `AWA_DATABASE_URL`. `awa knowledge` keeps the knowledge base in one JSON file, `knowledge.json` by default.
+
+## Telemetry
+
+Level `telemetry` (specification section 26): every run and every journey as an OpenTelemetry trace, with the same trace and span identifiers the TypeScript reference gives for the same record. A test exports the journals of `examples/claims-settlement` and compares them with the files the reference wrote, request for request.
+
+```python
+from awa import OtlpHttpExporter, WorkflowEngine, run_spans, spans_to_otlp_json
+
+# Live: spans leave as the journal is written, from a background thread; the run never waits for them
+exporter = OtlpHttpExporter("http://collector:4318/v1/traces", protocol="http/protobuf", headers={"x-tenant": "claims"})
+engine = WorkflowEngine(workflow, options={"telemetry": {"exporter": exporter, "payloads": False}})
+engine.run({"claim_id": "C-1"})
+exporter.flush()                       # before the process ends; exporter.stats() counts what was sent and dropped
+
+# Recorded: the same spans from a journal, as OTLP/JSON
+request = spans_to_otlp_json(run_spans(workflow, events))
+```
+
+`telemetry` may also be `{"endpoint": "http://collector:4318", "headers": {...}, "protocol": "http/json", "payloads": False}`, or any object with `export(spans)`. `AwaRuntime(telemetry=...)` and `open_runtime_directory(..., telemetry=...)` send each journey's trace as well, whose run spans link to the runs' traces. `awa run`, `awa journey` and `awa serve` read `OTEL_EXPORTER_OTLP_ENDPOINT` and the rest of that family (`telemetry_from_env`); without an endpoint nothing is sent. Inputs, outputs and tool arguments go on spans only with `payloads` (or `AWA_TELEMETRY_PAYLOADS=true`), and then only as the journal holds them. The exporter needs only the standard library; the tests decode protobuf with `opentelemetry-proto` (in the `dev` extra). `GET /api/v1/measures?format=otlp` gives the measures as OpenTelemetry gauges.
 
 ## Tools, model routing and model decisions
 
