@@ -22,9 +22,6 @@ import { GrpcOptions, call_grpc, check_grpc_permission } from './protocols/grpc'
 import { ToolSessions } from './protocols/sessions';
 
 export { ToolError } from './protocols/errors';
-export { ToolSessions } from './protocols/sessions';
-export type { McpServerConfig } from './protocols/mcp';
-export type { GrpcOptions } from './protocols/grpc';
 
 const ajv = new Ajv2020({ allErrors: true, strict: false });
 addFormats(ajv);

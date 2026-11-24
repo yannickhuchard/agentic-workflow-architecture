@@ -2031,8 +2031,9 @@ export class WorkflowEngine {
         if (!token || !awaiting) return false;
         const since = token.getData('_waiting_since');
         const waitedMs = since ? this.now() - new Date(since as string).getTime() : undefined;
-        const { _awaiting_agent_input, _waiting_since, ...rest } = token.contextData;
-        token.contextData = { ...rest, _agent_continuation: { task_id: awaiting.task_id, context_id: awaiting.context_id, input } };
+        delete token.contextData._awaiting_agent_input;
+        delete token.contextData._waiting_since;
+        token.setData('_agent_continuation', { task_id: awaiting.task_id, context_id: awaiting.context_id, input });
         token.updateStatus('active', since ? { wait_time: calculate_duration(new Date(since as string), new Date(this.now())), waste_categories: ['waiting' as WasteCategory] } : undefined);
         this.record({ type: 'token.resumed', token_id: token.id, ...this.nodeRef(token.activityId), data: { reason: 'agent_input', waited_ms: waitedMs } });
         if (this.status === 'waiting_event' || this.status === 'waiting_human') this.status = 'running';
