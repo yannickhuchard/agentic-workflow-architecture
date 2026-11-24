@@ -127,11 +127,16 @@ def run_command(args: argparse.Namespace) -> int:
         if not isinstance(initial, dict):
             raise ValueError("--input must be a JSON object")
         names = [n.strip() for n in (args.providers or "").split(",") if n.strip()]
+        # What the workflow may reach (specification 17.4, 28.2)
+        from awa.cli.deployment import load_deployment
+        deployment = load_deployment(args.deployment) if args.deployment else {"tools": {}, "a2a": {}}
 
         options: dict[str, Any] = {
             **model_options(names),
             "simulate": bool(args.simulate),
-            "tools": {"allow_commands": _allow_commands(args.allow_commands)},
+            "tools": {**deployment["tools"], "allow_commands": _allow_commands(args.allow_commands)
+                      if args.allow_commands is not None else deployment["tools"].get("allow_commands", False)},
+            "a2a": deployment["a2a"],
             "pricing_config": dict(PRICING),
             # The execution record goes to the database only when asked; otherwise it is printed
             "log_execution": bool(args.db),
@@ -202,6 +207,9 @@ def add_parser(subparsers: Any) -> None:
                              "Each capability tier falls back down the list")
     parser.add_argument("--allow-commands", nargs="?", const=True, default=None, metavar="LIST",
                         help="Let tools run commands on this machine: all, or a comma-separated list of program names")
+    parser.add_argument("--deployment", metavar="FILE",
+                        help="JSON file saying what the workflow may reach: tools.allow_commands, tools.allowed_hosts, "
+                             "tools.mcp_servers, tools.grpc, a2a")
     parser.add_argument("--outputs", metavar="FILE",
                         help="With --simulate: JSON file giving what each activity returns, by activity name")
     parser.add_argument("-j", "--journal", metavar="FILE", help="Write the execution journal to this .jsonl file")

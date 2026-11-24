@@ -9,6 +9,7 @@ given entries of a knowledge base (15.4).
 """
 
 import copy
+import dataclasses
 import inspect
 import os
 import time
@@ -51,6 +52,8 @@ from awa.runtime.decision_model import ModelDecision, decide_with_model
 from awa.runtime.model_config import DEFAULT_AI_MODEL_ID
 from awa.runtime.models import ModelRegistry, ModelRouter, RouteAttempt
 from awa.runtime.tools import ActorContext, ToolOptions, ToolRunner
+from awa.runtime.protocols.sessions import ToolSessions
+from awa.runtime.protocols.a2a import A2AActor, A2AOptions, A2ARunState, a2a_binding
 from awa.validator import validate_workflow_integrity
 from awa.runtime.expression import evaluate_expression, resolve_path
 from awa.runtime.duration import parse_iso_duration
@@ -78,7 +81,7 @@ class EngineStatus(str, Enum):
 
 # Error codes that are never retried, whatever the retry policy says
 NEVER_RETRIED = {"VERIFICATION_FAILED", "CONTRACT_VIOLATION", "NO_ROUTE", "SLA_BREACH",
-                 "CONTEXT_MISSING", "CONTEXT_ACCESS_DENIED", "CONTEXT_INVALID", "CONTEXT_NOT_FOUND"}
+                 "CONTEXT_MISSING", "CONTEXT_ACCESS_DENIED", "CONTEXT_INVALID", "CONTEXT_NOT_FOUND", "AGENT_UNSUPPORTED", "PERMISSION_DENIED"}
 # Access modes of a context binding that let an activity read, and write (specification 22.2, 22.3)
 CAN_READ = {"read", "read_write", "subscribe"}
 CAN_WRITE = {"write", "read_write", "publish"}
@@ -187,7 +190,9 @@ class WorkflowEngine:
                            with an optional `code`, optional `contexts` to write, or `attempts`, a list of
                            those, one per execution, the last repeating
       tools:               ToolOptions, or a dict of its fields: handlers, executors, allow_commands,
-                           allowed_hosts, secrets, simulated_results (specification 17)
+                           allowed_hosts, secrets, simulated_results, mcp_servers, grpc (specification 17)
+      a2a:                 A2AOptions, or a dict of its fields: allowed_hosts, secrets, poll_interval_ms,
+                           max_wait_ms, max_output_bytes, transport (specification 28)
       decision_engines:    external decision engines by name (5.5.4)
       model_decision_override: callable taking a decision node and returning {"option", "confidence"} to
                            decide it without calling a model, or None
@@ -262,7 +267,12 @@ class WorkflowEngine:
             self._actors[ActorType(actor_type)] = actor
             self._custom_actor_types.add(ActorType(actor_type))
         self._decision_evaluator = DecisionEvaluator()
-        self._tool_options = ToolOptions.of(opts.get("tools"))
+        # Connections the run's tools keep open (MCP servers, gRPC channels), closed when the run ends or waits (17.7)
+        self._tool_sessions = ToolSessions()
+        self._tool_options = dataclasses.replace(ToolOptions.of(opts.get("tools")), sessions=self._tool_sessions)
+        # Agents reached over A2A, and the cards this run has read (28.2)
+        self._a2a_options = A2AOptions.of(opts.get("a2a"))
+        self._a2a_state = A2ARunState()
         self._verification = VerificationEngine(opts.get("verifiers"), simulate=self.simulate)
 
         # Journal, resilience and events
@@ -470,8 +480,10 @@ class WorkflowEngine:
                     "waiting_for": "human" if on_human else "event",
                     "waiting_tokens": [t.id for t in waiting],
                 })
+            self._tool_sessions.close()
             return
 
+        self._tool_sessions.close()
         if previous in _OUTCOMES:
             return
 
@@ -672,6 +684,10 @@ class WorkflowEngine:
             if actor is None:
                 self._advance_token(token, node_id)
                 return
+            # The input given to an agent that asked for it is for this execution only (28.6)
+            continuation = token.context_data.pop("_agent_continuation", None)
+            if isinstance(actor, A2AActor):
+                actor.continuation = continuation
 
             visit = sum(1 for h in token.history if h["node_id"] == node_id and h["action"] == "entered")
             token.merge_data({
@@ -730,6 +746,11 @@ class WorkflowEngine:
             if analytics["value_added"] is None:
                 analytics["value_added"] = True
 
+            # An agent that asks for input parks the token until the host gives it (28.6)
+            if output.get("_awaiting_agent_input"):
+                self._park_for_agent(token, activity, output["_awaiting_agent_input"], analytics, ended)
+                return
+
             # A human task that has not been completed yet parks the token
             if output.get("_requires_human_action"):
                 analytics["waste_categories"].append(WasteCategory.waiting.value)
@@ -784,6 +805,13 @@ class WorkflowEngine:
         `simulated_outputs` returns what is given there, unless the deployment
         supplied its own actor for the activity's actor type.
         """
+        # An activity whose role, or which itself, names an agent over A2A is performed by that agent (28.1)
+        agent = a2a_binding(activity, next((r for r in self.workflow.roles if str(r.id) == str(activity.role_id)), None))
+        if agent is not None:
+            script = (self.options.get("simulated_outputs") or {}).get(activity.name) if self.simulate else None
+            return A2AActor(agent, self._a2a_options, self._a2a_state, simulate=bool(self.simulate),
+                            scripted=_ScriptedOutputActor(script) if isinstance(script, dict) else None,
+                            tools_allowed_hosts=self._tool_options.allowed_hosts, tools_secrets=self._tool_options.secrets)
         scripted = ((self.options.get("simulated_outputs") or {}).get(activity.name)
                     if self.simulate and activity.actor_type not in self._custom_actor_types else None)
         if isinstance(scripted, dict):
@@ -939,7 +967,7 @@ class WorkflowEngine:
 
             # --- execute -------------------------------------------------
             try:
-                context = ActorContext()
+                context = ActorContext(record=record, payload=self._journal.payload)
                 if activity.tools:
                     # One runner per attempt: every call is journalled with the attempt it belongs to (17.5)
                     context.tools = ToolRunner(
@@ -991,6 +1019,9 @@ class WorkflowEngine:
             # A human task that is still pending is not an outcome yet. The token is
             # parked, and the contract is checked when the answer arrives (resume_token).
             if output.get("_requires_human_action"):
+                return output, verification_records, attempt
+            # Nor is a task in which the agent asks for input (28.6)
+            if output.get("_awaiting_agent_input"):
                 return output, verification_records, attempt
 
             usage = output.get("usage") if isinstance(output.get("usage"), dict) else {}
@@ -1838,6 +1869,7 @@ class WorkflowEngine:
         compensation = self._compensate()
         self._status = EngineStatus.CANCELLED
         self._record("run.cancelled", {"reason": reason, "compensation": compensation})
+        self._tool_sessions.close()
         self._save_checkpoint()
         return True
 
@@ -2000,6 +2032,49 @@ class WorkflowEngine:
     # Human tasks (specification 5.6)
     # ------------------------------------------------------------------
 
+    def _park_for_agent(self, token: Token, activity: Activity, awaiting: dict[str, Any], analytics: dict[str, Any],
+                        since: float) -> None:
+        """Park a token whose agent asks for input (28.6)"""
+        analytics["waste_categories"].append(WasteCategory.waiting.value)
+        token.update_status(TokenStatus.WAITING, analytics=analytics)
+        token.set_data("_awaiting_agent_input", awaiting)
+        token.set_data("_waiting_since", self._iso(since))
+        event = {"reason": "agent_input", "agent": awaiting.get("agent"), "task_id": awaiting.get("task_id")}
+        if awaiting.get("context_id"):
+            event["context_id"] = awaiting["context_id"]
+        event["request"] = self._journal.payload(awaiting.get("request"))
+        self._record("token.waiting", event, token=token, node_id=str(activity.id))
+        self._log(f"Token waits for the input agent {awaiting.get('agent')} asks for")
+
+    def agent_requests(self) -> list[dict[str, Any]]:
+        """The tokens waiting for input an agent asked for, with what it asked (28.6)"""
+        return [{"token_id": t.id, "node_id": str(t.activity_id), **t.get_data("_awaiting_agent_input")}
+                for t in self._tokens.values()
+                if t.status == TokenStatus.WAITING and t.get_data("_awaiting_agent_input")]
+
+    def answer_agent(self, token_id: str, input: dict[str, Any] | str) -> bool:
+        """
+        Give an agent the input it asked for (28.6). The token's activity is performed again: the input is
+        sent on the agent's task, which is then followed as before. Call run() afterwards.
+        Returns whether the token was waiting for an agent's input.
+        """
+        token = self._tokens.get(token_id)
+        awaiting = token.get_data("_awaiting_agent_input") if token and token.status == TokenStatus.WAITING else None
+        if not token or not awaiting:
+            return False
+        since = token.get_data("_waiting_since")
+        waited_ms = int(self._now() - _parse_time(since)) if since else None
+        token.context_data.pop("_awaiting_agent_input", None)
+        token.context_data.pop("_waiting_since", None)
+        token.set_data("_agent_continuation", {"task_id": awaiting.get("task_id"), "context_id": awaiting.get("context_id"), "input": input})
+        analytics = {"wait_time": format_iso_duration(waited_ms / 1000), "waste_categories": [WasteCategory.waiting.value]} if waited_ms is not None else None
+        token.update_status(TokenStatus.ACTIVE, analytics=analytics)
+        self._record("token.resumed", {"reason": "agent_input", "waited_ms": waited_ms}, token=token, node_id=str(token.activity_id))
+        if self._status in (EngineStatus.WAITING_HUMAN, EngineStatus.WAITING_EVENT):
+            self._status = EngineStatus.RUNNING
+        self._save_checkpoint()
+        return True
+
     def resume_token(self, token_id: str, output: dict[str, Any]) -> bool:
         """
         Resume a token that was waiting for a person, with the person's answer.
@@ -2011,7 +2086,8 @@ class WorkflowEngine:
         the answer was rejected. Call run() afterwards.
         """
         token = self._tokens.get(token_id)
-        if not token or token.status != TokenStatus.WAITING or token.get_data("_awaiting_event"):
+        if (not token or token.status != TokenStatus.WAITING or token.get_data("_awaiting_event")
+                or token.get_data("_awaiting_agent_input")):
             return False
 
         node_id = str(token.activity_id)

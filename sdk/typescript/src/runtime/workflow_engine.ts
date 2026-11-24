@@ -2043,7 +2043,8 @@ export class WorkflowEngine {
 
     public async resumeToken(tokenId: UUID, output: Record<string, unknown>): Promise<boolean> {
         const token = this.tokens.find(t => t.id === tokenId);
-        if (!token || token.status !== 'waiting') {
+        // A token waiting for an agent's input is answered with answerAgent, not resumed with an outcome (28.6)
+        if (!token || token.status !== 'waiting' || token.getData('_awaiting_agent_input')) {
             return false;
         }
 

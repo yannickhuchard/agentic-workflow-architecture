@@ -73,11 +73,14 @@ export function message_input(parts: A2APart[]): Record<string, unknown> {
     return input;
 }
 
-/** What a run produced: the data of its completed tokens merged, without properties beginning with `_` */
+/** What the engine keeps in a token's data for itself: the archive of each activity's output and of each decision */
+const RESERVED = new Set(['activities', 'decisions']);
+
+/** What a run produced: the data of its completed tokens merged, without what the engine keeps for itself */
 export function run_output(engine: WorkflowEngine): Record<string, unknown> {
     const output: Record<string, unknown> = {};
     for (const token of engine.getTokens().filter(t => t.status === 'completed')) {
-        for (const [key, value] of Object.entries(token.contextData)) if (!key.startsWith('_')) output[key] = value;
+        for (const [key, value] of Object.entries(token.contextData)) if (!key.startsWith('_') && !RESERVED.has(key)) output[key] = value;
     }
     return output;
 }

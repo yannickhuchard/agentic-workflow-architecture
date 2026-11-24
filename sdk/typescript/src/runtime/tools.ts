@@ -359,8 +359,8 @@ export class ToolRunner {
                 throw new ToolError(`This deployment does not allow the command "${binding.command}"`, 'PERMISSION_DENIED');
             }
         }
-        if (binding.kind === 'mcp') {
-            // A binding reaches only a server the deployment declares; a program is held to the rule for commands,
+        if (binding.kind === 'mcp' && !this.options.executors?.mcp) {
+            // Unless the deployment registered its own MCP executor, a binding reaches only a server the deployment declares; a program is held to the rule for commands,
             // an address to the list of hosts (17.4)
             const server = this.options.mcp_servers?.[binding.server];
             if (!server) throw new ToolError(`This deployment declares no MCP server "${binding.server}"`, 'PERMISSION_DENIED');
