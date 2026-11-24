@@ -1,0 +1,11 @@
+{
+  "id": "dmn-refuses-input-path",
+  "level": "interchange",
+  "spec": "27.9",
+  "kind": "import_dmn",
+  "description": "An input names one property of the token data.",
+  "dmn": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<definitions xmlns=\"https://www.omg.org/spec/DMN/20191111/MODEL/\" xmlns:awa=\"https://awa.io/schema/interchange/1.1\" id=\"Definitions_refused\" name=\"Decisions\" namespace=\"https://example.com/dmn\">\n<decision id=\"D1\" name=\"Refused\">\n<decisionTable id=\"DT\" hitPolicy=\"FIRST\">\n<input id=\"I1\"><inputExpression id=\"IE1\" typeRef=\"number\"><text>applicant.age</text></inputExpression></input>\n<output id=\"O1\" name=\"o\" typeRef=\"string\"/>\n<rule id=\"R1\"><inputEntry id=\"a\"><text>-</text></inputEntry><outputEntry id=\"b\"><text>\"x\"</text></outputEntry></rule>\n</decisionTable>\n</decision>\n</definitions>\n",
+  "expect": {
+    "error_matches": "applicant\\.age"
+  }
+}

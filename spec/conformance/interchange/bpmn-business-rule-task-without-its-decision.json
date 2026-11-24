@@ -1,0 +1,124 @@
+{
+  "id": "bpmn-business-rule-task-without-its-decision",
+  "level": "interchange",
+  "spec": "27.6",
+  "kind": "import_bpmn",
+  "description": "Without the DMN document, the business rule task is decided by an external decision engine named dmn, with one option per outgoing flow.",
+  "bpmn": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<bpmn:definitions xmlns:bpmn=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:awa=\"https://awa.io/schema/interchange/1.1\" xmlns:camunda=\"http://camunda.org/schema/1.0/bpmn\" id=\"Definitions_brt\" targetNamespace=\"https://example.com/bpmn\">\n<bpmn:process id=\"P\" name=\"Risk\">\n<bpmn:startEvent id=\"S\"/>\n<bpmn:serviceTask id=\"T_collect\" name=\"Collect facts\"/>\n<bpmn:businessRuleTask id=\"BR\" name=\"Assess risk\" camunda:decisionRef=\"Decision_risk\"/>\n<bpmn:exclusiveGateway id=\"G\" name=\"Risk?\" default=\"F_auto\"/>\n<bpmn:userTask id=\"T_manual\" name=\"Manual review\"/>\n<bpmn:serviceTask id=\"T_auto\" name=\"Automatic approval\"/>\n<bpmn:endEvent id=\"E\"/>\n<bpmn:sequenceFlow id=\"F1\" sourceRef=\"S\" targetRef=\"T_collect\"/>\n<bpmn:sequenceFlow id=\"F2\" sourceRef=\"T_collect\" targetRef=\"BR\"/>\n<bpmn:sequenceFlow id=\"F3\" sourceRef=\"BR\" targetRef=\"G\"/>\n<bpmn:sequenceFlow id=\"F_manual\" sourceRef=\"G\" targetRef=\"T_manual\"><bpmn:conditionExpression xsi:type=\"bpmn:tFormalExpression\" language=\"https://www.omg.org/spec/DMN/20191111/FEEL/\">risk = \"high\"</bpmn:conditionExpression></bpmn:sequenceFlow>\n<bpmn:sequenceFlow id=\"F_auto\" sourceRef=\"G\" targetRef=\"T_auto\"/>\n<bpmn:sequenceFlow id=\"F6\" sourceRef=\"T_manual\" targetRef=\"E\"/>\n<bpmn:sequenceFlow id=\"F7\" sourceRef=\"T_auto\" targetRef=\"E\"/>\n</bpmn:process>\n</bpmn:definitions>\n",
+  "expect": {
+    "documents": [
+      {
+        "id": "0ac5090a-04da-5e6f-aaff-cce60538dd2f",
+        "name": "Risk",
+        "version": "1.0.0",
+        "awa_version": "1.1",
+        "roles": [
+          {
+            "id": "7c966726-4223-5f46-a82b-920994f82f34",
+            "name": "Application",
+            "actor_type": "application"
+          },
+          {
+            "id": "50ddd174-88cd-5b77-ad72-d485d068870c",
+            "name": "Human",
+            "actor_type": "human"
+          }
+        ],
+        "activities": [
+          {
+            "id": "cca46837-4258-5775-9070-a61d451bcbed",
+            "name": "Collect facts",
+            "role_id": "7c966726-4223-5f46-a82b-920994f82f34",
+            "actor_type": "application"
+          },
+          {
+            "id": "13b30a40-c46c-5d2c-82ff-6dd379dbe304",
+            "name": "Manual review",
+            "role_id": "50ddd174-88cd-5b77-ad72-d485d068870c",
+            "actor_type": "human"
+          },
+          {
+            "id": "2eb36af0-4ceb-519a-92cd-72d4f2b6cd6c",
+            "name": "Automatic approval",
+            "role_id": "7c966726-4223-5f46-a82b-920994f82f34",
+            "actor_type": "application"
+          }
+        ],
+        "edges": [
+          {
+            "id": "7a1a0658-d6ce-52fd-8fa8-b7c0c1ae9422",
+            "source_id": "532a116d-baa5-5f42-9c3c-e26e59228823",
+            "target_id": "cca46837-4258-5775-9070-a61d451bcbed"
+          },
+          {
+            "id": "e1a91db6-078a-5620-b6d3-550b4fd2d814",
+            "source_id": "cca46837-4258-5775-9070-a61d451bcbed",
+            "target_id": "680e2992-b490-55ed-99ed-be00866947df"
+          },
+          {
+            "id": "e9ad36b3-3db2-5a07-9dc6-1cdc28d154f2",
+            "source_id": "680e2992-b490-55ed-99ed-be00866947df",
+            "target_id": "6f4f4828-c9a7-5b66-abe2-458d0fc9c4cf"
+          },
+          {
+            "id": "e663e4bd-edc1-5c44-9550-b6e2a14a771a",
+            "source_id": "6f4f4828-c9a7-5b66-abe2-458d0fc9c4cf",
+            "target_id": "13b30a40-c46c-5d2c-82ff-6dd379dbe304",
+            "condition": "risk == \"high\""
+          },
+          {
+            "id": "3d46940e-ed86-5d5f-998b-258fdda86f65",
+            "source_id": "6f4f4828-c9a7-5b66-abe2-458d0fc9c4cf",
+            "target_id": "2eb36af0-4ceb-519a-92cd-72d4f2b6cd6c",
+            "is_default": true
+          },
+          {
+            "id": "e4a310f7-ac68-5a6d-b694-2f0b75c847ef",
+            "source_id": "13b30a40-c46c-5d2c-82ff-6dd379dbe304",
+            "target_id": "f8cca6c6-1fdc-5ca3-9687-f66ee39cf4a8"
+          },
+          {
+            "id": "3440a808-7a25-58dc-a2cf-777c7cc25a91",
+            "source_id": "2eb36af0-4ceb-519a-92cd-72d4f2b6cd6c",
+            "target_id": "f8cca6c6-1fdc-5ca3-9687-f66ee39cf4a8"
+          }
+        ],
+        "events": [
+          {
+            "id": "532a116d-baa5-5f42-9c3c-e26e59228823",
+            "name": "S",
+            "event_type": "start"
+          },
+          {
+            "id": "6f4f4828-c9a7-5b66-abe2-458d0fc9c4cf",
+            "name": "Risk?",
+            "event_type": "intermediate",
+            "bpmn:gateway": "exclusive"
+          },
+          {
+            "id": "f8cca6c6-1fdc-5ca3-9687-f66ee39cf4a8",
+            "name": "E",
+            "event_type": "end"
+          }
+        ],
+        "decision_nodes": [
+          {
+            "id": "680e2992-b490-55ed-99ed-be00866947df",
+            "name": "Assess risk",
+            "decision_engine": {
+              "name": "dmn",
+              "ruleset": "Decision_risk",
+              "options": [
+                {
+                  "id": "F3",
+                  "output_edge_id": "e9ad36b3-3db2-5a07-9dc6-1cdc28d154f2"
+                }
+              ]
+            },
+            "default_output_edge_id": "e9ad36b3-3db2-5a07-9dc6-1cdc28d154f2"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,475 @@
+{
+  "id": "round-trip-every-construct",
+  "level": "interchange",
+  "spec": "27.7",
+  "kind": "round_trip",
+  "description": "A workflow with every construct that BPMN carries natively or in the awa: namespace: roles with model references, contexts, outcome contracts, verification, retry, tools, knowledge, joins, compensation, waits with timeouts, publishing, timers, error events, decisions with tables, models and engines, conditions FEEL can and cannot say, extension properties.",
+  "workflow": {
+    "$schema": "https://awa.io/schema/awa.schema.json",
+    "id": "439ab266-ad96-556e-91ba-0375b013ec41",
+    "name": "Everything",
+    "version": "2.1.0",
+    "awa_version": "1.1",
+    "description": "Every construct that crosses to BPMN and back",
+    "roles": [
+      {
+        "id": "47ee555b-f791-5a9a-b368-c3b65a2a82e7",
+        "name": "Clerk",
+        "actor_type": "human",
+        "description": "Handles claims"
+      },
+      {
+        "id": "23c2f291-b717-5391-89d7-46158a311b0f",
+        "name": "Assessor",
+        "actor_type": "ai_agent",
+        "capabilities": [
+          "assessment"
+        ],
+        "ai_model_config": {
+          "model_id": "tier:reasoning",
+          "temperature": 0.2
+        }
+      },
+      {
+        "id": "ebbcf9e2-bece-5664-bce4-8d0d4c0ad393",
+        "name": "Claims system",
+        "actor_type": "application"
+      }
+    ],
+    "activities": [
+      {
+        "id": "cf840d83-b2f5-59a7-bbfc-ac3434f8f336",
+        "name": "Register",
+        "role_id": "ebbcf9e2-bece-5664-bce4-8d0d4c0ad393",
+        "actor_type": "application",
+        "inputs": [
+          {
+            "name": "claim",
+            "schema": {
+              "type": "object"
+            }
+          }
+        ],
+        "outputs": [
+          {
+            "name": "claim_id",
+            "description": "The new claim"
+          }
+        ],
+        "retry": {
+          "max_attempts": 3,
+          "initial_delay": "PT1S"
+        },
+        "context_bindings": [
+          {
+            "context_id": "4a5a272f-73e7-5f01-a68c-d5be041baf86",
+            "access_mode": "write"
+          }
+        ]
+      },
+      {
+        "id": "e9c50d08-5739-57eb-9955-21de3183e0d6",
+        "name": "Assess",
+        "role_id": "23c2f291-b717-5391-89d7-46158a311b0f",
+        "actor_type": "ai_agent",
+        "procedure": "Look at the photos.",
+        "outcome_contract": {
+          "postconditions": [
+            {
+              "name": "Positive",
+              "expression": "cost >= 0"
+            }
+          ],
+          "on_violation": "escalate_human"
+        },
+        "verification": {
+          "mode": "schema_only",
+          "criteria": [
+            {
+              "id": "80afa4a8-94b7-5d14-b2f3-7d307fc2eac1",
+              "name": "Has cost",
+              "description": "A cost is given",
+              "type": "completeness",
+              "expression": "cost exists"
+            }
+          ]
+        },
+        "tools": [
+          {
+            "name": "price",
+            "binding": {
+              "kind": "http",
+              "method": "GET",
+              "url": "https://example.com/price"
+            }
+          }
+        ],
+        "knowledge": {
+          "types": [
+            "strategy"
+          ]
+        },
+        "acme:cost_centre": "C-12"
+      },
+      {
+        "id": "327fb44e-d84e-574e-a011-b320012ba1c8",
+        "name": "Photograph car",
+        "role_id": "01171da8-7cb3-5079-8cc8-210b37a6b697",
+        "actor_type": "robot"
+      },
+      {
+        "id": "c4d89a4e-e418-5bf6-96f7-12b98406b0f1",
+        "name": "Review",
+        "role_id": "47ee555b-f791-5a9a-b368-c3b65a2a82e7",
+        "actor_type": "human",
+        "join": "all",
+        "sla": {
+          "target_time": "PT4H",
+          "max_time": "P1D"
+        }
+      },
+      {
+        "id": "ad891a60-3598-5a04-a5ab-0ca5f24faf35",
+        "name": "Pay",
+        "role_id": "ebbcf9e2-bece-5664-bce4-8d0d4c0ad393",
+        "actor_type": "application",
+        "compensation": {
+          "activity_id": "812b92ce-77b6-5125-98cb-095b0bd0f19f"
+        }
+      },
+      {
+        "id": "812b92ce-77b6-5125-98cb-095b0bd0f19f",
+        "name": "Refund",
+        "role_id": "ebbcf9e2-bece-5664-bce4-8d0d4c0ad393",
+        "actor_type": "application"
+      },
+      {
+        "id": "fe542b28-664b-5d3d-a972-43ab730231a5",
+        "name": "Investigate",
+        "role_id": "47ee555b-f791-5a9a-b368-c3b65a2a82e7",
+        "actor_type": "human",
+        "is_expandable": true,
+        "expansion_workflow_id": "e7381b77-1dcf-54d7-b0e0-cbb12c390834"
+      },
+      {
+        "id": "8ea6c7a4-848b-5ac9-ab7b-c3bc4dcd695e",
+        "name": "Note",
+        "role_id": "47ee555b-f791-5a9a-b368-c3b65a2a82e7",
+        "actor_type": "human",
+        "is_expandable": false,
+        "join": "any"
+      }
+    ],
+    "events": [
+      {
+        "id": "bb6fa33b-ec0e-5eb7-9695-6c74df93cfcd",
+        "name": "Claim in",
+        "event_type": "start",
+        "event_definition": {
+          "name": "claim.submitted"
+        }
+      },
+      {
+        "id": "bf66fc1f-96a3-51be-9bd7-b55d4c91cafc",
+        "name": "Documents",
+        "event_type": "message",
+        "event_definition": {
+          "name": "documents.uploaded",
+          "correlation_key": "claim_id",
+          "timeout": "P5D",
+          "timeout_edge_id": "c1f92740-182d-5577-8a98-07283072c8c4"
+        }
+      },
+      {
+        "id": "62619808-fc1f-5972-a1d5-8ef52608348e",
+        "name": "Stop",
+        "event_type": "signal",
+        "event_definition": {
+          "name": "claims.stop",
+          "mode": "wait"
+        }
+      },
+      {
+        "id": "4f80fe0b-a957-5092-b191-390646f23228",
+        "name": "Paid",
+        "event_type": "message",
+        "event_definition": {
+          "name": "claim.paid",
+          "mode": "publish",
+          "data": [
+            "claim_id"
+          ]
+        }
+      },
+      {
+        "id": "0e069ed5-6a11-504b-b3b7-db0f8be4e0f9",
+        "name": "Cut-off",
+        "event_type": "timer",
+        "event_definition": {
+          "duration": "PT1H"
+        }
+      },
+      {
+        "id": "109bf726-6eb6-5ed1-a033-19f4fc217e0c",
+        "name": "Rejected",
+        "event_type": "error",
+        "event_definition": {
+          "name": "REJECTED"
+        }
+      },
+      {
+        "id": "87d63ea2-9ce4-5134-ade2-513c6de52eb5",
+        "name": "Closed",
+        "event_type": "end"
+      }
+    ],
+    "decision_nodes": [
+      {
+        "id": "956a06f5-16a7-5d44-a87a-32517b974a1e",
+        "name": "Route",
+        "description": "Pick a path",
+        "decision_table": {
+          "hit_policy": "priority",
+          "inputs": [
+            {
+              "name": "cost",
+              "type": "number"
+            },
+            {
+              "name": "kind",
+              "type": "string",
+              "allowed_values": [
+                "car",
+                "home"
+              ]
+            },
+            {
+              "name": "on",
+              "type": "date"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "path",
+              "type": "string"
+            },
+            {
+              "name": "level",
+              "type": "number"
+            }
+          ],
+          "rules": [
+            {
+              "id": "51c66358-6a7c-57f4-a2c5-fd037b2ed8f8",
+              "description": "Big",
+              "input_entries": [
+                "> 1000",
+                "car",
+                ">= \"2024-01-01\""
+              ],
+              "output_entries": [
+                "review",
+                2
+              ],
+              "output_edge_id": "fbe120bd-7191-59a2-a9b5-4544c09319f5",
+              "priority": 2
+            },
+            {
+              "input_entries": [
+                "-",
+                "in (car, home)",
+                "-"
+              ],
+              "output_entries": [
+                "pay",
+                {
+                  "a": [
+                    1,
+                    "x"
+                  ]
+                }
+              ],
+              "output_edge_id": "74d7742c-5641-56f6-9813-03d537a07f1d",
+              "priority": 1
+            },
+            {
+              "input_entries": [
+                "not in (\"x\", 'y\"z')",
+                "!= car",
+                "not null"
+              ],
+              "output_entries": [
+                "-10",
+                null
+              ]
+            }
+          ]
+        },
+        "default_output_edge_id": "74d7742c-5641-56f6-9813-03d537a07f1d",
+        "decision_model": {
+          "instructions": "Choose",
+          "options": [
+            {
+              "id": "review",
+              "description": "Look",
+              "output_edge_id": "fbe120bd-7191-59a2-a9b5-4544c09319f5"
+            },
+            {
+              "id": "pay",
+              "description": "Pay",
+              "output_edge_id": "74d7742c-5641-56f6-9813-03d537a07f1d"
+            }
+          ]
+        }
+      },
+      {
+        "id": "c1de5e65-6bcf-5373-b159-3d508cb87409",
+        "name": "Engine",
+        "decision_engine": {
+          "name": "drools",
+          "options": [
+            {
+              "id": "only",
+              "output_edge_id": "4ceb63eb-716b-5d2d-8b0b-0f3425019a06"
+            }
+          ]
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "c38367d7-827d-5864-82ad-54f034ad3891",
+        "source_id": "bb6fa33b-ec0e-5eb7-9695-6c74df93cfcd",
+        "target_id": "cf840d83-b2f5-59a7-bbfc-ac3434f8f336"
+      },
+      {
+        "id": "16c01ff5-4297-5da0-bb85-a22940d84ee3",
+        "source_id": "cf840d83-b2f5-59a7-bbfc-ac3434f8f336",
+        "target_id": "e9c50d08-5739-57eb-9955-21de3183e0d6",
+        "source_type": "activity"
+      },
+      {
+        "id": "d5f3b808-3cf4-54ff-b0ee-838f83e544b2",
+        "source_id": "cf840d83-b2f5-59a7-bbfc-ac3434f8f336",
+        "target_id": "327fb44e-d84e-574e-a011-b320012ba1c8",
+        "label": "photos"
+      },
+      {
+        "id": "aecc8e96-f6f2-5301-bc7c-8acd1eb8d971",
+        "source_id": "e9c50d08-5739-57eb-9955-21de3183e0d6",
+        "target_id": "c4d89a4e-e418-5bf6-96f7-12b98406b0f1",
+        "condition": "cost > 100 && kind == car",
+        "label": "costly"
+      },
+      {
+        "id": "1ba09732-2600-56f6-9099-480ad2545e61",
+        "source_id": "e9c50d08-5739-57eb-9955-21de3183e0d6",
+        "target_id": "956a06f5-16a7-5d44-a87a-32517b974a1e",
+        "condition": "cost exists || typeof cost == number"
+      },
+      {
+        "id": "5e59e078-839a-50dc-8015-b641ab46ee53",
+        "source_id": "e9c50d08-5739-57eb-9955-21de3183e0d6",
+        "target_id": "bf66fc1f-96a3-51be-9bd7-b55d4c91cafc",
+        "is_default": true
+      },
+      {
+        "id": "784ce0ca-9dc3-568b-b779-2db7dfa94b7d",
+        "source_id": "327fb44e-d84e-574e-a011-b320012ba1c8",
+        "target_id": "c4d89a4e-e418-5bf6-96f7-12b98406b0f1"
+      },
+      {
+        "id": "719eae76-db59-56cd-9722-3141f77c5fc7",
+        "source_id": "bf66fc1f-96a3-51be-9bd7-b55d4c91cafc",
+        "target_id": "c4d89a4e-e418-5bf6-96f7-12b98406b0f1"
+      },
+      {
+        "id": "c1f92740-182d-5577-8a98-07283072c8c4",
+        "source_id": "bf66fc1f-96a3-51be-9bd7-b55d4c91cafc",
+        "target_id": "109bf726-6eb6-5ed1-a033-19f4fc217e0c",
+        "label": "too late"
+      },
+      {
+        "id": "fbe120bd-7191-59a2-a9b5-4544c09319f5",
+        "source_id": "956a06f5-16a7-5d44-a87a-32517b974a1e",
+        "target_id": "8ea6c7a4-848b-5ac9-ab7b-c3bc4dcd695e"
+      },
+      {
+        "id": "74d7742c-5641-56f6-9813-03d537a07f1d",
+        "source_id": "956a06f5-16a7-5d44-a87a-32517b974a1e",
+        "target_id": "ad891a60-3598-5a04-a5ab-0ca5f24faf35"
+      },
+      {
+        "id": "b50cd242-57ad-5782-9086-6a3af07eb101",
+        "source_id": "8ea6c7a4-848b-5ac9-ab7b-c3bc4dcd695e",
+        "target_id": "c4d89a4e-e418-5bf6-96f7-12b98406b0f1"
+      },
+      {
+        "id": "ce38e4ea-814f-542d-844c-48f5d4794b43",
+        "source_id": "c4d89a4e-e418-5bf6-96f7-12b98406b0f1",
+        "target_id": "c1de5e65-6bcf-5373-b159-3d508cb87409",
+        "condition": "!approved"
+      },
+      {
+        "id": "db6d7b6d-c6c9-5ba2-9228-ca2ed9e4fd65",
+        "source_id": "c4d89a4e-e418-5bf6-96f7-12b98406b0f1",
+        "target_id": "62619808-fc1f-5972-a1d5-8ef52608348e",
+        "is_default": true
+      },
+      {
+        "id": "4ceb63eb-716b-5d2d-8b0b-0f3425019a06",
+        "source_id": "c1de5e65-6bcf-5373-b159-3d508cb87409",
+        "target_id": "fe542b28-664b-5d3d-a972-43ab730231a5"
+      },
+      {
+        "id": "48f7d78c-dcc3-53bd-adfe-7b29ec3e2855",
+        "source_id": "62619808-fc1f-5972-a1d5-8ef52608348e",
+        "target_id": "0e069ed5-6a11-504b-b3b7-db0f8be4e0f9"
+      },
+      {
+        "id": "b8247518-675e-5423-8344-ae965f32b0db",
+        "source_id": "0e069ed5-6a11-504b-b3b7-db0f8be4e0f9",
+        "target_id": "ad891a60-3598-5a04-a5ab-0ca5f24faf35"
+      },
+      {
+        "id": "4efa7494-96f9-5391-9754-9bdbe69c27ab",
+        "source_id": "ad891a60-3598-5a04-a5ab-0ca5f24faf35",
+        "target_id": "4f80fe0b-a957-5092-b191-390646f23228"
+      },
+      {
+        "id": "5388b54e-0b67-5efb-adfb-fbb80583fd43",
+        "source_id": "4f80fe0b-a957-5092-b191-390646f23228",
+        "target_id": "87d63ea2-9ce4-5134-ade2-513c6de52eb5"
+      },
+      {
+        "id": "8fa680f4-baf1-5d84-a89d-c5605eac2992",
+        "source_id": "fe542b28-664b-5d3d-a972-43ab730231a5",
+        "target_id": "87d63ea2-9ce4-5134-ade2-513c6de52eb5",
+        "condition": "done == true"
+      },
+      {
+        "id": "396c3913-012e-5e78-a000-afe221b24e58",
+        "source_id": "fe542b28-664b-5d3d-a972-43ab730231a5",
+        "target_id": "109bf726-6eb6-5ed1-a033-19f4fc217e0c",
+        "is_default": true
+      }
+    ],
+    "contexts": [
+      {
+        "id": "4a5a272f-73e7-5f01-a68c-d5be041baf86",
+        "name": "Case file",
+        "type": "document",
+        "sync_pattern": "shared_state"
+      }
+    ],
+    "sla": {
+      "max_time": "P10D"
+    },
+    "metadata": {
+      "owner": "claims"
+    }
+  },
+  "expect": {
+    "round_trip": true
+  }
+}

@@ -14,6 +14,7 @@ import { validateCommand } from './commands/validate';
 import { evidenceCommand } from './commands/evidence';
 import { evalCommand } from './commands/eval';
 import { telemetryCommand } from './commands/telemetry';
+import { importCommand, exportCommand } from './commands/interchange';
 
 import { version } from '../../package.json';
 
@@ -38,5 +39,7 @@ program.addCommand(measuresCommand);
 program.addCommand(evidenceCommand);
 program.addCommand(evalCommand);
 program.addCommand(telemetryCommand);
+program.addCommand(importCommand);
+program.addCommand(exportCommand);
 
 program.parse(process.argv);

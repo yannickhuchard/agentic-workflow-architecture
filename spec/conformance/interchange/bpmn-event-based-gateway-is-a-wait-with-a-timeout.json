@@ -1,0 +1,107 @@
+{
+  "id": "bpmn-event-based-gateway-is-a-wait-with-a-timeout",
+  "level": "interchange",
+  "spec": "27.5",
+  "kind": "import_bpmn",
+  "description": "An event-based gateway before one message and one timer is one AWA wait whose timeout takes the timer's path. A message start event names the business event that starts a run.",
+  "bpmn": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<bpmn:definitions xmlns:bpmn=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:awa=\"https://awa.io/schema/interchange/1.1\" id=\"Definitions_ebg\" targetNamespace=\"https://example.com/bpmn\">\n<bpmn:message id=\"Msg_order\" name=\"order.placed\"/>\n<bpmn:message id=\"Msg_pay\" name=\"payment.received\"/>\n<bpmn:process id=\"P\" name=\"Payment\">\n<bpmn:startEvent id=\"S\" name=\"Order placed\"><bpmn:messageEventDefinition id=\"MED_1\" messageRef=\"Msg_order\"/></bpmn:startEvent>\n<bpmn:serviceTask id=\"T_req\" name=\"Request payment\"/>\n<bpmn:eventBasedGateway id=\"EBG\"/>\n<bpmn:intermediateCatchEvent id=\"C_pay\" name=\"Payment received\"><bpmn:messageEventDefinition id=\"MED_2\" messageRef=\"Msg_pay\"/></bpmn:intermediateCatchEvent>\n<bpmn:intermediateCatchEvent id=\"C_to\" name=\"Two days\"><bpmn:timerEventDefinition id=\"TED_1\"><bpmn:timeDuration xsi:type=\"bpmn:tFormalExpression\">P2D</bpmn:timeDuration></bpmn:timerEventDefinition></bpmn:intermediateCatchEvent>\n<bpmn:serviceTask id=\"T_ship\" name=\"Ship\"/>\n<bpmn:serviceTask id=\"T_cancel\" name=\"Cancel order\"/>\n<bpmn:endEvent id=\"E1\"/>\n<bpmn:endEvent id=\"E2\"/>\n<bpmn:sequenceFlow id=\"F1\" sourceRef=\"S\" targetRef=\"T_req\"/>\n<bpmn:sequenceFlow id=\"F2\" sourceRef=\"T_req\" targetRef=\"EBG\"/>\n<bpmn:sequenceFlow id=\"F3\" sourceRef=\"EBG\" targetRef=\"C_pay\"/>\n<bpmn:sequenceFlow id=\"F4\" sourceRef=\"EBG\" targetRef=\"C_to\"/>\n<bpmn:sequenceFlow id=\"F5\" sourceRef=\"C_pay\" targetRef=\"T_ship\"/>\n<bpmn:sequenceFlow id=\"F6\" sourceRef=\"C_to\" targetRef=\"T_cancel\"/>\n<bpmn:sequenceFlow id=\"F7\" sourceRef=\"T_ship\" targetRef=\"E1\"/>\n<bpmn:sequenceFlow id=\"F8\" sourceRef=\"T_cancel\" targetRef=\"E2\"/>\n</bpmn:process>\n</bpmn:definitions>\n",
+  "expect": {
+    "documents": [
+      {
+        "id": "027ad2b3-4c41-5d99-9886-f3c0e7ddf52c",
+        "name": "Payment",
+        "version": "1.0.0",
+        "awa_version": "1.1",
+        "roles": [
+          {
+            "id": "e76a2e01-e05e-5112-b85e-9f60c6fa536f",
+            "name": "Application",
+            "actor_type": "application"
+          }
+        ],
+        "activities": [
+          {
+            "id": "64631fbc-bb74-574c-a528-f510e7cbdae0",
+            "name": "Request payment",
+            "role_id": "e76a2e01-e05e-5112-b85e-9f60c6fa536f",
+            "actor_type": "application"
+          },
+          {
+            "id": "eeae1540-28b7-5764-b18f-f98232606a7e",
+            "name": "Ship",
+            "role_id": "e76a2e01-e05e-5112-b85e-9f60c6fa536f",
+            "actor_type": "application"
+          },
+          {
+            "id": "fc604f3e-7fe9-5978-a92c-1e0b1f98e7da",
+            "name": "Cancel order",
+            "role_id": "e76a2e01-e05e-5112-b85e-9f60c6fa536f",
+            "actor_type": "application"
+          }
+        ],
+        "edges": [
+          {
+            "id": "ecc26d01-b80b-5a80-93b5-e0731044c8e9",
+            "source_id": "f7e7126f-af8f-5364-a8de-488dd7c6e310",
+            "target_id": "64631fbc-bb74-574c-a528-f510e7cbdae0"
+          },
+          {
+            "id": "714531eb-755c-5ec6-8dff-fc46278ff6aa",
+            "source_id": "64631fbc-bb74-574c-a528-f510e7cbdae0",
+            "target_id": "498e7b32-6de7-57c2-ac04-3a14e1ec3739"
+          },
+          {
+            "id": "7ab61ed6-3903-54dc-bb78-cd2a3ba8b386",
+            "source_id": "498e7b32-6de7-57c2-ac04-3a14e1ec3739",
+            "target_id": "eeae1540-28b7-5764-b18f-f98232606a7e"
+          },
+          {
+            "id": "93f85744-8d07-5db1-bb91-bbb0bbd0aa48",
+            "source_id": "498e7b32-6de7-57c2-ac04-3a14e1ec3739",
+            "target_id": "fc604f3e-7fe9-5978-a92c-1e0b1f98e7da"
+          },
+          {
+            "id": "50ebfd47-2e54-5a99-94b7-3ab62ebaad23",
+            "source_id": "eeae1540-28b7-5764-b18f-f98232606a7e",
+            "target_id": "52350420-3747-5ff7-b37e-cfe6ee36c9d9"
+          },
+          {
+            "id": "616f5f2d-cc7b-5bd9-8a09-4012da7096fb",
+            "source_id": "fc604f3e-7fe9-5978-a92c-1e0b1f98e7da",
+            "target_id": "d5a89127-02c7-5b01-8b55-3a475dbcb6d7"
+          }
+        ],
+        "events": [
+          {
+            "id": "f7e7126f-af8f-5364-a8de-488dd7c6e310",
+            "name": "Order placed",
+            "event_type": "start",
+            "event_definition": {
+              "name": "order.placed"
+            }
+          },
+          {
+            "id": "498e7b32-6de7-57c2-ac04-3a14e1ec3739",
+            "name": "Payment received",
+            "event_type": "message",
+            "event_definition": {
+              "name": "payment.received",
+              "timeout": "P2D",
+              "timeout_edge_id": "93f85744-8d07-5db1-bb91-bbb0bbd0aa48"
+            }
+          },
+          {
+            "id": "52350420-3747-5ff7-b37e-cfe6ee36c9d9",
+            "name": "E1",
+            "event_type": "end"
+          },
+          {
+            "id": "d5a89127-02c7-5b01-8b55-3a475dbcb6d7",
+            "name": "E2",
+            "event_type": "end"
+          }
+        ]
+      }
+    ]
+  }
+}

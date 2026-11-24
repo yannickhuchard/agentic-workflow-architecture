@@ -43,6 +43,7 @@ const events = await engine.getEvents();    // the journal
 | Measures | `compute_measures`, `awa measures`: 56 measures of journeys and workflows, each with the number it was computed over |
 | Replay | `awa replay`: re-run a recorded run under a changed model, prompt or rule and get a regression report |
 | Knowledge, recipe | `awa knowledge`, `awa recipe`: what runs taught, and how to rebuild a workflow from its journal |
+| Interchange | `awa import bpmn`, `awa export bpmn`: BPMN 2.0 and DMN in and out without loss; `awa export serverless-workflow`. Needs the optional `bpmn-moddle`, `dmn-moddle` and `@serverlessworkflow/sdk` |
 
 It passes every level of the conformance suite in [`spec/conformance`](https://github.com/yannickhuchard/agentic-workflow-architecture/tree/main/spec/conformance).
 
@@ -64,7 +65,7 @@ The last command writes the measures page as one file to open in a browser. `npx
 
 ## Commands
 
-`awa run`, `awa journey`, `awa measures`, `awa replay`, `awa recipe`, `awa knowledge`, `awa serve`, `awa task`. Each has `--help`.
+`awa run`, `awa journey`, `awa measures`, `awa replay`, `awa recipe`, `awa knowledge`, `awa serve`, `awa task`, `awa import`, `awa export`. Each has `--help`.
 
 ## The task database
 

@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The AWA extension to BPMN 2.0 and DMN 1.x (specification section 27.7).
+
+  Exports of AWA documents to BPMN and DMN keep in this namespace what BPMN and DMN cannot
+  say, so that importing an export gives back the same document. The elements are placed in
+  the extensionElements of a BPMN or DMN element; each holds JSON text. The JSON is that of
+  the AWA property the element is named after, as the JSON Schemas in spec/json-schema
+  define it.
+
+  The residual of an AWA object is read as follows: the importer reads the BPMN or DMN
+  element natively, merges the JSON of each element below over the result (objects key by
+  key, any other value replacing), then removes the paths listed in awa:absent.
+-->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:awa="https://awa.io/schema/interchange/1.1"
+           targetNamespace="https://awa.io/schema/interchange/1.1"
+           elementFormDefault="qualified"
+           attributeFormDefault="qualified">
+
+  <xs:simpleType name="json">
+    <xs:annotation><xs:documentation>JSON text (RFC 8259)</xs:documentation></xs:annotation>
+    <xs:restriction base="xs:string"/>
+  </xs:simpleType>
+
+  <xs:simpleType name="actorType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="human"/>
+      <xs:enumeration value="ai_agent"/>
+      <xs:enumeration value="robot"/>
+      <xs:enumeration value="application"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Attributes -->
+
+  <xs:attribute name="actorType" type="awa:actorType">
+    <xs:annotation><xs:documentation>On a BPMN task or lane: who performs it. Takes precedence over the task type, and is how an AI agent's task is marked (27.3)</xs:documentation></xs:annotation>
+  </xs:attribute>
+
+  <xs:attribute name="decisionRef" type="xs:string">
+    <xs:annotation><xs:documentation>On a BPMN businessRuleTask: the id of the DMN decision whose table decides (27.6)</xs:documentation></xs:annotation>
+  </xs:attribute>
+
+  <!-- Elements of the residual -->
+
+  <xs:element name="properties" type="awa:json">
+    <xs:annotation><xs:documentation>A JSON object: properties of the AWA object that the element does not give</xs:documentation></xs:annotation>
+  </xs:element>
+
+  <xs:element name="absent" type="awa:json">
+    <xs:annotation><xs:documentation>A JSON list of property paths, each a list of names, that the element gives and the AWA object does not have</xs:documentation></xs:annotation>
+  </xs:element>
+
+  <xs:element name="envelope" type="awa:json">
+    <xs:annotation><xs:documentation>On a BPMN process: the properties of an envelope-form document other than "workflow" (4.1)</xs:documentation></xs:annotation>
+  </xs:element>
+
+  <xs:element name="outcomeContract" type="awa:json">
+    <xs:annotation><xs:documentation>activity.outcome_contract (activity.schema.json#/$defs/outcome_contract, section 11)</xs:documentation></xs:annotation>
+  </xs:element>
+
+  <xs:element name="verification" type="awa:json">
+    <xs:annotation><xs:documentation>activity.verification (activity.schema.json#/$defs/verification_policy, section 7)</xs:documentation></xs:annotation>
+  </xs:element>
+
+  <xs:element name="retry" type="awa:json">
+    <xs:annotation><xs:documentation>activity.retry (activity.schema.json#/$defs/retry_policy, section 10)</xs:documentation></xs:annotation>
+  </xs:element>
+
+  <xs:element name="tools" type="awa:json">
+    <xs:annotation><xs:documentation>activity.tools (activity.schema.json#/$defs/tool, section 17)</xs:documentation></xs:annotation>
+  </xs:element>
+
+  <xs:element name="contextBindings" type="awa:json">
+    <xs:annotation><xs:documentation>activity.context_bindings (context.schema.json#/$defs/context_binding, section 22)</xs:documentation></xs:annotation>
+  </xs:element>
+
+  <xs:element name="contexts" type="awa:json">
+    <xs:annotation><xs:documentation>On a process: workflow.contexts (context.schema.json, section 22)</xs:documentation></xs:annotation>
+  </xs:element>
+
+  <xs:element name="modelConfig" type="awa:json">
+    <xs:annotation><xs:documentation>On a lane: role.ai_model_config, with its model reference (role.schema.json, section 12)</xs:documentation></xs:annotation>
+  </xs:element>
+
+  <xs:element name="decisionModel" type="awa:json">
+    <xs:annotation><xs:documentation>On a businessRuleTask: decision.decision_model (decision.schema.json#/$defs/decision_model, section 16)</xs:documentation></xs:annotation>
+  </xs:element>
+
+  <xs:element name="decisionEngine" type="awa:json">
+    <xs:annotation><xs:documentation>On a businessRuleTask: decision.decision_engine (decision.schema.json, 5.5.4)</xs:documentation></xs:annotation>
+  </xs:element>
+
+  <xs:element name="sla" type="awa:json">
+    <xs:annotation><xs:documentation>On a process or task: the service level (sla.schema.json, section 23)</xs:documentation></xs:annotation>
+  </xs:element>
+
+  <xs:element name="knowledge" type="awa:json">
+    <xs:annotation><xs:documentation>activity.knowledge (activity.schema.json, 15.4)</xs:documentation></xs:annotation>
+  </xs:element>
+</xs:schema>

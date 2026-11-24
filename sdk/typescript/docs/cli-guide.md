@@ -22,6 +22,7 @@ The command is then `npx awa`, or `awa` after `npm install -g agentic-workflow-a
 | [`awa knowledge`](#awa-knowledge) | Knowledge distilled from journals: ingest, review, exchange |
 | [`awa serve`](#awa-serve) | The HTTP interface ([operational-api.md](operational-api.md)) |
 | [`awa task`](#awa-task) | Human tasks kept in the task database |
+| [`awa import`, `awa export`](#awa-import-and-awa-export) | BPMN 2.0 and DMN in and out without loss; CNCF Serverless Workflow out (specification section 27) |
 | `awa init`, `awa generate` | A sample project; a workflow drafted from a sentence by a model |
 
 ## awa run
@@ -247,6 +248,20 @@ awa serve --port 3000 --a2a examples/claims-settlement/claims-settlement.awa.jso
 ## awa task
 
 `list`, `show <id>`, `assign <id> <user_id>`, `complete <id> [json_outputs]`, `reject <id> [reason]`. These use the task database: see "The task database" in the [SDK README](../README.md).
+
+## awa import and awa export
+
+Interchange with the formats organisations already use (specification section 27). The commands read and write with `bpmn-moddle`, `dmn-moddle` and `@serverlessworkflow/sdk`, optional dependencies of the package: `npm install bpmn-moddle dmn-moddle @serverlessworkflow/sdk` where you use them. A command that misses one says which.
+
+| Command | What it does |
+|---|---|
+| `awa export bpmn <workflow...> [-o file.bpmn] [--no-diagram]` | One BPMN 2.0 document with a process per workflow, and a diagram modelling tools can draw. Decision tables go to a DMN 1.3 document of the same name. What BPMN cannot say is kept in the `awa:` namespace, so importing the export gives the same workflows: the command checks that it does |
+| `awa import bpmn <file.bpmn> [--dmn <file.dmn...>] [-o file.awa.json]` | One AWA workflow per process, the first to the output (default `<file>.awa.json`), the others and the workflows of embedded subprocesses beside it as `<output>.<name>.awa.json`. Without `--dmn`, a `<file>.dmn` beside the BPMN file is read |
+| `awa import dmn <file.dmn> [-o file.json]` | The decision tables of a DMN 1.1 to 1.5 document as AWA decision nodes (default `<file>.decisions.json`) |
+| `awa export dmn <workflow...> [-o file.dmn]` | The decision tables of the workflows as DMN 1.3 |
+| `awa export serverless-workflow <workflow> [-o file] [--format yaml\|json]` | A CNCF Serverless Workflow 1.0 document (default `<file>.sw.yaml`), validated with the Serverless Workflow SDK, and the list of what does not map |
+
+What an import cannot carry without changing meaning is refused, naming the element and the reason (section 27.8: complex gateways, transactions, terminate end events, error boundary events, loops, timers at a date, FEEL that AWA's languages cannot express, and others); what it leaves out without changing behaviour is printed as a note. The exit status is 1 on a refusal. The comparison of AWA with these formats and with agent frameworks is in [`docs/interchange.md`](../../../docs/interchange.md).
 
 ## Environment variables
 

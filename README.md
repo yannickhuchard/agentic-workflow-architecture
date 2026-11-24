@@ -48,6 +48,7 @@ AWA 1.1 is a specification with a reference implementation and a conformance sui
 | **Knowledge** | Strategies, failure patterns and lessons distilled from runs, compounding over time, reviewed by people, exported as an Open Knowledge Format bundle | Section 15 |
 | **Evidence** | A report for regulators and auditors, computed from the record: what ran, which models decided what, every human decision and escalation, every contract and verification result, refusals, failures, compensations, tool calls by target, data by payload mode, and the records held. Every statement cites the journal records it rests on, and each part names the EU AI Act articles (12, 13, 14, 15, 26), NIST AI RMF functions and ISO/IEC 42001 clauses it can serve. Evidence a deployer can use, not a certification of compliance | Section 32 |
 | **Evaluation** | Datasets built from recorded runs (what each AI activity was given, and the outcome accepted or rejected), a candidate model or workflow scored against them per activity with its regressions, and shadow runs of a candidate beside production that never act on the world | Section 33 |
+| **Interchange** | BPMN 2.0 and DMN in and out without loss (what BPMN lacks travels in an `awa:` namespace), with what AWA cannot express refused and named; export to CNCF Serverless Workflow with the list of what does not map. How AWA compares with BPMN, DMN, Serverless Workflow, Arazzo and agent frameworks: [`docs/interchange.md`](docs/interchange.md) | Section 27 |
 
 The full text is in [`docs/specification.md`](docs/specification.md). What it means to implement AWA is defined by the cases in [`spec/conformance`](spec/conformance).
 
@@ -55,8 +56,8 @@ The full text is in [`docs/specification.md`](docs/specification.md). What it me
 
 | SDK | Conformance levels |
 |---|---|
-| TypeScript (reference) | Every level (23, `shared_store` with the optional package `pg`), plus the recipe, Open Knowledge Format exchange, model providers for Google, OpenAI, Ollama and an embedded model, and the views |
-| Python | Every level (23, `shared_store` with the extra `postgres`), the same commands (`run`, `validate`, `journey`, `measures`, `replay`, `evidence`, `eval`, `knowledge`, `task`, `telemetry`, `serve`) and the same HTTP routes; its AI agent calls models through OpenAI-compatible and Ollama providers. No recipe, Open Knowledge Format exchange, Google or embedded provider, or views |
+| TypeScript (reference) | Every level (24, `shared_store` with the optional package `pg`), plus the recipe, Open Knowledge Format exchange, model providers for Google, OpenAI, Ollama and an embedded model, and the views |
+| Python | Every level (24, `shared_store` with the extra `postgres`), the same commands (`run`, `validate`, `journey`, `measures`, `replay`, `evidence`, `eval`, `knowledge`, `task`, `telemetry`, `import`, `export`, `serve`) and the same HTTP routes; its AI agent calls models through OpenAI-compatible and Ollama providers. No recipe, Open Knowledge Format exchange, Google or embedded provider, or views |
 | Java | A data model of AWA 1.1 workflow and journey documents (read, build, write; every example and conformance document round-trips exactly), without an engine |
 
 ### See a run

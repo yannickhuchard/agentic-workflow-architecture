@@ -252,6 +252,19 @@ awa knowledge export knowledge/
 
 A complete worked example is `examples/claims-settlement`.
 
+### BPMN, DMN and Serverless Workflow
+
+```bash
+awa import bpmn process.bpmn --dmn rules.dmn -o process.awa.json   # a BPMN 2.0 process from a modeller
+awa export bpmn workflow.awa.json      # workflow.bpmn (+ workflow.dmn); importing it gives the same document
+awa export serverless-workflow workflow.awa.json   # CNCF Serverless Workflow 1.0, and what does not map
+```
+
+- Task types give actor types (user/manual task: human; service/script task: application). Mark an AI agent's task with `awa:actorType="ai_agent"` (namespace `https://awa.io/schema/interchange/1.1`). Lanes are roles.
+- A business rule task names its DMN decision (`awa:decisionRef`, or Camunda's `decisionRef`); without the DMN file it becomes an external decision engine named `dmn`.
+- The import refuses, with the element and the reason, what AWA cannot run the same way: complex gateways, transactions, terminate end events, error and escalation boundary events, loops and multi-instance tasks, timers at a date, FEEL with names or arithmetic. Rework those in the BPMN before importing (specification 27.8).
+- Comparison with BPMN, DMN, Serverless Workflow, Arazzo and agent frameworks: `docs/interchange.md`.
+
 ## Core Concepts
 
 ### Actor Types
@@ -449,6 +462,8 @@ awa serve --a2a workflow.awa.json --deployment deployment.json
 | `awa evidence <sources...>` | An evidence report from journals and journey records, every statement citing its records | `--from`, `--to`, `--workflow <id or name...>`, `--as-of`, `--format json\|md\|html`, `-o` |
 | `awa eval <build\|run>` | Evaluation datasets from journals; a candidate scored against one, exit status 2 on a regression | `build <journals...> -o`; `run <workflow> <dataset> --candidate <file> --providers <list> --json -o` |
 | `awa task <list\|show\|assign\|complete\|reject>` | Human tasks in the task database | - |
+| `awa import <bpmn\|dmn> <file>` | Read a BPMN 2.0 process or DMN decision tables into AWA | `--dmn <files...>`, `-o, --output <file>` |
+| `awa export <bpmn\|dmn\|serverless-workflow> <files...>` | Write BPMN 2.0 (+ DMN), DMN, or CNCF Serverless Workflow | `-o, --output <file>`, `--no-diagram`, `--format yaml\|json` |
 | `awa init` / `awa generate <prompt>` | Create a starter workflow / generate one from a description | - |
 | `awa serve` | Start REST API server | `-p, --port <port>`, `--jwt-secret <secret>`, `--api-key <key:role>`, `--rate-limit <max>`, `--no-auth` |
 | `awa --version` | Display version | - |

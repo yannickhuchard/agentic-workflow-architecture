@@ -2871,6 +2871,20 @@ def telemetry_cases() -> list[dict]:
     return cases
 
 
+def write_interchange_cases() -> int:
+    """Level interchange (section 27): BPMN, DMN and Serverless Workflow cases, and the FEEL tables"""
+    import interchange_cases as ic
+    folder = ROOT / "interchange"
+    folder.mkdir(exist_ok=True)
+    for old in folder.glob("*.json"):
+        old.unlink()
+    cases = ic.bpmn_import_cases() + ic.bpmn_refusal_cases() + ic.dmn_cases() + ic.round_trip_cases() + ic.serverless_workflow_cases()
+    for c in cases:
+        write(folder / f"{c['id']}.json", c)
+    write(ROOT / "feel.json", ic.feel_tables())
+    return len(cases)
+
+
 def main() -> None:
     for folder in ("execution", "documents", "journeys", "replay", "knowledge", "measures", "telemetry", "shared-store", "evidence", "evaluation"):
         (ROOT / folder).mkdir(exist_ok=True)
@@ -2901,6 +2915,7 @@ def main() -> None:
     write(ROOT / "unary-tests.json", tests)
     exprs = expressions()
     write(ROOT / "expressions.json", exprs)
+    interchange = write_interchange_cases()
     print(f"wrote {len(exprs['cases']) + len(exprs['invalid'])} expression tests")
     print(f"wrote {len(evidence_cases())} evidence cases and {len(evaluation_cases())} evaluation cases")
     print(f"wrote {len(journey_cases())} journey cases, {len(replay_cases())} replay cases and {len(knowledge_cases())} knowledge cases")
@@ -2908,6 +2923,7 @@ def main() -> None:
     print(f"wrote {len(shared_store_cases())} shared store cases")
     print(f"wrote {len(execution)} execution cases, {len(document_cases())} document cases "
           f"and {len(tests['cases']) + len(tests['invalid'])} unary tests")
+    print(f"wrote {interchange} interchange cases")
 
 
 if __name__ == "__main__":

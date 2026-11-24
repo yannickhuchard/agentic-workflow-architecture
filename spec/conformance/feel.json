@@ -1,0 +1,360 @@
+{
+  "description": "FEEL translations of specification 27.10. unary: FEEL input entry to AWA entry. unary_export: AWA entry (in a column of the given type) to FEEL. conditions: BPMN condition to AWA condition. conditions_export: AWA condition to FEEL, null when it is written in AWA's language. The invalid lists must be refused.",
+  "unary": [
+    {
+      "feel": "-",
+      "awa": "-"
+    },
+    {
+      "feel": "",
+      "awa": "-"
+    },
+    {
+      "feel": "5",
+      "awa": "5"
+    },
+    {
+      "feel": "-2.5",
+      "awa": "-2.5"
+    },
+    {
+      "feel": ".5",
+      "awa": "0.5"
+    },
+    {
+      "feel": "\"gold\"",
+      "awa": "\"gold\""
+    },
+    {
+      "feel": "\"say \\\"hi\\\"\"",
+      "awa": "'say \"hi\"'"
+    },
+    {
+      "feel": "true",
+      "awa": "true"
+    },
+    {
+      "feel": "null",
+      "awa": "null"
+    },
+    {
+      "feel": "not(null)",
+      "awa": "not null"
+    },
+    {
+      "feel": "? != null",
+      "awa": "not null"
+    },
+    {
+      "feel": "< 10",
+      "awa": "< 10"
+    },
+    {
+      "feel": ">=10",
+      "awa": ">= 10"
+    },
+    {
+      "feel": "!= 3",
+      "awa": "!= 3"
+    },
+    {
+      "feel": "= 3",
+      "awa": "3"
+    },
+    {
+      "feel": "? > 2",
+      "awa": "> 2"
+    },
+    {
+      "feel": "? = \"a\"",
+      "awa": "\"a\""
+    },
+    {
+      "feel": "[1..5]",
+      "awa": "[1..5]"
+    },
+    {
+      "feel": "(1..5)",
+      "awa": "(1..5)"
+    },
+    {
+      "feel": "]1..5[",
+      "awa": "(1..5)"
+    },
+    {
+      "feel": "[1..5[",
+      "awa": "[1..5)"
+    },
+    {
+      "feel": "\"a\", \"b\"",
+      "awa": "\"a\", \"b\""
+    },
+    {
+      "feel": "1, [5..9]",
+      "awa": "1, [5..9]"
+    },
+    {
+      "feel": "not(\"a\", \"b\")",
+      "awa": "not(\"a\", \"b\")"
+    },
+    {
+      "feel": "not(< 3)",
+      "awa": "not(< 3)"
+    },
+    {
+      "feel": "date(\"2024-01-31\")",
+      "awa": "\"2024-01-31\""
+    },
+    {
+      "feel": "< date and time(\"2024-01-31T10:00:00Z\")",
+      "awa": "< \"2024-01-31T10:00:00Z\""
+    },
+    {
+      "feel": "[date(\"2024-01-01\")..date(\"2024-12-31\")]",
+      "awa": "[\"2024-01-01\"..\"2024-12-31\"]"
+    },
+    {
+      "feel": "contains(?, \"ab\")",
+      "awa": "contains(\"ab\")"
+    },
+    {
+      "feel": "starts with(?, \"x\")",
+      "awa": "starts with \"x\""
+    },
+    {
+      "feel": "ends with(?, \"x\")",
+      "awa": "ends with \"x\""
+    },
+    {
+      "feel": "matches(?, \"^[0-9]+$\")",
+      "awa": "matches(\"^[0-9]+$\")"
+    }
+  ],
+  "unary_invalid": [
+    "> limit",
+    "amount",
+    "> 2 * 3",
+    "[1, 2]",
+    "{a: 1}",
+    "count(?) > 1",
+    "? > 1 and ? < 5",
+    "upper case(?) = \"A\"",
+    "\"unterminated",
+    "\"both \\\" and '\"",
+    "< null",
+    "duration(\"P1D\")"
+  ],
+  "unary_export": [
+    {
+      "awa": "-",
+      "feel": "-"
+    },
+    {
+      "awa": "",
+      "feel": "-"
+    },
+    {
+      "awa": "*",
+      "feel": "-"
+    },
+    {
+      "awa": "5",
+      "feel": "5"
+    },
+    {
+      "awa": "gold",
+      "feel": "\"gold\""
+    },
+    {
+      "awa": "'say \"hi\"'",
+      "feel": "\"say \\\"hi\\\"\""
+    },
+    {
+      "awa": "true",
+      "feel": "true"
+    },
+    {
+      "awa": "null",
+      "feel": "null"
+    },
+    {
+      "awa": "not null",
+      "feel": "not(null)"
+    },
+    {
+      "awa": "== 5",
+      "feel": "5"
+    },
+    {
+      "awa": "= 5",
+      "feel": "5"
+    },
+    {
+      "awa": "!= 5",
+      "feel": "not(5)"
+    },
+    {
+      "awa": "<> x",
+      "feel": "not(\"x\")"
+    },
+    {
+      "awa": ">= 10",
+      "feel": ">= 10"
+    },
+    {
+      "awa": "[1..5)",
+      "feel": "[1..5)"
+    },
+    {
+      "awa": "in (a, b)",
+      "feel": "\"a\", \"b\""
+    },
+    {
+      "awa": "not in (1, 2)",
+      "feel": "not(1, 2)"
+    },
+    {
+      "awa": "1, not null",
+      "feel": "1, ? != null"
+    },
+    {
+      "awa": "1, != 2",
+      "feel": "1, ? != 2"
+    },
+    {
+      "awa": "3, not in (1, 2)",
+      "feel": "3, (? != 1 and ? != 2)"
+    },
+    {
+      "awa": "not(1, 2)",
+      "feel": "not(1, 2)"
+    },
+    {
+      "awa": "contains(\"ab\")",
+      "feel": "contains(?, \"ab\")"
+    },
+    {
+      "awa": "starts with \"x\"",
+      "feel": "starts with(?, \"x\")"
+    },
+    {
+      "awa": "ends with 'x'",
+      "feel": "ends with(?, \"x\")"
+    },
+    {
+      "awa": "matches(\"^a\")",
+      "feel": "matches(?, \"^a\")"
+    },
+    {
+      "awa": ">= \"2024-01-01\"",
+      "type": "date",
+      "feel": ">= date(\"2024-01-01\")"
+    },
+    {
+      "awa": "\"2024-01-01T10:00:00Z\"",
+      "type": "datetime",
+      "feel": "date and time(\"2024-01-01T10:00:00Z\")"
+    },
+    {
+      "awa": "\"2024-01-01\"",
+      "type": "string",
+      "feel": "\"2024-01-01\""
+    }
+  ],
+  "conditions": [
+    {
+      "bpmn": "amount > 1000",
+      "awa": "amount > 1000"
+    },
+    {
+      "bpmn": "status = \"approved\"",
+      "awa": "status == \"approved\""
+    },
+    {
+      "bpmn": "a > 1 and (b < 2 or c = true)",
+      "awa": "a > 1 && (b < 2 || c == true)"
+    },
+    {
+      "bpmn": "not(flagged)",
+      "awa": "!flagged"
+    },
+    {
+      "bpmn": "not(a = 1 or b = 2)",
+      "awa": "!(a == 1 || b == 2)"
+    },
+    {
+      "bpmn": "${approved}",
+      "awa": "approved"
+    },
+    {
+      "bpmn": "#{score >= 0.5}",
+      "awa": "score >= 0.5"
+    },
+    {
+      "bpmn": "= order.total <= 10",
+      "awa": "order.total <= 10"
+    },
+    {
+      "bpmn": "x === 'a' && y !== null",
+      "awa": "x == \"a\" && y != null"
+    },
+    {
+      "bpmn": "x <> 3 || !y",
+      "awa": "x != 3 || !y"
+    },
+    {
+      "bpmn": "count = .5",
+      "awa": "count == 0.5"
+    }
+  ],
+  "conditions_invalid": [
+    "amount * 2 > 10",
+    "a > b",
+    "5 < amount",
+    "upper(name) = \"A\"",
+    "a >",
+    "(a = 1",
+    "a = 1 and",
+    "x in [1, 2]",
+    "true",
+    "a + 1 = 2"
+  ],
+  "conditions_export": [
+    {
+      "awa": "amount > 1000",
+      "feel": "amount > 1000"
+    },
+    {
+      "awa": "status == approved",
+      "feel": "status = \"approved\""
+    },
+    {
+      "awa": "a > 1 && (b < 2 || c == true)",
+      "feel": "a > 1 and (b < 2 or c = true)"
+    },
+    {
+      "awa": "!(a == 1)",
+      "feel": "not(a = 1)"
+    },
+    {
+      "awa": "x != null",
+      "feel": "x != null"
+    },
+    {
+      "awa": "x exists",
+      "feel": null
+    },
+    {
+      "awa": "typeof x == string",
+      "feel": null
+    },
+    {
+      "awa": "approved",
+      "feel": null
+    },
+    {
+      "awa": "a == 1 && flagged",
+      "feel": null
+    }
+  ]
+}

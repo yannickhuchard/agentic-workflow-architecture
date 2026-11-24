@@ -1,0 +1,77 @@
+{
+  "id": "bpmn-compensation-handler",
+  "level": "interchange",
+  "spec": "27.5",
+  "kind": "import_bpmn",
+  "description": "A compensation boundary event associated with another activity names that activity as the compensation handler.",
+  "bpmn": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<bpmn:definitions xmlns:bpmn=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:awa=\"https://awa.io/schema/interchange/1.1\" id=\"Definitions_comp\" targetNamespace=\"https://example.com/bpmn\">\n<bpmn:process id=\"P\" name=\"Booking\">\n<bpmn:startEvent id=\"S\"/>\n<bpmn:serviceTask id=\"T_book\" name=\"Book hotel\"/>\n<bpmn:serviceTask id=\"T_pay\" name=\"Charge card\"/>\n<bpmn:serviceTask id=\"T_cancel\" name=\"Cancel hotel\" isForCompensation=\"true\"/>\n<bpmn:boundaryEvent id=\"B\" attachedToRef=\"T_book\"><bpmn:compensateEventDefinition id=\"CED\"/></bpmn:boundaryEvent>\n<bpmn:endEvent id=\"E\"/>\n<bpmn:sequenceFlow id=\"F1\" sourceRef=\"S\" targetRef=\"T_book\"/>\n<bpmn:sequenceFlow id=\"F2\" sourceRef=\"T_book\" targetRef=\"T_pay\"/>\n<bpmn:sequenceFlow id=\"F3\" sourceRef=\"T_pay\" targetRef=\"E\"/>\n<bpmn:association id=\"A\" sourceRef=\"B\" targetRef=\"T_cancel\" associationDirection=\"One\"/>\n</bpmn:process>\n</bpmn:definitions>\n",
+  "expect": {
+    "documents": [
+      {
+        "id": "0ad7e3fd-46a5-5eb4-a354-d6d61ed58d5c",
+        "name": "Booking",
+        "version": "1.0.0",
+        "awa_version": "1.1",
+        "roles": [
+          {
+            "id": "a4b0f662-c8d3-5542-81e1-accc1b6f31e2",
+            "name": "Application",
+            "actor_type": "application"
+          }
+        ],
+        "activities": [
+          {
+            "id": "35eaad84-969d-5259-b354-ad62ae134330",
+            "name": "Book hotel",
+            "role_id": "a4b0f662-c8d3-5542-81e1-accc1b6f31e2",
+            "actor_type": "application",
+            "compensation": {
+              "activity_id": "5ab976a6-71c0-5046-82e6-0553e6b34bbf"
+            }
+          },
+          {
+            "id": "0e0832e6-68fe-55ab-9d0b-ff3a2a062a6f",
+            "name": "Charge card",
+            "role_id": "a4b0f662-c8d3-5542-81e1-accc1b6f31e2",
+            "actor_type": "application"
+          },
+          {
+            "id": "5ab976a6-71c0-5046-82e6-0553e6b34bbf",
+            "name": "Cancel hotel",
+            "role_id": "a4b0f662-c8d3-5542-81e1-accc1b6f31e2",
+            "actor_type": "application"
+          }
+        ],
+        "edges": [
+          {
+            "id": "4fa3ed74-3d4d-57cf-adea-b77015aed989",
+            "source_id": "a75b0233-4fae-5200-8a1d-f1cbf0221a5c",
+            "target_id": "35eaad84-969d-5259-b354-ad62ae134330"
+          },
+          {
+            "id": "1dfea113-5cbe-5591-8bb3-b0193d1f0e29",
+            "source_id": "35eaad84-969d-5259-b354-ad62ae134330",
+            "target_id": "0e0832e6-68fe-55ab-9d0b-ff3a2a062a6f"
+          },
+          {
+            "id": "c044663f-e277-501e-b69c-85db0efab5be",
+            "source_id": "0e0832e6-68fe-55ab-9d0b-ff3a2a062a6f",
+            "target_id": "674f0c34-5768-5d96-bd64-4f663d04d7c0"
+          }
+        ],
+        "events": [
+          {
+            "id": "a75b0233-4fae-5200-8a1d-f1cbf0221a5c",
+            "name": "S",
+            "event_type": "start"
+          },
+          {
+            "id": "674f0c34-5768-5d96-bd64-4f663d04d7c0",
+            "name": "E",
+            "event_type": "end"
+          }
+        ]
+      }
+    ]
+  }
+}

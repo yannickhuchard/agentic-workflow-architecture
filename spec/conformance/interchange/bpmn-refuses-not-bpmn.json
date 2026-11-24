@@ -1,0 +1,11 @@
+{
+  "id": "bpmn-refuses-not-bpmn",
+  "level": "interchange",
+  "spec": "27.1",
+  "kind": "import_bpmn",
+  "description": "A document that is not BPMN is refused.",
+  "bpmn": "<?xml version=\"1.0\"?><notes><note>hello</note></notes>",
+  "expect": {
+    "error_matches": "BPMN"
+  }
+}

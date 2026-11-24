@@ -1,0 +1,11 @@
+{
+  "id": "bpmn-refuses-two-start-events",
+  "level": "interchange",
+  "spec": "27.8",
+  "kind": "import_bpmn",
+  "description": "A run starts at one node.",
+  "bpmn": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<bpmn:definitions xmlns:bpmn=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:awa=\"https://awa.io/schema/interchange/1.1\" id=\"Definitions_refused\" targetNamespace=\"https://example.com/bpmn\">\n<bpmn:process id=\"P\" name=\"Refused\">\n<bpmn:startEvent id=\"S\"/><bpmn:startEvent id=\"S_b\"/><bpmn:serviceTask id=\"T\"/><bpmn:endEvent id=\"E\"/><bpmn:sequenceFlow id=\"F1\" sourceRef=\"S\" targetRef=\"T\"/>\n<bpmn:sequenceFlow id=\"F2\" sourceRef=\"T\" targetRef=\"E\"/><bpmn:sequenceFlow id=\"F3\" sourceRef=\"S_b\" targetRef=\"T\"/>\n</bpmn:process>\n</bpmn:definitions>\n",
+  "expect": {
+    "error_matches": "startEvent \"S_b\".*one node"
+  }
+}

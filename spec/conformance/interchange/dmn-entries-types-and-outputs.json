@@ -1,0 +1,93 @@
+{
+  "id": "dmn-entries-types-and-outputs",
+  "level": "interchange",
+  "spec": "27.9",
+  "kind": "import_dmn",
+  "description": "A DMN decision table becomes an AWA decision table: hit policy, columns with their types, FEEL unary tests as AWA entries, FEEL literals as values.",
+  "dmn": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<definitions xmlns=\"https://www.omg.org/spec/DMN/20191111/MODEL/\" xmlns:awa=\"https://awa.io/schema/interchange/1.1\" id=\"Definitions_entries\" name=\"Decisions\" namespace=\"https://example.com/dmn\">\n<decision id=\"Decision_terms\" name=\"Terms\">\n<description>Terms of a loan.</description>\n<decisionTable id=\"DT\" hitPolicy=\"FIRST\">\n<input id=\"I1\" label=\"Score\"><inputExpression id=\"IE1\" typeRef=\"integer\"><text>score</text></inputExpression></input>\n<input id=\"I2\"><inputExpression id=\"IE2\" typeRef=\"string\"><text>segment</text></inputExpression></input>\n<input id=\"I3\"><inputExpression id=\"IE3\" typeRef=\"date\"><text>start date</text></inputExpression></input>\n<output id=\"O1\" name=\"rate\" typeRef=\"double\"/>\n<output id=\"O2\" name=\"note\" label=\"Note\" typeRef=\"string\"/>\n<rule id=\"R1\"><description>Excellent</description><inputEntry id=\"a1\"><text>[700..850]</text></inputEntry><inputEntry id=\"a2\"><text>\"gold\",\"platinum\"</text></inputEntry><inputEntry id=\"a3\"><text>&gt;= date(\"2024-01-01\")</text></inputEntry><outputEntry id=\"a4\"><text>3.5</text></outputEntry><outputEntry id=\"a5\"><text>\"best rate\"</text></outputEntry></rule>\n<rule id=\"R2\"><inputEntry id=\"b1\"><text>]600..700[</text></inputEntry><inputEntry id=\"b2\"><text>not(\"blocked\")</text></inputEntry><inputEntry id=\"b3\"><text>-</text></inputEntry><outputEntry id=\"b4\"><text>4.5</text></outputEntry><outputEntry id=\"b5\"><text>null</text></outputEntry></rule>\n<rule id=\"R3\"><inputEntry id=\"c1\"><text>? &lt; 600</text></inputEntry><inputEntry id=\"c2\"><text>starts with(?, \"pro\")</text></inputEntry><inputEntry id=\"c3\"><text>not(null)</text></inputEntry><outputEntry id=\"c4\"><text>6</text></outputEntry><outputEntry id=\"c5\"><text>\"review\"</text></outputEntry></rule>\n<rule id=\"R4\"><inputEntry id=\"d1\"><text>null</text></inputEntry><inputEntry id=\"d2\"><text>contains(?, \"x\"), matches(?, \"^a\")</text></inputEntry><inputEntry id=\"d3\"><text>= date(\"2025-06-30\")</text></inputEntry><outputEntry id=\"d4\"><text>0</text></outputEntry><outputEntry id=\"d5\"><text>\"it's\"</text></outputEntry></rule>\n</decisionTable>\n</decision>\n</definitions>\n",
+  "expect": {
+    "decisions": [
+      {
+        "id": "46062425-2660-5a3b-b2a4-2a820ed7f001",
+        "name": "Terms",
+        "description": "Terms of a loan.",
+        "decision_table": {
+          "hit_policy": "first",
+          "inputs": [
+            {
+              "name": "score",
+              "label": "Score",
+              "type": "number"
+            },
+            {
+              "name": "segment",
+              "type": "string"
+            },
+            {
+              "name": "start date",
+              "type": "date"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "rate",
+              "type": "number"
+            },
+            {
+              "name": "note",
+              "label": "Note",
+              "type": "string"
+            }
+          ],
+          "rules": [
+            {
+              "description": "Excellent",
+              "input_entries": [
+                "[700..850]",
+                "\"gold\", \"platinum\"",
+                ">= \"2024-01-01\""
+              ],
+              "output_entries": [
+                3.5,
+                "best rate"
+              ]
+            },
+            {
+              "input_entries": [
+                "(600..700)",
+                "not(\"blocked\")",
+                "-"
+              ],
+              "output_entries": [
+                4.5,
+                null
+              ]
+            },
+            {
+              "input_entries": [
+                "< 600",
+                "starts with \"pro\"",
+                "not null"
+              ],
+              "output_entries": [
+                6,
+                "review"
+              ]
+            },
+            {
+              "input_entries": [
+                "null",
+                "contains(\"x\"), matches(\"^a\")",
+                "\"2025-06-30\""
+              ],
+              "output_entries": [
+                0,
+                "it's"
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

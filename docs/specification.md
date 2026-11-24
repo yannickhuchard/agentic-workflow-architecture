@@ -32,6 +32,7 @@ This document is normative. Where it and an SDK disagree, this document is right
 22. [Contexts](#22-contexts)
 23. [Service levels](#23-service-levels)
 26. [Telemetry](#26-telemetry)
+27. [Interchange](#27-interchange)
 28. [Agents over A2A](#28-agents-over-a2a)
 29. [Hosts that share a store](#29-hosts-that-share-a-store)
 32. [Evidence](#32-evidence)
@@ -77,6 +78,7 @@ An implementation claims one or more levels. Each level has cases in `spec/confo
 | `contexts` | Gives an activity the contexts it is bound to and no other, and refuses writes its bindings do not allow | 22 |
 | `service_levels` | Compares the time work takes with what was promised, and records warnings and breaches | 23 |
 | `telemetry` | Derives OpenTelemetry traces from the journal and the journey record, with identifiers every implementation shares, and exports them without ever holding up a run | 26 |
+| `interchange` | Imports and exports BPMN 2.0 and DMN without loss, refuses what AWA cannot express, and exports CNCF Serverless Workflow 1.0 | 27 |
 | `a2a` | Lets an agent reached over the Agent2Agent protocol perform an activity, under the same contract, verification, permissions and record as any actor | 28 |
 | `shared_store` | Lets several hosts keep journeys and runs in one store and take any work, with the outcome of one host: no event taken twice or lost, no record with a gap | 29 |
 | `evidence` | Computes evidence reports from journals and journey records, every statement citing the records it rests on | 32 |
@@ -88,8 +90,8 @@ An implementation MUST NOT claim a level unless it passes every case tagged with
 
 | SDK | Levels claimed |
 |---|---|
-| TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `telemetry`, `shared_store`, `a2a`, `evidence`, `evaluation` (`shared_store` with PostgreSQL, through the optional package `pg`). Built-in MCP and gRPC executors (17.7, 17.8); serves workflows as A2A agents (28.8) |
-| Python | every level: `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `telemetry`, `shared_store`, `a2a`, `evidence`, `evaluation` (`shared_store` with PostgreSQL, through the extra `postgres`). Built-in MCP and gRPC executors (gRPC with the `grpc` extra); serves workflows as A2A agents. Without the recipe, or Open Knowledge Format exchange |
+| TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `telemetry`, `interchange`, `shared_store`, `a2a`, `evidence`, `evaluation` (`shared_store` with PostgreSQL, through the optional package `pg`). Built-in MCP and gRPC executors (17.7, 17.8); serves workflows as A2A agents (28.8) |
+| Python | every level: `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `telemetry`, `interchange`, `shared_store`, `a2a`, `evidence`, `evaluation` (`shared_store` with PostgreSQL, through the extra `postgres`). Built-in MCP and gRPC executors (gRPC with the `grpc` extra); serves workflows as A2A agents. Without the recipe, or Open Knowledge Format exchange |
 | Java | none: a data model that reads and writes 1.1 documents faithfully, without validating them, and no engine |
 
 ### 2.3 Versions
@@ -110,7 +112,7 @@ An SDK moved from 1.x to 2.0 for specification 1.1 because 1.1 is stricter: Appe
 
 ### 2.4 Normative and informative artefacts
 
-The JSON Schemas in `spec/json-schema/` and this document are normative. The Avro, OpenAPI, GraphQL and PostgreSQL DDL files in `spec/` are informative projections of the same model, kept in step with version 1.1; where they differ from the JSON Schemas, the JSON Schemas apply.
+The JSON Schemas in `spec/json-schema/` and this document are normative. The Avro, OpenAPI, GraphQL and PostgreSQL DDL files in `spec/` are informative projections of the same model, kept in step with version 1.1; where they differ from the JSON Schemas, the JSON Schemas apply. The XML Schema `spec/xsd/awa-interchange.xsd` defines the `awa:` namespace that BPMN and DMN exports use (27.7).
 
 ## 3. Terminology
 
@@ -1743,6 +1745,213 @@ Telemetry does not replace the journal: nothing in this section makes a trace a 
 
 Level `telemetry` has its own cases, in `spec/conformance/telemetry/` (Appendix A): a record, and the trace that must be derived from it. Live export, retries, failure, recovery and the environment are fixed by each SDK's own tests, `sdk/typescript/tests/telemetry.test.ts` and `sdk/python/tests/test_telemetry.py`, which also check that both export the claims-settlement example (`examples/claims-settlement/telemetry/`) identically, and decode protobuf with the OpenTelemetry proto definitions.
 
+## 27. Interchange
+
+Organisations already hold their processes in BPMN 2.0, their rules in DMN, and some of their automation in CNCF Serverless Workflow. This section says how an AWA document is read from and written to those formats, what is kept, and what is refused. `docs/interchange.md` compares the formats and agent frameworks informatively.
+
+Two rules govern every mapping:
+
+- **Nothing is lost on the way out.** Exporting a valid AWA document to BPMN (with DMN beside it) and importing the result MUST give back an equal document: the same JSON value, whatever the order of an object's properties. What BPMN and DMN cannot say is kept in the `awa:` extension namespace (27.7).
+- **Nothing changes meaning on the way in.** An importer MUST refuse a construct whose meaning AWA cannot express rather than import something that behaves differently. The refusal names the element, by its kind and identifier, and says why. What is left out without changing behaviour (a diagram, an annotation) is reported as a warning.
+
+An exporter MUST refuse a document that is not valid (4.3). An importer MUST check what it produces as a processor does (4.3) and MUST refuse to return a document that is not valid.
+
+Out of scope: BPMN collaboration semantics between pools (message flows are reported and left out, since message events already name their business events), BPMN choreographies and conversations, DMN decision requirement graphs, business knowledge models and literal-expression decisions, FEEL beyond what 27.10 lists, and import of Serverless Workflow.
+
+### 27.1 Operations
+
+| Operation | Command | Result |
+|---|---|---|
+| Import BPMN | `awa import bpmn <file.bpmn> [--dmn <file.dmn>...]` | One AWA workflow per process, then one per embedded subprocess. Without `--dmn`, a DMN file of the same name beside the BPMN file is read |
+| Export BPMN | `awa export bpmn <file.awa.json>...` | One BPMN 2.0 document with one process per workflow, and, when a workflow has decision tables, one DMN 1.3 document beside it |
+| Import DMN | `awa import dmn <file.dmn>` | The decision tables, as a list of decision nodes `{id, name, description?, decision_table}` |
+| Export DMN | `awa export dmn <file.awa.json>...` | The decision tables as a DMN 1.3 document |
+| Export Serverless Workflow | `awa export serverless-workflow <file.awa.json>` | A Serverless Workflow 1.0 document, and the list of what does not map (27.11) |
+
+An importer reads BPMN 2.0 and DMN 1.1 to 1.5. An exporter writes BPMN 2.0 and DMN 1.3, and its output MUST be read back by the reference readers (`bpmn-moddle`, `dmn-moddle`) without warnings. A Serverless Workflow export MUST validate against the Serverless Workflow 1.0 schema.
+
+### 27.2 Identifiers and names
+
+An exporter writes the BPMN or DMN identifier of an AWA object as `_` followed by its UUID, since an XML identifier cannot begin with a digit. Elements the exporter adds have identifiers with a prefix and the UUID of the node they serve (`Route_`, `Join_`, `Wait_`, `Timeout_`, `Compensation_`, `Association_`, `Definitions_`, `Collaboration_`, `Participant_`, `LaneSet_`, `IO_`, `DataInput_`, `DataOutput_`, `Message_`, `Signal_`, `Error_`, and in DMN `DecisionTable_`, `Input_`, `Output_`, `Rule_`).
+
+An importer derives the AWA identifier of an element from its identifier:
+
+- `_<uuid>` gives that UUID.
+- Any other identifier `X` gives the name-based UUID (RFC 4122, version 5) in the namespace `84c7aa15-559c-5fc6-abf7-39cad8e0d785` (itself the version 5 UUID of `https://awa.io/schema/interchange/1.1` in the URL namespace) of the text `<D>/<X><suffix>`, where `<D>` is the identifier of the BPMN or DMN `definitions` (`definitions` when it has none) and `<suffix>` is empty unless this section gives one.
+
+An element without a name is named by its identifier. A workflow imported from BPMN has `version` `"1.0.0"` and `awa_version` `"1.1"`. An importer writes a property only when the element gives it a value: it writes no empty lists other than `activities` and `edges`, and no defaults other than those this section names.
+
+### 27.3 Processes, lanes and activities
+
+| BPMN | AWA |
+|---|---|
+| `process` (and the `participant` that names it) | A workflow. `id`, `name` (the process's, else the participant's), `description` from `documentation` |
+| `lane` | A role: `id`, `name`, `description` from `documentation`, `actor_type` from `awa:actorType`, else that of the first activity whose innermost lane it is, else `human`. Every lane is a role, nested lanes included; an activity's role is its innermost lane |
+| An activity in no lane | A role per actor type, identified with the process's identifier and the suffix `#role:<actor_type>`, named `Human`, `AI agent`, `Robot` or `Application` |
+| `userTask`, `manualTask`, `task` | An activity, `actor_type` `human` |
+| `serviceTask`, `scriptTask` | An activity, `actor_type` `application`. A script whose `scriptFormat` names a language of `programs` becomes one program (`#script`); any other script becomes the `procedure` |
+| `callActivity` | An activity with `is_expandable: true` and, when `calledElement` names a process of the document or is `_<uuid>`, `expansion_workflow_id`. `actor_type` `application` |
+| `subProcess` (embedded) | An activity as for `callActivity`, whose `expansion_workflow_id` names a workflow made from the subprocess's content (`#workflow`), with `parent_workflow_id` and `expansion_activity_id` |
+| `businessRuleTask` | A decision node (27.6) |
+| `sendTask`, `receiveTask` | A message event that publishes, or waits (27.5) |
+| `ioSpecification` data inputs and outputs; data object and data store references joined by data associations | The activity's `inputs` and `outputs`, each with `name` and `description` |
+| `documentation` | `description` |
+
+The attribute `awa:actorType` on any task or lane gives its actor type (`human`, `ai_agent`, `robot` or `application`) and takes precedence. It is how an AI agent's task is marked. An exporter writes user tasks for `human` activities and service tasks for the others, with `awa:actorType` when it differs from the task's own; an activity with `is_expandable: true` becomes a `callActivity`.
+
+### 27.4 Sequence flows and gateways
+
+A sequence flow is an edge: `id`, `source_id`, `target_id`, `label` from `name`, `condition` from `conditionExpression` (27.10), and `is_default: true` when its source names it as `default`. Edges keep the document order of the flows, which decides routing (5.4).
+
+| BPMN | AWA |
+|---|---|
+| Exclusive gateway with one incoming flow, after a task or event that has no default and whose only outgoing flow (apart from a wait's timeout) it receives | Folded into that node: its outgoing flows leave the node, its default is the node's default. AWA routing (5.4) is exclusive routing. After a business rule task, see 27.6 |
+| Converging parallel gateway whose one outgoing flow leads to a task, event, or exclusive or inclusive gateway reached only from it | Folded into that node as `join: "all"` (13.2) |
+| Any other exclusive, parallel or inclusive gateway | An `intermediate` event with the extension property `bpmn:gateway` (`exclusive`, `parallel` or `inclusive`) and the gateway's flows. A parallel gateway with several incoming flows has `join: "all"`. Conditions on the flows of a parallel gateway are ignored with a warning, as BPMN ignores them |
+| Diverging inclusive gateway | Encoded below |
+| Event-based gateway | Folded into the wait it guards (27.5) |
+
+**Inclusive gateways.** BPMN takes every outgoing flow of an inclusive gateway whose condition holds, and its matching join waits for the branches taken. AWA routing takes one conditional edge, so an importer encodes the gateway `G`:
+
+- `G` becomes an `intermediate` event that splits in parallel. Each conditional flow `f`, and the default flow, leaves a **guard**: an `intermediate` event (suffix `#guard:<f>`, named `<G>: <f>`) reached from `G` by an unconditional edge (`#branch:<f>`). From the guard, `f` keeps its condition; the default flow's condition is the conjunction of the negations of the others, `!(c1) && !(c2)`. The guard's default edge (`#skip:<f>`) skips the branch.
+- The matching join `J` is the first converging inclusive gateway that every branch reaches. Each incoming flow of `J` must be reached from exactly one branch. Each branch then meets `J` through a **merge**: an `intermediate` event (suffix `#merge:<f>` on `J`, named `<J>: <f>`) that receives the branch's flows into `J` and its skip edge, with an edge to `J` (`#merged:<f>` on `J`). `J` has `join: "all"`, and every branch delivers exactly one token to it.
+- Without a matching join, a skipped branch ends at one `end` event (`#skip-end`, named `<G>: no branch`).
+
+Among the events, the ones an importer adds follow the gateway they belong to: the merges follow the join, and the guards the split, each in the order of the split's outgoing flows, with the skip end after the first guard. The edges it adds follow the others: each merge's edge to the join, then for each guard its edge from the split and its skip edge.
+
+A flow without a condition is always taken; an inclusive gateway with one and a default flow is refused, since its default can never be taken. A converging inclusive gateway that is not the join of such a split is refused, as is a gateway that both converges and diverges.
+
+**Conditions leaving tasks.** BPMN takes every conditional flow leaving a task whose condition holds. An importer accepts at most one conditional flow leaving a task or event, any other being its default, and refuses more. An exporter writes the conditional and default edges of a task or event behind an exclusive gateway (`Route_`), which the importer folds back.
+
+### 27.5 Events
+
+| BPMN | AWA `event_type` | `event_definition` |
+|---|---|---|
+| Start event, none | `start` | |
+| Start event, message or signal | `start` | `name`: the message's or signal's name, else its identifier |
+| Start event, timer or conditional | `start`, with a warning: when to start a run is the host's decision | |
+| End event, none | `end` | |
+| End event or intermediate throw event, message or signal | `message` or `signal` | `name`, `mode: "publish"` |
+| End event, error | `error` (reserved, 13.4: a token that reaches it fails) | `name`: the error's code, else its name |
+| Intermediate throw event, none | `intermediate` | |
+| Intermediate catch event, timer with `timeDuration` | `timer` | `duration` |
+| Intermediate catch event, message or signal | `message` or `signal` | `name`; no `mode`, which means wait (18.3) |
+| Intermediate catch event, conditional | `conditional` (reserved, 13.4) | `condition`, when it has one |
+| Send task | `message` | `name` from `messageRef`, else the task's name; `mode: "publish"` |
+| Receive task | `message` | `name` as for a send task |
+
+**Waits with a timeout.** An event-based gateway whose targets are one message or signal catch event (or receive task) and at most one timer catch event, each reached only from it, is folded into the wait: the gateway's incoming flows reach the wait, and the timer's outgoing flow leaves the wait as `event_definition.timeout_edge_id`, with the timer's duration as `timeout`. A timer boundary event that interrupts a receive task means the same. An exporter writes a wait with `timeout` and `timeout_edge_id` as an event-based gateway (`Wait_`) before the catch event and a timer catch event (`Timeout_`).
+
+**Compensation.** A compensation boundary event on an activity, associated with another activity, gives the first activity `compensation.activity_id` (13.6). An exporter writes `compensation` that way and marks the handler `isForCompensation`. AWA compensates when a run fails; BPMN compensation thrown by an event has no AWA counterpart and is refused.
+
+### 27.6 Decisions
+
+A business rule task becomes a decision node: `id`, `name`, `description`. Its decision is named by `awa:decisionRef`, or by an attribute `decisionRef` in another namespace (as Camunda writes it). When a DMN document given to the importer holds that decision, the node's `decision_table` is the decision's table (27.9). Otherwise the node is decided by an external decision engine named `dmn` (5.5.4), with the decision (else the task's `implementation`, else its name) as `ruleset` and one option per outgoing flow, whose `id` is the flow's identifier with every character other than a letter, a digit, `-` or `_` replaced by `_`, and the importer warns. `default_output_edge_id` is the task's default flow, or its only outgoing flow.
+
+An exporter writes a decision node as a business rule task with `implementation` set to the DMN 1.3 namespace and `awa:decisionRef` naming its decision in the DMN document written beside it. A node with several outgoing edges routes through an exclusive gateway (`Route_`) whose flows carry, in the language `https://awa.io/schema/decision-route/1.1`, the rules and options that choose them, in words. That text is informative: an importer never reads it, and folds the gateway back into the node. A business rule task with several outgoing flows and no such gateway is refused, since it would split the token.
+
+A business rule task followed by an exclusive gateway with conditions is not folded: the gateway becomes an `intermediate` event whose conditions read the decision's outputs, which are merged into the token's data (5.5.3). That is how a DMN decision followed by a gateway behaves in BPMN.
+
+### 27.7 The `awa:` extension
+
+The namespace is `https://awa.io/schema/interchange/1.1`; its schema is `spec/xsd/awa-interchange.xsd`. It has two attributes, `awa:actorType` (27.3) and `awa:decisionRef` (27.6), and elements placed in `extensionElements`, each holding JSON text:
+
+| Element | Holds |
+|---|---|
+| `awa:properties` | A JSON object: properties of the AWA object that the BPMN or DMN element does not give |
+| `awa:outcomeContract`, `awa:verification`, `awa:retry`, `awa:tools`, `awa:contextBindings`, `awa:contexts`, `awa:modelConfig`, `awa:decisionModel`, `awa:decisionEngine`, `awa:sla`, `awa:knowledge` | The value of `outcome_contract`, `verification`, `retry`, `tools`, `context_bindings`, `contexts`, `ai_model_config` (a role's model reference), `decision_model`, `decision_engine`, `sla` or `knowledge` |
+| `awa:absent` | A JSON list of property paths, each a list of names, that the element gives but the AWA object does not have |
+| `awa:envelope` | On a process: the properties of an envelope-form document (4.1) other than `workflow` |
+
+Together they are the **residual** of an AWA object: what an importer adds to, and removes from, what the elements give. An importer reads an element natively, then merges each extension element over the result (objects key by key, any other value replacing), then removes every path in `awa:absent`. The residual of a workflow is on its process; of a role, its lane; of an activity, event or decision node, the element written for it; of an edge, its sequence flow; of a decision table, its parts in DMN: the decision, the table, each input, output and rule. When the elements give a list of nodes, edges or roles that does not match the original one by one, the whole list is part of the workflow's residual.
+
+An exporter writes the residual as the difference between the document and what an importer reads from the elements alone, so a property is written once. An importer MUST refuse an `awa:` element it does not know and one whose content is not JSON of the expected shape.
+
+### 27.8 What is not imported
+
+| BPMN construct | Why |
+|---|---|
+| Complex gateway | Its activation rule has no AWA counterpart |
+| Transaction, cancel events | AWA compensates completed work when a run fails (13.6), but nothing is rolled back atomically |
+| Compensation throw events, event subprocesses | AWA compensates when a run fails; no event starts compensation or a handler |
+| Terminate end event | It ends every branch; an AWA end event completes one token |
+| Error, escalation, message, signal and conditional boundary events; timer boundary events other than on a receive task | AWA has no error routing (an error fails the run, 5.7) and does not interrupt an activity to take another path. Write the alternative as a condition on the activity's result, a compensation handler, an outcome contract that escalates to a person (11.5), or a service level (section 23) |
+| Escalation and link events | AWA has no escalation events; a link is a drawing aid for a sequence flow |
+| Timers with `timeDate` or `timeCycle`, and durations with years or months | AWA timers wait once, for a fixed duration (13.5) |
+| Loop and multi-instance activities | AWA repeats work with an edge back to the activity and a condition |
+| Ad hoc subprocesses, choreographies | Every AWA activity is reached by an edge |
+| Several start events in one process | A run starts at one node (5.3) |
+| Event-based gateways other than one wait and at most one timer | An AWA wait is for one business event, with an optional timeout (18.3) |
+| Several conditional flows leaving a task, or a business rule task with several outgoing flows | BPMN takes every flow whose condition holds; AWA takes one |
+| Conditions FEEL cannot express in AWA's language | 27.10 |
+
+Text annotations, groups, associations other than compensation, diagrams and message flows are left out with a warning, or silently for diagrams.
+
+### 27.9 DMN decision tables
+
+| DMN | AWA decision table |
+|---|---|
+| `decision` with a `decisionTable` | A decision node: `id`, `name`, `description` |
+| `hitPolicy` `UNIQUE` (the default), `FIRST`, `PRIORITY`, `ANY`, `COLLECT`, `RULE ORDER` | `unique`, `first`, `priority`, `any`, `collect`, `rule_order` |
+| `input`: `inputExpression` text, `label`, `typeRef`, `inputValues` | Input column: `name`, `label`, `type`, `allowed_values` |
+| `output`: `name`, `label`, `typeRef`, `outputValues` | Output column likewise. A single output without a name is named after the decision |
+| `typeRef` `string`; `number`, `integer`, `long`, `double`, `decimal`; `boolean`; `date`; `date and time` | `string`; `number`; `boolean`; `date`; `datetime`. Any other type is read as `string` with a warning |
+| `rule`: `description`, input entries, output entries | Rule: `description`, `input_entries` (27.10), `output_entries` (each a FEEL literal: JSON values are FEEL literals) |
+
+An input expression MUST be the name of one property (letters, digits, `_` and spaces); a path such as `applicant.age` is refused, since an AWA input reads one property of the token data. `PRIORITY` orders rules by the position of their outputs in each output's list of values; an importer gives each rule a `priority` so that the rule whose outputs come first has the highest, and refuses a `PRIORITY` table with no output values (unless the rules carry their AWA priorities in `awa:properties`). `OUTPUT ORDER` and `COLLECT` with an aggregation are refused: AWA neither sorts outputs nor aggregates them. Decisions decided by something other than a table are left out with a warning.
+
+An exporter writes a rule's `output_edge_id` and `priority`, which DMN does not have, in the rule's `awa:properties`. Its `PRIORITY` tables keep their AWA priorities there: a DMN engine that ignores them orders the rules by output values instead.
+
+### 27.10 FEEL
+
+**Unary tests.** An input entry is translated between FEEL and AWA's entries (5.5.1) as follows. An importer MUST refuse any other FEEL with a message that quotes the expression.
+
+| FEEL | AWA |
+|---|---|
+| `-`, empty | `-` |
+| `null`; `not(null)`, `? != null` | `null`; `not null` |
+| A number; `"text"`; `true`, `false` | The same literal. Text with a `"` is written `'text'` |
+| `date("…")`, `time("…")`, `date and time("…")` | The text, compared as text (ISO 8601 orders correctly) |
+| `< v`, `<= v`, `> v`, `>= v`, `!= v`; `= v` | The same; `v` |
+| `[a..b]`, `(a..b)`, `]a..b[` and mixed | `[a..b]`, `(a..b)` and mixed: `(` and `]…` open, `[` closed |
+| `? < v` and the other comparisons with `?` | As without `?` |
+| `contains(?, "s")`, `starts with(?, "s")`, `ends with(?, "s")`, `matches(?, "p")` | `contains("s")`, `starts with "s"`, `ends with "s"`, `matches("p")` |
+| `t1, t2` | `t1, t2` |
+| `not(t1, t2)` | `not(t1, t2)` |
+| Names, arithmetic, function calls other than those above, lists, contexts | Refused |
+
+In the other direction every AWA entry has a FEEL form: a bare word is quoted, `!= v` alone is `not(v)`, `in (a, b)` is `a, b`, `not in (a, b)` alone is `not(a, b)`, and a negation inside a list uses `?`. Text compared in a `date` or `datetime` column that is an ISO 8601 date or date-time is written `date("…")` or `date and time("…")`. Since some AWA entries have more than one FEEL form and the reverse, an entry whose translation does not read back the same is kept in the rule's residual.
+
+**Conditions.** A sequence flow's condition in the language `https://awa.io/schema/expression/1.1` is AWA's condition expression (section 6), validated as such. In any other language, or none, it is read as FEEL: comparisons of a property path with a value (`=`, `!=`, `<`, `<=`, `>`, `>=`), joined by `and`, `or` and `not(…)`, with parentheses, a property alone as a truth value, and the forms tools commonly write (`==`, `===`, `!=`, `<>`, `&&`, `||`, `!`, a `${…}` or `#{…}` wrapper, a leading `=`). A comparison with a name rather than a value, arithmetic and function calls are refused. A FEEL comparison is evaluated under AWA's rules (6.2). An exporter writes a condition in FEEL when it uses only comparisons and `and`, `or` and `not`, and otherwise in AWA's language.
+
+### 27.11 Serverless Workflow export
+
+An export to CNCF Serverless Workflow 1.0 maps what Serverless Workflow can run and lists the rest, each item naming the node and property and saying why. The list is part of the result; an exporter MUST NOT drop a property without listing it.
+
+| AWA | Serverless Workflow |
+|---|---|
+| Workflow | `document`: `dsl` `1.0.0`, `namespace` `awa`, `name` from the workflow's name, `version`, `title`, `summary`, `metadata.awa_workflow_id` |
+| Start event with `event_definition.name` | `schedule.on`: the workflow starts on that event |
+| Activity | A `do` of an `emit` of `io.awa.activity.requested` (subject: the activity's identifier; data: name, actor type, role, description) and a `listen` for `io.awa.activity.completed` with that subject, whose data is merged into the workflow's data. Whoever performs the activity answers the event |
+| Activity with `retry` | The same inside a `try` whose `catch.retry` has the initial delay, exponential backoff and the number of attempts |
+| Activity with `is_expandable` and `expansion_workflow_id` | `run.workflow` of `awa-<id>`, version `latest` |
+| Timer | `wait` with the duration |
+| Message or signal that publishes | `emit` of the event type, with the listed data |
+| Message or signal that waits | `listen` for the event type, correlated on `correlation_key`, with `timeout.after`. The timeout edge is listed as not mapped: a wait that runs out fails the workflow |
+| Conditional and default edges | A `switch` with one case per conditional edge, in order, and the default. AWA conditions become jq (6.2, except that jq does not compare text with numbers) |
+| Several unconditional edges | A `fork` with one branch per edge, `compete: false`, continuing at the node with `join: "all"` every branch reaches. Branches that meet elsewhere are refused |
+| Decision table, hit policy `first` (and `unique`, `any`, whose conflicts are listed as not detected) | A `switch` with one case per rule and the default edge. The rule outputs are listed as not merged |
+| Other hit policies, external engines, models | A `raise` of a `https://awa.io/errors/decision-not-mapped` error, listed |
+| No route | A `raise` of a `https://awa.io/errors/no-route` error |
+| End event | `then: end` (`exit` inside a branch) |
+| Error event | A `raise` |
+
+Roles, contexts, service levels, analytics, verification, outcome contracts, tools, knowledge, context bindings and compensation have no Serverless Workflow counterpart and are listed when present.
+
+### 27.12 Conformance
+
+Level `interchange` has cases in `spec/conformance/interchange/` (Appendix A): BPMN documents with the AWA workflows an importer must produce, DMN documents with the decision tables, documents an importer must refuse, workflows that must survive an export to BPMN and back, a Serverless Workflow export, and the FEEL translations of 27.10. Besides the cases, an implementation at this level MUST round-trip every workflow under `examples/` through BPMN and DMN.
+
 ## 28. Agents over A2A
 
 An activity's actor may be an agent that runs elsewhere, reached over the Agent2Agent protocol (A2A). The engine sends it the work, follows the task it opens until it ends, and treats its reply as any actor's result: the same outcome contract, the same verification, the same record. A host can also offer a workflow to other agents as an A2A agent of its own.
@@ -2206,6 +2415,18 @@ An `<entry>` describes entries by `type`, `node` (the name of the node in the en
 
 A run's `expect` gives its `status`; optionally `given`, which for an activity name lists, in order, the entries its actor must have been given at each execution of that activity, an empty list meaning none; and `journal_contains` as in an execution case. The case's `expect` gives `entry_count`, the number of entries the knowledge base must hold at the end, and `entries`: each `<entry>` must describe exactly one entry, or as many as its `count` says. A runner MUST also check that every source of every entry names a run that was ingested and at least one event of that run's journal, each by its `seq` (15.2).
 
+**Interchange cases** (`interchange/*.json`, level `interchange`) each give a `kind`:
+
+| `kind` | Given | `expect` |
+|---|---|---|
+| `import_bpmn` | `bpmn`, a BPMN document; optionally `dmn`, a list of DMN documents | `documents`: the AWA documents the import gives, in order, compared as JSON values; or `error_matches` |
+| `import_dmn` | `dmn`, a DMN document | `decisions`: the decision nodes the import gives; or `error_matches` |
+| `round_trip` | `workflow`, an AWA document | `round_trip: true`: exporting it to BPMN and DMN and importing the result gives an equal document |
+| `export_serverless_workflow` | `workflow` | `document`: the Serverless Workflow document, and `not_mapped`: the list of what does not map, both compared exactly |
+
+`error_matches` is a regular expression the refusal's message must match; refusals name the element by its kind and identifier, as in `complexGateway "G1"`. `feel.json` holds the FEEL translations of 27.10: `unary` (a FEEL input entry and the AWA entry it becomes), `unary_invalid` (FEEL to refuse), `unary_export` (an AWA entry, optionally a column `type`, and its FEEL), `conditions` (a BPMN condition and the AWA condition it becomes), `conditions_invalid`, and `conditions_export` (an AWA condition and its FEEL, `null` when it is written in AWA's language).
+
+Runners: `sdk/typescript/tests/conformance.test.ts`, `sdk/python/tests/test_conformance.py`.
 **Telemetry cases** (`telemetry/*.json`) each give a record and the trace that must be derived from it (section 26). A run's record is `journal`, its events in order, with `decision_nodes`, the ids of the workflow's decision nodes; a journey's is `journey`, the events of one instance. `options.payloads` says whether the deployment opts in to payloads (26.6). `expect` gives the `trace_id` every span must carry, `span_count`, the exact number of spans, and `spans`: each names a `span_id`, which exactly one span must have, and may state `parent_span_id` (`null` for the root), `name`, `kind` (`internal` or `client`), `start` and `end` (compared as instants), `status` (`ok`, `error`, `unset`) and `status_message`, `attributes` (a subset, with JSON values compared exactly, so that `1` and `1.5` and `true` stay apart), `absent` (attributes that must not be there), `events` (the names of its span events, exactly and in order), `events_contain` (partial span events: a `name`, `attributes`, and `absent`) and `links` (exactly). `expect.otlp_json` gives the whole OTLP/JSON request, compared with attributes in any order. A case with `report` gives a measure report instead (21.1), and `expect` gives `metric_count`, the gauges that must be `absent`, and for each gauge named its `unit` and its data points (`attributes` and `value`, exactly), with the `time` and `start_time` of every point.
 **Evidence cases** (`evidence/*.json`) each give `recorded`, in the form a host exports (journeys with their instances and the journals of their runs, the workflows, and `runs` that belong to no journey), and the `options` of the report (32.1). `expect` gives:
 
@@ -2261,3 +2482,4 @@ Runners: `sdk/typescript/tests/conformance.test.ts`, `sdk/python/tests/test_conf
 - Built-in executors for `mcp` bindings, over standard input and output or Streamable HTTP, and for unary `grpc` calls, held to the deployment's permissions (17.7, 17.8). An agent reached over A2A 1.0 can perform an activity, under the same contract, verification and record as any actor, and a host can offer a workflow as an A2A agent (section 28, level `a2a`).
 - The journal and the journey record as OpenTelemetry traces, with identifiers derived from the run and the journey instance, the generative AI semantic conventions, OTLP export that never holds up a run, the standard `OTEL_EXPORTER_OTLP_*` variables, and measures as OpenTelemetry gauges; conformance level `telemetry` (section 26).
 - Several hosts may share one store and take any work, with the outcome of one host: a store contract of partitions, holding, acceptance once and versions, met by a PostgreSQL store, with conformance level `shared_store` (section 29). A runtime directory still belongs to one host at a time (19.10).
+- Interchange with BPMN 2.0 and DMN 1.x, import and export without loss through the `awa:` extension namespace (`spec/xsd/awa-interchange.xsd`), with what is not imported refused and named; export to CNCF Serverless Workflow 1.0 with the list of what does not map; conformance level `interchange` (section 27).
