@@ -45,6 +45,20 @@ Kept in the shared PostgreSQL store `AWA_RUNTIME_STORE` names when it is set (or
 curl -s -X POST localhost:3000/api/v1/journeys/events -H 'content-type: application/json' -d '{"type":"claim.submitted","data":{"customer_id":"c-1"}}'
 ```
 
+## Versions and migration
+
+Registering a new version of a workflow (`POST /api/v1/journeys/definitions`) keeps the others: runs under way stay on the version they started on, and new runs start on the newest (specification 25.1). A run at rest moves to another version only when asked, by a plan (25.3): `{ to_version?, from_version?, nodes?: { "<old node id>": "<new node id>" }, restart?: ["<old node id>"], data?: [ { set, value | from | expression, when? } | { remove, when? } ] }`.
+
+| Route | What it does |
+|---|---|
+| `GET /api/v1/journeys/workflows/{workflow_id}/versions` | The registered versions, oldest first, each with its live runs, and `newest`. 404 for a workflow not registered |
+| `POST /api/v1/journeys/migrations/check` | `{ workflow_id, from_version?, to_version?, plan? }`: each version with live runs compared with the version to move to, position by position (`compatible`, `needs_mapping` with `candidates`, `impossible`), and each run with whether it is `migratable` (25.4). 400 without `workflow_id` or for a version not registered |
+| `POST /api/v1/journeys/runs/{run_id}/migrate` | The body is the plan. Moves the run and answers the result (25.3): `{ applied, from_version, to_version, tokens, data_changes, status, refusals }`. With `?dry_run=true`, says what would happen and changes nothing. 409 when refused, with every reason in `refusals` (`code`, `message`, `token_id`, `node_id`); 404 when there is no such run |
+
+```bash
+curl -s -X POST 'localhost:3000/api/v1/journeys/runs/2b7e.../migrate?dry_run=true' -H 'content-type: application/json' -d '{"to_version":"2.0.0"}'
+```
+
 ## Measures
 
 | Route | What it does |

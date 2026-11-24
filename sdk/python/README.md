@@ -43,7 +43,7 @@ print(result)
 
 ## Conformance
 
-The Python SDK passes every case of every conformance level of the specification (`docs/specification.md`, section 2.1): `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `telemetry`, `interchange`, `shared_store` (with the extra `postgres`), `a2a`, `evidence` and `evaluation`. No case is skipped. Run them with `pytest tests/test_conformance.py -rs`.
+The Python SDK passes every case of every conformance level of the specification (`docs/specification.md`, section 2.1): `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `versioning`, `telemetry`, `interchange`, `shared_store` (with the extra `postgres`), `a2a`, `evidence` and `evaluation`. No case is skipped. Run them with `pytest tests/test_conformance.py -rs`.
 
 What it still lacks compared with the TypeScript reference implementation, none of which belongs to a conformance level:
 
@@ -403,6 +403,26 @@ with open_runtime_store("postgres://awa@db.internal/awa", engine={...}) as runti
 
 One store object holds one connection and its host does one operation at a time: run several hosts, in threads or processes, for more. The tables are those of `spec/ddl/awa.postgresql.sql`, section "Runtime store". The TypeScript SDK runs the same migrations and keeps the same forms: a TypeScript host and a Python host can share one store. `tests/test_shared_store.py` starts a throwaway PostgreSQL (or uses the one `AWA_TEST_POSTGRES_URL` names) and plays bursts of events and ticks across host objects and processes, a process killed mid-operation, a lease that runs out, and an event racing a new wait.
 
+### Versions of a workflow, and runs that move between them
+
+Level `versioning` (specification section 25). A host may have several versions of one workflow registered: a run keeps the version it started on, new runs start on the newest (or on `start(..., version=...)`, or on the version `AwaRuntime(pinned_versions={workflow_id: version})` pins). A runtime directory keeps each version in its own file (`definitions/workflow-<id>@<version>.json`), a shared store each as its own row; a host refuses to start where a run needs a version it has not registered.
+
+A run at rest (waiting for a person, an event, an agent, a timer or a join) moves to another version only by a plan, checked whole before anything changes:
+
+```python
+plan = {
+    "to_version": "2.0.0",                                   # default: the newest registered
+    "nodes": {review_v1_id: automated_review_v2_id},         # a node not listed keeps its id
+    "restart": [review_v1_id],                               # its wait is withdrawn; the token starts afresh there
+    "data": [{"set": "currency", "value": "EUR"}, {"set": "priority", "expression": "amount > 1000"}, {"remove": "legacy_code"}],
+}
+runtime.migrate(run_id, plan, dry_run=True)    # what would happen: tokens, data changes, or every refusal with its code
+runtime.migrate(run_id, plan)                  # applied as one change, recorded in the journal as run.migrated
+runtime.check_migration(workflow_id)           # each position of the older versions: compatible, needs_mapping or impossible; each run: migratable
+```
+
+Without a host, `plan_migration(old, new, state, plan)` and `compare_versions(old, new, plan)` in `awa.runtime.migration` do the same on a run's state and two workflow models, and `as_migrated(journal)` reads a migrated journal as its migrations mapped it, which is how `counterfactual_replay` replays it. `tests/test_migration.py` covers what the conformance cases cannot reach: the files of a runtime directory, a shared store, replay, telemetry, evidence and measures of a migrated run, the command line and the HTTP routes.
+
 ### Measures
 
 `compute_measures(record, options)` computes every measure of section 21 from an export; `MEASURES` lists them with their definitions; `measures_to_openmetrics(report)` gives the OpenMetrics text. A measure is `{"value": ..., "n": ...}`, and `value` is `None` when there is nothing to compute it from. The report validates against `spec/json-schema/measure-report.schema.json`.
@@ -429,6 +449,10 @@ awa journey show --dir .awa <subject key or instance id> [--json]
 awa journey analytics --dir .awa
 awa journey export --dir .awa [-o journeys.json]
 awa journey publish --store postgres://awa@db/awa claim.submitted -d '{"customer_id": "c-1"}'   # a shared store instead
+
+awa migrate check --dir .awa <workflow_id> [--from <version>] [--to <version>] [--plan plan.json] [--json]
+awa migrate plan --dir .awa <run_id> [--plan plan.json] [--to <version>] [--json]    # a dry run; exit status 2 when refused
+awa migrate apply --dir .awa <run_id>... [--plan plan.json] [--to <version>]         # exit status 2 when one is refused
 
 awa measures --dir .awa                # as text
 awa measures --file journeys.json --json [--from <instant>] [--to <instant>] [--journey <id>] [--workflow <id>]

@@ -74,6 +74,7 @@ from awa.runtime.telemetry import journey_spans, run_spans, spans_to_otlp_json, 
 from awa.runtime.telemetry_export import OtlpHttpExporter, telemetry_from_env
 from awa.runtime.knowledge import KnowledgeBase
 from awa.runtime.counterfactual import counterfactual_replay, render_counterfactual_report
+from awa.runtime.migration import as_migrated, compare_versions, plan_migration
 from awa.runtime.evidence import compute_evidence, render_evidence_html, render_evidence_markdown
 from awa.runtime.evaluation import build_dataset, evaluate_dataset, render_evaluation_report
 from awa.runtime.shadow import ShadowRunner
@@ -147,6 +148,9 @@ __all__ = [
     "KnowledgeBase",
     "KnowledgeBinding",
     "counterfactual_replay",
+    "as_migrated",
+    "compare_versions",
+    "plan_migration",
     "render_counterfactual_report",
     # Business events, journeys and measures
     "business_event",

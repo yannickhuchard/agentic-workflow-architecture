@@ -129,6 +129,7 @@ page("installation-guide.html", "Installation", "What you need, how to build, an
 {table(["Command", "What it does"], [
     ["<code>awa run</code>", "Run a workflow file; keep its journal and checkpoints"],
     ["<code>awa journey</code>", "Journeys kept in a runtime directory, or with <code>--store</code> in a PostgreSQL store several hosts share: add definitions, take in events, let time pass, list, show, export"],
+    ["<code>awa migrate</code>", "Compare versions of a workflow, and move runs that wait to another version by an explicit plan, checked whole first: <code>check</code>, <code>plan</code> (a dry run), <code>apply</code>"],
     ["<code>awa measures</code>", "The measures of journeys and workflows, computed from what was recorded"],
     ["<code>awa telemetry</code>", "Recorded runs, journeys and measures as OpenTelemetry traces and metrics"],
     ["<code>awa replay</code>", "Counterfactual replay of a recorded run"],
@@ -143,7 +144,7 @@ page("installation-guide.html", "Installation", "What you need, how to build, an
       ("python", "Python SDK", f'''
 <p>Python 3.10 or later.</p>
 {code("cd sdk/python\npip install -e '.[dev,web]'\npytest -q")}
-<p>The Python SDK passes every conformance level, as the reference does: the engine rules, tools, model routing and model decisions, journeys, measures, replay, contexts, service levels, telemetry, agents over A2A, evidence and evaluation. Install it with <code>pip install agentic-workflow-architecture</code>; the package you import is <code>awa</code>. Its built-in AI agent calls no model: supply your own actor, or an OpenAI-compatible provider. It has no recipe and no Open Knowledge Format exchange.</p>'''),
+<p>The Python SDK passes every conformance level, as the reference does: the engine rules, tools, model routing and model decisions, journeys, measures, replay, contexts, service levels, versions of workflows with runs in flight, telemetry, agents over A2A, evidence and evaluation. Install it with <code>pip install agentic-workflow-architecture</code>; the package you import is <code>awa</code>. Its built-in AI agent calls no model: supply your own actor, or an OpenAI-compatible provider. It has no recipe and no Open Knowledge Format exchange.</p>'''),
       ("models", "Model providers", f'''
 <p>Activities name a capability tier (<code>tier:fast</code>, <code>tier:balanced</code>, <code>tier:reasoning</code>), not a vendor. A deployment maps each tier to providers in order of preference; when one fails the next is tried.</p>
 {table(["Provider", "Needs"], [["google", "<code>GEMINI_API_KEY</code>"], ["openai", "<code>OPENAI_API_KEY</code>"], ["ollama", "A running Ollama; <code>OLLAMA_BASE_URL</code> if not on localhost"],
@@ -226,7 +227,8 @@ awa journey list --stalled
 awa journey show c-1
 awa journey export -o portfolio.json
 """)}
-<p>A journey may also declare its touchpoints, what changes hands and how mood is estimated; see the <a href="data-model-guide.html#journeys">data model</a>. Only one process at a time may hold a runtime directory: a second is refused while the first is alive, and talks to it over HTTP instead.</p>'''),
+<p>A journey may also declare its touchpoints, what changes hands and how mood is estimated; see the <a href="data-model-guide.html#journeys">data model</a>. Only one process at a time may hold a runtime directory: a second is refused while the first is alive, and talks to it over HTTP instead.</p>
+<p>Journeys outlive the versions of their workflows. Add a new version (same <code>id</code>, higher <code>version</code>) and runs under way stay on theirs while new runs start on it. A run that waits moves only when you ask, by a plan that says where each waiting step goes and what data changes: <code>awa migrate check</code> says which runs can move, <code>awa migrate plan</code> shows what would happen, <code>awa migrate apply</code> does it, recorded in the run's journal as <code>run.migrated</code> (specification section 25).</p>'''),
       ("contexts", "Contexts and service levels", f'''
 <p>A context is something activities share beside the data that flows along edges. An activity reaches one only through a binding, and the engine upholds it: the actor is given the contexts it is bound to read and no other, and a write needs a binding that allows it and must match the context's schema.</p>
 {code("""
