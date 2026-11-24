@@ -1577,11 +1577,11 @@ Activities are still executed at least once (10.3): an operation begun again, or
 | | Runtime directory (19.10) | PostgreSQL store (29.4) |
 |---|---|---|
 | Partitions | One: the whole directory | One per subject and one per run outside a journey |
-| Holding | `runtime.lock`, for the life of the host, which then does one operation at a time | Transaction-scoped advisory locks on `awa:<partition>` |
+| Holding | `runtime.lock`, held by one host for its whole life | Transaction-scoped advisory locks on `awa:<partition>` |
 | One unit | Journals appended, then `runtime.json` replaced atomically | One transaction |
 | Acceptance once | The ids in `runtime.json` | The primary key of `awa_runtime.business_events` |
 | Finding | Every run and instance is in memory | Columns `waits_for`, `waits` and `due_at` |
-| Ordering of waits | One operation at a time | Advisory locks on `awa:<wait key>`, shared to look and exclusive to keep a new wait |
+| Ordering of waits | One host holds every wait | Advisory locks on `awa:<wait key>`, shared to look and exclusive to keep a new wait |
 | Release | The lock names its process, and is taken over once that process has gone | The database ends the session of a host that has gone; the lease is the session's idle transaction timeout |
 | Versions | Not needed: there is one host | Column `version`, written back `WHERE version` is the one read |
 | Several hosts | No | Yes |
