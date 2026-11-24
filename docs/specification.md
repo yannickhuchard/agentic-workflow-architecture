@@ -31,6 +31,8 @@ This document is normative. Where it and an SDK disagree, this document is right
 21. [Measures](#21-measures)
 22. [Contexts](#22-contexts)
 23. [Service levels](#23-service-levels)
+32. [Evidence](#32-evidence)
+33. [Evaluation](#33-evaluation)
 
 ## 1. Scope
 
@@ -71,6 +73,8 @@ An implementation claims one or more levels. Each level has cases in `spec/confo
 | `measures` | Computes the measures of journeys and workflows from what was recorded | 21 |
 | `contexts` | Gives an activity the contexts it is bound to and no other, and refuses writes its bindings do not allow | 22 |
 | `service_levels` | Compares the time work takes with what was promised, and records warnings and breaches | 23 |
+| `evidence` | Computes evidence reports from journals and journey records, every statement citing the records it rests on | 32 |
+| `evaluation` | Builds evaluation datasets from journals and scores a candidate against them | 33.1 to 33.4 |
 
 An implementation MUST NOT claim a level unless it passes every case tagged with that level. It MUST report the cases it skips; it MUST NOT silently omit them.
 
@@ -78,8 +82,8 @@ An implementation MUST NOT claim a level unless it passes every case tagged with
 
 | SDK | Levels claimed |
 |---|---|
-| TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels` |
-| Python | every level: `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`. Without a built-in AI agent that calls a model, the recipe, or Open Knowledge Format exchange |
+| TypeScript (reference) | `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `evidence`, `evaluation` |
+| Python | every level: `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `evidence`, `evaluation`. Without a built-in AI agent that calls a model, the recipe, or Open Knowledge Format exchange |
 | Java | none: a data model that reads and writes 1.1 documents faithfully, without validating them, and no engine |
 
 ### 2.3 Versions
@@ -1521,6 +1525,187 @@ With `breach_action: fail`, work that is *not* finished stops being waited for:
 
 Level `service_levels` has execution cases (Appendix A) that run on a clock: actors take scripted time, and the case moves the clock and asks the engine to check what is waiting. A person's task that outlasts its service level is fixed by `sdk/typescript/tests/contexts_service_levels.test.ts`.
 
+## 32. Evidence
+
+Rules on AI systems ask for records: that a system logs what it does over its lifetime, that the people who deploy it can monitor it and keep its logs, that a person can oversee it, and that its accuracy and robustness can be shown. The journal (section 9) and the journey records (section 19) already hold most of what such rules ask about. An **evidence report** gathers it for a period and a set of workflows, in a form a deployer can hand to an auditor, a regulator or its own risk function.
+
+An evidence report is computed from the record, never estimated. Every statement in it cites the records it rests on.
+
+**An evidence report is evidence a deployer can use. It is not a certification of compliance.** It does not establish that a system, a deployer or a provider complies with the EU AI Act, the NIST AI RMF, ISO/IEC 42001 or any other framework, and an implementation MUST NOT present it as doing so. Whether the records meet an obligation depends on the system, its intended purpose, its risk classification and the applicable law, none of which a report assesses.
+
+### 32.1 The report
+
+A report is computed from journals and journey records in the form a host exports them (21.1): journeys with their instances and the journals of their runs, the workflows, and runs that belong to no journey. Its form is fixed by `spec/json-schema/evidence-report.schema.json`.
+
+| Option | Meaning |
+|---|---|
+| `from`, `to` | Keep the runs started at or after `from` and before `to`, each by its own `run.started`, and the journey instances started in the same period. A kept run's journal is kept whole |
+| `workflow_ids` | Keep only runs of these workflows, and only the journey instances that have one of them |
+
+| Field | Content |
+|---|---|
+| `spec_version`, `report` | `"1.1"`, `"evidence"` |
+| `as_of` | The instant the record was exported, or the report made |
+| `period` | `from` and `to` as given; otherwise the first and last start of what was kept |
+| `scope` | The workflows kept, with their versions as recorded and their runs; the journeys kept, with their instances |
+| `notice` | A statement that the report is evidence and not a certification, as above. It MUST be present |
+| `frameworks` | The frameworks and provisions the parts name (32.4) |
+| `parts` | The eleven parts of 32.3, in that order. Each has an `id`, a `title`, the `question` it answers, the provisions it can `serve`, a `summary` of counts, and its `statements` |
+
+A **statement** has a `kind`, a `text` for a person to read, `facts`, and `citations`. The wording of `text` is the implementation's; `facts` are fixed by 32.3.
+
+### 32.2 Citations
+
+A citation names a run and the `seq` of journal events of that run, or a journey instance and the `seq` of journey events of that instance. Within a citation the sequence numbers are in ascending order; a statement has at most one citation per run or instance.
+
+- Every statement MUST cite at least one record, and every record it cites MUST be in the input. An implementation MUST NOT state anything that no record supports.
+- A statement cites exactly the records 32.3 lists for its kind: no more, and no fewer.
+- A record is cited as it stands. A report MUST NOT alter or summarise the records it cites; a reader follows the citation to the record itself.
+
+### 32.3 Parts and statements
+
+Unless a row says otherwise, a statement is made for each record of the type named, in run order (by start, then run id) and `seq` order, and cites that record. Where a fact has no recorded value it is `null`. `node_name` falls back to `node_id`.
+
+| Part | Kind | One statement per | Facts | Cites |
+|---|---|---|---|---|
+| `operation` | `run` | Run kept | `run_id`, `workflow_id`, `workflow_name`, `workflow_version`, `status` (`completed`, `failed`, `cancelled`, `in_progress`), `started_at`, `ended_at`, `journey_instance_id` | `run.started` and the event that ended the run |
+| | `journey` | Journey instance kept | `journey_id`, `journey_instance_id`, `subject_key`, `status`, `started_at`, `ended_at` | `journey.started` and `journey.completed` or `journey.abandoned` |
+| `models` | `model` | Model and node, over all `model_selection` records (12.3) with a `model` | `provider`, `model` (the model's id as recorded, which is the version its provider gives it), `requested`, `tier`, `node_id`, `node_name`, `uses` | Every `model_selection` counted |
+| | `route` | `model_route` record (12.5) | `run_id`, `node_name`, `decision` | It |
+| | `model_decision` | `decision.evaluated` with method `model` (16.4) | `run_id`, `node_name`, `option`, `confidence` | It |
+| `oversight` | `human_decision` | `activity.completed` whose actor is `human`, or that follows a `contract.escalated` at the same node and token since the visit's last `activity.started` | `run_id`, `node_name`, `escalated`, `decided_at` | The completion, and the `token.waiting`, `token.resumed`, `contract.escalated` and `contract.checked` with `decided_by: human` at that node and token since the last `activity.started` |
+| | `escalation` | `contract.escalated` (11.5) | `run_id`, `node_name`, `code` | It |
+| | `cancellation` | `run.cancelled` (5.8) | `run_id`, `reason` | It |
+| `outcomes` | `contract` | `contract.checked` | `run_id`, `node_name`, `attempt`, `passed`, `violations` (the name of each term violated), `decided_by` (`engine` unless recorded) | It |
+| | `verification` | `verification.completed` | `run_id`, `node_name`, `attempt`, `mode`, `verdict`, `score` | It |
+| `refusals` | `tool_refused` | `tool.failed` with `invoked: false` (17.3) | `run_id`, `node_name`, `tool`, `link`, `code` | It |
+| | `context_denied` | `context.denied` (22.3) | `run_id`, `node_name`, `context_name`, `reason` | It |
+| `failures` | `attempt_failed` | `activity.failed` | `run_id`, `node_name`, `attempt`, `code` | It |
+| | `dead_letter` | `activity.dead_lettered` | `run_id`, `node_name`, `attempts` | It |
+| | `tool_failed` | `tool.failed` not refused | `run_id`, `node_name`, `tool`, `link`, `code` | It |
+| | `run_failed` | `run.failed` | `run_id` | It |
+| | `journey_stalled` | `journey.stalled` of a journey instance kept | `journey_instance_id`, `stage_id`, `run_id` | It |
+| `compensations` | `compensation` | `activity.compensated` or `activity.compensation_failed` | `run_id`, `node_name`, `compensates`, `succeeded` | It |
+| `service_levels` | `sla` | `sla.warning` or `sla.breached` | `run_id`, `node_name` (`null` for a workflow), `level` (`warning`, `breach`), `scope`, `elapsed_ms`, `limit` (`threshold` or `max_time`), `action` | It |
+| `tools` | `target` | Link (17.5), over all tool events; a call without a link is grouped under `tool:<name>` | `link`, `tools` (names, sorted), `calls` (`tool.invoked`), `completed`, `failed`, `refused` | Every tool event of that link |
+| `data` | `run_payloads` | Run with at least one payload: the `input` of `run.started` and `activity.started`, the `output` of `activity.completed`, the `arguments` of `tool.invoked`, the `result` of `tool.completed` | `run_id`, `mode` (`full`, `hash`, `none`, or `mixed` when they differ), and the number of payloads `full`, `hash` (an object holding only `sha256`) and `none` (absent) (9.4) | Every event carrying a payload |
+| | `context` | Context name, over `context.read`, `context.written` and `context.denied` | `context_name`, `reads`, `writes`, `denied` | Those records |
+| `retention` | `held` | The report: one statement | `runs`, `events`, `journey_instances`, `journey_events`, `oldest_record`, `newest_record` | Every record, of a run or of a journey, at the oldest instant and at the newest |
+| | `gap` | Run whose journal lacks a `seq` between 1 and its last, or lacks `run.started` | `run_id`, `missing` (the sequence numbers), `starts` | For each missing number, the records just before and just after it; for a journal that is merely without `run.started`, its first record |
+
+Each part's `summary` gives counts over its statements: for `operation` the runs by status and the journeys; for `models` the distinct models, the selections, routes and model decisions; for `oversight` the human decisions, the **overrides** (human decisions taken on an escalated outcome: a person decided in place of an automated outcome that was rejected), the escalations and the cancellations; for `outcomes` contracts and verifications checked and passed, overall and by activity; for `refusals` the refusals of tool calls and of context writes, and tool refusals by code; for `failures` the failed attempts, dead letters, tool failures, failed runs and stalled journeys, and failed attempts by code; for `compensations` those that succeeded and failed; for `service_levels` the warnings and breaches; for `tools` the targets and calls; for `data` the runs by payload mode and the payloads by kind; for `retention` the records held, the oldest and newest, `held_for_ms` (from the oldest record to `as_of`) and the runs with gaps.
+
+### 32.4 What each part can serve as evidence for
+
+Each part names the provisions to which its records are relevant. The EU AI Act (Regulation (EU) 2024/1689) is the reference case; the NIST AI Risk Management Framework 1.0 and ISO/IEC 42001:2023 are named at the level of their functions and clauses, so that the same report serves an organisation that works to them. The mapping is informative. It says that a record is relevant to an obligation; it never says that the obligation is met.
+
+| Part | EU AI Act | NIST AI RMF | ISO/IEC 42001 |
+|---|---|---|---|
+| `operation` | Art. 12(1) record-keeping over the lifetime; Art. 12(2) logging for monitoring of operation; Art. 26(5) deployers monitor operation | MEASURE | 9.1, Annex A.6 |
+| `models` | Art. 12(2); Art. 13(3)(b) characteristics and performance | MAP, MEASURE | Annex A.6 |
+| `oversight` | Art. 13(3)(d) human oversight measures; Art. 14(4) overseeing, overriding or reversing an output, interrupting the system; Art. 26(2) oversight assigned to competent persons | GOVERN, MANAGE | Annex A.9 |
+| `outcomes` | Art. 13(3)(b); Art. 15(1) accuracy and robustness; Art. 15(3) levels of accuracy and their metrics | MEASURE | 9.1 |
+| `refusals` | Art. 12(2) identifying situations of risk; Art. 15(4) resilience to errors and faults | MANAGE | Annex A.6 |
+| `failures` | Art. 12(2); Art. 15(4); Art. 26(5) | MANAGE | Annex A.6 |
+| `compensations` | Art. 15(4) fail-safe plans | MANAGE | |
+| `service_levels` | Art. 12(2); Art. 26(5) | MEASURE, MANAGE | |
+| `tools` | Art. 12(2); Art. 26(5) | MAP (third parties) | Annex A.10 |
+| `data` | Art. 12(1); Art. 26(6) keeping logs, subject to the law on personal data | GOVERN | Annex A.7 |
+| `retention` | Art. 12(1); Art. 13(3)(f) collecting, storing and interpreting logs; Art. 26(6) keeping logs for at least six months unless other law provides otherwise | GOVERN | Annex A.6 |
+
+Article 26(6) asks a deployer to keep the logs under its control for a period appropriate to the system's purpose, of at least six months unless other law provides otherwise. The `retention` part states which records are held and over what span; it does not judge whether that period is met, since that depends on when the system was put into use and on other law, notably on personal data.
+
+### 32.5 Output
+
+A report is data (JSON). An implementation SHOULD also render it as a document a person reads: Markdown, or one self-contained HTML page, each giving the notice first, then every part with its question, the provisions it can serve, its summary and every statement with its citations. The reference implementations give it with `compute_evidence`, `awa evidence <dir-or-journals...> [--from --to] [--workflow ...] [--format json|md|html]`, and `GET /api/v1/evidence?from=&to=&workflow_id=&format=`. The command reads runtime directories (19.10) as files, without opening them as a host, so a report can be made while a host runs.
+
+### 32.6 What a report does not do
+
+A report does not assess risk classification, intended purpose, a conformity assessment, technical documentation, a quality management system, a fundamental rights impact assessment, or the reporting of serious incidents; it may inform them. It does not show that a journal was not altered beyond what its sequence numbers show (32.3, `gap`): keeping records intact is the deployer's. An actor's reasoning in the journal is its own account (9.2), and a report never presents it as more. Compliance with the law on personal data is not assessed.
+
+### 32.7 Conformance
+
+Level `evidence` has its own cases, in `spec/conformance/evidence/` (Appendix A): a record, the options of a report, the summaries and statements it must contain with their exact citations, and statements it must not contain.
+
+## 33. Evaluation
+
+A journal records what an AI agent was given and whether what it produced was accepted. Kept over many runs, those records are an evaluation set drawn from real work. This section fixes how one is built, how a candidate (another model, prompt or workflow) is scored against it, and how a candidate can run in the shadow of production.
+
+### 33.1 Cases
+
+A **case** is one visit of a run to an activity whose actor is `ai_agent`: the attempts made there from the first `activity.started` of the visit until it ends. A new visit begins when the same token starts the activity again at an attempt number no greater than the last. A visit ends **accepted** at `activity.completed`, and **rejected** at a `token.failed` or `activity.dead_lettered` at its node and token.
+
+A case conforms to `spec/json-schema/evaluation-case.schema.json`:
+
+| Field | Content |
+|---|---|
+| `id` | `<run_id>:<activity_id>:<n>`, the n-th visit of the run to that activity |
+| `workflow_id`, `workflow_version`, `run_id`, `activity_id`, `activity_name` | Where it was recorded |
+| `input` | The `input` of the visit's first `activity.started`: what the agent was given |
+| `label` | `accepted` or `rejected` |
+| `accepted_by` | For an accepted case, the first that applies: `person` if the visit was escalated (11.5); `verification` if a verification of the accepted attempt passed; `contract` if a contract check of the accepted attempt passed; otherwise `unchecked` |
+| `outcome` | For an accepted case, the accepted outcome (11.1) |
+| `rejected_by` | For a rejected case, by the code of its last failed attempt: `contract` for `CONTRACT_VIOLATION`, `verification` for `VERIFICATION_FAILED`, otherwise `error` |
+| `attempts` | The attempts of the visit |
+| `rejections` | For each failed attempt, its `attempt`, `code` and the `terms` that rejected it: the contract terms violated, or the verification criteria failed |
+| `tool_calls` | Each call of the visit with its `tool`, `arguments`, and `result`, or `error`, as recorded |
+| `sources` | The `seq` of every journal event of the visit the case was built from |
+
+A visit that has not ended, or whose input or accepted output the journal does not hold (payload mode `hash` or `none`, 9.4), is not a case; building a dataset MUST report it as left out. Visits to activities of other actors are not cases. Building cases MUST be deterministic and MUST NOT call a model.
+
+A **dataset** is a file of cases in JSON Lines, one per line. The reference command is `awa eval build <journals...> -o dataset.jsonl`.
+
+### 33.2 Performing a case again
+
+A case is performed again under a **candidate**: a workflow (by default the one the case was recorded with) and the engine options under which its AI agents run. The candidate's activity is the one with the case's `activity_id`. The case is performed through counterfactual replay (section 20) of a workflow reduced to that activity alone, with a journal holding only what the case recorded:
+
+- the agent is given the case's `input`;
+- each tool call is answered with the recorded result for the same tool and arguments; a call without one fails with `REPLAY_UNRECORDED`, is listed, and is not performed (20.2). Nothing outside the engine is called but the candidate's model;
+- the candidate's outcome contract and verification apply, in the order of 11.3, with their budgets;
+- escalation is not taken: a person is not asked during an evaluation, so an outcome the contract would escalate is rejected;
+- contexts and knowledge are not given: the journal holds only hashes of the contexts an activity read (22.2), and knowledge is not part of a case.
+
+A case recorded with another workflow, or about an activity the candidate does not have, is not evaluated and MUST be listed as skipped.
+
+### 33.3 Scores
+
+For each case evaluated, the result states whether the candidate's outcome was `accepted`, the attempts it took, whether its last outcome met the contract and passed verification (`null` where none applied), whether an accepted outcome equals the recorded one (canonical JSON, 9.4), and the tool calls that had no recording.
+
+A case **regressed** when it was accepted when recorded and the candidate's outcome is not; it **improved** when it was rejected when recorded and the candidate's is accepted. Every other case is the `same`.
+
+The report conforms to `spec/json-schema/evaluation-report.schema.json`. For each activity, and over all, it gives as rates `{value, n}`, with `value` `null` when `n` is 0 (21.1):
+
+| Rate | Over |
+|---|---|
+| `recorded_rate` | Cases accepted when recorded, over cases |
+| `pass_rate` | Cases the candidate got accepted, over cases |
+| `contract_pass_rate` | Cases whose last candidate outcome met its contract, over cases where a contract was checked |
+| `verification_pass_rate` | Cases whose last candidate outcome passed verification, over cases where it was verified |
+| `same_outcome_rate` | Cases accepted in both with an equal outcome, over cases accepted in both |
+
+It lists the regressions and the improvements, by case and activity, with the reason. The reference command `awa eval run <workflow> dataset.jsonl [--candidate changed.awa.json] [--providers ...]` writes the report as Markdown or JSON and exits with status 2 when there is a regression, so that a dataset gates a change of model, prompt or contract.
+
+### 33.4 Determinism
+
+With the same dataset, the same candidate workflow and a model that answers the same request the same way, an evaluation MUST give the same report. Nothing in it depends on the clock.
+
+### 33.5 Shadow runs
+
+A host MAY run a **shadow**: a candidate workflow or model beside production. Its purpose is to see how the candidate would behave on real work before it replaces production.
+
+- The shadow of a production run is performed when the production run ends, `completed` or `failed`, by counterfactual replay (section 20) of the production journal under the candidate. It receives the same input and the same business events in the same order; tools, people, applications and robots are answered from production's record. Only the candidate's AI agents, model decisions and judges run.
+- A shadow MUST NOT act on the world: it MUST NOT run a tool binding, ask a person, publish a business event, or be distilled into knowledge, whatever options it is given. A host gives a shadow only options that cannot act: model providers and tiers, the default model, verification, knowledge to read, and the actor that performs AI agents.
+- A shadow MUST NOT change production: not its outcome, not its journal, not the host's state. A shadow that cannot run (a production journal recorded with payload mode `hash` or `none`) is recorded as not run, with the reason.
+- A run that was cancelled is not shadowed: what ended it was decided outside the run.
+- The shadow has its own journal and run id. It is compared with production's as the report of 20.3; the runs **part** when their status or their path differ, or any node's verdict is not `same`.
+- The host reports, per workflow, the measures of section 21 for production and for its shadow, and the runs where they part. Measures of time are not comparable: a shadow does not wait (20.1).
+
+The reference hosts take a shadow as an option (`shadow` of `AwaRuntime`) and keep its comparisons in memory; a host that restarts does not keep them. A shadow that runs before production ends, alongside it, is out of scope: the recorded results that stand in for the world exist only once production has them.
+
+### 33.6 Conformance
+
+Level `evaluation` covers 33.1 to 33.4. Its cases are in `spec/conformance/evaluation/` (Appendix A): journals in and a dataset out; a dataset and a scripted candidate in and scores out. Shadow runs (33.5) have no language-neutral cases. A shadow is a host's arrangement around counterfactual replay, whose comparison is fixed by the `replay` cases and whose measures by the `measures` cases; what remains, that a shadow never acts and never changes production, depends on how a host is wired to the outside world, which a case cannot state for every host. It is fixed by unit tests in both SDKs (`sdk/typescript/tests/shadow.test.ts`, `sdk/python/tests/test_evidence_evaluation.py`), with a tool that would write a file.
+
 ## Appendix A. Conformance suite
 
 `spec/conformance/` holds language-neutral cases.
@@ -1591,6 +1776,19 @@ An `<entry>` describes entries by `type`, `node` (the name of the node in the en
 
 A run's `expect` gives its `status`; optionally `given`, which for an activity name lists, in order, the entries its actor must have been given at each execution of that activity, an empty list meaning none; and `journal_contains` as in an execution case. The case's `expect` gives `entry_count`, the number of entries the knowledge base must hold at the end, and `entries`: each `<entry>` must describe exactly one entry, or as many as its `count` says. A runner MUST also check that every source of every entry names a run that was ingested and at least one event of that run's journal, each by its `seq` (15.2).
 
+**Evidence cases** (`evidence/*.json`) each give `recorded`, in the form a host exports (journeys with their instances and the journals of their runs, the workflows, and `runs` that belong to no journey), and the `options` of the report (32.1). `expect` gives:
+
+| Field | Meaning |
+|---|---|
+| `summaries` | For a part, a subset its `summary` must contain |
+| `statements` | Each names a `part`, a `kind` and a subset of `facts`: exactly one statement of that part and kind must contain those facts. Where `citations` is given, that statement's citations must be exactly these, compared as sets of `{run_id, seq}` and `{journey_instance_id, seq}` |
+| `absent` | Statements, described the same way, that no statement may match |
+| `cited_runs` | Exactly the runs the report cites, over all its statements |
+
+A runner MUST also check that the report validates against `evidence-report.schema.json` and that every sequence number of every citation names a record of `recorded` (32.2).
+
+**Evaluation cases** (`evaluation/*.json`) are of two kinds. A case of kind `build` gives `journals`, journal events of several runs, and `expect`: `case_count`, the number of cases built; `skipped`, the number of visits left out; and `cases`, each naming a case by `id` with fields it must have exactly as given (33.1). A case of kind `run` gives a `workflow`, a `dataset` of cases recorded with it, optionally a `candidate` workflow, and `candidate_actors`: for an activity name, the script of the candidate's AI agent as in an execution case, which a script under `cases` replaces for the case of that id. Its `expect` gives `evaluated`, and the number of `skipped`, `regressions` and `improvements`; `activities`, for an activity name, its `cases`, the `value` of each rate (`null` meaning no value), and the case ids of its `regressions` and `improvements`; and `results`, for a case id, fields of its result, `unrecorded` being the number of tool calls without a recording. A runner MUST validate each case built against `evaluation-case.schema.json` and each report against `evaluation-report.schema.json`.
+
 Runners: `sdk/typescript/tests/conformance.test.ts`, `sdk/python/tests/test_conformance.py`.
 
 ## Appendix B. Changes from 1.0
@@ -1628,3 +1826,4 @@ Runners: `sdk/typescript/tests/conformance.test.ts`, `sdk/python/tests/test_conf
 - Measures of journeys and workflows, computed from the record, with conformance level `measures` (section 21).
 - Context bindings are enforced: an activity is given the contexts it is bound to read and no other, and a write needs a binding that allows it (section 22, level `contexts`). **A workflow that binds a required context nothing has written now fails with `CONTEXT_MISSING`** where it used to run.
 - Service levels are compared with the time work takes, and warnings and breaches are journalled; `breach_action: fail` stops work that is still waited for (section 23, level `service_levels`).
+- Evidence reports computed from journals and journey records, every statement citing the records it rests on and naming the provisions of the EU AI Act, the NIST AI RMF and ISO/IEC 42001 it can serve, without certifying compliance (section 32, level `evidence`); evaluation datasets built from journals and a candidate scored against them, and shadow runs beside production (section 33, level `evaluation`).

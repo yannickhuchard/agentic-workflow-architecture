@@ -1,0 +1,290 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/yannickhuchard/agentic-workflow-architecture/spec/json-schema/evidence-report.schema.json",
+  "title": "AWA evidence report",
+  "description": "What ran, who and what decided, what was checked, refused, failed and undone, which systems were called, how data was journalled and which records are held, for a period and a set of workflows, each statement citing the records it rests on (specification section 32). Evidence a deployer can use; not a certification of compliance.",
+  "type": "object",
+  "required": [
+    "spec_version",
+    "report",
+    "as_of",
+    "period",
+    "scope",
+    "notice",
+    "frameworks",
+    "parts"
+  ],
+  "properties": {
+    "spec_version": {
+      "type": "string"
+    },
+    "report": {
+      "const": "evidence"
+    },
+    "as_of": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "period": {
+      "type": "object",
+      "required": [
+        "from",
+        "to"
+      ],
+      "properties": {
+        "from": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "to": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "scope": {
+      "type": "object",
+      "required": [
+        "workflows",
+        "journeys"
+      ],
+      "properties": {
+        "workflows": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "workflow_id",
+              "name",
+              "versions",
+              "runs"
+            ],
+            "properties": {
+              "workflow_id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "versions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "runs": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        "journeys": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "journey_id",
+              "name",
+              "instances"
+            ],
+            "properties": {
+              "journey_id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "instances": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    "notice": {
+      "type": "string",
+      "minLength": 1
+    },
+    "frameworks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "references"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "references": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "label",
+                "title"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "parts": {
+      "type": "array",
+      "minItems": 11,
+      "maxItems": 11,
+      "items": {
+        "$ref": "#/$defs/part"
+      }
+    }
+  },
+  "$defs": {
+    "part": {
+      "type": "object",
+      "required": [
+        "id",
+        "title",
+        "question",
+        "serves",
+        "summary",
+        "statements"
+      ],
+      "properties": {
+        "id": {
+          "enum": [
+            "operation",
+            "models",
+            "oversight",
+            "outcomes",
+            "refusals",
+            "failures",
+            "compensations",
+            "service_levels",
+            "tools",
+            "data",
+            "retention"
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "question": {
+          "type": "string"
+        },
+        "serves": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Ids of the framework references the part can serve as evidence for"
+        },
+        "summary": {
+          "type": "object"
+        },
+        "statements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/statement"
+          }
+        }
+      }
+    },
+    "statement": {
+      "type": "object",
+      "required": [
+        "kind",
+        "text",
+        "facts",
+        "citations"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "facts": {
+          "type": "object"
+        },
+        "citations": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/citation"
+          }
+        }
+      }
+    },
+    "citation": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "run_id",
+            "seq"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "run_id": {
+              "type": "string"
+            },
+            "seq": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "journey_instance_id",
+            "seq"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "journey_instance_id": {
+              "type": "string"
+            },
+            "seq": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

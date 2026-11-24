@@ -43,6 +43,8 @@ AWA 1.1 is a specification with a reference implementation and a conformance sui
 | **Counterfactual replay** | Re-run a recorded run with another model, prompt, contract or rule while the rest of the world is held as recorded, and get a regression report | Section 20 |
 | **Measures** | 56 measures of journeys, stages, workflows and activities, computed from the record, each with the number it was computed over: completion, where customers leave, right first time, work against waiting, cost. Also in the OpenMetrics format | Section 21 |
 | **Knowledge** | Strategies, failure patterns and lessons distilled from runs, compounding over time, reviewed by people, exported as an Open Knowledge Format bundle | Section 15 |
+| **Evidence** | A report for regulators and auditors, computed from the record: what ran, which models decided what, every human decision and escalation, every contract and verification result, refusals, failures, compensations, tool calls by target, data by payload mode, and the records held. Every statement cites the journal records it rests on, and each part names the EU AI Act articles (12, 13, 14, 15, 26), NIST AI RMF functions and ISO/IEC 42001 clauses it can serve. Evidence a deployer can use, not a certification of compliance | Section 32 |
+| **Evaluation** | Datasets built from recorded runs (what each AI activity was given, and the outcome accepted or rejected), a candidate model or workflow scored against them per activity with its regressions, and shadow runs of a candidate beside production that never act on the world | Section 33 |
 
 The full text is in [`docs/specification.md`](docs/specification.md). What it means to implement AWA is defined by the cases in [`spec/conformance`](spec/conformance).
 
@@ -50,8 +52,8 @@ The full text is in [`docs/specification.md`](docs/specification.md). What it me
 
 | SDK | Conformance levels |
 |---|---|
-| TypeScript (reference) | Every level (18), plus the recipe, Open Knowledge Format exchange, model providers for Google, OpenAI, Ollama and an embedded model, and the views |
-| Python | Every level (18), the same commands (`run`, `validate`, `journey`, `measures`, `replay`, `knowledge`, `task`, `serve`) and the same HTTP routes; its AI agent calls models through OpenAI-compatible and Ollama providers. No recipe, Open Knowledge Format exchange, Google or embedded provider, or views |
+| TypeScript (reference) | Every level (20), plus the recipe, Open Knowledge Format exchange, model providers for Google, OpenAI, Ollama and an embedded model, and the views |
+| Python | Every level (20), the same commands (`run`, `validate`, `journey`, `measures`, `replay`, `evidence`, `eval`, `knowledge`, `task`, `serve`) and the same HTTP routes; its AI agent calls models through OpenAI-compatible and Ollama providers. No recipe, Open Knowledge Format exchange, Google or embedded provider, or views |
 | Java | A data model of AWA 1.1 workflow and journey documents (read, build, write; every example and conformance document round-trips exactly), without an engine |
 
 ### See a run

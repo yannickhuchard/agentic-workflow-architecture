@@ -15,6 +15,8 @@ The command is then `npx awa`, or `awa` after `npm install -g agentic-workflow-a
 | [`awa journey`](#awa-journey) | Journeys kept in a runtime directory: add definitions, take in events, let time pass, inspect, export |
 | [`awa measures`](#awa-measures) | The measures of journeys and workflows (specification section 21) |
 | [`awa replay`](#awa-replay) | Counterfactual replay of a recorded run under a changed workflow or model |
+| [`awa evidence`](#awa-evidence) | An evidence report computed from journals and journey records (specification section 32) |
+| [`awa eval`](#awa-eval) | Evaluation datasets built from journals, and a candidate scored against them (section 33) |
 | [`awa recipe`](#awa-recipe) | A build-from-scratch recipe from a workflow and the journal of one run |
 | [`awa knowledge`](#awa-knowledge) | Knowledge distilled from journals: ingest, review, exchange |
 | [`awa serve`](#awa-serve) | The HTTP interface ([operational-api.md](operational-api.md)) |
@@ -123,6 +125,35 @@ awa replay workflow.awa.json run.jsonl --candidate changed.awa.json --ai recorde
 
 Runs a recorded run again with tools, people, applications, events and time held as recorded, and reports what changed. `--ai live` runs AI agents again under the candidate (with `--providers`, `--key`); `--ai recorded` replays their recorded outputs, to test changed contracts or rules without a model. `-o` writes the report, `--json` as JSON, `--journal-out` the candidate run's journal. The exit status is 2 when there is a regression.
 
+## awa evidence
+
+```bash
+awa evidence .awa --from 2026-09-01 --to 2026-10-01 --format html -o evidence.html
+```
+
+An evidence report (specification section 32): what ran, which models decided what, every human decision, override and escalation, every contract and verification result, refusals, failures, compensations, service level breaches, tool calls by target, data by payload mode, and the records themselves. Every statement cites the journal records it rests on, and each part names the articles of the EU AI Act, and the functions of the NIST AI RMF and clauses of ISO/IEC 42001, it can serve as evidence for. It is evidence a deployer can use, not a certification of compliance, and says so.
+
+The sources are any mix of runtime directories, directories of journals, journal files (`.jsonl`) and exports written by `awa journey export`. A runtime directory is read as files: no lock is taken and no run is continued, so a report can be made while a host runs.
+
+| Option | Meaning |
+|---|---|
+| `--from <instant>`, `--to <instant>` | Keep runs and journeys started in this period |
+| `--workflow <id or name...>` | Keep only runs of these workflows |
+| `--as-of <instant>` | The instant the report is made as of, so that it can be made again identically |
+| `--format json\|md\|html` | JSON (`spec/json-schema/evidence-report.schema.json`), Markdown (the default), or one HTML page |
+| `-o <file>` | Write the report to this file |
+
+## awa eval
+
+```bash
+awa eval build runs/*.jsonl -o dataset.jsonl
+awa eval run claims.awa.json dataset.jsonl --candidate changed.awa.json --providers ollama
+```
+
+`build` turns every ended visit to an AI activity into a case: the input the agent was given, and the outcome accepted by its contract, by verification or by a person, or what rejected it (`spec/json-schema/evaluation-case.schema.json`). Visits whose payloads were journalled as hashes are left out and listed.
+
+`run` performs each case again under the candidate through counterfactual replay: the agent runs under `--providers` (google, openai, ollama, embedded) or `--key`; the tools it calls answer as recorded, and a call with other arguments is not performed. It reports, per activity, the share accepted when recorded and now, the contract and verification pass rates, and the regressions and improvements. `--candidate` evaluates a changed workflow (keep activity ids), `--json` writes the report as JSON, `-o` to a file. The exit status is 2 when the candidate loses a case the recording had accepted.
+
 ## awa recipe
 
 ```bash
@@ -161,7 +192,7 @@ AWA_DATA_DIR=.awa awa serve --port 3000 --no-auth
 | `AWA_DEFAULT_AI_MODEL_ID` | engine | The model used where nothing names one. Default: `default_ai_model_id` of `src/config.json` |
 | `AWA_GOOGLE_REASONING_MODEL`, `AWA_GOOGLE_FAST_MODEL` | Google provider | The models of the reasoning and fast tiers. Default: from `src/config.json` |
 | `AWA_EMBEDDED_MODELS`, `AWA_EMBEDDED_MODEL` | embedded provider | Where small models are kept, and which to use |
-| `AWA_DATA_DIR` | `awa serve` | The runtime directory behind `/api/v1/journeys` and `/api/v1/measures`. Without it, journeys are kept in memory |
+| `AWA_DATA_DIR` | `awa serve` | The runtime directory behind `/api/v1/journeys`, `/api/v1/measures` and `/api/v1/evidence`. Without it, journeys are kept in memory |
 | `AWA_SIMULATE=1`, `AWA_SIMULATED_OUTPUTS` | `awa serve` | Simulate the activities of journeys' runs, with this script |
 | `AWA_WORKFLOWS_DIR` | `awa serve` | The only directory `POST /api/v1/workflows/run` may read workflow files from. The working directory by default |
 | `AWA_JOURNAL_DIR` | `awa serve` | Where the journals of runs started over HTTP are written |

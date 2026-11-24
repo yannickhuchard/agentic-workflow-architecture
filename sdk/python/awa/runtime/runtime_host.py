@@ -31,6 +31,7 @@ from awa.runtime.journey import (
 )
 from awa.runtime.token import TokenStatus
 from awa.runtime.workflow_engine import EngineStatus, WorkflowEngine
+from awa.runtime.shadow import ShadowRunner
 from awa.types import ActorType, Workflow
 from awa.validator import validate_workflow_integrity
 
@@ -131,10 +132,11 @@ class AwaRuntime:
       engine: options given to every run the host starts (see WorkflowEngine)
       now:    callable returning the current time in milliseconds; tests replace it to move time forward
       store:  where the host keeps what it knows (19.10). Without it, everything is in memory.
+      shadow: options of a candidate run beside production and compared as runs end (33.5; see ShadowRunner)
     """
 
     def __init__(self, engine: dict[str, Any] | None = None, now: Callable[[], float] | None = None,
-                 store: RuntimeStore | None = None) -> None:
+                 store: RuntimeStore | None = None, shadow: dict[str, Any] | None = None) -> None:
         self._engine_defaults = dict(engine or {})
         self._clock = now
         self._store = store
@@ -154,6 +156,8 @@ class AwaRuntime:
         self._concerns: dict[str, set[str]] = {}
         self._depth = 0
         self._release: Callable[[], None] | None = None
+        # The shadow of production, when the host was given one (33.5)
+        self.shadow: ShadowRunner | None = ShadowRunner(shadow, self._now) if shadow else None
 
     # -- time ---------------------------------------------------------------
 
@@ -409,6 +413,8 @@ class AwaRuntime:
 
     def _sync(self, engine: WorkflowEngine) -> None:
         """After a run has made progress: if it ended, fold its result into its journey and move the journey on"""
+        if self.shadow:
+            self.shadow.settled(engine)
         def flush() -> None:
             # What the run announced is accepted now that it has settled: after its own ending is
             # recorded, before anything follows from it (19.5)

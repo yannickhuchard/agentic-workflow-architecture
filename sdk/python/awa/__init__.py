@@ -71,6 +71,9 @@ from awa.runtime.runtime_host import AwaRuntime, InMemoryRuntimeStore, FileRunti
 from awa.runtime.kpi import MEASURES, compute_measures, measures_to_openmetrics
 from awa.runtime.knowledge import KnowledgeBase
 from awa.runtime.counterfactual import counterfactual_replay, render_counterfactual_report
+from awa.runtime.evidence import compute_evidence, render_evidence_html, render_evidence_markdown
+from awa.runtime.evaluation import build_dataset, evaluate_dataset, render_evaluation_report
+from awa.runtime.shadow import ShadowRunner
 
 __version__ = "2.0.0"
 __all__ = [
@@ -153,5 +156,13 @@ __all__ = [
     "MEASURES",
     "compute_measures",
     "measures_to_openmetrics",
+    # Evidence, evaluation from journals and shadow runs
+    "compute_evidence",
+    "render_evidence_markdown",
+    "render_evidence_html",
+    "build_dataset",
+    "evaluate_dataset",
+    "render_evaluation_report",
+    "ShadowRunner",
 ]
 

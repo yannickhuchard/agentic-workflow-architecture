@@ -23,13 +23,15 @@ import { compute_measures } from '../src/runtime/kpi';
 import { InMemoryJournalStore } from '../src/runtime/journal';
 import { counterfactual_replay } from '../src/runtime/counterfactual';
 import { KnowledgeBase, KnowledgeEntry } from '../src/runtime/knowledge';
+import { compute_evidence, unresolved_citations } from '../src/runtime/evidence';
+import { build_dataset, evaluate_dataset } from '../src/runtime/evaluation';
 
 const ROOT = path.resolve(__dirname, '../../..');
 const CONFORMANCE = path.join(ROOT, 'spec/conformance');
 const SCHEMAS = path.join(ROOT, 'spec/json-schema');
 
 /** Conformance levels this implementation claims. */
-const CLAIMED_LEVELS = new Set(['core', 'decision', 'verified', 'resilient', 'recorded', 'contract', 'flow', 'events', 'tools', 'model_decision', 'journeys', 'replay', 'routing', 'knowledge', 'measures', 'contexts', 'service_levels']);
+const CLAIMED_LEVELS = new Set(['core', 'decision', 'verified', 'resilient', 'recorded', 'contract', 'flow', 'events', 'tools', 'model_decision', 'journeys', 'replay', 'routing', 'knowledge', 'measures', 'contexts', 'service_levels', 'evidence', 'evaluation']);
 
 const read = (file: string) => JSON.parse(fs.readFileSync(file, 'utf-8'));
 const list = (dir: string) => fs.readdirSync(dir).filter(f => f.endsWith('.json')).sort().map(f => path.join(dir, f));
@@ -473,6 +475,96 @@ describe('Conformance: measures', () => {
             if (c.expect.attention) {
                 expect(report.attention).toHaveLength(c.expect.attention.length);
                 c.expect.attention.forEach((want: any, i: number) => expect(report.attention[i]).toMatchObject(want));
+            }
+        });
+    }
+});
+
+describe('Conformance: evidence', () => {
+    const ajv = new Ajv2020({ strict: false, allErrors: true }); addFormats(ajv);
+    const report_schema = ajv.compile(read(path.join(SCHEMAS, 'evidence-report.schema.json')));
+    const sorted = (citations: any[]) => [...citations].map(c => JSON.stringify(c)).sort();
+    for (const file of list(path.join(CONFORMANCE, 'evidence'))) {
+        const c = read(file);
+        const run = CLAIMED_LEVELS.has(c.level) ? it : it.skip;
+        run(`[${c.level}] ${c.id}: ${c.description}`, () => {
+            const report = compute_evidence(c.recorded, c.options) as any;
+            expect(report_schema(JSON.parse(JSON.stringify(report))), JSON.stringify(report_schema.errors?.slice(0, 3))).toBe(true);
+            // Every statement rests on records that exist (32.2)
+            expect(unresolved_citations(report, c.recorded)).toEqual([]);
+            const part = (id: string) => report.parts.find((p: any) => p.id === id);
+            for (const [id, summary] of Object.entries(c.expect.summaries || {})) {
+                expect(is_subset(summary, part(id).summary), `summary of ${id}: ${JSON.stringify(part(id).summary)}`).toBe(true);
+            }
+            for (const want of c.expect.statements || []) {
+                const found = part(want.part).statements.filter((s: any) => s.kind === want.kind && is_subset(want.facts, s.facts));
+                expect(found.length, `${want.part}/${want.kind} ${JSON.stringify(want.facts)} among ${JSON.stringify(part(want.part).statements.map((s: any) => s.facts))}`).toBe(1);
+                if (want.citations) expect(sorted(found[0].citations), `citations of ${want.part}/${want.kind} ${JSON.stringify(want.facts)}`).toEqual(sorted(want.citations));
+            }
+            for (const want of c.expect.absent || []) {
+                expect(part(want.part).statements.filter((s: any) => s.kind === want.kind && is_subset(want.facts, s.facts)), `${want.part}/${want.kind} ${JSON.stringify(want.facts)} must be absent`).toEqual([]);
+            }
+            if (c.expect.cited_runs) {
+                const cited = new Set<string>(report.parts.flatMap((p: any) => p.statements.flatMap((s: any) => s.citations.filter((x: any) => x.run_id).map((x: any) => x.run_id))));
+                expect([...cited].sort()).toEqual([...c.expect.cited_runs].sort());
+            }
+        });
+    }
+});
+
+describe('Conformance: evaluation', () => {
+    const ajv = new Ajv2020({ strict: false, allErrors: true }); addFormats(ajv);
+    const case_schema = ajv.compile(read(path.join(SCHEMAS, 'evaluation-case.schema.json')));
+    const report_schema = ajv.compile(read(path.join(SCHEMAS, 'evaluation-report.schema.json')));
+    const same = (got: unknown, want: unknown) => (want === null ? got === null : typeof want === 'number' ? typeof got === 'number' && Math.abs(got - want) < 1e-9 : JSON.stringify(got) === JSON.stringify(want));
+    for (const file of list(path.join(CONFORMANCE, 'evaluation'))) {
+        const c = read(file);
+        const run = CLAIMED_LEVELS.has(c.level) ? it : it.skip;
+        run(`[${c.level}] ${c.id}: ${c.description}`, async () => {
+            if (c.kind === 'build') {
+                const { cases, skipped } = build_dataset(c.journals);
+                for (const k of cases) expect(case_schema(k), JSON.stringify(case_schema.errors)).toBe(true);
+                expect(cases.length, JSON.stringify(cases.map(k => k.id))).toBe(c.expect.case_count);
+                expect(skipped.length, JSON.stringify(skipped)).toBe(c.expect.skipped);
+                for (const want of c.expect.cases) {
+                    const got = cases.find(k => k.id === want.id);
+                    expect(got, `case ${want.id}`).toBeDefined();
+                    for (const [key, value] of Object.entries(want)) expect((got as any)[key], `${want.id}.${key}`).toEqual(value);
+                }
+                return;
+            }
+            const workflow = parse_document(c.workflow);
+            const report = await evaluate_dataset(workflow, c.dataset, {
+                candidate: c.candidate ? parse_document(c.candidate) : undefined,
+                engine: { execution_logger: silent_logger, sleep: async () => { } },
+                // The candidate's agent, scripted per activity, and per case where the case says so
+                engine_for_case: k => {
+                    const scripts: Record<string, ActorScript> = {};
+                    for (const [name, script] of Object.entries(c.candidate_actors as Record<string, any>)) scripts[name] = script.cases?.[k.id] ?? script;
+                    return { actors: { ai_agent: new ConformanceActor(scripts) } };
+                },
+            });
+            expect(report_schema(JSON.parse(JSON.stringify(report))), JSON.stringify(report_schema.errors?.slice(0, 3))).toBe(true);
+            const e = c.expect;
+            if (e.evaluated !== undefined) expect(report.evaluated).toBe(e.evaluated);
+            if (e.skipped !== undefined) expect(report.skipped.length, JSON.stringify(report.skipped)).toBe(e.skipped);
+            if (e.regressions !== undefined) expect(report.regressions.length, JSON.stringify(report.regressions)).toBe(e.regressions);
+            if (e.improvements !== undefined) expect(report.improvements.length, JSON.stringify(report.improvements)).toBe(e.improvements);
+            for (const [name, want] of Object.entries(e.activities || {}) as [string, any][]) {
+                const got = report.activities.find(a => a.activity_name === name) as any;
+                expect(got, `activity ${name}`).toBeDefined();
+                for (const [key, value] of Object.entries(want)) {
+                    const actual = got[key] && typeof got[key] === 'object' && 'value' in got[key] ? got[key].value : got[key];
+                    expect(same(actual, value), `${name}.${key}: got ${JSON.stringify(actual)}, expected ${JSON.stringify(value)}`).toBe(true);
+                }
+            }
+            for (const [id, want] of Object.entries(e.results || {}) as [string, any][]) {
+                const got = report.results.find(r => r.case_id === id) as any;
+                expect(got, `result of ${id}`).toBeDefined();
+                for (const [key, value] of Object.entries(want)) {
+                    const actual = key === 'unrecorded' ? got.unrecorded.length : got[key];
+                    expect(actual, `${id}.${key}`).toEqual(value);
+                }
             }
         });
     }

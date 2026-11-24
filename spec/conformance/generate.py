@@ -1715,8 +1715,371 @@ def service_level_cases() -> list[Case]:
     return cases
 
 
+
+# ---------------------------------------------------------------------------
+# Evidence (section 32) and evaluation from journals (section 33)
+# ---------------------------------------------------------------------------
+
+class Journal:
+    """A hand-written journal: each event gets the next seq, and may be given a label to cite it by."""
+
+    def __init__(self, run_id: str, workflow_id: str):
+        self.run_id, self.workflow_id, self.events, self.labels = run_id, workflow_id, [], {}
+
+    def add(self, type_, time, label=None, node=None, token="t1", attempt=None, **data):
+        event = {"spec_version": "1.1", "id": f"{self.run_id}-{len(self.events) + 1}", "run_id": self.run_id, "seq": len(self.events) + 1,
+                 "time": time, "type": type_, "level": "meta" if type_ == "meta.recorded" else "execution", "workflow_id": self.workflow_id}
+        if node:
+            event.update({"token_id": token, "node_id": node[0], "node_name": node[1]})
+        if attempt:
+            event["attempt"] = attempt
+        event["data"] = data
+        self.events.append(event)
+        if label:
+            self.labels[label] = event["seq"]
+        return self
+
+    def seq(self, *labels):
+        return sorted(self.labels[l] for l in labels)
+
+    def cite(self, *labels):
+        return {"run_id": self.run_id, "seq": self.seq(*labels)}
+
+    def run(self, **extra):
+        return {"run_id": self.run_id, "workflow_id": self.workflow_id, "events": self.events, **extra}
+
+
+def evidence_cases() -> list[dict]:
+    """Level `evidence` (section 32): what was recorded, and the statements an evidence report must make about it, with their citations."""
+    t = lambda d, hm: f"2026-03-{d:02d}T{hm}:00.000Z"
+    ASSESS, APPROVE, PAY, NOTIFY, ROUTE, RESERVE = ("assess", "Assess damage"), ("approve", "Approve"), ("pay", "Pay"), ("notify", "Notify"), ("route", "Route"), ("reserve", "Reserve funds")
+    large = {"id": "assessor-large", "provider": "acme", "requested": "tier:reasoning", "tier": "reasoning", "source": "role"}
+    PRICE, BANK = "https://parts.example/v2/price", "https://bank.example/rpc#transfer"
+
+    r1 = Journal("r1", "settle")
+    (r1.add("run.started", t(2, "09:00"), "start", workflow_name="Settle", workflow_version="1.2.0", input={"claim": "C-1"})
+       .add("meta.recorded", t(2, "09:00"), "sel1", ASSESS, attempt=1, subject="model_selection", decision="Use model acme:assessor-large", rationale="The role names it.", model=large)
+       .add("activity.started", t(2, "09:00"), "as1", ASSESS, attempt=1, actor_type="ai_agent", input={"claim": "C-1"})
+       .add("tool.invoked", t(2, "09:01"), "inv1", ASSESS, attempt=1, call_id="c1", tool="price_part", link=PRICE, arguments={"part": "bumper"})
+       .add("tool.completed", t(2, "09:01"), "done1", ASSESS, attempt=1, call_id="c1", tool="price_part", link=PRICE, status=200, result={"price": 100})
+       .add("contract.checked", t(2, "09:02"), "c1", ASSESS, attempt=1, passed=False, violations=[{"kind": "postcondition", "name": "Within authority", "message": "does not hold"}])
+       .add("activity.failed", t(2, "09:02"), "f1", ASSESS, attempt=1, error={"code": "CONTRACT_VIOLATION", "message": "Outcome contract violated"}, retryable=True)
+       .add("meta.recorded", t(2, "09:02"), "sel2", ASSESS, attempt=2, subject="model_selection", decision="Use model acme:assessor-large", rationale="The role names it.", model=large)
+       .add("activity.started", t(2, "09:02"), None, ASSESS, attempt=2, actor_type="ai_agent", input={"claim": "C-1"})
+       .add("contract.checked", t(2, "09:03"), "c2", ASSESS, attempt=2, passed=True, violations=[])
+       .add("verification.completed", t(2, "09:03"), "v2", ASSESS, attempt=2, mode="schema_only", verdict="pass", score=1)
+       .add("activity.completed", t(2, "09:03"), None, ASSESS, attempt=2, actor_type="ai_agent", output={"output": {"cost": 900}})
+       .add("activity.started", t(2, "09:04"), "hs", APPROVE, attempt=1, actor_type="human", input={"cost": 900})
+       .add("token.waiting", t(2, "09:04"), "hw", APPROVE, reason="human_task")
+       .add("token.resumed", t(2, "11:04"), "hr", APPROVE, waited_ms=7200000)
+       .add("activity.completed", t(2, "11:04"), "hd", APPROVE, attempt=1, actor_type="human", output={"approved": True})
+       .add("context.read", t(2, "11:05"), "cr", NOTIFY, contexts=[{"context_id": "k1", "context_name": "Claim file", "access_mode": "read", "present": True, "value_hash": "ab"}])
+       .add("context.denied", t(2, "11:05"), "cd", NOTIFY, context_name="Ledger", reason="no binding of this activity allows writing")
+       .add("activity.failed", t(2, "11:05"), "nf", NOTIFY, attempt=1, error={"code": "CONTEXT_ACCESS_DENIED", "message": "wrote to Ledger"}, retryable=False)
+       .add("run.failed", t(2, "11:05"), "end", errors=["wrote to Ledger"]))
+
+    r2 = Journal("r2", "settle")
+    (r2.add("run.started", t(3, "09:00"), "start", workflow_name="Settle", workflow_version="1.2.0", input={"claim": "C-2"})
+       .add("meta.recorded", t(3, "09:00"), "sel", ASSESS, attempt=1, subject="model_selection", decision="Use model acme:assessor-small", rationale="Fallback.", model={"id": "assessor-small", "provider": "acme", "requested": "tier:reasoning", "tier": "reasoning", "source": "role"})
+       .add("meta.recorded", t(3, "09:00"), "route", ASSESS, attempt=1, subject="model_route", decision="Route to acme:assessor-small", rationale="acme:assessor-large was tried and failed: unavailable.")
+       .add("activity.started", t(3, "09:00"), None, ASSESS, attempt=1, actor_type="ai_agent", input={"claim": "C-2"})
+       .add("contract.checked", t(3, "09:01"), "c1", ASSESS, attempt=1, passed=False, violations=[{"kind": "postcondition", "name": "Within authority", "message": "does not hold"}])
+       .add("activity.failed", t(3, "09:01"), None, ASSESS, attempt=1, error={"code": "CONTRACT_VIOLATION", "message": "Outcome contract violated"}, retryable=False)
+       .add("contract.escalated", t(3, "09:01"), "esc", ASSESS, attempt=1, code="CONTRACT_VIOLATION", message="Outcome contract violated", rejected_output={"cost": 90000})
+       .add("meta.recorded", t(3, "09:01"), None, ASSESS, attempt=1, subject="escalation", decision="Hand the activity to a human", rationale="on_violation is escalate_human")
+       .add("token.waiting", t(3, "09:01"), "w", ASSESS, reason="human_task")
+       .add("token.resumed", t(3, "10:01"), "r", ASSESS, waited_ms=3600000)
+       .add("contract.checked", t(3, "10:01"), "ch", ASSESS, attempt=1, passed=True, violations=[], decided_by="human")
+       .add("activity.completed", t(3, "10:01"), "done", ASSESS, attempt=1, actor_type="ai_agent", output={"output": {"cost": 4000}})
+       .add("activity.started", t(3, "10:02"), None, RESERVE, attempt=1, actor_type="application", input={"cost": 4000})
+       .add("activity.completed", t(3, "10:02"), None, RESERVE, attempt=1, actor_type="application", output={"reserved": 4000})
+       .add("activity.started", t(3, "10:03"), None, PAY, attempt=1, actor_type="application", input={"cost": 4000})
+       .add("tool.failed", t(3, "10:03"), "refused", PAY, attempt=1, call_id="c9", tool="transfer", link=BANK, invoked=False, error={"code": "PERMISSION_DENIED", "message": "host not allowed"})
+       .add("tool.invoked", t(3, "10:03"), "inv", PAY, attempt=1, call_id="c10", tool="transfer", link=BANK, arguments={"amount": 4000})
+       .add("tool.failed", t(3, "10:04"), "tf", PAY, attempt=1, call_id="c10", tool="transfer", link=BANK, invoked=True, error={"code": "TOOL_ERROR", "message": "bank rejected"}, status=500)
+       .add("activity.failed", t(3, "10:04"), "pf", PAY, attempt=1, error={"code": "TOOL_ERROR", "message": "bank rejected"}, retryable=False)
+       .add("activity.dead_lettered", t(3, "10:04"), "dl", PAY, attempt=1, attempts=1, error={"code": "TOOL_ERROR"})
+       .add("activity.compensated", t(3, "10:05"), "comp", ("release", "Release funds"), compensates_activity_id="reserve", compensates_activity_name="Reserve funds", output={"released": True})
+       .add("sla.breached", t(3, "10:05"), "sla", None, scope="workflow", elapsed_ms=3900000, max_time="PT1H", action="record")
+       .add("run.failed", t(3, "10:05"), "end", errors=["bank rejected"]))
+
+    hashed = lambda: {"sha256": "0" * 64}
+    r3 = Journal("r3", "settle")
+    (r3.add("run.started", t(4, "09:00"), "start", workflow_name="Settle", workflow_version="1.3.0", input=hashed())
+       .add("activity.started", t(4, "09:00"), "as", ASSESS, attempt=1, actor_type="ai_agent", input=hashed())
+       .add("activity.completed", t(4, "09:01"), "ac", ASSESS, attempt=1, actor_type="ai_agent", output=hashed())
+       .add("decision.evaluated", t(4, "09:01"), "dec", ROUTE, method="model", model={"option": "review", "confidence": 0.8}, edge_id="e1", used_default=False)
+       .add("run.cancelled", t(4, "09:30"), "end", reason="the customer withdrew the claim"))
+
+    # A run that belongs to no journey, whose journal has lost a record
+    r5 = Journal("r5", "intake")
+    r5.add("run.started", t(5, "09:00"), "start", workflow_name="Intake", workflow_version="1.0.0", input={"claim": "C-5"})
+    r5.add("activity.started", t(5, "09:00"), "s", ("register", "Register"), attempt=1, actor_type="application", input={"claim": "C-5"})
+    r5.add("activity.completed", t(5, "09:01"), "lost", ("register", "Register"), attempt=1, actor_type="application", output={"ok": True})
+    r5.add("run.completed", t(5, "09:02"), "end")
+    r5.events = [e for e in r5.events if e["seq"] != 3]
+
+    journey_events = [
+        {"type": "journey.started", "time": t(2, "09:00"), "seq": 1, "stage_id": "assess", "data": {"subject_key": "cust-1"}},
+        {"type": "journey.run_started", "time": t(2, "09:00"), "seq": 2, "stage_id": "assess", "run_id": "r1", "data": {}},
+        {"type": "journey.run_ended", "time": t(2, "11:05"), "seq": 3, "stage_id": "assess", "run_id": "r1", "data": {"status": "failed"}},
+        {"type": "journey.stalled", "time": t(2, "11:05"), "seq": 4, "stage_id": "assess", "run_id": "r1", "data": {"reason": "the Settle workflow failed"}},
+        {"type": "journey.run_started", "time": t(3, "09:00"), "seq": 5, "stage_id": "assess", "run_id": "r2", "data": {}},
+        {"type": "journey.run_ended", "time": t(3, "10:05"), "seq": 6, "stage_id": "assess", "run_id": "r2", "data": {"status": "failed"}},
+        {"type": "journey.abandoned", "time": t(6, "09:00"), "seq": 7, "stage_id": "assess", "data": {"reason": "closed"}},
+    ]
+    instance = {"id": "j1", "journey_id": "claim", "subject_key": "cust-1", "status": "abandoned", "stage_id": "assess",
+                "started_at": t(2, "09:00"), "ended_at": t(6, "09:00"), "events": journey_events}
+    recorded = {
+        "as_of": t(10, "09:00"),
+        "workflows": [{"id": "settle", "name": "Settle", "version": "1.3.0", "activities": [{"id": "assess", "name": "Assess damage", "actor_type": "ai_agent"}, {"id": "approve", "name": "Approve", "actor_type": "human"}]},
+                      {"id": "intake", "name": "Intake", "version": "1.0.0"}],
+        "journeys": [{"definition": {"id": "claim", "name": "Motor claim"}, "instances": [{"instance": instance, "runs": [r1.run(), r2.run()]}]}],
+        "runs": [r3.run(), r5.run()],
+    }
+    st = lambda part, kind, facts, *citations: {"part": part, "kind": kind, "facts": facts, **({"citations": list(citations)} if citations else {})}
+    jcite = lambda *seqs: {"journey_instance_id": "j1", "seq": list(seqs)}
+
+    whole = {
+        "id": "evidence-from-a-small-record", "level": "evidence", "spec": "32",
+        "description": "Four runs of two workflows and one journey. Each part of the report states what the record shows, and each statement cites exactly the records it rests on.",
+        "recorded": recorded, "options": {},
+        "expect": {
+            "summaries": {
+                "operation": {"runs": 4, "completed": 1, "failed": 2, "cancelled": 1, "in_progress": 0, "journeys": 1},
+                "models": {"models": ["acme:assessor-large", "acme:assessor-small"], "selections": 3, "routes": 1, "model_decisions": 1},
+                "oversight": {"human_decisions": 2, "overrides": 1, "escalations": 1, "cancellations": 1},
+                "outcomes": {"contracts": 4, "contracts_passed": 2, "verifications": 1, "verifications_passed": 1},
+                "refusals": {"refusals": 2, "tool_calls": 1, "context_writes": 1},
+                "failures": {"attempts_failed": 4, "dead_letters": 1, "tool_failures": 1, "runs_failed": 2, "journeys_stalled": 1},
+                "compensations": {"compensations": 1, "failed": 0},
+                "service_levels": {"warnings": 0, "breaches": 1},
+                "tools": {"targets": 2, "calls": 2, "completed": 1, "failed": 1, "refused": 1},
+                "data": {"runs_by_mode": {"full": 3, "hash": 1, "none": 0, "mixed": 0}},
+                "retention": {"runs": 4, "events": 51, "journey_instances": 1, "journey_events": 7, "oldest_record": t(2, "09:00"), "newest_record": t(6, "09:00"), "runs_with_gaps": 1},
+            },
+            "statements": [
+                st("operation", "run", {"run_id": "r1", "workflow_name": "Settle", "workflow_version": "1.2.0", "status": "failed", "journey_instance_id": "j1"}, r1.cite("start", "end")),
+                st("operation", "run", {"run_id": "r3", "workflow_version": "1.3.0", "status": "cancelled", "journey_instance_id": None}, r3.cite("start", "end")),
+                st("operation", "run", {"run_id": "r5", "workflow_name": "Intake", "status": "completed"}, r5.cite("start", "end")),
+                st("operation", "journey", {"journey_instance_id": "j1", "subject_key": "cust-1", "status": "abandoned"}, jcite(1, 7)),
+                st("models", "model", {"provider": "acme", "model": "assessor-large", "requested": "tier:reasoning", "tier": "reasoning", "node_name": "Assess damage", "uses": 2}, r1.cite("sel1", "sel2")),
+                st("models", "model", {"provider": "acme", "model": "assessor-small", "node_name": "Assess damage", "uses": 1}, r2.cite("sel")),
+                st("models", "route", {"run_id": "r2", "node_name": "Assess damage"}, r2.cite("route")),
+                st("models", "model_decision", {"run_id": "r3", "node_name": "Route", "option": "review", "confidence": 0.8}, r3.cite("dec")),
+                st("oversight", "human_decision", {"run_id": "r1", "node_name": "Approve", "escalated": False}, r1.cite("hw", "hr", "hd")),
+                st("oversight", "human_decision", {"run_id": "r2", "node_name": "Assess damage", "escalated": True}, r2.cite("esc", "w", "r", "ch", "done")),
+                st("oversight", "escalation", {"run_id": "r2", "node_name": "Assess damage", "code": "CONTRACT_VIOLATION"}, r2.cite("esc")),
+                st("oversight", "cancellation", {"run_id": "r3", "reason": "the customer withdrew the claim"}, r3.cite("end")),
+                st("outcomes", "contract", {"run_id": "r1", "node_name": "Assess damage", "attempt": 1, "passed": False, "violations": ["Within authority"], "decided_by": "engine"}, r1.cite("c1")),
+                st("outcomes", "contract", {"run_id": "r2", "attempt": 1, "passed": True, "decided_by": "human"}, r2.cite("ch")),
+                st("outcomes", "verification", {"run_id": "r1", "attempt": 2, "mode": "schema_only", "verdict": "pass", "score": 1}, r1.cite("v2")),
+                st("refusals", "tool_refused", {"run_id": "r2", "node_name": "Pay", "tool": "transfer", "link": BANK, "code": "PERMISSION_DENIED"}, r2.cite("refused")),
+                st("refusals", "context_denied", {"run_id": "r1", "node_name": "Notify", "context_name": "Ledger"}, r1.cite("cd")),
+                st("failures", "attempt_failed", {"run_id": "r1", "node_name": "Notify", "attempt": 1, "code": "CONTEXT_ACCESS_DENIED"}, r1.cite("nf")),
+                st("failures", "dead_letter", {"run_id": "r2", "node_name": "Pay", "attempts": 1}, r2.cite("dl")),
+                st("failures", "tool_failed", {"run_id": "r2", "tool": "transfer", "code": "TOOL_ERROR"}, r2.cite("tf")),
+                st("failures", "run_failed", {"run_id": "r2"}, r2.cite("end")),
+                st("failures", "journey_stalled", {"journey_instance_id": "j1", "stage_id": "assess", "run_id": "r1"}, jcite(4)),
+                st("compensations", "compensation", {"run_id": "r2", "node_name": "Release funds", "compensates": "Reserve funds", "succeeded": True}, r2.cite("comp")),
+                st("service_levels", "sla", {"run_id": "r2", "node_name": None, "level": "breach", "scope": "workflow", "elapsed_ms": 3900000, "limit": "PT1H"}, r2.cite("sla")),
+                st("tools", "target", {"link": PRICE, "tools": ["price_part"], "calls": 1, "completed": 1, "failed": 0, "refused": 0}, r1.cite("inv1", "done1")),
+                st("tools", "target", {"link": BANK, "tools": ["transfer"], "calls": 1, "completed": 0, "failed": 1, "refused": 1}, r2.cite("refused", "inv", "tf")),
+                st("data", "run_payloads", {"run_id": "r3", "mode": "hash", "full": 0, "hash": 3, "none": 0}, r3.cite("start", "as", "ac")),
+                st("data", "run_payloads", {"run_id": "r1", "mode": "full"}),
+                st("data", "context", {"context_name": "Ledger", "reads": 0, "writes": 0, "denied": 1}, r1.cite("cd")),
+                st("data", "context", {"context_name": "Claim file", "reads": 1, "writes": 0, "denied": 0}, r1.cite("cr")),
+                st("retention", "held", {"runs": 4, "events": 51, "journey_instances": 1, "journey_events": 7}, r1.cite("start", "sel1", "as1"), jcite(1, 2, 7)),
+                st("retention", "gap", {"run_id": "r5", "missing": [3], "starts": True}, r5.cite("s", "end")),
+            ],
+            "absent": [st("oversight", "human_decision", {"node_name": "Reserve funds"})],
+        },
+    }
+    period = {
+        "id": "evidence-over-a-period", "level": "evidence", "spec": "32.1",
+        "description": "The same record from 3 March to 5 March: a run is kept by its own start, the journey begun on 2 March is left out, and nothing kept is cited from outside the period.",
+        "recorded": recorded, "options": {"from": t(3, "00:00"), "to": t(5, "00:00")},
+        "expect": {
+            "summaries": {"operation": {"runs": 2, "failed": 1, "cancelled": 1, "journeys": 0}, "oversight": {"human_decisions": 1, "overrides": 1}, "failures": {"journeys_stalled": 0}},
+            "cited_runs": ["r2", "r3"],
+            "statements": [st("operation", "run", {"run_id": "r2", "journey_instance_id": "j1"}, r2.cite("start", "end"))],
+            "absent": [st("operation", "journey", {"journey_instance_id": "j1"}), st("operation", "run", {"run_id": "r1"})],
+        },
+    }
+    narrowed = {
+        "id": "evidence-for-a-set-of-workflows", "level": "evidence", "spec": "32.1",
+        "description": "Narrowed to one workflow, the report keeps its runs only, and the journeys that have one of them.",
+        "recorded": recorded, "options": {"workflow_ids": ["intake"]},
+        "expect": {
+            "summaries": {"operation": {"runs": 1, "completed": 1, "journeys": 0}, "models": {"selections": 0}, "retention": {"runs": 1, "runs_with_gaps": 1}},
+            "cited_runs": ["r5"],
+            "statements": [st("retention", "gap", {"run_id": "r5", "missing": [3]}, r5.cite("s", "end"))],
+        },
+    }
+    return [whole, period, narrowed]
+
+
+def evaluation_cases() -> list[dict]:
+    """Level `evaluation` (section 33): journals in and a dataset out; a dataset and a scripted candidate in and scores out."""
+    t = lambda m, s=0: f"2026-04-01T09:{m:02d}:{s:02d}.000Z"
+    ASSESS, PAY, NOTIFY = ("a1", "Assess"), ("a2", "Pay"), ("a3", "Notify")
+
+    e1 = Journal("e1", "w1")
+    (e1.add("run.started", t(0), None, workflow_name="Claims", workflow_version="2.0.0", input={"claim": 1})
+       .add("activity.started", t(0), "s1", ASSESS, attempt=1, actor_type="ai_agent", input={"claim": 1})
+       .add("contract.checked", t(1), "c1", ASSESS, attempt=1, passed=False, violations=[{"kind": "postcondition", "name": "Has a score", "message": "missing"}])
+       .add("activity.failed", t(1), "f1", ASSESS, attempt=1, error={"code": "CONTRACT_VIOLATION", "message": "violated"}, retryable=True)
+       .add("meta.recorded", t(1), None, ASSESS, attempt=1, subject="contract_retry", decision="Re-execute", rationale="1 term")
+       .add("activity.started", t(1), "s2", ASSESS, attempt=2, actor_type="ai_agent", input={"claim": 1}, feedback="CONTRACT VIOLATED")
+       .add("tool.invoked", t(2), "ti", ASSESS, attempt=2, call_id="k1", tool="price", link="function:price", arguments={"part": "bumper"})
+       .add("tool.completed", t(2), "tc", ASSESS, attempt=2, call_id="k1", tool="price", link="function:price", status=200, result={"price": 100})
+       .add("contract.checked", t(3), "c2", ASSESS, attempt=2, passed=True, violations=[])
+       .add("verification.completed", t(3), "v2", ASSESS, attempt=2, mode="schema_only", verdict="pass", score=1, criteria=[])
+       .add("activity.completed", t(3), "d2", ASSESS, attempt=2, actor_type="ai_agent", output={"output": {"score": 7}, "usage": {"input_tokens": 10, "output_tokens": 5}})
+       .add("activity.started", t(4), None, PAY, attempt=1, actor_type="application", input={"score": 7})
+       .add("activity.completed", t(4), None, PAY, attempt=1, actor_type="application", output={"paid": True})
+       .add("activity.started", t(5), "ns", NOTIFY, attempt=1, actor_type="ai_agent", input={"score": 7, "paid": True})
+       .add("contract.checked", t(5), "nc", NOTIFY, attempt=1, passed=True, violations=[])
+       .add("activity.completed", t(5), "nd", NOTIFY, attempt=1, actor_type="ai_agent", output={"output": {"message": "Paid"}})
+       .add("run.completed", t(6)))
+
+    e2 = Journal("e2", "w1")
+    (e2.add("run.started", t(10), None, workflow_name="Claims", workflow_version="2.0.0", input={"claim": 2})
+       .add("activity.started", t(10), "s", ASSESS, attempt=1, actor_type="ai_agent", input={"claim": 2})
+       .add("contract.checked", t(11), "c", ASSESS, attempt=1, passed=False, violations=[{"kind": "postcondition", "name": "Has a score", "message": "missing"}])
+       .add("activity.failed", t(11), "f", ASSESS, attempt=1, error={"code": "CONTRACT_VIOLATION", "message": "violated"}, retryable=False)
+       .add("contract.escalated", t(11), "x", ASSESS, attempt=1, code="CONTRACT_VIOLATION", message="violated", rejected_output={"note": "unsure"})
+       .add("contract.checked", t(12), "h", ASSESS, attempt=1, passed=True, violations=[], decided_by="human")
+       .add("activity.completed", t(12), "d", ASSESS, attempt=1, actor_type="ai_agent", output={"output": {"score": 9}})
+       .add("activity.started", t(13), "ns1", NOTIFY, attempt=1, actor_type="ai_agent", input={"score": 9})
+       .add("contract.checked", t(13), "nc1", NOTIFY, attempt=1, passed=False, violations=[{"kind": "postcondition", "name": "Has a message", "message": "missing"}])
+       .add("activity.failed", t(13), "nf1", NOTIFY, attempt=1, error={"code": "CONTRACT_VIOLATION", "message": "violated"}, retryable=True)
+       .add("activity.started", t(14), "ns2", NOTIFY, attempt=2, actor_type="ai_agent", input={"score": 9}, feedback="CONTRACT VIOLATED")
+       .add("contract.checked", t(14), "nc2", NOTIFY, attempt=2, passed=False, violations=[{"kind": "postcondition", "name": "Has a message", "message": "missing"}])
+       .add("activity.failed", t(14), "nf2", NOTIFY, attempt=2, error={"code": "CONTRACT_VIOLATION", "message": "violated"}, retryable=False)
+       .add("token.failed", t(14), "tf", NOTIFY, error={"code": "CONTRACT_VIOLATION"})
+       .add("run.failed", t(15)))
+
+    e3 = Journal("e3", "w1")
+    (e3.add("run.started", t(20), None, workflow_name="Claims", workflow_version="2.0.0", input={"sha256": "1" * 64})
+       .add("activity.started", t(20), None, ASSESS, attempt=1, actor_type="ai_agent", input={"sha256": "1" * 64})
+       .add("activity.completed", t(21), None, ASSESS, attempt=1, actor_type="ai_agent", output={"sha256": "2" * 64})
+       .add("activity.started", t(22), None, NOTIFY, attempt=1, actor_type="ai_agent", input={"score": 1})
+       .add("run.waiting", t(22)))
+
+    e4 = Journal("e4", "w1")
+    (e4.add("run.started", t(30), None, workflow_name="Claims", workflow_version="2.1.0", input={"claim": 4})
+       .add("activity.started", t(30), "s1", ASSESS, attempt=1, actor_type="ai_agent", input={"claim": 4})
+       .add("activity.completed", t(31), "d1", ASSESS, attempt=1, actor_type="ai_agent", output={"score": 2, "status": "complex_completed"})
+       .add("token.moved", t(31), None, ASSESS, from_node_id="a1", to_node_id="a1", edge_id="loop", reason="condition")
+       .add("activity.started", t(32), "s2", ASSESS, attempt=1, actor_type="ai_agent", input={"claim": 4, "score": 2})
+       .add("activity.failed", t(33), "f2", ASSESS, attempt=1, error={"code": "TIMEOUT", "message": "too slow"}, retryable=True)
+       .add("activity.dead_lettered", t(33), "dl", ASSESS, attempt=1, attempts=1, error={"code": "TIMEOUT"})
+       .add("run.failed", t(34)))
+
+    def case_of(j, visit, **fields):
+        return {"id": f"{j.run_id}:{visit}", **fields}
+    build = {
+        "id": "evaluation-dataset-from-journals", "level": "evaluation", "spec": "33.1", "kind": "build",
+        "description": "Every ended visit to an AI activity whose input the journal holds becomes a case: what it was given, and the outcome accepted by its contract, by verification or by a person, or what rejected it. Visits to other activities, visits not ended, and visits whose payloads were hashed are not cases.",
+        "journals": e1.events + e2.events + e3.events + e4.events,
+        "expect": {
+            "case_count": 6, "skipped": 2,
+            "cases": [
+                {"id": "e1:a1:1", "workflow_id": "w1", "workflow_version": "2.0.0", "run_id": "e1", "activity_id": "a1", "activity_name": "Assess", "input": {"claim": 1},
+                 "label": "accepted", "accepted_by": "verification", "outcome": {"score": 7}, "attempts": 2,
+                 "rejections": [{"attempt": 1, "code": "CONTRACT_VIOLATION", "terms": ["Has a score"]}],
+                 "tool_calls": [{"tool": "price", "arguments": {"part": "bumper"}, "ok": True, "status": 200, "result": {"price": 100}}],
+                 "sources": e1.seq("s1", "c1", "f1", "s2", "ti", "tc", "c2", "v2", "d2")},
+                {"id": "e1:a3:1", "label": "accepted", "accepted_by": "contract", "outcome": {"message": "Paid"}, "attempts": 1, "rejections": [], "tool_calls": [], "sources": e1.seq("ns", "nc", "nd")},
+                {"id": "e2:a1:1", "input": {"claim": 2}, "label": "accepted", "accepted_by": "person", "outcome": {"score": 9}, "attempts": 1, "sources": e2.seq("s", "c", "f", "x", "h", "d")},
+                {"id": "e2:a3:1", "label": "rejected", "rejected_by": "contract", "attempts": 2,
+                 "rejections": [{"attempt": 1, "code": "CONTRACT_VIOLATION", "terms": ["Has a message"]}, {"attempt": 2, "code": "CONTRACT_VIOLATION", "terms": ["Has a message"]}],
+                 "sources": e2.seq("ns1", "nc1", "nf1", "ns2", "nc2", "nf2", "tf")},
+                {"id": "e4:a1:1", "workflow_version": "2.1.0", "label": "accepted", "accepted_by": "unchecked", "outcome": {"score": 2}, "sources": e4.seq("s1", "d1")},
+                {"id": "e4:a1:2", "input": {"claim": 4, "score": 2}, "label": "rejected", "rejected_by": "error", "rejections": [{"attempt": 1, "code": "TIMEOUT", "terms": []}], "sources": e4.seq("s2", "f2", "dl")},
+            ],
+        },
+    }
+
+    cases = [build]
+
+    def flow(case_id, assess_contract="score >= 5", notify_verification=False):
+        c = Case(case_id, "evaluation", "33", "")
+        tool = {"name": "price", "description": "Price a part", "parameters": {"type": "object", "properties": {"part": {"type": "string"}}}, "binding": {"kind": "function", "name": "price"}}
+        c.act("Assess", "ai_agent", outcome_contract={"postconditions": [{"name": "Good score", "expression": assess_contract}], "budgets": {"max_attempts": 2}, "on_violation": "escalate_human"}, tools=[tool])
+        c.act("Pay").act("Notify", "ai_agent", outcome_contract={"postconditions": [{"name": "Has a message", "expression": "message exists"}]})
+        if notify_verification:
+            c.activities[2]["verification"] = {"mode": "schema_only", "max_retries": 0, "criteria": [criterion(c, "polite", "message exists")]}
+        c.edge("Assess", "Pay").edge("Pay", "Notify")
+        return c
+
+    def dataset(c, *rows):
+        """Cases as `eval build` writes them, recorded with the workflow of case `c`"""
+        out = []
+        for run_id, name, label, input_, outcome, calls in rows:
+            row = {"id": f"{run_id}:{c.u(name)}:1", "workflow_id": c.u("workflow"), "workflow_version": "1.0.0", "run_id": run_id,
+                   "activity_id": c.u(name), "activity_name": name, "input": input_, "label": label, "attempts": 1,
+                   "rejections": [] if label == "accepted" else [{"attempt": 1, "code": "CONTRACT_VIOLATION", "terms": ["Good score"]}],
+                   "tool_calls": calls, "sources": [2, 3]}
+            row.update({"accepted_by": "contract", "outcome": outcome} if label == "accepted" else {"rejected_by": "contract"})
+            out.append(row)
+        return out
+
+    def emit(case_id, spec, description, c, rows, candidate_actors, expect, candidate=None):
+        case = {"id": case_id, "level": "evaluation", "spec": spec, "kind": "run", "description": description,
+                "workflow": c.build()["workflow"], "dataset": rows, "candidate_actors": candidate_actors, "expect": expect}
+        if candidate is not None:
+            case["candidate"] = candidate
+        cases.append(case)
+
+    c = flow("evaluation-scores-a-candidate")
+    rows = dataset(c, ("r1", "Assess", "accepted", {"claim": 1}, {"score": 7}, []), ("r2", "Assess", "accepted", {"claim": 2}, {"score": 6}, []),
+                   ("r3", "Assess", "rejected", {"claim": 3}, None, []), ("r1", "Notify", "accepted", {"score": 7}, {"message": "Paid"}, []),
+                   ("r2", "Notify", "accepted", {"score": 6}, {"message": "Paid"}, []))
+    ids = [r["id"] for r in rows]
+    emit(c.id, "33.3", "A candidate whose agent assesses better and notifies worse: each case is performed again and checked by the contract. The rejected assessment is now accepted, an improvement; both notifications are now rejected, two regressions. Rates are over the cases of each activity.",
+         c, rows, {"Assess": {"output": {"score": 7}}, "Notify": {"output": {"text": "Paid"}}},
+         {"evaluated": 5, "skipped": 0, "regressions": 2, "improvements": 1,
+          "activities": {"Assess": {"cases": 3, "recorded_rate": 2 / 3, "pass_rate": 1, "contract_pass_rate": 1, "verification_pass_rate": None, "regressions": [], "improvements": [ids[2]]},
+                         "Notify": {"cases": 2, "recorded_rate": 1, "pass_rate": 0, "contract_pass_rate": 0, "regressions": [ids[3], ids[4]], "improvements": []}},
+          "results": {ids[0]: {"candidate": "accepted", "change": "same", "same_outcome": True}, ids[1]: {"candidate": "accepted", "change": "same", "same_outcome": False},
+                      ids[2]: {"candidate": "accepted", "change": "improved", "same_outcome": None}, ids[3]: {"candidate": "rejected", "change": "regressed", "contract_passed": False}}})
+
+    c = flow("evaluation-candidate-workflow")
+    rows = dataset(c, ("r1", "Assess", "accepted", {"claim": 1}, {"score": 9}, []), ("r2", "Assess", "accepted", {"claim": 2}, {"score": 6}, []),
+                   ("r1", "Notify", "accepted", {"score": 9}, {"message": "Paid"}, []))
+    ids = [r["id"] for r in rows]
+    cand = flow(c.id, assess_contract="score >= 8", notify_verification=True)
+    emit(c.id, "33.3", "A candidate workflow with a stricter contract and a new verification policy: the same scripted agent is held to the candidate's terms. An escalation is not taken in an evaluation, so an outcome the contract rejects is rejected. The agent's output may differ from case to case.",
+         c, rows, {"Assess": {"output": {"score": 9}, "cases": {ids[1]: {"output": {"score": 6}}}}, "Notify": {"output": {"message": "Paid"}}},
+         {"evaluated": 3, "skipped": 0, "regressions": 1, "improvements": 0,
+          "activities": {"Assess": {"cases": 2, "pass_rate": 0.5, "contract_pass_rate": 0.5, "regressions": [ids[1]]},
+                         "Notify": {"cases": 1, "pass_rate": 1, "contract_pass_rate": 1, "verification_pass_rate": 1}},
+          "results": {ids[1]: {"candidate": "rejected", "change": "regressed", "attempts": 2, "contract_passed": False}, ids[2]: {"verification_passed": True, "same_outcome": True}}},
+         candidate=cand.build()["workflow"])
+
+    c = flow("evaluation-replays-recorded-tools")
+    priced = [{"tool": "price", "arguments": {"part": "bumper"}, "ok": True, "status": 200, "result": {"price": 100}}]
+    rows = dataset(c, ("r1", "Assess", "accepted", {"claim": 1}, {"score": 7}, priced), ("r2", "Assess", "accepted", {"claim": 2}, {"score": 7}, priced))
+    ids = [r["id"] for r in rows]
+    emit(c.id, "33.2", "Tools answer as they did when the case was recorded. A call with the recorded arguments is given the recorded result; a call with other arguments has no recording, is not performed, and is listed as unrecorded. Neither fails the activity by itself.",
+         c, rows, {"Assess": {"calls": [{"tool": "price", "arguments": {"part": "bumper"}}], "output": {"score": 7},
+                              "cases": {ids[1]: {"calls": [{"tool": "price", "arguments": {"part": "door"}}], "output": {"score": 7}}}}},
+         {"evaluated": 2, "regressions": 0, "results": {ids[0]: {"candidate": "accepted", "unrecorded": 0, "same_outcome": True}, ids[1]: {"candidate": "accepted", "unrecorded": 1}}})
+
+    c = flow("evaluation-skips-what-it-cannot-match")
+    rows = dataset(c, ("r1", "Assess", "accepted", {"claim": 1}, {"score": 7}, []), ("r1", "Notify", "accepted", {"score": 7}, {"message": "Paid"}, []))
+    rows[1]["activity_id"] = rows[1]["id"] = "not-in-the-workflow"
+    other = dict(rows[0], id="other-workflow", workflow_id="another-workflow")
+    emit(c.id, "33.3", "A case recorded with another workflow, or about an activity the candidate does not have, is not evaluated and is listed as skipped; it counts in no rate.",
+         c, rows + [other], {"Assess": {"output": {"score": 7}}},
+         {"evaluated": 1, "skipped": 2, "regressions": 0, "activities": {"Assess": {"cases": 1, "pass_rate": 1}}})
+    return cases
+
+
 def main() -> None:
-    for folder in ("execution", "documents", "journeys", "replay", "knowledge", "measures"):
+    for folder in ("execution", "documents", "journeys", "replay", "knowledge", "measures", "evidence", "evaluation"):
         (ROOT / folder).mkdir(exist_ok=True)
         for old in (ROOT / folder).glob("*.json"):
             old.unlink()
@@ -1733,11 +2096,16 @@ def main() -> None:
         write(ROOT / "measures" / f"{case['id']}.json", case)
     for doc in document_cases():
         write(ROOT / "documents" / f"{doc['id']}.json", doc)
+    for case in evidence_cases():
+        write(ROOT / "evidence" / f"{case['id']}.json", case)
+    for case in evaluation_cases():
+        write(ROOT / "evaluation" / f"{case['id']}.json", case)
     tests = unary_tests()
     write(ROOT / "unary-tests.json", tests)
     exprs = expressions()
     write(ROOT / "expressions.json", exprs)
     print(f"wrote {len(exprs['cases']) + len(exprs['invalid'])} expression tests")
+    print(f"wrote {len(evidence_cases())} evidence cases and {len(evaluation_cases())} evaluation cases")
     print(f"wrote {len(journey_cases())} journey cases, {len(replay_cases())} replay cases and {len(knowledge_cases())} knowledge cases")
     print(f"wrote {len(execution)} execution cases, {len(document_cases())} document cases "
           f"and {len(tests['cases']) + len(tests['invalid'])} unary tests")

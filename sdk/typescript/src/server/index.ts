@@ -3,6 +3,7 @@ import cors from 'cors';
 import { workflowRouter } from './routes/workflows';
 import { humanTaskRouter } from './routes/human_tasks';
 import { journeyRouter, measuresRouter } from './routes/journeys';
+import { evidenceRouter } from './routes/evidence';
 import {
     create_auth_middleware,
     create_rate_limiter,
@@ -67,6 +68,7 @@ export const createServer = (config: ServerConfig = {}) => {
     app.use('/api/v1/tasks', humanTaskRouter);
     app.use('/api/v1/journeys', journeyRouter);
     app.use('/api/v1/measures', measuresRouter);
+    app.use('/api/v1/evidence', evidenceRouter);
 
     // The views that come with the SDK: /views/dashboard.html?live=<this server> and /views/journey.html?live=<this server>
     try {

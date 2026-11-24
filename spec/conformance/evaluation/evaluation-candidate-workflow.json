@@ -1,0 +1,296 @@
+{
+  "id": "evaluation-candidate-workflow",
+  "level": "evaluation",
+  "spec": "33.3",
+  "kind": "run",
+  "description": "A candidate workflow with a stricter contract and a new verification policy: the same scripted agent is held to the candidate's terms. An escalation is not taken in an evaluation, so an outcome the contract rejects is rejected. The agent's output may differ from case to case.",
+  "workflow": {
+    "id": "43e7b0da-a324-5977-a54f-b7ea9e6e538c",
+    "name": "evaluation-candidate-workflow",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "4820e3e9-25be-5317-8b9c-5da5af543feb",
+        "name": "Assess",
+        "role_id": "6204cc14-c350-5f46-8663-c2916fd87f47",
+        "actor_type": "ai_agent",
+        "outcome_contract": {
+          "postconditions": [
+            {
+              "name": "Good score",
+              "expression": "score >= 5"
+            }
+          ],
+          "budgets": {
+            "max_attempts": 2
+          },
+          "on_violation": "escalate_human"
+        },
+        "tools": [
+          {
+            "name": "price",
+            "description": "Price a part",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "part": {
+                  "type": "string"
+                }
+              }
+            },
+            "binding": {
+              "kind": "function",
+              "name": "price"
+            }
+          }
+        ]
+      },
+      {
+        "id": "71d072df-1036-5866-aaf7-16d34b6b47cc",
+        "name": "Pay",
+        "role_id": "6204cc14-c350-5f46-8663-c2916fd87f47",
+        "actor_type": "application"
+      },
+      {
+        "id": "ef7069f2-9ae7-5691-a110-5adadca81fc7",
+        "name": "Notify",
+        "role_id": "6204cc14-c350-5f46-8663-c2916fd87f47",
+        "actor_type": "ai_agent",
+        "outcome_contract": {
+          "postconditions": [
+            {
+              "name": "Has a message",
+              "expression": "message exists"
+            }
+          ]
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "281dde68-5dcc-58dd-b36a-0897dd5bbd7e",
+        "source_id": "4820e3e9-25be-5317-8b9c-5da5af543feb",
+        "target_id": "71d072df-1036-5866-aaf7-16d34b6b47cc"
+      },
+      {
+        "id": "e9b672d2-0754-55dd-ae1f-24f9d49bf8f2",
+        "source_id": "71d072df-1036-5866-aaf7-16d34b6b47cc",
+        "target_id": "ef7069f2-9ae7-5691-a110-5adadca81fc7"
+      }
+    ]
+  },
+  "dataset": [
+    {
+      "id": "r1:4820e3e9-25be-5317-8b9c-5da5af543feb:1",
+      "workflow_id": "43e7b0da-a324-5977-a54f-b7ea9e6e538c",
+      "workflow_version": "1.0.0",
+      "run_id": "r1",
+      "activity_id": "4820e3e9-25be-5317-8b9c-5da5af543feb",
+      "activity_name": "Assess",
+      "input": {
+        "claim": 1
+      },
+      "label": "accepted",
+      "attempts": 1,
+      "rejections": [],
+      "tool_calls": [],
+      "sources": [
+        2,
+        3
+      ],
+      "accepted_by": "contract",
+      "outcome": {
+        "score": 9
+      }
+    },
+    {
+      "id": "r2:4820e3e9-25be-5317-8b9c-5da5af543feb:1",
+      "workflow_id": "43e7b0da-a324-5977-a54f-b7ea9e6e538c",
+      "workflow_version": "1.0.0",
+      "run_id": "r2",
+      "activity_id": "4820e3e9-25be-5317-8b9c-5da5af543feb",
+      "activity_name": "Assess",
+      "input": {
+        "claim": 2
+      },
+      "label": "accepted",
+      "attempts": 1,
+      "rejections": [],
+      "tool_calls": [],
+      "sources": [
+        2,
+        3
+      ],
+      "accepted_by": "contract",
+      "outcome": {
+        "score": 6
+      }
+    },
+    {
+      "id": "r1:ef7069f2-9ae7-5691-a110-5adadca81fc7:1",
+      "workflow_id": "43e7b0da-a324-5977-a54f-b7ea9e6e538c",
+      "workflow_version": "1.0.0",
+      "run_id": "r1",
+      "activity_id": "ef7069f2-9ae7-5691-a110-5adadca81fc7",
+      "activity_name": "Notify",
+      "input": {
+        "score": 9
+      },
+      "label": "accepted",
+      "attempts": 1,
+      "rejections": [],
+      "tool_calls": [],
+      "sources": [
+        2,
+        3
+      ],
+      "accepted_by": "contract",
+      "outcome": {
+        "message": "Paid"
+      }
+    }
+  ],
+  "candidate_actors": {
+    "Assess": {
+      "output": {
+        "score": 9
+      },
+      "cases": {
+        "r2:4820e3e9-25be-5317-8b9c-5da5af543feb:1": {
+          "output": {
+            "score": 6
+          }
+        }
+      }
+    },
+    "Notify": {
+      "output": {
+        "message": "Paid"
+      }
+    }
+  },
+  "expect": {
+    "evaluated": 3,
+    "skipped": 0,
+    "regressions": 1,
+    "improvements": 0,
+    "activities": {
+      "Assess": {
+        "cases": 2,
+        "pass_rate": 0.5,
+        "contract_pass_rate": 0.5,
+        "regressions": [
+          "r2:4820e3e9-25be-5317-8b9c-5da5af543feb:1"
+        ]
+      },
+      "Notify": {
+        "cases": 1,
+        "pass_rate": 1,
+        "contract_pass_rate": 1,
+        "verification_pass_rate": 1
+      }
+    },
+    "results": {
+      "r2:4820e3e9-25be-5317-8b9c-5da5af543feb:1": {
+        "candidate": "rejected",
+        "change": "regressed",
+        "attempts": 2,
+        "contract_passed": false
+      },
+      "r1:ef7069f2-9ae7-5691-a110-5adadca81fc7:1": {
+        "verification_passed": true,
+        "same_outcome": true
+      }
+    }
+  },
+  "candidate": {
+    "id": "43e7b0da-a324-5977-a54f-b7ea9e6e538c",
+    "name": "evaluation-candidate-workflow",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "4820e3e9-25be-5317-8b9c-5da5af543feb",
+        "name": "Assess",
+        "role_id": "6204cc14-c350-5f46-8663-c2916fd87f47",
+        "actor_type": "ai_agent",
+        "outcome_contract": {
+          "postconditions": [
+            {
+              "name": "Good score",
+              "expression": "score >= 8"
+            }
+          ],
+          "budgets": {
+            "max_attempts": 2
+          },
+          "on_violation": "escalate_human"
+        },
+        "tools": [
+          {
+            "name": "price",
+            "description": "Price a part",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "part": {
+                  "type": "string"
+                }
+              }
+            },
+            "binding": {
+              "kind": "function",
+              "name": "price"
+            }
+          }
+        ]
+      },
+      {
+        "id": "71d072df-1036-5866-aaf7-16d34b6b47cc",
+        "name": "Pay",
+        "role_id": "6204cc14-c350-5f46-8663-c2916fd87f47",
+        "actor_type": "application"
+      },
+      {
+        "id": "ef7069f2-9ae7-5691-a110-5adadca81fc7",
+        "name": "Notify",
+        "role_id": "6204cc14-c350-5f46-8663-c2916fd87f47",
+        "actor_type": "ai_agent",
+        "outcome_contract": {
+          "postconditions": [
+            {
+              "name": "Has a message",
+              "expression": "message exists"
+            }
+          ]
+        },
+        "verification": {
+          "mode": "schema_only",
+          "max_retries": 0,
+          "criteria": [
+            {
+              "id": "f0100ba9-4b68-53c2-8b1a-f7430f021b4f",
+              "name": "polite",
+              "description": "polite",
+              "type": "format",
+              "expression": "message exists"
+            }
+          ]
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "281dde68-5dcc-58dd-b36a-0897dd5bbd7e",
+        "source_id": "4820e3e9-25be-5317-8b9c-5da5af543feb",
+        "target_id": "71d072df-1036-5866-aaf7-16d34b6b47cc"
+      },
+      {
+        "id": "e9b672d2-0754-55dd-ae1f-24f9d49bf8f2",
+        "source_id": "71d072df-1036-5866-aaf7-16d34b6b47cc",
+        "target_id": "ef7069f2-9ae7-5691-a110-5adadca81fc7"
+      }
+    ]
+  }
+}

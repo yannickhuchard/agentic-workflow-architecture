@@ -1,0 +1,269 @@
+{
+  "id": "evaluation-scores-a-candidate",
+  "level": "evaluation",
+  "spec": "33.3",
+  "kind": "run",
+  "description": "A candidate whose agent assesses better and notifies worse: each case is performed again and checked by the contract. The rejected assessment is now accepted, an improvement; both notifications are now rejected, two regressions. Rates are over the cases of each activity.",
+  "workflow": {
+    "id": "f6af667d-6e85-52d9-935d-004263e32d00",
+    "name": "evaluation-scores-a-candidate",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "6f541019-dc40-517d-b6f4-e4a411da8d77",
+        "name": "Assess",
+        "role_id": "3962bcc6-c180-5c82-b0b5-6c07d1a479a4",
+        "actor_type": "ai_agent",
+        "outcome_contract": {
+          "postconditions": [
+            {
+              "name": "Good score",
+              "expression": "score >= 5"
+            }
+          ],
+          "budgets": {
+            "max_attempts": 2
+          },
+          "on_violation": "escalate_human"
+        },
+        "tools": [
+          {
+            "name": "price",
+            "description": "Price a part",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "part": {
+                  "type": "string"
+                }
+              }
+            },
+            "binding": {
+              "kind": "function",
+              "name": "price"
+            }
+          }
+        ]
+      },
+      {
+        "id": "7a3d1e97-b986-5b79-9021-866826aae368",
+        "name": "Pay",
+        "role_id": "3962bcc6-c180-5c82-b0b5-6c07d1a479a4",
+        "actor_type": "application"
+      },
+      {
+        "id": "9af47a3f-67cb-5b7d-8949-5c530ec92f23",
+        "name": "Notify",
+        "role_id": "3962bcc6-c180-5c82-b0b5-6c07d1a479a4",
+        "actor_type": "ai_agent",
+        "outcome_contract": {
+          "postconditions": [
+            {
+              "name": "Has a message",
+              "expression": "message exists"
+            }
+          ]
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "24b89c5f-f3de-5403-b37d-3b956b6ddfc0",
+        "source_id": "6f541019-dc40-517d-b6f4-e4a411da8d77",
+        "target_id": "7a3d1e97-b986-5b79-9021-866826aae368"
+      },
+      {
+        "id": "4392364d-775f-5753-819a-cd00f6ca4969",
+        "source_id": "7a3d1e97-b986-5b79-9021-866826aae368",
+        "target_id": "9af47a3f-67cb-5b7d-8949-5c530ec92f23"
+      }
+    ]
+  },
+  "dataset": [
+    {
+      "id": "r1:6f541019-dc40-517d-b6f4-e4a411da8d77:1",
+      "workflow_id": "f6af667d-6e85-52d9-935d-004263e32d00",
+      "workflow_version": "1.0.0",
+      "run_id": "r1",
+      "activity_id": "6f541019-dc40-517d-b6f4-e4a411da8d77",
+      "activity_name": "Assess",
+      "input": {
+        "claim": 1
+      },
+      "label": "accepted",
+      "attempts": 1,
+      "rejections": [],
+      "tool_calls": [],
+      "sources": [
+        2,
+        3
+      ],
+      "accepted_by": "contract",
+      "outcome": {
+        "score": 7
+      }
+    },
+    {
+      "id": "r2:6f541019-dc40-517d-b6f4-e4a411da8d77:1",
+      "workflow_id": "f6af667d-6e85-52d9-935d-004263e32d00",
+      "workflow_version": "1.0.0",
+      "run_id": "r2",
+      "activity_id": "6f541019-dc40-517d-b6f4-e4a411da8d77",
+      "activity_name": "Assess",
+      "input": {
+        "claim": 2
+      },
+      "label": "accepted",
+      "attempts": 1,
+      "rejections": [],
+      "tool_calls": [],
+      "sources": [
+        2,
+        3
+      ],
+      "accepted_by": "contract",
+      "outcome": {
+        "score": 6
+      }
+    },
+    {
+      "id": "r3:6f541019-dc40-517d-b6f4-e4a411da8d77:1",
+      "workflow_id": "f6af667d-6e85-52d9-935d-004263e32d00",
+      "workflow_version": "1.0.0",
+      "run_id": "r3",
+      "activity_id": "6f541019-dc40-517d-b6f4-e4a411da8d77",
+      "activity_name": "Assess",
+      "input": {
+        "claim": 3
+      },
+      "label": "rejected",
+      "attempts": 1,
+      "rejections": [
+        {
+          "attempt": 1,
+          "code": "CONTRACT_VIOLATION",
+          "terms": [
+            "Good score"
+          ]
+        }
+      ],
+      "tool_calls": [],
+      "sources": [
+        2,
+        3
+      ],
+      "rejected_by": "contract"
+    },
+    {
+      "id": "r1:9af47a3f-67cb-5b7d-8949-5c530ec92f23:1",
+      "workflow_id": "f6af667d-6e85-52d9-935d-004263e32d00",
+      "workflow_version": "1.0.0",
+      "run_id": "r1",
+      "activity_id": "9af47a3f-67cb-5b7d-8949-5c530ec92f23",
+      "activity_name": "Notify",
+      "input": {
+        "score": 7
+      },
+      "label": "accepted",
+      "attempts": 1,
+      "rejections": [],
+      "tool_calls": [],
+      "sources": [
+        2,
+        3
+      ],
+      "accepted_by": "contract",
+      "outcome": {
+        "message": "Paid"
+      }
+    },
+    {
+      "id": "r2:9af47a3f-67cb-5b7d-8949-5c530ec92f23:1",
+      "workflow_id": "f6af667d-6e85-52d9-935d-004263e32d00",
+      "workflow_version": "1.0.0",
+      "run_id": "r2",
+      "activity_id": "9af47a3f-67cb-5b7d-8949-5c530ec92f23",
+      "activity_name": "Notify",
+      "input": {
+        "score": 6
+      },
+      "label": "accepted",
+      "attempts": 1,
+      "rejections": [],
+      "tool_calls": [],
+      "sources": [
+        2,
+        3
+      ],
+      "accepted_by": "contract",
+      "outcome": {
+        "message": "Paid"
+      }
+    }
+  ],
+  "candidate_actors": {
+    "Assess": {
+      "output": {
+        "score": 7
+      }
+    },
+    "Notify": {
+      "output": {
+        "text": "Paid"
+      }
+    }
+  },
+  "expect": {
+    "evaluated": 5,
+    "skipped": 0,
+    "regressions": 2,
+    "improvements": 1,
+    "activities": {
+      "Assess": {
+        "cases": 3,
+        "recorded_rate": 0.6666666666666666,
+        "pass_rate": 1,
+        "contract_pass_rate": 1,
+        "verification_pass_rate": null,
+        "regressions": [],
+        "improvements": [
+          "r3:6f541019-dc40-517d-b6f4-e4a411da8d77:1"
+        ]
+      },
+      "Notify": {
+        "cases": 2,
+        "recorded_rate": 1,
+        "pass_rate": 0,
+        "contract_pass_rate": 0,
+        "regressions": [
+          "r1:9af47a3f-67cb-5b7d-8949-5c530ec92f23:1",
+          "r2:9af47a3f-67cb-5b7d-8949-5c530ec92f23:1"
+        ],
+        "improvements": []
+      }
+    },
+    "results": {
+      "r1:6f541019-dc40-517d-b6f4-e4a411da8d77:1": {
+        "candidate": "accepted",
+        "change": "same",
+        "same_outcome": true
+      },
+      "r2:6f541019-dc40-517d-b6f4-e4a411da8d77:1": {
+        "candidate": "accepted",
+        "change": "same",
+        "same_outcome": false
+      },
+      "r3:6f541019-dc40-517d-b6f4-e4a411da8d77:1": {
+        "candidate": "accepted",
+        "change": "improved",
+        "same_outcome": null
+      },
+      "r1:9af47a3f-67cb-5b7d-8949-5c530ec92f23:1": {
+        "candidate": "rejected",
+        "change": "regressed",
+        "contract_passed": false
+      }
+    }
+  }
+}

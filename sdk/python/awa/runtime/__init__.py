@@ -29,6 +29,9 @@ from .kpi import MEASURES, compute_measures, measures_to_openmetrics
 from .context_manager import ContextError
 from .knowledge import KnowledgeBase, distill, guidance
 from .counterfactual import ReplayResult, compare_runs, counterfactual_replay, render_counterfactual_report
+from .evidence import compute_evidence, render_evidence_html, render_evidence_markdown, unresolved_citations
+from .evaluation import build_dataset, evaluate_dataset, render_evaluation_report
+from .shadow import ShadowRunner
 
 __all__ = [
     "Token",
@@ -93,4 +96,12 @@ __all__ = [
     "compare_runs",
     "counterfactual_replay",
     "render_counterfactual_report",
+    "compute_evidence",
+    "render_evidence_markdown",
+    "render_evidence_html",
+    "unresolved_citations",
+    "build_dataset",
+    "evaluate_dataset",
+    "render_evaluation_report",
+    "ShadowRunner",
 ]

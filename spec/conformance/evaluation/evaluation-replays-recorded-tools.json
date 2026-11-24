@@ -1,0 +1,200 @@
+{
+  "id": "evaluation-replays-recorded-tools",
+  "level": "evaluation",
+  "spec": "33.2",
+  "kind": "run",
+  "description": "Tools answer as they did when the case was recorded. A call with the recorded arguments is given the recorded result; a call with other arguments has no recording, is not performed, and is listed as unrecorded. Neither fails the activity by itself.",
+  "workflow": {
+    "id": "4173148d-34f3-5896-b3c6-41a8531450af",
+    "name": "evaluation-replays-recorded-tools",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "06c86a54-11f0-5a22-8c0a-2f533361b513",
+        "name": "Assess",
+        "role_id": "ae2fc9da-4e7a-581a-a5f9-9d401a55d5f3",
+        "actor_type": "ai_agent",
+        "outcome_contract": {
+          "postconditions": [
+            {
+              "name": "Good score",
+              "expression": "score >= 5"
+            }
+          ],
+          "budgets": {
+            "max_attempts": 2
+          },
+          "on_violation": "escalate_human"
+        },
+        "tools": [
+          {
+            "name": "price",
+            "description": "Price a part",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "part": {
+                  "type": "string"
+                }
+              }
+            },
+            "binding": {
+              "kind": "function",
+              "name": "price"
+            }
+          }
+        ]
+      },
+      {
+        "id": "0f3113c5-3551-5736-9118-218eed1db1d2",
+        "name": "Pay",
+        "role_id": "ae2fc9da-4e7a-581a-a5f9-9d401a55d5f3",
+        "actor_type": "application"
+      },
+      {
+        "id": "12def934-4bb5-54c5-8d78-d66ccf81905a",
+        "name": "Notify",
+        "role_id": "ae2fc9da-4e7a-581a-a5f9-9d401a55d5f3",
+        "actor_type": "ai_agent",
+        "outcome_contract": {
+          "postconditions": [
+            {
+              "name": "Has a message",
+              "expression": "message exists"
+            }
+          ]
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "4217caf9-4f57-5db8-9216-f8a49b5cd2f8",
+        "source_id": "06c86a54-11f0-5a22-8c0a-2f533361b513",
+        "target_id": "0f3113c5-3551-5736-9118-218eed1db1d2"
+      },
+      {
+        "id": "7e97f493-7e23-50df-a944-30e615319f8f",
+        "source_id": "0f3113c5-3551-5736-9118-218eed1db1d2",
+        "target_id": "12def934-4bb5-54c5-8d78-d66ccf81905a"
+      }
+    ]
+  },
+  "dataset": [
+    {
+      "id": "r1:06c86a54-11f0-5a22-8c0a-2f533361b513:1",
+      "workflow_id": "4173148d-34f3-5896-b3c6-41a8531450af",
+      "workflow_version": "1.0.0",
+      "run_id": "r1",
+      "activity_id": "06c86a54-11f0-5a22-8c0a-2f533361b513",
+      "activity_name": "Assess",
+      "input": {
+        "claim": 1
+      },
+      "label": "accepted",
+      "attempts": 1,
+      "rejections": [],
+      "tool_calls": [
+        {
+          "tool": "price",
+          "arguments": {
+            "part": "bumper"
+          },
+          "ok": true,
+          "status": 200,
+          "result": {
+            "price": 100
+          }
+        }
+      ],
+      "sources": [
+        2,
+        3
+      ],
+      "accepted_by": "contract",
+      "outcome": {
+        "score": 7
+      }
+    },
+    {
+      "id": "r2:06c86a54-11f0-5a22-8c0a-2f533361b513:1",
+      "workflow_id": "4173148d-34f3-5896-b3c6-41a8531450af",
+      "workflow_version": "1.0.0",
+      "run_id": "r2",
+      "activity_id": "06c86a54-11f0-5a22-8c0a-2f533361b513",
+      "activity_name": "Assess",
+      "input": {
+        "claim": 2
+      },
+      "label": "accepted",
+      "attempts": 1,
+      "rejections": [],
+      "tool_calls": [
+        {
+          "tool": "price",
+          "arguments": {
+            "part": "bumper"
+          },
+          "ok": true,
+          "status": 200,
+          "result": {
+            "price": 100
+          }
+        }
+      ],
+      "sources": [
+        2,
+        3
+      ],
+      "accepted_by": "contract",
+      "outcome": {
+        "score": 7
+      }
+    }
+  ],
+  "candidate_actors": {
+    "Assess": {
+      "calls": [
+        {
+          "tool": "price",
+          "arguments": {
+            "part": "bumper"
+          }
+        }
+      ],
+      "output": {
+        "score": 7
+      },
+      "cases": {
+        "r2:06c86a54-11f0-5a22-8c0a-2f533361b513:1": {
+          "calls": [
+            {
+              "tool": "price",
+              "arguments": {
+                "part": "door"
+              }
+            }
+          ],
+          "output": {
+            "score": 7
+          }
+        }
+      }
+    }
+  },
+  "expect": {
+    "evaluated": 2,
+    "regressions": 0,
+    "results": {
+      "r1:06c86a54-11f0-5a22-8c0a-2f533361b513:1": {
+        "candidate": "accepted",
+        "unrecorded": 0,
+        "same_outcome": true
+      },
+      "r2:06c86a54-11f0-5a22-8c0a-2f533361b513:1": {
+        "candidate": "accepted",
+        "unrecorded": 1
+      }
+    }
+  }
+}

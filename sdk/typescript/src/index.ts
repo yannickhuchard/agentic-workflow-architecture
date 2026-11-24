@@ -9,6 +9,11 @@ export * from './types';
 // Runtime
 export * from './runtime';
 
+// Evidence, evaluation from journals, and shadow runs (specification sections 32 and 33)
+export * from './runtime/evidence';
+export * from './runtime/evaluation';
+export * from './runtime/shadow';
+
 // Builder
 export { WorkflowBuilder, workflow, type ActivityConfig, type ContextConfig } from './builder';
 

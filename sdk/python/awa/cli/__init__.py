@@ -47,12 +47,15 @@ def main(argv: list[str] | None = None) -> int:
     # Journeys kept in a runtime directory, the measures of what was recorded, and counterfactual replay
     from awa.cli import journey as journey_commands, measures as measures_command, replay as replay_command
     from awa.cli import knowledge as knowledge_commands, run as run_command, task as task_commands
+    from awa.cli import evaluate as evaluate_commands, evidence as evidence_command
     run_command.add_parser(subparsers)
     task_commands.add_parser(subparsers)
     knowledge_commands.add_parser(subparsers)
     journey_commands.add_parser(subparsers)
     measures_command.add_parser(subparsers)
     replay_command.add_parser(subparsers)
+    evidence_command.add_parser(subparsers)
+    evaluate_commands.add_parser(subparsers)
 
     args = parser.parse_args(argv)
 
