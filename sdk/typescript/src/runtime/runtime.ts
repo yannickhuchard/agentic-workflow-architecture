@@ -22,6 +22,7 @@ import { WorkflowEngine, WorkflowEngineOptions } from './workflow_engine';
 import { ShadowOptions, ShadowRunner } from './shadow';
 import { JourneyTelemetry, TelemetrySetting, resolve_telemetry } from './telemetry_export';
 import { HostView, SharedJournal, SharedOperation, SharedRuntimeStore, StoredRun } from './shared_store';
+import { Principal } from './authorization';
 import fs from 'fs/promises';
 import { rmSync } from 'fs';
 import path from 'path';
@@ -288,14 +289,19 @@ export class AwaRuntime {
         });
     }
 
-    /** Start a run. With a journey instance, the run belongs to that journey. */
-    async start(workflow_id: UUID, input: Record<string, unknown> = {}, journey?: { instance: JourneyInstance; caused_by_event?: string }): Promise<WorkflowEngine> {
+    /**
+     * Start a run. With a journey instance, the run belongs to that journey. `principal` is who starts it (spec 30.1);
+     * without one, the host does. Under a policy that refuses it, an AuthorizationError is thrown and no run exists.
+     */
+    async start(workflow_id: UUID, input: Record<string, unknown> = {}, journey?: { instance: JourneyInstance; caused_by_event?: string }, principal?: Principal): Promise<WorkflowEngine> {
         return this.op(async () => {
             const workflow = this.workflows.get(workflow_id);
             if (!workflow) throw new Error(`Workflow ${workflow_id} is not registered`);
             // The engine's options need its run id, which exists only once the engine does
             const made: { engine?: WorkflowEngine } = {};
-            const engine = new WorkflowEngine(workflow, this.engine_options(() => made.engine!.getRunId()));
+            const engine = new WorkflowEngine(workflow, { ...this.engine_options(() => made.engine!.getRunId()), ...(principal ? { principal } : {}) });
+            // A start the policy refuses leaves no run behind (spec 30.4)
+            await engine.authorizeStart(input);
             made.engine = engine;
             this.runs.set(engine.getRunId(), engine);
 
@@ -537,14 +543,14 @@ export class AwaRuntime {
         return { timed_out_runs, stalled_journeys };
     }
 
-    /** A person completed a task in one of the runs */
-    async resume(run_id: string, token_id: string, output: Record<string, unknown>): Promise<boolean> {
+    /** A person completed a task in one of the runs. `principal` is who (spec 30.4); a refusal throws an AuthorizationError and the task keeps waiting */
+    async resume(run_id: string, token_id: string, output: Record<string, unknown>, principal?: Principal): Promise<boolean> {
         if (!this.options.shared && !this.runs.get(run_id)) return false;
         return this.op(async () => {
             await this.operation?.hold_run(run_id);
             const engine = this.runs.get(run_id);
             if (!engine) return false;
-            const resumed = await engine.resumeToken(token_id, output);
+            const resumed = await engine.resumeToken(token_id, output, principal);
             await engine.run();
             await this.sync(engine);
             return resumed;

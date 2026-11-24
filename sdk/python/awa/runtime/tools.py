@@ -116,6 +116,10 @@ class ToolOptions:
     # Connections kept open between calls (ToolSessions). The engine gives each run its own and closes them when the
     # run ends or waits. A runner used on its own closes its connections after each call.
     sessions: Any = None
+    # Asked before a call runs, after the deployment's permissions (17.3, 30.4): whether the principal performing the
+    # activity may call this tool, given {"tool", "link"}; answers {"allowed", "message"}. A call it does not allow is
+    # refused with FORBIDDEN. The engine sets it when the deployment has an authorization policy.
+    authorize: Callable[[dict[str, Any]], dict[str, Any]] | None = None
 
     @classmethod
     def of(cls, value: "ToolOptions | dict[str, Any] | None") -> "ToolOptions":
@@ -525,6 +529,10 @@ class ToolRunner:
             return failure(error, False)
         except ValueError as error:
             return failure(ToolError(str(error), "VALIDATION_ERROR"), False)
+        if self._options.authorize is not None:
+            verdict = self._options.authorize({"tool": name, **({"link": link} if link else {})})
+            if not verdict.get("allowed"):
+                return failure(ToolError(verdict.get("message") or f'Calling "{name}" is not allowed', "FORBIDDEN"), False)
 
         # 4. Recorded before it runs
         self._record("tool.invoked", {

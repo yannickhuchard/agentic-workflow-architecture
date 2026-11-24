@@ -39,6 +39,7 @@ import { BusinessEvent, EventSink } from './business_event';
 import { resolve_path } from './expression';
 import { KnowledgeBase, guidance } from './knowledge';
 import { RunTelemetry, TelemetrySetting, open_run_telemetry } from './telemetry_export';
+import { AuthorizationOptions, Principal, RunAuthorization, principal_ref } from './authorization';
 
 export type EngineStatus = 'running' | 'paused' | 'completed' | 'failed' | 'idle' | 'waiting_human' | 'waiting_event' | 'cancelled';
 
@@ -128,6 +129,10 @@ export interface WorkflowEngineOptions {
     sleep?: (ms: number) => Promise<void>;
     /** Where the run's spans go as its journal is written (spec 26): an exporter, or `{ endpoint, headers, payloads }`. Telemetry never holds up the run. */
     telemetry?: TelemetrySetting;
+    /** Principals of agents, and the policy that decides who may do what (spec 30). Without a policy nothing is checked */
+    authorization?: AuthorizationOptions;
+    /** Who starts the run (spec 30.1). Default: the host's principal */
+    principal?: Principal;
 }
 
 export interface SimulatedOutput {
@@ -165,7 +170,7 @@ interface AwaitedEvent {
 }
 
 /** Error codes that are never retried, whatever the retry policy says */
-const NEVER_RETRIED = new Set(['VERIFICATION_FAILED', 'CONTRACT_VIOLATION', 'NO_ROUTE', 'SLA_BREACH', 'CONTEXT_MISSING', 'CONTEXT_ACCESS_DENIED', 'CONTEXT_INVALID', 'CONTEXT_NOT_FOUND', 'AGENT_UNSUPPORTED', 'PERMISSION_DENIED']);
+const NEVER_RETRIED = new Set(['VERIFICATION_FAILED', 'CONTRACT_VIOLATION', 'NO_ROUTE', 'SLA_BREACH', 'CONTEXT_MISSING', 'CONTEXT_ACCESS_DENIED', 'CONTEXT_INVALID', 'CONTEXT_NOT_FOUND', 'AGENT_UNSUPPORTED', 'PERMISSION_DENIED', 'FORBIDDEN']);
 /** Access modes that let an activity read a context, and those that let it write (22.2) */
 const CAN_READ = new Set(['read', 'read_write', 'subscribe']);
 const CAN_WRITE = new Set(['write', 'read_write', 'publish']);
@@ -208,13 +213,16 @@ export class WorkflowEngine {
     /** Activities whose outcome was accepted, in order of completion. Drives compensation. */
     /** Service level warnings and breaches already recorded, so that each is recorded once */
     private slaRecorded = new Set<string>();
-    private completedActivities: { activity_id: UUID; token_id: UUID; output: Record<string, unknown> }[] = [];
+    private completedActivities: { activity_id: UUID; token_id: UUID; output: Record<string, unknown>; principal_ids?: string[] }[] = [];
     /** Ids of the business events this run has consumed, so that a redelivery is ignored */
     private deliveredEvents = new Set<string>();
     /** Connections the run's tools keep open (MCP servers, gRPC channels), closed when the run ends or waits (17.7) */
     private toolSessions = new ToolSessions();
     /** The cards of the A2A agents this run has read (28.2) */
     private a2aState: A2ARunState = { cards: new Map() };
+    /** Who may do what in this run, and the principal performing each token's activity (spec 30) */
+    private authorization?: RunAuthorization;
+    private performers = new Map<UUID, Principal>();
     private options: WorkflowEngineOptions;
     private roleMap: Map<UUID, Role>;
     private decisionEvaluator: DecisionEvaluator;
@@ -299,6 +307,11 @@ export class WorkflowEngine {
 
         this.initializeMaps();
         this.initializeContexts();
+        if (options.authorization) {
+            this.authorization = new RunAuthorization(options.authorization, {
+                workflow: workflowDef, roles: this.roleMap, record: event => this.record(event), performed: () => this.completedActivities,
+            });
+        }
     }
 
     private initializeMaps(): void {
@@ -359,13 +372,16 @@ export class WorkflowEngine {
         }
 
         const startNodeId = this.findStartNode();
+        // Who starts the run, refused before anything is recorded when the policy says no (spec 30.4)
+        const starter = this.authorization ? await this.authorization.start(initialData, this.options.principal) : undefined;
 
         // Add workflow metadata to initial data
         const tokenData = {
             ...initialData,
             _workflow_id: this.workflow.id,
             _workflow_name: this.workflow.name,
-            _started_at: new Date(this.now()).toISOString()
+            _started_at: new Date(this.now()).toISOString(),
+            ...(starter ? { _started_by: principal_ref(starter) } : {}),
         };
 
         const token = new Token(startNodeId, tokenData, undefined, this.workflow.id);
@@ -379,6 +395,7 @@ export class WorkflowEngine {
                 workflow_version: this.workflow.version,
                 input: this.journal.payload(initialData),
                 simulate: this.simulate,
+                ...(starter ? { principal: principal_ref(starter) } : {}),
             },
         });
         this.record({ type: 'token.created', token_id: token.id, ...this.nodeRef(startNodeId), data: {} });
@@ -706,6 +723,13 @@ export class WorkflowEngine {
                 return;
             }
 
+            // The agent, robot or application that performs the activity must be allowed to, in its role (spec 30.4)
+            if (this.authorization && token.getData('_agent_continuation') === undefined) {
+                const agent = a2a_binding(activity, this.roleMap.get(activity.role_id));
+                const performer = await this.authorization.before_activity(activity, agent, token.contextData, { token_id: token.id, ...this.nodeRef(activity.id) });
+                if (performer) this.performers.set(token.id, performer); else this.performers.delete(token.id);
+            }
+
             const visit = token.history.filter(h => h.nodeId === activity.id && h.action === 'entered').length;
             const inputs = {
                 ...token.contextData,
@@ -792,6 +816,7 @@ export class WorkflowEngine {
             this.trackCost(activity, output, durationMs);
             this.executionStats.stepsCount++;
 
+            const performer = this.performers.get(token.id);
             this.record({
                 type: 'activity.completed', token_id: token.id, ...this.nodeRef(activity.id), attempt: attempts,
                 data: {
@@ -800,10 +825,11 @@ export class WorkflowEngine {
                     duration_ms: durationMs,
                     attempts,
                     ...(output.usage ? { usage: output.usage } : {}),
+                    ...(performer ? { principal: principal_ref(performer) } : {}),
                 },
             });
 
-            this.completedActivities.push({ activity_id: activity.id, token_id: token.id, output: public_payload(output) });
+            this.completedActivities.push({ activity_id: activity.id, token_id: token.id, output: public_payload(output), ...(performer ? { principal_ids: [performer.id] } : {}) });
 
             await this.advanceToken(token, currentNodeId, analytics);
         } catch (error: unknown) {
@@ -1290,6 +1316,7 @@ export class WorkflowEngine {
                 data: {
                     actor_type: activity.actor_type,
                     role_id: activity.role_id,
+                    ...(this.performers.get(token.id) ? { principal: principal_ref(this.performers.get(token.id)!) } : {}),
                     input: this.journal.payload(public_payload(currentInputs)),
                     ...(currentInputs._verification_feedback ? { feedback: currentInputs._verification_feedback } : {}),
                 },
@@ -1303,9 +1330,14 @@ export class WorkflowEngine {
                     payload: value => this.journal.payload(value),
                 };
                 if ((activity.tools || []).length > 0) {
+                    const performer = this.performers.get(token.id);
                     context.tools = new ToolRunner(
-                        activity.tools,
-                        { ...(this.options.tools || {}), sessions: this.toolSessions },
+                        this.authorization ? this.authorization.tools_for(activity.tools, performer) : activity.tools,
+                        {
+                            ...(this.options.tools || {}), sessions: this.toolSessions,
+                            // Whether the principal performing the activity may call each tool (spec 30.4)
+                            ...(this.authorization?.enforced ? { authorize: this.authorization.tool_check(activity, performer, token.contextData, { ...ref, attempt }) } : {}),
+                        },
                         event => this.record({ ...event, ...ref, attempt }),
                         value => this.journal.payload(value),
                         { max_calls: budgets?.max_tool_calls ?? 16, simulate: this.simulate },
@@ -1945,7 +1977,9 @@ export class WorkflowEngine {
      */
     private createActor(activity: Activity): Actor | undefined {
         // An activity whose role, or which itself, names an agent over A2A is performed by that agent (28.1)
-        const agent = a2a_binding(activity, this.roleMap.get(activity.role_id));
+        const bound = a2a_binding(activity, this.roleMap.get(activity.role_id));
+        // The identity the deployment gives the agent brings its credentials (spec 30.1)
+        const agent = bound && this.authorization ? this.authorization.agent_for(activity, bound) : bound;
         if (agent) {
             return new A2AActor(agent, this.options.a2a || {}, this.a2aState, {
                 simulate: this.simulate, scripted: this.scriptedActor(activity),
@@ -2052,12 +2086,31 @@ export class WorkflowEngine {
         return true;
     }
 
-    public async resumeToken(tokenId: UUID, output: Record<string, unknown>): Promise<boolean> {
+    /**
+     * Resume a token that waits for a person, with the person's answer. `principal` is who answers (spec 30.4):
+     * under a policy the answer is refused with an AuthorizationError (code FORBIDDEN) when they may not complete
+     * the task, and the token keeps waiting; under a four-eyes rule it keeps waiting until enough have approved.
+     */
+    public async resumeToken(tokenId: UUID, output: Record<string, unknown>, principal?: Principal): Promise<boolean> {
         const token = this.tokens.find(t => t.id === tokenId);
         // A token waiting for an agent's input is answered with answerAgent, not resumed with an outcome (28.6)
         if (!token || token.status !== 'waiting' || token.getData('_awaiting_agent_input')) {
             return false;
         }
+        const answered = this.activityMap.get(token.activityId);
+        const gate = this.authorization && answered
+            ? await this.authorization.before_completion(answered, token.contextData, output, principal, { token_id: token.id, ...this.nodeRef(token.activityId) })
+            : undefined;
+        if (gate?.pending) {
+            token.setData('_approvals', gate.kept);
+            await this.saveCheckpoint();
+            return true;
+        }
+        if (gate) {
+            output = gate.output;
+            delete token.contextData._approvals;
+        }
+        const answeredBy = gate ? { principal: principal_ref(gate.principal), ...(gate.approvals ? { approvals: gate.approvals } : {}) } : {};
 
         const waitingSince = token.getData('_waiting_since');
         let analytics: Analytics | undefined;
@@ -2072,7 +2125,7 @@ export class WorkflowEngine {
         const resumed = this.activityMap.get(token.activityId);
         const ref = { token_id: token.id, ...this.nodeRef(token.activityId) };
         token.updateStatus('active', analytics);
-        this.record({ type: 'token.resumed', ...ref, data: { waited_ms: waitedMs } });
+        this.record({ type: 'token.resumed', ...ref, data: { waited_ms: waitedMs, ...(gate ? { principal: principal_ref(gate.principal) } : {}) } });
         output = { ...output };
         const context_writes = output._context_writes;
         delete output._context_writes;
@@ -2115,6 +2168,7 @@ export class WorkflowEngine {
                 actor_type: this.activityMap.get(token.activityId)?.actor_type || 'human',
                 output: this.journal.payload(public_payload(output)),
                 waited_ms: waitedMs,
+                ...answeredBy,
             },
         });
 
@@ -2123,11 +2177,19 @@ export class WorkflowEngine {
         }
 
         // The activity is now complete: if the run fails later, its effects are undone like any other's
-        this.completedActivities.push({ activity_id: token.activityId, token_id: token.id, output: public_payload(output) });
+        this.completedActivities.push({
+            activity_id: token.activityId, token_id: token.id, output: public_payload(output),
+            ...(gate ? { principal_ids: gate.approvals ? gate.approvals.map(a => a.id) : [gate.principal.id] } : {}),
+        });
 
         await this.advanceToken(token, token.activityId);
         await this.saveCheckpoint();
         return (token.status as string) !== 'failed';
+    }
+
+    /** Whether the run may be started with this input, by the principal it was given (spec 30.4). Throws an AuthorizationError if not */
+    public async authorizeStart(input: Record<string, unknown> = {}): Promise<void> {
+        await this.authorization?.start(input, this.options.principal);
     }
 
     public getStatus(): EngineStatus {

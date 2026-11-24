@@ -34,6 +34,9 @@ from .counterfactual import ReplayResult, compare_runs, counterfactual_replay, r
 from .evidence import compute_evidence, render_evidence_html, render_evidence_markdown, unresolved_citations
 from .evaluation import build_dataset, evaluate_dataset, render_evaluation_report
 from .shadow import ShadowRunner
+from .authorization import (
+    AuthorizationError, PolicyDecider, RunAuthorization, load_authorization, validate_policy, principal_from_claims, principal_named,
+)
 from .telemetry import (
     RunTraceMapper, JourneyTraceMapper, TelemetrySpan, run_spans, journey_spans, run_trace_id, run_span_id,
     journey_trace_id, journey_span_id, spans_to_otlp_json, spans_to_otlp_protobuf, measures_to_gauges,
@@ -141,4 +144,6 @@ __all__ = [
     "evaluate_dataset",
     "render_evaluation_report",
     "ShadowRunner",
+    # Identity and authorization (specification 30)
+    "AuthorizationError", "PolicyDecider", "RunAuthorization", "load_authorization", "validate_policy", "principal_from_claims", "principal_named",
 ]

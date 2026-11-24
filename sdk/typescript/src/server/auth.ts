@@ -13,6 +13,12 @@ export interface AuthUser {
     id: string;
     role: 'admin' | 'operator' | 'viewer';
     permissions: string[];
+    /** The claims of the JWT that authenticated the request, from which its principal is taken (specification 30.1) */
+    claims?: Record<string, unknown>;
+    /** For an API key: the kind of principal it stands for. Default application */
+    kind?: 'person' | 'ai_agent' | 'robot' | 'application' | 'service';
+    /** For an API key: attributes of its principal, besides its role and permissions */
+    attributes?: Record<string, unknown>;
 }
 
 export interface AuthConfig {
@@ -151,7 +157,8 @@ export function create_auth_middleware(config: AuthConfig) {
                 req.user = {
                     id: payload.sub,
                     role: payload.role as AuthUser['role'],
-                    permissions: payload.permissions
+                    permissions: payload.permissions,
+                    claims: payload as unknown as Record<string, unknown>,
                 };
                 logger.debug('JWT authentication successful', { user_id: payload.sub });
                 return next();

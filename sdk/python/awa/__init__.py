@@ -77,6 +77,9 @@ from awa.runtime.counterfactual import counterfactual_replay, render_counterfact
 from awa.runtime.evidence import compute_evidence, render_evidence_html, render_evidence_markdown
 from awa.runtime.evaluation import build_dataset, evaluate_dataset, render_evaluation_report
 from awa.runtime.shadow import ShadowRunner
+from awa.runtime.authorization import (
+    AuthorizationError, PolicyDecider, load_authorization, validate_policy, principal_from_claims, principal_named,
+)
 
 __version__ = "2.0.0"
 __all__ = [
@@ -169,6 +172,8 @@ __all__ = [
     "evaluate_dataset",
     "render_evaluation_report",
     "ShadowRunner",
+    # Identity and authorization (specification 30)
+    "AuthorizationError", "PolicyDecider", "load_authorization", "validate_policy", "principal_from_claims", "principal_named",
     "run_spans",
     "journey_spans",
     "spans_to_otlp_json",

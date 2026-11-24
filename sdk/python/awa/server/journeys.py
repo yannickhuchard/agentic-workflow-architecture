@@ -14,7 +14,7 @@ import os
 import threading
 from typing import Any
 
-from fastapi import APIRouter, Body, HTTPException, Query
+from fastapi import APIRouter, Body, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
 
 from awa.runtime.business_event import business_event
@@ -23,6 +23,8 @@ from awa.runtime.kpi import MEASURES, compute_measures, measures_to_openmetrics
 from awa.runtime.telemetry import gauges_to_otlp_json, measures_to_gauges
 from awa.runtime.telemetry_export import shared_telemetry_from_env
 from awa.runtime.runtime_host import AwaRuntime, add_definition, is_journey_document, open_runtime_directory, simulated_actors
+from awa.runtime.authorization import AuthorizationError
+from awa.server.authorization import authorize_request, forbidden, request_principal, server_authorization
 
 journey_router = APIRouter()
 measures_router = APIRouter()
@@ -53,6 +55,9 @@ def _host() -> AwaRuntime:
                 with open(os.environ["AWA_SIMULATED_OUTPUTS"], encoding="utf-8") as handle:
                     outputs = json.load(handle)
             engine = {"simulate": True, "actors": simulated_actors(outputs)}
+        # Who may do what in the runs the host starts (specification 30)
+        if server_authorization() is not None:
+            engine["authorization"] = server_authorization()
         directory, store = _directory(), os.environ.get("AWA_RUNTIME_STORE")
         telemetry = shared_telemetry_from_env()
         if store:
@@ -120,11 +125,14 @@ def list_journeys() -> list[dict[str, Any]]:
 
 
 @journey_router.post("/events", status_code=202)
-def take_in_event(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
+def take_in_event(request: Request, body: dict[str, Any] = Body(...)) -> Any:
     """Take in a business event (CloudEvents 1.0). The same id twice has no further effect."""
     if not body.get("type") or not isinstance(body["type"], str):
         raise HTTPException(status_code=400, detail="type is required")
     data = body.get("data") if isinstance(body.get("data"), dict) else {}
+    refused = authorize_request("publish_event", request_principal(request), {"event_type": body["type"]}, data)
+    if refused is not None:
+        return refused
     event = business_event(body["type"], data, id=body.get("id") or None, source=body.get("source") or "/api",
                            subject=body.get("subject") or None, time=body.get("time") or None)
     with _guard:
@@ -140,9 +148,14 @@ def tick(body: dict[str, Any] | None = Body(default=None)) -> dict[str, Any]:
 
 
 @journey_router.post("/runs/{run_id}/tokens/{token_id}/resume")
-def resume(run_id: str, token_id: str, body: dict[str, Any] | None = Body(default=None)) -> JSONResponse:
-    with _guard:
-        resumed = _host().resume(run_id, token_id, body or {})
+def resume(run_id: str, token_id: str, request: Request, body: dict[str, Any] | None = Body(default=None)) -> JSONResponse:
+    """A person completes a task: who they are is the request's principal, held to the policy where the run is hosted (30.4)"""
+    principal = request_principal(request)
+    try:
+        with _guard:
+            resumed = _host().resume(run_id, token_id, body or {}, principal if server_authorization() is not None else None)
+    except AuthorizationError as error:
+        return forbidden(error, principal)
     return JSONResponse({"resumed": resumed}, status_code=200 if resumed else 404)
 
 

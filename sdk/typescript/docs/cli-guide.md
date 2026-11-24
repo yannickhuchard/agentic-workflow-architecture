@@ -41,7 +41,8 @@ awa run workflow.awa.json --simulate --outputs simulation.json --journal run.jso
 | `-p, --providers <list>` | Model providers in order of preference: `google`, `openai`, `ollama`, `embedded`. Each capability tier falls back down the list |
 | `-k, --key <key>` | Gemini API key (or `GEMINI_API_KEY`) |
 | `--allow-commands [list]` | Let tools run commands on this machine: all, or a comma-separated list of program names. None by default |
-| `--deployment <file>` | What the workflow may reach: the commands, hosts, MCP servers and gRPC services of its tools, and the hosts of its agents (see below). `--allow-commands` takes precedence over the file's `allow_commands` |
+| `--deployment <file>` | What the workflow may reach: the commands, hosts, MCP servers and gRPC services of its tools, and the hosts of its agents; and who may do what in it, under `authorization` (see below). `--allow-commands` takes precedence over the file's `allow_commands` |
+| `--as <principal>` | Start the run as this principal, by its id in the deployment's `authorization.principals`. Without it the run is started by the host (`{"id": "host", "kind": "service"}`) |
 | `--db` | Also log the run's cost and duration to the task database |
 | `-v, --verbose` | Print each step |
 
@@ -74,6 +75,32 @@ A deployment file says what a workflow may reach (specification 17.4, 17.7, 17.8
 ```
 
 An `mcp` binding names a server declared under `mcp_servers`: a program, started only when `allow_commands` allows it, or a Streamable HTTP address, held to `allowed_hosts`. A `grpc` binding is described by `grpc.protos`, or by the server's reflection service, and uses TLS unless its host is in `plaintext_hosts`; gRPC needs `npm install @grpc/grpc-js @grpc/proto-loader`. An activity whose role or itself has an `a2a` binding is performed by that agent; agents are held to `a2a.allowed_hosts`, or to the tools' `allowed_hosts` when that is absent. Paths are taken from the file's directory. Secrets are not read from this file.
+
+Its `authorization` section says who acts and who may do what (specification 30): `principals`, the identities of the agents and applications that perform activities (each `acts_for` activities, roles, actor types or agent cards, with optional `credentials` headers whose `{{secret:NAME}}` take the deployment's secrets) and a directory of people by id; and `policy`, rules of the form subject, actions, resource and condition that allow or deny, with `separation_of_duties` and `four_eyes`. Under a policy, what no rule allows is denied, and a denial wins over an allow. A refused action fails with `FORBIDDEN` and is journalled as `authorization.decided`:
+
+```json
+{
+  "authorization": {
+    "principals": [
+      { "id": "agent:assessor", "kind": "ai_agent", "attributes": { "roles": ["underwriter"] }, "acts_for": { "roles": ["Underwriter"] } },
+      { "id": "alice", "kind": "person", "attributes": { "roles": ["requester"] } }
+    ],
+    "policy": {
+      "rules": [
+        { "id": "requesters-start", "effect": "allow", "actions": ["start_run"], "subject": { "roles": ["requester"] } },
+        { "id": "underwriters-assess", "effect": "allow", "actions": ["perform_activity", "call_tool"], "subject": { "roles": ["underwriter"] } },
+        { "id": "managers-approve", "effect": "allow", "actions": ["complete_task", "approve"], "subject": { "roles": ["manager"] }, "condition": "run.amount < 50000" }
+      ],
+      "separation_of_duties": [{ "id": "maker-checker", "activities": ["Submit claim", "Approve claim"], "includes_starter": true }],
+      "four_eyes": [{ "id": "two-approvers", "activities": ["Approve claim"], "approvals": 2 }]
+    },
+    "classifications": { "Claim settlement": "confidential" },
+    "record_allows": false
+  }
+}
+```
+
+An invalid section is refused when the file is read, naming every problem. Without `policy` nothing is checked, but who started the run and who performed each activity are still journalled.
 
 | Provider | Needs |
 |---|---|
@@ -239,7 +266,7 @@ AWA_DATA_DIR=.awa awa serve --port 3000 --no-auth
 awa serve --port 3000 --store postgres://awa@db.internal/awa      # the same command on every machine
 ```
 
-`--a2a <file>`, repeatable, offers a workflow to other agents over A2A 1.0 (specification 28.8): its agent card is at `/a2a/<workflow id>/.well-known/agent-card.json`, and at `/.well-known/agent-card.json` when one workflow is offered. `--public-url <url>` is the address written in the cards, when callers reach the server at another one than the request shows. `--deployment <file>` says what those runs may reach, as for `awa run`.
+`--a2a <file>`, repeatable, offers a workflow to other agents over A2A 1.0 (specification 28.8): its agent card is at `/a2a/<workflow id>/.well-known/agent-card.json`, and at `/.well-known/agent-card.json` when one workflow is offered. `--public-url <url>` is the address written in the cards, when callers reach the server at another one than the request shows. `--deployment <file>` says what those runs may reach, as for `awa run`, and its `authorization` section applies to every route and to the runs they start: a caller's principal is taken from its JWT claims (`sub`, `kind`, `roles`, `groups` and the other claims as attributes) or its API key, and a request the policy refuses is answered with 403 and code `FORBIDDEN` (see [operational-api.md](operational-api.md)).
 
 ```bash
 awa serve --port 3000 --a2a examples/claims-settlement/claims-settlement.awa.json --deployment deployment.json
@@ -248,6 +275,8 @@ awa serve --port 3000 --a2a examples/claims-settlement/claims-settlement.awa.jso
 ## awa task
 
 `list`, `show <id>`, `assign <id> <user_id>`, `complete <id> [json_outputs]`, `reject <id> [reason]`. These use the task database: see "The task database" in the [SDK README](../README.md).
+
+`assign`, `complete` and `reject` take `--deployment <file>` and `--as <principal>`: under the file's authorization policy, the principal named by `--as` (the host when it is absent) must be allowed to `complete_task` the task, or, for `assign`, the assignee to `claim_task` it and, when it is someone else, the principal named by `--as` to `assign_task` it. A refusal prints `FORBIDDEN` with the rule that decided, and the exit status is 1. The task's inputs are the run's data for conditions; separation of duties and four eyes apply where the run is hosted (`awa serve`, `awa journey`).
 
 ## awa import and awa export
 
@@ -298,6 +327,7 @@ What an import cannot carry without changing meaning is refused, naming the elem
 | `CONTRACT_VIOLATION` | The result did not meet the activity's outcome contract. The journal's `contract.checked` event says which term |
 | `SLA_BREACH` | Work still waited for passed its service level, whose breach action is `fail` |
 | `PERMISSION_DENIED` | A tool's command, host or MCP server, or an agent's host, is not allowed by this deployment (`--allow-commands`, `--deployment`) |
+| `FORBIDDEN` | The deployment's authorization policy does not let this principal take this action: start the run, perform the activity in its role, call the tool, reach the agent, or complete the task. The journal's `authorization.decided` event names the rule, or `no_rule` when nothing allowed it (default deny) |
 | `AGENT_FAILED`, `AGENT_REJECTED`, `AGENT_ERROR`, `AGENT_UNSUPPORTED` | An agent reached over A2A failed or refused the task, could not be reached, or offers no JSON-RPC interface of A2A 1.0. The journal's `agent.task_updated` event has its reply |
 | `The runtime directory ... is in use by process N` | Another process holds the directory. Stop it, talk to it over HTTP, or move to a shared store (`--store`) |
 | `The PostgreSQL runtime store needs the "pg" package` | `npm install pg` |

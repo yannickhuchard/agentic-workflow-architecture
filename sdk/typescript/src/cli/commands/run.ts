@@ -9,6 +9,7 @@ import { EmbeddedModelProvider, ModelProvider, OpenAIModelProvider, ollama_provi
 import { FilePersistenceAdapter } from '../../runtime/persistence';
 import { load_deployment } from '../deployment';
 import { shared_telemetry_from_env } from '../../runtime/telemetry_export';
+import { principal_named } from '../../runtime/authorization';
 
 export const runCommand = new Command('run')
     .description('Run a workflow file')
@@ -19,7 +20,8 @@ export const runCommand = new Command('run')
     .option('-s, --simulate', 'Run in simulation mode (no real API calls)')
     .option('-p, --providers <list>', 'Model providers in order of preference, comma separated: google, openai, ollama, embedded. Each capability tier falls back down the list')
     .option('--allow-commands [list]', 'Let tools run commands on this machine: all, or a comma-separated list of program names')
-    .option('--deployment <file>', 'JSON file saying what the workflow may reach: tools.allow_commands, tools.allowed_hosts, tools.mcp_servers, tools.grpc, a2a')
+    .option('--deployment <file>', 'JSON file saying what the workflow may reach: tools.allow_commands, tools.allowed_hosts, tools.mcp_servers, tools.grpc, a2a; and who may do what: authorization')
+    .option('--as <principal>', 'Start the run as this principal, by its id in the deployment\'s authorization.principals. Default: the host')
     .option('--outputs <file>', 'With --simulate: JSON file giving what each activity returns, by activity name')
     .option('-j, --journal <file>', 'Write the execution journal to this .jsonl file')
     .option('-c, --checkpoint-dir <dir>', 'Checkpoint the run state to this directory after every step')
@@ -74,6 +76,9 @@ export const runCommand = new Command('run')
             const telemetry = shared_telemetry_from_env();
             const engine = new WorkflowEngine(workflow, {
                 ...(deployment?.a2a ? { a2a: deployment.a2a } : {}),
+                // Who may do what, and who starts the run (spec 30)
+                ...(deployment?.authorization ? { authorization: deployment.authorization } : {}),
+                ...(options.as ? { principal: principal_named(deployment?.authorization, String(options.as)) } : {}),
                 telemetry,
                 ...(names.length ? {
                     model_providers: providers,

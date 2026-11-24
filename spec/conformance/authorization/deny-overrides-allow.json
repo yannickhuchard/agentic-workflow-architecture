@@ -1,0 +1,168 @@
+{
+  "id": "deny-overrides-allow",
+  "level": "authorization",
+  "spec": "30.3",
+  "description": "A rule that denies wins over a rule that allows. The refused answer leaves the task waiting, and the denial is journalled with the rule that decided; another person then completes it.",
+  "workflow": {
+    "id": "38fb7915-1384-5a7d-8f28-b8076cef6830",
+    "name": "deny-overrides-allow",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "2a3837c3-debd-5477-bb3f-c1e76262d636",
+        "name": "Review",
+        "role_id": "870ed885-0e2c-5f67-934a-d04d6f6cb481",
+        "actor_type": "human"
+      }
+    ],
+    "edges": [],
+    "roles": [
+      {
+        "id": "870ed885-0e2c-5f67-934a-d04d6f6cb481",
+        "name": "Reviewer",
+        "actor_type": "human"
+      }
+    ]
+  },
+  "authorization": {
+    "policy": {
+      "rules": [
+        {
+          "id": "host-starts",
+          "effect": "allow",
+          "actions": [
+            "start_run"
+          ],
+          "subject": {
+            "ids": [
+              "host"
+            ]
+          }
+        },
+        {
+          "id": "people-complete",
+          "effect": "allow",
+          "actions": [
+            "complete_task"
+          ],
+          "subject": {
+            "kinds": [
+              "person"
+            ]
+          }
+        },
+        {
+          "id": "no-contractors",
+          "effect": "deny",
+          "actions": [
+            "complete_task"
+          ],
+          "subject": {
+            "attributes": {
+              "contractor": true
+            }
+          }
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "start": {},
+      "expect": {
+        "allowed": true
+      }
+    },
+    {
+      "complete": {
+        "activity": "Review",
+        "principal": {
+          "id": "carol",
+          "kind": "person",
+          "attributes": {
+            "roles": [
+              "clerk"
+            ],
+            "contractor": true
+          }
+        },
+        "output": {
+          "ok": true
+        }
+      },
+      "expect": {
+        "allowed": false,
+        "code": "FORBIDDEN",
+        "status": "waiting_human"
+      }
+    },
+    {
+      "complete": {
+        "activity": "Review",
+        "principal": {
+          "id": "bob",
+          "kind": "person",
+          "attributes": {
+            "roles": [
+              "approver"
+            ],
+            "clearance": 3
+          }
+        },
+        "output": {
+          "ok": true
+        }
+      },
+      "expect": {
+        "allowed": true,
+        "status": "completed"
+      }
+    }
+  ],
+  "expect": {
+    "status": "completed",
+    "data": {
+      "ok": true
+    },
+    "decisions": [
+      {
+        "action": "complete_task",
+        "decision": "deny",
+        "principal": {
+          "id": "carol",
+          "kind": "person"
+        },
+        "rule": "no-contractors",
+        "reason": "rule",
+        "resource": {
+          "activity_name": "Review",
+          "workflow_name": "deny-overrides-allow"
+        }
+      }
+    ],
+    "journal_contains": [
+      {
+        "type": "authorization.decided",
+        "node_name": "Review",
+        "data": {
+          "decision": "deny"
+        }
+      },
+      {
+        "type": "activity.completed",
+        "node_name": "Review",
+        "data": {
+          "principal": {
+            "id": "bob",
+            "kind": "person"
+          }
+        }
+      }
+    ],
+    "journal_count": {
+      "activity.completed": 1,
+      "token.resumed": 1
+    }
+  }
+}

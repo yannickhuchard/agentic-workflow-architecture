@@ -137,11 +137,16 @@ def run_command(args: argparse.Namespace) -> int:
             "tools": {**deployment["tools"], "allow_commands": _allow_commands(args.allow_commands)
                       if args.allow_commands is not None else deployment["tools"].get("allow_commands", False)},
             "a2a": deployment["a2a"],
+            # Who may do what, and who starts the run (specification 30)
+            **({"authorization": deployment["authorization"]} if deployment.get("authorization") else {}),
             "pricing_config": dict(PRICING),
             # The execution record goes to the database only when asked; otherwise it is printed
             "log_execution": bool(args.db),
             "verbose": bool(args.verbose),
         }
+        if args.as_principal:
+            from awa.runtime.authorization import principal_named
+            options["principal"] = principal_named(deployment.get("authorization"), args.as_principal)
         if args.outputs:
             options["simulated_outputs"] = json.loads(Path(args.outputs).read_text(encoding="utf-8"))
         if args.journal:
@@ -217,7 +222,9 @@ def add_parser(subparsers: Any) -> None:
                         help="Let tools run commands on this machine: all, or a comma-separated list of program names")
     parser.add_argument("--deployment", metavar="FILE",
                         help="JSON file saying what the workflow may reach: tools.allow_commands, tools.allowed_hosts, "
-                             "tools.mcp_servers, tools.grpc, a2a")
+                             "tools.mcp_servers, tools.grpc, a2a; and who may do what: authorization")
+    parser.add_argument("--as", dest="as_principal", metavar="PRINCIPAL",
+                        help="Start the run as this principal, by its id in the deployment's authorization.principals. Default: the host")
     parser.add_argument("--outputs", metavar="FILE",
                         help="With --simulate: JSON file giving what each activity returns, by activity name")
     parser.add_argument("-j", "--journal", metavar="FILE", help="Write the execution journal to this .jsonl file")

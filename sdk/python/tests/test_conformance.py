@@ -14,6 +14,7 @@ from uuid import uuid4
 
 import pytest
 
+from awa.runtime.authorization import AuthorizationError
 from awa.runtime.counterfactual import counterfactual_replay
 from awa.runtime.duration import parse_iso_duration
 from awa.runtime.expression import ExpressionError, evaluate_expression
@@ -29,7 +30,8 @@ CONFORMANCE = Path(__file__).resolve().parents[3] / "spec" / "conformance"
 SCHEMAS = Path(__file__).resolve().parents[3] / "spec" / "json-schema"
 CLAIMED_LEVELS = {"interchange", "core", "decision", "verified", "recorded", "resilient", "contract", "flow", "events",
                   "tools", "model_decision", "routing", "journeys", "measures",
-                  "replay", "contexts", "service_levels", "knowledge", "telemetry", "shared_store", "evidence", "evaluation", "a2a"}
+                  "replay", "contexts", "service_levels", "knowledge", "telemetry", "shared_store", "evidence", "evaluation", "a2a",
+                  "authorization"}
 # Integrity rules the Python SDK does not enforce. None at present.
 UNSUPPORTED_INTEGRITY_RULES: set[str] = set()
 
@@ -1037,3 +1039,92 @@ def test_feel_conditions_export(case):
     from awa.interchange import awa_condition_to_feel
     _interchange_claimed()
     assert awa_condition_to_feel(case["awa"]) == case["feel"]
+
+
+AUTHORIZATION = [json.loads(p.read_text()) for p in sorted((CONFORMANCE / "authorization").glob("*.json"))]
+
+
+class WaitingPerson:
+    """A person's activity waits for its task to be completed (level authorization)"""
+
+    def execute(self, activity, token, context=None):
+        return {"_requires_human_action": True, "_human_task_id": f"task-{activity.name}"}
+
+
+@pytest.mark.parametrize("case", AUTHORIZATION, ids=[c["id"] for c in AUTHORIZATION])
+def test_authorization(case):
+    if case["level"] not in CLAIMED_LEVELS:
+        pytest.skip(f"level '{case['level']}' is not claimed by the Python SDK")
+    workflow = Workflow.model_validate(case["workflow"])
+    # Activities of human actors wait for a person; the others follow the case's scripts
+    actor = ConformanceActor(case.get("actors"))
+    agent_transport, agents = scripted_agents(case.get("agents"))
+    engine = None
+
+    def outcome(work):
+        try:
+            work()
+            return {"allowed": True}
+        except AuthorizationError as error:
+            return {"allowed": False, "code": error.code, "reason": error.decision["reason"]}
+
+    for step in case["steps"]:
+        if "start" in step:
+            engine = WorkflowEngine(workflow, options={
+                "actors": {"application": actor, "ai_agent": actor, "robot": actor, "human": WaitingPerson()},
+                "wait_for_human_tasks": True,
+                "a2a": {"transport": agent_transport, "poll_interval_ms": 0},
+                "authorization": case["authorization"],
+                **({"principal": step["start"]["principal"]} if step["start"].get("principal") else {}),
+                **({"tools": scripted_tools(case["tools"])} if "tools" in case else {}),
+            })
+            result = outcome(lambda: engine.start(step["start"].get("input") or {}))
+            if result["allowed"]:
+                engine.run()
+        else:
+            name = step["complete"]["activity"]
+            node = next(str(a.id) for a in workflow.activities if a.name == name)
+            token = next((t for t in engine.tokens if t.status.value == "waiting" and str(t.activity_id) == node), None)
+            assert token is not None, f"a token waits at {name}"
+
+            def answer():
+                assert engine.resume_token(token.id, step["complete"].get("output") or {}, step["complete"]["principal"]) is True
+            result = outcome(answer)
+            engine.run()
+        assert result["allowed"] == step["expect"]["allowed"], f"step {json.dumps(step)}"
+        if "code" in step["expect"]:
+            assert result["code"] == step["expect"]["code"]
+        if "reason" in step["expect"]:
+            assert result["reason"] == step["expect"]["reason"]
+        if "status" in step["expect"]:
+            assert engine.status.value == step["expect"]["status"], "status after the step"
+
+    expect = case["expect"]
+    events = engine.get_events() if engine else []
+    if expect.get("started") is False:
+        assert events == [], "a refused start leaves no journal"
+        return
+    assert engine.status.value == expect["status"]
+    for index, event in enumerate(events):
+        check_journal_event(event, index + 1)
+    decisions = [e["data"] for e in events if e["type"] == "authorization.decided"]
+    if "decisions" in expect:
+        assert len(decisions) == len(expect["decisions"]), f"decisions were {decisions}"
+        for i, wanted in enumerate(expect["decisions"]):
+            assert is_subset(wanted, decisions[i]), f"decision {i}: {decisions[i]}"
+    if "visited" in expect:
+        assert actor.visited == expect["visited"]
+    if "data" in expect:
+        assert any(is_subset(expect["data"], t.context_data) for t in engine.tokens), "data"
+    if "journal" in expect:
+        assert in_order(expect["journal"], [e["type"] for e in events]) == [], f"journal was: {', '.join(e['type'] for e in events)}"
+    for wanted in expect.get("journal_contains", []):
+        assert any(is_subset(wanted, e) for e in events), f"no event matches {json.dumps(wanted)}"
+    for excluded in expect.get("journal_excludes", []):
+        assert excluded not in [e["type"] for e in events]
+    for event_type, count in expect.get("journal_count", {}).items():
+        assert len([e for e in events if e["type"] == event_type]) == count, f"count of {event_type}"
+    if "agent_card_reads" in expect:
+        assert agents["card_reads"] == expect["agent_card_reads"], "agent cards read"
+    if "agent_requests" in expect:
+        assert [r["method"] for r in agents["requests"]] == expect["agent_requests"], "requests to agents"

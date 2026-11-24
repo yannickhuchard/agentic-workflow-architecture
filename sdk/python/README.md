@@ -43,7 +43,7 @@ print(result)
 
 ## Conformance
 
-The Python SDK passes every case of every conformance level of the specification (`docs/specification.md`, section 2.1): `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `telemetry`, `interchange`, `shared_store` (with the extra `postgres`), `a2a`, `evidence` and `evaluation`. No case is skipped. Run them with `pytest tests/test_conformance.py -rs`.
+The Python SDK passes every case of every conformance level of the specification (`docs/specification.md`, section 2.1): `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `telemetry`, `interchange`, `shared_store` (with the extra `postgres`), `a2a`, `authorization`, `evidence` and `evaluation`. No case is skipped. Run them with `pytest tests/test_conformance.py -rs`.
 
 What it still lacks compared with the TypeScript reference implementation, none of which belongs to a conformance level:
 
@@ -58,11 +58,12 @@ What it still lacks compared with the TypeScript reference implementation, none 
 
 ```
 awa run claim.awa.json [-s] [--outputs simulation.json] [-j run.jsonl] [-c checkpoints/] [-i '{"claim_id": "C-1"}']
-                       [-p openai,ollama] [--allow-commands [all|git,jq]] [--deployment deployment.json] [--db] [-v]
+                       [-p openai,ollama] [--allow-commands [all|git,jq]] [--deployment deployment.json] [--as <principal>] [--db] [-v]
 awa validate claim.awa.json
 awa serve [--port 3000] [--host 0.0.0.0] [--a2a claim.awa.json ...] [--public-url URL] [--deployment deployment.json]
 awa task list [-s pending] [-r <role id>] [-a <assignee>]
 awa task show <id> | assign <id> <user_id> | complete <id> ['{"approved": true}'] | reject <id> [reason]
+                                          # assign, complete, reject: [--deployment deployment.json] [--as <principal>]
 awa knowledge ingest claim.awa.json run1.jsonl run2.jsonl [--kb knowledge.json]
 awa knowledge list [--status draft|reviewed|deprecated] [--kb knowledge.json]
 awa knowledge review <id...|all> --by <reviewer> [--kb knowledge.json]
@@ -87,7 +88,8 @@ awa export serverless-workflow claim.awa.json [--format json|yaml]
 | `-i, --input <json>` | The data the run starts with, a JSON object |
 | `-p, --providers <list>` | Model providers in order of preference: `openai` (reads `OPENAI_API_KEY`) and `ollama` (reads `OLLAMA_BASE_URL`, default `http://localhost:11434/v1`, which can point at any OpenAI-compatible server). `google` and `embedded` are refused: the Python SDK does not have them |
 | `--allow-commands [list]` | Let tools run commands on this machine: all, or a comma-separated list of program names |
-| `--deployment <file>` | What the workflow may reach: `tools.allow_commands`, `tools.allowed_hosts`, `tools.mcp_servers`, `tools.grpc` and `a2a`, in the format of the reference's [CLI guide](../typescript/docs/cli-guide.md). `--allow-commands` takes precedence over the file's `allow_commands` |
+| `--deployment <file>` | What the workflow may reach: `tools.allow_commands`, `tools.allowed_hosts`, `tools.mcp_servers`, `tools.grpc` and `a2a`; and who may do what, `authorization` (section 30); in the format of the reference's [CLI guide](../typescript/docs/cli-guide.md). `--allow-commands` takes precedence over the file's `allow_commands` |
+| `--as <principal>` | Start the run as this principal, by its id in the deployment's `authorization.principals`. Default: the host |
 | `--db` | Write the execution record to the database (`AWA_DATABASE_URL`, default `awa.db`) instead of printing it |
 | `-k, --key` | Accepted for compatibility; the Python SDK has no Google provider |
 
@@ -180,6 +182,22 @@ Level `a2a` (specification section 28). A role or an activity that names an agen
 ```
 
 The engine reads the card once per run, sends the activity and its public data as a message, follows the task with `GetTask` until it ends, and turns the artifacts into the output, which the outcome contract and verification then check as any actor's. `agent.message_sent` and `agent.task_updated` record the exchange. A task that asks for input parks the token (`waiting_human`); `engine.agent_requests()` lists what the agents ask, and `engine.answer_agent(token_id, input)` sends the answer on the same task, after which `run()` goes on. Options under `a2a`: `allowed_hosts` (default: the tools' `allowed_hosts`), `secrets`, `poll_interval_ms`, `max_wait_ms`, `transport`. In simulation nothing is called.
+
+### Identity and authorization
+
+Level `authorization` (specification section 30). The engine option `authorization` holds the deployment's `principals` (identities of the agents and applications that perform activities, by `acts_for` activities, roles, actor types or agent cards, with optional `credentials` headers) and its `policy`: `rules` (subject, actions, resource, condition, `allow` or `deny`), `separation_of_duties` and `four_eyes`. The option `principal` is who starts the run.
+
+```python
+engine = WorkflowEngine(workflow, options={
+    "authorization": {"principals": [{"id": "agent:assessor", "kind": "ai_agent", "attributes": {"roles": ["underwriter"]},
+                                      "acts_for": {"roles": ["Underwriter"]}}],
+                      "policy": {"rules": [{"id": "underwriters", "effect": "allow", "actions": ["perform_activity"], "subject": {"roles": ["underwriter"]}}]}},
+    "principal": {"id": "alice", "kind": "person", "attributes": {"roles": ["requester"]}},
+})
+engine.resume_token(token_id, {"approved": True}, {"id": "bob", "kind": "person", "attributes": {"roles": ["manager"]}})
+```
+
+Under a policy, what no rule allows is denied and a denial wins over an allow. A refused start or answer raises `AuthorizationError` (code `FORBIDDEN`), and the task keeps waiting; a refused activity fails its token with `FORBIDDEN`; a refused tool call is returned to the agent as `tool.failed`. Denials are journalled as `authorization.decided`, and `run.started`, `activity.started`, `activity.completed` and `token.resumed` name their `principal`. `authorization["decider"]`, any object with `decide(request)`, replaces the built-in policy, for example with an external policy engine; a decider that fails denies. `AwaRuntime.start(..., principal=)` and `AwaRuntime.resume(..., principal)` take principals too, and `awa serve --deployment` applies the file's `authorization` to every route: a refusal is a `403` with code `FORBIDDEN`, and a caller's principal comes from its JWT claims or its API key (set with `awa.server.authorization.set_authorization` when the app is mounted by hand).
 
 ### Model references and routing
 

@@ -1,0 +1,168 @@
+{
+  "id": "ai-agent-allowed-in-its-role",
+  "level": "authorization",
+  "spec": "30.6",
+  "description": "An agent allowed in its role performs the activity; its principal is on activity.started and activity.completed. With record_allows the allows are journalled too, and an application with no identity of its own acts as <actor_type>:<role_id>.",
+  "workflow": {
+    "id": "56d4248c-bced-542a-9fd7-aab00f7a01d3",
+    "name": "ai-agent-allowed-in-its-role",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "9b89f204-a73e-5b4b-8be2-920613172d5a",
+        "name": "Assess",
+        "role_id": "d172194e-5d6d-538d-8753-c5aa7c729d59",
+        "actor_type": "ai_agent"
+      },
+      {
+        "id": "1dbd13d6-493f-5a7d-be5f-9af7e8a0e03c",
+        "name": "Settle",
+        "role_id": "995643d0-8360-57c2-8a3e-c12292948aef",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "09cfb926-cfc4-56b8-b5dd-bd214b01d5c3",
+        "source_id": "9b89f204-a73e-5b4b-8be2-920613172d5a",
+        "target_id": "1dbd13d6-493f-5a7d-be5f-9af7e8a0e03c"
+      }
+    ],
+    "roles": [
+      {
+        "id": "d172194e-5d6d-538d-8753-c5aa7c729d59",
+        "name": "Underwriter",
+        "actor_type": "ai_agent"
+      }
+    ]
+  },
+  "authorization": {
+    "principals": [
+      {
+        "id": "agent:triage-bot",
+        "kind": "ai_agent",
+        "attributes": {
+          "roles": [
+            "underwriter"
+          ]
+        },
+        "acts_for": {
+          "roles": [
+            "Underwriter"
+          ]
+        }
+      }
+    ],
+    "policy": {
+      "rules": [
+        {
+          "id": "host-starts",
+          "effect": "allow",
+          "actions": [
+            "start_run"
+          ],
+          "subject": {
+            "ids": [
+              "host"
+            ]
+          }
+        },
+        {
+          "id": "underwriters-assess",
+          "effect": "allow",
+          "actions": [
+            "perform_activity"
+          ],
+          "subject": {
+            "roles": [
+              "underwriter"
+            ]
+          },
+          "resource": {
+            "roles": [
+              "Underwriter"
+            ]
+          }
+        },
+        {
+          "id": "applications-run",
+          "effect": "allow",
+          "actions": [
+            "perform_activity"
+          ],
+          "subject": {
+            "kinds": [
+              "application"
+            ]
+          }
+        }
+      ]
+    },
+    "record_allows": true
+  },
+  "actors": {
+    "Assess": {
+      "output": {
+        "decision": "approve"
+      }
+    }
+  },
+  "steps": [
+    {
+      "start": {},
+      "expect": {
+        "allowed": true
+      }
+    }
+  ],
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "Assess",
+      "Settle"
+    ],
+    "decisions": [
+      {
+        "action": "perform_activity",
+        "decision": "allow",
+        "principal": {
+          "id": "agent:triage-bot",
+          "kind": "ai_agent"
+        },
+        "rule": "underwriters-assess"
+      },
+      {
+        "action": "perform_activity",
+        "decision": "allow",
+        "principal": {
+          "id": "application:995643d0-8360-57c2-8a3e-c12292948aef",
+          "kind": "application"
+        },
+        "rule": "applications-run"
+      }
+    ],
+    "journal_contains": [
+      {
+        "type": "activity.started",
+        "node_name": "Assess",
+        "data": {
+          "principal": {
+            "id": "agent:triage-bot",
+            "kind": "ai_agent"
+          }
+        }
+      },
+      {
+        "type": "activity.completed",
+        "node_name": "Assess",
+        "data": {
+          "principal": {
+            "id": "agent:triage-bot",
+            "kind": "ai_agent"
+          }
+        }
+      }
+    ]
+  }
+}

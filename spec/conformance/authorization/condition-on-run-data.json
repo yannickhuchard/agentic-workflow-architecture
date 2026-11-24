@@ -1,0 +1,176 @@
+{
+  "id": "condition-on-run-data",
+  "level": "authorization",
+  "spec": "30.2",
+  "description": "A rule's condition is a section 6 expression over the principal, the resource and the run's data. A clerk may not settle a large claim, nor an approver without the clearance; an approver with it may.",
+  "workflow": {
+    "id": "6970ffe1-3efb-5261-ab4c-9a19804223b8",
+    "name": "condition-on-run-data",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "0a229142-66cb-51af-8e2a-331eb49466ca",
+        "name": "Settle",
+        "role_id": "b857105d-4dce-53fe-b722-7bc25d23a945",
+        "actor_type": "human"
+      }
+    ],
+    "edges": [],
+    "roles": [
+      {
+        "id": "b857105d-4dce-53fe-b722-7bc25d23a945",
+        "name": "Settler",
+        "actor_type": "human"
+      }
+    ]
+  },
+  "authorization": {
+    "policy": {
+      "rules": [
+        {
+          "id": "host-starts",
+          "effect": "allow",
+          "actions": [
+            "start_run"
+          ],
+          "subject": {
+            "ids": [
+              "host"
+            ]
+          }
+        },
+        {
+          "id": "clerks-small",
+          "effect": "allow",
+          "actions": [
+            "complete_task"
+          ],
+          "subject": {
+            "roles": [
+              "clerk"
+            ]
+          },
+          "condition": "run.amount < 10000"
+        },
+        {
+          "id": "cleared-approvers",
+          "effect": "allow",
+          "actions": [
+            "complete_task"
+          ],
+          "subject": {
+            "roles": [
+              "approver"
+            ]
+          },
+          "condition": "principal.attributes.clearance >= 3"
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "start": {
+        "input": {
+          "amount": 25000
+        }
+      },
+      "expect": {
+        "allowed": true
+      }
+    },
+    {
+      "complete": {
+        "activity": "Settle",
+        "principal": {
+          "id": "carol",
+          "kind": "person",
+          "attributes": {
+            "roles": [
+              "clerk"
+            ],
+            "contractor": true
+          }
+        },
+        "output": {
+          "paid": true
+        }
+      },
+      "expect": {
+        "allowed": false,
+        "code": "FORBIDDEN"
+      }
+    },
+    {
+      "complete": {
+        "activity": "Settle",
+        "principal": {
+          "id": "dave",
+          "kind": "person",
+          "attributes": {
+            "roles": [
+              "approver"
+            ],
+            "clearance": 2
+          }
+        },
+        "output": {
+          "paid": true
+        }
+      },
+      "expect": {
+        "allowed": false,
+        "code": "FORBIDDEN"
+      }
+    },
+    {
+      "complete": {
+        "activity": "Settle",
+        "principal": {
+          "id": "bob",
+          "kind": "person",
+          "attributes": {
+            "roles": [
+              "approver"
+            ],
+            "clearance": 3
+          }
+        },
+        "output": {
+          "paid": true
+        }
+      },
+      "expect": {
+        "allowed": true
+      }
+    }
+  ],
+  "expect": {
+    "status": "completed",
+    "data": {
+      "amount": 25000,
+      "paid": true
+    },
+    "decisions": [
+      {
+        "action": "complete_task",
+        "decision": "deny",
+        "principal": {
+          "id": "carol",
+          "kind": "person"
+        },
+        "reason": "no_rule"
+      },
+      {
+        "action": "complete_task",
+        "decision": "deny",
+        "principal": {
+          "id": "dave",
+          "kind": "person"
+        },
+        "reason": "no_rule"
+      }
+    ]
+  }
+}

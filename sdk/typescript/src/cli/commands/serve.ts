@@ -16,7 +16,7 @@ export const serveCommand = new Command('serve')
     .option('--no-auth', 'Disable authentication')
     .option('--a2a <file>', 'Offer this workflow to other agents over A2A (can be repeated)', (value: string, previous: string[]) => [...previous, value], [] as string[])
     .option('--public-url <url>', 'The address callers reach this server at, written in agent cards. Default: taken from each request')
-    .option('--deployment <file>', 'JSON file saying what the workflows may reach: tools.allow_commands, tools.allowed_hosts, tools.mcp_servers, tools.grpc, a2a')
+    .option('--deployment <file>', 'JSON file saying what the workflows may reach: tools.allow_commands, tools.allowed_hosts, tools.mcp_servers, tools.grpc, a2a; and who may do what: authorization')
     .option('--store <url>', 'Keep journeys and runs in this PostgreSQL runtime store, which several servers may share (default: $AWA_RUNTIME_STORE)')
     .action(async (options) => {
         try {
@@ -48,6 +48,8 @@ export const serveCommand = new Command('serve')
                 auth: authConfig.enabled ? authConfig as AuthConfig : undefined,
                 rate_limit: rateLimit > 0 ? { window_ms: 60000, max_requests: rateLimit } : undefined,
                 request_logging: true,
+                // Who may do what, on the routes and in the runs they start (spec 30)
+                authorization: deployment?.authorization,
                 a2a: offered.length ? {
                     workflows: offered,
                     options: {
@@ -55,6 +57,7 @@ export const serveCommand = new Command('serve')
                         engine: () => ({
                             gemini_api_key: process.env.GEMINI_API_KEY,
                             ...(deployment ? { tools: deployment.tools, a2a: deployment.a2a } : {}),
+                            ...(deployment?.authorization ? { authorization: deployment.authorization } : {}),
                             journal: process.env.AWA_JOURNAL_DIR ? new FileJournalStore(process.env.AWA_JOURNAL_DIR) : undefined,
                         }),
                     },
@@ -67,6 +70,7 @@ export const serveCommand = new Command('serve')
                     console.log(`  Authentication: ${jwtSecret ? 'JWT' : ''} ${Object.keys(options.apiKey).length > 0 ? 'API Keys' : ''}`.trim());
                 }
                 if (process.env.AWA_RUNTIME_STORE) console.log('  Journeys: kept in the shared runtime store');
+                if (deployment?.authorization?.policy) console.log('  Authorization: the deployment\'s policy decides who may do what');
                 if (rateLimit > 0) {
                     console.log(`  Rate limit: ${rateLimit} requests/minute`);
                 }

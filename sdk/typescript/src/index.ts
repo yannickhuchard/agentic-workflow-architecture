@@ -13,6 +13,9 @@ export * from './runtime';
 export * from './runtime/evidence';
 export * from './runtime/evaluation';
 export * from './runtime/shadow';
+// Identity and authorization: principals, the policy, and the decider (specification section 30)
+export * from './runtime/authorization';
+export { set_server_authorization, server_authorization, principal_of_user, request_principal } from './server/authorization';
 // A workflow offered to other agents over A2A (specification 28.8)
 export { a2a_routes, workflow_agent_card, message_input, run_output, type A2AServeOptions } from './server/a2a';
 

@@ -50,7 +50,7 @@ def main(argv: list[str] | None = None) -> int:
                               help="The address callers reach this server at, written in agent cards. Default: taken from each request")
     serve_parser.add_argument("--deployment", metavar="FILE",
                               help="JSON file saying what the workflows may reach: tools.allow_commands, tools.allowed_hosts, "
-                                   "tools.mcp_servers, tools.grpc, a2a")
+                                   "tools.mcp_servers, tools.grpc, a2a; and who may do what: authorization")
     serve_parser.add_argument(
         "--store",
         help="Keep journeys and runs in this PostgreSQL runtime store, which several servers may share (default: $AWA_RUNTIME_STORE)"
@@ -131,6 +131,15 @@ def serve_api(args: argparse.Namespace) -> int:
         import uvicorn
         from awa.server import app
 
+        # Who may do what, on the routes and in the runs they start (specification 30)
+        if args.deployment:
+            from awa.cli.deployment import load_deployment
+            from awa.server.authorization import set_authorization
+            authorization = load_deployment(args.deployment).get("authorization")
+            set_authorization(authorization)
+            if authorization and authorization.get("policy") is not None:
+                print("  Authorization: the deployment's policy decides who may do what")
+
         # Workflows offered over A2A run under the deployment's permissions, like any other run (28.8)
         if args.a2a:
             import os
@@ -144,6 +153,7 @@ def serve_api(args: argparse.Namespace) -> int:
             def engine_options() -> dict:
                 journal_dir = os.environ.get("AWA_JOURNAL_DIR")
                 return {"tools": deployment["tools"], "a2a": deployment["a2a"],
+                        **({"authorization": deployment["authorization"]} if deployment.get("authorization") else {}),
                         **({"journal": FileJournalStore(journal_dir)} if journal_dir else {})}
             from awa.cli.run import read_workflow
             offered = [read_workflow(file) for file in args.a2a]
