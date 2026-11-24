@@ -136,6 +136,8 @@ class ActorContext:
     record: Callable[[str, dict[str, Any]], Any] | None = None
     # Applies the journal's payload mode (9.4) to a value before it is journalled
     payload: Callable[[Any], Any] | None = None
+    # The `seq` of the attempt's `activity.started` in the run's journal
+    attempt_seq: int | None = None
 
 
 # ----------------------------------------------------------------------

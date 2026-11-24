@@ -18,6 +18,7 @@ from awa.runtime.counterfactual import counterfactual_replay
 from awa.runtime.duration import parse_iso_duration
 from awa.runtime.expression import ExpressionError, evaluate_expression
 from awa.runtime.journey import time_ms
+from awa.runtime.journal import InMemoryJournalStore
 from awa.runtime.knowledge import KnowledgeBase
 from awa.runtime.models import FunctionModelProvider
 from awa.runtime.unary_test import MISSING, evaluate_unary_tests, validate_unary_tests
@@ -29,7 +30,8 @@ CONFORMANCE = Path(__file__).resolve().parents[3] / "spec" / "conformance"
 SCHEMAS = Path(__file__).resolve().parents[3] / "spec" / "json-schema"
 CLAIMED_LEVELS = {"interchange", "core", "decision", "verified", "recorded", "resilient", "contract", "flow", "events",
                   "tools", "model_decision", "routing", "journeys", "measures",
-                  "replay", "contexts", "service_levels", "knowledge", "telemetry", "shared_store", "evidence", "evaluation", "a2a"}
+                  "replay", "contexts", "service_levels", "knowledge", "telemetry", "shared_store", "evidence", "evaluation", "a2a",
+                  "subworkflows"}
 # Integrity rules the Python SDK does not enforce. None at present.
 UNSUPPORTED_INTEGRITY_RULES: set[str] = set()
 
@@ -71,6 +73,9 @@ class ConformanceActor:
             context.tools.call(call["tool"], call.get("arguments", {}))
         if "error" in script:
             raise ScriptedError(script["error"], script.get("code"))
+        # The actor hands the activity to a person: the token waits until the task is completed
+        if script.get("human_task"):
+            return {"_requires_human_action": True, "_human_task_id": f"task-{activity.name}-{n}"}
         return {
             **script.get("output", {}),
             **({"_reasoning": script["reasoning"]} if "reasoning" in script else {}),
@@ -221,9 +226,14 @@ def test_execution(case):
     actor = ConformanceActor(case.get("actors"), spend)
     model_options, model_calls = scripted_models(case.get("model", {}))
     agent_transport, agents = scripted_agents(case.get("agents"))
+    journal = InMemoryJournalStore()
     engine = WorkflowEngine(Workflow.model_validate(case["workflow"]), options={
-        "actors": {actor_type: actor for actor_type in ActorType},
+        # In simulation the activities return what the case scripts in options.simulated_outputs
+        **({} if case.get("options", {}).get("simulate") else {"actors": {actor_type: actor for actor_type in ActorType}}),
         "a2a": {"transport": agent_transport, "poll_interval_ms": 0},
+        "journal": journal,
+        # The workflows the case's workflow may call: its own, and the case's others (specification 24.1)
+        "subworkflows": {"workflows": [Workflow.model_validate(w) for w in [case["workflow"], *case.get("workflows", [])]]},
         **({"tools": scripted_tools(case["tools"])} if "tools" in case else {}),
         **(model_options if "model" in case else {}),
         **({"now": lambda: clock["now"], "sleep": lambda ms: None} if "clock" in case else {}),
@@ -242,6 +252,14 @@ def test_execution(case):
             assert is_subset(step.get("expect", {}), checked), f"service levels checked: {checked}"
         elif step.get("expire"):
             engine.expire_events(float("inf"))
+        elif "cancel" in step:
+            engine.cancel(step["cancel"])
+        elif "complete_task" in step:
+            # A person completes the task of every token waiting at that activity, in the run or a run it called (24.4)
+            task = step["complete_task"]
+            resumed = sum(1 for token_id in waiting_tasks(engine, task["activity"]) if engine.resume_token(token_id, task.get("output", {})))
+            if "resumes" in step:
+                assert resumed == step["resumes"], "tasks completed"
         elif "agent_input" in step:
             # The host gives every agent that asked for input what the case says (28.6)
             resumed = sum(1 for request in engine.agent_requests() if engine.answer_agent(request["token_id"], step["agent_input"]))
@@ -308,6 +326,57 @@ def test_execution(case):
     if "error_matches" in expect:
         errors = [str(t.get_data("_error") or "") for t in engine.tokens]
         assert any(re.search(expect["error_matches"], e) for e in errors), " | ".join(errors)
+    expect_subworkflow_runs(engine, journal, events, expect.get("subworkflow_runs"))
+
+
+def waiting_tasks(engine, activity):
+    """The tokens of a run, or of a run it called, that wait for a person at an activity of this name, from the journals"""
+    journals = [engine.get_events()] + [engine.get_subworkflow_events(r["run_id"]) for r in engine.subworkflow_runs()]
+    waiting = {}
+    for events in journals:
+        for e in events:
+            if e["type"] == "token.waiting" and e.get("node_name") == activity and e["data"].get("reason") == "human_task":
+                waiting[e["token_id"]] = True
+            if e["type"] in ("token.resumed", "token.cancelled"):
+                waiting.pop(e.get("token_id"), None)
+    return list(waiting)
+
+
+def expect_subworkflow_runs(engine, journal, parent_events, expected):
+    """
+    The child runs a run started (specification 24.7): exactly those listed, in order, each journal valid and
+    numbered from 1, its run.started naming the parent and the parent's attempt, and what the case expects of it.
+    """
+    runs = engine.subworkflow_runs()
+    if expected is not None:
+        assert len(runs) == len(expected), f"child runs: {runs}"
+    for i, run in enumerate(runs):
+        events = journal.read(run["run_id"])
+        for index, event in enumerate(events):
+            check_journal_event(event, index + 1)
+        started = next(e for e in events if e["type"] == "run.started")
+        parent = started["data"]["parent"]
+        assert parent["run_id"] == run["parent_run_id"], "the child names its parent"
+        assert started["data"]["depth"] == run["depth"]
+        parent_journal = parent_events if run["parent_run_id"] == engine.run_id else journal.read(run["parent_run_id"])
+        attempt = next((e for e in parent_journal if e["seq"] == parent.get("seq")), None)
+        assert attempt is not None and is_subset(
+            {"type": "activity.started", "node_id": run["node_id"], "attempt": run["attempt"], "token_id": parent["token_id"]}, attempt), \
+            "the child names the activity.started of its parent attempt"
+        assert any(e["type"] == "subworkflow.started" and e["data"].get("run_id") == run["run_id"] for e in parent_journal), "the parent names the child"
+        if expected is None or i >= len(expected):
+            continue
+        wanted = dict(expected[i])
+        types = wanted.pop("journal", None)
+        contains = wanted.pop("journal_contains", [])
+        excludes = wanted.pop("journal_excludes", [])
+        assert is_subset(wanted, run), f"child run {i + 1}: {run}"
+        if types:
+            assert in_order(types, [e["type"] for e in events]) == [], f"journal of child run {i + 1}: {[e['type'] for e in events]}"
+        for part in contains:
+            assert any(is_subset(part, e) for e in events), f"child run {i + 1}: no event matches {json.dumps(part)}"
+        for excluded in excludes:
+            assert excluded not in [e["type"] for e in events], f"child run {i + 1}"
 
 
 @pytest.mark.parametrize("case", DOCUMENTS, ids=[c["id"] for c in DOCUMENTS])

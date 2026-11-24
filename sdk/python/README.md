@@ -43,7 +43,7 @@ print(result)
 
 ## Conformance
 
-The Python SDK passes every case of every conformance level of the specification (`docs/specification.md`, section 2.1): `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `telemetry`, `interchange`, `shared_store` (with the extra `postgres`), `a2a`, `evidence` and `evaluation`. No case is skipped. Run them with `pytest tests/test_conformance.py -rs`.
+The Python SDK passes every case of every conformance level of the specification (`docs/specification.md`, section 2.1): `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `subworkflows`, `telemetry`, `interchange`, `shared_store` (with the extra `postgres`), `a2a`, `evidence` and `evaluation`. No case is skipped. Run them with `pytest tests/test_conformance.py -rs`.
 
 What it still lacks compared with the TypeScript reference implementation, none of which belongs to a conformance level:
 
@@ -59,6 +59,7 @@ What it still lacks compared with the TypeScript reference implementation, none 
 ```
 awa run claim.awa.json [-s] [--outputs simulation.json] [-j run.jsonl] [-c checkpoints/] [-i '{"claim_id": "C-1"}']
                        [-p openai,ollama] [--allow-commands [all|git,jq]] [--deployment deployment.json] [--db] [-v]
+                       [-w credit-check.awa.json ...]
 awa validate claim.awa.json
 awa serve [--port 3000] [--host 0.0.0.0] [--a2a claim.awa.json ...] [--public-url URL] [--deployment deployment.json]
 awa task list [-s pending] [-r <role id>] [-a <assignee>]
@@ -85,6 +86,7 @@ awa export serverless-workflow claim.awa.json [--format json|yaml]
 | `-j, --journal <file>` | Write the execution journal to this file, as JSON Lines |
 | `-c, --checkpoint-dir <dir>` | Save the run state to `<dir>/<run id>.checkpoint.json` after every step |
 | `-i, --input <json>` | The data the run starts with, a JSON object |
+| `-w, --workflows <files...>` | Workflow documents that call activities may run as child runs (specification 24); the workflow itself is always one. The status of each child run is printed when the run ends |
 | `-p, --providers <list>` | Model providers in order of preference: `openai` (reads `OPENAI_API_KEY`) and `ollama` (reads `OLLAMA_BASE_URL`, default `http://localhost:11434/v1`, which can point at any OpenAI-compatible server). `google` and `embedded` are refused: the Python SDK does not have them |
 | `--allow-commands [list]` | Let tools run commands on this machine: all, or a comma-separated list of program names |
 | `--deployment <file>` | What the workflow may reach: `tools.allow_commands`, `tools.allowed_hosts`, `tools.mcp_servers`, `tools.grpc` and `a2a`, in the format of the reference's [CLI guide](../typescript/docs/cli-guide.md). `--allow-commands` takes precedence over the file's `allow_commands` |
@@ -220,6 +222,18 @@ A decision node with a `decision_model` lets a model choose among the options th
 `model_decision_override` (a callable taking the decision node) supplies a decision without calling a model. In simulation mode no model is called; `simulated_outputs[<node name>]["output"]` scripts the decision.
 
 External decision engines (specification 5.5.4) are registered by name in `decision_engines`: a callable, or an object with `decide(request)`, that returns `{"option": ..., "outputs": ..., "explanation": ..., "fired_rules": ...}`.
+
+## Sub-workflows
+
+Level `subworkflows` (specification section 24). An activity with `is_expandable: true` and an `expansion_workflow_id` is performed by a child run of that workflow, whatever its actor type. The engine is given the workflows it may call under the option `subworkflows`:
+
+```python
+engine = WorkflowEngine(claim, options={"subworkflows": {"workflows": [claim, credit_check], "max_depth": 8}})
+result = engine.run({"applicant": {"name": "Ada"}})
+result["subworkflow_runs"]   # each child run: run_id, parent_run_id, workflow_id, workflow_name, node_id, token_id, attempt, depth, status
+```
+
+The child is given the parent's data without engine properties (or what the activity's `subworkflow.input` maps, each property a path in the parent's data), and its output, the data of its completed tokens (or what `subworkflow.output` maps), is the attempt's result, checked by the activity's outcome contract and verification. A child that fails fails the attempt with `SUBWORKFLOW_FAILED`, retried under the retry policy with a new child run; a workflow not given fails with `SUBWORKFLOW_NOT_FOUND` and a call deeper than `max_depth` with `SUBWORKFLOW_DEPTH_EXCEEDED`, neither retried. A child that waits makes the parent wait: `deliver_event`, `expire_events`, `check_service_levels` and `resume_token` (with the token of the child's task) on the parent reach it, and the parent's next `run()` takes its outcome. `cancel()` cancels the child first. The parent's journal records `subworkflow.started`, `.completed`, `.failed` and `.cancelled`; the child's own journal (`get_subworkflow_events(run_id)`) starts with `run.started` naming its `parent`. A host (`AwaRuntime`, a runtime directory, a shared store) gives every run the workflows registered with it, lists child runs on the journey with their `parent_run_id`, keeps them with their parent, and completes a child's task by the child's run id; in a shared store each child is a run of its own in its parent's partition, which hosts of the TypeScript SDK take up too.
 
 ## Contexts and service levels
 

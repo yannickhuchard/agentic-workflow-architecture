@@ -25,6 +25,7 @@ from awa.runtime.duration import parse_iso_duration
 from awa.runtime.expression import resolve_path
 from awa.runtime.journal import JournalEvent, JournalStore
 from awa.runtime.journey import JourneyDefinition, JourneyInstance, time_ms
+from awa.runtime.subworkflow import is_child_state
 
 SETTLED_STATUSES = ("completed", "failed", "cancelled")
 
@@ -98,10 +99,16 @@ def _awaited(token: dict[str, Any]) -> dict[str, Any] | None:
     return awaited if isinstance(awaited, dict) else None
 
 
+def _all_tokens(state: dict[str, Any]) -> list[dict[str, Any]]:
+    """The tokens of a run and of the child runs it holds (24.8): what the run waits for is what they wait for"""
+    from awa.runtime.subworkflow import nested_states
+    return [token for s in [state, *nested_states(state)] for token in s.get("tokens") or []]
+
+
 def run_waits(state: dict[str, Any]) -> list[dict[str, Any]]:
-    """What a run's waiting tokens wait for, with their correlation"""
+    """What a run's waiting tokens wait for, with their correlation, and its child runs'"""
     waits = []
-    for token in state.get("tokens") or []:
+    for token in _all_tokens(state):
         awaited = _awaited(token)
         if not awaited or not awaited.get("name"):
             continue
@@ -155,17 +162,20 @@ def may_reach(wait: dict[str, Any], event: BusinessEvent) -> bool:
     return _as_text(resolve_path(data, key, _ABSENT)) == _as_text(wait.get("correlation_value", _ABSENT))
 
 
-def run_due(workflow: Any, state: dict[str, Any]) -> float | None:
+def run_due(workflow: Any, state: dict[str, Any], workflows: dict[str, Any] | None = None) -> float | None:
     """
     When time next acts on a run, in milliseconds. A run whose work is held to a
     service level is due at every tick while it has not settled: from the epoch on.
+    The child runs it holds count too (24.8).
     """
+    from awa.runtime.subworkflow import nested_states
     if str(state.get("engine_status")) in SETTLED_STATUSES:
         return None
-    tokens = state.get("tokens") or []
+    tokens = _all_tokens(state)
     if any(t.get("status") == "active" for t in tokens):
         return 0  # left in the middle of an activity: continued at the next tick
-    if workflow is not None and (getattr(workflow, "sla", None) or any(getattr(a, "sla", None) for a in workflow.activities)):
+    held = [workflow, *((workflows or {}).get(str(s.get("workflow_id"))) for s in nested_states(state))]
+    if any(w is not None and (getattr(w, "sla", None) or any(getattr(a, "sla", None) for a in w.activities)) for w in held):
         return 0
     deadlines = []
     for token in tokens:
@@ -258,6 +268,9 @@ class SharedOperation:
                                    "which is not registered on this host. Nothing was changed.")
             self._kept_runs[kept["run_id"]] = {"text": _run_text(kept["state"], kept["outbox"]), "version": kept["version"],
                                                "waits": [wait_key(w) for w in kept["waits"]]}
+            # A child run is taken up with the run that holds it, never on its own (24.8)
+            if is_child_state(kept["state"]):
+                continue
             if kept["outbox"]:
                 self._view.outbox[kept["run_id"]] = list(kept["outbox"])
             if kept.get("journey_instance_id"):
@@ -327,12 +340,25 @@ class SharedOperation:
                 raise RuntimeError(f"Run {run_id} was changed outside the partitions this operation holds")
             run: StoredRun = {
                 "run_id": run_id, "workflow_id": str(state["workflow_id"]), "state": state, "outbox": outbox, "partition": partition,
-                "due_at": run_due(self._view.workflows.get(str(state["workflow_id"])), state),
+                "due_at": run_due(self._view.workflows.get(str(state["workflow_id"])), state, self._view.workflows),
                 "waits_for": run_waits_for(state), "waits": run_waits(state), "version": kept["version"] if kept else 0,
             }
             if owner:
                 run["journey_instance_id"] = owner["id"]
             runs.append(run)
+            # Each child run is kept as a run of its own, in the partition of the run that holds it; its waits are that run's (24.8)
+            for held in engine.subworkflow_states():
+                kept_child = self._kept_runs.get(held["run_id"])
+                if kept_child and kept_child["text"] == _run_text(held["state"], []):
+                    continue
+                child: StoredRun = {
+                    "run_id": held["run_id"], "workflow_id": held["workflow_id"], "state": held["state"], "outbox": [],
+                    "partition": partition, "due_at": None, "waits_for": [], "waits": [],
+                    "version": kept_child["version"] if kept_child else 0,
+                }
+                if owner:
+                    child["journey_instance_id"] = owner["id"]
+                runs.append(child)
         # A wait that is new must not be kept while an event that could reach it is being accepted unseen (29.3)
         new_waits = {key for run in runs for key in map(wait_key, run["waits"])
                      if key not in (self._kept_runs.get(run["run_id"]) or {}).get("waits", [])}

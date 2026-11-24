@@ -7,7 +7,7 @@ from enum import Enum
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 # ============================================================================
@@ -372,6 +372,15 @@ class A2AAgent(BaseModel):
     headers: dict[str, str] | None = None
 
 
+class SubworkflowMapping(BaseModel):
+    """How a call activity's child run is given its input and how its output becomes the outcome (specification 24.1)"""
+    model_config = ConfigDict(extra="forbid")
+    # Each property of the child run's input, with the path in the parent token's data it is read from
+    input: dict[str, str] | None = None
+    # Each property of the activity's outcome, with the path in the child run's output it is read from
+    output: dict[str, str] | None = None
+
+
 class Activity(BaseModel):
     id: UUID
     name: str
@@ -393,6 +402,7 @@ class Activity(BaseModel):
     analytics: Analytics | None = None
     is_expandable: bool = False
     expansion_workflow_id: UUID | None = None
+    subworkflow: SubworkflowMapping | None = None
     retry: RetryPolicy | None = None
     verification: VerificationPolicy | None = None
     outcome_contract: OutcomeContract | None = None
