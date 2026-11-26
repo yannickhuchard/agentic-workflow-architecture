@@ -92,7 +92,7 @@ curl -s -X POST 'localhost:3000/api/v1/journeys/runs/2b7e.../migrate?dry_run=tru
 | `GET /api/v1/measures?format=openmetrics` | The same in the OpenMetrics text format, for a metrics system to scrape |
 | `GET /api/v1/measures?format=otlp` | The same as an OTLP/JSON `ExportMetricsServiceRequest`: one gauge per measure with a value, named `awa.<id>` (specification 26.12) |
 | `GET /api/v1/measures/definitions` | Every measure with its unit and its rule |
-| `GET /api/v1/evidence?from=&to=&workflow_id=&format=` | The evidence report (specification section 32) of what the host recorded, journeys and runs that belong to none alike: `format` is `json` (the default, `spec/json-schema/evidence-report.schema.json`), `md` or `html`. `workflow_id` may be repeated. Evidence a deployer can use, not a certification of compliance |
+| `GET /api/v1/evidence?from=&to=&workflow_id=&format=` | The evidence report (specification section 32) of what the host recorded, journeys and runs that belong to none alike, and the child runs of each (a child run is kept with its run of depth 0): `format` is `json` (the default, `spec/json-schema/evidence-report.schema.json`), `md` or `html`. `workflow_id` may be repeated. Evidence a deployer can use, not a certification of compliance |
 
 ## Human tasks
 

@@ -1,0 +1,44 @@
+{
+  "authorization": {
+    "principals": [
+      { "id": "agent:assessor", "kind": "ai_agent", "name": "Damage assessment agent", "acts_for": { "roles": ["Damage assessor"] } },
+      { "id": "agent:fraud", "kind": "ai_agent", "name": "Fraud scoring agent", "acts_for": { "roles": ["Fraud analyst"] } },
+      { "id": "agent:writer", "kind": "ai_agent", "name": "Claimant letters agent", "acts_for": { "roles": ["Customer communications"] } },
+      { "id": "system:claims", "kind": "application", "name": "Claims platform", "acts_for": { "roles": ["Claims system", "Policy system", "Finance system"] } },
+      { "id": "ana", "kind": "person", "name": "Ana, claims clerk", "attributes": { "roles": ["clerk"] } },
+      { "id": "alice", "kind": "person", "name": "Alice, claims adjuster", "attributes": { "roles": ["adjuster"] } },
+      { "id": "bob", "kind": "person", "name": "Bob, claims adjuster", "attributes": { "roles": ["adjuster"] } },
+      { "id": "carol", "kind": "person", "name": "Carol, senior adjuster", "attributes": { "roles": ["adjuster", "senior"] } }
+    ],
+    "policy": {
+      "rules": [
+        { "id": "clerks-open-claims", "effect": "allow", "actions": ["start_run"], "subject": { "roles": ["clerk"] } },
+        { "id": "agents-and-systems-work", "effect": "allow", "actions": ["perform_activity", "call_tool"], "subject": { "kinds": ["ai_agent", "application"] } },
+        { "id": "adjusters-decide", "effect": "allow", "actions": ["complete_task", "approve"], "subject": { "roles": ["adjuster"] } }
+      ],
+      "separation_of_duties": [
+        { "id": "opener-does-not-approve", "activities": ["Adjuster review"], "includes_starter": true }
+      ],
+      "four_eyes": [
+        { "id": "two-adjusters-approve", "activities": ["Adjuster review"], "approvals": 2 }
+      ]
+    },
+    "record_allows": true
+  },
+  "guardrails": [
+    {
+      "id": "8f2b6c1e-5a4d-4c3b-9e7f-1a2b3c4d5e60",
+      "name": "Instructions hidden in claim data",
+      "stages": ["input"],
+      "check": { "kind": "prompt_injection" },
+      "action": "escalate"
+    },
+    {
+      "id": "8f2b6c1e-5a4d-4c3b-9e7f-1a2b3c4d5e61",
+      "name": "Personal data in what agents write",
+      "stages": ["output"],
+      "check": { "kind": "personal_data", "categories": ["email", "phone", "iban"] },
+      "action": "redact"
+    }
+  ]
+}

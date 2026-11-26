@@ -233,7 +233,7 @@ describe('What other parts see of a migrated run (spec 25.5)', () => {
         const report = compute_evidence({ workflows: [b], runs: [{ run_id, workflow_id: ID, events }] });
         const operation = report.parts.find(p => p.id === 'operation')!;
         const migration = operation.statements.find(s => s.kind === 'migration')!;
-        expect(migration.facts).toEqual({ run_id, from_version: '1.0.0', to_version: '2.0.0', tokens_kept: 0, tokens_restarted: 1, data_changes: 1 });
+        expect(migration.facts).toEqual({ run_id, from_version: '1.0.0', to_version: '2.0.0', tokens_kept: 0, tokens_restarted: 1, data_changes: 1, principal: null });
         expect(migration.citations).toEqual([{ run_id, seq: [events.find(e => e.type === 'run.migrated')!.seq] }]);
         expect(operation.summary).toMatchObject({ runs: 1, migrations: 1, workflows: [{ workflow_id: ID, versions: ['1.0.0', '2.0.0'], runs: 1 }] });
         expect(operation.statements.find(s => s.kind === 'run')!.facts).toMatchObject({ workflow_version: '1.0.0', status: 'completed' });

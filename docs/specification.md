@@ -89,7 +89,7 @@ An implementation claims one or more levels. Each level has cases in `spec/confo
 | `authorization` | Knows who acts (people, agents, applications), decides with the deployment's policy whether they may, with deny-overrides, default deny, separation of duties and four eyes, refuses with `FORBIDDEN`, and records who did what and who was refused | 30.1 to 30.6 |
 | `shared_store` | Lets several hosts keep journeys and runs in one store and take any work, with the outcome of one host: no event taken twice or lost, no record with a gap | 29 |
 | `guardrails` | Checks what goes into and comes out of AI agents and tools at run time, blocks, redacts, retries, escalates or warns as declared, and records each finding without what it matched | 31 |
-| `evidence` | Computes evidence reports from journals and journey records, every statement citing the records it rests on | 32 |
+| `evidence` | Computes evidence reports from journals and journey records, every statement citing the records it rests on: what ran, child runs included, who acted and who was refused, what people decided and approved, and what guardrails found | 32 |
 | `evaluation` | Builds evaluation datasets from journals and scores a candidate against them | 33.1 to 33.4 |
 
 An implementation MUST NOT claim a level unless it passes every case tagged with that level. It MUST report the cases it skips; it MUST NOT silently omit them.
@@ -2757,7 +2757,7 @@ Each guardrail that finds something is recorded as a `guardrail.triggered` event
 
 The record MUST NOT hold the text a check matched, nor the value checked, whatever the payload mode (9.4): positions and categories say where and what, and the value they point into is journalled only as the guardrails left it. A guardrail that finds nothing is not recorded. A model's rationale is not recorded either, since it may quote what it flagged.
 
-Every guardrail that acted can thus be counted from the journal. Measures (section 21) define no measure of them in this version; evidence reports (section 32) do not yet make statements about them.
+Every guardrail that acted can thus be counted from the journal. Measures (section 21) define no measure of them in this version; evidence reports state each of them (32.3).
 
 ### 31.8 Model and external classifiers
 
@@ -2790,7 +2790,7 @@ Level `guardrails` has execution cases (Appendix A) for each check and each acti
 
 ## 32. Evidence
 
-Rules on AI systems ask for records: that a system logs what it does over its lifetime, that the people who deploy it can monitor it and keep its logs, that a person can oversee it, and that its accuracy and robustness can be shown. The journal (section 9) and the journey records (section 19) already hold most of what such rules ask about. An **evidence report** gathers it for a period and a set of workflows, in a form a deployer can hand to an auditor, a regulator or its own risk function.
+Rules on AI systems ask for records: that a system logs what it does over its lifetime, that the people who deploy it can monitor it and keep its logs, that a person can oversee it, and that its accuracy, robustness and security can be shown. The journal (section 9) and the journey records (section 19) already hold most of what such rules ask about: who acted and who was refused (section 30), what guardrails found (section 31), and the child runs a run started (section 24) included. An **evidence report** gathers it for a period and a set of workflows, in a form a deployer can hand to an auditor, a regulator or its own risk function.
 
 An evidence report is computed from the record, never estimated. Every statement in it cites the records it rests on.
 
@@ -2802,18 +2802,20 @@ A report is computed from journals and journey records in the form a host export
 
 | Option | Meaning |
 |---|---|
-| `from`, `to` | Keep the runs started at or after `from` and before `to`, each by its own `run.started`, and the journey instances started in the same period. A kept run's journal is kept whole |
-| `workflow_ids` | Keep only runs of these workflows, and only the journey instances that have one of them |
+| `from`, `to` | Keep the runs started at or after `from` and before `to`, each by its own `run.started` (a child run by that of its run of depth 0, below), and the journey instances started in the same period. A kept run's journal is kept whole |
+| `workflow_ids` | Keep only runs of these workflows, and only the journey instances that have one of them. A child run is kept for its own workflow or for that of its run of depth 0 (below) |
+
+**Child runs.** A child run (section 24) is a run with a journal of its own; its `run.started` names its `parent`, with the `root_run_id` of the run of depth 0 above it, and its `depth` (24.2). A child run is kept or left out with that run of depth 0: it is kept when that run's start is in the period, whenever the child itself started, so that a run and every child it started are kept together and each journal whole; and, with `workflow_ids`, when its own workflow or the workflow of that run of depth 0 is listed. A report on a workflow therefore covers the child runs its runs started, whatever workflow they ran, and a report on a called workflow covers its child runs whatever called them (24.7). A child run whose run of depth 0 is not in the input is kept by its own start and its own workflow. The statements about what happened in a child run cite its own journal, by its own run id.
 
 | Field | Content |
 |---|---|
 | `spec_version`, `report` | `"1.1"`, `"evidence"` |
 | `as_of` | The instant the record was exported, or the report made |
 | `period` | `from` and `to` as given; otherwise the first and last start of what was kept |
-| `scope` | The workflows kept, with their versions as recorded and their runs; the journeys kept, with their instances |
+| `scope` | The workflows kept, with their versions as recorded, their runs and how many of those are child runs (`child_runs`); the journeys kept, with their instances. A workflow called by a kept run is listed when its child runs are kept |
 | `notice` | A statement that the report is evidence and not a certification, as above. It MUST be present |
 | `frameworks` | The frameworks and provisions the parts name (32.4) |
-| `parts` | The eleven parts of 32.3, in that order. Each has an `id`, a `title`, the `question` it answers, the provisions it can `serve`, a `summary` of counts, and its `statements` |
+| `parts` | The twelve parts of 32.3, in that order. Each has an `id`, a `title`, the `question` it answers, the provisions it can `serve`, a `summary` of counts, and its `statements` |
 
 A **statement** has a `kind`, a `text` for a person to read, `facts`, and `citations`. The wording of `text` is the implementation's; `facts` are fixed by 32.3.
 
@@ -2831,18 +2833,24 @@ Unless a row says otherwise, a statement is made for each record of the type nam
 
 | Part | Kind | One statement per | Facts | Cites |
 |---|---|---|---|---|
-| `operation` | `run` | Run kept | `run_id`, `workflow_id`, `workflow_name`, `workflow_version`, `status` (`completed`, `failed`, `cancelled`, `in_progress`), `started_at`, `ended_at`, `journey_instance_id` | `run.started` and the event that ended the run |
+| `operation` | `run` | Run kept, a child run included | `run_id`, `workflow_id`, `workflow_name`, `workflow_version`, `status` (`completed`, `failed`, `cancelled`, `in_progress`), `started_at`, `ended_at`, `journey_instance_id`, `principal` (who started the run, 30.6), `depth` (0 unless recorded), `parent_run_id` and `root_run_id` (24.2; `null` for a run of depth 0) | `run.started` and the event that ended the run |
 | | `journey` | Journey instance kept | `journey_id`, `journey_instance_id`, `subject_key`, `status`, `started_at`, `ended_at` | `journey.started` and `journey.completed` or `journey.abandoned` |
+| | `migration` | `run.migrated` (25.5) | `run_id`, `from_version`, `to_version`, `tokens_kept`, `tokens_restarted`, `data_changes` (the number of changes), `principal` (who moved the run) | It |
+| | `authorization_allowed` | `authorization.decided` with decision `allow` (30.6): every allowed approval under a four-eyes rule, and the other allowed decisions a deployment records with `record_allows` | `run_id`, `node_name` (`null` for a decision on the run), `action`, `principal`, `resource`, `rule`, `approval` (`given` and `required`, or `null`) | It |
 | `models` | `model` | Model and node, over all `model_selection` records (12.3) with a `model` | `provider`, `model` (the model's id as recorded, which is the version its provider gives it), `requested`, `tier`, `node_id`, `node_name`, `uses` | Every `model_selection` counted |
 | | `route` | `model_route` record (12.5) | `run_id`, `node_name`, `decision` | It |
 | | `model_decision` | `decision.evaluated` with method `model` (16.4) | `run_id`, `node_name`, `option`, `confidence` | It |
-| `oversight` | `human_decision` | `activity.completed` whose actor is `human`, or that follows a `contract.escalated` at the same node and token since the visit's last `activity.started` | `run_id`, `node_name`, `escalated`, `decided_at` | The completion, and the `token.waiting`, `token.resumed`, `contract.escalated` and `contract.checked` with `decided_by: human` at that node and token since the last `activity.started` |
+| `oversight` | `human_decision` | `activity.completed` whose actor is `human`, or that follows a `contract.escalated`, or a `guardrail.triggered` with action `escalate`, at the same node and token since the token last reached the node (`token.moved` or `token.created`) or last started an attempt there (`activity.started`) (since the token reached the node, when the visit has none) | `run_id`, `node_name`, `escalated`, `escalated_by` (`contract`, `guardrail` or `null`), `decided_at`, `principal` (who decided: the `principal` of the completion, else of the `token.resumed` cited, else `null`), `approvals` (the completion's `approvals`, each `id` and `kind`, in order; empty without a four-eyes rule), `approvers` (the number of distinct ids among them), `approvals_required` (the `required` of the last allowed approval cited, else `null`) | The completion, and the `token.waiting`, `token.resumed`, `contract.escalated`, `contract.checked` with `decided_by: human`, `guardrail.triggered` with action `escalate`, and `authorization.decided` with decision `allow` and action `complete_task` or `approve`, at that node and token since the last `activity.started` |
 | | `escalation` | `contract.escalated` (11.5) | `run_id`, `node_name`, `code` | It |
+| | `guardrail_escalation` | `guardrail.triggered` with action `escalate` (31.5) | The guardrail facts (below) | It |
+| | `separation_of_duties` | `authorization.decided` with decision `deny` and reason `separation_of_duties` or `four_eyes` (30.3) | `run_id`, `node_name`, `action`, `principal`, `rule`, `reason` | It |
 | | `cancellation` | `run.cancelled` (5.8) | `run_id`, `reason` | It |
 | `outcomes` | `contract` | `contract.checked` | `run_id`, `node_name`, `attempt`, `passed`, `violations` (the name of each term violated), `decided_by` (`engine` unless recorded) | It |
 | | `verification` | `verification.completed` | `run_id`, `node_name`, `attempt`, `mode`, `verdict`, `score` | It |
 | `refusals` | `tool_refused` | `tool.failed` with `invoked: false` (17.3) | `run_id`, `node_name`, `tool`, `link`, `code` | It |
 | | `context_denied` | `context.denied` (22.3) | `run_id`, `node_name`, `context_name`, `reason` | It |
+| | `authorization_denied` | `authorization.decided` with decision `deny` (30.6) | `run_id`, `node_name` (`null` for a decision on the run), `action`, `principal`, `resource`, `rule` (`null` when none decided), `reason` | It |
+| | `guardrail_blocked` | `guardrail.triggered` with action `block` (31.5), a check that failed closed included | The guardrail facts (below) | It |
 | `failures` | `attempt_failed` | `activity.failed` | `run_id`, `node_name`, `attempt`, `code` | It |
 | | `dead_letter` | `activity.dead_lettered` | `run_id`, `node_name`, `attempts` | It |
 | | `tool_failed` | `tool.failed` not refused | `run_id`, `node_name`, `tool`, `link`, `code` | It |
@@ -2853,12 +2861,17 @@ Unless a row says otherwise, a statement is made for each record of the type nam
 | `tools` | `target` | Link (17.5), over all tool events; a call without a link is grouped under `tool:<name>` | `link`, `tools` (names, sorted), `calls` (`tool.invoked`), `completed`, `failed`, `refused` | Every tool event of that link |
 | `data` | `run_payloads` | Run with at least one payload: the `input` of `run.started` and `activity.started`, the `output` of `activity.completed`, the `arguments` of `tool.invoked`, the `result` of `tool.completed` | `run_id`, `mode` (`full`, `hash`, `none`, or `mixed` when they differ), and the number of payloads `full`, `hash` (an object holding only `sha256`) and `none` (absent) (9.4) | Every event carrying a payload |
 | | `context` | Context name, over `context.read`, `context.written` and `context.denied` | `context_name`, `reads`, `writes`, `denied` | Those records |
-| `retention` | `held` | The report: one statement | `runs`, `events`, `journey_instances`, `journey_events`, `oldest_record`, `newest_record` | Every record, of a run or of a journey, at the oldest instant and at the newest |
-| | `gap` | Run whose journal lacks a `seq` between 1 and its last, or lacks `run.started` | `run_id`, `missing` (the sequence numbers), `starts` | For each missing number, the records just before and just after it; for a journal that is merely without `run.started`, its first record |
+| `retention` | `held` | The report: one statement | `runs`, `child_runs`, `events`, `journey_instances`, `journey_events`, `oldest_record`, `newest_record` | Every record, of a run or of a journey, at the oldest instant and at the newest |
+| | `gap` | Run whose journal lacks a `seq` between 1 and its last, or lacks `run.started`, a child run's included | `run_id`, `missing` (the sequence numbers), `starts` | For each missing number, the records just before and just after it; for a journal that is merely without `run.started`, its first record |
+| `guardrails` | `guardrail` | `guardrail.triggered` (31.7), whatever its action | The guardrail facts | It |
 
-Who completed a person's task is on record (30.6): the `activity.completed` that a `human_decision` statement cites carries its `principal`, and a refusal under the deployment's policy is an `authorization.decided` event of the same journal.
+The **guardrail facts** of a `guardrail.triggered` are `run_id`, `node_name`, `attempt` (`null` at stage `input`), `guardrail_id`, `name`, `source`, `stage`, `check` (the check's kind), `action`, `categories` (the distinct categories, sorted), `findings` (the number of findings), `by_category` (for each category, in sorted order, the number of its findings), `tool` (at `tool_call` and `tool_result`, else `null`) and `failed_closed` (`true` when the record has an `error`, 31.5). A statement never holds the text a guardrail matched or the value it checked: the record holds neither (31.7), and a report adds nothing to it. Every guardrail record is stated in the part `guardrails`; one whose action is `block` is stated in `refusals` as well, and one whose action is `escalate` in `oversight`, so that each of those parts answers its own question whole. In the same way a tool call that a guardrail or the policy refused is a `tool.failed` with `invoked: false`, stated as `tool_refused` beside `guardrail_blocked` or `authorization_denied`, and a denial by a separation of duties or a four-eyes rule is stated in `refusals` and in `oversight`.
 
-Each part's `summary` gives counts over its statements: for `operation` the runs by status and the journeys; for `models` the distinct models, the selections, routes and model decisions; for `oversight` the human decisions, the **overrides** (human decisions taken on an escalated outcome: a person decided in place of an automated outcome that was rejected), the escalations and the cancellations; for `outcomes` contracts and verifications checked and passed, overall and by activity; for `refusals` the refusals of tool calls and of context writes, and tool refusals by code; for `failures` the failed attempts, dead letters, tool failures, failed runs and stalled journeys, and failed attempts by code; for `compensations` those that succeeded and failed; for `service_levels` the warnings and breaches; for `tools` the targets and calls; for `data` the runs by payload mode and the payloads by kind; for `retention` the records held, the oldest and newest, `held_for_ms` (from the oldest record to `as_of`) and the runs with gaps.
+Who did what is on record when the deployment has an `authorization` section (30.6): who started each run and who moved it, which identity performed each activity, who completed each person's task and, under a four-eyes rule, every approver. A `principal` fact is the principal as the journal names it, its `id` and `kind`; its attributes are never journalled, and a report has none.
+
+Each part's `summary` gives counts over its statements: for `operation` the runs by status, the `child_runs`, the journeys, the `migrations` and the `authorizations_allowed`; for `models` the distinct models, the selections, routes and model decisions; for `oversight` the human decisions, the **overrides** (human decisions taken on an escalated outcome: a person decided in place of an automated outcome that was rejected, after a `contract.escalated` or a guardrail that escalated at stage `output`), the escalations, the `guardrail_escalations`, `four_eyes` (the human decisions with approvals), `separation_of_duties` and the cancellations; for `outcomes` contracts and verifications checked and passed, overall and by activity; for `refusals` the refusals of tool calls and of context writes, the `authorization` denials and the `guardrails` that blocked, tool refusals by code, and `authorization_by_reason`, the denials for each reason; for `failures` the failed attempts, dead letters, tool failures, failed runs and stalled journeys, and failed attempts by code; for `compensations` those that succeeded and failed; for `service_levels` the warnings and breaches; for `tools` the targets and calls; for `data` the runs by payload mode and the payloads by kind; for `retention` the records held, the `child_runs` among the runs, the oldest and newest, `held_for_ms` (from the oldest record to `as_of`) and the runs with gaps; for `guardrails` the records `triggered`, the distinct `guardrails`, `by_action` (each of the five actions of 31.5), `by_stage` (each of the four stages of 31.3), `by_check` and `by_category` (the findings of each category), and those that `failed_closed`.
+
+The part `guardrails` comes after `retention`, so that each of the eleven parts before it keeps its position in `parts` for a reader that takes them by position.
 
 ### 32.4 What each part can serve as evidence for
 
@@ -2868,17 +2881,18 @@ Each part names the provisions to which its records are relevant. The EU AI Act 
 |---|---|---|---|
 | `operation` | Art. 12(1) record-keeping over the lifetime; Art. 12(2) logging for monitoring of operation; Art. 26(5) deployers monitor operation | MEASURE | 9.1, Annex A.6 |
 | `models` | Art. 12(2); Art. 13(3)(b) characteristics and performance | MAP, MEASURE | Annex A.6 |
-| `oversight` | Art. 13(3)(d) human oversight measures; Art. 14(4) overseeing, overriding or reversing an output, interrupting the system; Art. 26(2) oversight assigned to competent persons | GOVERN, MANAGE | Annex A.9 |
+| `oversight` | Art. 13(3)(d) human oversight measures; Art. 14(4) overseeing, overriding or reversing an output, interrupting the system; Art. 26(2) oversight assigned to competent persons; for the systems of Annex III point 1(a), Art. 14(5) verification by at least two natural persons and Art. 12(3)(d) identifying them | GOVERN, MANAGE | Annex A.3, Annex A.9 |
 | `outcomes` | Art. 13(3)(b); Art. 15(1) accuracy and robustness; Art. 15(3) levels of accuracy and their metrics | MEASURE | 9.1 |
-| `refusals` | Art. 12(2) identifying situations of risk; Art. 15(4) resilience to errors and faults | MANAGE | Annex A.6 |
+| `refusals` | Art. 12(2) identifying situations of risk; Art. 15(4) resilience to errors and faults; Art. 15(5) resilience against attempts by unauthorised parties to alter use or outputs | GOVERN, MANAGE | Annex A.6 |
 | `failures` | Art. 12(2); Art. 15(4); Art. 26(5) | MANAGE | Annex A.6 |
 | `compensations` | Art. 15(4) fail-safe plans | MANAGE | |
 | `service_levels` | Art. 12(2); Art. 26(5) | MEASURE, MANAGE | |
 | `tools` | Art. 12(2); Art. 26(5) | MAP (third parties) | Annex A.10 |
 | `data` | Art. 12(1); Art. 26(6) keeping logs, subject to the law on personal data | GOVERN | Annex A.7 |
 | `retention` | Art. 12(1); Art. 13(3)(f) collecting, storing and interpreting logs; Art. 26(6) keeping logs for at least six months unless other law provides otherwise | GOVERN | Annex A.6 |
+| `guardrails` | Art. 12(2); Art. 14(4) monitoring for anomalies, and handing work to a person; Art. 15(4); Art. 15(5) cybersecurity, inputs designed to manipulate the model (prompt injection) included | MEASURE, MANAGE | Annex A.6, Annex A.7 |
 
-Guardrail records (`guardrail.triggered`, 31.7) are relevant to the same provisions as `refusals` and `failures`. This version of the report makes no statement about them.
+A guardrail that found nothing is not recorded (31.7), so the part `guardrails` says what the guardrails acted on, not what they examined; and detection is a floor, not a defence (31.4.2). Its records are evidence that a measure against manipulated inputs was in place and acted; they are not evidence that no manipulation passed. Authorization records (section 30) show who was allowed and who was refused, under which rule; they do not show that the policy was the right one. Articles 12(3) and 14(5) concern the remote biometric identification systems of Annex III point 1(a); a four-eyes rule (30.3) is how a workflow has a result confirmed by two persons, and the `human_decision` statement names them.
 
 Article 26(6) asks a deployer to keep the logs under its control for a period appropriate to the system's purpose, of at least six months unless other law provides otherwise. The `retention` part states which records are held and over what span; it does not judge whether that period is met, since that depends on when the system was put into use and on other law, notably on personal data.
 
@@ -2888,11 +2902,11 @@ A report is data (JSON). An implementation SHOULD also render it as a document a
 
 ### 32.6 What a report does not do
 
-A report does not assess risk classification, intended purpose, a conformity assessment, technical documentation, a quality management system, a fundamental rights impact assessment, or the reporting of serious incidents; it may inform them. It does not show that a journal was not altered beyond what its sequence numbers show (32.3, `gap`): keeping records intact is the deployer's. An actor's reasoning in the journal is its own account (9.2), and a report never presents it as more. Compliance with the law on personal data is not assessed.
+A report does not assess risk classification, intended purpose, a conformity assessment, technical documentation, a quality management system, a fundamental rights impact assessment, or the reporting of serious incidents; it may inform them. It does not show that a journal was not altered beyond what its sequence numbers show (32.3, `gap`): keeping records intact is the deployer's. An actor's reasoning in the journal is its own account (9.2), and a report never presents it as more. Compliance with the law on personal data is not assessed. Nor is whether the deployment's policy (section 30) and guardrails (section 31) were the right ones: the report states what they decided and found, not what they let pass unremarked.
 
 ### 32.7 Conformance
 
-Level `evidence` has its own cases, in `spec/conformance/evidence/` (Appendix A): a record, the options of a report, the summaries and statements it must contain with their exact citations, and statements it must not contain.
+Level `evidence` has its own cases, in `spec/conformance/evidence/` (Appendix A): a record, the options of a report, the summaries and statements it must contain with their exact citations, statements it must not contain, and the parts in their order. They include guardrails of every action and stage, authorization denials and allowed approvals under four-eyes and separation-of-duties rules, child runs kept with their run of depth 0 by the period and by workflow, and a migration with its principal. The rendering of the new statements as Markdown and HTML, and the HTTP route over a host whose runs have child runs, are fixed by `sdk/typescript/tests/evidence.test.ts` and `sdk/python/tests/test_evidence_evaluation.py`.
 
 ## 33. Evaluation
 
@@ -3081,6 +3095,8 @@ Runners: `sdk/typescript/tests/conformance.test.ts`, `sdk/python/tests/test_conf
 | `statements` | Each names a `part`, a `kind` and a subset of `facts`: exactly one statement of that part and kind must contain those facts. Where `citations` is given, that statement's citations must be exactly these, compared as sets of `{run_id, seq}` and `{journey_instance_id, seq}` |
 | `absent` | Statements, described the same way, that no statement may match |
 | `cited_runs` | Exactly the runs the report cites, over all its statements |
+| `part_ids` | Exactly the `id` of each part, in order |
+| `scope_workflows` | Exactly the workflows of `scope`, each given as a subset of its entry, in any order |
 
 A runner MUST also check that the report validates against `evidence-report.schema.json` and that every sequence number of every citation names a record of `recorded` (32.2).
 
@@ -3149,7 +3165,7 @@ Runners: `sdk/typescript/tests/conformance.test.ts`, `sdk/python/tests/test_conf
 - Measures of journeys and workflows, computed from the record, with conformance level `measures` (section 21).
 - Context bindings are enforced: an activity is given the contexts it is bound to read and no other, and a write needs a binding that allows it (section 22, level `contexts`). **A workflow that binds a required context nothing has written now fails with `CONTEXT_MISSING`** where it used to run.
 - Service levels are compared with the time work takes, and warnings and breaches are journalled; `breach_action: fail` stops work that is still waited for (section 23, level `service_levels`).
-- Evidence reports computed from journals and journey records, every statement citing the records it rests on and naming the provisions of the EU AI Act, the NIST AI RMF and ISO/IEC 42001 it can serve, without certifying compliance (section 32, level `evidence`); evaluation datasets built from journals and a candidate scored against them, and shadow runs beside production (section 33, level `evaluation`).
+- Evidence reports computed from journals and journey records, every statement citing the records it rests on and naming the provisions of the EU AI Act, the NIST AI RMF and ISO/IEC 42001 it can serve, without certifying compliance (section 32, level `evidence`), with statements on guardrails (in a twelfth part, `guardrails`, and among refusals and oversight), on authorization decisions, principals and four-eyes approvals, and on child runs, which are kept with their run of depth 0; evaluation datasets built from journals and a candidate scored against them, and shadow runs beside production (section 33, level `evaluation`).
 - Built-in executors for `mcp` bindings, over standard input and output or Streamable HTTP, and for unary `grpc` calls, held to the deployment's permissions (17.7, 17.8). An agent reached over A2A 1.0 can perform an activity, under the same contract, verification and record as any actor, and a host can offer a workflow as an A2A agent (section 28, level `a2a`).
 - The journal and the journey record as OpenTelemetry traces, with identifiers derived from the run and the journey instance, the generative AI semantic conventions, OTLP export that never holds up a run, the standard `OTEL_EXPORTER_OTLP_*` variables, and measures as OpenTelemetry gauges; conformance level `telemetry` (section 26).
 - Several hosts may share one store and take any work, with the outcome of one host: a store contract of partitions, holding, acceptance once and versions, met by a PostgreSQL store, with conformance level `shared_store` (section 29). A runtime directory still belongs to one host at a time (19.10).

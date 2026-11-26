@@ -14,6 +14,7 @@ One workflow that exercises most of AWA 1.1, with two recorded runs, the documen
 | `telemetry/*.otlp.json` | Each run as OpenTelemetry traces (OTLP/JSON, specification section 26): the same trace and span ids in both SDKs |
 | `make-runs.mjs` | Regenerates all of the above |
 | `simulation.json` | What each activity returns when the workflow is run with `--simulate` |
+| `evidence/` | A worked example of an evidence report (specification section 32): three claims under a deployment with an authorization policy and guardrails, their journals, and the report as JSON, Markdown and HTML; `evidence/README.md` says how to make it again |
 
 ## What the workflow shows
 

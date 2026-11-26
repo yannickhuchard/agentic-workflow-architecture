@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Evidence report</title>
+<style>
+:root { --fg: #1d1d1f; --muted: #5f6368; --line: #d9dce1; --bg: #ffffff; --note: #f4f6f8; }
+@media (prefers-color-scheme: dark) { :root { --fg: #e8eaed; --muted: #a0a4aa; --line: #3c4043; --bg: #17181a; --note: #222427; } }
+body { font: 15px/1.5 system-ui, sans-serif; color: var(--fg); background: var(--bg); max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+h1 { font-size: 1.6em; margin-bottom: 4px; } h2 { font-size: 1.2em; margin-top: 2em; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+.notice { background: var(--note); border-left: 4px solid var(--muted); padding: 10px 14px; }
+.question { font-style: italic; color: var(--muted); } .serves { color: var(--muted); font-size: 0.92em; }
+table { border-collapse: collapse; width: 100%; font-size: 0.92em; } th, td { text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); padding: 6px 8px; }
+td.cite { font-family: ui-monospace, monospace; font-size: 0.85em; white-space: nowrap; color: var(--muted); }
+</style>
+</head>
+<body>
+<h1>Evidence report</h1>
+<p>As of 2026-11-26T09:00:00.000Z. Period: 2026-11-02T09:00:00.750Z to 2026-11-04T11:20:58.475Z.</p>
+<p class="notice">This report is evidence computed from the execution journals and journey records listed in it. Every statement cites the records it rests on. It is not a certification, an audit opinion or a conformity assessment: it does not establish that any system, deployer or provider complies with the EU AI Act, the NIST AI RMF, ISO/IEC 42001 or any other framework. Whether these records meet an obligation depends on the system, its intended purpose, its risk classification and the applicable law, which this report does not assess.</p>
+<h2>Scope</h2>
+<table><thead><tr><th>Workflow</th><th>Versions</th><th>Runs</th><th>Of which child runs</th></tr></thead><tbody><tr><td>Motor Claim Settlement</td><td>1.0.0</td><td>3</td><td>0</td></tr></tbody></table>
+
+<p class="serves">Each statement cites the journal records it rests on: "run 1a2b3c4d #5" is the record with sequence number 5 in the journal of the run whose id begins 1a2b3c4d.</p>
+
+<section id="operation">
+  <h2>1. What ran</h2>
+  <p class="question">Which runs and journeys took place in the period, with which workflow versions, and how did each end?</p>
+  <p class="serves">Can serve as evidence for: EU AI Act Art. 12(1), Art. 12(2), Art. 26(5); NIST AI RMF MEASURE; ISO/IEC 42001 Clause 9.1, Annex A.6.</p>
+  <ul class="summary"><li>runs: 3</li><li>completed: 3</li><li>failed: 0</li><li>cancelled: 0</li><li>in progress: 0</li><li>child runs: 0</li><li>journeys: 0</li><li>migrations: 0</li><li>authorizations allowed: 26</li></ul>
+  <table><thead><tr><th>Statement</th><th>Records</th></tr></thead><tbody><tr><td>Run 00000001 of &quot;Motor Claim Settlement&quot; version 1.0.0 started at 2026-11-02T09:00:00.750Z by ana and completed at 2026-11-02T09:00:28.225Z.</td><td class="cite">run 00000001 #1, #58</td></tr><tr><td>Run 0000003f of &quot;Motor Claim Settlement&quot; version 1.0.0 started at 2026-11-03T09:00:29.225Z by ana and completed at 2026-11-03T11:20:57.475Z.</td><td class="cite">run 0000003f #1, #61</td></tr><tr><td>Run 00000080 of &quot;Motor Claim Settlement&quot; version 1.0.0 started at 2026-11-04T11:20:58.475Z by ana and completed at 2026-11-04T13:36:19.475Z.</td><td class="cite">run 00000080 #1, #49</td></tr><tr><td>system:claims was allowed the action perform_activity at &quot;Register claim&quot; in run 00000001 by rule agents-and-systems-work.</td><td class="cite">run 00000001 #4</td></tr><tr><td>agent:assessor was allowed the action perform_activity at &quot;Assess damage&quot; in run 00000001 by rule agents-and-systems-work.</td><td class="cite">run 00000001 #8</td></tr><tr><td>agent:fraud was allowed the action perform_activity at &quot;Check fraud signals&quot; in run 00000001 by rule agents-and-systems-work.</td><td class="cite">run 00000001 #20</td></tr><tr><td>system:claims was allowed the action perform_activity at &quot;Verify policy cover&quot; in run 00000001 by rule agents-and-systems-work.</td><td class="cite">run 00000001 #21</td></tr><tr><td>system:claims was allowed the action perform_activity at &quot;Consolidate findings&quot; in run 00000001 by rule agents-and-systems-work.</td><td class="cite">run 00000001 #34</td></tr><tr><td>system:claims was allowed the action perform_activity at &quot;Reserve funds&quot; in run 00000001 by rule agents-and-systems-work.</td><td class="cite">run 00000001 #40</td></tr><tr><td>system:claims was allowed the action perform_activity at &quot;Pay claimant&quot; in run 00000001 by rule agents-and-systems-work.</td><td class="cite">run 00000001 #47</td></tr><tr><td>agent:writer was allowed the action perform_activity at &quot;Notify claimant&quot; in run 00000001 by rule agents-and-systems-work.</td><td class="cite">run 00000001 #51</td></tr><tr><td>system:claims was allowed the action perform_activity at &quot;Register claim&quot; in run 0000003f by rule agents-and-systems-work.</td><td class="cite">run 0000003f #4</td></tr><tr><td>agent:assessor was allowed the action perform_activity at &quot;Assess damage&quot; in run 0000003f by rule agents-and-systems-work.</td><td class="cite">run 0000003f #8</td></tr><tr><td>agent:fraud was allowed the action perform_activity at &quot;Check fraud signals&quot; in run 0000003f by rule agents-and-systems-work.</td><td class="cite">run 0000003f #16</td></tr><tr><td>system:claims was allowed the action perform_activity at &quot;Verify policy cover&quot; in run 0000003f by rule agents-and-systems-work.</td><td class="cite">run 0000003f #17</td></tr><tr><td>system:claims was allowed the action perform_activity at &quot;Consolidate findings&quot; in run 0000003f by rule agents-and-systems-work.</td><td class="cite">run 0000003f #26</td></tr><tr><td>alice was allowed the action approve at &quot;Adjuster review&quot; in run 0000003f by rule adjusters-decide (approval 1 of 2).</td><td class="cite">run 0000003f #37</td></tr><tr><td>bob was allowed the action approve at &quot;Adjuster review&quot; in run 0000003f by rule adjusters-decide (approval 2 of 2).</td><td class="cite">run 0000003f #39</td></tr><tr><td>system:claims was allowed the action perform_activity at &quot;Reserve funds&quot; in run 0000003f by rule agents-and-systems-work.</td><td class="cite">run 0000003f #43</td></tr><tr><td>system:claims was allowed the action perform_activity at &quot;Pay claimant&quot; in run 0000003f by rule agents-and-systems-work.</td><td class="cite">run 0000003f #50</td></tr><tr><td>agent:writer was allowed the action perform_activity at &quot;Notify claimant&quot; in run 0000003f by rule agents-and-systems-work.</td><td class="cite">run 0000003f #54</td></tr><tr><td>system:claims was allowed the action perform_activity at &quot;Register claim&quot; in run 00000080 by rule agents-and-systems-work.</td><td class="cite">run 00000080 #4</td></tr><tr><td>agent:assessor was allowed the action perform_activity at &quot;Assess damage&quot; in run 00000080 by rule agents-and-systems-work.</td><td class="cite">run 00000080 #8</td></tr><tr><td>carol was allowed the action complete_task at &quot;Assess damage&quot; in run 00000080 by rule adjusters-decide.</td><td class="cite">run 00000080 #13</td></tr><tr><td>agent:fraud was allowed the action perform_activity at &quot;Check fraud signals&quot; in run 00000080 by rule agents-and-systems-work.</td><td class="cite">run 00000080 #20</td></tr><tr><td>system:claims was allowed the action perform_activity at &quot;Verify policy cover&quot; in run 00000080 by rule agents-and-systems-work.</td><td class="cite">run 00000080 #21</td></tr><tr><td>carol was allowed the action complete_task at &quot;Check fraud signals&quot; in run 00000080 by rule adjusters-decide.</td><td class="cite">run 00000080 #29</td></tr><tr><td>system:claims was allowed the action perform_activity at &quot;Consolidate findings&quot; in run 00000080 by rule agents-and-systems-work.</td><td class="cite">run 00000080 #35</td></tr><tr><td>bob was allowed the action complete_task at &quot;Investigate&quot; in run 00000080 by rule adjusters-decide.</td><td class="cite">run 00000080 #44</td></tr></tbody></table>
+</section>
+
+<section id="models">
+  <h2>2. Models and what they decided</h2>
+  <p class="question">Which models, as named by their providers, served which activities and decisions, and where did a route fall back?</p>
+  <p class="serves">Can serve as evidence for: EU AI Act Art. 12(2), Art. 13(3)(b); NIST AI RMF MAP, MEASURE; ISO/IEC 42001 Annex A.6.</p>
+  <ul class="summary"><li>models: none</li><li>selections: 0</li><li>routes: 0</li><li>model decisions: 1</li></ul>
+  <table><thead><tr><th>Statement</th><th>Records</th></tr></thead><tbody><tr><td>A model decided &quot;Settlement route&quot; in run 0000003f: option review with a stated confidence of 0.8.</td><td class="cite">run 0000003f #31</td></tr></tbody></table>
+</section>
+
+<section id="oversight">
+  <h2>3. Human oversight</h2>
+  <p class="question">Who decided what, how many people approved, what was escalated to them, where did a person decide in place of an automated outcome, where were duties kept apart, and which runs were stopped?</p>
+  <p class="serves">Can serve as evidence for: EU AI Act Art. 12(3)(d), Art. 13(3)(d), Art. 14(4), Art. 14(5), Art. 26(2); NIST AI RMF GOVERN, MANAGE; ISO/IEC 42001 Annex A.3, Annex A.9.</p>
+  <ul class="summary"><li>human decisions: 4</li><li>overrides: 0</li><li>escalations: 0</li><li>guardrail escalations: 2</li><li>four eyes: 1</li><li>separation of duties: 2</li><li>cancellations: 0</li></ul>
+  <table><thead><tr><th>Statement</th><th>Records</th></tr></thead><tbody><tr><td>A person decided &quot;Adjuster review&quot; in run 0000003f at 2026-11-03T11:20:47.475Z (bob), approved by alice and bob (2 distinct approvers of 2 required), after a wait of 2.3 h.</td><td class="cite">run 0000003f #34, #37, #39, #40, #41</td></tr><tr><td>A person decided &quot;Assess damage&quot; in run 00000080 at 2026-11-04T12:06:05.225Z (carol), escalated to them by a guardrail at stage input, after a wait of 45 min.</td><td class="cite">run 00000080 #9, #11, #13, #14, #15, #16</td></tr><tr><td>A person decided &quot;Check fraud signals&quot; in run 00000080 at 2026-11-04T12:51:11.975Z (carol), escalated to them by a guardrail at stage input, after a wait of 45 min.</td><td class="cite">run 00000080 #22, #25, #29, #30, #31, #32</td></tr><tr><td>A person decided &quot;Investigate&quot; in run 00000080 at 2026-11-04T13:36:18.475Z (bob), after a wait of 45 min.</td><td class="cite">run 00000080 #42, #44, #45, #46</td></tr><tr><td>Guardrail &quot;Instructions hidden in claim data&quot; (prompt_injection) found ignore_instructions (1 finding) in the input of &quot;Assess damage&quot; in run 00000080, and handed the activity to a person.</td><td class="cite">run 00000080 #9</td></tr><tr><td>Guardrail &quot;Instructions hidden in claim data&quot; (prompt_injection) found ignore_instructions (1 finding) in the input of &quot;Check fraud signals&quot; in run 00000080, and handed the activity to a person.</td><td class="cite">run 00000080 #22</td></tr><tr><td>ana was refused the action approve at &quot;Adjuster review&quot; in run 0000003f: the separation of duties opener-does-not-approve keeps this apart from what they did in the run.</td><td class="cite">run 0000003f #36</td></tr><tr><td>alice was refused the action approve at &quot;Adjuster review&quot; in run 0000003f: under the four-eyes rule two-adjusters-approve, each approval must come from another person.</td><td class="cite">run 0000003f #38</td></tr></tbody></table>
+</section>
+
+<section id="outcomes">
+  <h2>4. Outcome contracts and verification</h2>
+  <p class="question">Which outcomes were checked against their contracts and verified, and with what result?</p>
+  <p class="serves">Can serve as evidence for: EU AI Act Art. 13(3)(b), Art. 15(1), Art. 15(3); NIST AI RMF MEASURE; ISO/IEC 42001 Clause 9.1.</p>
+  <ul class="summary"><li>contracts: 9</li><li>contracts passed: 8</li><li>verifications: 2</li><li>verifications passed: 2</li></ul>
+  <table><thead><tr><th>Statement</th><th>Records</th></tr></thead><tbody><tr><td>The outcome contract of &quot;Assess damage&quot; was violated (/estimated_cost; Within authority) at attempt 1 of run 00000001.</td><td class="cite">run 00000001 #10</td></tr><tr><td>The outcome contract of &quot;Assess damage&quot; held at attempt 2 of run 00000001.</td><td class="cite">run 00000001 #14</td></tr><tr><td>The outcome contract of &quot;Check fraud signals&quot; held at attempt 2 of run 00000001.</td><td class="cite">run 00000001 #30</td></tr><tr><td>The outcome contract of &quot;Notify claimant&quot; held at attempt 1 of run 00000001.</td><td class="cite">run 00000001 #54</td></tr><tr><td>The outcome contract of &quot;Assess damage&quot; held at attempt 1 of run 0000003f.</td><td class="cite">run 0000003f #10</td></tr><tr><td>The outcome contract of &quot;Check fraud signals&quot; held at attempt 1 of run 0000003f.</td><td class="cite">run 0000003f #22</td></tr><tr><td>The outcome contract of &quot;Notify claimant&quot; held at attempt 1 of run 0000003f.</td><td class="cite">run 0000003f #57</td></tr><tr><td>The outcome contract of &quot;Assess damage&quot; held at attempt ? of run 00000080; the outcome was a person's.</td><td class="cite">run 00000080 #15</td></tr><tr><td>The outcome contract of &quot;Check fraud signals&quot; held at attempt ? of run 00000080; the outcome was a person's.</td><td class="cite">run 00000080 #31</td></tr><tr><td>Verification (schema_only) of &quot;Assess damage&quot; at attempt 2 of run 00000001: pass, score 1.</td><td class="cite">run 00000001 #15</td></tr><tr><td>Verification (schema_only) of &quot;Assess damage&quot; at attempt 1 of run 0000003f: pass, score 1.</td><td class="cite">run 0000003f #11</td></tr></tbody></table>
+</section>
+
+<section id="refusals">
+  <h2>5. Refusals</h2>
+  <p class="question">What did the engine refuse to do before it happened, to whom, and under which rule or guardrail?</p>
+  <p class="serves">Can serve as evidence for: EU AI Act Art. 12(2), Art. 15(4), Art. 15(5); NIST AI RMF GOVERN, MANAGE; ISO/IEC 42001 Annex A.6.</p>
+  <ul class="summary"><li>refusals: 2</li><li>tool calls: 0</li><li>context writes: 0</li><li>authorization: 2</li><li>guardrails: 0</li><li>by code: none</li><li>authorization by reason: four_eyes 1, separation_of_duties 1</li></ul>
+  <table><thead><tr><th>Statement</th><th>Records</th></tr></thead><tbody><tr><td>ana (person) was refused the action approve at &quot;Adjuster review&quot; in run 0000003f: the separation of duties opener-does-not-approve.</td><td class="cite">run 0000003f #36</td></tr><tr><td>alice (person) was refused the action approve at &quot;Adjuster review&quot; in run 0000003f: the four-eyes rule two-adjusters-approve.</td><td class="cite">run 0000003f #38</td></tr></tbody></table>
+</section>
+
+<section id="failures">
+  <h2>6. Failures</h2>
+  <p class="question">Which attempts, tool calls, runs and journeys failed or stalled, and why?</p>
+  <p class="serves">Can serve as evidence for: EU AI Act Art. 12(2), Art. 15(4), Art. 26(5); NIST AI RMF MANAGE; ISO/IEC 42001 Annex A.6.</p>
+  <ul class="summary"><li>attempts failed: 2</li><li>dead letters: 0</li><li>tool failures: 0</li><li>runs failed: 0</li><li>journeys stalled: 0</li></ul>
+  <table><thead><tr><th>Statement</th><th>Records</th></tr></thead><tbody><tr><td>Attempt 1 of &quot;Assess damage&quot; in run 00000001 failed (CONTRACT_VIOLATION): Outcome contract violated: /estimated_cost must be number; Within authority: &quot;estimated_cost &lt;= 50000&quot; does not hold</td><td class="cite">run 00000001 #11</td></tr><tr><td>Attempt 1 of &quot;Check fraud signals&quot; in run 00000001 failed (TIMEOUT): Fraud scoring service timed out</td><td class="cite">run 00000001 #24</td></tr></tbody></table>
+</section>
+
+<section id="compensations">
+  <h2>7. Compensations</h2>
+  <p class="question">Which completed work was undone after a failure, and did undoing it succeed?</p>
+  <p class="serves">Can serve as evidence for: EU AI Act Art. 15(4); NIST AI RMF MANAGE.</p>
+  <ul class="summary"><li>compensations: 0</li><li>failed: 0</li></ul>
+  <p>Nothing recorded.</p>
+</section>
+
+<section id="service_levels">
+  <h2>8. Service levels</h2>
+  <p class="question">Where did work take longer than was promised?</p>
+  <p class="serves">Can serve as evidence for: EU AI Act Art. 12(2), Art. 26(5); NIST AI RMF MEASURE, MANAGE.</p>
+  <ul class="summary"><li>warnings: 0</li><li>breaches: 0</li></ul>
+  <p>Nothing recorded.</p>
+</section>
+
+<section id="tools">
+  <h2>9. Tool calls by target</h2>
+  <p class="question">Which outside systems were called, how often, and with what result?</p>
+  <p class="serves">Can serve as evidence for: EU AI Act Art. 12(2), Art. 26(5); NIST AI RMF MAP; ISO/IEC 42001 Annex A.10.</p>
+  <ul class="summary"><li>targets: 0</li><li>calls: 0</li><li>completed: 0</li><li>failed: 0</li><li>refused: 0</li></ul>
+  <p>Nothing recorded.</p>
+</section>
+
+<section id="data">
+  <h2>10. Data handled</h2>
+  <p class="question">How were inputs, outputs, tool arguments and results journalled, and which shared contexts were read and written?</p>
+  <p class="serves">Can serve as evidence for: EU AI Act Art. 12(1), Art. 26(6); NIST AI RMF GOVERN; ISO/IEC 42001 Annex A.7.</p>
+  <ul class="summary"><li>runs by mode: full 3, hash 0, none 0, mixed 0</li><li>payloads: full 49, hash 0, none 0</li></ul>
+  <table><thead><tr><th>Statement</th><th>Records</th></tr></thead><tbody><tr><td>Run 00000001 journalled its 19 payload(s) in full.</td><td class="cite">run 00000001 #1, #5, #6, #9, #13, #16, #22, #23, #27, #28, #31, #35, #36, #41, #42, #48, #49, #52, #55</td></tr><tr><td>Run 0000003f journalled its 19 payload(s) in full.</td><td class="cite">run 0000003f #1, #5, #6, #9, #12, #18, #19, #20, #23, #27, #28, #33, #41, #44, #45, #51, #52, #55, #58</td></tr><tr><td>Run 00000080 journalled its 11 payload(s) in full.</td><td class="cite">run 00000080 #1, #5, #6, #16, #24, #26, #32, #36, #37, #41, #46</td></tr></tbody></table>
+</section>
+
+<section id="retention">
+  <h2>11. The records themselves</h2>
+  <p class="question">Which records does this report rest on, over what span, and are they complete?</p>
+  <p class="serves">Can serve as evidence for: EU AI Act Art. 12(1), Art. 13(3)(f), Art. 26(6); NIST AI RMF GOVERN; ISO/IEC 42001 Annex A.6.</p>
+  <ul class="summary"><li>runs: 3</li><li>child runs: 0</li><li>events: 168</li><li>journey instances: 0</li><li>journey events: 0</li><li>oldest record: 2026-11-02T09:00:00.750Z</li><li>newest record: 2026-11-04T13:36:19.475Z</li><li>held for ms: 2073599250</li><li>runs with gaps: 0</li></ul>
+  <table><thead><tr><th>Statement</th><th>Records</th></tr></thead><tbody><tr><td>The report rests on 168 journal record(s) of 3 run(s) and 0 record(s) of 0 journey(s), from 2026-11-02T09:00:00.750Z to 2026-11-04T13:36:19.475Z.</td><td class="cite">run 00000001 #1; run 00000080 #49</td></tr></tbody></table>
+</section>
+
+<section id="guardrails">
+  <h2>12. Guardrails</h2>
+  <p class="question">What did the guardrails find in what reached and left the agents and tools, at which stage, and what did they do about it?</p>
+  <p class="serves">Can serve as evidence for: EU AI Act Art. 12(2), Art. 14(4), Art. 15(4), Art. 15(5); NIST AI RMF MEASURE, MANAGE; ISO/IEC 42001 Annex A.6, Annex A.7.</p>
+  <ul class="summary"><li>triggered: 4</li><li>guardrails: 2</li><li>failed closed: 0</li><li>by action: block 0, redact 2, retry_with_feedback 0, escalate 2, warn 0</li><li>by stage: input 2, output 2, tool_call 0, tool_result 0</li><li>by check: personal_data 2, prompt_injection 2</li><li>by category: email 2, ignore_instructions 2, phone 2</li></ul>
+  <table><thead><tr><th>Statement</th><th>Records</th></tr></thead><tbody><tr><td>Guardrail &quot;Personal data in what agents write&quot; (personal_data) found email, phone (2 findings) in the output of &quot;Notify claimant&quot; at attempt 1 in run 00000001, and redacted what it found.</td><td class="cite">run 00000001 #53</td></tr><tr><td>Guardrail &quot;Personal data in what agents write&quot; (personal_data) found email, phone (2 findings) in the output of &quot;Notify claimant&quot; at attempt 1 in run 0000003f, and redacted what it found.</td><td class="cite">run 0000003f #56</td></tr><tr><td>Guardrail &quot;Instructions hidden in claim data&quot; (prompt_injection) found ignore_instructions (1 finding) in the input of &quot;Assess damage&quot; in run 00000080, and handed the activity to a person.</td><td class="cite">run 00000080 #9</td></tr><tr><td>Guardrail &quot;Instructions hidden in claim data&quot; (prompt_injection) found ignore_instructions (1 finding) in the input of &quot;Check fraud signals&quot; in run 00000080, and handed the activity to a person.</td><td class="cite">run 00000080 #22</td></tr></tbody></table>
+</section>
+<h2>The frameworks named</h2>
+<h3>Regulation (EU) 2024/1689 (AI Act)</h3><ul><li>Art. 12(1): Record-keeping: automatic recording of events over the lifetime of the system</li><li>Art. 12(2): Logging that enables identifying situations of risk, post-market monitoring and monitoring of operation</li><li>Art. 12(3)(d): For the systems of Annex III point 1(a): logging that identifies the natural persons involved in verifying the results</li><li>Art. 13(3)(b): Information to deployers on characteristics, capabilities and limitations of performance, including accuracy</li><li>Art. 13(3)(d): Information to deployers on the human oversight measures</li><li>Art. 13(3)(f): Information to deployers on how to collect, store and interpret the logs</li><li>Art. 14(4): Human oversight: monitoring, interpreting, disregarding, overriding or reversing outputs, and interrupting the system</li><li>Art. 14(5): For the systems of Annex III point 1(a): no action on a result unless separately verified and confirmed by at least two natural persons</li><li>Art. 15(1): An appropriate level of accuracy and robustness</li><li>Art. 15(3): Levels of accuracy and the relevant metrics</li><li>Art. 15(4): Resilience to errors, faults and inconsistencies; fail-safe plans</li><li>Art. 15(5): Cybersecurity: resilience against attempts by unauthorised third parties to alter use, outputs or performance, inputs designed to manipulate the model included</li><li>Art. 26(2): Deployers assign human oversight to persons with the competence and authority</li><li>Art. 26(5): Deployers monitor the operation of the system</li><li>Art. 26(6): Deployers keep the automatically generated logs under their control for an appropriate period of at least six months, unless other law provides otherwise</li></ul>
+<h3>NIST AI Risk Management Framework 1.0 (NIST AI 100-1)</h3><ul><li>GOVERN: Policies, accountability and human oversight</li><li>MAP: Context, and dependencies on third parties</li><li>MEASURE: Measuring and monitoring trustworthiness, in production included</li><li>MANAGE: Responding to and recovering from errors and incidents</li></ul>
+<h3>ISO/IEC 42001:2023 (AI management system)</h3><ul><li>Clause 9.1: Monitoring, measurement, analysis and evaluation</li><li>Annex A.3: Internal organization: roles and responsibilities for AI</li><li>Annex A.6: AI system life cycle, event logs included</li><li>Annex A.7: Data for AI systems</li><li>Annex A.9: Use of AI systems</li><li>Annex A.10: Third-party and customer relationships</li></ul>
+<p>The mapping from parts to provisions says which obligations a record is relevant to. It does not say that an obligation is met.</p>
+</body>
+</html>
