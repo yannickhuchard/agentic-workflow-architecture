@@ -309,6 +309,19 @@ cd agentic-workflow-architecture/apps/kanban-web && npm install && npm run dev
 
 ---
 
+## Governance and contributing
+
+AWA is developed in the open, under written rules that prepare it for a neutral standards body.
+
+- **[Governance](GOVERNANCE.md)** describes the roles, how decisions are made, how the specification changes and how an implementation claims conformance.
+- **[AWA Enhancement Proposals](docs/proposals/README.md)** record every normative change with its reasons, its rules and its conformance cases.
+- **[Contributing](CONTRIBUTING.md)** explains how to propose a change, set up the SDKs and run the checks.
+- **[Roadmap](ROADMAP.md)** lists the steps from version 2.0.0 to an international standard.
+- **[Code of Conduct](CODE_OF_CONDUCT.md)** and **[Security policy](SECURITY.md)** apply to every participant and every report.
+- **[Maintainers](MAINTAINERS.md)** lists who reviews and merges changes.
+
+---
+
 ## License
 
 AWA is released under the Apache License 2.0.
