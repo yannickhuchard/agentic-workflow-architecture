@@ -141,9 +141,10 @@ function principal_of(value: unknown): { id: string; kind: string | null } | nul
 
 /** Counts by key, the keys in sorted order */
 function counted(keys: string[]): Record<string, number> {
-    const counts: Record<string, number> = {};
-    for (const k of [...keys].sort()) counts[k] = (counts[k] || 0) + 1;
-    return counts;
+    // A Map, so that any name a pattern or a classifier gives a category (constructor, __proto__) is counted as it is
+    const counts = new Map<string, number>();
+    for (const k of [...keys].sort()) counts.set(k, (counts.get(k) || 0) + 1);
+    return Object.fromEntries(counts);
 }
 
 /** Citations grouped by run or journey instance, each with its sequence numbers in order */
@@ -348,7 +349,9 @@ export function compute_evidence(input: EvidenceInput, options: EvidenceOptions 
     for (const r of runs) {
         for (const done of r.events.filter(e => e.type === 'activity.completed')) {
             const same = (e: EvidenceEvent) => e.node_id === done.node_id && e.token_id === done.token_id && e.seq < done.seq;
-            const last_start = [...r.events].reverse().find(e => e.type === 'activity.started' && same(e));
+            // The visit begins where the token last reached the node, or at its last attempt when there was one since:
+            // an input guardrail that escalates hands the activity to a person before any attempt starts (31.5)
+            const last_start = [...r.events].reverse().find(e => (e.type === 'activity.started' || e.type === 'token.moved' || e.type === 'token.created') && same(e));
             const visit = r.events.filter(e => same(e) && (!last_start || e.seq > last_start.seq));
             const escalated = visit.find(e => e.type === 'contract.escalated');
             const guarded = visit.find(e => e.type === 'guardrail.triggered' && e.data?.action === 'escalate');

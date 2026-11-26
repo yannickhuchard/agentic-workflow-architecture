@@ -360,3 +360,51 @@ describe('GET /api/v1/evidence over runs with child runs', () => {
         }
     });
 });
+
+describe('Evidence of a revisited activity and of any category name (spec 32.3)', () => {
+    // A token visits "Draft" twice: an output guardrail escalates on the first visit, an input guardrail on the second
+    const at = (seq: number) => `2026-05-04T09:00:${String(seq).padStart(2, '0')}.000Z`;
+    const base = (seq: number, type: string, extra: Record<string, unknown> = {}) =>
+        ({ spec_version: '1.1', id: `r-${seq}`, run_id: 'r', seq, time: at(seq), type, level: 'execution', workflow_id: 'w', ...extra });
+    const on = (node: string) => ({ token_id: 't1', node_id: node, node_name: node === 'draft' ? 'Draft' : 'Review' });
+    const guardrail = (stage: string, category: string) => ({
+        guardrail_id: '6a0c1e0e-0000-4000-8000-000000000009', name: 'Check', source: 'workflow', stage, check: 'deny_list', action: 'escalate',
+        categories: [category], findings: [{ category, path: '/text', start: 0, end: 4 }],
+    });
+    const events = [
+        base(1, 'run.started', { data: { workflow_name: 'Letters', workflow_version: '1.0.0', input: {} } }),
+        base(2, 'token.moved', { ...on('draft'), data: { to_node_id: 'draft' } }),
+        base(3, 'activity.started', { ...on('draft'), attempt: 1, data: { actor_type: 'ai_agent' } }),
+        base(4, 'guardrail.triggered', { ...on('draft'), attempt: 1, data: guardrail('output', 'constructor') }),
+        base(5, 'token.waiting', { ...on('draft'), data: { reason: 'human_task' } }),
+        base(6, 'token.resumed', { ...on('draft'), data: { waited_ms: 1000 } }),
+        base(7, 'activity.completed', { ...on('draft'), data: { actor_type: 'ai_agent', principal: { id: 'alice', kind: 'person' } } }),
+        base(8, 'token.moved', { ...on('review'), data: { to_node_id: 'review' } }),
+        base(9, 'activity.started', { ...on('review'), attempt: 1, data: { actor_type: 'application' } }),
+        base(10, 'activity.completed', { ...on('review'), data: { actor_type: 'application' } }),
+        base(11, 'token.moved', { ...on('draft'), data: { to_node_id: 'draft' } }),
+        base(12, 'guardrail.triggered', { ...on('draft'), data: guardrail('input', '__proto__') }),
+        base(13, 'token.waiting', { ...on('draft'), data: { reason: 'human_task' } }),
+        base(14, 'token.resumed', { ...on('draft'), data: { waited_ms: 1000 } }),
+        base(15, 'activity.completed', { ...on('draft'), data: { actor_type: 'ai_agent', principal: { id: 'bob', kind: 'person' } } }),
+        base(16, 'run.completed', { data: {} }),
+    ];
+    const report = compute_evidence({ as_of: '2026-05-20T09:00:00.000Z', workflows: [{ id: 'w', name: 'Letters', version: '1.0.0' }], runs: [{ run_id: 'r', workflow_id: 'w', events }] } as unknown as EvidenceInput);
+    const part = (id: string) => report.parts.find(p => p.id === id)!;
+
+    it('bounds each human decision to its own visit, so the second decision cites the input guardrail of that visit', () => {
+        const decisions = part('oversight').statements.filter(s => s.kind === 'human_decision');
+        expect(decisions.map(d => d.facts.principal)).toEqual([{ id: 'alice', kind: 'person' }, { id: 'bob', kind: 'person' }]);
+        expect(part('oversight').summary.overrides).toBe(1);
+        const cited = (s: typeof decisions[number]) => s.citations.flatMap(c => c.seq);
+        expect(cited(decisions[0])).toContain(4);
+        expect(cited(decisions[1])).toContain(12);
+        expect(cited(decisions[1])).not.toContain(4);
+    });
+
+    it('counts a category whatever its name, constructor and __proto__ included', () => {
+        expect(part('guardrails').summary.by_category).toEqual(JSON.parse('{"__proto__": 1, "constructor": 1}'));
+        const facts = part('guardrails').statements.map(s => s.facts.by_category);
+        expect(facts).toEqual([{ constructor: 1 }, JSON.parse('{"__proto__": 1}')]);
+    });
+});

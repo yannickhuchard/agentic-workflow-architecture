@@ -597,3 +597,68 @@ def test_shadow_that_cannot_run_leaves_production_alone(tmp_path):
     assert withdrawn.cancel("the customer left") is True
     assert host.shadow.settled(withdrawn) is None
     assert len(host.shadow.comparisons()) == 1
+
+
+# -- A revisited activity, and any category name (32.3) ----------------------
+
+def _revisited_report():
+    from awa.runtime.evidence import compute_evidence
+
+    def at(seq):
+        return f"2026-05-04T09:00:{seq:02d}.000Z"
+
+    def base(seq, type_, **extra):
+        return {"spec_version": "1.1", "id": f"r-{seq}", "run_id": "r", "seq": seq, "time": at(seq), "type": type_,
+                "level": "execution", "workflow_id": "w", **extra}
+
+    def on(node):
+        return {"token_id": "t1", "node_id": node, "node_name": "Draft" if node == "draft" else "Review"}
+
+    def guardrail(stage, category):
+        return {"guardrail_id": "6a0c1e0e-0000-4000-8000-000000000009", "name": "Check", "source": "workflow", "stage": stage,
+                "check": "deny_list", "action": "escalate", "categories": [category],
+                "findings": [{"category": category, "path": "/text", "start": 0, "end": 4}]}
+
+    # A token visits "Draft" twice: an output guardrail escalates on the first visit, an input guardrail on the second
+    events = [
+        base(1, "run.started", data={"workflow_name": "Letters", "workflow_version": "1.0.0", "input": {}}),
+        base(2, "token.moved", **on("draft"), data={"to_node_id": "draft"}),
+        base(3, "activity.started", **on("draft"), attempt=1, data={"actor_type": "ai_agent"}),
+        base(4, "guardrail.triggered", **on("draft"), attempt=1, data=guardrail("output", "constructor")),
+        base(5, "token.waiting", **on("draft"), data={"reason": "human_task"}),
+        base(6, "token.resumed", **on("draft"), data={"waited_ms": 1000}),
+        base(7, "activity.completed", **on("draft"), data={"actor_type": "ai_agent", "principal": {"id": "alice", "kind": "person"}}),
+        base(8, "token.moved", **on("review"), data={"to_node_id": "review"}),
+        base(9, "activity.started", **on("review"), attempt=1, data={"actor_type": "application"}),
+        base(10, "activity.completed", **on("review"), data={"actor_type": "application"}),
+        base(11, "token.moved", **on("draft"), data={"to_node_id": "draft"}),
+        base(12, "guardrail.triggered", **on("draft"), data=guardrail("input", "__proto__")),
+        base(13, "token.waiting", **on("draft"), data={"reason": "human_task"}),
+        base(14, "token.resumed", **on("draft"), data={"waited_ms": 1000}),
+        base(15, "activity.completed", **on("draft"), data={"actor_type": "ai_agent", "principal": {"id": "bob", "kind": "person"}}),
+        base(16, "run.completed", data={}),
+    ]
+    return compute_evidence({"as_of": "2026-05-20T09:00:00.000Z", "workflows": [{"id": "w", "name": "Letters", "version": "1.0.0"}],
+                             "runs": [{"run_id": "r", "workflow_id": "w", "events": events}]})
+
+
+def _part(report, part_id):
+    return next(p for p in report["parts"] if p["id"] == part_id)
+
+
+def test_each_human_decision_is_bounded_to_its_own_visit():
+    report = _revisited_report()
+    decisions = [s for s in _part(report, "oversight")["statements"] if s["kind"] == "human_decision"]
+    assert [d["facts"]["principal"] for d in decisions] == [{"id": "alice", "kind": "person"}, {"id": "bob", "kind": "person"}]
+    assert _part(report, "oversight")["summary"]["overrides"] == 1
+
+    def cited(statement):
+        return [seq for c in statement["citations"] for seq in c["seq"]]
+    assert 4 in cited(decisions[0])
+    assert 12 in cited(decisions[1]) and 4 not in cited(decisions[1])
+
+
+def test_a_category_is_counted_whatever_its_name():
+    report = _revisited_report()
+    assert _part(report, "guardrails")["summary"]["by_category"] == {"__proto__": 1, "constructor": 1}
+    assert [s["facts"]["by_category"] for s in _part(report, "guardrails")["statements"]] == [{"constructor": 1}, {"__proto__": 1}]

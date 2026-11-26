@@ -449,7 +449,10 @@ def compute_evidence(record: Json, options: Json | None = None) -> Json:
         for done in [e for e in r["events"] if e["type"] == "activity.completed"]:
             def same(e: Json, done: Json = done) -> bool:
                 return e.get("node_id") == done.get("node_id") and e.get("token_id") == done.get("token_id") and e["seq"] < done["seq"]
-            last_start = next((e for e in reversed(r["events"]) if e["type"] == "activity.started" and same(e)), None)
+            # The visit begins where the token last reached the node, or at its last attempt when there was one since:
+            # an input guardrail that escalates hands the activity to a person before any attempt starts (31.5)
+            last_start = next((e for e in reversed(r["events"])
+                               if e["type"] in ("activity.started", "token.moved", "token.created") and same(e)), None)
             visit = [e for e in r["events"] if same(e) and (not last_start or e["seq"] > last_start["seq"])]
             escalated = next((e for e in visit if e["type"] == "contract.escalated"), None)
             guarded = next((e for e in visit if e["type"] == "guardrail.triggered" and _d(e).get("action") == "escalate"), None)
