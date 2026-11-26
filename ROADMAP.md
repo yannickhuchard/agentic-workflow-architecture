@@ -2,6 +2,8 @@
 
 This roadmap describes the steps that take AWA from a specification with two implementations to an international standard for agentic workflows. Each step names what it delivers and how the project knows it is complete.
 
+**Status on 2026-11-26.** Step 1 waits for the publication credentials and the `v2.0.0` tag. Step 2 has its governance files and its proposal process on `main`, and welcomes maintainers from other organisations. Step 3 has the extended evidence report, the compliance guide and the worked example. Steps 4 to 7 come next.
+
 ## 1. Publish version 2.0.0
 
 The SDKs version 2.0.0 implement specification 1.1 in full.
