@@ -315,6 +315,8 @@ AWA_DATA_DIR=.awa awa serve --port 3000 --no-auth
 awa serve --port 3000 --store postgres://awa@db.internal/awa      # the same command on every machine
 ```
 
+`--deployment <file>` applies the whole deployment to every run the server starts: runs started over `/api/v1/workflows/run`, the runs of journeys, and the runs of workflows offered over A2A. Each run reaches only the tools and agents the file allows, carries the file's guardrails, and is decided under its authorization policy.
+
 `--a2a <file>`, repeatable, offers a workflow to other agents over A2A 1.0 (specification 28.8): its agent card is at `/a2a/<workflow id>/.well-known/agent-card.json`, and at `/.well-known/agent-card.json` when one workflow is offered. `--public-url <url>` is the address written in the cards, when callers reach the server at another one than the request shows. `--deployment <file>` says what those runs may reach, as for `awa run`, and its `authorization` section applies to every route and to the runs they start: a caller's principal is taken from its JWT claims (`sub`, `kind`, `roles`, `groups` and the other claims as attributes) or its API key, and a request the policy refuses is answered with 403 and code `FORBIDDEN` (see [operational-api.md](operational-api.md)).
 
 ```bash

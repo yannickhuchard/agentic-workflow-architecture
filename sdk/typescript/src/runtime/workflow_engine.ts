@@ -395,6 +395,10 @@ export class WorkflowEngine {
             throw new Error('Workflow has no activities');
         }
 
+        // Properties whose names begin with `_` belong to the engine (spec 5.2): the input of a run never sets them,
+        // so that no caller can pose as engine state such as a continuation or a wait
+        initialData = Object.fromEntries(Object.entries(initialData).filter(([key]) => !key.startsWith('_')));
+
         const startNodeId = this.findStartNode();
         // Who starts the run, refused before anything is recorded when the policy says no (spec 30.4)
         // A child run is not decided: starting it performs its parent's call activity, decided as that (spec 24.2, 30.4)
@@ -772,7 +776,8 @@ export class WorkflowEngine {
             }
 
             // The agent, robot or application that performs the activity must be allowed to, in its role (spec 30.4)
-            if (this.authorization && token.getData('_agent_continuation') === undefined) {
+            // Decided at every execution, the one that carries an agent's requested input included: no property of the data exempts it
+            if (this.authorization) {
                 const agent = a2a_binding(activity, this.roleMap.get(activity.role_id));
                 const performer = await this.authorization.before_activity(activity, agent, token.contextData, { token_id: token.id, ...this.nodeRef(activity.id) });
                 if (performer) this.performers.set(token.id, performer); else this.performers.delete(token.id);

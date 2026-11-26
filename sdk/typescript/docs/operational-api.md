@@ -12,6 +12,8 @@ AWA_DATA_DIR=.awa awa serve --port 3000 --no-auth
 
 Authentication says who calls; the deployment's policy (`awa serve --deployment <file>`, its `authorization` section, specification section 30) says what they may do. Without a policy nothing below is checked. A caller's principal is taken from the request: from a JWT, `sub` is its id, `kind` its kind (default `person`), `roles` and `role` its roles, and the other claims but the registered ones its attributes, such as `groups`, `clearance` or `department`; an API key stands for `{ id, kind: "application", attributes: { roles: [role], permissions } }`; without authentication the caller is `anonymous`. A policy never lets through a request the authentication refuses.
 
+The deployment file also says what every run may reach and which guardrails it carries (its `tools`, `a2a` and `guardrails` sections). The server gives them to every run it starts: runs started over `/api/v1/workflows/run`, the runs of journeys, and the runs of workflows offered over A2A.
+
 | Route | Action decided |
 |---|---|
 | `POST /api/v1/workflows/run` | `start_run`, as the caller. The run's agents are then held to `perform_activity`, `call_tool` and `reach_agent` |

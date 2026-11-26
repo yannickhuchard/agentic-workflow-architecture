@@ -7,6 +7,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { AuthorizationError } from '../../runtime/authorization';
 import { authorize_request, forbidden, request_principal, server_authorization } from '../authorization';
+import { server_deployment_options } from '../deployment';
 
 export const workflowRouter = Router();
 
@@ -49,6 +50,8 @@ workflowRouter.post('/run', async (req, res) => {
         const principal = request_principal(req);
         const authorization = server_authorization();
         const engine = new WorkflowEngine(workflow, {
+            // What the deployment lets the run reach, and its guardrails (spec 17.4, 28.2, 31.1)
+            ...server_deployment_options(),
             gemini_api_key: key,
             simulate: req.body.simulate === true,
             journal: process.env.AWA_JOURNAL_DIR ? new FileJournalStore(process.env.AWA_JOURNAL_DIR) : undefined,

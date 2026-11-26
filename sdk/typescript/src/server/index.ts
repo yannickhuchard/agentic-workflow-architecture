@@ -15,6 +15,7 @@ import { A2AServeOptions, a2a_routes } from './a2a';
 import { Workflow } from '../types';
 import { AuthorizationOptions } from '../runtime/authorization';
 import { set_server_authorization } from './authorization';
+import { ServerDeployment, set_server_deployment } from './deployment';
 
 export interface ServerConfig {
     /** Authentication configuration */
@@ -32,12 +33,15 @@ export interface ServerConfig {
     a2a?: { workflows: Workflow[]; options?: A2AServeOptions };
     /** Principals of agents and the policy that decides who may do what (specification 30). The routes and the runs they start enforce it */
     authorization?: AuthorizationOptions;
+    /** What the deployment lets runs reach (tools, A2A agents) and its guardrails, applied to every run the routes start (specification 17.4, 28.2, 31.1) */
+    deployment?: ServerDeployment;
 }
 
 export const createServer = (config: ServerConfig = {}) => {
     const app = express();
     const logger = config.logger || create_logger_from_env();
     set_server_authorization(config.authorization);
+    set_server_deployment(config.deployment);
 
     app.use(cors());
     app.use(express.json());
@@ -102,4 +106,6 @@ export const createServer = (config: ServerConfig = {}) => {
 // Re-export auth utilities
 export * from './auth';
 export { set_server_authorization, server_authorization, principal_of_user, request_principal } from './authorization';
+export { set_server_deployment, server_deployment_options } from './deployment';
+export type { ServerDeployment } from './deployment';
 export * from './logger';

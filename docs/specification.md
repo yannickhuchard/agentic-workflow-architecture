@@ -199,7 +199,7 @@ A token carries a JSON object, its data.
 - When an activity finishes, its result object is merged into the token's data, property by property. Later values replace earlier values of the same property.
 - If the result has an `output` property that is a JSON object, that object's properties are merged as well. An AI agent's outcome fields are therefore addressable directly: after an agent returns `{ "output": { "score": 9 } }`, the condition `score > 5` is true.
 - The engine also records each activity's result under `activities.<activity id>.output`, so a result is not lost when a later activity reuses a property name.
-- Properties whose names begin with `_` are reserved for the engine.
+- Properties whose names begin with `_` are reserved for the engine. An engine MUST drop them from the input of a run, so that no caller sets engine state such as a wait or a continuation.
 
 Conditions (section 6) are evaluated against the token's data.
 
@@ -2557,7 +2557,7 @@ Under a policy, an engine and a host MUST ask before each of these, and MUST NOT
 | Point | Action | Principal | On denial |
 |---|---|---|---|
 | A run is started | `start_run` | The caller, or the host (30.1) | No run is created and nothing is journalled. The caller is refused with `FORBIDDEN` |
-| Before the first attempt of each visit of a token to an activity whose actor is not a person | `perform_activity` | The identity that performs it (30.1) | The activity is not started: no `activity.started`. The token fails with `FORBIDDEN` |
+| Before the first attempt of each visit of a token to an activity whose actor is not a person, the visit that gives an agent the input it asked for (28.6) included | `perform_activity` | The identity that performs it (30.1) | The activity is not started: no `activity.started`. The token fails with `FORBIDDEN` |
 | Before the engine reads the card of an agent over A2A or sends it anything, after `perform_activity` | `reach_agent` | The agent's identity | Nothing is sent. The token fails with `FORBIDDEN` |
 | A tool call, after the deployment's permissions (17.3, step 3) | `call_tool` | The principal performing the activity | The call is refused: `tool.failed` with `invoked: false` and code `FORBIDDEN`, returned to the actor. It does not fail the activity |
 | A person's answer reaches the run (5.6) | `complete_task`, or `approve` under a four-eyes rule | Who answers | Nothing of the answer is applied, and the token keeps waiting. The caller is refused with `FORBIDDEN` |

@@ -550,4 +550,6 @@ Errors of these routes are `{"code", "message"}`, as the OpenAPI description giv
 
 With `AWA_RUNTIME_STORE` set to a PostgreSQL URL the server keeps journeys in that shared store, which several servers use at once. Otherwise, with `AWA_DATA_DIR` set the server keeps a runtime directory there and survives a restart; without it journeys live in the process. `AWA_SIMULATE=1` and `AWA_SIMULATED_OUTPUTS=<file>` simulate activities as on the command line.
 
+`awa serve --deployment <file>` gives the file's `tools`, `a2a` and `guardrails` to every run the server starts, as the reference does: runs started over `/api/v1/workflows/run`, the runs of journeys, and the runs of workflows offered over A2A.
+
 `awa serve --a2a <file>` offers a workflow to other agents over A2A 1.0, with the routes of the reference's [operational-api.md](../typescript/docs/operational-api.md): the card at `/a2a/<workflow id>/.well-known/agent-card.json` (and at `/.well-known/agent-card.json` for a single workflow), and `SendMessage`, `GetTask` and `CancelTask` at `POST /a2a/<workflow id>`. `mount_a2a(app, workflows, ...)` in `awa.server.a2a` adds them to any FastAPI application.

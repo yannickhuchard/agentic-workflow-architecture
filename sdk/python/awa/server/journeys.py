@@ -25,6 +25,7 @@ from awa.runtime.telemetry_export import shared_telemetry_from_env
 from awa.runtime.runtime_host import AwaRuntime, add_definition, is_journey_document, open_runtime_directory, simulated_actors
 from awa.runtime.authorization import AuthorizationError
 from awa.server.authorization import authorize_request, forbidden, request_principal, server_authorization
+from awa.server.deployment import server_deployment_options
 
 journey_router = APIRouter()
 measures_router = APIRouter()
@@ -55,6 +56,8 @@ def _host() -> AwaRuntime:
                 with open(os.environ["AWA_SIMULATED_OUTPUTS"], encoding="utf-8") as handle:
                     outputs = json.load(handle)
             engine = {"simulate": True, "actors": simulated_actors(outputs)}
+        # What the deployment lets runs reach, and its guardrails (specification 17.4, 28.2, 31.1)
+        engine.update(server_deployment_options())
         # Who may do what in the runs the host starts (specification 30)
         if server_authorization() is not None:
             engine["authorization"] = server_authorization()

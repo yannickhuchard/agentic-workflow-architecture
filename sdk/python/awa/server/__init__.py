@@ -27,6 +27,7 @@ from awa.runtime.journal import FileJournalStore
 from awa.runtime.services.task_service import TaskService
 from awa.runtime.logger import get_logger
 from awa.runtime.authorization import AuthorizationError
+from awa.server.deployment import server_deployment_options  # noqa: E402
 from awa.server.authorization import (
     authorize_request, forbidden, named_principal, request_principal, server_authorization, set_authorization, task_resource,
 )
@@ -287,6 +288,8 @@ async def run_workflow(
         principal = request_principal(http)
         authorization = server_authorization()
         engine = WorkflowEngine(wf, gemini_api_key=api_key, options={
+            # What the deployment lets the run reach, and its guardrails (specification 17.4, 28.2, 31.1)
+            **server_deployment_options(),
             "user_id": user.get("id"),
             "simulate": request.simulate is True,
             **({"journal": FileJournalStore(journal_dir)} if journal_dir else {}),

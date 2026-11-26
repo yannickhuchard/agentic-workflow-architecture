@@ -457,6 +457,10 @@ class WorkflowEngine:
         if self._status != EngineStatus.IDLE:
             raise RuntimeError("The run has already started")
 
+        # Properties whose names begin with `_` belong to the engine (5.2): the input of a run never sets them,
+        # so that no caller can pose as engine state such as a continuation or a wait
+        initial_data = {key: value for key, value in (initial_data or {}).items() if not str(key).startswith("_")}
+
         start_node_id = self._find_start_node()
         if not start_node_id:
             self._status = EngineStatus.FAILED
@@ -794,7 +798,8 @@ class WorkflowEngine:
                 self._advance_token(token, node_id)
                 return
             # The agent, robot or application that performs the activity must be allowed to, in its role (30.4)
-            if self._authorization is not None and token.get_data("_agent_continuation") is None:
+            # Decided at every execution, the one that carries an agent's requested input included: no property of the data exempts it
+            if self._authorization is not None:
                 agent = a2a_binding(activity, next((r for r in self.workflow.roles if str(r.id) == str(activity.role_id)), None))
                 performer = self._authorization.before_activity(
                     activity, agent, token.context_data, {"token_id": token.id, "node_id": node_id})

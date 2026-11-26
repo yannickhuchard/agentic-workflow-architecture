@@ -50,6 +50,8 @@ export const serveCommand = new Command('serve')
                 request_logging: true,
                 // Who may do what, on the routes and in the runs they start (spec 30)
                 authorization: deployment?.authorization,
+                // What every run may reach, and the guardrails it adds: HTTP runs, journeys and A2A runs alike
+                deployment: deployment ? { tools: deployment.tools, a2a: deployment.a2a, guardrails: deployment.guardrails } : undefined,
                 a2a: offered.length ? {
                     workflows: offered,
                     options: {

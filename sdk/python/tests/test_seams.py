@@ -384,3 +384,67 @@ def test_another_host_keeps_a_child_run_on_its_version_and_decides_separation_of
     finally:
         a.close()
         b.close()
+
+
+# -- Engine state cannot be posed by a caller (5.2, 30.4) ---------------------
+
+def test_the_reserved_properties_of_a_run_input_are_dropped_so_a_continuation_never_exempts_an_activity():
+    pay = workflow("Pay out", ["Pay"])
+    # People may start runs; no rule lets the application perform Pay
+    policy = {"rules": [{"id": "people-start", "effect": "allow", "actions": ["start_run"], "subject": {"kinds": ["person"]}}]}
+    journal = InMemoryJournalStore()
+    engine = WorkflowEngine(pay, options=engine_options(journal=journal, principal=person("mallory"), authorization={"policy": policy}))
+    engine.start({"amount": 10, "_agent_continuation": {"input": "approved"}, "_requires_human_action": True})
+    engine.run()
+    events = engine.get_events()
+    assert engine.status.value == "failed"
+    decided = next(e for e in events if e["type"] == "authorization.decided")["data"]
+    assert (decided["action"], decided["decision"], decided["reason"]) == ("perform_activity", "deny", "no_rule")
+    assert next(e for e in events if e["type"] == "run.started")["data"]["input"] == {"amount": 10}
+    assert not any(e["type"] == "activity.completed" for e in events)
+
+
+# -- A server started with a deployment applies it to every route (17.4, 31.1) -
+
+def test_the_journey_host_of_the_server_gives_runs_the_deployment_guardrails_and_permissions(monkeypatch, tmp_path):
+    from awa.server import journeys as journey_routes
+    from awa.server.deployment import server_deployment_options, set_server_deployment
+    outputs = tmp_path / "outputs.json"
+    outputs.write_text(json.dumps({"Reply": {"output": {"text": "Write to ann@example.com"}}}))
+    monkeypatch.setenv("AWA_SIMULATE", "1")
+    monkeypatch.setenv("AWA_SIMULATED_OUTPUTS", str(outputs))
+    monkeypatch.delenv("AWA_DATA_DIR", raising=False)
+    monkeypatch.delenv("AWA_RUNTIME_STORE", raising=False)
+    guardrail = {"id": str(uuid4()), "name": "No personal data out", "stages": ["output"], "check": {"kind": "personal_data"},
+                 "action": "block", "actor_types": ["application"]}
+    journey_routes.set_journey_runtime(None)
+    set_server_deployment({"tools": {"allow_commands": ["git"]}, "a2a": {}, "guardrails": [guardrail]})
+    try:
+        assert server_deployment_options()["tools"] == {"allow_commands": ["git"]}
+        host = journey_routes._host()
+        reply = workflow("Reply", ["Reply"])
+        host.register_workflow(reply)
+        run = host.start(str(reply.id), {})
+        events = run.get_events()
+        assert run.status.value == "failed"
+        triggered = next(e for e in events if e["type"] == "guardrail.triggered")["data"]
+        assert (triggered["guardrail_id"], triggered["action"]) == (guardrail["id"], "block")
+        assert "ann@example.com" not in json.dumps(events, default=str)
+    finally:
+        journey_routes.set_journey_runtime(None)
+        set_server_deployment(None)
+
+
+def test_awa_serve_with_a_store_and_without_a2a_starts(monkeypatch):
+    import argparse
+    import uvicorn
+    from awa.cli import serve_api
+    started = {}
+    monkeypatch.setattr(uvicorn, "run", lambda app, host, port: started.update(host=host, port=port))
+    monkeypatch.delenv("AWA_RUNTIME_STORE", raising=False)
+    args = argparse.Namespace(host="127.0.0.1", port=3999, deployment=None, a2a=[], public_url=None,
+                              store="postgresql://awa@localhost/awa")
+    assert serve_api(args) == 0
+    assert started == {"host": "127.0.0.1", "port": 3999}
+    assert os.environ["AWA_RUNTIME_STORE"] == "postgresql://awa@localhost/awa"
+    monkeypatch.delenv("AWA_RUNTIME_STORE", raising=False)

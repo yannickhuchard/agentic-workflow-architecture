@@ -12,6 +12,7 @@ import { gauges_to_otlp_json, measures_to_gauges } from '../../runtime/telemetry
 import { shared_telemetry_from_env } from '../../runtime/telemetry_export';
 import { AuthorizationError } from '../../runtime/authorization';
 import { authorize_request, forbidden, request_principal, server_authorization } from '../authorization';
+import { server_deployment_options } from '../deployment';
 
 /**
  * Journeys over HTTP (specification 19). With AWA_RUNTIME_STORE set to a
@@ -35,6 +36,8 @@ function host(): Promise<AwaRuntime> {
         const simulated = process.env.AWA_SIMULATED_OUTPUTS ? JSON.parse(readFileSync(path.resolve(process.env.AWA_SIMULATED_OUTPUTS), 'utf-8')) : undefined;
         const authorization = server_authorization();
         const engine = {
+            // What the deployment lets runs reach, and its guardrails (spec 17.4, 28.2, 31.1)
+            ...server_deployment_options(),
             wait_for_human_tasks: true, execution_logger: { log_execution: async () => { } },
             ...(process.env.AWA_SIMULATE === '1' ? { simulate: true, simulated_outputs: simulated } : {}),
             ...(authorization ? { authorization } : {}),

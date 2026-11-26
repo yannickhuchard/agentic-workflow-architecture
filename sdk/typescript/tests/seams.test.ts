@@ -354,3 +354,53 @@ if (unavailable) console.warn(`Shared store seam tests skipped: ${unavailable}`)
         }
     }, 60_000);
 });
+
+describe('Engine state cannot be posed by a caller (spec 5.2, 30.4)', () => {
+    it('drops the reserved properties of a run\'s input, so a continuation never exempts an activity from the policy', async () => {
+        const PAY = workflow('Pay out', ['Pay']);
+        // People may start runs; no rule lets the application perform Pay
+        const policy: AuthorizationPolicy = { rules: [{ id: 'people-start', effect: 'allow', actions: ['start_run'], subject: { kinds: ['person'] } }] };
+        const journal = new InMemoryJournalStore();
+        const engine = new WorkflowEngine(PAY, engine_options({ journal, principal: person('mallory'), authorization: { policy } }));
+        await engine.start({ amount: 10, _agent_continuation: { input: 'approved' }, _requires_human_action: true });
+        await engine.run();
+        const events = await engine.getEvents();
+        expect(engine.getStatus()).toBe('failed');
+        expect(events.find(e => e.type === 'authorization.decided')!.data).toMatchObject({ action: 'perform_activity', decision: 'deny', reason: 'no_rule' });
+        expect(events.find(e => e.type === 'run.started')!.data.input).toEqual({ amount: 10 });
+        expect(events.some(e => e.type === 'activity.completed')).toBe(false);
+    });
+});
+
+describe('A server started with a deployment applies it to every route (spec 17.4, 31.1)', () => {
+    it('gives the deployment\'s guardrails and permissions to the runs of the journey host', async () => {
+        const { set_server_deployment, server_deployment_options } = await import('../src/server/deployment');
+        const { journey_runtime } = await import('../src/server/routes/journeys');
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'awa-serve-deployment-'));
+        const outputs = path.join(dir, 'outputs.json');
+        fs.writeFileSync(outputs, JSON.stringify({ Reply: { output: { text: 'Write to ann@example.com' } } }));
+        const guardrail = { id: randomUUID(), name: 'No personal data out', stages: ['output'], check: { kind: 'personal_data' }, action: 'block', actor_types: ['application'] };
+        const previous = { simulate: process.env.AWA_SIMULATE, outputs: process.env.AWA_SIMULATED_OUTPUTS };
+        process.env.AWA_SIMULATE = '1';
+        process.env.AWA_SIMULATED_OUTPUTS = outputs;
+        try {
+            set_journey_runtime(undefined);
+            createServer({ request_logging: false, deployment: { tools: { allow_commands: ['git'] }, guardrails: [guardrail as never] } });
+            expect(server_deployment_options()).toMatchObject({ tools: { allow_commands: ['git'] }, guardrails: [{ id: guardrail.id }] });
+            const host = await journey_runtime();
+            const REPLY = workflow('Reply', ['Reply']);
+            host.register_workflow(REPLY);
+            const run = await host.start(REPLY.id, {});
+            const events = await run.getEvents();
+            expect(run.getStatus()).toBe('failed');
+            expect(events.find(e => e.type === 'guardrail.triggered')!.data).toMatchObject({ guardrail_id: guardrail.id, action: 'block' });
+            expect(JSON.stringify(events)).not.toContain('ann@example.com');
+        } finally {
+            set_journey_runtime(undefined);
+            set_server_deployment(undefined);
+            if (previous.simulate === undefined) delete process.env.AWA_SIMULATE; else process.env.AWA_SIMULATE = previous.simulate;
+            if (previous.outputs === undefined) delete process.env.AWA_SIMULATED_OUTPUTS; else process.env.AWA_SIMULATED_OUTPUTS = previous.outputs;
+            fs.rmSync(dir, { recursive: true, force: true });
+        }
+    });
+});

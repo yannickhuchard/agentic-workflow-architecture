@@ -133,18 +133,21 @@ def serve_api(args: argparse.Namespace) -> int:
         import uvicorn
         from awa.server import app
 
-        # Who may do what, on the routes and in the runs they start (specification 30)
+        # Who may do what, on the routes and in the runs they start (specification 30), and what every
+        # run may reach with the guardrails it adds: HTTP runs, journeys and A2A runs alike (17.4, 28.2, 31.1)
         if args.deployment:
             from awa.cli.deployment import load_deployment
             from awa.server.authorization import set_authorization
-            authorization = load_deployment(args.deployment).get("authorization")
+            from awa.server.deployment import set_server_deployment
+            loaded = load_deployment(args.deployment)
+            authorization = loaded.get("authorization")
             set_authorization(authorization)
+            set_server_deployment(loaded)
             if authorization and authorization.get("policy") is not None:
                 print("  Authorization: the deployment's policy decides who may do what")
 
         # Workflows offered over A2A run under the deployment's permissions, like any other run (28.8)
         if args.a2a:
-            import os
             from fastapi import Depends
             from awa.cli.deployment import load_deployment
             from awa.runtime.journal import FileJournalStore
