@@ -4,7 +4,8 @@
  * An evidence report says, for a period and a set of workflows, what ran, which
  * models decided what, what people decided, what was checked and with what
  * result, what was refused, what failed and was undone, which outside systems
- * were called, how data was journalled, and which records are held. Every
+ * were called, how data was journalled, which records are held, and what the
+ * guardrails found. Every
  * statement is computed from journals and journey records, never estimated,
  * and cites the records it rests on: a run id and sequence numbers, or a
  * journey instance and sequence numbers.
@@ -40,7 +41,7 @@ export interface EvidenceOptions {
 
 export type Citation = { run_id: string; seq: number[] } | { journey_instance_id: string; seq: number[] };
 export interface EvidenceStatement { kind: string; text: string; facts: Json; citations: Citation[] }
-export type EvidencePartId = 'operation' | 'models' | 'oversight' | 'outcomes' | 'refusals' | 'failures' | 'compensations' | 'service_levels' | 'tools' | 'data' | 'retention';
+export type EvidencePartId = 'operation' | 'models' | 'oversight' | 'outcomes' | 'refusals' | 'failures' | 'compensations' | 'service_levels' | 'tools' | 'data' | 'retention' | 'guardrails';
 export interface EvidencePart { id: EvidencePartId; title: string; question: string; serves: string[]; summary: Json; statements: EvidenceStatement[] }
 export interface FrameworkReference { id: string; label: string; title: string }
 export interface EvidenceFramework { id: string; name: string; references: FrameworkReference[] }
@@ -49,7 +50,7 @@ export interface EvidenceReport {
     report: 'evidence';
     as_of: string;
     period: { from: string | null; to: string | null };
-    scope: { workflows: { workflow_id: string; name: string; versions: string[]; runs: number }[]; journeys: { journey_id: string; name: string; instances: number }[] };
+    scope: { workflows: { workflow_id: string; name: string; versions: string[]; runs: number; child_runs: number }[]; journeys: { journey_id: string; name: string; instances: number }[] };
     notice: string;
     frameworks: EvidenceFramework[];
     parts: EvidencePart[];
@@ -67,13 +68,16 @@ export const EVIDENCE_FRAMEWORKS: EvidenceFramework[] = [
         id: 'eu-ai-act', name: 'Regulation (EU) 2024/1689 (AI Act)', references: [
             ref('eu-ai-act:12(1)', 'Art. 12(1)', 'Record-keeping: automatic recording of events over the lifetime of the system'),
             ref('eu-ai-act:12(2)', 'Art. 12(2)', 'Logging that enables identifying situations of risk, post-market monitoring and monitoring of operation'),
+            ref('eu-ai-act:12(3)(d)', 'Art. 12(3)(d)', 'For the systems of Annex III point 1(a): logging that identifies the natural persons involved in verifying the results'),
             ref('eu-ai-act:13(3)(b)', 'Art. 13(3)(b)', 'Information to deployers on characteristics, capabilities and limitations of performance, including accuracy'),
             ref('eu-ai-act:13(3)(d)', 'Art. 13(3)(d)', 'Information to deployers on the human oversight measures'),
             ref('eu-ai-act:13(3)(f)', 'Art. 13(3)(f)', 'Information to deployers on how to collect, store and interpret the logs'),
             ref('eu-ai-act:14(4)', 'Art. 14(4)', 'Human oversight: monitoring, interpreting, disregarding, overriding or reversing outputs, and interrupting the system'),
+            ref('eu-ai-act:14(5)', 'Art. 14(5)', 'For the systems of Annex III point 1(a): no action on a result unless separately verified and confirmed by at least two natural persons'),
             ref('eu-ai-act:15(1)', 'Art. 15(1)', 'An appropriate level of accuracy and robustness'),
             ref('eu-ai-act:15(3)', 'Art. 15(3)', 'Levels of accuracy and the relevant metrics'),
             ref('eu-ai-act:15(4)', 'Art. 15(4)', 'Resilience to errors, faults and inconsistencies; fail-safe plans'),
+            ref('eu-ai-act:15(5)', 'Art. 15(5)', 'Cybersecurity: resilience against attempts by unauthorised third parties to alter use, outputs or performance, inputs designed to manipulate the model included'),
             ref('eu-ai-act:26(2)', 'Art. 26(2)', 'Deployers assign human oversight to persons with the competence and authority'),
             ref('eu-ai-act:26(5)', 'Art. 26(5)', 'Deployers monitor the operation of the system'),
             ref('eu-ai-act:26(6)', 'Art. 26(6)', 'Deployers keep the automatically generated logs under their control for an appropriate period of at least six months, unless other law provides otherwise'),
@@ -90,6 +94,7 @@ export const EVIDENCE_FRAMEWORKS: EvidenceFramework[] = [
     {
         id: 'iso-iec-42001', name: 'ISO/IEC 42001:2023 (AI management system)', references: [
             ref('iso-iec-42001:9.1', 'Clause 9.1', 'Monitoring, measurement, analysis and evaluation'),
+            ref('iso-iec-42001:A.3', 'Annex A.3', 'Internal organization: roles and responsibilities for AI'),
             ref('iso-iec-42001:A.6', 'Annex A.6', 'AI system life cycle, event logs included'),
             ref('iso-iec-42001:A.7', 'Annex A.7', 'Data for AI systems'),
             ref('iso-iec-42001:A.9', 'Annex A.9', 'Use of AI systems'),
@@ -102,15 +107,17 @@ export const EVIDENCE_FRAMEWORKS: EvidenceFramework[] = [
 export const EVIDENCE_PARTS: { id: EvidencePartId; title: string; question: string; serves: string[] }[] = [
     { id: 'operation', title: 'What ran', question: 'Which runs and journeys took place in the period, with which workflow versions, and how did each end?', serves: ['eu-ai-act:12(1)', 'eu-ai-act:12(2)', 'eu-ai-act:26(5)', 'nist-ai-rmf:MEASURE', 'iso-iec-42001:9.1', 'iso-iec-42001:A.6'] },
     { id: 'models', title: 'Models and what they decided', question: 'Which models, as named by their providers, served which activities and decisions, and where did a route fall back?', serves: ['eu-ai-act:12(2)', 'eu-ai-act:13(3)(b)', 'nist-ai-rmf:MAP', 'nist-ai-rmf:MEASURE', 'iso-iec-42001:A.6'] },
-    { id: 'oversight', title: 'Human oversight', question: 'What did people decide, what was escalated to them, where did a person decide in place of an automated outcome, and which runs were stopped?', serves: ['eu-ai-act:13(3)(d)', 'eu-ai-act:14(4)', 'eu-ai-act:26(2)', 'nist-ai-rmf:GOVERN', 'nist-ai-rmf:MANAGE', 'iso-iec-42001:A.9'] },
+    { id: 'oversight', title: 'Human oversight', question: 'Who decided what, how many people approved, what was escalated to them, where did a person decide in place of an automated outcome, where were duties kept apart, and which runs were stopped?', serves: ['eu-ai-act:12(3)(d)', 'eu-ai-act:13(3)(d)', 'eu-ai-act:14(4)', 'eu-ai-act:14(5)', 'eu-ai-act:26(2)', 'nist-ai-rmf:GOVERN', 'nist-ai-rmf:MANAGE', 'iso-iec-42001:A.3', 'iso-iec-42001:A.9'] },
     { id: 'outcomes', title: 'Outcome contracts and verification', question: 'Which outcomes were checked against their contracts and verified, and with what result?', serves: ['eu-ai-act:13(3)(b)', 'eu-ai-act:15(1)', 'eu-ai-act:15(3)', 'nist-ai-rmf:MEASURE', 'iso-iec-42001:9.1'] },
-    { id: 'refusals', title: 'Refusals', question: 'What did the engine refuse to do before it happened?', serves: ['eu-ai-act:12(2)', 'eu-ai-act:15(4)', 'nist-ai-rmf:MANAGE', 'iso-iec-42001:A.6'] },
+    { id: 'refusals', title: 'Refusals', question: 'What did the engine refuse to do before it happened, to whom, and under which rule or guardrail?', serves: ['eu-ai-act:12(2)', 'eu-ai-act:15(4)', 'eu-ai-act:15(5)', 'nist-ai-rmf:GOVERN', 'nist-ai-rmf:MANAGE', 'iso-iec-42001:A.6'] },
     { id: 'failures', title: 'Failures', question: 'Which attempts, tool calls, runs and journeys failed or stalled, and why?', serves: ['eu-ai-act:12(2)', 'eu-ai-act:15(4)', 'eu-ai-act:26(5)', 'nist-ai-rmf:MANAGE', 'iso-iec-42001:A.6'] },
     { id: 'compensations', title: 'Compensations', question: 'Which completed work was undone after a failure, and did undoing it succeed?', serves: ['eu-ai-act:15(4)', 'nist-ai-rmf:MANAGE'] },
     { id: 'service_levels', title: 'Service levels', question: 'Where did work take longer than was promised?', serves: ['eu-ai-act:12(2)', 'eu-ai-act:26(5)', 'nist-ai-rmf:MEASURE', 'nist-ai-rmf:MANAGE'] },
     { id: 'tools', title: 'Tool calls by target', question: 'Which outside systems were called, how often, and with what result?', serves: ['eu-ai-act:12(2)', 'eu-ai-act:26(5)', 'nist-ai-rmf:MAP', 'iso-iec-42001:A.10'] },
     { id: 'data', title: 'Data handled', question: 'How were inputs, outputs, tool arguments and results journalled, and which shared contexts were read and written?', serves: ['eu-ai-act:12(1)', 'eu-ai-act:26(6)', 'nist-ai-rmf:GOVERN', 'iso-iec-42001:A.7'] },
     { id: 'retention', title: 'The records themselves', question: 'Which records does this report rest on, over what span, and are they complete?', serves: ['eu-ai-act:12(1)', 'eu-ai-act:13(3)(f)', 'eu-ai-act:26(6)', 'nist-ai-rmf:GOVERN', 'iso-iec-42001:A.6'] },
+    // Last, so that every part before it keeps its place (32.1)
+    { id: 'guardrails', title: 'Guardrails', question: 'What did the guardrails find in what reached and left the agents and tools, at which stage, and what did they do about it?', serves: ['eu-ai-act:12(2)', 'eu-ai-act:14(4)', 'eu-ai-act:15(4)', 'eu-ai-act:15(5)', 'nist-ai-rmf:MEASURE', 'nist-ai-rmf:MANAGE', 'iso-iec-42001:A.6', 'iso-iec-42001:A.7'] },
 ];
 
 const ms = (iso?: string) => (iso ? new Date(iso).getTime() : NaN);
@@ -118,6 +125,26 @@ const short = (id: string) => (id.length > 8 ? id.slice(0, 8) : id);
 const uniq = <T>(values: T[]) => [...new Set(values)];
 const PAYLOAD_FIELDS: Record<string, string> = { 'run.started': 'input', 'activity.started': 'input', 'activity.completed': 'output', 'tool.invoked': 'arguments', 'tool.completed': 'result' };
 const END_TYPES = new Set(['run.completed', 'run.failed', 'run.cancelled']);
+/** Why a decision denied (30.3), in words */
+const DENIED: Record<string, (rule: string | null) => string> = {
+    no_rule: () => 'no rule allows it', rule: rule => `rule ${rule} denies it`, separation_of_duties: rule => `the separation of duties ${rule}`,
+    four_eyes: rule => `the four-eyes rule ${rule}`, decider_error: () => 'the decider failed, and the engine failed closed',
+};
+const GUARDRAIL_ACTIONS = ['block', 'redact', 'retry_with_feedback', 'escalate', 'warn'];
+const GUARDRAIL_STAGES = ['input', 'output', 'tool_call', 'tool_result'];
+
+/** A principal as the journal names it: its id and kind only (30.6) */
+function principal_of(value: unknown): { id: string; kind: string | null } | null {
+    if (!value || typeof value !== 'object' || (value as Json).id === undefined || (value as Json).id === null) return null;
+    return { id: String((value as Json).id), kind: (value as Json).kind ?? null };
+}
+
+/** Counts by key, the keys in sorted order */
+function counted(keys: string[]): Record<string, number> {
+    const counts: Record<string, number> = {};
+    for (const k of [...keys].sort()) counts[k] = (counts[k] || 0) + 1;
+    return counts;
+}
 
 /** Citations grouped by run or journey instance, each with its sequence numbers in order */
 function cite(...refs: (EvidenceEvent & { journey_instance_id?: string } | undefined)[]): Citation[] {
@@ -142,7 +169,7 @@ function payload_kind(value: unknown): 'full' | 'hash' | 'none' {
     return 'full';
 }
 
-interface KeptRun { run: EvidenceRun; events: EvidenceEvent[]; started: EvidenceEvent | undefined; ended: EvidenceEvent | undefined; start: number; name: string; version: string | null; journey_instance_id: string | null }
+interface KeptRun { run: EvidenceRun; events: EvidenceEvent[]; started: EvidenceEvent | undefined; ended: EvidenceEvent | undefined; start: number; name: string; version: string | null; journey_instance_id: string | null; depth: number; parent_run_id: string | null; root_run_id: string | null }
 
 function by_code(codes: string[]) {
     const counts = new Map<string, number>();
@@ -166,17 +193,33 @@ export function compute_evidence(input: EvidenceInput, options: EvidenceOptions 
     for (const j of input.journeys || []) for (const row of j.instances) for (const r of row.runs) { all.set(r.run_id, r); owner.set(r.run_id, row.instance.id); }
     for (const r of input.runs || []) if (!all.has(r.run_id)) all.set(r.run_id, r);
 
+    // A child run (section 24) is kept with the run of depth 0 above it: the period is that run's,
+    // and a child run is kept for its own workflow or for that run's (32.1)
+    const first_of = (run: EvidenceRun) => run.events.find(e => e.type === 'run.started') || [...run.events].sort((a, b) => a.seq - b.seq)[0];
+    const parent_of = (run: EvidenceRun): Json | undefined => {
+        const parent = run.events.find(e => e.type === 'run.started')?.data?.parent;
+        return parent && typeof parent === 'object' && parent.run_id ? parent : undefined;
+    };
+    const root_of = (run: EvidenceRun): EvidenceRun | undefined => {
+        const parent = parent_of(run);
+        return parent ? all.get(String(parent.root_run_id ?? parent.run_id)) : undefined;
+    };
     const runs: KeptRun[] = [];
     for (const run of all.values()) {
-        if (wanted && !wanted.has(run.workflow_id)) continue;
+        const root = root_of(run);
+        if (wanted && !wanted.has(run.workflow_id) && !(root && wanted.has(root.workflow_id))) continue;
+        if (!within(first_of(root || run)?.time)) continue;
         const events = [...run.events].map(e => ({ ...e, run_id: e.run_id || run.run_id })).sort((a, b) => a.seq - b.seq);
         const started = events.find(e => e.type === 'run.started');
-        if (!within((started || events[0])?.time)) continue;
+        const parent = parent_of(run);
         runs.push({
             run, events, started, ended: [...events].reverse().find(e => END_TYPES.has(e.type)), start: ms((started || events[0])?.time),
             name: started?.data?.workflow_name || catalogue.get(run.workflow_id)?.name || run.workflow_id,
             version: started?.data?.workflow_version ?? catalogue.get(run.workflow_id)?.version ?? null,
             journey_instance_id: owner.get(run.run_id) ?? null,
+            depth: parent ? Number(started?.data?.depth ?? 1) : Number(started?.data?.depth ?? 0),
+            parent_run_id: parent ? String(parent.run_id) : null,
+            root_run_id: parent ? String(parent.root_run_id ?? parent.run_id) : null,
         });
     }
     runs.sort((a, b) => (a.start - b.start) || a.run.run_id.localeCompare(b.run.run_id));
@@ -201,9 +244,13 @@ export function compute_evidence(input: EvidenceInput, options: EvidenceOptions 
     const operation: EvidenceStatement[] = runs.map(r => {
         const status = status_of(r);
         const started_at = (r.started || r.events[0])?.time ?? null;
+        const principal = principal_of(r.started?.data?.principal);
         return statement('run',
-            `Run ${short(r.run.run_id)} of "${r.name}"${r.version ? ` version ${r.version}` : ''} started at ${started_at}${status === 'in_progress' ? ' and had not ended when recorded' : ` and ${status === 'completed' ? 'completed' : status === 'failed' ? 'failed' : 'was cancelled'} at ${r.ended!.time}`}.`,
-            { run_id: r.run.run_id, workflow_id: r.run.workflow_id, workflow_name: r.name, workflow_version: r.version, status, started_at, ended_at: r.ended?.time ?? null, journey_instance_id: r.journey_instance_id },
+            `Run ${short(r.run.run_id)} of "${r.name}"${r.version ? ` version ${r.version}` : ''}${r.parent_run_id ? `, a child run of run ${short(r.parent_run_id)} at depth ${r.depth},` : ''} started at ${started_at}${principal ? ` by ${principal.id}` : ''}${status === 'in_progress' ? ' and had not ended when recorded' : ` and ${status === 'completed' ? 'completed' : status === 'failed' ? 'failed' : 'was cancelled'} at ${r.ended!.time}`}.`,
+            {
+                run_id: r.run.run_id, workflow_id: r.run.workflow_id, workflow_name: r.name, workflow_version: r.version, status, started_at, ended_at: r.ended?.time ?? null, journey_instance_id: r.journey_instance_id,
+                principal, depth: r.depth, parent_run_id: r.parent_run_id, root_run_id: r.root_run_id,
+            },
             cite(r.started, r.ended));
     });
     for (const i of instances) {
@@ -222,17 +269,34 @@ export function compute_evidence(input: EvidenceInput, options: EvidenceOptions 
             run_id: e.run_id, from_version: e.data?.from_version ?? null, to_version: e.data?.to_version ?? null,
             tokens_kept: tokens.filter(t => t.outcome === 'kept').length, tokens_restarted: tokens.filter(t => t.outcome === 'restarted').length,
             data_changes: Array.isArray(e.data?.data_changes) ? e.data!.data_changes.length : 0,
+            principal: principal_of(e.data?.principal),
         };
         operation.push(statement('migration',
-            `Run ${short(e.run_id!)} was moved from version ${facts.from_version} to version ${facts.to_version} at ${e.time}: ${facts.tokens_kept} token(s) kept their wait, ${facts.tokens_restarted} started afresh, ${facts.data_changes} change(s) to data.`,
+            `Run ${short(e.run_id!)} was moved from version ${facts.from_version} to version ${facts.to_version} at ${e.time}${facts.principal ? ` by ${facts.principal.id}` : ''}: ${facts.tokens_kept} token(s) kept their wait, ${facts.tokens_restarted} started afresh, ${facts.data_changes} change(s) to data.`,
             facts, cite(e)));
+    }
+    // Who was allowed to do what, where the journal records it (30.6)
+    const decisions = every.filter(x => x.e.type === 'authorization.decided');
+    const decision_facts = (e: EvidenceEvent) => ({
+        run_id: e.run_id, node_name: node(e) || null, action: e.data?.action ?? null, principal: principal_of(e.data?.principal),
+        resource: e.data?.resource && typeof e.data.resource === 'object' ? e.data.resource : null, rule: e.data?.rule ?? null, reason: e.data?.reason ?? null,
+    });
+    const allowed = decisions.filter(x => x.e.data?.decision === 'allow');
+    for (const { e } of allowed) {
+        const f = decision_facts(e);
+        const approval = e.data?.approval && typeof e.data.approval === 'object' ? { given: e.data.approval.given ?? null, required: e.data.approval.required ?? null } : null;
+        operation.push(statement('authorization_allowed',
+            `${f.principal?.id ?? 'An unnamed principal'} was allowed the action ${f.action}${f.node_name ? ` at "${f.node_name}"` : ''} in run ${short(e.run_id!)}${f.rule ? ` by rule ${f.rule}` : ''}${approval ? ` (approval ${approval.given} of ${approval.required})` : ''}.`,
+            { run_id: f.run_id, node_name: f.node_name, action: f.action, principal: f.principal, resource: f.resource, rule: f.rule, approval }, cite(e)));
     }
     const workflows_scope = uniq(runs.map(r => r.run.workflow_id)).map(id => {
         const mine = runs.filter(r => r.run.workflow_id === id);
         const moved_to = migrations.filter(x => x.r.run.workflow_id === id).map(x => x.e.data?.to_version as string | undefined);
-        return { workflow_id: id, name: mine[0].name, versions: uniq([...mine.map(r => r.version), ...moved_to].filter((v): v is string => !!v)).sort(), runs: mine.length };
+        return { workflow_id: id, name: mine[0].name, versions: uniq([...mine.map(r => r.version), ...moved_to].filter((v): v is string => !!v)).sort(), runs: mine.length, child_runs: mine.filter(r => r.parent_run_id).length };
     });
     const count_status = (s: string) => runs.filter(r => status_of(r) === s).length;
+    const child_runs = runs.filter(r => r.parent_run_id).length;
+    const kinds = (statements: EvidenceStatement[], kind: string) => statements.filter(s => s.kind === kind).length;
 
     // --- Models ----------------------------------------------------------------
     const selections = of('meta.recorded').filter(x => x.e.data?.subject === 'model_selection' && x.e.data?.model);
@@ -256,6 +320,28 @@ export function compute_evidence(input: EvidenceInput, options: EvidenceOptions 
         model_statements.push(statement('model_decision', `A model decided "${node(e)}" in run ${short(e.run_id!)}: option ${option}${confidence !== null ? ` with a stated confidence of ${confidence}` : ''}.`, { run_id: e.run_id, node_name: node(e), option, confidence }, cite(e)));
     }
 
+    // --- What guardrails found (31.7): never what they matched, which the record does not hold --
+    const triggered = of('guardrail.triggered');
+    const guardrail_facts = (e: EvidenceEvent) => {
+        const findings = (Array.isArray(e.data?.findings) ? e.data!.findings : []) as Json[];
+        const by_category = counted(findings.map(f => String(f?.category ?? 'unknown')));
+        const categories = Array.isArray(e.data?.categories) ? (e.data!.categories as unknown[]).map(String).sort() : Object.keys(by_category);
+        return {
+            run_id: e.run_id, node_name: node(e) || null, attempt: e.attempt ?? null, guardrail_id: e.data?.guardrail_id ?? null, name: e.data?.name ?? null,
+            source: e.data?.source ?? null, stage: e.data?.stage ?? null, check: e.data?.check ?? null, action: e.data?.action ?? null,
+            categories, findings: findings.length, by_category, tool: e.data?.tool ?? null, failed_closed: e.data?.error !== undefined && e.data?.error !== null,
+        };
+    };
+    const ACTED: Record<string, string> = { block: 'blocked it', redact: 'redacted what it found', retry_with_feedback: 'had the agent try again with feedback', escalate: 'handed the activity to a person', warn: 'recorded a warning' };
+    const guardrail_text = (e: EvidenceEvent) => {
+        const f = guardrail_facts(e);
+        const where = `${f.stage === 'tool_call' || f.stage === 'tool_result' ? `${f.stage === 'tool_call' ? 'a call to' : 'the result of'} ${f.tool ?? 'a tool'} by ` : `the ${f.stage} of `}"${f.node_name}"${f.attempt ? ` at attempt ${f.attempt}` : ''} in run ${short(e.run_id!)}`;
+        return f.failed_closed
+            ? `Guardrail "${f.name ?? f.guardrail_id}" (${f.check}) could not carry out its check on ${where}, and blocked it.`
+            : `Guardrail "${f.name ?? f.guardrail_id}" (${f.check}) found ${f.categories.join(', ') || 'something'} (${f.findings} finding${f.findings === 1 ? '' : 's'}) in ${where}, and ${ACTED[String(f.action)] ?? `acted: ${f.action}`}.`;
+    };
+    const guardrail_statements = triggered.map(({ e }) => statement('guardrail', guardrail_text(e), guardrail_facts(e), cite(e)));
+
     // --- Human oversight -------------------------------------------------------
     const oversight: EvidenceStatement[] = [];
     let overrides = 0;
@@ -265,16 +351,34 @@ export function compute_evidence(input: EvidenceInput, options: EvidenceOptions 
             const last_start = [...r.events].reverse().find(e => e.type === 'activity.started' && same(e));
             const visit = r.events.filter(e => same(e) && (!last_start || e.seq > last_start.seq));
             const escalated = visit.find(e => e.type === 'contract.escalated');
-            if (!escalated && actor_type(r, done) !== 'human') continue;
-            if (escalated) overrides++;
-            const related = visit.filter(e => e.type === 'token.waiting' || e.type === 'token.resumed' || e.type === 'contract.escalated' || (e.type === 'contract.checked' && e.data?.decided_by === 'human'));
+            const guarded = visit.find(e => e.type === 'guardrail.triggered' && e.data?.action === 'escalate');
+            if (!escalated && !guarded && actor_type(r, done) !== 'human') continue;
+            // An override: a person decided in place of an outcome that was rejected
+            if (escalated || guarded?.data?.stage === 'output') overrides++;
+            const related = visit.filter(e => e.type === 'token.waiting' || e.type === 'token.resumed' || e.type === 'contract.escalated' || (e.type === 'contract.checked' && e.data?.decided_by === 'human')
+                || (e.type === 'guardrail.triggered' && e.data?.action === 'escalate')
+                || (e.type === 'authorization.decided' && e.data?.decision === 'allow' && (e.data?.action === 'complete_task' || e.data?.action === 'approve')));
             const resumed = related.find(e => e.type === 'token.resumed');
+            const principal = principal_of(done.data?.principal) ?? principal_of(resumed?.data?.principal);
+            const approvals = (Array.isArray(done.data?.approvals) ? done.data!.approvals : []).map(principal_of).filter((p: unknown): p is { id: string; kind: string | null } => !!p);
+            const approvers = uniq(approvals.map(p => p.id)).length;
+            const last_approval = [...related].reverse().find(e => e.type === 'authorization.decided' && e.data?.approval && typeof e.data.approval === 'object');
+            const approvals_required = last_approval?.data?.approval?.required ?? null;
+            const escalated_by = escalated ? 'contract' : guarded ? 'guardrail' : null;
             oversight.push(statement('human_decision',
-                `A person decided "${node(done)}" in run ${short(r.run.run_id)} at ${done.time}${escalated ? ', in place of an outcome that was rejected and escalated to them' : ''}${resumed?.data?.waited_ms !== undefined ? `, after a wait of ${duration(Number(resumed.data.waited_ms))}` : ''}.`,
-                { run_id: r.run.run_id, node_name: node(done), escalated: !!escalated, decided_at: done.time }, cite(...related, done)));
+                `A person decided "${node(done)}" in run ${short(r.run.run_id)} at ${done.time}${principal ? ` (${principal.id})` : ''}${escalated ? ', in place of an outcome that was rejected and escalated to them' : guarded ? `, escalated to them by a guardrail at stage ${guarded.data?.stage}` : ''}${approvals.length ? `, approved by ${uniq(approvals.map(p => p.id)).join(' and ')} (${approvers} distinct approver${approvers === 1 ? '' : 's'}${approvals_required !== null ? ` of ${approvals_required} required` : ''})` : ''}${resumed?.data?.waited_ms !== undefined ? `, after a wait of ${duration(Number(resumed.data.waited_ms))}` : ''}.`,
+                { run_id: r.run.run_id, node_name: node(done), escalated: escalated_by !== null, escalated_by, decided_at: done.time, principal, approvals, approvers, approvals_required }, cite(...related, done)));
         }
     }
     for (const { e } of of('contract.escalated')) oversight.push(statement('escalation', `"${node(e)}" in run ${short(e.run_id!)} was escalated to a person (${e.data?.code}): ${e.data?.message}`, { run_id: e.run_id, node_name: node(e), code: e.data?.code ?? null }, cite(e)));
+    for (const { e } of triggered.filter(x => x.e.data?.action === 'escalate')) oversight.push(statement('guardrail_escalation', guardrail_text(e), guardrail_facts(e), cite(e)));
+    const separations = decisions.filter(x => x.e.data?.decision === 'deny' && (x.e.data?.reason === 'separation_of_duties' || x.e.data?.reason === 'four_eyes'));
+    for (const { e } of separations) {
+        const f = decision_facts(e);
+        oversight.push(statement('separation_of_duties',
+            `${f.principal?.id ?? 'An unnamed principal'} was refused the action ${f.action}${f.node_name ? ` at "${f.node_name}"` : ''} in run ${short(e.run_id!)}: ${f.reason === 'four_eyes' ? `under the four-eyes rule ${f.rule}, each approval must come from another person` : `the separation of duties ${f.rule} keeps this apart from what they did in the run`}.`,
+            { run_id: f.run_id, node_name: f.node_name, action: f.action, principal: f.principal, rule: f.rule, reason: f.reason }, cite(e)));
+    }
     for (const { e } of of('run.cancelled')) oversight.push(statement('cancellation', `Run ${short(e.run_id!)} was stopped: ${e.data?.reason || 'no reason recorded'}.`, { run_id: e.run_id, reason: e.data?.reason ?? null }, cite(e)));
 
     // --- Outcome contracts and verification ------------------------------------
@@ -304,6 +408,13 @@ export function compute_evidence(input: EvidenceInput, options: EvidenceOptions 
             { run_id: e.run_id, node_name: node(e), tool: e.data?.tool ?? null, link: e.data?.link ?? null, code: e.data?.error?.code ?? null }, cite(e))),
         ...of('context.denied').map(({ e }) => statement('context_denied', `A write to the context "${e.data?.context_name}" by "${node(e)}" in run ${short(e.run_id!)} was refused: ${e.data?.reason}.`,
             { run_id: e.run_id, node_name: node(e), context_name: e.data?.context_name ?? null, reason: e.data?.reason ?? null }, cite(e))),
+        ...decisions.filter(x => x.e.data?.decision === 'deny').map(({ e }) => {
+            const f = decision_facts(e);
+            return statement('authorization_denied',
+                `${f.principal?.id ?? 'An unnamed principal'}${f.principal?.kind ? ` (${f.principal.kind})` : ''} was refused the action ${f.action}${f.node_name ? ` at "${f.node_name}"` : ''} in run ${short(e.run_id!)}: ${DENIED[String(f.reason)]?.(f.rule) ?? `${f.reason}`}.`,
+                f, cite(e));
+        }),
+        ...triggered.filter(x => x.e.data?.action === 'block').map(({ e }) => statement('guardrail_blocked', guardrail_text(e), guardrail_facts(e), cite(e))),
     ];
     const failed_tools = of('tool.failed').filter(x => x.e.data?.invoked !== false);
     const stalls = instances.flatMap(i => i.events.filter(e => e.type === 'journey.stalled').map(e => ({ e, i })));
@@ -396,8 +507,8 @@ export function compute_evidence(input: EvidenceInput, options: EvidenceOptions 
     const retention: EvidenceStatement[] = [];
     if (oldest && newest) {
         retention.push(statement('held',
-            `The report rests on ${event_count} journal record(s) of ${runs.length} run(s) and ${journey_events} record(s) of ${instances.length} journey(s), from ${oldest.time} to ${newest.time}.`,
-            { runs: runs.length, events: event_count, journey_instances: instances.length, journey_events, oldest_record: oldest.time, newest_record: newest.time }, cite(...at_the_ends)));
+            `The report rests on ${event_count} journal record(s) of ${runs.length} run(s)${child_runs ? `, ${child_runs} of them child runs,` : ''} and ${journey_events} record(s) of ${instances.length} journey(s), from ${oldest.time} to ${newest.time}.`,
+            { runs: runs.length, child_runs, events: event_count, journey_instances: instances.length, journey_events, oldest_record: oldest.time, newest_record: newest.time }, cite(...at_the_ends)));
     }
     let runs_with_gaps = 0;
     for (const r of runs) {
@@ -428,17 +539,31 @@ export function compute_evidence(input: EvidenceInput, options: EvidenceOptions 
         notice: EVIDENCE_NOTICE,
         frameworks: EVIDENCE_FRAMEWORKS,
         parts: [
-            part('operation', { runs: runs.length, completed: count_status('completed'), failed: count_status('failed'), cancelled: count_status('cancelled'), in_progress: count_status('in_progress'), journeys: instances.length, migrations: migrations.length, workflows: workflows_scope }, operation),
+            part('operation', { runs: runs.length, completed: count_status('completed'), failed: count_status('failed'), cancelled: count_status('cancelled'), in_progress: count_status('in_progress'), child_runs: child_runs, journeys: instances.length, migrations: migrations.length, authorizations_allowed: allowed.length, workflows: workflows_scope }, operation),
             part('models', { models: uniq([...models.values()].map(m => `${m.facts.provider ? `${m.facts.provider}:` : ''}${m.facts.model}`)).sort(), selections: selections.length, routes: model_statements.filter(s => s.kind === 'route').length, model_decisions: model_statements.filter(s => s.kind === 'model_decision').length }, model_statements),
-            part('oversight', { human_decisions: oversight.filter(s => s.kind === 'human_decision').length, overrides, escalations: oversight.filter(s => s.kind === 'escalation').length, cancellations: oversight.filter(s => s.kind === 'cancellation').length }, oversight),
+            part('oversight', {
+                human_decisions: kinds(oversight, 'human_decision'), overrides, escalations: kinds(oversight, 'escalation'), guardrail_escalations: kinds(oversight, 'guardrail_escalation'),
+                four_eyes: oversight.filter(s => s.kind === 'human_decision' && s.facts.approvals.length > 0).length, separation_of_duties: kinds(oversight, 'separation_of_duties'), cancellations: kinds(oversight, 'cancellation'),
+            }, oversight),
             part('outcomes', { contracts: contracts.length, contracts_passed: contracts.filter(x => x.e.data?.passed === true).length, verifications: verifications.length, verifications_passed: verifications.filter(x => x.e.data?.verdict === 'pass').length, activities: [...per_activity.values()] }, outcomes),
-            part('refusals', { refusals: refusals.length, tool_calls: refused.length, context_writes: refusals.length - refused.length, by_code: by_code(refused.map(x => String(x.e.data?.error?.code ?? 'UNKNOWN'))) }, refusals),
+            part('refusals', {
+                refusals: refusals.length, tool_calls: refused.length, context_writes: kinds(refusals, 'context_denied'), authorization: kinds(refusals, 'authorization_denied'), guardrails: kinds(refusals, 'guardrail_blocked'),
+                by_code: by_code(refused.map(x => String(x.e.data?.error?.code ?? 'UNKNOWN'))), authorization_by_reason: counted(refusals.filter(s => s.kind === 'authorization_denied').map(s => String(s.facts.reason ?? 'unknown'))),
+            }, refusals),
             part('failures', { attempts_failed: failures.filter(s => s.kind === 'attempt_failed').length, dead_letters: failures.filter(s => s.kind === 'dead_letter').length, tool_failures: failed_tools.length, runs_failed: failures.filter(s => s.kind === 'run_failed').length, journeys_stalled: stalls.length, by_code: by_code(failures.filter(s => s.kind === 'attempt_failed').map(s => String(s.facts.code ?? 'UNKNOWN'))) }, failures),
             part('compensations', { compensations: compensations.length, failed: compensations.filter(s => !s.facts.succeeded).length }, compensations),
             part('service_levels', { warnings: service_levels.filter(s => s.facts.level === 'warning').length, breaches: service_levels.filter(s => s.facts.level === 'breach').length }, service_levels),
             part('tools', { targets: targets.size, calls: tool_statements.reduce((a, s) => a + s.facts.calls, 0), completed: tool_statements.reduce((a, s) => a + s.facts.completed, 0), failed: tool_statements.reduce((a, s) => a + s.facts.failed, 0), refused: tool_statements.reduce((a, s) => a + s.facts.refused, 0) }, tool_statements),
             part('data', { runs_by_mode, payloads }, data),
-            part('retention', { runs: runs.length, events: event_count, journey_instances: instances.length, journey_events, oldest_record: oldest?.time ?? null, newest_record: newest?.time ?? null, held_for_ms: oldest ? Math.max(0, ms(as_of) - ms(oldest.time)) : null, runs_with_gaps }, retention),
+            part('retention', { runs: runs.length, child_runs, events: event_count, journey_instances: instances.length, journey_events, oldest_record: oldest?.time ?? null, newest_record: newest?.time ?? null, held_for_ms: oldest ? Math.max(0, ms(as_of) - ms(oldest.time)) : null, runs_with_gaps }, retention),
+            part('guardrails', {
+                triggered: triggered.length, guardrails: uniq(triggered.map(x => String(x.e.data?.guardrail_id ?? ''))).length,
+                by_action: Object.fromEntries(GUARDRAIL_ACTIONS.map(a => [a, triggered.filter(x => x.e.data?.action === a).length])),
+                by_stage: Object.fromEntries(GUARDRAIL_STAGES.map(st => [st, triggered.filter(x => x.e.data?.stage === st).length])),
+                by_check: counted(triggered.map(x => String(x.e.data?.check ?? 'unknown'))),
+                by_category: counted(guardrail_statements.flatMap(s => Object.entries(s.facts.by_category as Record<string, number>).flatMap(([c, n]) => Array(n).fill(c)))),
+                failed_closed: guardrail_statements.filter(s => s.facts.failed_closed).length,
+            }, guardrail_statements),
         ],
     };
 }
@@ -485,8 +610,8 @@ export function render_evidence_markdown(report: EvidenceReport): string {
     out.push(`> ${report.notice}`, '');
     out.push('## Scope', '');
     if (report.scope.workflows.length) {
-        out.push('| Workflow | Versions | Runs |', '|---|---|---|');
-        for (const w of report.scope.workflows) out.push(`| ${escape(w.name)} | ${w.versions.join(', ') || 'not recorded'} | ${w.runs} |`);
+        out.push('| Workflow | Versions | Runs | Of which child runs |', '|---|---|---|---|');
+        for (const w of report.scope.workflows) out.push(`| ${escape(w.name)} | ${w.versions.join(', ') || 'not recorded'} | ${w.runs} | ${w.child_runs ?? 0} |`);
         out.push('');
     } else out.push('No run falls within the period.', '');
     for (const j of report.scope.journeys) out.push(`- Journey "${j.name}": ${j.instances} instance(s)`);
@@ -544,7 +669,7 @@ td.cite { font-family: ui-monospace, monospace; font-size: 0.85em; white-space: 
 <p>As of ${h(report.as_of)}. Period: ${h(report.period.from ?? 'the beginning of the records')} to ${h(report.period.to ?? 'the end of the records')}.</p>
 <p class="notice">${h(report.notice)}</p>
 <h2>Scope</h2>
-${report.scope.workflows.length ? `<table><thead><tr><th>Workflow</th><th>Versions</th><th>Runs</th></tr></thead><tbody>${report.scope.workflows.map(w => `<tr><td>${h(w.name)}</td><td>${h(w.versions.join(', ') || 'not recorded')}</td><td>${w.runs}</td></tr>`).join('')}</tbody></table>` : '<p>No run falls within the period.</p>'}
+${report.scope.workflows.length ? `<table><thead><tr><th>Workflow</th><th>Versions</th><th>Runs</th><th>Of which child runs</th></tr></thead><tbody>${report.scope.workflows.map(w => `<tr><td>${h(w.name)}</td><td>${h(w.versions.join(', ') || 'not recorded')}</td><td>${w.runs}</td><td>${w.child_runs ?? 0}</td></tr>`).join('')}</tbody></table>` : '<p>No run falls within the period.</p>'}
 ${report.scope.journeys.length ? `<ul>${report.scope.journeys.map(j => `<li>Journey "${h(j.name)}": ${j.instances} instance(s)</li>`).join('')}</ul>` : ''}
 <p class="serves">Each statement cites the journal records it rests on: "run 1a2b3c4d #5" is the record with sequence number 5 in the journal of the run whose id begins 1a2b3c4d.</p>
 ${parts}

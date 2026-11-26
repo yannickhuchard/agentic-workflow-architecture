@@ -1,0 +1,2243 @@
+{
+  "spec_version": "1.1",
+  "report": "evidence",
+  "as_of": "2026-11-26T09:00:00.000Z",
+  "period": {
+    "from": "2026-11-02T09:00:00.750Z",
+    "to": "2026-11-04T11:20:58.475Z"
+  },
+  "scope": {
+    "workflows": [
+      {
+        "workflow_id": "42ddec2f-18d0-5b06-837b-bf1e9c8cecdb",
+        "name": "Motor Claim Settlement",
+        "versions": [
+          "1.0.0"
+        ],
+        "runs": 3,
+        "child_runs": 0
+      }
+    ],
+    "journeys": []
+  },
+  "notice": "This report is evidence computed from the execution journals and journey records listed in it. Every statement cites the records it rests on. It is not a certification, an audit opinion or a conformity assessment: it does not establish that any system, deployer or provider complies with the EU AI Act, the NIST AI RMF, ISO/IEC 42001 or any other framework. Whether these records meet an obligation depends on the system, its intended purpose, its risk classification and the applicable law, which this report does not assess.",
+  "frameworks": [
+    {
+      "id": "eu-ai-act",
+      "name": "Regulation (EU) 2024/1689 (AI Act)",
+      "references": [
+        {
+          "id": "eu-ai-act:12(1)",
+          "label": "Art. 12(1)",
+          "title": "Record-keeping: automatic recording of events over the lifetime of the system"
+        },
+        {
+          "id": "eu-ai-act:12(2)",
+          "label": "Art. 12(2)",
+          "title": "Logging that enables identifying situations of risk, post-market monitoring and monitoring of operation"
+        },
+        {
+          "id": "eu-ai-act:12(3)(d)",
+          "label": "Art. 12(3)(d)",
+          "title": "For the systems of Annex III point 1(a): logging that identifies the natural persons involved in verifying the results"
+        },
+        {
+          "id": "eu-ai-act:13(3)(b)",
+          "label": "Art. 13(3)(b)",
+          "title": "Information to deployers on characteristics, capabilities and limitations of performance, including accuracy"
+        },
+        {
+          "id": "eu-ai-act:13(3)(d)",
+          "label": "Art. 13(3)(d)",
+          "title": "Information to deployers on the human oversight measures"
+        },
+        {
+          "id": "eu-ai-act:13(3)(f)",
+          "label": "Art. 13(3)(f)",
+          "title": "Information to deployers on how to collect, store and interpret the logs"
+        },
+        {
+          "id": "eu-ai-act:14(4)",
+          "label": "Art. 14(4)",
+          "title": "Human oversight: monitoring, interpreting, disregarding, overriding or reversing outputs, and interrupting the system"
+        },
+        {
+          "id": "eu-ai-act:14(5)",
+          "label": "Art. 14(5)",
+          "title": "For the systems of Annex III point 1(a): no action on a result unless separately verified and confirmed by at least two natural persons"
+        },
+        {
+          "id": "eu-ai-act:15(1)",
+          "label": "Art. 15(1)",
+          "title": "An appropriate level of accuracy and robustness"
+        },
+        {
+          "id": "eu-ai-act:15(3)",
+          "label": "Art. 15(3)",
+          "title": "Levels of accuracy and the relevant metrics"
+        },
+        {
+          "id": "eu-ai-act:15(4)",
+          "label": "Art. 15(4)",
+          "title": "Resilience to errors, faults and inconsistencies; fail-safe plans"
+        },
+        {
+          "id": "eu-ai-act:15(5)",
+          "label": "Art. 15(5)",
+          "title": "Cybersecurity: resilience against attempts by unauthorised third parties to alter use, outputs or performance, inputs designed to manipulate the model included"
+        },
+        {
+          "id": "eu-ai-act:26(2)",
+          "label": "Art. 26(2)",
+          "title": "Deployers assign human oversight to persons with the competence and authority"
+        },
+        {
+          "id": "eu-ai-act:26(5)",
+          "label": "Art. 26(5)",
+          "title": "Deployers monitor the operation of the system"
+        },
+        {
+          "id": "eu-ai-act:26(6)",
+          "label": "Art. 26(6)",
+          "title": "Deployers keep the automatically generated logs under their control for an appropriate period of at least six months, unless other law provides otherwise"
+        }
+      ]
+    },
+    {
+      "id": "nist-ai-rmf",
+      "name": "NIST AI Risk Management Framework 1.0 (NIST AI 100-1)",
+      "references": [
+        {
+          "id": "nist-ai-rmf:GOVERN",
+          "label": "GOVERN",
+          "title": "Policies, accountability and human oversight"
+        },
+        {
+          "id": "nist-ai-rmf:MAP",
+          "label": "MAP",
+          "title": "Context, and dependencies on third parties"
+        },
+        {
+          "id": "nist-ai-rmf:MEASURE",
+          "label": "MEASURE",
+          "title": "Measuring and monitoring trustworthiness, in production included"
+        },
+        {
+          "id": "nist-ai-rmf:MANAGE",
+          "label": "MANAGE",
+          "title": "Responding to and recovering from errors and incidents"
+        }
+      ]
+    },
+    {
+      "id": "iso-iec-42001",
+      "name": "ISO/IEC 42001:2023 (AI management system)",
+      "references": [
+        {
+          "id": "iso-iec-42001:9.1",
+          "label": "Clause 9.1",
+          "title": "Monitoring, measurement, analysis and evaluation"
+        },
+        {
+          "id": "iso-iec-42001:A.3",
+          "label": "Annex A.3",
+          "title": "Internal organization: roles and responsibilities for AI"
+        },
+        {
+          "id": "iso-iec-42001:A.6",
+          "label": "Annex A.6",
+          "title": "AI system life cycle, event logs included"
+        },
+        {
+          "id": "iso-iec-42001:A.7",
+          "label": "Annex A.7",
+          "title": "Data for AI systems"
+        },
+        {
+          "id": "iso-iec-42001:A.9",
+          "label": "Annex A.9",
+          "title": "Use of AI systems"
+        },
+        {
+          "id": "iso-iec-42001:A.10",
+          "label": "Annex A.10",
+          "title": "Third-party and customer relationships"
+        }
+      ]
+    }
+  ],
+  "parts": [
+    {
+      "id": "operation",
+      "title": "What ran",
+      "question": "Which runs and journeys took place in the period, with which workflow versions, and how did each end?",
+      "serves": [
+        "eu-ai-act:12(1)",
+        "eu-ai-act:12(2)",
+        "eu-ai-act:26(5)",
+        "nist-ai-rmf:MEASURE",
+        "iso-iec-42001:9.1",
+        "iso-iec-42001:A.6"
+      ],
+      "summary": {
+        "runs": 3,
+        "completed": 3,
+        "failed": 0,
+        "cancelled": 0,
+        "in_progress": 0,
+        "child_runs": 0,
+        "journeys": 0,
+        "migrations": 0,
+        "authorizations_allowed": 26,
+        "workflows": [
+          {
+            "workflow_id": "42ddec2f-18d0-5b06-837b-bf1e9c8cecdb",
+            "name": "Motor Claim Settlement",
+            "versions": [
+              "1.0.0"
+            ],
+            "runs": 3,
+            "child_runs": 0
+          }
+        ]
+      },
+      "statements": [
+        {
+          "kind": "run",
+          "text": "Run 00000001 of \"Motor Claim Settlement\" version 1.0.0 started at 2026-11-02T09:00:00.750Z by ana and completed at 2026-11-02T09:00:28.225Z.",
+          "facts": {
+            "run_id": "00000001-0000-4000-8000-000000000000",
+            "workflow_id": "42ddec2f-18d0-5b06-837b-bf1e9c8cecdb",
+            "workflow_name": "Motor Claim Settlement",
+            "workflow_version": "1.0.0",
+            "status": "completed",
+            "started_at": "2026-11-02T09:00:00.750Z",
+            "ended_at": "2026-11-02T09:00:28.225Z",
+            "journey_instance_id": null,
+            "principal": {
+              "id": "ana",
+              "kind": "person"
+            },
+            "depth": 0,
+            "parent_run_id": null,
+            "root_run_id": null
+          },
+          "citations": [
+            {
+              "run_id": "00000001-0000-4000-8000-000000000000",
+              "seq": [
+                1,
+                58
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "run",
+          "text": "Run 0000003f of \"Motor Claim Settlement\" version 1.0.0 started at 2026-11-03T09:00:29.225Z by ana and completed at 2026-11-03T11:20:57.475Z.",
+          "facts": {
+            "run_id": "0000003f-0000-4000-8000-000000000000",
+            "workflow_id": "42ddec2f-18d0-5b06-837b-bf1e9c8cecdb",
+            "workflow_name": "Motor Claim Settlement",
+            "workflow_version": "1.0.0",
+            "status": "completed",
+            "started_at": "2026-11-03T09:00:29.225Z",
+            "ended_at": "2026-11-03T11:20:57.475Z",
+            "journey_instance_id": null,
+            "principal": {
+              "id": "ana",
+              "kind": "person"
+            },
+            "depth": 0,
+            "parent_run_id": null,
+            "root_run_id": null
+          },
+          "citations": [
+            {
+              "run_id": "0000003f-0000-4000-8000-000000000000",
+              "seq": [
+                1,
+                61
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "run",
+          "text": "Run 00000080 of \"Motor Claim Settlement\" version 1.0.0 started at 2026-11-04T11:20:58.475Z by ana and completed at 2026-11-04T13:36:19.475Z.",
+          "facts": {
+            "run_id": "00000080-0000-4000-8000-000000000000",
+            "workflow_id": "42ddec2f-18d0-5b06-837b-bf1e9c8cecdb",
+            "workflow_name": "Motor Claim Settlement",
+            "workflow_version": "1.0.0",
+            "status": "completed",
+            "started_at": "2026-11-04T11:20:58.475Z",
+            "ended_at": "2026-11-04T13:36:19.475Z",
+            "journey_instance_id": null,
+            "principal": {
+              "id": "ana",
+              "kind": "person"
+            },
+            "depth": 0,
+            "parent_run_id": null,
+            "root_run_id": null
+          },
+          "citations": [
+            {
+              "run_id": "00000080-0000-4000-8000-000000000000",
+              "seq": [
+                1,
+                49
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "authorization_allowed",
+          "text": "system:claims was allowed the action perform_activity at \"Register claim\" in run 00000001 by rule agents-and-systems-work.",
+          "facts": {
+            "run_id": "00000001-0000-4000-8000-000000000000",
+            "node_name": "Register claim",
+            "action": "perform_activity",
+            "principal": {
+              "id": "system:claims",
+              "kind": "application"
+            },
+            "resource": {
+              "workflow_id": "42ddec2f-18d0-5b06-837b-bf1e9c8cecdb",
+              "workflow_name": "Motor Claim Settlement",
+              "activity_id": "ce586efb-eb64-5fe5-8baa-aa2a9979ae7f",
+              "activity_name": "Register claim",
+              "role_id": "bef76de6-107e-5861-ab56-75b55251635f",
+              "role_name": "Claims system"
+            },
+            "rule": "agents-and-systems-work",
+            "approval": null
+          },
+          "citations": [
+            {
+              "run_id": "00000001-0000-4000-8000-000000000000",
+              "seq": [
+                4
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "authorization_allowed",
+          "text": "agent:assessor was allowed the action perform_activity at \"Assess damage\" in run 00000001 by rule agents-and-systems-work.",
+          "facts": {
+            "run_id": "00000001-0000-4000-8000-000000000000",
+            "node_name": "Assess damage",
+            "action": "perform_activity",
+            "principal": {
+              "id": "agent:assessor",
+              "kind": "ai_agent"
+            },
+            "resource": {
+              "workflow_id": "42ddec2f-18d0-5b06-837b-bf1e9c8cecdb",
+              "workflow_name": "Motor Claim Settlement",
+              "activity_id": "47a33422-41f7-57f0-b94a-503dcca1edc5",
+              "activity_name": "Assess damage",
+              "role_id": "8011abaf-e650-566d-ac8e-678431596e76",
+              "role_name": "Damage assessor"
+            },
+            "rule": "agents-and-systems-work",
+            "approval": null
+          },
+          "citations": [
+            {
+              "run_id": "00000001-0000-4000-8000-000000000000",
+              "seq": [
+                8
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "authorization_allowed",
+          "text": "agent:fraud was allowed the action perform_activity at \"Check fraud signals\" in run 00000001 by rule agents-and-systems-work.",
+          "facts": {
+            "run_id": "00000001-0000-4000-8000-000000000000",
+            "node_name": "Check fraud signals",
+            "action": "perform_activity",
+            "principal": {
+              "id": "agent:fraud",
+              "kind": "ai_agent"
+            },
+            "resource": {
+              "workflow_id": "42ddec2f-18d0-5b06-837b-bf1e9c8cecdb",
+              "workflow_name": "Motor Claim Settlement",
+              "activity_id": "51b0afff-918b-534d-a81e-df9e9d91ad6c",
+              "activity_name": "Check fraud signals",
+              "role_id": "ff16f081-a3ff-5fb0-8746-e5d48bb078f4",
+              "role_name": "Fraud analyst"
+            },
+            "rule": "agents-and-systems-work",
+            "approval": null
+          },
+          "citations": [
+            {
+              "run_id": "00000001-0000-4000-8000-000000000000",
+              "seq": [
+                20
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "authorization_allowed",
+          "text": "system:claims was allowed the action perform_activity at \"Verify policy cover\" in run 00000001 by rule agents-and-systems-work.",
+          "facts": {
+            "run_id": "00000001-0000-4000-8000-000000000000",
+            "node_name": "Verify policy cover",
+            "action": "perform_activity",
+            "principal": {
+              "id": "system:claims",
+              "kind": "application"
+            },
+            "resource": {
+              "workflow_id": "42ddec2f-18d0-5b06-837b-bf1e9c8cecdb",
+              "workflow_name": "Motor Claim Settlement",
+              "activity_id": "656363b2-21bb-5fce-9d6d-9e7ff8fd91c2",
+              "activity_name": "Verify policy cover",
+              "role_id": "f8419355-d1ec-5d10-8152-eaebec2b4e95",
+              "role_name": "Policy system"
+            },
+            "rule": "agents-and-systems-work",
+            "approval": null
+          },
+          "citations": [
+            {
+              "run_id": "00000001-0000-4000-8000-000000000000",
+              "seq": [
+                21
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "authorization_allowed",
+          "text": "system:claims was allowed the action perform_activity at \"Consolidate findings\" in run 00000001 by rule agents-and-systems-work.",
+          "facts": {
+            "run_id": "00000001-0000-4000-8000-000000000000",
+            "node_name": "Consolidate findings",
+            "action": "perform_activity",
+            "principal": {
+              "id": "system:claims",
+              "kind": "application"
+            },
+            "resource": {
+              "workflow_id": "42ddec2f-18d0-5b06-837b-bf1e9c8cecdb",
+              "workflow_name": "Motor Claim Settlement",
+              "activity_id": "8eac4bf0-c46a-584b-b95b-b6f9e274706f",
+              "activity_name": "Consolidate findings",
+              "role_id": "bef76de6-107e-5861-ab56-75b55251635f",
+              "role_name": "Claims system"
+            },
+            "rule": "agents-and-systems-work",
+            "approval": null
+          },
+          "citations": [
+            {
+              "run_id": "00000001-0000-4000-8000-000000000000",
+              "seq": [
+                34
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "authorization_allowed",
+          "text": "system:claims was allowed the action perform_activity at \"Reserve funds\" in run 00000001 by rule agents-and-systems-work.",
+          "facts": {
+            "run_id": "00000001-0000-4000-8000-000000000000",
+            "node_name": "Reserve funds",
+            "action": "perform_activity",
+            "principal": {
+              "id": "system:claims",
+              "kind": "application"
+            },
+            "resource": {
+              "workflow_id": "42ddec2f-18d0-5b06-837b-bf1e9c8cecdb",
+              "workflow_name": "Motor Claim Settlement",
+              "activity_id": "44ce5a86-3be7-53f4-a733-da8b58d89544",
+              "activity_name": "Reserve funds",
+              "role_id": "a993c962-08c5-5acf-861b-23fe0b25f7f1",
+              "role_name": "Finance system"
+            },
+            "rule": "agents-and-systems-work",
+            "approval": null
+          },
+          "citations": [
+            {
+              "run_id": "00000001-0000-4000-8000-000000000000",
+              "seq": [
+                40
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "authorization_allowed",
+          "text": "system:claims was allowed the action perform_activity at \"Pay claimant\" in run 00000001 by rule agents-and-systems-work.",
+          "facts": {
+            "run_id": "00000001-0000-4000-8000-000000000000",
+            "node_name": "Pay claimant",
+            "action": "perform_activity",
+            "principal": {
+              "id": "system:claims",
+              "kind": "application"
+            },
+            "resource": {
+              "workflow_id": "42ddec2f-18d0-5b06-837b-bf1e9c8cecdb",
+              "workflow_name": "Motor Claim Settlement",
+              "activity_id": "ec20a080-3057-5f9c-a694-7040111b09e7",
+              "activity_name": "Pay claimant",
+              "role_id": "a993c962-08c5-5acf-861b-23fe0b25f7f1",
+              "role_name": "Finance system"
+            },
+            "rule": "agents-and-systems-work",
+            "approval": null
+          },
+          "citations": [
+            {
+              "run_id": "00000001-0000-4000-8000-000000000000",
+              "seq": [
+                47
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "authorization_allowed",
+          "text": "agent:writer was allowed the action perform_activity at \"Notify claimant\" in run 00000001 by rule agents-and-systems-work.",
+          "facts": {
+            "run_id": "00000001-0000-4000-8000-000000000000",
+            "node_name": "Notify claimant",
+            "action": "perform_activity",
+            "principal": {
+              "id": "agent:writer",
+              "kind": "ai_agent"
+            },
+            "resource": {
+              "workflow_id": "42ddec2f-18d0-5b06-837b-bf1e9c8cecdb",
+              "workflow_name": "Motor Claim Settlement",
+              "activity_id": "f7054c16-d7aa-58a0-9873-376d4f409b43",
+              "activity_name": "Notify claimant",
+              "role_id": "c6ac3504-e302-5345-aac4-cca6b4c5d392",
+              "role_name": "Customer communications"
+            },
+            "rule": "agents-and-systems-work",
+            "approval": null
+          },
+          "citations": [
+            {
+              "run_id": "00000001-0000-4000-8000-000000000000",
+              "seq": [
+                51
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "authorization_allowed",
+          "text": "system:claims was allowed the action perform_activity at \"Register claim\" in run 0000003f by rule agents-and-systems-work.",
+          "facts": {
+            "run_id": "0000003f-0000-4000-8000-000000000000",
+            "node_name": "Register claim",
+            "action": "perform_activity",
+            "principal": {
+              "id": "system:claims",
+              "kind": "application"
+            },
+            "resource": {
+              "workflow_id": "42ddec2f-18d0-5b06-837b-bf1e9c8cecdb",
+              "workflow_name": "Motor Claim Settlement",
+              "activity_id": "ce586efb-eb64-5fe5-8baa-aa2a9979ae7f",
+              "activity_name": "Register claim",
+              "role_id": "bef76de6-107e-5861-ab56-75b55251635f",
+              "role_name": "Claims system"
+            },
+            "rule": "agents-and-systems-work",
+            "approval": null
+          },
+          "citations": [
+            {
+              "run_id": "0000003f-0000-4000-8000-000000000000",
+              "seq": [
+                4
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "authorization_allowed",
+          "text": "agent:assessor was allowed the action perform_activity at \"Assess damage\" in run 0000003f by rule agents-and-systems-work.",
+          "facts": {
+            "run_id": "0000003f-0000-4000-8000-000000000000",
+            "node_name": "Assess damage",
+            "action": "perform_activity",
+            "principal": {
+              "id": "agent:assessor",
+              "kind": "ai_agent"
+            },
+            "resource": {
+              "workflow_id": "42ddec2f-18d0-5b06-837b-bf1e9c8cecdb",
+              "workflow_name": "Motor Claim Settlement",
+              "activity_id": "47a33422-41f7-57f0-b94a-503dcca1edc5",
+              "activity_name": "Assess damage",
+              "role_id": "8011abaf-e650-566d-ac8e-678431596e76",
+              "role_name": "Damage assessor"
+            },
+            "rule": "agents-and-systems-work",
+            "approval": null
+          },
+          "citations": [
+            {
+              "run_id": "0000003f-0000-4000-8000-000000000000",
+              "seq": [
+                8
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "authorization_allowed",
+          "text": "agent:fraud was allowed the action perform_activity at \"Check fraud signals\" in run 0000003f by rule agents-and-systems-work.",
+          "facts": {
+            "run_id": "0000003f-0000-4000-8000-000000000000",
+            "node_name": "Check fraud signals",
+            "action": "perform_activity",
+            "principal": {
+              "id": "agent:fraud",
+              "kind": "ai_agent"
+            },
+            "resource": {
+              "workflow_id": "42ddec2f-18d0-5b06-837b-bf1e9c8cecdb",
+              "workflow_name": "Motor Claim Settlement",
+              "activity_id": "51b0afff-918b-534d-a81e-df9e9d91ad6c",
+              "activity_name": "Check fraud signals",
+              "role_id": "ff16f081-a3ff-5fb0-8746-e5d48bb078f4",
+              "role_name": "Fraud analyst"
+            },
+            "rule": "agents-and-systems-work",
+            "approval": null
+          },
+          "citations": [
+            {
+              "run_id": "0000003f-0000-4000-8000-000000000000",
+              "seq": [
+                16
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "authorization_allowed",
+          "text": "system:claims was allowed the action perform_activity at \"Verify policy cover\" in run 0000003f by rule agents-and-systems-work.",
+          "facts": {
+            "run_id": "0000003f-0000-4000-8000-000000000000",
+            "node_name": "Verify policy cover",
+            "action": "perform_activity",
+            "principal": {
+              "id": "system:claims",
+              "kind": "application"
+            },
+            "resource": {
+              "workflow_id": "42ddec2f-18d0-5b06-837b-bf1e9c8cecdb",
+              "workflow_name": "Motor Claim Settlement",
+              "activity_id": "656363b2-21bb-5fce-9d6d-9e7ff8fd91c2",
+              "activity_name": "Verify policy cover",
+              "role_id": "f8419355-d1ec-5d10-8152-eaebec2b4e95",
+              "role_name": "Policy system"
+            },
+            "rule": "agents-and-systems-work",
+            "approval": null
+          },
+          "citations": [
+            {
+              "run_id": "0000003f-0000-4000-8000-000000000000",
+              "seq": [
+                17
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "authorization_allowed",
+          "text": "system:claims was allowed the action perform_activity at \"Consolidate findings\" in run 0000003f by rule agents-and-systems-work.",
+          "facts": {
+            "run_id": "0000003f-0000-4000-8000-000000000000",
+            "node_name": "Consolidate findings",
+            "action": "perform_activity",
+            "principal": {
+              "id": "system:claims",
+              "kind": "application"
+            },
+            "resource": {
+              "workflow_id": "42ddec2f-18d0-5b06-837b-bf1e9c8cecdb",
+              "workflow_name": "Motor Claim Settlement",
+              "activity_id": "8eac4bf0-c46a-584b-b95b-b6f9e274706f",
+              "activity_name": "Consolidate findings",
+              "role_id": "bef76de6-107e-5861-ab56-75b55251635f",
+              "role_name": "Claims system"
+            },
+            "rule": "agents-and-systems-work",
+            "approval": null
+          },
+          "citations": [
+            {
+              "run_id": "0000003f-0000-4000-8000-000000000000",
+              "seq": [
+                26
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "authorization_allowed",
+          "text": "alice was allowed the action approve at \"Adjuster review\" in run 0000003f by rule adjusters-decide (approval 1 of 2).",
+          "facts": {
+            "run_id": "0000003f-0000-4000-8000-000000000000",
+            "node_name": "Adjuster review",
+            "action": "approve",
+            "principal": {
+              "id": "alice",
+              "kind": "person"
+            },
+            "resource": {
+              "workflow_id": "42ddec2f-18d0-5b06-837b-bf1e9c8cecdb",
+              "workflow_name": "Motor Claim Settlement",
+              "activity_id": "c622ddbc-7f31-50a1-adbd-410ff7c96c3e",
+              "activity_name": "Adjuster review",
+              "role_id": "ade889d2-949e-5e5f-a9eb-fea819123c1a",
+              "role_name": "Claims adjuster"
+            },
+            "rule": "adjusters-decide",
+            "approval": {
+              "given": 1,
+              "required": 2
+            }
+          },
+          "citations": [
+            {
+              "run_id": "0000003f-0000-4000-8000-000000000000",
+              "seq": [
+                37
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "authorization_allowed",
+          "text": "bob was allowed the action approve at \"Adjuster review\" in run 0000003f by rule adjusters-decide (approval 2 of 2).",
+          "facts": {
+            "run_id": "0000003f-0000-4000-8000-000000000000",
+            "node_name": "Adjuster review",
+            "action": "approve",
+            "principal": {
+              "id": "bob",
+              "kind": "person"
+            },
+            "resource": {
+              "workflow_id": "42ddec2f-18d0-5b06-837b-bf1e9c8cecdb",
+              "workflow_name": "Motor Claim Settlement",
+              "activity_id": "c622ddbc-7f31-50a1-adbd-410ff7c96c3e",
+              "activity_name": "Adjuster review",
+              "role_id": "ade889d2-949e-5e5f-a9eb-fea819123c1a",
+              "role_name": "Claims adjuster"
+            },
+            "rule": "adjusters-decide",
+            "approval": {
+              "given": 2,
+              "required": 2
+            }
+          },
+          "citations": [
+            {
+              "run_id": "0000003f-0000-4000-8000-000000000000",
+              "seq": [
+                39
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "authorization_allowed",
+          "text": "system:claims was allowed the action perform_activity at \"Reserve funds\" in run 0000003f by rule agents-and-systems-work.",
+          "facts": {
+            "run_id": "0000003f-0000-4000-8000-000000000000",
+            "node_name": "Reserve funds",
+            "action": "perform_activity",
+            "principal": {
+              "id": "system:claims",
+              "kind": "application"
+            },
+            "resource": {
+              "workflow_id": "42ddec2f-18d0-5b06-837b-bf1e9c8cecdb",
+              "workflow_name": "Motor Claim Settlement",
+              "activity_id": "44ce5a86-3be7-53f4-a733-da8b58d89544",
+              "activity_name": "Reserve funds",
+              "role_id": "a993c962-08c5-5acf-861b-23fe0b25f7f1",
+              "role_name": "Finance system"
+            },
+            "rule": "agents-and-systems-work",
+            "approval": null
+          },
+          "citations": [
+            {
+              "run_id": "0000003f-0000-4000-8000-000000000000",
+              "seq": [
+                43
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "authorization_allowed",
+          "text": "system:claims was allowed the action perform_activity at \"Pay claimant\" in run 0000003f by rule agents-and-systems-work.",
+          "facts": {
+            "run_id": "0000003f-0000-4000-8000-000000000000",
+            "node_name": "Pay claimant",
+            "action": "perform_activity",
+            "principal": {
+              "id": "system:claims",
+              "kind": "application"
+            },
+            "resource": {
+              "workflow_id": "42ddec2f-18d0-5b06-837b-bf1e9c8cecdb",
+              "workflow_name": "Motor Claim Settlement",
+              "activity_id": "ec20a080-3057-5f9c-a694-7040111b09e7",
+              "activity_name": "Pay claimant",
+              "role_id": "a993c962-08c5-5acf-861b-23fe0b25f7f1",
+              "role_name": "Finance system"
+            },
+            "rule": "agents-and-systems-work",
+            "approval": null
+          },
+          "citations": [
+            {
+              "run_id": "0000003f-0000-4000-8000-000000000000",
+              "seq": [
+                50
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "authorization_allowed",
+          "text": "agent:writer was allowed the action perform_activity at \"Notify claimant\" in run 0000003f by rule agents-and-systems-work.",
+          "facts": {
+            "run_id": "0000003f-0000-4000-8000-000000000000",
+            "node_name": "Notify claimant",
+            "action": "perform_activity",
+            "principal": {
+              "id": "agent:writer",
+              "kind": "ai_agent"
+            },
+            "resource": {
+              "workflow_id": "42ddec2f-18d0-5b06-837b-bf1e9c8cecdb",
+              "workflow_name": "Motor Claim Settlement",
+              "activity_id": "f7054c16-d7aa-58a0-9873-376d4f409b43",
+              "activity_name": "Notify claimant",
+              "role_id": "c6ac3504-e302-5345-aac4-cca6b4c5d392",
+              "role_name": "Customer communications"
+            },
+            "rule": "agents-and-systems-work",
+            "approval": null
+          },
+          "citations": [
+            {
+              "run_id": "0000003f-0000-4000-8000-000000000000",
+              "seq": [
+                54
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "authorization_allowed",
+          "text": "system:claims was allowed the action perform_activity at \"Register claim\" in run 00000080 by rule agents-and-systems-work.",
+          "facts": {
+            "run_id": "00000080-0000-4000-8000-000000000000",
+            "node_name": "Register claim",
+            "action": "perform_activity",
+            "principal": {
+              "id": "system:claims",
+              "kind": "application"
+            },
+            "resource": {
+              "workflow_id": "42ddec2f-18d0-5b06-837b-bf1e9c8cecdb",
+              "workflow_name": "Motor Claim Settlement",
+              "activity_id": "ce586efb-eb64-5fe5-8baa-aa2a9979ae7f",
+              "activity_name": "Register claim",
+              "role_id": "bef76de6-107e-5861-ab56-75b55251635f",
+              "role_name": "Claims system"
+            },
+            "rule": "agents-and-systems-work",
+            "approval": null
+          },
+          "citations": [
+            {
+              "run_id": "00000080-0000-4000-8000-000000000000",
+              "seq": [
+                4
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "authorization_allowed",
+          "text": "agent:assessor was allowed the action perform_activity at \"Assess damage\" in run 00000080 by rule agents-and-systems-work.",
+          "facts": {
+            "run_id": "00000080-0000-4000-8000-000000000000",
+            "node_name": "Assess damage",
+            "action": "perform_activity",
+            "principal": {
+              "id": "agent:assessor",
+              "kind": "ai_agent"
+            },
+            "resource": {
+              "workflow_id": "42ddec2f-18d0-5b06-837b-bf1e9c8cecdb",
+              "workflow_name": "Motor Claim Settlement",
+              "activity_id": "47a33422-41f7-57f0-b94a-503dcca1edc5",
+              "activity_name": "Assess damage",
+              "role_id": "8011abaf-e650-566d-ac8e-678431596e76",
+              "role_name": "Damage assessor"
+            },
+            "rule": "agents-and-systems-work",
+            "approval": null
+          },
+          "citations": [
+            {
+              "run_id": "00000080-0000-4000-8000-000000000000",
+              "seq": [
+                8
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "authorization_allowed",
+          "text": "carol was allowed the action complete_task at \"Assess damage\" in run 00000080 by rule adjusters-decide.",
+          "facts": {
+            "run_id": "00000080-0000-4000-8000-000000000000",
+            "node_name": "Assess damage",
+            "action": "complete_task",
+            "principal": {
+              "id": "carol",
+              "kind": "person"
+            },
+            "resource": {
+              "workflow_id": "42ddec2f-18d0-5b06-837b-bf1e9c8cecdb",
+              "workflow_name": "Motor Claim Settlement",
+              "activity_id": "47a33422-41f7-57f0-b94a-503dcca1edc5",
+              "activity_name": "Assess damage",
+              "role_id": "8011abaf-e650-566d-ac8e-678431596e76",
+              "role_name": "Damage assessor"
+            },
+            "rule": "adjusters-decide",
+            "approval": null
+          },
+          "citations": [
+            {
+              "run_id": "00000080-0000-4000-8000-000000000000",
+              "seq": [
+                13
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "authorization_allowed",
+          "text": "agent:fraud was allowed the action perform_activity at \"Check fraud signals\" in run 00000080 by rule agents-and-systems-work.",
+          "facts": {
+            "run_id": "00000080-0000-4000-8000-000000000000",
+            "node_name": "Check fraud signals",
+            "action": "perform_activity",
+            "principal": {
+              "id": "agent:fraud",
+              "kind": "ai_agent"
+            },
+            "resource": {
+              "workflow_id": "42ddec2f-18d0-5b06-837b-bf1e9c8cecdb",
+              "workflow_name": "Motor Claim Settlement",
+              "activity_id": "51b0afff-918b-534d-a81e-df9e9d91ad6c",
+              "activity_name": "Check fraud signals",
+              "role_id": "ff16f081-a3ff-5fb0-8746-e5d48bb078f4",
+              "role_name": "Fraud analyst"
+            },
+            "rule": "agents-and-systems-work",
+            "approval": null
+          },
+          "citations": [
+            {
+              "run_id": "00000080-0000-4000-8000-000000000000",
+              "seq": [
+                20
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "authorization_allowed",
+          "text": "system:claims was allowed the action perform_activity at \"Verify policy cover\" in run 00000080 by rule agents-and-systems-work.",
+          "facts": {
+            "run_id": "00000080-0000-4000-8000-000000000000",
+            "node_name": "Verify policy cover",
+            "action": "perform_activity",
+            "principal": {
+              "id": "system:claims",
+              "kind": "application"
+            },
+            "resource": {
+              "workflow_id": "42ddec2f-18d0-5b06-837b-bf1e9c8cecdb",
+              "workflow_name": "Motor Claim Settlement",
+              "activity_id": "656363b2-21bb-5fce-9d6d-9e7ff8fd91c2",
+              "activity_name": "Verify policy cover",
+              "role_id": "f8419355-d1ec-5d10-8152-eaebec2b4e95",
+              "role_name": "Policy system"
+            },
+            "rule": "agents-and-systems-work",
+            "approval": null
+          },
+          "citations": [
+            {
+              "run_id": "00000080-0000-4000-8000-000000000000",
+              "seq": [
+                21
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "authorization_allowed",
+          "text": "carol was allowed the action complete_task at \"Check fraud signals\" in run 00000080 by rule adjusters-decide.",
+          "facts": {
+            "run_id": "00000080-0000-4000-8000-000000000000",
+            "node_name": "Check fraud signals",
+            "action": "complete_task",
+            "principal": {
+              "id": "carol",
+              "kind": "person"
+            },
+            "resource": {
+              "workflow_id": "42ddec2f-18d0-5b06-837b-bf1e9c8cecdb",
+              "workflow_name": "Motor Claim Settlement",
+              "activity_id": "51b0afff-918b-534d-a81e-df9e9d91ad6c",
+              "activity_name": "Check fraud signals",
+              "role_id": "ff16f081-a3ff-5fb0-8746-e5d48bb078f4",
+              "role_name": "Fraud analyst"
+            },
+            "rule": "adjusters-decide",
+            "approval": null
+          },
+          "citations": [
+            {
+              "run_id": "00000080-0000-4000-8000-000000000000",
+              "seq": [
+                29
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "authorization_allowed",
+          "text": "system:claims was allowed the action perform_activity at \"Consolidate findings\" in run 00000080 by rule agents-and-systems-work.",
+          "facts": {
+            "run_id": "00000080-0000-4000-8000-000000000000",
+            "node_name": "Consolidate findings",
+            "action": "perform_activity",
+            "principal": {
+              "id": "system:claims",
+              "kind": "application"
+            },
+            "resource": {
+              "workflow_id": "42ddec2f-18d0-5b06-837b-bf1e9c8cecdb",
+              "workflow_name": "Motor Claim Settlement",
+              "activity_id": "8eac4bf0-c46a-584b-b95b-b6f9e274706f",
+              "activity_name": "Consolidate findings",
+              "role_id": "bef76de6-107e-5861-ab56-75b55251635f",
+              "role_name": "Claims system"
+            },
+            "rule": "agents-and-systems-work",
+            "approval": null
+          },
+          "citations": [
+            {
+              "run_id": "00000080-0000-4000-8000-000000000000",
+              "seq": [
+                35
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "authorization_allowed",
+          "text": "bob was allowed the action complete_task at \"Investigate\" in run 00000080 by rule adjusters-decide.",
+          "facts": {
+            "run_id": "00000080-0000-4000-8000-000000000000",
+            "node_name": "Investigate",
+            "action": "complete_task",
+            "principal": {
+              "id": "bob",
+              "kind": "person"
+            },
+            "resource": {
+              "workflow_id": "42ddec2f-18d0-5b06-837b-bf1e9c8cecdb",
+              "workflow_name": "Motor Claim Settlement",
+              "activity_id": "e33c27e8-26f1-50bf-84e4-970831581990",
+              "activity_name": "Investigate",
+              "role_id": "79a3e971-8693-5081-90e1-5eac16377183",
+              "role_name": "Fraud investigator"
+            },
+            "rule": "adjusters-decide",
+            "approval": null
+          },
+          "citations": [
+            {
+              "run_id": "00000080-0000-4000-8000-000000000000",
+              "seq": [
+                44
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "models",
+      "title": "Models and what they decided",
+      "question": "Which models, as named by their providers, served which activities and decisions, and where did a route fall back?",
+      "serves": [
+        "eu-ai-act:12(2)",
+        "eu-ai-act:13(3)(b)",
+        "nist-ai-rmf:MAP",
+        "nist-ai-rmf:MEASURE",
+        "iso-iec-42001:A.6"
+      ],
+      "summary": {
+        "models": [],
+        "selections": 0,
+        "routes": 0,
+        "model_decisions": 1
+      },
+      "statements": [
+        {
+          "kind": "model_decision",
+          "text": "A model decided \"Settlement route\" in run 0000003f: option review with a stated confidence of 0.8.",
+          "facts": {
+            "run_id": "0000003f-0000-4000-8000-000000000000",
+            "node_name": "Settlement route",
+            "option": "review",
+            "confidence": 0.8
+          },
+          "citations": [
+            {
+              "run_id": "0000003f-0000-4000-8000-000000000000",
+              "seq": [
+                31
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "oversight",
+      "title": "Human oversight",
+      "question": "Who decided what, how many people approved, what was escalated to them, where did a person decide in place of an automated outcome, where were duties kept apart, and which runs were stopped?",
+      "serves": [
+        "eu-ai-act:12(3)(d)",
+        "eu-ai-act:13(3)(d)",
+        "eu-ai-act:14(4)",
+        "eu-ai-act:14(5)",
+        "eu-ai-act:26(2)",
+        "nist-ai-rmf:GOVERN",
+        "nist-ai-rmf:MANAGE",
+        "iso-iec-42001:A.3",
+        "iso-iec-42001:A.9"
+      ],
+      "summary": {
+        "human_decisions": 4,
+        "overrides": 0,
+        "escalations": 0,
+        "guardrail_escalations": 2,
+        "four_eyes": 1,
+        "separation_of_duties": 2,
+        "cancellations": 0
+      },
+      "statements": [
+        {
+          "kind": "human_decision",
+          "text": "A person decided \"Adjuster review\" in run 0000003f at 2026-11-03T11:20:47.475Z (bob), approved by alice and bob (2 distinct approvers of 2 required), after a wait of 2.3 h.",
+          "facts": {
+            "run_id": "0000003f-0000-4000-8000-000000000000",
+            "node_name": "Adjuster review",
+            "escalated": false,
+            "escalated_by": null,
+            "decided_at": "2026-11-03T11:20:47.475Z",
+            "principal": {
+              "id": "bob",
+              "kind": "person"
+            },
+            "approvals": [
+              {
+                "id": "alice",
+                "kind": "person"
+              },
+              {
+                "id": "bob",
+                "kind": "person"
+              }
+            ],
+            "approvers": 2,
+            "approvals_required": 2
+          },
+          "citations": [
+            {
+              "run_id": "0000003f-0000-4000-8000-000000000000",
+              "seq": [
+                34,
+                37,
+                39,
+                40,
+                41
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "human_decision",
+          "text": "A person decided \"Assess damage\" in run 00000080 at 2026-11-04T12:06:05.225Z (carol), escalated to them by a guardrail at stage input, after a wait of 45 min.",
+          "facts": {
+            "run_id": "00000080-0000-4000-8000-000000000000",
+            "node_name": "Assess damage",
+            "escalated": true,
+            "escalated_by": "guardrail",
+            "decided_at": "2026-11-04T12:06:05.225Z",
+            "principal": {
+              "id": "carol",
+              "kind": "person"
+            },
+            "approvals": [],
+            "approvers": 0,
+            "approvals_required": null
+          },
+          "citations": [
+            {
+              "run_id": "00000080-0000-4000-8000-000000000000",
+              "seq": [
+                9,
+                11,
+                13,
+                14,
+                15,
+                16
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "human_decision",
+          "text": "A person decided \"Check fraud signals\" in run 00000080 at 2026-11-04T12:51:11.975Z (carol), escalated to them by a guardrail at stage input, after a wait of 45 min.",
+          "facts": {
+            "run_id": "00000080-0000-4000-8000-000000000000",
+            "node_name": "Check fraud signals",
+            "escalated": true,
+            "escalated_by": "guardrail",
+            "decided_at": "2026-11-04T12:51:11.975Z",
+            "principal": {
+              "id": "carol",
+              "kind": "person"
+            },
+            "approvals": [],
+            "approvers": 0,
+            "approvals_required": null
+          },
+          "citations": [
+            {
+              "run_id": "00000080-0000-4000-8000-000000000000",
+              "seq": [
+                22,
+                25,
+                29,
+                30,
+                31,
+                32
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "human_decision",
+          "text": "A person decided \"Investigate\" in run 00000080 at 2026-11-04T13:36:18.475Z (bob), after a wait of 45 min.",
+          "facts": {
+            "run_id": "00000080-0000-4000-8000-000000000000",
+            "node_name": "Investigate",
+            "escalated": false,
+            "escalated_by": null,
+            "decided_at": "2026-11-04T13:36:18.475Z",
+            "principal": {
+              "id": "bob",
+              "kind": "person"
+            },
+            "approvals": [],
+            "approvers": 0,
+            "approvals_required": null
+          },
+          "citations": [
+            {
+              "run_id": "00000080-0000-4000-8000-000000000000",
+              "seq": [
+                42,
+                44,
+                45,
+                46
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "guardrail_escalation",
+          "text": "Guardrail \"Instructions hidden in claim data\" (prompt_injection) found ignore_instructions (1 finding) in the input of \"Assess damage\" in run 00000080, and handed the activity to a person.",
+          "facts": {
+            "run_id": "00000080-0000-4000-8000-000000000000",
+            "node_name": "Assess damage",
+            "attempt": null,
+            "guardrail_id": "8f2b6c1e-5a4d-4c3b-9e7f-1a2b3c4d5e60",
+            "name": "Instructions hidden in claim data",
+            "source": "deployment",
+            "stage": "input",
+            "check": "prompt_injection",
+            "action": "escalate",
+            "categories": [
+              "ignore_instructions"
+            ],
+            "findings": 1,
+            "by_category": {
+              "ignore_instructions": 1
+            },
+            "tool": null,
+            "failed_closed": false
+          },
+          "citations": [
+            {
+              "run_id": "00000080-0000-4000-8000-000000000000",
+              "seq": [
+                9
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "guardrail_escalation",
+          "text": "Guardrail \"Instructions hidden in claim data\" (prompt_injection) found ignore_instructions (1 finding) in the input of \"Check fraud signals\" in run 00000080, and handed the activity to a person.",
+          "facts": {
+            "run_id": "00000080-0000-4000-8000-000000000000",
+            "node_name": "Check fraud signals",
+            "attempt": null,
+            "guardrail_id": "8f2b6c1e-5a4d-4c3b-9e7f-1a2b3c4d5e60",
+            "name": "Instructions hidden in claim data",
+            "source": "deployment",
+            "stage": "input",
+            "check": "prompt_injection",
+            "action": "escalate",
+            "categories": [
+              "ignore_instructions"
+            ],
+            "findings": 1,
+            "by_category": {
+              "ignore_instructions": 1
+            },
+            "tool": null,
+            "failed_closed": false
+          },
+          "citations": [
+            {
+              "run_id": "00000080-0000-4000-8000-000000000000",
+              "seq": [
+                22
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "separation_of_duties",
+          "text": "ana was refused the action approve at \"Adjuster review\" in run 0000003f: the separation of duties opener-does-not-approve keeps this apart from what they did in the run.",
+          "facts": {
+            "run_id": "0000003f-0000-4000-8000-000000000000",
+            "node_name": "Adjuster review",
+            "action": "approve",
+            "principal": {
+              "id": "ana",
+              "kind": "person"
+            },
+            "rule": "opener-does-not-approve",
+            "reason": "separation_of_duties"
+          },
+          "citations": [
+            {
+              "run_id": "0000003f-0000-4000-8000-000000000000",
+              "seq": [
+                36
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "separation_of_duties",
+          "text": "alice was refused the action approve at \"Adjuster review\" in run 0000003f: under the four-eyes rule two-adjusters-approve, each approval must come from another person.",
+          "facts": {
+            "run_id": "0000003f-0000-4000-8000-000000000000",
+            "node_name": "Adjuster review",
+            "action": "approve",
+            "principal": {
+              "id": "alice",
+              "kind": "person"
+            },
+            "rule": "two-adjusters-approve",
+            "reason": "four_eyes"
+          },
+          "citations": [
+            {
+              "run_id": "0000003f-0000-4000-8000-000000000000",
+              "seq": [
+                38
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "outcomes",
+      "title": "Outcome contracts and verification",
+      "question": "Which outcomes were checked against their contracts and verified, and with what result?",
+      "serves": [
+        "eu-ai-act:13(3)(b)",
+        "eu-ai-act:15(1)",
+        "eu-ai-act:15(3)",
+        "nist-ai-rmf:MEASURE",
+        "iso-iec-42001:9.1"
+      ],
+      "summary": {
+        "contracts": 9,
+        "contracts_passed": 8,
+        "verifications": 2,
+        "verifications_passed": 2,
+        "activities": [
+          {
+            "node_name": "Assess damage",
+            "contracts": 4,
+            "contracts_passed": 3,
+            "verifications": 2,
+            "verifications_passed": 2
+          },
+          {
+            "node_name": "Check fraud signals",
+            "contracts": 3,
+            "contracts_passed": 3,
+            "verifications": 0,
+            "verifications_passed": 0
+          },
+          {
+            "node_name": "Notify claimant",
+            "contracts": 2,
+            "contracts_passed": 2,
+            "verifications": 0,
+            "verifications_passed": 0
+          }
+        ]
+      },
+      "statements": [
+        {
+          "kind": "contract",
+          "text": "The outcome contract of \"Assess damage\" was violated (/estimated_cost; Within authority) at attempt 1 of run 00000001.",
+          "facts": {
+            "run_id": "00000001-0000-4000-8000-000000000000",
+            "node_name": "Assess damage",
+            "attempt": 1,
+            "passed": false,
+            "violations": [
+              "/estimated_cost",
+              "Within authority"
+            ],
+            "decided_by": "engine"
+          },
+          "citations": [
+            {
+              "run_id": "00000001-0000-4000-8000-000000000000",
+              "seq": [
+                10
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "contract",
+          "text": "The outcome contract of \"Assess damage\" held at attempt 2 of run 00000001.",
+          "facts": {
+            "run_id": "00000001-0000-4000-8000-000000000000",
+            "node_name": "Assess damage",
+            "attempt": 2,
+            "passed": true,
+            "violations": [],
+            "decided_by": "engine"
+          },
+          "citations": [
+            {
+              "run_id": "00000001-0000-4000-8000-000000000000",
+              "seq": [
+                14
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "contract",
+          "text": "The outcome contract of \"Check fraud signals\" held at attempt 2 of run 00000001.",
+          "facts": {
+            "run_id": "00000001-0000-4000-8000-000000000000",
+            "node_name": "Check fraud signals",
+            "attempt": 2,
+            "passed": true,
+            "violations": [],
+            "decided_by": "engine"
+          },
+          "citations": [
+            {
+              "run_id": "00000001-0000-4000-8000-000000000000",
+              "seq": [
+                30
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "contract",
+          "text": "The outcome contract of \"Notify claimant\" held at attempt 1 of run 00000001.",
+          "facts": {
+            "run_id": "00000001-0000-4000-8000-000000000000",
+            "node_name": "Notify claimant",
+            "attempt": 1,
+            "passed": true,
+            "violations": [],
+            "decided_by": "engine"
+          },
+          "citations": [
+            {
+              "run_id": "00000001-0000-4000-8000-000000000000",
+              "seq": [
+                54
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "contract",
+          "text": "The outcome contract of \"Assess damage\" held at attempt 1 of run 0000003f.",
+          "facts": {
+            "run_id": "0000003f-0000-4000-8000-000000000000",
+            "node_name": "Assess damage",
+            "attempt": 1,
+            "passed": true,
+            "violations": [],
+            "decided_by": "engine"
+          },
+          "citations": [
+            {
+              "run_id": "0000003f-0000-4000-8000-000000000000",
+              "seq": [
+                10
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "contract",
+          "text": "The outcome contract of \"Check fraud signals\" held at attempt 1 of run 0000003f.",
+          "facts": {
+            "run_id": "0000003f-0000-4000-8000-000000000000",
+            "node_name": "Check fraud signals",
+            "attempt": 1,
+            "passed": true,
+            "violations": [],
+            "decided_by": "engine"
+          },
+          "citations": [
+            {
+              "run_id": "0000003f-0000-4000-8000-000000000000",
+              "seq": [
+                22
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "contract",
+          "text": "The outcome contract of \"Notify claimant\" held at attempt 1 of run 0000003f.",
+          "facts": {
+            "run_id": "0000003f-0000-4000-8000-000000000000",
+            "node_name": "Notify claimant",
+            "attempt": 1,
+            "passed": true,
+            "violations": [],
+            "decided_by": "engine"
+          },
+          "citations": [
+            {
+              "run_id": "0000003f-0000-4000-8000-000000000000",
+              "seq": [
+                57
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "contract",
+          "text": "The outcome contract of \"Assess damage\" held at attempt ? of run 00000080; the outcome was a person's.",
+          "facts": {
+            "run_id": "00000080-0000-4000-8000-000000000000",
+            "node_name": "Assess damage",
+            "attempt": null,
+            "passed": true,
+            "violations": [],
+            "decided_by": "human"
+          },
+          "citations": [
+            {
+              "run_id": "00000080-0000-4000-8000-000000000000",
+              "seq": [
+                15
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "contract",
+          "text": "The outcome contract of \"Check fraud signals\" held at attempt ? of run 00000080; the outcome was a person's.",
+          "facts": {
+            "run_id": "00000080-0000-4000-8000-000000000000",
+            "node_name": "Check fraud signals",
+            "attempt": null,
+            "passed": true,
+            "violations": [],
+            "decided_by": "human"
+          },
+          "citations": [
+            {
+              "run_id": "00000080-0000-4000-8000-000000000000",
+              "seq": [
+                31
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "verification",
+          "text": "Verification (schema_only) of \"Assess damage\" at attempt 2 of run 00000001: pass, score 1.",
+          "facts": {
+            "run_id": "00000001-0000-4000-8000-000000000000",
+            "node_name": "Assess damage",
+            "attempt": 2,
+            "mode": "schema_only",
+            "verdict": "pass",
+            "score": 1
+          },
+          "citations": [
+            {
+              "run_id": "00000001-0000-4000-8000-000000000000",
+              "seq": [
+                15
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "verification",
+          "text": "Verification (schema_only) of \"Assess damage\" at attempt 1 of run 0000003f: pass, score 1.",
+          "facts": {
+            "run_id": "0000003f-0000-4000-8000-000000000000",
+            "node_name": "Assess damage",
+            "attempt": 1,
+            "mode": "schema_only",
+            "verdict": "pass",
+            "score": 1
+          },
+          "citations": [
+            {
+              "run_id": "0000003f-0000-4000-8000-000000000000",
+              "seq": [
+                11
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "refusals",
+      "title": "Refusals",
+      "question": "What did the engine refuse to do before it happened, to whom, and under which rule or guardrail?",
+      "serves": [
+        "eu-ai-act:12(2)",
+        "eu-ai-act:15(4)",
+        "eu-ai-act:15(5)",
+        "nist-ai-rmf:GOVERN",
+        "nist-ai-rmf:MANAGE",
+        "iso-iec-42001:A.6"
+      ],
+      "summary": {
+        "refusals": 2,
+        "tool_calls": 0,
+        "context_writes": 0,
+        "authorization": 2,
+        "guardrails": 0,
+        "by_code": [],
+        "authorization_by_reason": {
+          "four_eyes": 1,
+          "separation_of_duties": 1
+        }
+      },
+      "statements": [
+        {
+          "kind": "authorization_denied",
+          "text": "ana (person) was refused the action approve at \"Adjuster review\" in run 0000003f: the separation of duties opener-does-not-approve.",
+          "facts": {
+            "run_id": "0000003f-0000-4000-8000-000000000000",
+            "node_name": "Adjuster review",
+            "action": "approve",
+            "principal": {
+              "id": "ana",
+              "kind": "person"
+            },
+            "resource": {
+              "workflow_id": "42ddec2f-18d0-5b06-837b-bf1e9c8cecdb",
+              "workflow_name": "Motor Claim Settlement",
+              "activity_id": "c622ddbc-7f31-50a1-adbd-410ff7c96c3e",
+              "activity_name": "Adjuster review",
+              "role_id": "ade889d2-949e-5e5f-a9eb-fea819123c1a",
+              "role_name": "Claims adjuster"
+            },
+            "rule": "opener-does-not-approve",
+            "reason": "separation_of_duties"
+          },
+          "citations": [
+            {
+              "run_id": "0000003f-0000-4000-8000-000000000000",
+              "seq": [
+                36
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "authorization_denied",
+          "text": "alice (person) was refused the action approve at \"Adjuster review\" in run 0000003f: the four-eyes rule two-adjusters-approve.",
+          "facts": {
+            "run_id": "0000003f-0000-4000-8000-000000000000",
+            "node_name": "Adjuster review",
+            "action": "approve",
+            "principal": {
+              "id": "alice",
+              "kind": "person"
+            },
+            "resource": {
+              "workflow_id": "42ddec2f-18d0-5b06-837b-bf1e9c8cecdb",
+              "workflow_name": "Motor Claim Settlement",
+              "activity_id": "c622ddbc-7f31-50a1-adbd-410ff7c96c3e",
+              "activity_name": "Adjuster review",
+              "role_id": "ade889d2-949e-5e5f-a9eb-fea819123c1a",
+              "role_name": "Claims adjuster"
+            },
+            "rule": "two-adjusters-approve",
+            "reason": "four_eyes"
+          },
+          "citations": [
+            {
+              "run_id": "0000003f-0000-4000-8000-000000000000",
+              "seq": [
+                38
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "failures",
+      "title": "Failures",
+      "question": "Which attempts, tool calls, runs and journeys failed or stalled, and why?",
+      "serves": [
+        "eu-ai-act:12(2)",
+        "eu-ai-act:15(4)",
+        "eu-ai-act:26(5)",
+        "nist-ai-rmf:MANAGE",
+        "iso-iec-42001:A.6"
+      ],
+      "summary": {
+        "attempts_failed": 2,
+        "dead_letters": 0,
+        "tool_failures": 0,
+        "runs_failed": 0,
+        "journeys_stalled": 0,
+        "by_code": [
+          {
+            "code": "CONTRACT_VIOLATION",
+            "count": 1
+          },
+          {
+            "code": "TIMEOUT",
+            "count": 1
+          }
+        ]
+      },
+      "statements": [
+        {
+          "kind": "attempt_failed",
+          "text": "Attempt 1 of \"Assess damage\" in run 00000001 failed (CONTRACT_VIOLATION): Outcome contract violated: /estimated_cost must be number; Within authority: \"estimated_cost <= 50000\" does not hold",
+          "facts": {
+            "run_id": "00000001-0000-4000-8000-000000000000",
+            "node_name": "Assess damage",
+            "attempt": 1,
+            "code": "CONTRACT_VIOLATION"
+          },
+          "citations": [
+            {
+              "run_id": "00000001-0000-4000-8000-000000000000",
+              "seq": [
+                11
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "attempt_failed",
+          "text": "Attempt 1 of \"Check fraud signals\" in run 00000001 failed (TIMEOUT): Fraud scoring service timed out",
+          "facts": {
+            "run_id": "00000001-0000-4000-8000-000000000000",
+            "node_name": "Check fraud signals",
+            "attempt": 1,
+            "code": "TIMEOUT"
+          },
+          "citations": [
+            {
+              "run_id": "00000001-0000-4000-8000-000000000000",
+              "seq": [
+                24
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "compensations",
+      "title": "Compensations",
+      "question": "Which completed work was undone after a failure, and did undoing it succeed?",
+      "serves": [
+        "eu-ai-act:15(4)",
+        "nist-ai-rmf:MANAGE"
+      ],
+      "summary": {
+        "compensations": 0,
+        "failed": 0
+      },
+      "statements": []
+    },
+    {
+      "id": "service_levels",
+      "title": "Service levels",
+      "question": "Where did work take longer than was promised?",
+      "serves": [
+        "eu-ai-act:12(2)",
+        "eu-ai-act:26(5)",
+        "nist-ai-rmf:MEASURE",
+        "nist-ai-rmf:MANAGE"
+      ],
+      "summary": {
+        "warnings": 0,
+        "breaches": 0
+      },
+      "statements": []
+    },
+    {
+      "id": "tools",
+      "title": "Tool calls by target",
+      "question": "Which outside systems were called, how often, and with what result?",
+      "serves": [
+        "eu-ai-act:12(2)",
+        "eu-ai-act:26(5)",
+        "nist-ai-rmf:MAP",
+        "iso-iec-42001:A.10"
+      ],
+      "summary": {
+        "targets": 0,
+        "calls": 0,
+        "completed": 0,
+        "failed": 0,
+        "refused": 0
+      },
+      "statements": []
+    },
+    {
+      "id": "data",
+      "title": "Data handled",
+      "question": "How were inputs, outputs, tool arguments and results journalled, and which shared contexts were read and written?",
+      "serves": [
+        "eu-ai-act:12(1)",
+        "eu-ai-act:26(6)",
+        "nist-ai-rmf:GOVERN",
+        "iso-iec-42001:A.7"
+      ],
+      "summary": {
+        "runs_by_mode": {
+          "full": 3,
+          "hash": 0,
+          "none": 0,
+          "mixed": 0
+        },
+        "payloads": {
+          "full": 49,
+          "hash": 0,
+          "none": 0
+        }
+      },
+      "statements": [
+        {
+          "kind": "run_payloads",
+          "text": "Run 00000001 journalled its 19 payload(s) in full.",
+          "facts": {
+            "run_id": "00000001-0000-4000-8000-000000000000",
+            "mode": "full",
+            "full": 19,
+            "hash": 0,
+            "none": 0
+          },
+          "citations": [
+            {
+              "run_id": "00000001-0000-4000-8000-000000000000",
+              "seq": [
+                1,
+                5,
+                6,
+                9,
+                13,
+                16,
+                22,
+                23,
+                27,
+                28,
+                31,
+                35,
+                36,
+                41,
+                42,
+                48,
+                49,
+                52,
+                55
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "run_payloads",
+          "text": "Run 0000003f journalled its 19 payload(s) in full.",
+          "facts": {
+            "run_id": "0000003f-0000-4000-8000-000000000000",
+            "mode": "full",
+            "full": 19,
+            "hash": 0,
+            "none": 0
+          },
+          "citations": [
+            {
+              "run_id": "0000003f-0000-4000-8000-000000000000",
+              "seq": [
+                1,
+                5,
+                6,
+                9,
+                12,
+                18,
+                19,
+                20,
+                23,
+                27,
+                28,
+                33,
+                41,
+                44,
+                45,
+                51,
+                52,
+                55,
+                58
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "run_payloads",
+          "text": "Run 00000080 journalled its 11 payload(s) in full.",
+          "facts": {
+            "run_id": "00000080-0000-4000-8000-000000000000",
+            "mode": "full",
+            "full": 11,
+            "hash": 0,
+            "none": 0
+          },
+          "citations": [
+            {
+              "run_id": "00000080-0000-4000-8000-000000000000",
+              "seq": [
+                1,
+                5,
+                6,
+                16,
+                24,
+                26,
+                32,
+                36,
+                37,
+                41,
+                46
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "retention",
+      "title": "The records themselves",
+      "question": "Which records does this report rest on, over what span, and are they complete?",
+      "serves": [
+        "eu-ai-act:12(1)",
+        "eu-ai-act:13(3)(f)",
+        "eu-ai-act:26(6)",
+        "nist-ai-rmf:GOVERN",
+        "iso-iec-42001:A.6"
+      ],
+      "summary": {
+        "runs": 3,
+        "child_runs": 0,
+        "events": 168,
+        "journey_instances": 0,
+        "journey_events": 0,
+        "oldest_record": "2026-11-02T09:00:00.750Z",
+        "newest_record": "2026-11-04T13:36:19.475Z",
+        "held_for_ms": 2073599250,
+        "runs_with_gaps": 0
+      },
+      "statements": [
+        {
+          "kind": "held",
+          "text": "The report rests on 168 journal record(s) of 3 run(s) and 0 record(s) of 0 journey(s), from 2026-11-02T09:00:00.750Z to 2026-11-04T13:36:19.475Z.",
+          "facts": {
+            "runs": 3,
+            "child_runs": 0,
+            "events": 168,
+            "journey_instances": 0,
+            "journey_events": 0,
+            "oldest_record": "2026-11-02T09:00:00.750Z",
+            "newest_record": "2026-11-04T13:36:19.475Z"
+          },
+          "citations": [
+            {
+              "run_id": "00000001-0000-4000-8000-000000000000",
+              "seq": [
+                1
+              ]
+            },
+            {
+              "run_id": "00000080-0000-4000-8000-000000000000",
+              "seq": [
+                49
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "guardrails",
+      "title": "Guardrails",
+      "question": "What did the guardrails find in what reached and left the agents and tools, at which stage, and what did they do about it?",
+      "serves": [
+        "eu-ai-act:12(2)",
+        "eu-ai-act:14(4)",
+        "eu-ai-act:15(4)",
+        "eu-ai-act:15(5)",
+        "nist-ai-rmf:MEASURE",
+        "nist-ai-rmf:MANAGE",
+        "iso-iec-42001:A.6",
+        "iso-iec-42001:A.7"
+      ],
+      "summary": {
+        "triggered": 4,
+        "guardrails": 2,
+        "by_action": {
+          "block": 0,
+          "redact": 2,
+          "retry_with_feedback": 0,
+          "escalate": 2,
+          "warn": 0
+        },
+        "by_stage": {
+          "input": 2,
+          "output": 2,
+          "tool_call": 0,
+          "tool_result": 0
+        },
+        "by_check": {
+          "personal_data": 2,
+          "prompt_injection": 2
+        },
+        "by_category": {
+          "email": 2,
+          "ignore_instructions": 2,
+          "phone": 2
+        },
+        "failed_closed": 0
+      },
+      "statements": [
+        {
+          "kind": "guardrail",
+          "text": "Guardrail \"Personal data in what agents write\" (personal_data) found email, phone (2 findings) in the output of \"Notify claimant\" at attempt 1 in run 00000001, and redacted what it found.",
+          "facts": {
+            "run_id": "00000001-0000-4000-8000-000000000000",
+            "node_name": "Notify claimant",
+            "attempt": 1,
+            "guardrail_id": "8f2b6c1e-5a4d-4c3b-9e7f-1a2b3c4d5e61",
+            "name": "Personal data in what agents write",
+            "source": "deployment",
+            "stage": "output",
+            "check": "personal_data",
+            "action": "redact",
+            "categories": [
+              "email",
+              "phone"
+            ],
+            "findings": 2,
+            "by_category": {
+              "email": 1,
+              "phone": 1
+            },
+            "tool": null,
+            "failed_closed": false
+          },
+          "citations": [
+            {
+              "run_id": "00000001-0000-4000-8000-000000000000",
+              "seq": [
+                53
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "guardrail",
+          "text": "Guardrail \"Personal data in what agents write\" (personal_data) found email, phone (2 findings) in the output of \"Notify claimant\" at attempt 1 in run 0000003f, and redacted what it found.",
+          "facts": {
+            "run_id": "0000003f-0000-4000-8000-000000000000",
+            "node_name": "Notify claimant",
+            "attempt": 1,
+            "guardrail_id": "8f2b6c1e-5a4d-4c3b-9e7f-1a2b3c4d5e61",
+            "name": "Personal data in what agents write",
+            "source": "deployment",
+            "stage": "output",
+            "check": "personal_data",
+            "action": "redact",
+            "categories": [
+              "email",
+              "phone"
+            ],
+            "findings": 2,
+            "by_category": {
+              "email": 1,
+              "phone": 1
+            },
+            "tool": null,
+            "failed_closed": false
+          },
+          "citations": [
+            {
+              "run_id": "0000003f-0000-4000-8000-000000000000",
+              "seq": [
+                56
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "guardrail",
+          "text": "Guardrail \"Instructions hidden in claim data\" (prompt_injection) found ignore_instructions (1 finding) in the input of \"Assess damage\" in run 00000080, and handed the activity to a person.",
+          "facts": {
+            "run_id": "00000080-0000-4000-8000-000000000000",
+            "node_name": "Assess damage",
+            "attempt": null,
+            "guardrail_id": "8f2b6c1e-5a4d-4c3b-9e7f-1a2b3c4d5e60",
+            "name": "Instructions hidden in claim data",
+            "source": "deployment",
+            "stage": "input",
+            "check": "prompt_injection",
+            "action": "escalate",
+            "categories": [
+              "ignore_instructions"
+            ],
+            "findings": 1,
+            "by_category": {
+              "ignore_instructions": 1
+            },
+            "tool": null,
+            "failed_closed": false
+          },
+          "citations": [
+            {
+              "run_id": "00000080-0000-4000-8000-000000000000",
+              "seq": [
+                9
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "guardrail",
+          "text": "Guardrail \"Instructions hidden in claim data\" (prompt_injection) found ignore_instructions (1 finding) in the input of \"Check fraud signals\" in run 00000080, and handed the activity to a person.",
+          "facts": {
+            "run_id": "00000080-0000-4000-8000-000000000000",
+            "node_name": "Check fraud signals",
+            "attempt": null,
+            "guardrail_id": "8f2b6c1e-5a4d-4c3b-9e7f-1a2b3c4d5e60",
+            "name": "Instructions hidden in claim data",
+            "source": "deployment",
+            "stage": "input",
+            "check": "prompt_injection",
+            "action": "escalate",
+            "categories": [
+              "ignore_instructions"
+            ],
+            "findings": 1,
+            "by_category": {
+              "ignore_instructions": 1
+            },
+            "tool": null,
+            "failed_closed": false
+          },
+          "citations": [
+            {
+              "run_id": "00000080-0000-4000-8000-000000000000",
+              "seq": [
+                22
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

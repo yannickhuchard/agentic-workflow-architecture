@@ -2054,6 +2054,289 @@ def evidence_cases() -> list[dict]:
     return [whole, period, narrowed]
 
 
+EVIDENCE_PARTS = ["operation", "models", "oversight", "outcomes", "refusals", "failures", "compensations", "service_levels", "tools", "data", "retention", "guardrails"]
+
+
+def evidence_record_cases() -> list[dict]:
+    """Level `evidence` (section 32): what guardrails (31), authorization (30), child runs (24) and migrations (25) recorded, and what a report states about it."""
+    t = lambda d, hm: f"2026-05-{d:02d}T{hm}:00.000Z"
+    st = lambda part, kind, facts, *citations: {"part": part, "kind": kind, "facts": facts, **({"citations": list(citations)} if citations else {})}
+    host = {"id": "host", "kind": "service"}
+    agent = {"id": "ai_agent:drafter", "kind": "ai_agent"}
+    app = {"id": "application:payments", "kind": "application"}
+    alice, bob, carol, dana = ({"id": n, "kind": "person"} for n in ("alice", "bob", "carol", "dana"))
+    G_PII, G_INJ, G_ACC, G_TOPIC, G_LEAK, G_MOD = (f"6a0c1e0e-0000-4000-8000-00000000000{i}" for i in range(1, 7))
+
+    # --- Guardrails: every action, every stage, and a check that fails closed ------------------
+    DRAFT, PAY, ASK, REPLY = ("draft", "Draft reply"), ("pay", "Pay"), ("ask", "Answer question"), ("reply", "Send reply")
+    g = Journal("g1", "support")
+    trig = lambda gid, name, source, stage, check, action, findings, **extra: dict(
+        guardrail_id=gid, name=name, source=source, stage=stage, check=check, action=action,
+        categories=sorted({f["category"] for f in findings}), findings=findings, **extra)
+    (g.add("run.started", t(4, "09:00"), "start", workflow_name="Support", workflow_version="2.0.0", input={"q": "hello"})
+       # An input that tries to instruct the agent is handed to a person before any attempt
+       .add("guardrail.triggered", t(4, "09:00"), "g_in", ASK, **trig(G_INJ, "Prompt injection", "deployment", "input", "prompt_injection", "escalate",
+                                                                       [{"category": "ignore_instructions", "path": "/q", "start": 0, "end": 32}]))
+       .add("meta.recorded", t(4, "09:00"), "esc_meta", ASK, subject="escalation", decision="Hand the activity to a human", rationale="Guardrail \"Prompt injection\" found ignore_instructions at stage input.")
+       .add("token.waiting", t(4, "09:00"), "w", ASK, reason="human_task", human_task_id="task-ask")
+       .add("token.resumed", t(4, "09:30"), "r", ASK, waited_ms=1800000)
+       .add("activity.completed", t(4, "09:30"), "done_ask", ASK, actor_type="ai_agent", output={"answer": "Answered by a person"}, attempts=0)
+       # An output with an email address and a code name: redacted, and warned of
+       .add("activity.started", t(4, "09:31"), "s1", DRAFT, attempt=1, actor_type="ai_agent", input={"answer": "Answered by a person"})
+       .add("guardrail.triggered", t(4, "09:32"), "g_red", DRAFT, attempt=1, **trig(G_PII, "Personal data", "workflow", "output", "personal_data", "redact",
+                                                                                     [{"category": "email", "path": "/reply", "start": 5, "end": 21}, {"category": "email", "path": "/cc", "start": 0, "end": 15}, {"category": "phone", "path": "/reply", "start": 30, "end": 45}]))
+       .add("guardrail.triggered", t(4, "09:32"), "g_warn", DRAFT, attempt=1, **trig(G_LEAK, "Code names", "activity", "output", "deny_list", "warn",
+                                                                                      [{"category": "term", "path": "/reply", "start": 50, "end": 64}]))
+       # The same output is off topic: the agent tries again with feedback
+       .add("guardrail.triggered", t(4, "09:32"), "g_retry", DRAFT, attempt=1, **trig(G_TOPIC, "On topic", "activity", "output", "topic", "retry_with_feedback",
+                                                                                       [{"category": "off_topic"}]))
+       .add("activity.failed", t(4, "09:32"), "f1", DRAFT, attempt=1, error={"code": "GUARDRAIL_BLOCKED", "message": "Guardrail \"On topic\" (topic) found off_topic at stage output"}, retryable=True)
+       .add("meta.recorded", t(4, "09:32"), None, DRAFT, attempt=1, subject="guardrail_retry", decision="Try again with feedback", rationale="off_topic")
+       .add("activity.started", t(4, "09:33"), None, DRAFT, attempt=2, actor_type="ai_agent", input={"answer": "Answered by a person"})
+       .add("activity.completed", t(4, "09:34"), None, DRAFT, attempt=2, actor_type="ai_agent", output={"reply": "Thank you"}, attempts=2)
+       # A tool call whose arguments name an unknown account is refused before it runs; the result of the next is redacted
+       .add("activity.started", t(4, "09:35"), "s_pay", PAY, attempt=1, actor_type="ai_agent", input={"reply": "Thank you"})
+       .add("guardrail.triggered", t(4, "09:35"), "g_block", PAY, attempt=1, **trig(G_ACC, "Known accounts", "tool", "tool_call", "allowed_values", "block",
+                                                                                     [{"category": "allowed_values", "path": "/account"}], tool="transfer", call_id="k1"))
+       .add("tool.failed", t(4, "09:35"), "refused", PAY, attempt=1, call_id="k1", tool="transfer", link="function:transfer", invoked=False,
+            error={"code": "GUARDRAIL_BLOCKED", "message": "Guardrail \"Known accounts\" (allowed_values) found allowed_values at stage tool_call"})
+       .add("tool.invoked", t(4, "09:36"), "inv", PAY, attempt=1, call_id="k2", tool="transfer", link="function:transfer", arguments={"account": "A-1"})
+       .add("guardrail.triggered", t(4, "09:36"), "g_result", PAY, attempt=1, **trig(G_PII, "Personal data", "deployment", "tool_result", "personal_data", "redact",
+                                                                                      [{"category": "iban", "path": "/to", "start": 0, "end": 22}], tool="transfer", call_id="k2"))
+       .add("tool.completed", t(4, "09:36"), "tc", PAY, attempt=1, call_id="k2", tool="transfer", link="function:transfer", result={"to": "[REDACTED:iban]"})
+       .add("activity.completed", t(4, "09:36"), None, PAY, attempt=1, actor_type="ai_agent", output={"paid": True}, attempts=1)
+       # A classifier that cannot be reached: the guardrail fails closed
+       .add("activity.started", t(4, "09:37"), None, REPLY, attempt=1, actor_type="ai_agent", input={"paid": True})
+       .add("guardrail.triggered", t(4, "09:37"), "g_err", REPLY, attempt=1, **trig(G_MOD, "Moderation", "deployment", "output", "classifier", "block", [],
+                                                                                   error="classifier \"moderation\" is not registered"))
+       .add("activity.failed", t(4, "09:37"), "f_err", REPLY, attempt=1, error={"code": "GUARDRAIL_ERROR", "message": "classifier \"moderation\" is not registered"}, retryable=False)
+       .add("run.failed", t(4, "09:37"), "end", errors=["classifier \"moderation\" is not registered"]))
+    g_recorded = {"as_of": t(20, "09:00"), "workflows": [{"id": "support", "name": "Support", "version": "2.0.0"}], "runs": [g.run()]}
+    gfacts = lambda gid, stage, check, action, **more: {"run_id": "g1", "guardrail_id": gid, "stage": stage, "check": check, "action": action, **more}
+    guardrails = {
+        "id": "evidence-of-guardrails", "level": "evidence", "spec": "32.3",
+        "description": "A run whose guardrails escalate an input, redact and warn of an output, retry it with feedback, refuse a tool call, redact a tool result and fail closed. Each record is a statement of the part guardrails, with its categories and counts and never what it matched; a block is a refusal as well, and an escalation is oversight, with the person's decision.",
+        "recorded": g_recorded, "options": {},
+        "expect": {
+            "part_ids": EVIDENCE_PARTS,
+            "summaries": {
+                "guardrails": {"triggered": 7, "guardrails": 6, "by_action": {"block": 2, "redact": 2, "retry_with_feedback": 1, "escalate": 1, "warn": 1},
+                               "by_stage": {"input": 1, "output": 4, "tool_call": 1, "tool_result": 1},
+                               "by_check": {"allowed_values": 1, "classifier": 1, "deny_list": 1, "personal_data": 2, "prompt_injection": 1, "topic": 1},
+                               "by_category": {"allowed_values": 1, "email": 2, "iban": 1, "ignore_instructions": 1, "off_topic": 1, "phone": 1, "term": 1},
+                               "failed_closed": 1},
+                "refusals": {"refusals": 3, "tool_calls": 1, "guardrails": 2, "authorization": 0, "by_code": [{"code": "GUARDRAIL_BLOCKED", "count": 1}]},
+                "oversight": {"human_decisions": 1, "overrides": 0, "guardrail_escalations": 1, "escalations": 0},
+                "failures": {"attempts_failed": 2},
+            },
+            "statements": [
+                st("guardrails", "guardrail", gfacts(G_INJ, "input", "prompt_injection", "escalate", node_name="Answer question", attempt=None, name="Prompt injection", source="deployment",
+                                                     categories=["ignore_instructions"], findings=1, by_category={"ignore_instructions": 1}, tool=None, failed_closed=False), g.cite("g_in")),
+                st("guardrails", "guardrail", gfacts(G_PII, "output", "personal_data", "redact", node_name="Draft reply", attempt=1, source="workflow",
+                                                     categories=["email", "phone"], findings=3, by_category={"email": 2, "phone": 1}), g.cite("g_red")),
+                st("guardrails", "guardrail", gfacts(G_LEAK, "output", "deny_list", "warn", categories=["term"], findings=1), g.cite("g_warn")),
+                st("guardrails", "guardrail", gfacts(G_TOPIC, "output", "topic", "retry_with_feedback", categories=["off_topic"]), g.cite("g_retry")),
+                st("guardrails", "guardrail", gfacts(G_ACC, "tool_call", "allowed_values", "block", node_name="Pay", tool="transfer", source="tool"), g.cite("g_block")),
+                st("guardrails", "guardrail", gfacts(G_PII, "tool_result", "personal_data", "redact", tool="transfer", categories=["iban"], source="deployment"), g.cite("g_result")),
+                st("guardrails", "guardrail", gfacts(G_MOD, "output", "classifier", "block", node_name="Send reply", failed_closed=True, findings=0, categories=[], by_category={}), g.cite("g_err")),
+                st("refusals", "guardrail_blocked", gfacts(G_ACC, "tool_call", "allowed_values", "block", tool="transfer"), g.cite("g_block")),
+                st("refusals", "guardrail_blocked", gfacts(G_MOD, "output", "classifier", "block", failed_closed=True), g.cite("g_err")),
+                st("refusals", "tool_refused", {"run_id": "g1", "node_name": "Pay", "tool": "transfer", "code": "GUARDRAIL_BLOCKED"}, g.cite("refused")),
+                st("oversight", "guardrail_escalation", gfacts(G_INJ, "input", "prompt_injection", "escalate", node_name="Answer question"), g.cite("g_in")),
+                st("oversight", "human_decision", {"run_id": "g1", "node_name": "Answer question", "escalated": True, "escalated_by": "guardrail", "principal": None, "approvals": [], "approvers": 0},
+                   g.cite("g_in", "w", "r", "done_ask")),
+                st("failures", "attempt_failed", {"run_id": "g1", "node_name": "Send reply", "code": "GUARDRAIL_ERROR"}, g.cite("f_err")),
+            ],
+            "absent": [st("refusals", "guardrail_blocked", {"action": "redact"}), st("refusals", "guardrail_blocked", {"action": "warn"}),
+                       st("oversight", "guardrail_escalation", {"action": "retry_with_feedback"}), st("outcomes", "contract", {"run_id": "g1"})],
+        },
+    }
+
+    # --- Authorization: who acted, who was refused, four eyes and separation of duties ---------
+    SUBMIT, APPROVE, PAYOUT, REVIEW = ("submit", "Submit claim"), ("approve", "Approve"), ("payout", "Pay out"), ("review", "Review")
+    res = lambda node, **more: {"workflow_id": "claims", "workflow_name": "Claims", "activity_id": node[0], "activity_name": node[1], **more}
+    decided = lambda action, decision, principal, resource, rule=None, reason=None, **more: dict(
+        action=action, decision=decision, principal=principal, resource=resource, **({"rule": rule} if rule else {}), reason=reason or ("rule" if rule else "no_rule"),
+        message=f"{action} {decision}", **more)
+    a = Journal("a1", "claims")
+    (a.add("run.started", t(6, "09:00"), "start", workflow_name="Claims", workflow_version="1.0.0", input={"amount": 900}, principal=host)
+       .add("authorization.decided", t(6, "09:00"), "allow_agent", SUBMIT, **decided("perform_activity", "allow", agent, res(SUBMIT, role_id="r1"), "agents-act"))
+       .add("activity.started", t(6, "09:00"), None, SUBMIT, attempt=1, actor_type="ai_agent", principal=agent, input={"amount": 900})
+       .add("authorization.decided", t(6, "09:01"), "deny_tool", SUBMIT, attempt=1, **decided("call_tool", "deny", agent, res(SUBMIT, tool="transfer", link="https://bank.example/rpc#transfer")))
+       .add("tool.failed", t(6, "09:01"), "tool_refused", SUBMIT, attempt=1, call_id="x1", tool="transfer", link="https://bank.example/rpc#transfer", invoked=False,
+            error={"code": "FORBIDDEN", "message": "call_tool denied"})
+       .add("activity.completed", t(6, "09:02"), None, SUBMIT, attempt=1, actor_type="ai_agent", principal=agent, output={"submitted": True})
+       .add("activity.started", t(6, "09:03"), "hs", APPROVE, attempt=1, actor_type="human", input={"submitted": True})
+       .add("token.waiting", t(6, "09:03"), "hw", APPROVE, reason="human_task", human_task_id="task-approve")
+       .add("authorization.decided", t(6, "10:00"), "approve_alice", APPROVE, **decided("approve", "allow", alice, res(APPROVE), "approvers-approve", approval={"given": 1, "required": 2}))
+       .add("authorization.decided", t(6, "10:05"), "again_alice", APPROVE, **decided("approve", "deny", alice, res(APPROVE), "two-approvers", "four_eyes"))
+       .add("authorization.decided", t(6, "10:10"), "carol_no_rule", APPROVE, **decided("approve", "deny", carol, res(APPROVE)))
+       .add("authorization.decided", t(6, "11:00"), "approve_bob", APPROVE, **decided("approve", "allow", bob, res(APPROVE), "approvers-approve", approval={"given": 2, "required": 2}))
+       .add("token.resumed", t(6, "11:00"), "hr", APPROVE, waited_ms=7020000, principal=bob)
+       .add("activity.completed", t(6, "11:00"), "hd", APPROVE, attempt=1, actor_type="human", output={"approved": True}, waited_ms=7020000, principal=bob, approvals=[alice, bob])
+       .add("authorization.decided", t(6, "11:01"), "allow_app", PAYOUT, **decided("perform_activity", "allow", app, res(PAYOUT), "applications-act"))
+       .add("activity.started", t(6, "11:01"), None, PAYOUT, attempt=1, actor_type="application", principal=app, input={"approved": True})
+       .add("activity.completed", t(6, "11:02"), None, PAYOUT, attempt=1, actor_type="application", principal=app, output={"paid": True})
+       .add("run.completed", t(6, "11:02"), "end"))
+    b = Journal("a2", "claims")
+    (b.add("run.started", t(7, "09:00"), "start", workflow_name="Claims", workflow_version="1.0.0", input={"amount": 400}, principal=alice)
+       .add("activity.started", t(7, "09:00"), None, REVIEW, attempt=1, actor_type="human", input={"amount": 400})
+       .add("token.waiting", t(7, "09:00"), "w1", REVIEW, reason="human_task", human_task_id="task-review")
+       .add("authorization.decided", t(7, "09:10"), "sod", REVIEW, **decided("complete_task", "deny", alice, res(REVIEW), "requester-not-reviewer", "separation_of_duties"))
+       .add("authorization.decided", t(7, "09:20"), "bob_allowed", REVIEW, **decided("complete_task", "allow", bob, res(REVIEW), "reviewers-review"))
+       .add("token.resumed", t(7, "09:20"), "r1", REVIEW, waited_ms=1200000, principal=bob)
+       .add("activity.completed", t(7, "09:20"), "d1", REVIEW, attempt=1, actor_type="human", output={"ok": True}, waited_ms=1200000, principal=bob)
+       .add("activity.started", t(7, "09:21"), None, ("hold", "Hold for audit"), attempt=1, actor_type="human", input={"ok": True})
+       .add("token.waiting", t(7, "09:21"), None, ("hold", "Hold for audit"), reason="human_task", human_task_id="task-hold")
+       .add("authorization.decided", t(7, "09:30"), "cancel_denied", None, **decided("cancel_run", "deny", carol, {"workflow_id": "claims", "workflow_name": "Claims", "run_id": "a2"}))
+       .add("run.migrated", t(7, "10:00"), "migrated", from_version="1.0.0", to_version="1.1.0", nodes={}, tokens=[{"token_id": "t1", "outcome": "kept"}], data_changes=[], principal=dana))
+    a_recorded = {"as_of": t(20, "09:00"), "workflows": [{"id": "claims", "name": "Claims", "version": "1.1.0"}], "runs": [a.run(), b.run()]}
+    authorization = {
+        "id": "evidence-of-authorization", "level": "evidence", "spec": "32.3",
+        "description": "Runs under a policy that records allowed decisions: who started each run, who performed and approved, who was refused and under which rule, four eyes with two distinct approvers, a separation of duties, a decision on the run itself, and a migration with the principal who made it.",
+        "recorded": a_recorded, "options": {},
+        "expect": {
+            "part_ids": EVIDENCE_PARTS,
+            "summaries": {
+                "operation": {"runs": 2, "completed": 1, "in_progress": 1, "migrations": 1, "authorizations_allowed": 5, "child_runs": 0},
+                "refusals": {"refusals": 6, "tool_calls": 1, "authorization": 5, "guardrails": 0, "context_writes": 0,
+                             "authorization_by_reason": {"four_eyes": 1, "no_rule": 3, "separation_of_duties": 1}, "by_code": [{"code": "FORBIDDEN", "count": 1}]},
+                "oversight": {"human_decisions": 2, "four_eyes": 1, "separation_of_duties": 2, "overrides": 0},
+                "guardrails": {"triggered": 0, "by_action": {"block": 0, "redact": 0, "retry_with_feedback": 0, "escalate": 0, "warn": 0}},
+            },
+            "statements": [
+                st("operation", "run", {"run_id": "a1", "principal": host, "depth": 0, "parent_run_id": None, "root_run_id": None}, a.cite("start", "end")),
+                st("operation", "run", {"run_id": "a2", "principal": alice, "status": "in_progress"}, b.cite("start")),
+                st("operation", "migration", {"run_id": "a2", "from_version": "1.0.0", "to_version": "1.1.0", "tokens_kept": 1, "principal": dana}, b.cite("migrated")),
+                st("operation", "authorization_allowed", {"run_id": "a1", "node_name": "Submit claim", "action": "perform_activity", "principal": agent, "rule": "agents-act", "approval": None}, a.cite("allow_agent")),
+                st("operation", "authorization_allowed", {"run_id": "a1", "action": "approve", "principal": alice, "approval": {"given": 1, "required": 2}}, a.cite("approve_alice")),
+                st("operation", "authorization_allowed", {"run_id": "a1", "action": "approve", "principal": bob, "approval": {"given": 2, "required": 2}}, a.cite("approve_bob")),
+                st("operation", "authorization_allowed", {"run_id": "a2", "action": "complete_task", "principal": bob, "rule": "reviewers-review"}, b.cite("bob_allowed")),
+                st("refusals", "authorization_denied", {"run_id": "a1", "node_name": "Submit claim", "action": "call_tool", "principal": agent, "rule": None, "reason": "no_rule",
+                                                        "resource": {"workflow_id": "claims", "workflow_name": "Claims", "activity_id": "submit", "activity_name": "Submit claim", "tool": "transfer", "link": "https://bank.example/rpc#transfer"}}, a.cite("deny_tool")),
+                st("refusals", "tool_refused", {"run_id": "a1", "tool": "transfer", "code": "FORBIDDEN"}, a.cite("tool_refused")),
+                st("refusals", "authorization_denied", {"run_id": "a1", "action": "approve", "principal": alice, "rule": "two-approvers", "reason": "four_eyes"}, a.cite("again_alice")),
+                st("refusals", "authorization_denied", {"run_id": "a1", "action": "approve", "principal": carol, "reason": "no_rule"}, a.cite("carol_no_rule")),
+                st("refusals", "authorization_denied", {"run_id": "a2", "action": "complete_task", "principal": alice, "rule": "requester-not-reviewer", "reason": "separation_of_duties"}, b.cite("sod")),
+                st("refusals", "authorization_denied", {"run_id": "a2", "node_name": None, "action": "cancel_run", "principal": carol}, b.cite("cancel_denied")),
+                st("oversight", "human_decision", {"run_id": "a1", "node_name": "Approve", "escalated": False, "escalated_by": None, "principal": bob,
+                                                   "approvals": [alice, bob], "approvers": 2, "approvals_required": 2}, a.cite("hw", "approve_alice", "approve_bob", "hr", "hd")),
+                st("oversight", "human_decision", {"run_id": "a2", "node_name": "Review", "principal": bob, "approvals": [], "approvers": 0, "approvals_required": None}, b.cite("w1", "bob_allowed", "r1", "d1")),
+                st("oversight", "separation_of_duties", {"run_id": "a1", "node_name": "Approve", "action": "approve", "principal": alice, "rule": "two-approvers", "reason": "four_eyes"}, a.cite("again_alice")),
+                st("oversight", "separation_of_duties", {"run_id": "a2", "node_name": "Review", "action": "complete_task", "principal": alice, "rule": "requester-not-reviewer", "reason": "separation_of_duties"}, b.cite("sod")),
+            ],
+            "absent": [st("oversight", "separation_of_duties", {"reason": "no_rule"}), st("operation", "authorization_allowed", {"action": "call_tool"}),
+                       st("oversight", "human_decision", {"node_name": "Pay out"})],
+        },
+    }
+
+    # --- Child runs: kept with their run of depth 0 -----------------------------------------
+    CALL, SCORE, DEEP, ENTER = ("call", "Check fraud"), ("score", "Score"), ("deep", "Deep check"), ("enter", "Enter claim")
+    parent = lambda run_id, workflow_id, node, root, seq, attempt=1: {"run_id": run_id, "workflow_id": workflow_id, "node_id": node[0], "token_id": "t1", "attempt": attempt, "seq": seq, "root_run_id": root}
+    p1 = Journal("p1", "settle")
+    (p1.add("run.started", t(2, "23:00"), "start", workflow_name="Settle", workflow_version="1.0.0", input={"claim": "C-1"}, principal=host)
+       .add("activity.started", t(2, "23:50"), "as", CALL, attempt=1, actor_type="application", input={"claim": "C-1"})
+       .add("subworkflow.started", t(3, "00:30"), "sub", CALL, attempt=1, run_id="c1", workflow_id="check", workflow_name="Check", workflow_version="3.1.0", depth=1, input={"claim": "C-1"})
+       .add("subworkflow.completed", t(3, "00:40"), "subdone", CALL, attempt=1, run_id="c1", workflow_id="check", duration_ms=600000, output={"score": 0.2})
+       .add("activity.completed", t(3, "00:40"), None, CALL, attempt=1, actor_type="application", output={"output": {"score": 0.2}})
+       .add("run.completed", t(3, "00:41"), "end"))
+    c1 = Journal("c1", "check")
+    (c1.add("run.started", t(3, "00:30"), "start", workflow_name="Check", workflow_version="3.1.0", input={"claim": "C-1"}, principal=host, depth=1, parent=parent("p1", "settle", CALL, "p1", 2))
+       .add("activity.started", t(3, "00:30"), None, SCORE, attempt=1, actor_type="ai_agent", input={"claim": "C-1"})
+       .add("guardrail.triggered", t(3, "00:31"), "guard", SCORE, attempt=1, guardrail_id=G_PII, name="Personal data", source="deployment", stage="output", check="personal_data", action="redact",
+            categories=["email"], findings=[{"category": "email", "path": "/note", "start": 0, "end": 12}])
+       .add("activity.completed", t(3, "00:31"), None, SCORE, attempt=1, actor_type="ai_agent", output={"score": 0.2, "note": "[REDACTED:email]"})
+       .add("activity.started", t(3, "00:32"), None, DEEP, attempt=1, actor_type="application", input={"score": 0.2})
+       .add("subworkflow.started", t(3, "00:32"), "sub", DEEP, attempt=1, run_id="c2", workflow_id="score", workflow_name="Score", workflow_version="1.0.0", depth=2, input={})
+       .add("subworkflow.completed", t(3, "00:39"), None, DEEP, attempt=1, run_id="c2", workflow_id="score", duration_ms=420000, output={})
+       .add("activity.completed", t(3, "00:39"), None, DEEP, attempt=1, actor_type="application", output={"output": {}})
+       .add("run.completed", t(3, "00:40"), "end"))
+    c2 = Journal("c2", "score")
+    (c2.add("run.started", t(3, "00:32"), "start", workflow_name="Score", workflow_version="1.0.0", input={}, principal=host, depth=2, parent=parent("c1", "check", DEEP, "p1", 6))
+       .add("run.completed", t(3, "00:39"), "end"))
+    p2 = Journal("p2", "intake")
+    (p2.add("run.started", t(3, "09:00"), "start", workflow_name="Intake", workflow_version="1.0.0", input={"claim": "C-2"}, principal=host)
+       .add("activity.started", t(3, "09:00"), None, ENTER, attempt=1, actor_type="application", input={"claim": "C-2"})
+       .add("subworkflow.started", t(3, "09:00"), None, ENTER, attempt=1, run_id="c3", workflow_id="check", workflow_name="Check", workflow_version="3.1.0", depth=1, input={})
+       .add("subworkflow.failed", t(3, "09:05"), None, ENTER, attempt=1, run_id="c3", workflow_id="check", error={"code": "TIMEOUT", "message": "no answer"})
+       .add("activity.failed", t(3, "09:05"), "pf", ENTER, attempt=1, error={"code": "SUBWORKFLOW_FAILED", "message": "Check failed: no answer"}, retryable=False)
+       .add("run.failed", t(3, "09:05"), "end", errors=["Check failed: no answer"]))
+    c3 = Journal("c3", "check")
+    (c3.add("run.started", t(3, "09:00"), "start", workflow_name="Check", workflow_version="3.1.0", input={}, principal=host, depth=1, parent=parent("p2", "intake", ENTER, "p2", 3))
+       .add("activity.started", t(3, "09:00"), None, SCORE, attempt=1, actor_type="ai_agent", input={})
+       .add("activity.failed", t(3, "09:05"), "cf", SCORE, attempt=1, error={"code": "TIMEOUT", "message": "no answer"}, retryable=False)
+       .add("run.failed", t(3, "09:05"), "end", errors=["no answer"]))
+    c_recorded = {"as_of": t(20, "09:00"),
+                  "workflows": [{"id": "settle", "name": "Settle", "version": "1.0.0"}, {"id": "check", "name": "Check", "version": "3.1.0"},
+                                {"id": "score", "name": "Score", "version": "1.0.0"}, {"id": "intake", "name": "Intake", "version": "1.0.0"}],
+                  # Children before their parents, as journals of a runtime directory may come
+                  "runs": [c2.run(), c1.run(), p1.run(), c3.run(), p2.run()]}
+    child = lambda run_id, root, parent_id, depth, journal, *labels: st("operation", "run", {"run_id": run_id, "root_run_id": root, "parent_run_id": parent_id, "depth": depth}, journal.cite(*labels))
+    whole = {
+        "id": "evidence-of-child-runs", "level": "evidence", "spec": "32.1",
+        "description": "Two runs of depth 0 and the child runs they started, two levels deep. Each child run is a run of the report with its parent, root and depth; what happened in it is cited from its own journal; scope and retention count it.",
+        "recorded": c_recorded, "options": {},
+        "expect": {
+            "part_ids": EVIDENCE_PARTS,
+            "summaries": {"operation": {"runs": 5, "child_runs": 3, "completed": 3, "failed": 2}, "retention": {"runs": 5, "child_runs": 3, "events": 27, "runs_with_gaps": 0},
+                          "guardrails": {"triggered": 1, "by_action": {"redact": 1}}},
+            "statements": [
+                st("operation", "run", {"run_id": "p1", "depth": 0, "parent_run_id": None, "root_run_id": None, "workflow_name": "Settle"}, p1.cite("start", "end")),
+                child("c1", "p1", "p1", 1, c1, "start", "end"), child("c2", "p1", "c1", 2, c2, "start", "end"), child("c3", "p2", "p2", 1, c3, "start", "end"),
+                st("guardrails", "guardrail", {"run_id": "c1", "node_name": "Score", "action": "redact", "categories": ["email"]}, c1.cite("guard")),
+                st("failures", "attempt_failed", {"run_id": "c3", "code": "TIMEOUT"}, c3.cite("cf")),
+                st("failures", "attempt_failed", {"run_id": "p2", "code": "SUBWORKFLOW_FAILED"}, p2.cite("pf")),
+                st("retention", "held", {"runs": 5, "child_runs": 3}),
+            ],
+            "scope_workflows": [{"workflow_id": "check", "runs": 2, "child_runs": 2}, {"workflow_id": "score", "runs": 1, "child_runs": 1}, {"workflow_id": "settle", "runs": 1, "child_runs": 0},
+                                {"workflow_id": "intake", "runs": 1, "child_runs": 0}],
+            "cited_runs": ["p1", "c1", "c2", "p2", "c3"],
+        },
+    }
+    period = {
+        "id": "evidence-keeps-child-runs-with-their-root-by-period", "level": "evidence", "spec": "32.1",
+        "description": "From 3 May: the run started on 2 May is left out with its child runs, though they started on 3 May; the run started on 3 May is kept with its child.",
+        "recorded": c_recorded, "options": {"from": t(3, "00:00"), "to": t(4, "00:00")},
+        "expect": {
+            "summaries": {"operation": {"runs": 2, "child_runs": 1}, "guardrails": {"triggered": 0}},
+            "cited_runs": ["p2", "c3"],
+            "statements": [child("c3", "p2", "p2", 1, c3, "start", "end")],
+            "absent": [st("operation", "run", {"run_id": "c1"}), st("operation", "run", {"run_id": "c2"})],
+        },
+    }
+    before = {
+        "id": "evidence-keeps-child-runs-that-start-after-the-period", "level": "evidence", "spec": "32.1",
+        "description": "Up to 3 May: the run started on 2 May is kept whole with its child runs, though they started after the period ends.",
+        "recorded": c_recorded, "options": {"to": t(3, "00:00")},
+        "expect": {
+            "summaries": {"operation": {"runs": 3, "child_runs": 2}, "guardrails": {"triggered": 1}},
+            "cited_runs": ["p1", "c1", "c2"],
+            "statements": [child("c2", "p1", "c1", 2, c2, "start", "end")],
+        },
+    }
+    by_root = {
+        "id": "evidence-for-a-workflow-covers-its-child-runs", "level": "evidence", "spec": "32.1",
+        "description": "Narrowed to the workflow Settle, the report keeps its run and every child run it started, of whatever workflow, and lists their workflows in scope.",
+        "recorded": c_recorded, "options": {"workflow_ids": ["settle"]},
+        "expect": {
+            "summaries": {"operation": {"runs": 3, "child_runs": 2}},
+            "cited_runs": ["p1", "c1", "c2"],
+            "scope_workflows": [{"workflow_id": "check", "runs": 1, "child_runs": 1}, {"workflow_id": "score", "runs": 1, "child_runs": 1}, {"workflow_id": "settle", "runs": 1, "child_runs": 0}],
+        },
+    }
+    by_called = {
+        "id": "evidence-for-a-called-workflow-covers-its-child-runs", "level": "evidence", "spec": "32.1",
+        "description": "Narrowed to the called workflow Check, the report keeps its child runs whatever called them, and not the runs that called them nor the children of those child runs' other workflows.",
+        "recorded": c_recorded, "options": {"workflow_ids": ["check"]},
+        "expect": {
+            "summaries": {"operation": {"runs": 2, "child_runs": 2, "completed": 1, "failed": 1}},
+            "cited_runs": ["c1", "c3"],
+            "scope_workflows": [{"workflow_id": "check", "runs": 2, "child_runs": 2}],
+        },
+    }
+    return [guardrails, authorization, whole, period, before, by_root, by_called]
+
+
 def evaluation_cases() -> list[dict]:
     """Level `evaluation` (section 33): journals in and a dataset out; a dataset and a scripted candidate in and scores out."""
     t = lambda m, s=0: f"2026-04-01T09:{m:02d}:{s:02d}.000Z"
@@ -3850,7 +4133,7 @@ def main() -> None:
         write(ROOT / "documents" / f"{doc['id']}.json", doc)
     for case in telemetry_cases() + subworkflow_telemetry_cases():
         write(ROOT / "telemetry" / f"{case['id']}.json", case)
-    for case in evidence_cases():
+    for case in evidence_cases() + evidence_record_cases():
         write(ROOT / "evidence" / f"{case['id']}.json", case)
     for case in evaluation_cases():
         write(ROOT / "evaluation" / f"{case['id']}.json", case)
@@ -3862,7 +4145,7 @@ def main() -> None:
     write(ROOT / "expressions.json", exprs)
     interchange = write_interchange_cases()
     print(f"wrote {len(exprs['cases']) + len(exprs['invalid'])} expression tests")
-    print(f"wrote {len(evidence_cases())} evidence cases and {len(evaluation_cases())} evaluation cases")
+    print(f"wrote {len(evidence_cases()) + len(evidence_record_cases())} evidence cases and {len(evaluation_cases())} evaluation cases")
     print(f"wrote {len(journey_cases())} journey cases, {len(replay_cases())} replay cases and {len(knowledge_cases())} knowledge cases")
     print(f"wrote {len(telemetry_cases())} telemetry cases")
     print(f"wrote {len(shared_store_cases())} shared store cases")

@@ -987,6 +987,13 @@ def test_evidence(case):
     if "cited_runs" in expect:
         cited = {c["run_id"] for p in report["parts"] for s in p["statements"] for c in s["citations"] if "run_id" in c}
         assert sorted(cited) == sorted(expect["cited_runs"])
+    if "part_ids" in expect:
+        assert [p["id"] for p in report["parts"]] == expect["part_ids"]
+    if "scope_workflows" in expect:
+        workflows = report["scope"]["workflows"]
+        assert len(workflows) == len(expect["scope_workflows"]), json.dumps(workflows)
+        for want in expect["scope_workflows"]:
+            assert len([w for w in workflows if is_subset(want, w)]) == 1, f"scope {json.dumps(want)} among {json.dumps(workflows)}"
 
 
 @pytest.mark.parametrize("case", EVALUATION_CASES, ids=[c["id"] for c in EVALUATION_CASES])

@@ -29,8 +29,14 @@ def evidence(from_: str | None = Query(default=None, alias="from"), to: str | No
         record = host.export_portfolio()
         # Runs that belong to no journey are part of the record too
         in_journeys = {r["run_id"] for j in record["journeys"] for i in j["instances"] for r in i["runs"]}
-        record["runs"] = [{"run_id": e.run_id, "workflow_id": str(e.workflow.id), "events": e.get_events()}
-                          for e in host.list_runs() if e.run_id not in in_journeys]
+        record["runs"] = []
+        for e in host.list_runs():
+            if e.run_id in in_journeys:
+                continue
+            record["runs"].append({"run_id": e.run_id, "workflow_id": str(e.workflow.id), "events": e.get_events()})
+            # Its child runs (24.7), each with its own journal
+            record["runs"] += [{"run_id": c["run_id"], "workflow_id": str(c["workflow_id"]), "events": e.get_subworkflow_events(c["run_id"])}
+                               for c in e.subworkflow_runs() if c["run_id"] not in in_journeys]
     report = compute_evidence(record, {"from": from_ or None, "to": to or None, "workflow_ids": [w for w in workflow_id or [] if w] or None})
     if format == "md":
         return PlainTextResponse(render_evidence_markdown(report), media_type="text/markdown; charset=utf-8")

@@ -232,10 +232,10 @@ def test_evidence_states_each_migration_and_measures_count_the_run_once():
     report = compute_evidence({"workflows": [workflow_json], "runs": [{"run_id": run_id, "workflow_id": ID, "events": events}]})
     operation = next(p for p in report["parts"] if p["id"] == "operation")
     migration = next(s for s in operation["statements"] if s["kind"] == "migration")
-    assert migration["facts"] == {"run_id": run_id, "from_version": "1.0.0", "to_version": "2.0.0", "tokens_kept": 0, "tokens_restarted": 1, "data_changes": 1}
+    assert migration["facts"] == {"run_id": run_id, "from_version": "1.0.0", "to_version": "2.0.0", "tokens_kept": 0, "tokens_restarted": 1, "data_changes": 1, "principal": None}
     assert migration["citations"] == [{"run_id": run_id, "seq": [next(e for e in events if e["type"] == "run.migrated")["seq"]]}]
     assert operation["summary"]["migrations"] == 1
-    assert operation["summary"]["workflows"] == [{"workflow_id": ID, "name": "Claim", "versions": ["1.0.0", "2.0.0"], "runs": 1}]
+    assert operation["summary"]["workflows"] == [{"workflow_id": ID, "name": "Claim", "versions": ["1.0.0", "2.0.0"], "runs": 1, "child_runs": 0}]
     assert next(s for s in operation["statements"] if s["kind"] == "run")["facts"]["workflow_version"] == "1.0.0"
     measures = compute_measures({"workflows": [workflow_json], "runs": [{"run_id": run_id, "workflow_id": ID, "events": events}]})
     assert len(measures["workflows"]) == 1

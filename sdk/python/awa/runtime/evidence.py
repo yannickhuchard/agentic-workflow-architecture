@@ -4,7 +4,8 @@ Evidence (specification section 32)
 An evidence report says, for a period and a set of workflows, what ran, which
 models decided what, what people decided, what was checked and with what
 result, what was refused, what failed and was undone, which outside systems
-were called, how data was journalled, and which records are held. Every
+were called, how data was journalled, which records are held, and what the
+guardrails found. Every
 statement is computed from journals and journey records, never estimated, and
 cites the records it rests on: a run id and sequence numbers, or a journey
 instance and sequence numbers.
@@ -41,13 +42,16 @@ EVIDENCE_FRAMEWORKS: list[Json] = [
     {"id": "eu-ai-act", "name": "Regulation (EU) 2024/1689 (AI Act)", "references": [
         _ref("eu-ai-act:12(1)", "Art. 12(1)", "Record-keeping: automatic recording of events over the lifetime of the system"),
         _ref("eu-ai-act:12(2)", "Art. 12(2)", "Logging that enables identifying situations of risk, post-market monitoring and monitoring of operation"),
+        _ref("eu-ai-act:12(3)(d)", "Art. 12(3)(d)", "For the systems of Annex III point 1(a): logging that identifies the natural persons involved in verifying the results"),
         _ref("eu-ai-act:13(3)(b)", "Art. 13(3)(b)", "Information to deployers on characteristics, capabilities and limitations of performance, including accuracy"),
         _ref("eu-ai-act:13(3)(d)", "Art. 13(3)(d)", "Information to deployers on the human oversight measures"),
         _ref("eu-ai-act:13(3)(f)", "Art. 13(3)(f)", "Information to deployers on how to collect, store and interpret the logs"),
         _ref("eu-ai-act:14(4)", "Art. 14(4)", "Human oversight: monitoring, interpreting, disregarding, overriding or reversing outputs, and interrupting the system"),
+        _ref("eu-ai-act:14(5)", "Art. 14(5)", "For the systems of Annex III point 1(a): no action on a result unless separately verified and confirmed by at least two natural persons"),
         _ref("eu-ai-act:15(1)", "Art. 15(1)", "An appropriate level of accuracy and robustness"),
         _ref("eu-ai-act:15(3)", "Art. 15(3)", "Levels of accuracy and the relevant metrics"),
         _ref("eu-ai-act:15(4)", "Art. 15(4)", "Resilience to errors, faults and inconsistencies; fail-safe plans"),
+        _ref("eu-ai-act:15(5)", "Art. 15(5)", "Cybersecurity: resilience against attempts by unauthorised third parties to alter use, outputs or performance, inputs designed to manipulate the model included"),
         _ref("eu-ai-act:26(2)", "Art. 26(2)", "Deployers assign human oversight to persons with the competence and authority"),
         _ref("eu-ai-act:26(5)", "Art. 26(5)", "Deployers monitor the operation of the system"),
         _ref("eu-ai-act:26(6)", "Art. 26(6)", "Deployers keep the automatically generated logs under their control for an appropriate period of at least six months, unless other law provides otherwise"),
@@ -60,6 +64,7 @@ EVIDENCE_FRAMEWORKS: list[Json] = [
     ]},
     {"id": "iso-iec-42001", "name": "ISO/IEC 42001:2023 (AI management system)", "references": [
         _ref("iso-iec-42001:9.1", "Clause 9.1", "Monitoring, measurement, analysis and evaluation"),
+        _ref("iso-iec-42001:A.3", "Annex A.3", "Internal organization: roles and responsibilities for AI"),
         _ref("iso-iec-42001:A.6", "Annex A.6", "AI system life cycle, event logs included"),
         _ref("iso-iec-42001:A.7", "Annex A.7", "Data for AI systems"),
         _ref("iso-iec-42001:A.9", "Annex A.9", "Use of AI systems"),
@@ -72,12 +77,14 @@ EVIDENCE_PARTS: list[Json] = [
      "serves": ["eu-ai-act:12(1)", "eu-ai-act:12(2)", "eu-ai-act:26(5)", "nist-ai-rmf:MEASURE", "iso-iec-42001:9.1", "iso-iec-42001:A.6"]},
     {"id": "models", "title": "Models and what they decided", "question": "Which models, as named by their providers, served which activities and decisions, and where did a route fall back?",
      "serves": ["eu-ai-act:12(2)", "eu-ai-act:13(3)(b)", "nist-ai-rmf:MAP", "nist-ai-rmf:MEASURE", "iso-iec-42001:A.6"]},
-    {"id": "oversight", "title": "Human oversight", "question": "What did people decide, what was escalated to them, where did a person decide in place of an automated outcome, and which runs were stopped?",
-     "serves": ["eu-ai-act:13(3)(d)", "eu-ai-act:14(4)", "eu-ai-act:26(2)", "nist-ai-rmf:GOVERN", "nist-ai-rmf:MANAGE", "iso-iec-42001:A.9"]},
+    {"id": "oversight", "title": "Human oversight",
+     "question": "Who decided what, how many people approved, what was escalated to them, where did a person decide in place of an automated outcome, where were duties kept apart, and which runs were stopped?",
+     "serves": ["eu-ai-act:12(3)(d)", "eu-ai-act:13(3)(d)", "eu-ai-act:14(4)", "eu-ai-act:14(5)", "eu-ai-act:26(2)", "nist-ai-rmf:GOVERN", "nist-ai-rmf:MANAGE",
+                "iso-iec-42001:A.3", "iso-iec-42001:A.9"]},
     {"id": "outcomes", "title": "Outcome contracts and verification", "question": "Which outcomes were checked against their contracts and verified, and with what result?",
      "serves": ["eu-ai-act:13(3)(b)", "eu-ai-act:15(1)", "eu-ai-act:15(3)", "nist-ai-rmf:MEASURE", "iso-iec-42001:9.1"]},
-    {"id": "refusals", "title": "Refusals", "question": "What did the engine refuse to do before it happened?",
-     "serves": ["eu-ai-act:12(2)", "eu-ai-act:15(4)", "nist-ai-rmf:MANAGE", "iso-iec-42001:A.6"]},
+    {"id": "refusals", "title": "Refusals", "question": "What did the engine refuse to do before it happened, to whom, and under which rule or guardrail?",
+     "serves": ["eu-ai-act:12(2)", "eu-ai-act:15(4)", "eu-ai-act:15(5)", "nist-ai-rmf:GOVERN", "nist-ai-rmf:MANAGE", "iso-iec-42001:A.6"]},
     {"id": "failures", "title": "Failures", "question": "Which attempts, tool calls, runs and journeys failed or stalled, and why?",
      "serves": ["eu-ai-act:12(2)", "eu-ai-act:15(4)", "eu-ai-act:26(5)", "nist-ai-rmf:MANAGE", "iso-iec-42001:A.6"]},
     {"id": "compensations", "title": "Compensations", "question": "Which completed work was undone after a failure, and did undoing it succeed?",
@@ -90,10 +97,39 @@ EVIDENCE_PARTS: list[Json] = [
      "serves": ["eu-ai-act:12(1)", "eu-ai-act:26(6)", "nist-ai-rmf:GOVERN", "iso-iec-42001:A.7"]},
     {"id": "retention", "title": "The records themselves", "question": "Which records does this report rest on, over what span, and are they complete?",
      "serves": ["eu-ai-act:12(1)", "eu-ai-act:13(3)(f)", "eu-ai-act:26(6)", "nist-ai-rmf:GOVERN", "iso-iec-42001:A.6"]},
+    # Last, so that every part before it keeps its place (32.1)
+    {"id": "guardrails", "title": "Guardrails", "question": "What did the guardrails find in what reached and left the agents and tools, at which stage, and what did they do about it?",
+     "serves": ["eu-ai-act:12(2)", "eu-ai-act:14(4)", "eu-ai-act:15(4)", "eu-ai-act:15(5)", "nist-ai-rmf:MEASURE", "nist-ai-rmf:MANAGE", "iso-iec-42001:A.6", "iso-iec-42001:A.7"]},
 ]
 
 _PAYLOAD_FIELDS = {"run.started": "input", "activity.started": "input", "activity.completed": "output", "tool.invoked": "arguments", "tool.completed": "result"}
 _END_TYPES = ("run.completed", "run.failed", "run.cancelled")
+_GUARDRAIL_ACTIONS = ("block", "redact", "retry_with_feedback", "escalate", "warn")
+_GUARDRAIL_STAGES = ("input", "output", "tool_call", "tool_result")
+_ACTED = {"block": "blocked it", "redact": "redacted what it found", "retry_with_feedback": "had the agent try again with feedback",
+          "escalate": "handed the activity to a person", "warn": "recorded a warning"}
+
+
+def _principal(value: Any) -> Json | None:
+    """A principal as the journal names it: its id and kind only (30.6)"""
+    if not isinstance(value, dict) or value.get("id") is None:
+        return None
+    return {"id": str(value["id"]), "kind": value.get("kind")}
+
+
+def _counted(keys: list[str]) -> dict[str, int]:
+    """Counts by key, the keys in sorted order"""
+    counts: dict[str, int] = {}
+    for k in sorted(keys):
+        counts[k] = counts.get(k, 0) + 1
+    return counts
+
+
+# Why a decision denied (30.3), in words
+_DENIED = {
+    "no_rule": lambda rule: "no rule allows it", "rule": lambda rule: f"rule {rule} denies it", "separation_of_duties": lambda rule: f"the separation of duties {rule}",
+    "four_eyes": lambda rule: f"the four-eyes rule {rule}", "decider_error": lambda rule: "the decider failed, and the engine failed closed",
+}
 
 
 def _short(id: Any) -> str:
@@ -199,22 +235,43 @@ def compute_evidence(record: Json, options: Json | None = None) -> Json:
     for r in record.get("runs") or []:
         every_run.setdefault(r["run_id"], r)
 
+    # A child run (section 24) is kept with the run of depth 0 above it: the period is that run's,
+    # and a child run is kept for its own workflow or for that run's (32.1)
+    def first_of(run: Json) -> Json | None:
+        events = run.get("events") or []
+        return next((e for e in events if e["type"] == "run.started"), None) or (min(events, key=lambda e: e["seq"]) if events else None)
+
+    def parent_of(run: Json) -> Json | None:
+        started = next((e for e in run.get("events") or [] if e["type"] == "run.started"), None)
+        parent = _d(started).get("parent") if started else None
+        return parent if isinstance(parent, dict) and parent.get("run_id") else None
+
+    def root_of(run: Json) -> Json | None:
+        parent = parent_of(run)
+        return every_run.get(str(parent.get("root_run_id") or parent["run_id"])) if parent else None
+
     runs: list[Json] = []
     for run in every_run.values():
-        if wanted is not None and run.get("workflow_id") not in wanted:
+        root = root_of(run)
+        if wanted is not None and run.get("workflow_id") not in wanted and not (root and root.get("workflow_id") in wanted):
+            continue
+        judged = first_of(root or run)
+        if not within(judged["time"] if judged else None):
             continue
         events = sorted(({**e, "run_id": e.get("run_id") or run["run_id"]} for e in run.get("events") or []), key=lambda e: e["seq"])
         started = next((e for e in events if e["type"] == "run.started"), None)
         first = started or (events[0] if events else None)
-        if not within(first["time"] if first else None):
-            continue
         ended = next((e for e in reversed(events) if e["type"] in _END_TYPES), None)
         sd = _d(started) if started else {}
+        parent = parent_of(run)
         runs.append({
             "run": run, "events": events, "started": started, "ended": ended, "start": _ms(first["time"]) if first else math.nan,
             "name": sd.get("workflow_name") or catalogue.get(run.get("workflow_id"), {}).get("name") or run.get("workflow_id"),
             "version": sd.get("workflow_version") if sd.get("workflow_version") is not None else catalogue.get(run.get("workflow_id"), {}).get("version"),
             "journey_instance_id": owner.get(run["run_id"]),
+            "depth": int(sd["depth"]) if sd.get("depth") is not None else (1 if parent else 0),
+            "parent_run_id": str(parent["run_id"]) if parent else None,
+            "root_run_id": str(parent.get("root_run_id") or parent["run_id"]) if parent else None,
         })
     runs.sort(key=lambda r: (r["start"] if not math.isnan(r["start"]) else math.inf, r["run"]["run_id"]))
     kept_runs = {r["run"]["run_id"] for r in runs}
@@ -255,10 +312,14 @@ def compute_evidence(record: Json, options: Json | None = None) -> Json:
         started_at = first["time"] if first else None
         ending = " and had not ended when recorded" if status == "in_progress" else \
             f" and {'completed' if status == 'completed' else 'failed' if status == 'failed' else 'was cancelled'} at {r['ended']['time']}"
+        principal = _principal(_d(r["started"]).get("principal")) if r["started"] else None
+        child = f", a child run of run {_short(r['parent_run_id'])} at depth {r['depth']}," if r["parent_run_id"] else ""
         operation.append(_statement(
-            "run", f"Run {_short(r['run']['run_id'])} of \"{r['name']}\"{' version ' + r['version'] if r['version'] else ''} started at {started_at}{ending}.",
+            "run", f"Run {_short(r['run']['run_id'])} of \"{r['name']}\"{' version ' + r['version'] if r['version'] else ''}{child} started at {started_at}"
+                   f"{' by ' + principal['id'] if principal else ''}{ending}.",
             {"run_id": r["run"]["run_id"], "workflow_id": r["run"].get("workflow_id"), "workflow_name": r["name"], "workflow_version": r["version"],
-             "status": status, "started_at": started_at, "ended_at": r["ended"]["time"] if r["ended"] else None, "journey_instance_id": r["journey_instance_id"]},
+             "status": status, "started_at": started_at, "ended_at": r["ended"]["time"] if r["ended"] else None, "journey_instance_id": r["journey_instance_id"],
+             "principal": principal, "depth": r["depth"], "parent_run_id": r["parent_run_id"], "root_run_id": r["root_run_id"]},
             _cite(r["started"], r["ended"])))
     for i in instances:
         inst = i["instance"]
@@ -280,20 +341,47 @@ def compute_evidence(record: Json, options: Json | None = None) -> Json:
             "tokens_kept": sum(1 for t in tokens if isinstance(t, dict) and t.get("outcome") == "kept"),
             "tokens_restarted": sum(1 for t in tokens if isinstance(t, dict) and t.get("outcome") == "restarted"),
             "data_changes": len(data["data_changes"]) if isinstance(data.get("data_changes"), list) else 0,
+            "principal": _principal(data.get("principal")),
         }
+        by = f" by {facts['principal']['id']}" if facts["principal"] else ""
         operation.append(_statement(
-            "migration", f"Run {_short(e['run_id'])} was moved from version {facts['from_version']} to version {facts['to_version']} at {e['time']}: "
+            "migration", f"Run {_short(e['run_id'])} was moved from version {facts['from_version']} to version {facts['to_version']} at {e['time']}{by}: "
             f"{facts['tokens_kept']} token(s) kept their wait, {facts['tokens_restarted']} started afresh, {facts['data_changes']} change(s) to data.",
             facts, _cite(e)))
+    # Who was allowed to do what, where the journal records it (30.6)
+    decisions = [e for e, _ in every if e["type"] == "authorization.decided"]
+
+    def decision_facts(e: Json) -> Json:
+        d = _d(e)
+        return {"run_id": e["run_id"], "node_name": node(e) or None, "action": d.get("action"), "principal": _principal(d.get("principal")),
+                "resource": d["resource"] if isinstance(d.get("resource"), dict) else None, "rule": d.get("rule"), "reason": d.get("reason")}
+
+    def who(f: Json) -> str:
+        return f["principal"]["id"] if f["principal"] else "An unnamed principal"
+
+    def at(f: Json) -> str:
+        return f' at "{f["node_name"]}"' if f["node_name"] else ""
+    allowed = [e for e in decisions if _d(e).get("decision") == "allow"]
+    for e in allowed:
+        f = decision_facts(e)
+        a = _d(e).get("approval")
+        approval = {"given": a.get("given"), "required": a.get("required")} if isinstance(a, dict) else None
+        operation.append(_statement(
+            "authorization_allowed",
+            f"{who(f)} was allowed the action {f['action']}{at(f)} in run {_short(e['run_id'])}"
+            f"{' by rule ' + str(f['rule']) if f['rule'] else ''}{' (approval ' + str(approval['given']) + ' of ' + str(approval['required']) + ')' if approval else ''}.",
+            {"run_id": f["run_id"], "node_name": f["node_name"], "action": f["action"], "principal": f["principal"], "resource": f["resource"], "rule": f["rule"], "approval": approval},
+            _cite(e)))
     workflows_scope = []
     for wid in _uniq([r["run"].get("workflow_id") for r in runs]):
         mine = [r for r in runs if r["run"].get("workflow_id") == wid]
         moved_to = [_d(e).get("to_version") for e, r in migrations if r["run"].get("workflow_id") == wid]
         versions = sorted(_uniq([v for v in [*(r["version"] for r in mine), *moved_to] if v]))
-        workflows_scope.append({"workflow_id": wid, "name": mine[0]["name"], "versions": versions, "runs": len(mine)})
+        workflows_scope.append({"workflow_id": wid, "name": mine[0]["name"], "versions": versions, "runs": len(mine), "child_runs": sum(1 for r in mine if r["parent_run_id"])})
 
     def count_status(s: str) -> int:
         return sum(1 for r in runs if status_of(r) == s)
+    child_runs = sum(1 for r in runs if r["parent_run_id"])
 
     # --- Models -----------------------------------------------------------------
     selections = [e for e in of("meta.recorded") if _d(e).get("subject") == "model_selection" and isinstance(_d(e).get("model"), dict)]
@@ -327,6 +415,33 @@ def compute_evidence(record: Json, options: Json | None = None) -> Json:
                 "model_decision", f"A model decided \"{node(e)}\" in run {_short(e['run_id'])}: option {option}" + (f" with a stated confidence of {confidence}" if confidence is not None else "") + ".",
                 {"run_id": e["run_id"], "node_name": node(e), "option": option, "confidence": confidence}, _cite(e)))
 
+    # --- What guardrails found (31.7): never what they matched, which the record does not hold --
+    triggered = of("guardrail.triggered")
+
+    def guardrail_facts(e: Json) -> Json:
+        d = _d(e)
+        findings = [f for f in d.get("findings") or [] if isinstance(f, dict)] if isinstance(d.get("findings"), list) else []
+        by_category = _counted([str(f.get("category") if f.get("category") is not None else "unknown") for f in findings])
+        categories = sorted(str(c) for c in d["categories"]) if isinstance(d.get("categories"), list) else list(by_category)
+        return {"run_id": e["run_id"], "node_name": node(e) or None, "attempt": e.get("attempt"), "guardrail_id": d.get("guardrail_id"), "name": d.get("name"),
+                "source": d.get("source"), "stage": d.get("stage"), "check": d.get("check"), "action": d.get("action"),
+                "categories": categories, "findings": len(findings), "by_category": by_category, "tool": d.get("tool"), "failed_closed": d.get("error") is not None}
+
+    def guardrail_text(e: Json) -> str:
+        f = guardrail_facts(e)
+        if f["stage"] in ("tool_call", "tool_result"):
+            where = f"{'a call to' if f['stage'] == 'tool_call' else 'the result of'} {f['tool'] or 'a tool'} by "
+        else:
+            where = f"the {f['stage']} of "
+        where += f"\"{f['node_name']}\"{' at attempt ' + str(f['attempt']) if f['attempt'] else ''} in run {_short(e['run_id'])}"
+        label = f["name"] if f["name"] is not None else f["guardrail_id"]
+        if f["failed_closed"]:
+            return f"Guardrail \"{label}\" ({f['check']}) could not carry out its check on {where}, and blocked it."
+        n = f["findings"]
+        return (f"Guardrail \"{label}\" ({f['check']}) found {', '.join(f['categories']) or 'something'} ({n} finding{'' if n == 1 else 's'}) in {where}, "
+                f"and {_ACTED.get(str(f['action']), 'acted: ' + str(f['action']))}.")
+    guardrail_statements = [_statement("guardrail", guardrail_text(e), guardrail_facts(e), _cite(e)) for e in triggered]
+
     # --- Human oversight --------------------------------------------------------
     oversight: list[Json] = []
     overrides = 0
@@ -337,24 +452,54 @@ def compute_evidence(record: Json, options: Json | None = None) -> Json:
             last_start = next((e for e in reversed(r["events"]) if e["type"] == "activity.started" and same(e)), None)
             visit = [e for e in r["events"] if same(e) and (not last_start or e["seq"] > last_start["seq"])]
             escalated = next((e for e in visit if e["type"] == "contract.escalated"), None)
-            if not escalated and actor_type(r, done) != "human":
+            guarded = next((e for e in visit if e["type"] == "guardrail.triggered" and _d(e).get("action") == "escalate"), None)
+            if not escalated and not guarded and actor_type(r, done) != "human":
                 continue
-            if escalated:
+            # An override: a person decided in place of an outcome that was rejected
+            if escalated or (guarded and _d(guarded).get("stage") == "output"):
                 overrides += 1
             related = [e for e in visit if e["type"] in ("token.waiting", "token.resumed", "contract.escalated")
-                       or (e["type"] == "contract.checked" and _d(e).get("decided_by") == "human")]
+                       or (e["type"] == "contract.checked" and _d(e).get("decided_by") == "human")
+                       or (e["type"] == "guardrail.triggered" and _d(e).get("action") == "escalate")
+                       or (e["type"] == "authorization.decided" and _d(e).get("decision") == "allow" and _d(e).get("action") in ("complete_task", "approve"))]
             resumed = next((e for e in related if e["type"] == "token.resumed"), None)
             waited = _d(resumed).get("waited_ms") if resumed else None
+            principal = _principal(_d(done).get("principal")) or (_principal(_d(resumed).get("principal")) if resumed else None)
+            approvals = [p for p in (_principal(a) for a in (_d(done).get("approvals") if isinstance(_d(done).get("approvals"), list) else [])) if p]
+            approver_ids = _uniq([p["id"] for p in approvals])
+            last_approval = next((e for e in reversed(related) if e["type"] == "authorization.decided" and isinstance(_d(e).get("approval"), dict)), None)
+            approvals_required = _d(last_approval)["approval"].get("required") if last_approval else None
+            escalated_by = "contract" if escalated else "guardrail" if guarded else None
+            text = f"A person decided \"{node(done)}\" in run {_short(r['run']['run_id'])} at {done['time']}" + (f" ({principal['id']})" if principal else "")
+            if escalated:
+                text += ", in place of an outcome that was rejected and escalated to them"
+            elif guarded:
+                text += f", escalated to them by a guardrail at stage {_d(guarded).get('stage')}"
+            if approvals:
+                n = len(approver_ids)
+                text += (f", approved by {' and '.join(approver_ids)} ({n} distinct approver{'' if n == 1 else 's'}"
+                         + (f" of {approvals_required} required" if approvals_required is not None else "") + ")")
+            text += (f", after a wait of {_duration(float(waited))}" if waited is not None else "") + "."
             oversight.append(_statement(
-                "human_decision",
-                f"A person decided \"{node(done)}\" in run {_short(r['run']['run_id'])} at {done['time']}"
-                + (", in place of an outcome that was rejected and escalated to them" if escalated else "")
-                + (f", after a wait of {_duration(float(waited))}" if waited is not None else "") + ".",
-                {"run_id": r["run"]["run_id"], "node_name": node(done), "escalated": bool(escalated), "decided_at": done["time"]},
+                "human_decision", text,
+                {"run_id": r["run"]["run_id"], "node_name": node(done), "escalated": escalated_by is not None, "escalated_by": escalated_by, "decided_at": done["time"],
+                 "principal": principal, "approvals": approvals, "approvers": len(approver_ids), "approvals_required": approvals_required},
                 _cite(*related, done)))
     for e in of("contract.escalated"):
         oversight.append(_statement("escalation", f"\"{node(e)}\" in run {_short(e['run_id'])} was escalated to a person ({_d(e).get('code')}): {_d(e).get('message')}",
                                     {"run_id": e["run_id"], "node_name": node(e), "code": _d(e).get("code")}, _cite(e)))
+    for e in triggered:
+        if _d(e).get("action") == "escalate":
+            oversight.append(_statement("guardrail_escalation", guardrail_text(e), guardrail_facts(e), _cite(e)))
+    for e in decisions:
+        if _d(e).get("decision") == "deny" and _d(e).get("reason") in ("separation_of_duties", "four_eyes"):
+            f = decision_facts(e)
+            why = (f"under the four-eyes rule {f['rule']}, each approval must come from another person" if f["reason"] == "four_eyes"
+                   else f"the separation of duties {f['rule']} keeps this apart from what they did in the run")
+            oversight.append(_statement(
+                "separation_of_duties",
+                f"{who(f)} was refused the action {f['action']}{at(f)} in run {_short(e['run_id'])}: {why}.",
+                {"run_id": f["run_id"], "node_name": f["node_name"], "action": f["action"], "principal": f["principal"], "rule": f["rule"], "reason": f["reason"]}, _cite(e)))
     for e in of("run.cancelled"):
         oversight.append(_statement("cancellation", f"Run {_short(e['run_id'])} was stopped: {_d(e).get('reason') or 'no reason recorded'}.",
                                     {"run_id": e["run_id"], "reason": _d(e).get("reason")}, _cite(e)))
@@ -400,6 +545,17 @@ def compute_evidence(record: Json, options: Json | None = None) -> Json:
     refusals += [_statement(
         "context_denied", f"A write to the context \"{_d(e).get('context_name')}\" by \"{node(e)}\" in run {_short(e['run_id'])} was refused: {_d(e).get('reason')}.",
         {"run_id": e["run_id"], "node_name": node(e), "context_name": _d(e).get("context_name"), "reason": _d(e).get("reason")}, _cite(e)) for e in of("context.denied")]
+    for e in decisions:
+        if _d(e).get("decision") != "deny":
+            continue
+        f = decision_facts(e)
+        why = _DENIED[f["reason"]](f["rule"]) if f["reason"] in _DENIED else str(f["reason"])
+        kind = f" ({f['principal']['kind']})" if f["principal"] and f["principal"]["kind"] else ""
+        refusals.append(_statement(
+            "authorization_denied",
+            f"{who(f)}{kind} was refused the action {f['action']}{at(f)} in run {_short(e['run_id'])}: {why}.",
+            f, _cite(e)))
+    refusals += [_statement("guardrail_blocked", guardrail_text(e), guardrail_facts(e), _cite(e)) for e in triggered if _d(e).get("action") == "block"]
     failed_tools = [e for e in of("tool.failed") if _d(e).get("invoked") is not False]
     stalls = [(e, i) for i in instances for e in i["events"] if e["type"] == "journey.stalled"]
     failures: list[Json] = [_statement(
@@ -516,8 +672,9 @@ def compute_evidence(record: Json, options: Json | None = None) -> Json:
         newest = next(e for e in records if _ms(e["time"]) == last_time)
         at_the_ends = [e for e in records if _ms(e["time"]) in (first_time, last_time)]
         retention.append(_statement(
-            "held", f"The report rests on {event_count} journal record(s) of {len(runs)} run(s) and {journey_events} record(s) of {len(instances)} journey(s), from {oldest['time']} to {newest['time']}.",
-            {"runs": len(runs), "events": event_count, "journey_instances": len(instances), "journey_events": journey_events,
+            "held", f"The report rests on {event_count} journal record(s) of {len(runs)} run(s){f', {child_runs} of them child runs,' if child_runs else ''} "
+                    f"and {journey_events} record(s) of {len(instances)} journey(s), from {oldest['time']} to {newest['time']}.",
+            {"runs": len(runs), "child_runs": child_runs, "events": event_count, "journey_instances": len(instances), "journey_events": journey_events,
              "oldest_record": oldest["time"], "newest_record": newest["time"]}, _cite(*at_the_ends)))
     runs_with_gaps = 0
     for r in runs:
@@ -558,16 +715,22 @@ def compute_evidence(record: Json, options: Json | None = None) -> Json:
         "frameworks": EVIDENCE_FRAMEWORKS,
         "parts": [
             part("operation", {"runs": len(runs), "completed": count_status("completed"), "failed": count_status("failed"), "cancelled": count_status("cancelled"),
-                               "in_progress": count_status("in_progress"), "journeys": len(instances), "migrations": len(migrations), "workflows": workflows_scope}, operation),
+                               "in_progress": count_status("in_progress"), "child_runs": child_runs, "journeys": len(instances), "migrations": len(migrations),
+                               "authorizations_allowed": len(allowed), "workflows": workflows_scope}, operation),
             part("models", {"models": sorted(_uniq([model_name(m["facts"]) for m in models.values()])), "selections": len(selections),
                             "routes": kinds(model_statements, "route"), "model_decisions": kinds(model_statements, "model_decision")}, model_statements),
             part("oversight", {"human_decisions": kinds(oversight, "human_decision"), "overrides": overrides, "escalations": kinds(oversight, "escalation"),
-                               "cancellations": kinds(oversight, "cancellation")}, oversight),
+                               "guardrail_escalations": kinds(oversight, "guardrail_escalation"),
+                               "four_eyes": sum(1 for s in oversight if s["kind"] == "human_decision" and s["facts"]["approvals"]),
+                               "separation_of_duties": kinds(oversight, "separation_of_duties"), "cancellations": kinds(oversight, "cancellation")}, oversight),
             part("outcomes", {"contracts": len(contracts), "contracts_passed": sum(1 for e in contracts if _d(e).get("passed") is True),
                               "verifications": len(verifications), "verifications_passed": sum(1 for e in verifications if _d(e).get("verdict") == "pass"),
                               "activities": list(per_activity.values())}, outcomes),
-            part("refusals", {"refusals": len(refusals), "tool_calls": len(refused), "context_writes": len(refusals) - len(refused),
-                              "by_code": _by_code([str(err(e).get("code") or "UNKNOWN") for e in refused])}, refusals),
+            part("refusals", {"refusals": len(refusals), "tool_calls": len(refused), "context_writes": kinds(refusals, "context_denied"),
+                              "authorization": kinds(refusals, "authorization_denied"), "guardrails": kinds(refusals, "guardrail_blocked"),
+                              "by_code": _by_code([str(err(e).get("code") or "UNKNOWN") for e in refused]),
+                              "authorization_by_reason": _counted([str(s["facts"]["reason"] if s["facts"]["reason"] is not None else "unknown")
+                                                                   for s in refusals if s["kind"] == "authorization_denied"])}, refusals),
             part("failures", {"attempts_failed": kinds(failures, "attempt_failed"), "dead_letters": kinds(failures, "dead_letter"), "tool_failures": len(failed_tools),
                               "runs_failed": kinds(failures, "run_failed"), "journeys_stalled": len(stalls),
                               "by_code": _by_code([str(s["facts"]["code"] or "UNKNOWN") for s in failures if s["kind"] == "attempt_failed"])}, failures),
@@ -577,9 +740,16 @@ def compute_evidence(record: Json, options: Json | None = None) -> Json:
             part("tools", {"targets": len(targets), "calls": sum(s["facts"]["calls"] for s in tool_statements), "completed": sum(s["facts"]["completed"] for s in tool_statements),
                            "failed": sum(s["facts"]["failed"] for s in tool_statements), "refused": sum(s["facts"]["refused"] for s in tool_statements)}, tool_statements),
             part("data", {"runs_by_mode": runs_by_mode, "payloads": payloads}, data),
-            part("retention", {"runs": len(runs), "events": event_count, "journey_instances": len(instances), "journey_events": journey_events,
+            part("retention", {"runs": len(runs), "child_runs": child_runs, "events": event_count, "journey_instances": len(instances), "journey_events": journey_events,
                                "oldest_record": oldest["time"] if oldest else None, "newest_record": newest["time"] if newest else None,
                                "held_for_ms": max(0, _ms(as_of) - _ms(oldest["time"])) if oldest else None, "runs_with_gaps": runs_with_gaps}, retention),
+            part("guardrails", {
+                "triggered": len(triggered), "guardrails": len(_uniq([str(_d(e).get("guardrail_id") or "") for e in triggered])),
+                "by_action": {a: sum(1 for e in triggered if _d(e).get("action") == a) for a in _GUARDRAIL_ACTIONS},
+                "by_stage": {st: sum(1 for e in triggered if _d(e).get("stage") == st) for st in _GUARDRAIL_STAGES},
+                "by_check": _counted([str(_d(e).get("check") if _d(e).get("check") is not None else "unknown") for e in triggered]),
+                "by_category": _counted([c for s in guardrail_statements for c, n in s["facts"]["by_category"].items() for _ in range(n)]),
+                "failed_closed": sum(1 for s in guardrail_statements if s["facts"]["failed_closed"])}, guardrail_statements),
         ],
     }
 
@@ -649,8 +819,8 @@ def render_evidence_markdown(report: Json) -> str:
            f"As of {report['as_of']}. Period: {period['from'] or 'the beginning of the records'} to {period['to'] or 'the end of the records'}.", "",
            f"> {report['notice']}", "", "## Scope", ""]
     if report["scope"]["workflows"]:
-        out += ["| Workflow | Versions | Runs |", "|---|---|---|"]
-        out += [f"| {esc(w['name'])} | {', '.join(w['versions']) or 'not recorded'} | {w['runs']} |" for w in report["scope"]["workflows"]]
+        out += ["| Workflow | Versions | Runs | Of which child runs |", "|---|---|---|---|"]
+        out += [f"| {esc(w['name'])} | {', '.join(w['versions']) or 'not recorded'} | {w['runs']} | {w.get('child_runs', 0)} |" for w in report["scope"]["workflows"]]
         out.append("")
     else:
         out += ["No run falls within the period.", ""]
@@ -693,8 +863,9 @@ def render_evidence_html(report: Json) -> str:
   {table}
 </section>""")
     scope = report["scope"]
-    workflows = ("<table><thead><tr><th>Workflow</th><th>Versions</th><th>Runs</th></tr></thead><tbody>"
-                 + "".join(f"<tr><td>{h(w['name'])}</td><td>{h(', '.join(w['versions']) or 'not recorded')}</td><td>{w['runs']}</td></tr>" for w in scope["workflows"])
+    workflows = ("<table><thead><tr><th>Workflow</th><th>Versions</th><th>Runs</th><th>Of which child runs</th></tr></thead><tbody>"
+                 + "".join(f"<tr><td>{h(w['name'])}</td><td>{h(', '.join(w['versions']) or 'not recorded')}</td><td>{w['runs']}</td><td>{w.get('child_runs', 0)}</td></tr>"
+                           for w in scope["workflows"])
                  + "</tbody></table>") if scope["workflows"] else "<p>No run falls within the period.</p>"
     journeys = ("<ul>" + "".join(f"<li>Journey \"{h(j['name'])}\": {j['instances']} instance(s)</li>" for j in scope["journeys"]) + "</ul>") if scope["journeys"] else ""
     frameworks = "\n".join(f"<h3>{h(f['name'])}</h3><ul>" + "".join(f"<li>{h(r['label'])}: {h(r['title'])}</li>" for r in f["references"]) + "</ul>" for f in report["frameworks"])
@@ -723,7 +894,7 @@ td.cite {{ font-family: ui-monospace, monospace; font-size: 0.85em; white-space:
 {workflows}
 {journeys}
 <p class="serves">Each statement cites the journal records it rests on: "run 1a2b3c4d #5" is the record with sequence number 5 in the journal of the run whose id begins 1a2b3c4d.</p>
-{''.join(parts)}
+{chr(10).join(parts)}
 <h2>The frameworks named</h2>
 {frameworks}
 <p>The mapping from parts to provisions says which obligations a record is relevant to. It does not say that an obligation is met.</p>

@@ -792,6 +792,11 @@ describe('Conformance: evidence', () => {
                 const cited = new Set<string>(report.parts.flatMap((p: any) => p.statements.flatMap((s: any) => s.citations.filter((x: any) => x.run_id).map((x: any) => x.run_id))));
                 expect([...cited].sort()).toEqual([...c.expect.cited_runs].sort());
             }
+            if (c.expect.part_ids) expect(report.parts.map((p: any) => p.id)).toEqual(c.expect.part_ids);
+            if (c.expect.scope_workflows) {
+                expect(report.scope.workflows.length, JSON.stringify(report.scope.workflows)).toBe(c.expect.scope_workflows.length);
+                for (const want of c.expect.scope_workflows) expect(report.scope.workflows.filter((w: any) => is_subset(want, w)).length, `scope ${JSON.stringify(want)} among ${JSON.stringify(report.scope.workflows)}`).toBe(1);
+            }
         });
     }
 });

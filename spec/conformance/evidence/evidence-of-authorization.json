@@ -1,0 +1,1232 @@
+{
+  "id": "evidence-of-authorization",
+  "level": "evidence",
+  "spec": "32.3",
+  "description": "Runs under a policy that records allowed decisions: who started each run, who performed and approved, who was refused and under which rule, four eyes with two distinct approvers, a separation of duties, a decision on the run itself, and a migration with the principal who made it.",
+  "recorded": {
+    "as_of": "2026-05-20T09:00:00.000Z",
+    "workflows": [
+      {
+        "id": "claims",
+        "name": "Claims",
+        "version": "1.1.0"
+      }
+    ],
+    "runs": [
+      {
+        "run_id": "a1",
+        "workflow_id": "claims",
+        "events": [
+          {
+            "spec_version": "1.1",
+            "id": "a1-1",
+            "run_id": "a1",
+            "seq": 1,
+            "time": "2026-05-06T09:00:00.000Z",
+            "type": "run.started",
+            "level": "execution",
+            "workflow_id": "claims",
+            "data": {
+              "workflow_name": "Claims",
+              "workflow_version": "1.0.0",
+              "input": {
+                "amount": 900
+              },
+              "principal": {
+                "id": "host",
+                "kind": "service"
+              }
+            }
+          },
+          {
+            "spec_version": "1.1",
+            "id": "a1-2",
+            "run_id": "a1",
+            "seq": 2,
+            "time": "2026-05-06T09:00:00.000Z",
+            "type": "authorization.decided",
+            "level": "execution",
+            "workflow_id": "claims",
+            "token_id": "t1",
+            "node_id": "submit",
+            "node_name": "Submit claim",
+            "data": {
+              "action": "perform_activity",
+              "decision": "allow",
+              "principal": {
+                "id": "ai_agent:drafter",
+                "kind": "ai_agent"
+              },
+              "resource": {
+                "workflow_id": "claims",
+                "workflow_name": "Claims",
+                "activity_id": "submit",
+                "activity_name": "Submit claim",
+                "role_id": "r1"
+              },
+              "rule": "agents-act",
+              "reason": "rule",
+              "message": "perform_activity allow"
+            }
+          },
+          {
+            "spec_version": "1.1",
+            "id": "a1-3",
+            "run_id": "a1",
+            "seq": 3,
+            "time": "2026-05-06T09:00:00.000Z",
+            "type": "activity.started",
+            "level": "execution",
+            "workflow_id": "claims",
+            "token_id": "t1",
+            "node_id": "submit",
+            "node_name": "Submit claim",
+            "attempt": 1,
+            "data": {
+              "actor_type": "ai_agent",
+              "principal": {
+                "id": "ai_agent:drafter",
+                "kind": "ai_agent"
+              },
+              "input": {
+                "amount": 900
+              }
+            }
+          },
+          {
+            "spec_version": "1.1",
+            "id": "a1-4",
+            "run_id": "a1",
+            "seq": 4,
+            "time": "2026-05-06T09:01:00.000Z",
+            "type": "authorization.decided",
+            "level": "execution",
+            "workflow_id": "claims",
+            "token_id": "t1",
+            "node_id": "submit",
+            "node_name": "Submit claim",
+            "attempt": 1,
+            "data": {
+              "action": "call_tool",
+              "decision": "deny",
+              "principal": {
+                "id": "ai_agent:drafter",
+                "kind": "ai_agent"
+              },
+              "resource": {
+                "workflow_id": "claims",
+                "workflow_name": "Claims",
+                "activity_id": "submit",
+                "activity_name": "Submit claim",
+                "tool": "transfer",
+                "link": "https://bank.example/rpc#transfer"
+              },
+              "reason": "no_rule",
+              "message": "call_tool deny"
+            }
+          },
+          {
+            "spec_version": "1.1",
+            "id": "a1-5",
+            "run_id": "a1",
+            "seq": 5,
+            "time": "2026-05-06T09:01:00.000Z",
+            "type": "tool.failed",
+            "level": "execution",
+            "workflow_id": "claims",
+            "token_id": "t1",
+            "node_id": "submit",
+            "node_name": "Submit claim",
+            "attempt": 1,
+            "data": {
+              "call_id": "x1",
+              "tool": "transfer",
+              "link": "https://bank.example/rpc#transfer",
+              "invoked": false,
+              "error": {
+                "code": "FORBIDDEN",
+                "message": "call_tool denied"
+              }
+            }
+          },
+          {
+            "spec_version": "1.1",
+            "id": "a1-6",
+            "run_id": "a1",
+            "seq": 6,
+            "time": "2026-05-06T09:02:00.000Z",
+            "type": "activity.completed",
+            "level": "execution",
+            "workflow_id": "claims",
+            "token_id": "t1",
+            "node_id": "submit",
+            "node_name": "Submit claim",
+            "attempt": 1,
+            "data": {
+              "actor_type": "ai_agent",
+              "principal": {
+                "id": "ai_agent:drafter",
+                "kind": "ai_agent"
+              },
+              "output": {
+                "submitted": true
+              }
+            }
+          },
+          {
+            "spec_version": "1.1",
+            "id": "a1-7",
+            "run_id": "a1",
+            "seq": 7,
+            "time": "2026-05-06T09:03:00.000Z",
+            "type": "activity.started",
+            "level": "execution",
+            "workflow_id": "claims",
+            "token_id": "t1",
+            "node_id": "approve",
+            "node_name": "Approve",
+            "attempt": 1,
+            "data": {
+              "actor_type": "human",
+              "input": {
+                "submitted": true
+              }
+            }
+          },
+          {
+            "spec_version": "1.1",
+            "id": "a1-8",
+            "run_id": "a1",
+            "seq": 8,
+            "time": "2026-05-06T09:03:00.000Z",
+            "type": "token.waiting",
+            "level": "execution",
+            "workflow_id": "claims",
+            "token_id": "t1",
+            "node_id": "approve",
+            "node_name": "Approve",
+            "data": {
+              "reason": "human_task",
+              "human_task_id": "task-approve"
+            }
+          },
+          {
+            "spec_version": "1.1",
+            "id": "a1-9",
+            "run_id": "a1",
+            "seq": 9,
+            "time": "2026-05-06T10:00:00.000Z",
+            "type": "authorization.decided",
+            "level": "execution",
+            "workflow_id": "claims",
+            "token_id": "t1",
+            "node_id": "approve",
+            "node_name": "Approve",
+            "data": {
+              "action": "approve",
+              "decision": "allow",
+              "principal": {
+                "id": "alice",
+                "kind": "person"
+              },
+              "resource": {
+                "workflow_id": "claims",
+                "workflow_name": "Claims",
+                "activity_id": "approve",
+                "activity_name": "Approve"
+              },
+              "rule": "approvers-approve",
+              "reason": "rule",
+              "message": "approve allow",
+              "approval": {
+                "given": 1,
+                "required": 2
+              }
+            }
+          },
+          {
+            "spec_version": "1.1",
+            "id": "a1-10",
+            "run_id": "a1",
+            "seq": 10,
+            "time": "2026-05-06T10:05:00.000Z",
+            "type": "authorization.decided",
+            "level": "execution",
+            "workflow_id": "claims",
+            "token_id": "t1",
+            "node_id": "approve",
+            "node_name": "Approve",
+            "data": {
+              "action": "approve",
+              "decision": "deny",
+              "principal": {
+                "id": "alice",
+                "kind": "person"
+              },
+              "resource": {
+                "workflow_id": "claims",
+                "workflow_name": "Claims",
+                "activity_id": "approve",
+                "activity_name": "Approve"
+              },
+              "rule": "two-approvers",
+              "reason": "four_eyes",
+              "message": "approve deny"
+            }
+          },
+          {
+            "spec_version": "1.1",
+            "id": "a1-11",
+            "run_id": "a1",
+            "seq": 11,
+            "time": "2026-05-06T10:10:00.000Z",
+            "type": "authorization.decided",
+            "level": "execution",
+            "workflow_id": "claims",
+            "token_id": "t1",
+            "node_id": "approve",
+            "node_name": "Approve",
+            "data": {
+              "action": "approve",
+              "decision": "deny",
+              "principal": {
+                "id": "carol",
+                "kind": "person"
+              },
+              "resource": {
+                "workflow_id": "claims",
+                "workflow_name": "Claims",
+                "activity_id": "approve",
+                "activity_name": "Approve"
+              },
+              "reason": "no_rule",
+              "message": "approve deny"
+            }
+          },
+          {
+            "spec_version": "1.1",
+            "id": "a1-12",
+            "run_id": "a1",
+            "seq": 12,
+            "time": "2026-05-06T11:00:00.000Z",
+            "type": "authorization.decided",
+            "level": "execution",
+            "workflow_id": "claims",
+            "token_id": "t1",
+            "node_id": "approve",
+            "node_name": "Approve",
+            "data": {
+              "action": "approve",
+              "decision": "allow",
+              "principal": {
+                "id": "bob",
+                "kind": "person"
+              },
+              "resource": {
+                "workflow_id": "claims",
+                "workflow_name": "Claims",
+                "activity_id": "approve",
+                "activity_name": "Approve"
+              },
+              "rule": "approvers-approve",
+              "reason": "rule",
+              "message": "approve allow",
+              "approval": {
+                "given": 2,
+                "required": 2
+              }
+            }
+          },
+          {
+            "spec_version": "1.1",
+            "id": "a1-13",
+            "run_id": "a1",
+            "seq": 13,
+            "time": "2026-05-06T11:00:00.000Z",
+            "type": "token.resumed",
+            "level": "execution",
+            "workflow_id": "claims",
+            "token_id": "t1",
+            "node_id": "approve",
+            "node_name": "Approve",
+            "data": {
+              "waited_ms": 7020000,
+              "principal": {
+                "id": "bob",
+                "kind": "person"
+              }
+            }
+          },
+          {
+            "spec_version": "1.1",
+            "id": "a1-14",
+            "run_id": "a1",
+            "seq": 14,
+            "time": "2026-05-06T11:00:00.000Z",
+            "type": "activity.completed",
+            "level": "execution",
+            "workflow_id": "claims",
+            "token_id": "t1",
+            "node_id": "approve",
+            "node_name": "Approve",
+            "attempt": 1,
+            "data": {
+              "actor_type": "human",
+              "output": {
+                "approved": true
+              },
+              "waited_ms": 7020000,
+              "principal": {
+                "id": "bob",
+                "kind": "person"
+              },
+              "approvals": [
+                {
+                  "id": "alice",
+                  "kind": "person"
+                },
+                {
+                  "id": "bob",
+                  "kind": "person"
+                }
+              ]
+            }
+          },
+          {
+            "spec_version": "1.1",
+            "id": "a1-15",
+            "run_id": "a1",
+            "seq": 15,
+            "time": "2026-05-06T11:01:00.000Z",
+            "type": "authorization.decided",
+            "level": "execution",
+            "workflow_id": "claims",
+            "token_id": "t1",
+            "node_id": "payout",
+            "node_name": "Pay out",
+            "data": {
+              "action": "perform_activity",
+              "decision": "allow",
+              "principal": {
+                "id": "application:payments",
+                "kind": "application"
+              },
+              "resource": {
+                "workflow_id": "claims",
+                "workflow_name": "Claims",
+                "activity_id": "payout",
+                "activity_name": "Pay out"
+              },
+              "rule": "applications-act",
+              "reason": "rule",
+              "message": "perform_activity allow"
+            }
+          },
+          {
+            "spec_version": "1.1",
+            "id": "a1-16",
+            "run_id": "a1",
+            "seq": 16,
+            "time": "2026-05-06T11:01:00.000Z",
+            "type": "activity.started",
+            "level": "execution",
+            "workflow_id": "claims",
+            "token_id": "t1",
+            "node_id": "payout",
+            "node_name": "Pay out",
+            "attempt": 1,
+            "data": {
+              "actor_type": "application",
+              "principal": {
+                "id": "application:payments",
+                "kind": "application"
+              },
+              "input": {
+                "approved": true
+              }
+            }
+          },
+          {
+            "spec_version": "1.1",
+            "id": "a1-17",
+            "run_id": "a1",
+            "seq": 17,
+            "time": "2026-05-06T11:02:00.000Z",
+            "type": "activity.completed",
+            "level": "execution",
+            "workflow_id": "claims",
+            "token_id": "t1",
+            "node_id": "payout",
+            "node_name": "Pay out",
+            "attempt": 1,
+            "data": {
+              "actor_type": "application",
+              "principal": {
+                "id": "application:payments",
+                "kind": "application"
+              },
+              "output": {
+                "paid": true
+              }
+            }
+          },
+          {
+            "spec_version": "1.1",
+            "id": "a1-18",
+            "run_id": "a1",
+            "seq": 18,
+            "time": "2026-05-06T11:02:00.000Z",
+            "type": "run.completed",
+            "level": "execution",
+            "workflow_id": "claims",
+            "data": {}
+          }
+        ]
+      },
+      {
+        "run_id": "a2",
+        "workflow_id": "claims",
+        "events": [
+          {
+            "spec_version": "1.1",
+            "id": "a2-1",
+            "run_id": "a2",
+            "seq": 1,
+            "time": "2026-05-07T09:00:00.000Z",
+            "type": "run.started",
+            "level": "execution",
+            "workflow_id": "claims",
+            "data": {
+              "workflow_name": "Claims",
+              "workflow_version": "1.0.0",
+              "input": {
+                "amount": 400
+              },
+              "principal": {
+                "id": "alice",
+                "kind": "person"
+              }
+            }
+          },
+          {
+            "spec_version": "1.1",
+            "id": "a2-2",
+            "run_id": "a2",
+            "seq": 2,
+            "time": "2026-05-07T09:00:00.000Z",
+            "type": "activity.started",
+            "level": "execution",
+            "workflow_id": "claims",
+            "token_id": "t1",
+            "node_id": "review",
+            "node_name": "Review",
+            "attempt": 1,
+            "data": {
+              "actor_type": "human",
+              "input": {
+                "amount": 400
+              }
+            }
+          },
+          {
+            "spec_version": "1.1",
+            "id": "a2-3",
+            "run_id": "a2",
+            "seq": 3,
+            "time": "2026-05-07T09:00:00.000Z",
+            "type": "token.waiting",
+            "level": "execution",
+            "workflow_id": "claims",
+            "token_id": "t1",
+            "node_id": "review",
+            "node_name": "Review",
+            "data": {
+              "reason": "human_task",
+              "human_task_id": "task-review"
+            }
+          },
+          {
+            "spec_version": "1.1",
+            "id": "a2-4",
+            "run_id": "a2",
+            "seq": 4,
+            "time": "2026-05-07T09:10:00.000Z",
+            "type": "authorization.decided",
+            "level": "execution",
+            "workflow_id": "claims",
+            "token_id": "t1",
+            "node_id": "review",
+            "node_name": "Review",
+            "data": {
+              "action": "complete_task",
+              "decision": "deny",
+              "principal": {
+                "id": "alice",
+                "kind": "person"
+              },
+              "resource": {
+                "workflow_id": "claims",
+                "workflow_name": "Claims",
+                "activity_id": "review",
+                "activity_name": "Review"
+              },
+              "rule": "requester-not-reviewer",
+              "reason": "separation_of_duties",
+              "message": "complete_task deny"
+            }
+          },
+          {
+            "spec_version": "1.1",
+            "id": "a2-5",
+            "run_id": "a2",
+            "seq": 5,
+            "time": "2026-05-07T09:20:00.000Z",
+            "type": "authorization.decided",
+            "level": "execution",
+            "workflow_id": "claims",
+            "token_id": "t1",
+            "node_id": "review",
+            "node_name": "Review",
+            "data": {
+              "action": "complete_task",
+              "decision": "allow",
+              "principal": {
+                "id": "bob",
+                "kind": "person"
+              },
+              "resource": {
+                "workflow_id": "claims",
+                "workflow_name": "Claims",
+                "activity_id": "review",
+                "activity_name": "Review"
+              },
+              "rule": "reviewers-review",
+              "reason": "rule",
+              "message": "complete_task allow"
+            }
+          },
+          {
+            "spec_version": "1.1",
+            "id": "a2-6",
+            "run_id": "a2",
+            "seq": 6,
+            "time": "2026-05-07T09:20:00.000Z",
+            "type": "token.resumed",
+            "level": "execution",
+            "workflow_id": "claims",
+            "token_id": "t1",
+            "node_id": "review",
+            "node_name": "Review",
+            "data": {
+              "waited_ms": 1200000,
+              "principal": {
+                "id": "bob",
+                "kind": "person"
+              }
+            }
+          },
+          {
+            "spec_version": "1.1",
+            "id": "a2-7",
+            "run_id": "a2",
+            "seq": 7,
+            "time": "2026-05-07T09:20:00.000Z",
+            "type": "activity.completed",
+            "level": "execution",
+            "workflow_id": "claims",
+            "token_id": "t1",
+            "node_id": "review",
+            "node_name": "Review",
+            "attempt": 1,
+            "data": {
+              "actor_type": "human",
+              "output": {
+                "ok": true
+              },
+              "waited_ms": 1200000,
+              "principal": {
+                "id": "bob",
+                "kind": "person"
+              }
+            }
+          },
+          {
+            "spec_version": "1.1",
+            "id": "a2-8",
+            "run_id": "a2",
+            "seq": 8,
+            "time": "2026-05-07T09:21:00.000Z",
+            "type": "activity.started",
+            "level": "execution",
+            "workflow_id": "claims",
+            "token_id": "t1",
+            "node_id": "hold",
+            "node_name": "Hold for audit",
+            "attempt": 1,
+            "data": {
+              "actor_type": "human",
+              "input": {
+                "ok": true
+              }
+            }
+          },
+          {
+            "spec_version": "1.1",
+            "id": "a2-9",
+            "run_id": "a2",
+            "seq": 9,
+            "time": "2026-05-07T09:21:00.000Z",
+            "type": "token.waiting",
+            "level": "execution",
+            "workflow_id": "claims",
+            "token_id": "t1",
+            "node_id": "hold",
+            "node_name": "Hold for audit",
+            "data": {
+              "reason": "human_task",
+              "human_task_id": "task-hold"
+            }
+          },
+          {
+            "spec_version": "1.1",
+            "id": "a2-10",
+            "run_id": "a2",
+            "seq": 10,
+            "time": "2026-05-07T09:30:00.000Z",
+            "type": "authorization.decided",
+            "level": "execution",
+            "workflow_id": "claims",
+            "data": {
+              "action": "cancel_run",
+              "decision": "deny",
+              "principal": {
+                "id": "carol",
+                "kind": "person"
+              },
+              "resource": {
+                "workflow_id": "claims",
+                "workflow_name": "Claims",
+                "run_id": "a2"
+              },
+              "reason": "no_rule",
+              "message": "cancel_run deny"
+            }
+          },
+          {
+            "spec_version": "1.1",
+            "id": "a2-11",
+            "run_id": "a2",
+            "seq": 11,
+            "time": "2026-05-07T10:00:00.000Z",
+            "type": "run.migrated",
+            "level": "execution",
+            "workflow_id": "claims",
+            "data": {
+              "from_version": "1.0.0",
+              "to_version": "1.1.0",
+              "nodes": {},
+              "tokens": [
+                {
+                  "token_id": "t1",
+                  "outcome": "kept"
+                }
+              ],
+              "data_changes": [],
+              "principal": {
+                "id": "dana",
+                "kind": "person"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "options": {},
+  "expect": {
+    "part_ids": [
+      "operation",
+      "models",
+      "oversight",
+      "outcomes",
+      "refusals",
+      "failures",
+      "compensations",
+      "service_levels",
+      "tools",
+      "data",
+      "retention",
+      "guardrails"
+    ],
+    "summaries": {
+      "operation": {
+        "runs": 2,
+        "completed": 1,
+        "in_progress": 1,
+        "migrations": 1,
+        "authorizations_allowed": 5,
+        "child_runs": 0
+      },
+      "refusals": {
+        "refusals": 6,
+        "tool_calls": 1,
+        "authorization": 5,
+        "guardrails": 0,
+        "context_writes": 0,
+        "authorization_by_reason": {
+          "four_eyes": 1,
+          "no_rule": 3,
+          "separation_of_duties": 1
+        },
+        "by_code": [
+          {
+            "code": "FORBIDDEN",
+            "count": 1
+          }
+        ]
+      },
+      "oversight": {
+        "human_decisions": 2,
+        "four_eyes": 1,
+        "separation_of_duties": 2,
+        "overrides": 0
+      },
+      "guardrails": {
+        "triggered": 0,
+        "by_action": {
+          "block": 0,
+          "redact": 0,
+          "retry_with_feedback": 0,
+          "escalate": 0,
+          "warn": 0
+        }
+      }
+    },
+    "statements": [
+      {
+        "part": "operation",
+        "kind": "run",
+        "facts": {
+          "run_id": "a1",
+          "principal": {
+            "id": "host",
+            "kind": "service"
+          },
+          "depth": 0,
+          "parent_run_id": null,
+          "root_run_id": null
+        },
+        "citations": [
+          {
+            "run_id": "a1",
+            "seq": [
+              1,
+              18
+            ]
+          }
+        ]
+      },
+      {
+        "part": "operation",
+        "kind": "run",
+        "facts": {
+          "run_id": "a2",
+          "principal": {
+            "id": "alice",
+            "kind": "person"
+          },
+          "status": "in_progress"
+        },
+        "citations": [
+          {
+            "run_id": "a2",
+            "seq": [
+              1
+            ]
+          }
+        ]
+      },
+      {
+        "part": "operation",
+        "kind": "migration",
+        "facts": {
+          "run_id": "a2",
+          "from_version": "1.0.0",
+          "to_version": "1.1.0",
+          "tokens_kept": 1,
+          "principal": {
+            "id": "dana",
+            "kind": "person"
+          }
+        },
+        "citations": [
+          {
+            "run_id": "a2",
+            "seq": [
+              11
+            ]
+          }
+        ]
+      },
+      {
+        "part": "operation",
+        "kind": "authorization_allowed",
+        "facts": {
+          "run_id": "a1",
+          "node_name": "Submit claim",
+          "action": "perform_activity",
+          "principal": {
+            "id": "ai_agent:drafter",
+            "kind": "ai_agent"
+          },
+          "rule": "agents-act",
+          "approval": null
+        },
+        "citations": [
+          {
+            "run_id": "a1",
+            "seq": [
+              2
+            ]
+          }
+        ]
+      },
+      {
+        "part": "operation",
+        "kind": "authorization_allowed",
+        "facts": {
+          "run_id": "a1",
+          "action": "approve",
+          "principal": {
+            "id": "alice",
+            "kind": "person"
+          },
+          "approval": {
+            "given": 1,
+            "required": 2
+          }
+        },
+        "citations": [
+          {
+            "run_id": "a1",
+            "seq": [
+              9
+            ]
+          }
+        ]
+      },
+      {
+        "part": "operation",
+        "kind": "authorization_allowed",
+        "facts": {
+          "run_id": "a1",
+          "action": "approve",
+          "principal": {
+            "id": "bob",
+            "kind": "person"
+          },
+          "approval": {
+            "given": 2,
+            "required": 2
+          }
+        },
+        "citations": [
+          {
+            "run_id": "a1",
+            "seq": [
+              12
+            ]
+          }
+        ]
+      },
+      {
+        "part": "operation",
+        "kind": "authorization_allowed",
+        "facts": {
+          "run_id": "a2",
+          "action": "complete_task",
+          "principal": {
+            "id": "bob",
+            "kind": "person"
+          },
+          "rule": "reviewers-review"
+        },
+        "citations": [
+          {
+            "run_id": "a2",
+            "seq": [
+              5
+            ]
+          }
+        ]
+      },
+      {
+        "part": "refusals",
+        "kind": "authorization_denied",
+        "facts": {
+          "run_id": "a1",
+          "node_name": "Submit claim",
+          "action": "call_tool",
+          "principal": {
+            "id": "ai_agent:drafter",
+            "kind": "ai_agent"
+          },
+          "rule": null,
+          "reason": "no_rule",
+          "resource": {
+            "workflow_id": "claims",
+            "workflow_name": "Claims",
+            "activity_id": "submit",
+            "activity_name": "Submit claim",
+            "tool": "transfer",
+            "link": "https://bank.example/rpc#transfer"
+          }
+        },
+        "citations": [
+          {
+            "run_id": "a1",
+            "seq": [
+              4
+            ]
+          }
+        ]
+      },
+      {
+        "part": "refusals",
+        "kind": "tool_refused",
+        "facts": {
+          "run_id": "a1",
+          "tool": "transfer",
+          "code": "FORBIDDEN"
+        },
+        "citations": [
+          {
+            "run_id": "a1",
+            "seq": [
+              5
+            ]
+          }
+        ]
+      },
+      {
+        "part": "refusals",
+        "kind": "authorization_denied",
+        "facts": {
+          "run_id": "a1",
+          "action": "approve",
+          "principal": {
+            "id": "alice",
+            "kind": "person"
+          },
+          "rule": "two-approvers",
+          "reason": "four_eyes"
+        },
+        "citations": [
+          {
+            "run_id": "a1",
+            "seq": [
+              10
+            ]
+          }
+        ]
+      },
+      {
+        "part": "refusals",
+        "kind": "authorization_denied",
+        "facts": {
+          "run_id": "a1",
+          "action": "approve",
+          "principal": {
+            "id": "carol",
+            "kind": "person"
+          },
+          "reason": "no_rule"
+        },
+        "citations": [
+          {
+            "run_id": "a1",
+            "seq": [
+              11
+            ]
+          }
+        ]
+      },
+      {
+        "part": "refusals",
+        "kind": "authorization_denied",
+        "facts": {
+          "run_id": "a2",
+          "action": "complete_task",
+          "principal": {
+            "id": "alice",
+            "kind": "person"
+          },
+          "rule": "requester-not-reviewer",
+          "reason": "separation_of_duties"
+        },
+        "citations": [
+          {
+            "run_id": "a2",
+            "seq": [
+              4
+            ]
+          }
+        ]
+      },
+      {
+        "part": "refusals",
+        "kind": "authorization_denied",
+        "facts": {
+          "run_id": "a2",
+          "node_name": null,
+          "action": "cancel_run",
+          "principal": {
+            "id": "carol",
+            "kind": "person"
+          }
+        },
+        "citations": [
+          {
+            "run_id": "a2",
+            "seq": [
+              10
+            ]
+          }
+        ]
+      },
+      {
+        "part": "oversight",
+        "kind": "human_decision",
+        "facts": {
+          "run_id": "a1",
+          "node_name": "Approve",
+          "escalated": false,
+          "escalated_by": null,
+          "principal": {
+            "id": "bob",
+            "kind": "person"
+          },
+          "approvals": [
+            {
+              "id": "alice",
+              "kind": "person"
+            },
+            {
+              "id": "bob",
+              "kind": "person"
+            }
+          ],
+          "approvers": 2,
+          "approvals_required": 2
+        },
+        "citations": [
+          {
+            "run_id": "a1",
+            "seq": [
+              8,
+              9,
+              12,
+              13,
+              14
+            ]
+          }
+        ]
+      },
+      {
+        "part": "oversight",
+        "kind": "human_decision",
+        "facts": {
+          "run_id": "a2",
+          "node_name": "Review",
+          "principal": {
+            "id": "bob",
+            "kind": "person"
+          },
+          "approvals": [],
+          "approvers": 0,
+          "approvals_required": null
+        },
+        "citations": [
+          {
+            "run_id": "a2",
+            "seq": [
+              3,
+              5,
+              6,
+              7
+            ]
+          }
+        ]
+      },
+      {
+        "part": "oversight",
+        "kind": "separation_of_duties",
+        "facts": {
+          "run_id": "a1",
+          "node_name": "Approve",
+          "action": "approve",
+          "principal": {
+            "id": "alice",
+            "kind": "person"
+          },
+          "rule": "two-approvers",
+          "reason": "four_eyes"
+        },
+        "citations": [
+          {
+            "run_id": "a1",
+            "seq": [
+              10
+            ]
+          }
+        ]
+      },
+      {
+        "part": "oversight",
+        "kind": "separation_of_duties",
+        "facts": {
+          "run_id": "a2",
+          "node_name": "Review",
+          "action": "complete_task",
+          "principal": {
+            "id": "alice",
+            "kind": "person"
+          },
+          "rule": "requester-not-reviewer",
+          "reason": "separation_of_duties"
+        },
+        "citations": [
+          {
+            "run_id": "a2",
+            "seq": [
+              4
+            ]
+          }
+        ]
+      }
+    ],
+    "absent": [
+      {
+        "part": "oversight",
+        "kind": "separation_of_duties",
+        "facts": {
+          "reason": "no_rule"
+        }
+      },
+      {
+        "part": "operation",
+        "kind": "authorization_allowed",
+        "facts": {
+          "action": "call_tool"
+        }
+      },
+      {
+        "part": "oversight",
+        "kind": "human_decision",
+        "facts": {
+          "node_name": "Pay out"
+        }
+      }
+    ]
+  }
+}

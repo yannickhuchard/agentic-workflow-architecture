@@ -27,6 +27,10 @@ evidenceRouter.get('/', async (req, res) => {
         for (const engine of host.list_runs()) {
             if (in_journeys.has(engine.getRunId())) continue;
             runs.push({ run_id: engine.getRunId(), workflow_id: engine.getWorkflow().id, events: await engine.getEvents() });
+            // Its child runs (24.7), each with its own journal
+            for (const child of engine.getSubworkflowRuns()) {
+                if (!in_journeys.has(child.run_id)) runs.push({ run_id: child.run_id, workflow_id: child.workflow_id, events: await engine.getSubworkflowEvents(child.run_id) });
+            }
         }
         const input: EvidenceInput = { ...(portfolio as unknown as EvidenceInput), runs };
         const report = compute_evidence(input, { from, to, workflow_ids: ids.length ? ids : undefined });

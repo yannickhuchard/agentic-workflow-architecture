@@ -262,17 +262,19 @@ Runs a recorded run again with tools, people, applications, events and time held
 awa evidence .awa --from 2026-09-01 --to 2026-10-01 --format html -o evidence.html
 ```
 
-An evidence report (specification section 32): what ran, which models decided what, every human decision, override and escalation, every contract and verification result, refusals, failures, compensations, service level breaches, tool calls by target, data by payload mode, and the records themselves. Every statement cites the journal records it rests on, and each part names the articles of the EU AI Act, and the functions of the NIST AI RMF and clauses of ISO/IEC 42001, it can serve as evidence for. It is evidence a deployer can use, not a certification of compliance, and says so.
+An evidence report (specification section 32): what ran, child runs included, and who started and moved each run; which models decided what; every human decision, with who decided and, under a four-eyes rule, every approver; overrides, escalations and the separations of duties enforced; every contract and verification result; refusals, by the deployment's policy and by guardrails among them; failures, compensations, service level breaches, tool calls by target, data by payload mode, the records themselves, and, in a twelfth part, everything the guardrails found, by action, stage, check and category, never what they matched. Every statement cites the journal records it rests on, and each part names the articles of the EU AI Act, and the functions of the NIST AI RMF and clauses of ISO/IEC 42001, it can serve as evidence for. It is evidence a deployer can use, not a certification of compliance, and says so.
 
 The sources are any mix of runtime directories, directories of journals, journal files (`.jsonl`) and exports written by `awa journey export`. A runtime directory is read as files: no lock is taken and no run is continued, so a report can be made while a host runs.
 
 | Option | Meaning |
 |---|---|
-| `--from <instant>`, `--to <instant>` | Keep runs and journeys started in this period |
-| `--workflow <id or name...>` | Keep only runs of these workflows |
+| `--from <instant>`, `--to <instant>` | Keep runs and journeys started in this period. A child run is kept with the run of depth 0 above it, by that run's start |
+| `--workflow <id or name...>` | Keep only runs of these workflows, and the child runs they started; a called workflow keeps its child runs |
 | `--as-of <instant>` | The instant the report is made as of, so that it can be made again identically |
 | `--format json\|md\|html` | JSON (`spec/json-schema/evidence-report.schema.json`), Markdown (the default), or one HTML page |
 | `-o <file>` | Write the report to this file |
+
+`examples/claims-settlement/evidence/` is a worked example: three claims run under a deployment with an authorization policy and two guardrails, their journals, and the report in all three formats, made again identically by `make-evidence.mjs`.
 
 ## awa eval
 
