@@ -1,0 +1,192 @@
+{
+  "id": "agent-over-a2a-not-reached-with-confidential-data",
+  "level": "authorization",
+  "spec": "30.4",
+  "description": "Before anything is sent to an agent over A2A, its identity must be allowed to reach_agent with the activity's data classification. A deny rule for partners on confidential data overrides the allow: the card is not read, nothing is sent, and the token fails with FORBIDDEN.",
+  "workflow": {
+    "id": "c5e8c433-c2d9-51b6-aed3-ddc70debf5b0",
+    "name": "agent-over-a2a-not-reached-with-confidential-data",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "1a69a32b-9e0f-5496-8330-bc0016bc694e",
+        "name": "Assess",
+        "role_id": "f8f21258-33de-5825-9926-11c7b1842d38",
+        "actor_type": "ai_agent",
+        "a2a": {
+          "agent_card": "https://agents.example/claims/.well-known/agent-card.json"
+        }
+      }
+    ],
+    "edges": []
+  },
+  "authorization": {
+    "principals": [
+      {
+        "id": "agent:partner-assessor",
+        "kind": "ai_agent",
+        "attributes": {
+          "groups": [
+            "partners"
+          ]
+        },
+        "acts_for": {
+          "agents": [
+            "https://agents.example/claims/.well-known/agent-card.json"
+          ]
+        }
+      }
+    ],
+    "classifications": {
+      "agent-over-a2a-not-reached-with-confidential-data": "confidential"
+    },
+    "policy": {
+      "rules": [
+        {
+          "id": "host-starts",
+          "effect": "allow",
+          "actions": [
+            "start_run"
+          ],
+          "subject": {
+            "ids": [
+              "host"
+            ]
+          }
+        },
+        {
+          "id": "agents-perform",
+          "effect": "allow",
+          "actions": [
+            "perform_activity",
+            "reach_agent"
+          ],
+          "subject": {
+            "kinds": [
+              "ai_agent"
+            ]
+          }
+        },
+        {
+          "id": "no-confidential-to-partners",
+          "effect": "deny",
+          "actions": [
+            "reach_agent"
+          ],
+          "subject": {
+            "groups": [
+              "partners"
+            ]
+          },
+          "resource": {
+            "classifications": [
+              "confidential"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "agents": {
+    "https://agents.example/claims/.well-known/agent-card.json": {
+      "card": {
+        "name": "Claims assessor",
+        "version": "1.0.0",
+        "supportedInterfaces": [
+          {
+            "url": "https://agents.example/claims/a2a",
+            "protocolBinding": "JSONRPC",
+            "protocolVersion": "1.0"
+          }
+        ],
+        "capabilities": {
+          "streaming": false,
+          "pushNotifications": false
+        },
+        "defaultInputModes": [
+          "application/json"
+        ],
+        "defaultOutputModes": [
+          "application/json"
+        ],
+        "skills": [
+          {
+            "id": "assess",
+            "name": "Assess",
+            "description": "Assess a claim",
+            "tags": []
+          }
+        ]
+      },
+      "replies": [
+        {
+          "result": {
+            "task": {
+              "id": "task-1",
+              "contextId": "ctx-1",
+              "status": {
+                "state": "TASK_STATE_COMPLETED"
+              },
+              "artifacts": [
+                {
+                  "artifactId": "a0",
+                  "parts": [
+                    {
+                      "data": {
+                        "decision": "approve"
+                      },
+                      "mediaType": "application/json"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "start": {},
+      "expect": {
+        "allowed": true
+      }
+    }
+  ],
+  "expect": {
+    "status": "failed",
+    "agent_card_reads": 0,
+    "agent_requests": [],
+    "decisions": [
+      {
+        "action": "reach_agent",
+        "decision": "deny",
+        "principal": {
+          "id": "agent:partner-assessor",
+          "kind": "ai_agent"
+        },
+        "rule": "no-confidential-to-partners",
+        "resource": {
+          "agent": "https://agents.example/claims/.well-known/agent-card.json",
+          "classification": "confidential"
+        }
+      }
+    ],
+    "journal_contains": [
+      {
+        "type": "token.failed",
+        "data": {
+          "error": {
+            "code": "FORBIDDEN"
+          }
+        }
+      }
+    ],
+    "journal_excludes": [
+      "agent.message_sent",
+      "activity.started"
+    ]
+  }
+}

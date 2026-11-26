@@ -1,0 +1,210 @@
+{
+  "id": "versioning-identity-migration",
+  "level": "versioning",
+  "spec": "25.3",
+  "description": "Where the new version keeps the node ids, a plan that maps nothing moves a run at rest by the identity mapping: the token waits on at the same node, now of the new version. The migration is one journal event; the run goes on, after a restart too, on the new version.",
+  "start": "2026-05-04T09:00:00Z",
+  "workflows": [
+    {
+      "id": "6b32ff90-e5b8-5306-8f8e-126f6424407b",
+      "name": "Claim",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "af8a47fb-33a3-521b-b0ba-2abef0dfdcfa",
+          "name": "Register",
+          "role_id": "638be055-b6fc-52cb-ba56-a590ef4ce25d",
+          "actor_type": "application"
+        },
+        {
+          "id": "70282d33-c749-5747-ac77-aefaf48e3473",
+          "name": "Review",
+          "role_id": "638be055-b6fc-52cb-ba56-a590ef4ce25d",
+          "actor_type": "human"
+        },
+        {
+          "id": "adfa97d4-fd6f-5d6f-b057-daa574dac88e",
+          "name": "Settle",
+          "role_id": "638be055-b6fc-52cb-ba56-a590ef4ce25d",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "752d91ef-b253-592e-92e9-5ce47d33c5ca",
+          "source_id": "af8a47fb-33a3-521b-b0ba-2abef0dfdcfa",
+          "target_id": "70282d33-c749-5747-ac77-aefaf48e3473"
+        },
+        {
+          "id": "dc447322-80bb-5676-9deb-828a19bb4f2b",
+          "source_id": "70282d33-c749-5747-ac77-aefaf48e3473",
+          "target_id": "adfa97d4-fd6f-5d6f-b057-daa574dac88e"
+        }
+      ]
+    },
+    {
+      "id": "6b32ff90-e5b8-5306-8f8e-126f6424407b",
+      "name": "Claim",
+      "version": "2.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "af8a47fb-33a3-521b-b0ba-2abef0dfdcfa",
+          "name": "Register",
+          "role_id": "638be055-b6fc-52cb-ba56-a590ef4ce25d",
+          "actor_type": "application"
+        },
+        {
+          "id": "70282d33-c749-5747-ac77-aefaf48e3473",
+          "name": "Review",
+          "role_id": "638be055-b6fc-52cb-ba56-a590ef4ce25d",
+          "actor_type": "human"
+        },
+        {
+          "id": "67dd9702-2371-5517-9309-0b3fbd5472bc",
+          "name": "Archive",
+          "role_id": "638be055-b6fc-52cb-ba56-a590ef4ce25d",
+          "actor_type": "application"
+        },
+        {
+          "id": "adfa97d4-fd6f-5d6f-b057-daa574dac88e",
+          "name": "Settle",
+          "role_id": "638be055-b6fc-52cb-ba56-a590ef4ce25d",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "752d91ef-b253-592e-92e9-5ce47d33c5ca",
+          "source_id": "af8a47fb-33a3-521b-b0ba-2abef0dfdcfa",
+          "target_id": "70282d33-c749-5747-ac77-aefaf48e3473"
+        },
+        {
+          "id": "3fdd8338-74ba-5e15-bd73-94110523bd07",
+          "source_id": "70282d33-c749-5747-ac77-aefaf48e3473",
+          "target_id": "67dd9702-2371-5517-9309-0b3fbd5472bc"
+        },
+        {
+          "id": "aae3ed13-30b5-5adc-b50b-5f2f14fccd8c",
+          "source_id": "67dd9702-2371-5517-9309-0b3fbd5472bc",
+          "target_id": "adfa97d4-fd6f-5d6f-b057-daa574dac88e"
+        }
+      ]
+    }
+  ],
+  "actors": {
+    "Register": {
+      "output": {
+        "claim_id": "CLM-1"
+      }
+    },
+    "Review": {
+      "waits": true
+    },
+    "Settle": {
+      "output": {
+        "paid": true
+      }
+    },
+    "Notify": {
+      "output": {
+        "notified": true
+      }
+    },
+    "Archive": {
+      "output": {
+        "archived": true
+      }
+    }
+  },
+  "steps": [
+    {
+      "register": "1.0.0"
+    },
+    {
+      "start": {},
+      "as": "r1"
+    },
+    {
+      "register": "2.0.0"
+    },
+    {
+      "migrate": {
+        "run": "r1",
+        "plan": {}
+      },
+      "expect": {
+        "applied": true,
+        "dry_run": false,
+        "refusals": [],
+        "status": "waiting_human",
+        "run_version": "2.0.0",
+        "data_changes": [],
+        "tokens": [
+          {
+            "from": "Review",
+            "to": "Review",
+            "wait": "human",
+            "outcome": "kept"
+          }
+        ]
+      }
+    },
+    {
+      "restart": true
+    },
+    {
+      "complete": {
+        "run": "r1",
+        "node": "Review",
+        "output": {
+          "approved": true
+        }
+      }
+    }
+  ],
+  "expect": {
+    "visited": [
+      "Register",
+      "Review",
+      "Archive",
+      "Settle"
+    ],
+    "runs": {
+      "r1": {
+        "status": "completed",
+        "version": "2.0.0",
+        "journal": [
+          "run.started",
+          "token.waiting",
+          "run.migrated",
+          "token.resumed",
+          "activity.completed",
+          "run.completed"
+        ],
+        "journal_count": {
+          "run.migrated": 1
+        },
+        "journal_contains": [
+          {
+            "type": "run.migrated",
+            "data": {
+              "from_version": "1.0.0",
+              "to_version": "2.0.0",
+              "nodes": {},
+              "tokens": [
+                {
+                  "from_node_id": "70282d33-c749-5747-ac77-aefaf48e3473",
+                  "to_node_id": "70282d33-c749-5747-ac77-aefaf48e3473",
+                  "wait": "human",
+                  "outcome": "kept"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  }
+}

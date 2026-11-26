@@ -7,7 +7,7 @@ from enum import Enum
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 # ============================================================================
@@ -283,6 +283,42 @@ class VerificationPolicy(BaseModel):
     pass_threshold: float = Field(default=0.9, ge=0, le=1)
 
 
+_GUARDRAIL_CHECK_FIELDS: dict[str, tuple[str, ...]] = {
+    "personal_data": (), "deny_list": (), "prompt_injection": (), "size": (), "json_schema": ("schema",),
+    "allowed_values": ("path", "values"), "topic": ("allow",), "model": ("instructions",), "classifier": ("name",),
+}
+
+
+class Guardrail(BaseModel):
+    """
+    A check on what goes into or comes out of an AI agent or a tool, and what to do
+    when it finds something (specification 31.2). `check` is an object with a `kind`:
+    personal_data, deny_list, prompt_injection, size, json_schema, allowed_values,
+    topic, model or classifier, and the fields of that kind (31.4).
+    """
+    id: UUID
+    name: str | None = None
+    stages: list[Literal["input", "output", "tool_call", "tool_result"]] = Field(min_length=1)
+    check: dict[str, Any]
+    action: Literal["block", "redact", "retry_with_feedback", "escalate", "warn"]
+    actor_types: list[ActorType] | None = None
+    tools: list[str] | None = None
+    fields: list[str] | None = None
+    replacement: str | None = None
+
+    @model_validator(mode="after")
+    def _check_has_a_kind(self) -> "Guardrail":
+        kind = self.check.get("kind")
+        if kind not in _GUARDRAIL_CHECK_FIELDS:
+            raise ValueError(f'Unknown guardrail check kind "{kind}"')
+        missing = [name for name in _GUARDRAIL_CHECK_FIELDS[kind] if name not in self.check]
+        if missing:
+            raise ValueError(f'A "{kind}" check needs {", ".join(missing)}')
+        if kind == "personal_data" and any(c not in ("email", "phone", "iban", "credit_card") for c in self.check.get("categories") or []):
+            raise ValueError("personal_data categories are email, phone, iban and credit_card")
+        return self
+
+
 class ToolBinding(BaseModel):
     """
     What a tool runs (specification 17.2). `kind` says which of the other
@@ -326,6 +362,8 @@ class ToolDefinition(BaseModel):
     binding: ToolBinding
     documentation: str | None = None
     timeout: str | None = None
+    # Guardrails on every call of this tool, at stages tool_call and tool_result (specification 31.1)
+    guardrails: list[Guardrail] | None = None
 
 
 class Postcondition(BaseModel):
@@ -363,10 +401,29 @@ class KnowledgeBinding(BaseModel):
     min_status: Literal["draft", "reviewed"] | None = None
 
 
+class A2AAgent(BaseModel):
+    """An agent reached over the Agent2Agent protocol (A2A 1.0) that performs an activity (specification 28.1)"""
+    agent_card: str
+    skill: str | None = None
+    on_input_required: Literal["wait", "fail"] = "wait"
+    # Sent with every request to the agent. {{secret:NAME}} is replaced by a deployment secret. Never journalled.
+    headers: dict[str, str] | None = None
+
+
+class SubworkflowMapping(BaseModel):
+    """How a call activity's child run is given its input and how its output becomes the outcome (specification 24.1)"""
+    model_config = ConfigDict(extra="forbid")
+    # Each property of the child run's input, with the path in the parent token's data it is read from
+    input: dict[str, str] | None = None
+    # Each property of the activity's outcome, with the path in the child run's output it is read from
+    output: dict[str, str] | None = None
+
+
 class Activity(BaseModel):
     id: UUID
     name: str
     description: str | None = None
+    procedure: str | None = None
     role_id: UUID
     actor_type: ActorType
     system_id: UUID | None = None
@@ -383,6 +440,7 @@ class Activity(BaseModel):
     analytics: Analytics | None = None
     is_expandable: bool = False
     expansion_workflow_id: UUID | None = None
+    subworkflow: SubworkflowMapping | None = None
     retry: RetryPolicy | None = None
     verification: VerificationPolicy | None = None
     outcome_contract: OutcomeContract | None = None
@@ -390,6 +448,10 @@ class Activity(BaseModel):
     compensation: Compensation | None = None
     knowledge: KnowledgeBinding | None = None
     join: Literal["any", "all"] = "any"
+    # The agent that performs this activity over A2A, replacing its role's (specification 28.1)
+    a2a: A2AAgent | None = None
+    # Guardrails on this activity's input, output and tool calls (specification 31.1)
+    guardrails: list[Guardrail] | None = None
 
 
 class Edge(BaseModel):
@@ -498,6 +560,8 @@ class Workflow(BaseModel):
     roles: list["Role"] = Field(default_factory=list)
     sla: SLA | None = None
     analytics: Analytics | None = None
+    # Guardrails on every activity of the workflow (specification 31.1)
+    guardrails: list[Guardrail] | None = None
     metadata: dict[str, Any] | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
@@ -525,6 +589,10 @@ class Role(BaseModel):
     is_embedded: bool = False
     ai_model_config: AIModelConfig | None = None
     mcp_tools: list[MCPTool] = Field(default_factory=list)
+    # The agent, reached over A2A, that performs the activities of this role (specification 28.1)
+    a2a: A2AAgent | None = None
+    # Guardrails on the activities of this role (specification 31.1)
+    guardrails: list[Guardrail] | None = None
 
 
 class System(BaseModel):

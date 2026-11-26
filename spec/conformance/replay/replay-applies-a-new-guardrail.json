@@ -1,0 +1,91 @@
+{
+  "id": "replay-applies-a-new-guardrail",
+  "level": "guardrails",
+  "spec": "31.9",
+  "description": "A guardrail added in the candidate is evaluated in replay against the recorded output: the output it blocks is a regression.",
+  "workflow": {
+    "id": "3f6ab71b-2ac3-5bef-a600-df0065963bae",
+    "name": "replay-applies-a-new-guardrail",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "a98e97f1-4656-50fb-8348-1f5697dc41c0",
+        "name": "Draft",
+        "role_id": "c531d40d-260c-5d7f-b079-5f3cb934b5fc",
+        "actor_type": "ai_agent"
+      },
+      {
+        "id": "027c54d1-3112-51e7-92be-3bf941ae17b9",
+        "name": "Send",
+        "role_id": "c531d40d-260c-5d7f-b079-5f3cb934b5fc",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "41e55ce0-4c3b-5966-8fb9-f8d0effc08dd",
+        "source_id": "a98e97f1-4656-50fb-8348-1f5697dc41c0",
+        "target_id": "027c54d1-3112-51e7-92be-3bf941ae17b9"
+      }
+    ]
+  },
+  "input": {},
+  "actors": {
+    "Draft": {
+      "output": {
+        "reply": "Call +44 20 7946 0958"
+      }
+    }
+  },
+  "ai": "recorded",
+  "candidate": {
+    "id": "3f6ab71b-2ac3-5bef-a600-df0065963bae",
+    "name": "replay-applies-a-new-guardrail",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "a98e97f1-4656-50fb-8348-1f5697dc41c0",
+        "name": "Draft",
+        "role_id": "c531d40d-260c-5d7f-b079-5f3cb934b5fc",
+        "actor_type": "ai_agent",
+        "guardrails": [
+          {
+            "id": "5e98928a-4062-56eb-9082-54c9db8b7b5c",
+            "name": "No phone numbers",
+            "stages": [
+              "output"
+            ],
+            "check": {
+              "kind": "personal_data"
+            },
+            "action": "block"
+          }
+        ]
+      },
+      {
+        "id": "027c54d1-3112-51e7-92be-3bf941ae17b9",
+        "name": "Send",
+        "role_id": "c531d40d-260c-5d7f-b079-5f3cb934b5fc",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "41e55ce0-4c3b-5966-8fb9-f8d0effc08dd",
+        "source_id": "a98e97f1-4656-50fb-8348-1f5697dc41c0",
+        "target_id": "027c54d1-3112-51e7-92be-3bf941ae17b9"
+      }
+    ]
+  },
+  "expect": {
+    "baseline_status": "completed",
+    "candidate_status": "failed",
+    "verdicts": {
+      "Draft": "regressed"
+    },
+    "regressions_at_least": 1,
+    "unrecorded": 0
+  }
+}

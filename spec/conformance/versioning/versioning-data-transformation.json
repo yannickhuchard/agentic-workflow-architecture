@@ -1,0 +1,257 @@
+{
+  "id": "versioning-data-transformation",
+  "level": "versioning",
+  "spec": "25.3",
+  "description": "A plan's data changes apply to every live token, in order: a value set, a value copied from a path, the result of a condition expression, a property removed. One whose condition does not hold, or whose source is missing, changes nothing. The journal records each change; the new version routes on the new data.",
+  "start": "2026-05-04T09:00:00Z",
+  "workflows": [
+    {
+      "id": "bdccc568-5c42-5e25-8e45-92fdc3502803",
+      "name": "Claim",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "1fd865da-f878-55b1-ad0c-55e91746732e",
+          "name": "Register",
+          "role_id": "6b572fb1-4e42-557a-9982-123e3fb81538",
+          "actor_type": "application"
+        },
+        {
+          "id": "0831d576-e694-5731-b9aa-ffbc21093293",
+          "name": "Review",
+          "role_id": "6b572fb1-4e42-557a-9982-123e3fb81538",
+          "actor_type": "human"
+        },
+        {
+          "id": "b5bbee4f-5d7f-59d6-a6ba-9b2cbd4de0ea",
+          "name": "Settle",
+          "role_id": "6b572fb1-4e42-557a-9982-123e3fb81538",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "62b11588-2151-50a0-b0ff-14ad75d6771e",
+          "source_id": "1fd865da-f878-55b1-ad0c-55e91746732e",
+          "target_id": "0831d576-e694-5731-b9aa-ffbc21093293"
+        },
+        {
+          "id": "19c7461a-630a-5573-8b7d-62a03471c700",
+          "source_id": "0831d576-e694-5731-b9aa-ffbc21093293",
+          "target_id": "b5bbee4f-5d7f-59d6-a6ba-9b2cbd4de0ea"
+        }
+      ]
+    },
+    {
+      "id": "bdccc568-5c42-5e25-8e45-92fdc3502803",
+      "name": "Claim",
+      "version": "2.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "1fd865da-f878-55b1-ad0c-55e91746732e",
+          "name": "Register",
+          "role_id": "6b572fb1-4e42-557a-9982-123e3fb81538",
+          "actor_type": "application"
+        },
+        {
+          "id": "0831d576-e694-5731-b9aa-ffbc21093293",
+          "name": "Review",
+          "role_id": "6b572fb1-4e42-557a-9982-123e3fb81538",
+          "actor_type": "human"
+        },
+        {
+          "id": "fa4d561a-8432-5b8e-8f72-625d2c69ac23",
+          "name": "Fast track",
+          "role_id": "6b572fb1-4e42-557a-9982-123e3fb81538",
+          "actor_type": "application"
+        },
+        {
+          "id": "b5bbee4f-5d7f-59d6-a6ba-9b2cbd4de0ea",
+          "name": "Settle",
+          "role_id": "6b572fb1-4e42-557a-9982-123e3fb81538",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "62b11588-2151-50a0-b0ff-14ad75d6771e",
+          "source_id": "1fd865da-f878-55b1-ad0c-55e91746732e",
+          "target_id": "0831d576-e694-5731-b9aa-ffbc21093293"
+        },
+        {
+          "id": "a0c41cfb-e53c-557c-ab42-686574722bec",
+          "source_id": "0831d576-e694-5731-b9aa-ffbc21093293",
+          "target_id": "fa4d561a-8432-5b8e-8f72-625d2c69ac23",
+          "condition": "priority == true"
+        },
+        {
+          "id": "19c7461a-630a-5573-8b7d-62a03471c700",
+          "source_id": "0831d576-e694-5731-b9aa-ffbc21093293",
+          "target_id": "b5bbee4f-5d7f-59d6-a6ba-9b2cbd4de0ea",
+          "is_default": true
+        }
+      ]
+    }
+  ],
+  "actors": {
+    "Register": {
+      "output": {
+        "claim_id": "CLM-1",
+        "amount": 1500,
+        "legacy_code": "X1"
+      }
+    },
+    "Review": {
+      "waits": true
+    },
+    "Settle": {
+      "output": {
+        "paid": true
+      }
+    },
+    "Notify": {
+      "output": {
+        "notified": true
+      }
+    },
+    "Archive": {
+      "output": {
+        "archived": true
+      }
+    }
+  },
+  "steps": [
+    {
+      "register": "1.0.0"
+    },
+    {
+      "start": {},
+      "as": "r1"
+    },
+    {
+      "register": "2.0.0"
+    },
+    {
+      "migrate": {
+        "run": "r1",
+        "plan": {
+          "data": [
+            {
+              "set": "currency",
+              "value": "EUR"
+            },
+            {
+              "set": "total",
+              "from": "amount"
+            },
+            {
+              "set": "priority",
+              "expression": "amount > 1000"
+            },
+            {
+              "remove": "legacy_code"
+            },
+            {
+              "set": "discount",
+              "value": 10,
+              "when": "amount < 100"
+            },
+            {
+              "set": "copied",
+              "from": "nothing.here"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "applied": true,
+        "refusals": [],
+        "data_changes": [
+          {
+            "path": "currency",
+            "change": "set",
+            "value": "EUR"
+          },
+          {
+            "path": "total",
+            "change": "set",
+            "value": 1500
+          },
+          {
+            "path": "priority",
+            "change": "set",
+            "value": true
+          },
+          {
+            "path": "legacy_code",
+            "change": "removed"
+          }
+        ]
+      }
+    },
+    {
+      "complete": {
+        "run": "r1",
+        "node": "Review",
+        "output": {
+          "approved": true
+        }
+      }
+    }
+  ],
+  "expect": {
+    "visited": [
+      "Register",
+      "Review",
+      "Fast track"
+    ],
+    "runs": {
+      "r1": {
+        "status": "completed",
+        "version": "2.0.0",
+        "data": {
+          "currency": "EUR",
+          "total": 1500,
+          "priority": true,
+          "amount": 1500
+        },
+        "data_absent": [
+          "legacy_code",
+          "discount",
+          "copied"
+        ],
+        "journal_contains": [
+          {
+            "type": "run.migrated",
+            "data": {
+              "data_changes": [
+                {
+                  "path": "currency",
+                  "change": "set",
+                  "value": "EUR"
+                },
+                {
+                  "path": "total",
+                  "change": "set",
+                  "value": 1500
+                },
+                {
+                  "path": "priority",
+                  "change": "set",
+                  "value": true
+                },
+                {
+                  "path": "legacy_code",
+                  "change": "removed",
+                  "previous": "X1"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  }
+}

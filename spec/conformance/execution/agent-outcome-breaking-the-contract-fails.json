@@ -1,0 +1,111 @@
+{
+  "id": "agent-outcome-breaking-the-contract-fails",
+  "level": "a2a",
+  "spec": "28.5",
+  "description": "An agent that performs an application's activity is not tried again when its outcome breaks the contract.",
+  "workflow": {
+    "id": "c4753db6-5738-51ed-806c-7d75c80b4b69",
+    "name": "agent-outcome-breaking-the-contract-fails",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "849d1564-3458-504c-935b-6ac72977fe2f",
+        "name": "Assess",
+        "role_id": "5dc34553-a708-59be-92f7-675a39ecb02e",
+        "actor_type": "application",
+        "a2a": {
+          "agent_card": "https://agents.example/claims/.well-known/agent-card.json"
+        },
+        "outcome_contract": {
+          "postconditions": [
+            {
+              "name": "confident",
+              "expression": "score >= 0.5"
+            }
+          ]
+        }
+      }
+    ],
+    "edges": []
+  },
+  "agents": {
+    "https://agents.example/claims/.well-known/agent-card.json": {
+      "card": {
+        "name": "Claims assessor",
+        "description": "Claims assessor, reached over A2A",
+        "version": "1.0.0",
+        "supportedInterfaces": [
+          {
+            "url": "https://agents.example/claims/a2a",
+            "protocolBinding": "JSONRPC",
+            "protocolVersion": "1.0"
+          }
+        ],
+        "capabilities": {
+          "streaming": false,
+          "pushNotifications": false
+        },
+        "defaultInputModes": [
+          "application/json",
+          "text/plain"
+        ],
+        "defaultOutputModes": [
+          "application/json"
+        ],
+        "skills": [
+          {
+            "id": "assess",
+            "name": "Assess",
+            "description": "Assess a claim",
+            "tags": [
+              "claims"
+            ]
+          }
+        ]
+      },
+      "replies": [
+        {
+          "result": {
+            "task": {
+              "id": "task-1",
+              "contextId": "ctx-1",
+              "status": {
+                "state": "TASK_STATE_COMPLETED"
+              },
+              "artifacts": [
+                {
+                  "artifactId": "a0",
+                  "parts": [
+                    {
+                      "data": {
+                        "score": 0.2
+                      },
+                      "mediaType": "application/json"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  "expect": {
+    "status": "failed",
+    "agent_requests": [
+      "SendMessage"
+    ],
+    "journal_contains": [
+      {
+        "type": "token.failed",
+        "data": {
+          "error": {
+            "code": "CONTRACT_VIOLATION"
+          }
+        }
+      }
+    ]
+  }
+}

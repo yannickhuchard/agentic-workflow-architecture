@@ -1,0 +1,147 @@
+{
+  "id": "telemetry-child-run-links-to-its-parent",
+  "level": "subworkflows",
+  "spec": "24.7",
+  "description": "A child run is a trace of its own. Its run span carries the parent's run id and its depth, and links to the span of the parent's attempt that started it.",
+  "decision_nodes": [],
+  "journal": [
+    {
+      "spec_version": "1.1",
+      "id": "885be766-971e-5f19-b9ba-098a38038e26",
+      "run_id": "be024afb-adac-5bf7-8f15-872510490e87",
+      "seq": 1,
+      "time": "2026-03-02T09:00:00.000Z",
+      "type": "run.started",
+      "level": "execution",
+      "workflow_id": "b3fddc38-18b4-533b-9a27-c49c22b9feba",
+      "data": {
+        "workflow_name": "Credit check",
+        "workflow_version": "1.0.0",
+        "input": {
+          "amount": 300
+        },
+        "simulate": false,
+        "depth": 1,
+        "parent": {
+          "run_id": "3374f5c0-8dd8-5bb2-a564-2b764c97410e",
+          "workflow_id": "e1fa8740-cb5e-59d2-9103-0b4255541410",
+          "node_id": "93015f58-8ea1-5144-a09a-b9c02a0bec72",
+          "token_id": "95b3c980-f90b-5d45-b82f-f2a3ed6139e8",
+          "attempt": 1,
+          "seq": 4,
+          "root_run_id": "3374f5c0-8dd8-5bb2-a564-2b764c97410e"
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e9e0a28b-27ad-5eab-ba71-3424ec2e4aac",
+      "run_id": "be024afb-adac-5bf7-8f15-872510490e87",
+      "seq": 2,
+      "time": "2026-03-02T09:00:00.000Z",
+      "type": "token.created",
+      "level": "execution",
+      "workflow_id": "b3fddc38-18b4-533b-9a27-c49c22b9feba",
+      "token_id": "ce149afc-fc33-5e0d-806b-4d80b4c05d7e",
+      "node_id": "f47dd2bb-9935-5620-88bc-89b60a260c30",
+      "node_name": "Score",
+      "data": {}
+    },
+    {
+      "spec_version": "1.1",
+      "id": "d95618e7-c59e-5b63-947b-15cf304f5430",
+      "run_id": "be024afb-adac-5bf7-8f15-872510490e87",
+      "seq": 3,
+      "time": "2026-03-02T09:00:00.010Z",
+      "type": "activity.started",
+      "level": "execution",
+      "workflow_id": "b3fddc38-18b4-533b-9a27-c49c22b9feba",
+      "token_id": "ce149afc-fc33-5e0d-806b-4d80b4c05d7e",
+      "node_id": "f47dd2bb-9935-5620-88bc-89b60a260c30",
+      "node_name": "Score",
+      "attempt": 1,
+      "data": {
+        "actor_type": "application"
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "4cf0bd33-d094-52dc-9ea9-fde728a5fb89",
+      "run_id": "be024afb-adac-5bf7-8f15-872510490e87",
+      "seq": 4,
+      "time": "2026-03-02T09:00:00.210Z",
+      "type": "activity.completed",
+      "level": "execution",
+      "workflow_id": "b3fddc38-18b4-533b-9a27-c49c22b9feba",
+      "token_id": "ce149afc-fc33-5e0d-806b-4d80b4c05d7e",
+      "node_id": "f47dd2bb-9935-5620-88bc-89b60a260c30",
+      "node_name": "Score",
+      "attempt": 1,
+      "data": {
+        "actor_type": "application",
+        "output": {
+          "score": 720
+        },
+        "duration_ms": 200,
+        "attempts": 1
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "cfed8347-3d6c-52b4-8af8-04e60dbb421e",
+      "run_id": "be024afb-adac-5bf7-8f15-872510490e87",
+      "seq": 5,
+      "time": "2026-03-02T09:00:00.210Z",
+      "type": "token.completed",
+      "level": "execution",
+      "workflow_id": "b3fddc38-18b4-533b-9a27-c49c22b9feba",
+      "token_id": "ce149afc-fc33-5e0d-806b-4d80b4c05d7e",
+      "node_id": "f47dd2bb-9935-5620-88bc-89b60a260c30",
+      "node_name": "Score",
+      "data": {}
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e88360b3-bc04-5778-87cc-564294e46121",
+      "run_id": "be024afb-adac-5bf7-8f15-872510490e87",
+      "seq": 6,
+      "time": "2026-03-02T09:00:00.220Z",
+      "type": "run.completed",
+      "level": "execution",
+      "workflow_id": "b3fddc38-18b4-533b-9a27-c49c22b9feba",
+      "data": {
+        "duration_ms": 220,
+        "steps": 1,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cost": 0,
+        "currency": "USD"
+      }
+    }
+  ],
+  "options": {
+    "payloads": false
+  },
+  "expect": {
+    "trace_id": "58f5f77c13a665e9c81448f1016f57bc",
+    "span_count": 2,
+    "spans": [
+      {
+        "span_id": "4f3485d697541b25",
+        "parent_span_id": null,
+        "name": "invoke_workflow Credit check",
+        "attributes": {
+          "awa.run.id": "be024afb-adac-5bf7-8f15-872510490e87",
+          "awa.run.parent_run_id": "3374f5c0-8dd8-5bb2-a564-2b764c97410e",
+          "awa.run.depth": 1
+        },
+        "links": [
+          {
+            "trace_id": "20e77333cbef69b8da1c7c3129ff7cad",
+            "span_id": "71f17aa9fb4039e2"
+          }
+        ]
+      }
+    ]
+  }
+}

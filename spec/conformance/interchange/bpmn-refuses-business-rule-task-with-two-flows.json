@@ -1,0 +1,11 @@
+{
+  "id": "bpmn-refuses-business-rule-task-with-two-flows",
+  "level": "interchange",
+  "spec": "27.6",
+  "kind": "import_bpmn",
+  "description": "A business rule task with several outgoing flows would split the token.",
+  "bpmn": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<bpmn:definitions xmlns:bpmn=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:awa=\"https://awa.io/schema/interchange/1.1\" id=\"Definitions_refused\" targetNamespace=\"https://example.com/bpmn\">\n<bpmn:process id=\"P\" name=\"Refused\">\n<bpmn:startEvent id=\"S\"/><bpmn:businessRuleTask id=\"BR\"/><bpmn:endEvent id=\"E1\"/><bpmn:endEvent id=\"E2\"/><bpmn:sequenceFlow id=\"F1\" sourceRef=\"S\" targetRef=\"BR\"/>\n<bpmn:sequenceFlow id=\"F2\" sourceRef=\"BR\" targetRef=\"E1\"/>\n<bpmn:sequenceFlow id=\"F3\" sourceRef=\"BR\" targetRef=\"E2\"/>\n</bpmn:process>\n</bpmn:definitions>\n",
+  "expect": {
+    "error_matches": "businessRuleTask \"BR\""
+  }
+}

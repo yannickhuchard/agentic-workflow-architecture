@@ -1,0 +1,377 @@
+{
+  "id": "decisions-are-spans",
+  "level": "telemetry",
+  "spec": "26.2",
+  "description": "A decision is a span from the token's arrival at the decision node to decision.evaluated. A model decision has a chat span under it, from that arrival to the record of the model, with the decision's usage. The arrival is also a span event of the run.",
+  "decision_nodes": [
+    "4be78159-a3e8-5ee9-b578-cef36adc3820",
+    "e8de9557-ed66-546e-81ef-487b981ecd92"
+  ],
+  "journal": [
+    {
+      "spec_version": "1.1",
+      "id": "8649f46a-4446-5d78-a996-1bc04de0a4af",
+      "run_id": "de8a65c2-efc1-5213-86d8-94d82efb62df",
+      "seq": 1,
+      "time": "2026-03-02T09:00:00.000Z",
+      "type": "run.started",
+      "level": "execution",
+      "workflow_id": "161c40a1-291c-5a17-bbd3-5f475edd29a8",
+      "data": {
+        "workflow_name": "Settle",
+        "input": {},
+        "simulate": false
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "93d9927b-532b-55f1-844f-27a85ad6a9af",
+      "run_id": "de8a65c2-efc1-5213-86d8-94d82efb62df",
+      "seq": 2,
+      "time": "2026-03-02T09:00:00.000Z",
+      "type": "token.created",
+      "level": "execution",
+      "workflow_id": "161c40a1-291c-5a17-bbd3-5f475edd29a8",
+      "token_id": "1e45b9aa-6918-5bad-ae59-6817c4dba56a",
+      "node_id": "95042ec7-180b-5100-8b38-ca71ff6d0ffc",
+      "node_name": "Assess",
+      "data": {}
+    },
+    {
+      "spec_version": "1.1",
+      "id": "c72a7843-b624-5482-b75c-10e165726a64",
+      "run_id": "de8a65c2-efc1-5213-86d8-94d82efb62df",
+      "seq": 3,
+      "time": "2026-03-02T09:00:00.000Z",
+      "type": "activity.started",
+      "level": "execution",
+      "workflow_id": "161c40a1-291c-5a17-bbd3-5f475edd29a8",
+      "token_id": "1e45b9aa-6918-5bad-ae59-6817c4dba56a",
+      "node_id": "95042ec7-180b-5100-8b38-ca71ff6d0ffc",
+      "node_name": "Assess",
+      "attempt": 1,
+      "data": {
+        "actor_type": "application",
+        "input": {}
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "5d615274-f633-5b59-bc5a-740b03d9dbf7",
+      "run_id": "de8a65c2-efc1-5213-86d8-94d82efb62df",
+      "seq": 4,
+      "time": "2026-03-02T09:00:00.100Z",
+      "type": "activity.completed",
+      "level": "execution",
+      "workflow_id": "161c40a1-291c-5a17-bbd3-5f475edd29a8",
+      "token_id": "1e45b9aa-6918-5bad-ae59-6817c4dba56a",
+      "node_id": "95042ec7-180b-5100-8b38-ca71ff6d0ffc",
+      "node_name": "Assess",
+      "attempt": 1,
+      "data": {
+        "actor_type": "application",
+        "output": {
+          "score": 0.2
+        },
+        "duration_ms": 100,
+        "attempts": 1
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "19323647-6b33-53b2-a92f-0413d13bcab4",
+      "run_id": "de8a65c2-efc1-5213-86d8-94d82efb62df",
+      "seq": 5,
+      "time": "2026-03-02T09:00:00.101Z",
+      "type": "token.moved",
+      "level": "execution",
+      "workflow_id": "161c40a1-291c-5a17-bbd3-5f475edd29a8",
+      "token_id": "1e45b9aa-6918-5bad-ae59-6817c4dba56a",
+      "node_id": "4be78159-a3e8-5ee9-b578-cef36adc3820",
+      "node_name": "Route",
+      "data": {
+        "from_node_id": "95042ec7-180b-5100-8b38-ca71ff6d0ffc",
+        "to_node_id": "4be78159-a3e8-5ee9-b578-cef36adc3820",
+        "edge_id": "2f75964a-6698-53c6-a28b-e97c820fcc25",
+        "reason": "unconditional"
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "2ae9f352-feed-593c-976c-86dedf6668c9",
+      "run_id": "de8a65c2-efc1-5213-86d8-94d82efb62df",
+      "seq": 6,
+      "time": "2026-03-02T09:00:00.103Z",
+      "type": "decision.evaluated",
+      "level": "execution",
+      "workflow_id": "161c40a1-291c-5a17-bbd3-5f475edd29a8",
+      "token_id": "1e45b9aa-6918-5bad-ae59-6817c4dba56a",
+      "node_id": "4be78159-a3e8-5ee9-b578-cef36adc3820",
+      "node_name": "Route",
+      "data": {
+        "method": "table",
+        "strategy": "table",
+        "hit_policy": "first",
+        "inputs": {
+          "score": 0.2
+        },
+        "matched": true,
+        "matched_rules": [
+          {
+            "index": 1,
+            "input_entries": [
+              "< 0.3"
+            ],
+            "description": "Clean"
+          }
+        ],
+        "outputs": {
+          "route": "auto"
+        },
+        "edge_id": "e402ea8b-e96b-5ac5-b1e3-c079b7ea70c7",
+        "used_default": false
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "43b41dc3-9cc5-5f5d-9ccc-80bc774aa0b2",
+      "run_id": "de8a65c2-efc1-5213-86d8-94d82efb62df",
+      "seq": 7,
+      "time": "2026-03-02T09:00:00.104Z",
+      "type": "token.moved",
+      "level": "execution",
+      "workflow_id": "161c40a1-291c-5a17-bbd3-5f475edd29a8",
+      "token_id": "1e45b9aa-6918-5bad-ae59-6817c4dba56a",
+      "node_id": "e8de9557-ed66-546e-81ef-487b981ecd92",
+      "node_name": "Second look",
+      "data": {
+        "from_node_id": "4be78159-a3e8-5ee9-b578-cef36adc3820",
+        "to_node_id": "e8de9557-ed66-546e-81ef-487b981ecd92",
+        "edge_id": "e402ea8b-e96b-5ac5-b1e3-c079b7ea70c7",
+        "reason": "decision"
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "ceaac641-84a0-52c2-95c5-79cd0c0a8913",
+      "run_id": "de8a65c2-efc1-5213-86d8-94d82efb62df",
+      "seq": 8,
+      "time": "2026-03-02T09:00:00.450Z",
+      "type": "meta.recorded",
+      "level": "meta",
+      "workflow_id": "161c40a1-291c-5a17-bbd3-5f475edd29a8",
+      "token_id": "1e45b9aa-6918-5bad-ae59-6817c4dba56a",
+      "node_id": "e8de9557-ed66-546e-81ef-487b981ecd92",
+      "node_name": "Second look",
+      "data": {
+        "subject": "model_selection",
+        "decision": "Use model acme:classifier-small",
+        "rationale": "The decision names this model.",
+        "model": {
+          "provider": "acme",
+          "id": "classifier-small",
+          "requested": "tier:fast",
+          "tier": "fast"
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e73447ea-faec-5800-a1cb-0e5ac62b1468",
+      "run_id": "de8a65c2-efc1-5213-86d8-94d82efb62df",
+      "seq": 9,
+      "time": "2026-03-02T09:00:00.450Z",
+      "type": "reasoning.recorded",
+      "level": "reasoning",
+      "workflow_id": "161c40a1-291c-5a17-bbd3-5f475edd29a8",
+      "token_id": "1e45b9aa-6918-5bad-ae59-6817c4dba56a",
+      "node_id": "e8de9557-ed66-546e-81ef-487b981ecd92",
+      "node_name": "Second look",
+      "data": {
+        "source": "decision_model",
+        "rationale": "Unusual pattern of repairs.",
+        "confidence": 0.84,
+        "plan": [],
+        "option": "review"
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "5ee1a557-3f2e-5d50-9dc3-c61e0da6df0f",
+      "run_id": "de8a65c2-efc1-5213-86d8-94d82efb62df",
+      "seq": 10,
+      "time": "2026-03-02T09:00:00.451Z",
+      "type": "decision.evaluated",
+      "level": "execution",
+      "workflow_id": "161c40a1-291c-5a17-bbd3-5f475edd29a8",
+      "token_id": "1e45b9aa-6918-5bad-ae59-6817c4dba56a",
+      "node_id": "e8de9557-ed66-546e-81ef-487b981ecd92",
+      "node_name": "Second look",
+      "data": {
+        "method": "model",
+        "strategy": "table_first",
+        "hit_policy": "first",
+        "inputs": {
+          "score": 0.2
+        },
+        "matched": true,
+        "matched_rules": [],
+        "outputs": {
+          "option": "review",
+          "confidence": 0.84
+        },
+        "edge_id": "482a4583-aecf-5d41-971d-ddfde351a800",
+        "used_default": false,
+        "model": {
+          "option": "review",
+          "confidence": 0.84,
+          "min_confidence": 0.6,
+          "votes": [
+            {
+              "option": "review",
+              "confidence": 0.84
+            }
+          ],
+          "usage": {
+            "input_tokens": 203,
+            "output_tokens": 41
+          }
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "26e0c6a7-4e4f-5bce-8c29-5fa5ee3313c8",
+      "run_id": "de8a65c2-efc1-5213-86d8-94d82efb62df",
+      "seq": 11,
+      "time": "2026-03-02T09:00:00.452Z",
+      "type": "token.moved",
+      "level": "execution",
+      "workflow_id": "161c40a1-291c-5a17-bbd3-5f475edd29a8",
+      "token_id": "1e45b9aa-6918-5bad-ae59-6817c4dba56a",
+      "node_id": "8189fd2f-3b11-586e-a82f-ad966813f994",
+      "node_name": "Adjuster review",
+      "data": {
+        "from_node_id": "e8de9557-ed66-546e-81ef-487b981ecd92",
+        "to_node_id": "8189fd2f-3b11-586e-a82f-ad966813f994",
+        "edge_id": "482a4583-aecf-5d41-971d-ddfde351a800",
+        "reason": "decision"
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "30e75321-1502-5694-b054-2eb92c48f45c",
+      "run_id": "de8a65c2-efc1-5213-86d8-94d82efb62df",
+      "seq": 12,
+      "time": "2026-03-02T09:00:00.452Z",
+      "type": "token.completed",
+      "level": "execution",
+      "workflow_id": "161c40a1-291c-5a17-bbd3-5f475edd29a8",
+      "token_id": "1e45b9aa-6918-5bad-ae59-6817c4dba56a",
+      "node_id": "8189fd2f-3b11-586e-a82f-ad966813f994",
+      "node_name": "Adjuster review",
+      "data": {}
+    },
+    {
+      "spec_version": "1.1",
+      "id": "134a2ea2-cd87-5907-8e79-af59c2279266",
+      "run_id": "de8a65c2-efc1-5213-86d8-94d82efb62df",
+      "seq": 13,
+      "time": "2026-03-02T09:00:00.452Z",
+      "type": "run.completed",
+      "level": "execution",
+      "workflow_id": "161c40a1-291c-5a17-bbd3-5f475edd29a8",
+      "data": {
+        "duration_ms": 452,
+        "steps": 1,
+        "input_tokens": 203,
+        "output_tokens": 41,
+        "cost": 0.001,
+        "currency": "EUR"
+      }
+    }
+  ],
+  "options": {
+    "payloads": false
+  },
+  "expect": {
+    "trace_id": "e7783b52137ccc955a52fe342f1bc061",
+    "span_count": 5,
+    "spans": [
+      {
+        "span_id": "28dbd1a411f7af02",
+        "events": [
+          "token.created",
+          "token.moved",
+          "token.moved",
+          "token.moved",
+          "token.completed"
+        ]
+      },
+      {
+        "span_id": "9e79204c735fa316",
+        "parent_span_id": "28dbd1a411f7af02",
+        "name": "decision Route",
+        "kind": "internal",
+        "start": "2026-03-02T09:00:00.101Z",
+        "end": "2026-03-02T09:00:00.103Z",
+        "status": "ok",
+        "attributes": {
+          "awa.node.id": "4be78159-a3e8-5ee9-b578-cef36adc3820",
+          "awa.token.id": "1e45b9aa-6918-5bad-ae59-6817c4dba56a",
+          "awa.decision.method": "table",
+          "awa.decision.strategy": "table",
+          "awa.decision.hit_policy": "first",
+          "awa.decision.matched_rules": [
+            1
+          ],
+          "awa.decision.outputs": "{\"route\":\"auto\"}",
+          "awa.decision.edge_id": "e402ea8b-e96b-5ac5-b1e3-c079b7ea70c7",
+          "awa.decision.used_default": false
+        },
+        "absent": [
+          "awa.decision.inputs",
+          "awa.decision.option",
+          "awa.attempt"
+        ],
+        "events": []
+      },
+      {
+        "span_id": "7895ef18e27a6eb7",
+        "parent_span_id": "28dbd1a411f7af02",
+        "name": "decision Second look",
+        "start": "2026-03-02T09:00:00.104Z",
+        "end": "2026-03-02T09:00:00.451Z",
+        "status": "ok",
+        "attributes": {
+          "awa.decision.method": "model",
+          "awa.decision.matched_rules": [],
+          "awa.decision.option": "review",
+          "awa.decision.confidence": 0.84
+        },
+        "events": [
+          "reasoning.recorded"
+        ]
+      },
+      {
+        "span_id": "b48cd49c0f855f50",
+        "parent_span_id": "7895ef18e27a6eb7",
+        "name": "chat classifier-small",
+        "kind": "client",
+        "start": "2026-03-02T09:00:00.104Z",
+        "end": "2026-03-02T09:00:00.450Z",
+        "status": "ok",
+        "attributes": {
+          "gen_ai.provider.name": "acme",
+          "gen_ai.request.model": "classifier-small",
+          "gen_ai.usage.input_tokens": 203,
+          "gen_ai.usage.output_tokens": 41
+        },
+        "absent": [
+          "awa.attempt",
+          "gen_ai.request.temperature"
+        ]
+      }
+    ]
+  }
+}

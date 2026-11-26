@@ -25,12 +25,52 @@ from .journey import (
 from .runtime_host import (
     AwaRuntime, InMemoryRuntimeStore, FileRuntimeStore, open_runtime_directory, add_definition, simulated_actors,
 )
+from .shared_store import SharedOperation, StoreConflict
+from .postgres_store import PostgresRuntimeStore, RUNTIME_STORE_VARIABLE, open_runtime_store
 from .kpi import MEASURES, compute_measures, measures_to_openmetrics
 from .context_manager import ContextError
 from .knowledge import KnowledgeBase, distill, guidance
 from .counterfactual import ReplayResult, compare_runs, counterfactual_replay, render_counterfactual_report
+from .migration import apply_assignments, as_migrated, check_assignments, compare_versions, plan_migration, rest_positions, token_wait
+from .evidence import compute_evidence, render_evidence_html, render_evidence_markdown, unresolved_citations
+from .evaluation import build_dataset, evaluate_dataset, render_evaluation_report
+from .shadow import ShadowRunner
+from .authorization import (
+    AuthorizationError, PolicyDecider, RunAuthorization, load_authorization, validate_policy, principal_from_claims, principal_named,
+)
+from .guardrails import GuardrailSet, GuardrailContext, run_check, redact, guardrail_integrity_errors, check_guardrail
+from .telemetry import (
+    RunTraceMapper, JourneyTraceMapper, TelemetrySpan, run_spans, journey_spans, run_trace_id, run_span_id,
+    journey_trace_id, journey_span_id, spans_to_otlp_json, spans_to_otlp_protobuf, measures_to_gauges,
+    gauges_to_otlp_json, gauges_to_otlp_protobuf, telemetry_resource,
+)
+from .telemetry_export import (
+    OtlpHttpExporter, RunTelemetry, JourneyTelemetry, otlp_exporter, resolve_telemetry, telemetry_from_env, signal_url,
+)
 
 __all__ = [
+    "RunTraceMapper",
+    "JourneyTraceMapper",
+    "TelemetrySpan",
+    "run_spans",
+    "journey_spans",
+    "run_trace_id",
+    "run_span_id",
+    "journey_trace_id",
+    "journey_span_id",
+    "spans_to_otlp_json",
+    "spans_to_otlp_protobuf",
+    "measures_to_gauges",
+    "gauges_to_otlp_json",
+    "gauges_to_otlp_protobuf",
+    "telemetry_resource",
+    "OtlpHttpExporter",
+    "RunTelemetry",
+    "JourneyTelemetry",
+    "otlp_exporter",
+    "resolve_telemetry",
+    "telemetry_from_env",
+    "signal_url",
     "Token",
     "TokenStatus",
     "ContextManager",
@@ -82,6 +122,11 @@ __all__ = [
     "open_runtime_directory",
     "add_definition",
     "simulated_actors",
+    "SharedOperation",
+    "StoreConflict",
+    "PostgresRuntimeStore",
+    "RUNTIME_STORE_VARIABLE",
+    "open_runtime_store",
     "MEASURES",
     "compute_measures",
     "measures_to_openmetrics",
@@ -92,5 +137,28 @@ __all__ = [
     "ReplayResult",
     "compare_runs",
     "counterfactual_replay",
+    "apply_assignments",
+    "as_migrated",
+    "check_assignments",
+    "compare_versions",
+    "plan_migration",
+    "rest_positions",
+    "token_wait",
     "render_counterfactual_report",
+    "compute_evidence",
+    "render_evidence_markdown",
+    "render_evidence_html",
+    "unresolved_citations",
+    "build_dataset",
+    "evaluate_dataset",
+    "render_evaluation_report",
+    "ShadowRunner",
+    # Identity and authorization (specification 30)
+    "AuthorizationError", "PolicyDecider", "RunAuthorization", "load_authorization", "validate_policy", "principal_from_claims", "principal_named",
+    "GuardrailSet",
+    "GuardrailContext",
+    "run_check",
+    "redact",
+    "guardrail_integrity_errors",
+    "check_guardrail",
 ]

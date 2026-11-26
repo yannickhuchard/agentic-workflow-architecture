@@ -72,6 +72,10 @@ class ToolCallContext:
     timeout_ms: float
     allowed_hosts: list[str] | None = None
     max_output_bytes: int = DEFAULT_MAX_OUTPUT_BYTES
+    # Connections kept for the run (MCP servers, gRPC channels), reused by later calls
+    sessions: Any = None
+    # The deployment's tool options
+    options: "ToolOptions | None" = None
 
     def __post_init__(self) -> None:
         self._deadline = time.monotonic() + self.timeout_ms / 1000
@@ -102,6 +106,20 @@ class ToolOptions:
     # In simulation mode, what each tool returns, by tool name
     simulated_results: dict[str, Any] = field(default_factory=dict)
     max_output_bytes: int = DEFAULT_MAX_OUTPUT_BYTES
+    # The MCP servers "mcp" bindings may call, by name (17.7): {"command", "args", "env", "cwd"}, a program started
+    # and spoken to over its standard input and output, held to allow_commands; or {"url", "headers"}, a Streamable
+    # HTTP address, held to allowed_hosts
+    mcp_servers: dict[str, dict[str, Any]] | None = None
+    # How "grpc" bindings learn their services and reach them (17.8): protos, include_dirs, reflection,
+    # plaintext_hosts, root_certificates
+    grpc: dict[str, Any] | None = None
+    # Connections kept open between calls (ToolSessions). The engine gives each run its own and closes them when the
+    # run ends or waits. A runner used on its own closes its connections after each call.
+    sessions: Any = None
+    # Asked before a call runs, after the deployment's permissions (17.3, 30.4): whether the principal performing the
+    # activity may call this tool, given {"tool", "link"}; answers {"allowed", "message"}. A call it does not allow is
+    # refused with FORBIDDEN. The engine sets it when the deployment has an authorization policy.
+    authorize: Callable[[dict[str, Any]], dict[str, Any]] | None = None
 
     @classmethod
     def of(cls, value: "ToolOptions | dict[str, Any] | None") -> "ToolOptions":
@@ -118,6 +136,12 @@ class ToolOptions:
 class ActorContext:
     """What the engine hands an actor for one attempt, besides the activity and the token"""
     tools: "ToolRunner | None" = None
+    # Journals an event of this attempt: record(type, data). The engine adds the token, the node and the attempt.
+    record: Callable[[str, dict[str, Any]], Any] | None = None
+    # Applies the journal's payload mode (9.4) to a value before it is journalled
+    payload: Callable[[Any], Any] | None = None
+    # The `seq` of the attempt's `activity.started` in the run's journal
+    attempt_seq: int | None = None
 
 
 # ----------------------------------------------------------------------
@@ -398,7 +422,19 @@ def _run_command(binding: ToolBinding, args: dict[str, Any], context: ToolCallCo
         return ToolExecution(stdout.strip(), 0)
 
 
-BUILT_IN_EXECUTORS: dict[str, ToolExecutor] = {"http": _run_http, "jsonrpc": _run_jsonrpc, "command": _run_command}
+def _run_mcp(binding: ToolBinding, args: dict[str, Any], context: ToolCallContext) -> ToolExecution:
+    from awa.runtime.protocols.mcp import call_mcp_tool
+    return ToolExecution(call_mcp_tool(binding, args, context))
+
+
+def _run_grpc(binding: ToolBinding, args: dict[str, Any], context: ToolCallContext) -> ToolExecution:
+    from awa.runtime.protocols.grpc import call_grpc
+    return call_grpc(binding, args, context)
+
+
+BUILT_IN_EXECUTORS: dict[str, ToolExecutor] = {
+    "http": _run_http, "jsonrpc": _run_jsonrpc, "command": _run_command, "mcp": _run_mcp, "grpc": _run_grpc,
+}
 
 
 # ----------------------------------------------------------------------
@@ -428,8 +464,12 @@ class ToolRunner:
         max_calls: int = 16,
         simulate: bool = False,
         now: Callable[[], float] | None = None,
+        guard: Callable[..., Any] | None = None,
     ):
         self._tools = list(tools)
+        # Guardrails around a call (specification 31.3): guard(stage, tool, value, call_id) returns the value as
+        # they left it and a refusal ({"code", "message"}) or None. Stage tool_call is the arguments, tool_result the result.
+        self._guard = guard
         self._options = ToolOptions.of(options)
         recorder = record or (lambda type, data: None)
         # Absent values are left out of the record
@@ -485,6 +525,16 @@ class ToolRunner:
         if self._calls > self._max_calls:
             return failure(ToolError(f"Tool call budget of {self._max_calls} exceeded", "TOOL_BUDGET_EXCEEDED"), False)
 
+        # Guardrails on the call come before anything else is checked, so that what they redact is what is validated and run (31.3)
+        if self._guard is not None:
+            args, refused = self._guard("tool_call", tool, args, call_id)
+            if refused:
+                return failure(ToolError(refused["message"], refused["code"]), False)
+            try:
+                link = tool_link(tool.binding, args)
+            except Exception:
+                link = None
+
         # 2. to 3. Arguments, then permissions, are checked before anything runs
         try:
             self._check_arguments(tool, args)
@@ -495,6 +545,10 @@ class ToolRunner:
             return failure(error, False)
         except ValueError as error:
             return failure(ToolError(str(error), "VALIDATION_ERROR"), False)
+        if self._options.authorize is not None:
+            verdict = self._options.authorize({"tool": name, **({"link": link} if link else {})})
+            if not verdict.get("allowed"):
+                return failure(ToolError(verdict.get("message") or f'Calling "{name}" is not allowed', "FORBIDDEN"), False)
 
         # 4. Recorded before it runs
         self._record("tool.invoked", {
@@ -514,6 +568,12 @@ class ToolRunner:
                 execution = self._execute(tool, args, call_id, timeout_ms)
         except Exception as error:
             return failure(error, True)
+        # Guardrails on what came back, before it is recorded or given to the actor (31.3)
+        if self._guard is not None:
+            result, refused = self._guard("tool_result", tool, execution.result, call_id)
+            if refused:
+                return failure(ToolError(refused["message"], refused["code"]), True)
+            execution = ToolExecution(result, execution.status)
 
         self._record("tool.completed", {
             "call_id": call_id, "tool": name, "link": link, "status": execution.status,
@@ -553,6 +613,24 @@ class ToolRunner:
             allowed = self._options.allow_commands
             if not allowed or (allowed is not True and binding.command not in allowed):
                 raise ToolError(f'This deployment does not allow the command "{binding.command}"', "PERMISSION_DENIED")
+        if binding.kind == "mcp" and "mcp" not in self._options.executors:
+            # A binding reaches only a server the deployment declares; a program is held to the rule for commands,
+            # an address to the list of hosts (17.4)
+            server = (self._options.mcp_servers or {}).get(binding.server or "")
+            if server is None:
+                raise ToolError(f'This deployment declares no MCP server "{binding.server}"', "PERMISSION_DENIED")
+            if "command" in server:
+                allowed = self._options.allow_commands
+                if not allowed or (allowed is not True and server["command"] not in allowed):
+                    raise ToolError(f'This deployment does not allow the command "{server["command"]}" that starts MCP server '
+                                    f'"{binding.server}"', "PERMISSION_DENIED")
+            else:
+                host = _host(str(server.get("url") or ""))
+                if self._options.allowed_hosts is not None and host not in self._options.allowed_hosts:
+                    raise ToolError(f'This deployment does not allow calls to host "{host}"', "PERMISSION_DENIED")
+        if binding.kind == "grpc":
+            from awa.runtime.protocols.grpc import check_grpc_permission
+            check_grpc_permission(binding.endpoint or "", self._options.allowed_hosts)
         if binding.kind in ("http", "jsonrpc") and self._options.allowed_hosts is not None:
             host = _host(http_request(binding, args)[1] if binding.kind == "http" else binding.endpoint or "")
             if host not in self._options.allowed_hosts:
@@ -571,8 +649,12 @@ class ToolRunner:
                 f'No executor is registered for "{binding.kind}" tools. Register one with tools["executors"]["{binding.kind}"]',
                 "VALIDATION_ERROR")
 
+        # Connections live as long as the run's sessions; a runner used on its own keeps them for this call only
+        from awa.runtime.protocols.sessions import ToolSessions
+        own_sessions = self._options.sessions is None
+        sessions = ToolSessions() if own_sessions else self._options.sessions
         context = ToolCallContext(call_id, dict(self._options.secrets), timeout_ms,
-                                  self._options.allowed_hosts, self._options.max_output_bytes)
+                                  self._options.allowed_hosts, self._options.max_output_bytes, sessions, self._options)
         outcome: dict[str, Any] = {}
 
         def run() -> None:
@@ -586,6 +668,8 @@ class ToolRunner:
         worker = threading.Thread(target=run, daemon=True, name=f"awa-tool-{tool.name}")
         worker.start()
         worker.join(timeout_ms / 1000)
+        if own_sessions:
+            sessions.close()
         if worker.is_alive():
             raise ToolError(f'Tool "{tool.name}" timed out after {timeout_ms:g} ms', "TIMEOUT")
         if "error" in outcome:

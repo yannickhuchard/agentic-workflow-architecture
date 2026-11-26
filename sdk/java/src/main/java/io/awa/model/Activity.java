@@ -106,6 +106,15 @@ public class Activity extends AwaObject {
     /** Functions the actor may call while performing the activity (section 17). */
     private List<Tool> tools;
 
+    /** The agent that performs this activity over A2A, replacing its role's (section 28). */
+    private A2AAgent a2a;
+
+    /** Guardrails on this activity's input, output and tool calls (section 31). */
+    private List<Guardrail> guardrails;
+
+    /** How a call activity's child run is given its input and gives back its output (section 24). */
+    private SubworkflowMapping subworkflow;
+
     /** How to undo an activity (section 13.6). */
     @Data
     @Builder

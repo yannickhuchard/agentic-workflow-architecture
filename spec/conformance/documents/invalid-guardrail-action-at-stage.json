@@ -1,0 +1,37 @@
+{
+  "id": "invalid-guardrail-action-at-stage",
+  "level": "guardrails",
+  "description": "retry_with_feedback is not an action of stage input.",
+  "valid": false,
+  "document": {
+    "id": "44d2652b-6a32-5f8a-8183-9f26a046152d",
+    "name": "invalid-guardrail-action-at-stage",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "451e9c84-c2e1-500f-8f63-abfae80da1c7",
+        "name": "A",
+        "role_id": "ad82a937-2e9a-5b67-8ad6-7512866a73ef",
+        "actor_type": "ai_agent",
+        "guardrails": [
+          {
+            "id": "428962f0-5b26-5645-96ab-ce01e5b38008",
+            "name": "g",
+            "stages": [
+              "input"
+            ],
+            "check": {
+              "kind": "size",
+              "max_characters": 10
+            },
+            "action": "retry_with_feedback"
+          }
+        ]
+      }
+    ],
+    "edges": []
+  },
+  "stage": "integrity",
+  "error_code": "invalid_guardrail"
+}

@@ -2,8 +2,12 @@ import { Router } from 'express';
 import { WorkflowEngine } from '../../runtime/workflow_engine';
 import { parse_document } from '../../validator';
 import { FileJournalStore, JournalEvent } from '../../runtime/journal';
+import { shared_telemetry_from_env } from '../../runtime/telemetry_export';
 import fs from 'fs/promises';
 import path from 'path';
+import { AuthorizationError } from '../../runtime/authorization';
+import { authorize_request, forbidden, request_principal, server_authorization } from '../authorization';
+import { server_deployment_options } from '../deployment';
 
 export const workflowRouter = Router();
 
@@ -43,14 +47,26 @@ workflowRouter.post('/run', async (req, res) => {
         }
 
         const key = apiKey || process.env.GEMINI_API_KEY;
+        const principal = request_principal(req);
+        const authorization = server_authorization();
         const engine = new WorkflowEngine(workflow, {
+            // What the deployment lets the run reach, and its guardrails (spec 17.4, 28.2, 31.1)
+            ...server_deployment_options(),
             gemini_api_key: key,
             simulate: req.body.simulate === true,
             journal: process.env.AWA_JOURNAL_DIR ? new FileJournalStore(process.env.AWA_JOURNAL_DIR) : undefined,
+            telemetry: shared_telemetry_from_env(),
+            // Who starts the run, and what the policy lets them and the run's agents do (spec 30)
+            ...(authorization ? { authorization, principal } : {}),
         });
-        track(engine);
 
-        await engine.start(req.body.input || {});
+        try {
+            await engine.start(req.body.input || {});
+        } catch (error) {
+            if (error instanceof AuthorizationError) return forbidden(res, error, principal);
+            throw error;
+        }
+        track(engine);
         const runId = engine.getRunId();
 
         // Run in background? Or wait? 
@@ -88,6 +104,7 @@ workflowRouter.post('/events', async (req, res) => {
     if (!event || typeof event.type !== 'string' || typeof event.id !== 'string') {
         return res.status(400).json({ error: 'A CloudEvents event with "id" and "type" is required' });
     }
+    if (!await authorize_request(req, res, 'publish_event', { event_type: event.type }, event.data || {})) return;
     const resumed: string[] = [];
     for (const engine of runs.values()) {
         if (await engine.deliverEvent({ specversion: '1.0', source: '/http', ...event }) > 0) {
@@ -117,6 +134,33 @@ workflowRouter.get('/runs/:runId', (req, res) => {
     });
 });
 
+// The tokens of a run waiting for input an agent over A2A asked for, with what it asked (spec 28.6)
+workflowRouter.get('/runs/:runId/agent-requests', (req, res) => {
+    const engine = runs.get(req.params.runId);
+    if (!engine) return res.status(404).json({ error: 'Run not found' });
+    res.json(engine.getAgentRequests());
+});
+
+// Give an agent the input it asked for: { "input": <object or text> }. The run goes on in the background.
+workflowRouter.post('/runs/:runId/tokens/:tokenId/agent-input', async (req, res) => {
+    const engine = runs.get(req.params.runId);
+    if (!engine) return res.status(404).json({ error: 'Run not found' });
+    const input = req.body?.input;
+    if (input === null || (typeof input !== 'string' && (typeof input !== 'object' || Array.isArray(input)))) {
+        return res.status(400).json({ error: 'An "input" object or text is required' });
+    }
+    if (!await authorize_request(req, res, 'answer_agent', { ...run_resource(engine) })) return;
+    if (!await engine.answerAgent(req.params.tokenId, input)) return res.status(409).json({ error: 'That token is not waiting for an agent\'s input' });
+    (async () => {
+        try {
+            while (engine.getStatus() === 'running') await engine.runStep();
+        } catch (err) {
+            console.error(`Run ${engine.getRunId()} failed after agent input:`, err);
+        }
+    })();
+    res.json({ runId: engine.getRunId(), status: engine.getStatus() });
+});
+
 // The workflow definition of a run, for visualisers
 workflowRouter.get('/runs/:runId/workflow', (req, res) => {
     const engine = runs.get(req.params.runId);
@@ -124,10 +168,16 @@ workflowRouter.get('/runs/:runId/workflow', (req, res) => {
     res.json(engine.getWorkflow());
 });
 
+/** A run as the resource of an action (spec 30.2) */
+function run_resource(engine: WorkflowEngine) {
+    return { workflow_id: engine.getWorkflow().id, workflow_name: engine.getWorkflow().name, run_id: engine.getRunId() };
+}
+
 // Journal of a run. `?after=<seq>` returns only later events.
 workflowRouter.get('/runs/:runId/events', async (req, res) => {
     const engine = runs.get(req.params.runId);
     if (!engine) return res.status(404).json({ error: 'Run not found' });
+    if (!await authorize_request(req, res, 'read_journal', run_resource(engine))) return;
     res.json(await engine.getEvents(Number(req.query.after) || 0));
 });
 
@@ -136,6 +186,7 @@ workflowRouter.get('/runs/:runId/events', async (req, res) => {
 workflowRouter.get('/runs/:runId/events/stream', async (req, res) => {
     const engine = runs.get(req.params.runId);
     if (!engine) return res.status(404).json({ error: 'Run not found' });
+    if (!await authorize_request(req, res, 'read_journal', run_resource(engine))) return;
 
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
 

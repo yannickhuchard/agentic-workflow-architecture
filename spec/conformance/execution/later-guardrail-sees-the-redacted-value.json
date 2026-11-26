@@ -1,0 +1,78 @@
+{
+  "id": "later-guardrail-sees-the-redacted-value",
+  "level": "guardrails",
+  "spec": "31.6",
+  "description": "Each guardrail checks the value as the ones before it left it: after the workflow's guardrail redacts an email, the activity's finds nothing.",
+  "workflow": {
+    "id": "a68db496-03a6-5bf3-ace4-2960ff5785b8",
+    "name": "later-guardrail-sees-the-redacted-value",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "04e5ad9c-61aa-5c26-abd8-be5f2bc6663f",
+        "name": "Draft",
+        "role_id": "70e6aeba-2bd1-57b1-84f0-061a9a5fcfc4",
+        "actor_type": "ai_agent",
+        "guardrails": [
+          {
+            "id": "21450193-ee19-59c8-b6bb-877d5effcd16",
+            "name": "Emails, again",
+            "stages": [
+              "output"
+            ],
+            "check": {
+              "kind": "personal_data",
+              "categories": [
+                "email"
+              ]
+            },
+            "action": "block"
+          }
+        ]
+      }
+    ],
+    "edges": [],
+    "guardrails": [
+      {
+        "id": "3549ea71-6f9c-52c1-9d61-3eb47c76a4b7",
+        "name": "Emails",
+        "stages": [
+          "output"
+        ],
+        "check": {
+          "kind": "personal_data",
+          "categories": [
+            "email"
+          ]
+        },
+        "action": "redact"
+      }
+    ]
+  },
+  "actors": {
+    "Draft": {
+      "output": {
+        "reply": "Ask jane@example.com"
+      }
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "data": {
+      "reply": "Ask [REDACTED:email]"
+    },
+    "journal_count": {
+      "guardrail.triggered": 1
+    },
+    "journal_contains": [
+      {
+        "type": "guardrail.triggered",
+        "data": {
+          "source": "workflow",
+          "action": "redact"
+        }
+      }
+    ]
+  }
+}

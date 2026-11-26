@@ -109,7 +109,30 @@
         },
         "expansion_workflow_id": {
             "$ref": "awa.schema.json#/$defs/uuid",
-            "description": "Sub-workflow expanding this activity"
+            "description": "Sub-workflow expanding this activity. With is_expandable true, the activity is performed by a child run of this workflow (specification 24)"
+        },
+        "subworkflow": {
+            "type": "object",
+            "description": "How a call activity's child run is given its input and how its output becomes the activity's outcome (specification 24.1)",
+            "properties": {
+                "input": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "description": "Each property of the child run's input, with the path in the parent token's data it is read from. When absent, the child is given the data the activity would be given"
+                },
+                "output": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "description": "Each property of the activity's outcome, with the path in the child run's output it is read from. When absent, the outcome is the child run's output"
+                }
+            },
+            "additionalProperties": false
         },
         "skills": {
             "type": "array",
@@ -209,6 +232,17 @@
                 "$ref": "#/$defs/tool"
             },
             "description": "Functions the actor may call while performing the activity. Every call is journalled with a link to what it ran."
+        },
+        "a2a": {
+            "$ref": "#/$defs/a2a_agent",
+            "description": "The agent that performs this activity over A2A, replacing its role's"
+        },
+        "guardrails": {
+            "type": "array",
+            "items": {
+                "$ref": "guardrail.schema.json"
+            },
+            "description": "Guardrails on this activity's input, output and tool calls (section 31)"
         }
     },
     "$defs": {
@@ -575,6 +609,13 @@
                 "timeout": {
                     "$ref": "awa.schema.json#/$defs/duration",
                     "default": "PT30S"
+                },
+                "guardrails": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "guardrail.schema.json"
+                    },
+                    "description": "Guardrails on every call of this tool, at stages tool_call and tool_result (section 31)"
                 }
             }
         },
@@ -718,6 +759,41 @@
                     }
                 }
             ]
+        },
+        "a2a_agent": {
+            "type": "object",
+            "description": "An agent reached over the Agent2Agent protocol (A2A 1.0) that performs the activity (specification section 28)",
+            "required": [
+                "agent_card"
+            ],
+            "properties": {
+                "agent_card": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "URL of the agent's card"
+                },
+                "skill": {
+                    "type": "string",
+                    "description": "Id of the skill on the card the work is for"
+                },
+                "on_input_required": {
+                    "type": "string",
+                    "enum": [
+                        "wait",
+                        "fail"
+                    ],
+                    "default": "wait",
+                    "description": "wait: the token waits for the host to give the input the agent asks for. fail: the attempt fails with AGENT_INPUT_REQUIRED"
+                },
+                "headers": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    },
+                    "description": "Headers sent with every request to the agent. {{secret:NAME}} is replaced by a secret the deployment supplies. Never journalled."
+                }
+            },
+            "additionalProperties": false
         }
     }
 }

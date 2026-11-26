@@ -5,9 +5,21 @@
 
 import { Router } from 'express';
 import { TaskService } from '../../runtime/services/task_service';
-import { require_role, require_permission } from '../auth';
+import { Request, Response } from 'express';
+import { authorize_request, named_principal, request_principal, server_authorization, task_resource } from '../authorization';
 
 export const humanTaskRouter = Router();
+
+/**
+ * Under a policy, whether the caller may answer the task (complete_task, spec 30.4). The queue does not host the run:
+ * the task's inputs are the run's data, and separation of duties and four-eyes rules apply where the run is hosted.
+ */
+async function may_answer(req: Request, res: Response): Promise<boolean> {
+    if (!server_authorization()) return true;
+    const current = await TaskService.get(String(req.params.id));
+    if (!current) { res.status(404).json({ error: 'Task not found' }); return false; }
+    return authorize_request(req, res, 'complete_task', task_resource(current), current.inputs);
+}
 
 /**
  * GET /api/v1/tasks
@@ -92,6 +104,15 @@ humanTaskRouter.post('/:id/assign', async (req, res) => {
         if (!user_id) {
             return res.status(400).json({ error: 'user_id is required' });
         }
+        // The assignee must be allowed to claim the task; a caller who assigns it to someone else, to assign it (spec 30.4)
+        if (server_authorization()) {
+            const current = await TaskService.get(req.params.id);
+            if (!current) return res.status(404).json({ error: 'Task not found' });
+            const caller = request_principal(req);
+            const assignee = caller.id === user_id ? caller : named_principal(user_id);
+            if (!await authorize_request(req, res, 'claim_task', task_resource(current), current.inputs, assignee)) return;
+            if (assignee !== caller && !await authorize_request(req, res, 'assign_task', task_resource(current), current.inputs, caller)) return;
+        }
 
         const task = await TaskService.assign(req.params.id, user_id, assigner_id, assigner_type);
         res.json({
@@ -112,6 +133,7 @@ humanTaskRouter.post('/:id/assign', async (req, res) => {
 humanTaskRouter.post('/:id/complete', async (req, res) => {
     try {
         const { result } = req.body;
+        if (!await may_answer(req, res)) return;
 
         const task = await TaskService.complete(req.params.id, result || {});
         res.json({
@@ -131,6 +153,8 @@ humanTaskRouter.post('/:id/complete', async (req, res) => {
 humanTaskRouter.post('/:id/reject', async (req, res) => {
     try {
         const { reason } = req.body;
+        // Rejecting a task is answering it (spec 30.2)
+        if (!await may_answer(req, res)) return;
 
         const task = await TaskService.reject(req.params.id, reason || 'Rejected by user');
         res.json({

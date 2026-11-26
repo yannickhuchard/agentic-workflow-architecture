@@ -1,0 +1,216 @@
+{
+  "id": "bpmn-inclusive-gateway",
+  "level": "interchange",
+  "spec": "27.4",
+  "kind": "import_bpmn",
+  "description": "An inclusive split becomes a parallel split into guards that take or skip their branch, and every branch meets the matching join through a merge, so the join waits for exactly one token per branch.",
+  "bpmn": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<bpmn:definitions xmlns:bpmn=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:awa=\"https://awa.io/schema/interchange/1.1\" id=\"Definitions_or\" targetNamespace=\"https://example.com/bpmn\">\n<bpmn:process id=\"P\" name=\"Claim checks\">\n<bpmn:startEvent id=\"S\"/>\n<bpmn:serviceTask id=\"T_in\" name=\"Assess\"/>\n<bpmn:inclusiveGateway id=\"G\" name=\"Which checks?\" default=\"F_none\"/>\n<bpmn:serviceTask id=\"T_med\" name=\"Medical check\"/>\n<bpmn:serviceTask id=\"T_veh\" name=\"Vehicle check\"/>\n<bpmn:serviceTask id=\"T_none\" name=\"Basic check\"/>\n<bpmn:inclusiveGateway id=\"J\" name=\"Checks done\"/>\n<bpmn:serviceTask id=\"T_out\" name=\"Decide\"/>\n<bpmn:endEvent id=\"E\"/>\n<bpmn:sequenceFlow id=\"F1\" sourceRef=\"S\" targetRef=\"T_in\"/>\n<bpmn:sequenceFlow id=\"F2\" sourceRef=\"T_in\" targetRef=\"G\"/>\n<bpmn:sequenceFlow id=\"F_med\" sourceRef=\"G\" targetRef=\"T_med\" name=\"injury\"><bpmn:conditionExpression xsi:type=\"bpmn:tFormalExpression\" language=\"https://www.omg.org/spec/DMN/20191111/FEEL/\">injury = true</bpmn:conditionExpression></bpmn:sequenceFlow>\n<bpmn:sequenceFlow id=\"F_veh\" sourceRef=\"G\" targetRef=\"T_veh\"><bpmn:conditionExpression xsi:type=\"bpmn:tFormalExpression\" language=\"https://www.omg.org/spec/DMN/20191111/FEEL/\">vehicle_damage = true</bpmn:conditionExpression></bpmn:sequenceFlow>\n<bpmn:sequenceFlow id=\"F_none\" sourceRef=\"G\" targetRef=\"T_none\"/>\n<bpmn:sequenceFlow id=\"F_m\" sourceRef=\"T_med\" targetRef=\"J\"/>\n<bpmn:sequenceFlow id=\"F_v\" sourceRef=\"T_veh\" targetRef=\"J\"/>\n<bpmn:sequenceFlow id=\"F_n\" sourceRef=\"T_none\" targetRef=\"J\"/>\n<bpmn:sequenceFlow id=\"F_o\" sourceRef=\"J\" targetRef=\"T_out\"/>\n<bpmn:sequenceFlow id=\"F_e\" sourceRef=\"T_out\" targetRef=\"E\"/>\n</bpmn:process>\n</bpmn:definitions>\n",
+  "expect": {
+    "documents": [
+      {
+        "id": "9cf930e0-70e8-5cc6-b14c-b977c271abc2",
+        "name": "Claim checks",
+        "version": "1.0.0",
+        "awa_version": "1.1",
+        "roles": [
+          {
+            "id": "bb2ef5d6-bb9b-5668-9aec-a353a2450fbc",
+            "name": "Application",
+            "actor_type": "application"
+          }
+        ],
+        "activities": [
+          {
+            "id": "7b9f24c2-13e0-558e-88c1-3f8b54f1fbde",
+            "name": "Assess",
+            "role_id": "bb2ef5d6-bb9b-5668-9aec-a353a2450fbc",
+            "actor_type": "application"
+          },
+          {
+            "id": "9fdc9d82-8810-5c4d-98b7-6d8a7af4d6d6",
+            "name": "Medical check",
+            "role_id": "bb2ef5d6-bb9b-5668-9aec-a353a2450fbc",
+            "actor_type": "application"
+          },
+          {
+            "id": "5d0fa2b5-a1a0-5eee-8cc4-53ec2aaba59e",
+            "name": "Vehicle check",
+            "role_id": "bb2ef5d6-bb9b-5668-9aec-a353a2450fbc",
+            "actor_type": "application"
+          },
+          {
+            "id": "463939f0-345f-50d5-9519-4841572651f8",
+            "name": "Basic check",
+            "role_id": "bb2ef5d6-bb9b-5668-9aec-a353a2450fbc",
+            "actor_type": "application"
+          },
+          {
+            "id": "89742384-9e33-5789-ad42-5a924b1f96ec",
+            "name": "Decide",
+            "role_id": "bb2ef5d6-bb9b-5668-9aec-a353a2450fbc",
+            "actor_type": "application"
+          }
+        ],
+        "edges": [
+          {
+            "id": "cbb350ef-eedc-5276-9c12-2458d4067f52",
+            "source_id": "f9c9af3e-ad97-5487-a271-ee97adb48342",
+            "target_id": "7b9f24c2-13e0-558e-88c1-3f8b54f1fbde"
+          },
+          {
+            "id": "5bb0bcec-f163-59fb-8577-50e269f8fe75",
+            "source_id": "7b9f24c2-13e0-558e-88c1-3f8b54f1fbde",
+            "target_id": "0fdd04e9-e352-5709-8cf9-ebadab0c21dc"
+          },
+          {
+            "id": "e6039730-aef0-537b-a8cb-6267cf8e7747",
+            "source_id": "959f152d-384d-57b5-ac60-a50a3d206f1e",
+            "target_id": "9fdc9d82-8810-5c4d-98b7-6d8a7af4d6d6",
+            "condition": "injury == true",
+            "label": "injury"
+          },
+          {
+            "id": "1e371c35-5070-5092-b5de-63de249ee27c",
+            "source_id": "904f84dc-b7f1-510b-9a6f-22015ba04256",
+            "target_id": "5d0fa2b5-a1a0-5eee-8cc4-53ec2aaba59e",
+            "condition": "vehicle_damage == true"
+          },
+          {
+            "id": "d14ffb56-0be1-5d03-9bdc-06dd2b0f1e98",
+            "source_id": "e3a39295-9ade-503e-87d1-d0203cd7bc76",
+            "target_id": "463939f0-345f-50d5-9519-4841572651f8",
+            "condition": "!(injury == true) && !(vehicle_damage == true)"
+          },
+          {
+            "id": "a84b3a17-9305-5217-b2be-956b85298780",
+            "source_id": "9fdc9d82-8810-5c4d-98b7-6d8a7af4d6d6",
+            "target_id": "08e3803c-0f14-5723-b6a8-ce73f9a29adc"
+          },
+          {
+            "id": "3dc2afa7-0383-5385-a7b7-f4c9c7257611",
+            "source_id": "5d0fa2b5-a1a0-5eee-8cc4-53ec2aaba59e",
+            "target_id": "08996c16-2bb6-5189-8b4b-b5249d5c57ac"
+          },
+          {
+            "id": "eb367196-eb9d-574b-b71a-077b33636dc3",
+            "source_id": "463939f0-345f-50d5-9519-4841572651f8",
+            "target_id": "f2097112-6d9f-5b1e-8301-c0576bf4680f"
+          },
+          {
+            "id": "39fa4ac0-461d-5b14-9899-8225234ca298",
+            "source_id": "b13058d4-c02d-500d-b011-b66554e0d779",
+            "target_id": "89742384-9e33-5789-ad42-5a924b1f96ec"
+          },
+          {
+            "id": "33f6b422-dffa-52af-b70c-a33c6daf4366",
+            "source_id": "89742384-9e33-5789-ad42-5a924b1f96ec",
+            "target_id": "e15d33df-92ac-564a-bcca-dd3e3c21e759"
+          },
+          {
+            "id": "7e2c68bc-5dc9-53f5-a0cf-347426b8eb52",
+            "source_id": "08e3803c-0f14-5723-b6a8-ce73f9a29adc",
+            "target_id": "b13058d4-c02d-500d-b011-b66554e0d779"
+          },
+          {
+            "id": "9b3561f8-420f-5fdb-8582-7edbab5da279",
+            "source_id": "08996c16-2bb6-5189-8b4b-b5249d5c57ac",
+            "target_id": "b13058d4-c02d-500d-b011-b66554e0d779"
+          },
+          {
+            "id": "74b20a69-bb48-5b41-b06c-f9e7570015be",
+            "source_id": "f2097112-6d9f-5b1e-8301-c0576bf4680f",
+            "target_id": "b13058d4-c02d-500d-b011-b66554e0d779"
+          },
+          {
+            "id": "2955ef98-48e0-5ec7-af83-da269ef75182",
+            "source_id": "0fdd04e9-e352-5709-8cf9-ebadab0c21dc",
+            "target_id": "959f152d-384d-57b5-ac60-a50a3d206f1e"
+          },
+          {
+            "id": "65e3c9d6-4d6d-5a51-8d78-240c3fd1711e",
+            "source_id": "959f152d-384d-57b5-ac60-a50a3d206f1e",
+            "target_id": "08e3803c-0f14-5723-b6a8-ce73f9a29adc",
+            "is_default": true
+          },
+          {
+            "id": "feff8411-33b8-5216-bb12-a2ada4b0026a",
+            "source_id": "0fdd04e9-e352-5709-8cf9-ebadab0c21dc",
+            "target_id": "904f84dc-b7f1-510b-9a6f-22015ba04256"
+          },
+          {
+            "id": "17b3dde0-9fa6-5554-9c1c-0962761d6b81",
+            "source_id": "904f84dc-b7f1-510b-9a6f-22015ba04256",
+            "target_id": "08996c16-2bb6-5189-8b4b-b5249d5c57ac",
+            "is_default": true
+          },
+          {
+            "id": "5ea5caa9-51a0-5f38-937f-e19eb9f7c4d4",
+            "source_id": "0fdd04e9-e352-5709-8cf9-ebadab0c21dc",
+            "target_id": "e3a39295-9ade-503e-87d1-d0203cd7bc76"
+          },
+          {
+            "id": "2c392e34-3a09-5397-8081-843a960d9332",
+            "source_id": "e3a39295-9ade-503e-87d1-d0203cd7bc76",
+            "target_id": "f2097112-6d9f-5b1e-8301-c0576bf4680f",
+            "is_default": true
+          }
+        ],
+        "events": [
+          {
+            "id": "f9c9af3e-ad97-5487-a271-ee97adb48342",
+            "name": "S",
+            "event_type": "start"
+          },
+          {
+            "id": "0fdd04e9-e352-5709-8cf9-ebadab0c21dc",
+            "name": "Which checks?",
+            "event_type": "intermediate",
+            "bpmn:gateway": "inclusive"
+          },
+          {
+            "id": "959f152d-384d-57b5-ac60-a50a3d206f1e",
+            "name": "Which checks?: injury",
+            "event_type": "intermediate"
+          },
+          {
+            "id": "904f84dc-b7f1-510b-9a6f-22015ba04256",
+            "name": "Which checks?: F_veh",
+            "event_type": "intermediate"
+          },
+          {
+            "id": "e3a39295-9ade-503e-87d1-d0203cd7bc76",
+            "name": "Which checks?: F_none",
+            "event_type": "intermediate"
+          },
+          {
+            "id": "b13058d4-c02d-500d-b011-b66554e0d779",
+            "name": "Checks done",
+            "event_type": "intermediate",
+            "join": "all",
+            "bpmn:gateway": "inclusive"
+          },
+          {
+            "id": "08e3803c-0f14-5723-b6a8-ce73f9a29adc",
+            "name": "Checks done: injury",
+            "event_type": "intermediate"
+          },
+          {
+            "id": "08996c16-2bb6-5189-8b4b-b5249d5c57ac",
+            "name": "Checks done: F_veh",
+            "event_type": "intermediate"
+          },
+          {
+            "id": "f2097112-6d9f-5b1e-8301-c0576bf4680f",
+            "name": "Checks done: F_none",
+            "event_type": "intermediate"
+          },
+          {
+            "id": "e15d33df-92ac-564a-bcca-dd3e3c21e759",
+            "name": "E",
+            "event_type": "end"
+          }
+        ]
+      }
+    ]
+  }
+}

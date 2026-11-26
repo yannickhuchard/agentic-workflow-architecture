@@ -1,4 +1,4 @@
-// Produces the sample runs of this example: their journals, their recipes,
+// Produces the sample runs of this example: their journals, their recipes, their OpenTelemetry traces,
 // and the sample data for tools/visualization/replay.html.
 //
 //   cd sdk/typescript && npm install && npm run build
@@ -11,7 +11,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { WorkflowEngine, parse_document, FileJournalStore, parse_journal, compile_recipe, KnowledgeBase, FunctionModelProvider } from '../../sdk/typescript/dist/index.mjs';
+import { WorkflowEngine, parse_document, FileJournalStore, parse_journal, compile_recipe, KnowledgeBase, FunctionModelProvider, run_spans, spans_to_otlp_json } from '../../sdk/typescript/dist/index.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const workflow = parse_document(JSON.parse(fs.readFileSync(path.join(here, 'claims-settlement.awa.json'), 'utf-8')));
@@ -145,6 +145,12 @@ const reviewed = await run('model-decision', { fraud_score: 0.45, cost: 8200 });
 fs.writeFileSync(path.join(here, 'RECIPE.md'), compile_recipe(workflow, completed.events) + '\n');
 fs.writeFileSync(path.join(here, 'runs', 'failed-and-compensated.recipe.md'),
     compile_recipe(workflow, failed.events, { include_definition: false }) + '\n');
+
+// Each run as OpenTelemetry traces (specification 26). The Python SDK's tests check that it exports the same
+fs.mkdirSync(path.join(here, 'telemetry'), { recursive: true });
+for (const [name, recorded] of [['completed', completed], ['failed-and-compensated', failed], ['model-decision', reviewed]]) {
+    fs.writeFileSync(path.join(here, 'telemetry', `${name}.otlp.json`), JSON.stringify(spans_to_otlp_json(run_spans(workflow, recorded.events)), null, 2) + '\n');
+}
 
 // Knowledge distilled from both runs, with the damage-assessment entries
 // reviewed, exported as an Open Knowledge Format bundle.

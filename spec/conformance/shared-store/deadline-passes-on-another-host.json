@@ -1,0 +1,172 @@
+{
+  "id": "deadline-passes-on-another-host",
+  "level": "shared_store",
+  "spec": "29.5",
+  "description": "A deadline fixed by a host that has since stopped passes when another host lets time pass: the waiting run takes its timeout edge there, and the journey learns what that path established.",
+  "start": "2026-03-02T09:00:00Z",
+  "hosts": [
+    "a",
+    "b"
+  ],
+  "workflows": [
+    {
+      "id": "33981c61-b62c-5360-bf07-d6ffbe974dc9",
+      "name": "Claim",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "9d9d4123-3c36-50e8-8143-1ff72c40c94d",
+          "name": "Register",
+          "role_id": "237e6ecc-2614-5a6a-96aa-819aeffdf631",
+          "actor_type": "application"
+        },
+        {
+          "id": "2130a421-76a5-5a65-94d1-38261f42b0fe",
+          "name": "Settle",
+          "role_id": "237e6ecc-2614-5a6a-96aa-819aeffdf631",
+          "actor_type": "application"
+        },
+        {
+          "id": "38d2fb9f-5f31-51a4-9c6b-59c4ac6fb2da",
+          "name": "Close",
+          "role_id": "237e6ecc-2614-5a6a-96aa-819aeffdf631",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "efbf1c7d-e9a3-5175-aba5-c5b8eeab3708",
+          "source_id": "9d9d4123-3c36-50e8-8143-1ff72c40c94d",
+          "target_id": "e38223dd-a0fe-5948-90fb-26ac0df8462b"
+        },
+        {
+          "id": "fd187d5f-6aa2-562e-9781-731f312b103a",
+          "source_id": "e38223dd-a0fe-5948-90fb-26ac0df8462b",
+          "target_id": "2130a421-76a5-5a65-94d1-38261f42b0fe"
+        },
+        {
+          "id": "5b470028-c37f-535a-943f-f29c4cbd7c2d",
+          "source_id": "e38223dd-a0fe-5948-90fb-26ac0df8462b",
+          "target_id": "38d2fb9f-5f31-51a4-9c6b-59c4ac6fb2da"
+        }
+      ],
+      "events": [
+        {
+          "id": "e38223dd-a0fe-5948-90fb-26ac0df8462b",
+          "name": "Documents",
+          "event_type": "message",
+          "event_definition": {
+            "name": "documents.uploaded",
+            "correlation_key": "customer_id",
+            "timeout": "P5D",
+            "timeout_edge_id": "5b470028-c37f-535a-943f-f29c4cbd7c2d"
+          }
+        }
+      ]
+    }
+  ],
+  "journeys": [
+    {
+      "id": "ae76b429-03c8-57dd-9c9c-3767a349d1f4",
+      "name": "Claim",
+      "version": "1.0.0",
+      "subject": {
+        "name": "customer",
+        "key": "customer_id"
+      },
+      "stages": [
+        {
+          "id": "open",
+          "name": "Open",
+          "workflows": [
+            "33981c61-b62c-5360-bf07-d6ffbe974dc9"
+          ],
+          "complete_when": "paid == true",
+          "transitions": []
+        }
+      ],
+      "triggers": [
+        {
+          "event": "claim.submitted",
+          "starts_journey": true,
+          "start_workflow": "33981c61-b62c-5360-bf07-d6ffbe974dc9"
+        }
+      ]
+    }
+  ],
+  "actors": {
+    "Register": {
+      "output": {
+        "claim_id": "CLM-1"
+      }
+    },
+    "Settle": {
+      "output": {
+        "paid": true
+      }
+    },
+    "Close": {
+      "output": {
+        "closed": true
+      }
+    }
+  },
+  "steps": [
+    {
+      "host": "a",
+      "publish": {
+        "type": "claim.submitted",
+        "data": {
+          "customer_id": "c-1"
+        }
+      }
+    },
+    {
+      "stop": "a"
+    },
+    {
+      "advance": "P4D"
+    },
+    {
+      "host": "b",
+      "tick": true,
+      "expect": {
+        "timed_out_runs": 0
+      }
+    },
+    {
+      "advance": "P2D"
+    },
+    {
+      "host": "b",
+      "tick": true,
+      "expect": {
+        "timed_out_runs": 1
+      }
+    }
+  ],
+  "expect": {
+    "run_count": 1,
+    "instances": [
+      {
+        "journey": "Claim",
+        "runs": [
+          "completed"
+        ],
+        "data": {
+          "closed": true
+        },
+        "run_journal": [
+          "run.started",
+          "event.waiting",
+          "event.timed_out",
+          "run.completed"
+        ],
+        "run_journal_excludes": [
+          "run.resumed"
+        ]
+      }
+    ]
+  }
+}

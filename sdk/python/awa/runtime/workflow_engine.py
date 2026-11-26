@@ -9,6 +9,7 @@ given entries of a knowledge base (15.4).
 """
 
 import copy
+import dataclasses
 import inspect
 import os
 import time
@@ -51,9 +52,14 @@ from awa.runtime.decision_model import ModelDecision, decide_with_model
 from awa.runtime.model_config import DEFAULT_AI_MODEL_ID
 from awa.runtime.models import ModelRegistry, ModelRouter, RouteAttempt
 from awa.runtime.tools import ActorContext, ToolOptions, ToolRunner
+from awa.runtime.protocols.sessions import ToolSessions
+from awa.runtime.protocols.a2a import A2AActor, A2AOptions, A2ARunState, a2a_binding
+from awa.runtime.authorization import RunAuthorization, principal_ref
 from awa.validator import validate_workflow_integrity
 from awa.runtime.expression import evaluate_expression, resolve_path
 from awa.runtime.duration import parse_iso_duration
+from awa.runtime.telemetry_export import open_run_telemetry
+from awa.runtime.subworkflow import SubworkflowCalls, is_call_activity
 from awa.runtime.journal import (
     InMemoryJournalStore, JournalEvent, JournalListener, JournalWriter,
     format_time, hash_payload, public_payload,
@@ -62,6 +68,9 @@ from awa.runtime.logger import Logger
 from awa.runtime.outcome_contract import check_contract, contract_feedback, outcome_of
 from awa.runtime.retry import RetryConfig, RetryState, DeadLetterQueue, calculate_retry_delay
 from awa.runtime.verification import VerificationEngine
+from awa.runtime.guardrails import (
+    GuardrailContext, GuardrailSet, GuardrailStop, guardrail_feedback, input_value, merge_guarded, output_value,
+)
 
 
 class EngineStatus(str, Enum):
@@ -77,8 +86,9 @@ class EngineStatus(str, Enum):
 
 
 # Error codes that are never retried, whatever the retry policy says
-NEVER_RETRIED = {"VERIFICATION_FAILED", "CONTRACT_VIOLATION", "NO_ROUTE", "SLA_BREACH",
-                 "CONTEXT_MISSING", "CONTEXT_ACCESS_DENIED", "CONTEXT_INVALID", "CONTEXT_NOT_FOUND"}
+NEVER_RETRIED = {"SUBWORKFLOW_NOT_FOUND", "SUBWORKFLOW_DEPTH_EXCEEDED", "VERIFICATION_FAILED", "CONTRACT_VIOLATION", "NO_ROUTE", "SLA_BREACH",
+                 "CONTEXT_MISSING", "CONTEXT_ACCESS_DENIED", "CONTEXT_INVALID", "CONTEXT_NOT_FOUND", "AGENT_UNSUPPORTED", "PERMISSION_DENIED",
+                 "FORBIDDEN"}
 # Access modes of a context binding that let an activity read, and write (specification 22.2, 22.3)
 CAN_READ = {"read", "read_write", "subscribe"}
 CAN_WRITE = {"write", "read_write", "publish"}
@@ -187,13 +197,24 @@ class WorkflowEngine:
                            with an optional `code`, optional `contexts` to write, or `attempts`, a list of
                            those, one per execution, the last repeating
       tools:               ToolOptions, or a dict of its fields: handlers, executors, allow_commands,
-                           allowed_hosts, secrets, simulated_results (specification 17)
+                           allowed_hosts, secrets, simulated_results, mcp_servers, grpc (specification 17)
+      a2a:                 A2AOptions, or a dict of its fields: allowed_hosts, secrets, poll_interval_ms,
+                           max_wait_ms, max_output_bytes, transport (specification 28)
       decision_engines:    external decision engines by name (5.5.4)
       model_decision_override: callable taking a decision node and returning {"option", "confidence"} to
                            decide it without calling a model, or None
       log_execution:       False keeps the run out of the execution log (ExecutionService); a replay sets it
       knowledge:           KnowledgeBase that activities with a `knowledge` binding draw on (15.4)
       learn:               True to distil the run's journal into that knowledge base when the run ends
+      telemetry:           where the run's spans go as its journal is written (specification 26): an exporter
+                           (an object with export(spans)), or {"endpoint", "headers", "protocol", "payloads"}
+      guardrails:          the deployment's guardrails (Guardrail or dict), applied to every run before the
+                           document's (specification 31.1)
+      guardrail_classifiers: classifiers that guardrails of kind "classifier" call, by name: each a callable taking
+                           {"value", "stage", "guardrail", "config"} and returning {"flagged", "categories"} (31.8)
+      subworkflows:        {"workflows": the workflows call activities may run as child runs (a list, or a dict by id),
+                           "max_depth": how deep child runs may nest (default 8), "actor": an actor that performs
+                           call activities instead (replay uses it)} (specification 24)
 
     Contexts (22): while an actor executes an activity bound to contexts, the token's data holds
     `_contexts`, the values the activity may read, by context name. An actor writes to contexts by
@@ -262,7 +283,12 @@ class WorkflowEngine:
             self._actors[ActorType(actor_type)] = actor
             self._custom_actor_types.add(ActorType(actor_type))
         self._decision_evaluator = DecisionEvaluator()
-        self._tool_options = ToolOptions.of(opts.get("tools"))
+        # Connections the run's tools keep open (MCP servers, gRPC channels), closed when the run ends or waits (17.7)
+        self._tool_sessions = ToolSessions()
+        self._tool_options = dataclasses.replace(ToolOptions.of(opts.get("tools")), sessions=self._tool_sessions)
+        # Agents reached over A2A, and the cards this run has read (28.2)
+        self._a2a_options = A2AOptions.of(opts.get("a2a"))
+        self._a2a_state = A2ARunState()
         self._verification = VerificationEngine(opts.get("verifiers"), simulate=self.simulate)
 
         # Journal, resilience and events
@@ -272,6 +298,10 @@ class WorkflowEngine:
         self._journal_store = opts.get("journal") or InMemoryJournalStore()
         self._journal = JournalWriter(
             self._run_id, str(workflow.id), self._journal_store, opts.get("journal_payloads", "full"), 0, self._now)
+        # Spans leave as the journal is written (specification 26); telemetry never holds up the run
+        self._telemetry = open_run_telemetry(workflow, opts.get("telemetry"), lambda: self._journal_store.read(self._run_id))
+        if self._telemetry:
+            self._telemetry.watch(self._journal)
         self._dead_letter_queue: DeadLetterQueue = (
             opts.get("dead_letter_queue") or DeadLetterQueue(Logger(output_func=lambda entry: None)))
         # Activities whose outcome was accepted, in order of completion. Drives compensation.
@@ -281,9 +311,25 @@ class WorkflowEngine:
         # Service level warnings and breaches already journalled, so that each is recorded once (23.2)
         self._sla_recorded: set[str] = set()
         self._knowledge = opts.get("knowledge")
+        # Who may do what in this run, and the principal performing each token's activity (specification 30).
+        # `authorization` holds the principals and the policy; `principal` is who starts the run.
+        self._authorization: RunAuthorization | None = None
+        self._performers: dict[str, dict[str, Any]] = {}
+        if opts.get("authorization") is not None:
+            self._authorization = RunAuthorization(
+                opts["authorization"], workflow, {str(r.id): r for r in workflow.roles},
+                record=lambda type, data, **ref: self._record(type, data, **ref),
+                # Separation of duties is decided on the record of the run of depth 0 and all its child runs (30.6, 24)
+                performed=lambda: self._calls.record())
+        # The guardrails of the document and the deployment (specification 31)
+        roles = {str(r.id): r for r in workflow.roles}
+        self._guardrails = GuardrailSet(workflow, opts.get("guardrails"), lambda a: roles.get(str(a.role_id)))
         self._stats: dict[str, Any] = {
             "started_at": self._now(), "steps": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0,
         }
+
+        # The child runs of call activities (specification 24)
+        self._calls = SubworkflowCalls(self)
 
         # Validate workflow
         integrity = validate_workflow_integrity(workflow)
@@ -320,16 +366,59 @@ class WorkflowEngine:
         return self._journal_store.read(self._run_id, after_seq)
 
     def on_event(self, listener: JournalListener) -> Callable[[], None]:
-        """Subscribe to journal events as they are recorded. Returns an unsubscribe function."""
-        return self._journal.subscribe(listener)
+        """Subscribe to journal events as they are recorded, the child runs' included. Returns an unsubscribe function."""
+        own = self._journal.subscribe(listener)
+        children = self._calls.subscribe(listener)
+
+        def off() -> None:
+            own()
+            children()
+        return off
 
     def result(self) -> dict[str, Any]:
         return {
             "status": self._status.value,
             "run_id": self._run_id,
             "tokens": [t.to_dict() for t in self._tokens.values()],
-            "contexts": self._context_manager.snapshot()
+            "contexts": self._context_manager.snapshot(),
+            "subworkflow_runs": self._calls.list(),
         }
+
+    # ------------------------------------------------------------------
+    # Child runs (specification 24)
+    # ------------------------------------------------------------------
+
+    def subworkflow_runs(self) -> list[dict[str, Any]]:
+        """Every child run this run started, with theirs, in the order they started (24.7)"""
+        return self._calls.list()
+
+    def has_subworkflow_run(self, run_id: str) -> bool:
+        """Whether a run is a child run of this one, at any depth"""
+        return self._calls.has_run(run_id)
+
+    def get_subworkflow_events(self, run_id: str) -> list[JournalEvent]:
+        """The journal of a child run of this one, at any depth"""
+        return self._calls.events(run_id)
+
+    def subworkflow_states(self) -> list[dict[str, Any]]:
+        """The states of the child runs this run keeps, at any depth, and of those that settled since last asked (24.8)"""
+        return self._calls.states()
+
+    def _performed_own(self) -> list[dict[str, Any]]:
+        """The activities this run itself completed, with who performed them"""
+        names = {str(a.id): a.name for a in self.workflow.activities}
+        return [{"run_id": self.run_id, "activity_id": done["activity_id"],
+                 **({"activity_name": names[str(done["activity_id"])]} if str(done["activity_id"]) in names else {}),
+                 "principal_ids": list(done["principal_ids"])}
+                for done in self._completed_activities if done.get("principal_ids")]
+
+    def performed_record(self) -> list[dict[str, Any]]:
+        """Who performed the activities of this run and of its child runs, at any depth (30.6)"""
+        return self._calls.tree()
+
+    def owns_token(self, token_id: str) -> bool:
+        """Whether a token belongs to this run or to a child run it waits on"""
+        return token_id in self._tokens or self._calls.owns_token(token_id)
 
     def get_contexts(self) -> dict[str, Any]:
         """The value of every context that has one now, by context name"""
@@ -368,10 +457,20 @@ class WorkflowEngine:
         if self._status != EngineStatus.IDLE:
             raise RuntimeError("The run has already started")
 
+        # Properties whose names begin with `_` belong to the engine (5.2): the input of a run never sets them,
+        # so that no caller can pose as engine state such as a continuation or a wait
+        initial_data = {key: value for key, value in (initial_data or {}).items() if not str(key).startswith("_")}
+
         start_node_id = self._find_start_node()
         if not start_node_id:
             self._status = EngineStatus.FAILED
             raise ValueError("No start activity found")
+        # Who starts the run, refused before anything is recorded when the policy says no (30.4).
+        # A child run is not decided: starting it performs its parent's call activity, decided as that (24.2, 30.4)
+        starter = None
+        if self._authorization is not None:
+            starter = ((self.options.get("principal") or self._authorization.host_principal) if self._calls.parent
+                       else self._authorization.start(initial_data or {}, self.options.get("principal")))
 
         self._stats["started_at"] = self._now()
         token = Token(
@@ -381,6 +480,7 @@ class WorkflowEngine:
                 "_workflow_id": str(self.workflow.id),
                 "_workflow_name": self.workflow.name,
                 "_started_at": self._iso(),
+                **({"_started_by": principal_ref(starter)} if starter else {}),
             },
             workflow_id=str(self.workflow.id)
         )
@@ -392,6 +492,8 @@ class WorkflowEngine:
             "workflow_version": self.workflow.version,
             "input": self._journal.payload(initial_data or {}),
             "simulate": bool(self.simulate),
+            **({"principal": principal_ref(starter)} if starter else {}),
+            **self._calls.started_data(),
         })
         self._record("token.created", {}, token=token, node_id=start_node_id)
         self._log(f"Starting workflow: {self.workflow.name}")
@@ -454,6 +556,8 @@ class WorkflowEngine:
         # Fail fast: once a token has failed, the rest of the run is withdrawn
         if self._has(TokenStatus.FAILED):
             self._cancel_tokens("run_failed")
+        # A child run whose parent token no longer waits on it is withdrawn too (24.5)
+        self._calls.reap()
 
         if self._has(TokenStatus.ACTIVE):
             return
@@ -463,15 +567,17 @@ class WorkflowEngine:
         if self._has(TokenStatus.WAITING):
             waiting = [t for t in self._tokens.values() if t.status == TokenStatus.WAITING]
             # Waiting on a person takes precedence in the status; otherwise the run waits on events
-            on_human = any(not t.get_data("_awaiting_event") for t in waiting)
+            on_human = any(not t.get_data("_awaiting_event") and not self._calls.waits_for_event(t) for t in waiting)
             self._status = EngineStatus.WAITING_HUMAN if on_human else EngineStatus.WAITING_EVENT
             if previous != self._status:
                 self._record("run.waiting", {
                     "waiting_for": "human" if on_human else "event",
                     "waiting_tokens": [t.id for t in waiting],
                 })
+            self._tool_sessions.close()
             return
 
+        self._tool_sessions.close()
         if previous in _OUTCOMES:
             return
 
@@ -581,8 +687,20 @@ class WorkflowEngine:
                 "sla_recorded": sorted(self._sla_recorded),
                 "context_times": self._context_manager.snapshot_times(),
                 "stats": dict(self._stats),
+                **self._subworkflow_metadata(),
             },
         })
+
+    def record_migrated(self, build: Callable[[Callable[[Any], Any]], dict[str, Any]]) -> JournalEvent:
+        """
+        Record that the run was moved to this version of its workflow (specification 25.3). `build` is
+        given the run's payload mode (9.4), to apply to the data values the event carries.
+        """
+        return self._record("run.migrated", build(self._journal.payload))
+
+    def _subworkflow_metadata(self) -> dict[str, Any]:
+        state = self._calls.snapshot()
+        return {"subworkflows": state} if state else {}
 
     def _save_checkpoint(self) -> None:
         store = self.options.get("checkpoint")
@@ -590,7 +708,8 @@ class WorkflowEngine:
             store.save(self._run_id, self.snapshot())
 
     @classmethod
-    def restore(cls, workflow: Workflow, state: dict[str, Any], options: dict[str, Any] | None = None) -> "WorkflowEngine":
+    def restore(cls, workflow: Workflow, state: dict[str, Any], options: dict[str, Any] | None = None,
+                record_resumed: bool = True) -> "WorkflowEngine":
         """
         Continue a run from a checkpoint. The run keeps its run id and its
         journal continues at the next sequence number. Tokens that were active
@@ -611,6 +730,8 @@ class WorkflowEngine:
         engine._journal = JournalWriter(
             engine._run_id, str(workflow.id), engine._journal_store, opts.get("journal_payloads", "full"),
             max([checkpoint_seq, *on_record]), engine._now)
+        if engine._telemetry:
+            engine._telemetry.watch(engine._journal)
         engine._tokens = {t["id"]: Token.from_dict(copy.deepcopy(t)) for t in state.get("tokens", [])}
         # Context values are part of the state a run is recovered from (22.3). A checkpoint written before
         # contexts were enforced holds an empty object for every context, which is not a value: it is ignored.
@@ -620,22 +741,26 @@ class WorkflowEngine:
         engine._completed_activities = copy.deepcopy(meta.get("completed_activities") or [])
         engine._delivered_events = set(meta.get("delivered_events") or [])
         engine._stats.update(meta.get("stats") or {})
+        # The children the run waits on are restored with it, each from its own state (24.8)
+        engine._calls.restore(meta.get("subworkflows"), record_resumed)
 
         waiting = [t for t in engine._tokens.values() if t.status == TokenStatus.WAITING]
         if engine._has(TokenStatus.ACTIVE):
             engine._status = EngineStatus.RUNNING
-        elif any(not t.get_data("_awaiting_event") for t in waiting):
+        elif any(not t.get_data("_awaiting_event") and not engine._calls.waits_for_event(t) for t in waiting):
             engine._status = EngineStatus.WAITING_HUMAN
         elif waiting:
             engine._status = EngineStatus.WAITING_EVENT
         else:
             engine._status = EngineStatus(state.get("engine_status", "idle"))
 
-        engine._record("run.resumed", {
-            "from_checkpoint_at": state.get("checkpoint_at"),
-            "from_seq": int(meta.get("journal_seq") or 0),
-            "active_tokens": sum(1 for t in engine._tokens.values() if t.status == TokenStatus.ACTIVE),
-        })
+        # A run another host left at rest is taken up, not resumed: nothing was interrupted (specification 29.2)
+        if record_resumed:
+            engine._record("run.resumed", {
+                "from_checkpoint_at": state.get("checkpoint_at"),
+                "from_seq": int(meta.get("journal_seq") or 0),
+                "active_tokens": sum(1 for t in engine._tokens.values() if t.status == TokenStatus.ACTIVE),
+            })
         return engine
 
     # ------------------------------------------------------------------
@@ -672,6 +797,24 @@ class WorkflowEngine:
             if actor is None:
                 self._advance_token(token, node_id)
                 return
+            # The agent, robot or application that performs the activity must be allowed to, in its role (30.4)
+            # Decided at every execution, the one that carries an agent's requested input included: no property of the data exempts it
+            if self._authorization is not None:
+                agent = a2a_binding(activity, next((r for r in self.workflow.roles if str(r.id) == str(activity.role_id)), None))
+                performer = self._authorization.before_activity(
+                    activity, agent, token.context_data, {"token_id": token.id, "node_id": node_id})
+                if performer is not None:
+                    self._performers[token.id] = performer
+                else:
+                    self._performers.pop(token.id, None)
+            # The input given to an agent that asked for it is for this execution only (28.6)
+            continuation = token.context_data.pop("_agent_continuation", None)
+            if isinstance(actor, A2AActor):
+                actor.continuation = continuation
+            # So is the outcome of a child run that waited (24.4)
+            child_continuation = token.context_data.pop("_subworkflow_continuation", None)
+            if hasattr(actor, "continuation") and is_call_activity(activity):
+                actor.continuation = child_continuation
 
             visit = sum(1 for h in token.history if h["node_id"] == node_id and h["action"] == "entered")
             token.merge_data({
@@ -709,11 +852,16 @@ class WorkflowEngine:
             for key in _HANDED:
                 token.context_data.pop(key, None)
             token.context_data.update(copy.deepcopy(handed))
+            # Guardrails at stage input decide what the actor is given, once per visit (31.3)
+            originals: dict[str, Any] = {}
             try:
-                output, verification_records, attempts = self._execute_activity(token, actor, activity)
+                escalated = self._guard_input(token, activity, originals)
+                output, verification_records, attempts = escalated or self._execute_activity(token, actor, activity)
             finally:
                 for key in _HANDED:
                     token.context_data.pop(key, None)
+                # What the guardrails redacted was for the actor only: the token's data keeps the original
+                token.context_data.update(originals)
             # An actor that echoes what it was given must not carry it into the token's data
             for key in _HANDED:
                 output.pop(key, None)
@@ -729,6 +877,18 @@ class WorkflowEngine:
             }
             if analytics["value_added"] is None:
                 analytics["value_added"] = True
+
+            # An agent that asks for input parks the token until the host gives it (28.6)
+            if output.get("_awaiting_agent_input"):
+                self._park_for_agent(token, activity, output["_awaiting_agent_input"], analytics, ended)
+                return
+
+            # A child run that waits parks the token on it (24.4)
+            if output.get("_awaiting_subworkflow"):
+                analytics["waste_categories"].append(WasteCategory.waiting.value)
+                token.update_status(TokenStatus.WAITING, analytics=analytics)
+                self._calls.park(token, activity, output["_awaiting_subworkflow"], self._iso(ended))
+                return
 
             # A human task that has not been completed yet parks the token
             if output.get("_requires_human_action"):
@@ -755,16 +915,19 @@ class WorkflowEngine:
             duration_ms = int(ended - started)
             self._track_usage(output, activity, duration_ms)
             self._stats["steps"] += 1
+            performer = self._performers.get(token.id)
             self._record("activity.completed", {
                 "actor_type": activity.actor_type.value,
                 "output": self._journal.payload(public_payload(output)),
                 "duration_ms": duration_ms,
                 "attempts": attempts,
                 "usage": output.get("usage"),
-            }, token=token, node_id=node_id, attempt=attempts)
+                **({"principal": principal_ref(performer)} if performer else {}),
+            }, token=token, node_id=node_id, attempt=attempts or None)
 
             self._completed_activities.append({
                 "activity_id": node_id, "token_id": token.id, "output": copy.deepcopy(public_payload(output)),
+                **({"principal_ids": [performer["id"]]} if performer else {}),
             })
 
             self._advance_token(token, node_id, analytics)
@@ -784,6 +947,20 @@ class WorkflowEngine:
         `simulated_outputs` returns what is given there, unless the deployment
         supplied its own actor for the activity's actor type.
         """
+        # A call activity is performed by a child run, whatever its actor type (24.1)
+        call = self._calls.actor(activity)
+        if call is not None:
+            return call
+        # An activity whose role, or which itself, names an agent over A2A is performed by that agent (28.1)
+        agent = a2a_binding(activity, next((r for r in self.workflow.roles if str(r.id) == str(activity.role_id)), None))
+        if agent is not None:
+            # The identity the deployment gives the agent brings its credentials (30.1)
+            if self._authorization is not None:
+                agent = self._authorization.agent_for(activity, agent)
+            script = (self.options.get("simulated_outputs") or {}).get(activity.name) if self.simulate else None
+            return A2AActor(agent, self._a2a_options, self._a2a_state, simulate=bool(self.simulate),
+                            scripted=_ScriptedOutputActor(script) if isinstance(script, dict) else None,
+                            tools_allowed_hosts=self._tool_options.allowed_hosts, tools_secrets=self._tool_options.secrets)
         scripted = ((self.options.get("simulated_outputs") or {}).get(activity.name)
                     if self.simulate and activity.actor_type not in self._custom_actor_types else None)
         if isinstance(scripted, dict):
@@ -904,10 +1081,11 @@ class WorkflowEngine:
         timeout_ms = parse_iso_duration(budgets.max_duration) if budgets and budgets.max_duration else None
         max_tokens = budgets.max_tokens if budgets else None
         retry = self._retry_policy(activity)
-        is_agent = activity.actor_type == ActorType.ai_agent
+        # Only an ai_agent is re-executed with feedback; a call activity never is: a workflow takes no feedback (24.3)
+        is_agent = activity.actor_type == ActorType.ai_agent and not is_call_activity(activity)
 
-        def record(type: str, data: dict[str, Any], level: str = "execution") -> None:
-            self._record(type, data, token=token, node_id=node_id, attempt=attempt, level=level)
+        def record(type: str, data: dict[str, Any], level: str = "execution") -> JournalEvent:
+            return self._record(type, data, token=token, node_id=node_id, attempt=attempt, level=level)
 
         verification_records: list[dict[str, Any]] = []
         feedback: str | None = None
@@ -930,22 +1108,33 @@ class WorkflowEngine:
                 token.context_data.pop("_verification_attempt", None)
             inputs = dict(token.context_data)
 
-            record("activity.started", {
+            performer = self._performers.get(token.id)
+            started_event = record("activity.started", {
                 "actor_type": activity.actor_type.value,
                 "role_id": str(activity.role_id),
+                **({"principal": principal_ref(performer)} if performer else {}),
                 "input": self._journal.payload(public_payload(inputs)),
                 "feedback": feedback,
             })
 
             # --- execute -------------------------------------------------
             try:
-                context = ActorContext()
+                context = ActorContext(record=record, payload=self._journal.payload, attempt_seq=started_event["seq"])
                 if activity.tools:
                     # One runner per attempt: every call is journalled with the attempt it belongs to (17.5)
+                    tool_options = self._tool_options
+                    tools = activity.tools
+                    if self._authorization is not None:
+                        # Whether the principal performing the activity may call each tool (30.4), with its credentials
+                        tools = self._authorization.tools_for(activity.tools, performer)
+                        if self._authorization.enforced:
+                            tool_options = dataclasses.replace(tool_options, authorize=self._authorization.tool_check(
+                                activity, performer, token.context_data, {"token_id": token.id, "node_id": node_id, "attempt": attempt}))
                     context.tools = ToolRunner(
-                        activity.tools, self._tool_options, record, self._journal.payload,
+                        tools, tool_options, record, self._journal.payload,
                         max_calls=budgets.max_tool_calls if budgets and budgets.max_tool_calls is not None else 16,
-                        simulate=bool(self.simulate), now=self._now)
+                        simulate=bool(self.simulate), now=self._now,
+                        guard=None if self._guardrails.empty else self._tool_guard(token, activity, attempt))
                 raw = self._call_actor(actor, activity, token, context)
                 # The engine cannot interrupt the actor, so a result that arrives late is ignored (11.4)
                 if timeout_ms is not None and self._now() - attempt_start > timeout_ms:
@@ -992,6 +1181,36 @@ class WorkflowEngine:
             # parked, and the contract is checked when the answer arrives (resume_token).
             if output.get("_requires_human_action"):
                 return output, verification_records, attempt
+            # Nor is a task in which the agent asks for input (28.6), or a child run that waits (24.4)
+            if output.get("_awaiting_agent_input") or output.get("_awaiting_subworkflow"):
+                return output, verification_records, attempt
+
+            # --- guardrails at stage output: before the contract and verification (31.3)
+            if not self._guardrails.empty:
+                checked = output_value(output)
+                guarded = self._guardrails.apply("output", activity, checked, self._guard_context(token, node_id, attempt))
+                if guarded.value is not checked:
+                    output = merge_guarded(output, guarded.value)
+                stop = guarded.stop
+                if stop is not None:
+                    can_retry = stop.action == "retry_with_feedback" and is_agent and attempt < violation_cap and attempt < hard_cap
+                    record("activity.failed", {
+                        "error": {"message": stop.message, "code": stop.code}, "retryable": can_retry,
+                        "duration_ms": int(self._now() - attempt_start),
+                    })
+                    if stop.action == "escalate":
+                        return self._escalate_guardrail(token, activity, stop, attempt, output)
+                    if not can_retry:
+                        raise ActivityError(stop.message, stop.code)
+                    feedback, feedback_attempt = guardrail_feedback(stop), attempt + 1
+                    record("meta.recorded", {
+                        "subject": "guardrail_retry",
+                        "decision": "Re-execute with what the guardrail found as feedback",
+                        "rationale": f'{stop.message}; the guardrail\'s action is "retry_with_feedback" and '
+                                     f"{violation_cap - attempt} of {violation_cap} attempts remained.",
+                        "guardrail_id": str(stop.guardrail.id), "categories": stop.categories,
+                    }, level="meta")
+                    continue
 
             usage = output.get("usage") if isinstance(output.get("usage"), dict) else {}
             tokens_used += int(usage.get("input_tokens") or 0) + int(usage.get("output_tokens") or 0)
@@ -1099,6 +1318,85 @@ class WorkflowEngine:
                              f"{policy.pass_threshold * 100:.0f}%. {max_verifications - rejections} verification attempt(s) remained.",
                 "failed_criteria": [c["criterion_name"] for c in verification["criteria_results"] if not c["passed"]],
             }, level="meta")
+
+    # ------------------------------------------------------------------
+    # Guardrails (specification 31)
+    # ------------------------------------------------------------------
+
+    def _guard_context(self, token: Token, node_id: str, attempt: int | None = None) -> GuardrailContext:
+        def record(type: str, data: dict[str, Any], level: str = "execution") -> None:
+            self._record(type, data, token=token, node_id=node_id, attempt=attempt, level=level)
+        return GuardrailContext(record=record, router=self._router, default_model=self._default_model_ref,
+                                classifiers=self.options.get("guardrail_classifiers"))
+
+    def _tool_guard(self, token: Token, activity: Activity, attempt: int) -> Callable[..., Any]:
+        """Guardrails around each tool call of an attempt (31.3): the value they leave, or a refusal"""
+        def guard(stage: str, tool: Any, value: Any, call_id: str) -> tuple[Any, dict[str, str] | None]:
+            context = self._guard_context(token, str(activity.id), attempt)
+            context.tool, context.call_id = tool, call_id
+            result = self._guardrails.apply(stage, activity, value, context)
+            return result.value, ({"code": result.stop.code, "message": result.stop.message} if result.stop else None)
+        return guard
+
+    def _guard_input(self, token: Token, activity: Activity, originals: dict[str, Any]) -> tuple[dict[str, Any], list[Any], int] | None:
+        """
+        Guardrails at stage input (31.3). What they redact replaces the token's data for the actor's
+        execution only; `originals` receives what to put back. A guardrail that escalates hands the
+        activity to a person, whose answer is returned; one that blocks raises.
+        """
+        if self._guardrails.empty:
+            return None
+        node_id = str(activity.id)
+        guarded = self._guardrails.apply("input", activity, input_value(token.context_data), self._guard_context(token, node_id))
+        if guarded.stop is not None:
+            if guarded.stop.action != "escalate":
+                raise ActivityError(guarded.stop.message, guarded.stop.code)
+            return self._escalate_guardrail(token, activity, guarded.stop, 0)
+        for key, value in guarded.value.items():
+            if token.context_data.get(key) != value:
+                if key != "_contexts":
+                    originals[key] = token.context_data.get(key)
+                token.context_data[key] = value
+        return None
+
+    def _escalate_guardrail(self, token: Token, activity: Activity, stop: GuardrailStop, attempts: int,
+                            rejected: dict[str, Any] | None = None) -> tuple[dict[str, Any], list[Any], int]:
+        """
+        A guardrail whose action is escalate hands the activity to a person (31.5), as an outcome contract
+        does (11.5). At stage input no attempt was made, so `attempts` is 0.
+        """
+        node_id = str(activity.id)
+        self._record("meta.recorded", {
+            "subject": "escalation", "decision": "Hand the activity to a human",
+            "rationale": f'{stop.message}, and the guardrail\'s action is "escalate".',
+        }, token=token, node_id=node_id, attempt=attempts or None, level="meta")
+        human = self._actors.get(ActorType.human)
+        if human is None:
+            raise ActivityError(f"{stop.message}. Escalation to a human is required, but no human actor is configured.", stop.code)
+        token.set_data("_escalation", {
+            "code": stop.code, "message": stop.message, "guardrail": {"id": str(stop.guardrail.id), "name": stop.guardrail.name},
+            "categories": stop.categories, **({"rejected_outcome": outcome_of(rejected)} if rejected is not None else {}),
+        })
+        try:
+            result = self._extract_traces(self._call_actor(human, activity, token), token, node_id, max(attempts, 1))
+        finally:
+            token.context_data.pop("_escalation", None)
+        if result.get("_requires_human_action"):
+            # The token waits; the contract is checked when the person answers (resume_token)
+            return {**result, "_escalated": True}, [], attempts
+        # A human answered at once. The deterministic terms of the contract still bind (11.5)
+        contract = activity.outcome_contract
+        if contract is not None:
+            violations = check_contract(contract, outcome_of(result))
+            self._record("contract.checked", {
+                "passed": not violations, "violations": violations, "decided_by": "human",
+                "output_hash": hash_payload(outcome_of(result)),
+            }, token=token, node_id=node_id, attempt=attempts or None)
+            if violations:
+                raise ActivityError(
+                    "Outcome contract violated by the human decision: " + "; ".join(v["message"] for v in violations),
+                    "CONTRACT_VIOLATION", {"_contract_violations": violations})
+        return {**result, "_escalated": True}, [], attempts
 
     def _reject_outcome(self, token: Token, activity: Activity, rejected: dict[str, Any], code: str, message: str,
                         details: dict[str, Any], verification_records: list[dict[str, Any]],
@@ -1406,6 +1704,10 @@ class WorkflowEngine:
                 result["failed"] += 1
 
         result["warnings"] = len(self._sla_recorded) - before - result["breaches"]
+        # The work child runs wait on is held to its service levels too (24.4)
+        children = self._calls.check_service_levels(now)
+        for key in ("warnings", "breaches", "failed"):
+            result[key] += children[key]
         if result["failed"] > 0:
             if self._status in (EngineStatus.WAITING_EVENT, EngineStatus.WAITING_HUMAN):
                 self._status = EngineStatus.RUNNING
@@ -1775,6 +2077,8 @@ class WorkflowEngine:
             self._advance_token(token, node_id)
             if not awaited.get("broadcast"):
                 break
+        # The child runs the run waits on take the event too (24.4)
+        resumed += self._calls.deliver(event)[0]
 
         if resumed > 0:
             self._delivered_events.add(str(event_id))
@@ -1787,6 +2091,9 @@ class WorkflowEngine:
     def next_event_deadline(self) -> float | None:
         """The earliest time at which a waiting token's event wait runs out, in milliseconds since the epoch"""
         due = [_parse_time(a["due_at"]) for a in map(self._awaiting, self._tokens.values()) if a and a.get("due_at")]
+        children = self._calls.deadline()
+        if children is not None:
+            due.append(children)
         return min(due) if due else None
 
     def expire_events(self, now: float | None = None) -> int:
@@ -1817,6 +2124,8 @@ class WorkflowEngine:
                 self._fail_token(token, ActivityError(
                     f'No "{awaited["name"]}" event arrived before {awaited["due_at"]}, and the event has no timeout edge',
                     "EVENT_TIMEOUT"))
+        # The child runs the run waits on let time pass too (24.4)
+        expired += self._calls.expire(now)[0]
 
         if expired > 0:
             if self._status in (EngineStatus.WAITING_EVENT, EngineStatus.WAITING_HUMAN):
@@ -1834,10 +2143,13 @@ class WorkflowEngine:
         """
         if self._status in _OUTCOMES or self._status == EngineStatus.IDLE:
             return False
+        # The children first: they were working for the run (24.5)
+        self._calls.cancel_all("parent_cancelled")
         self._cancel_tokens("run_cancelled")
         compensation = self._compensate()
         self._status = EngineStatus.CANCELLED
         self._record("run.cancelled", {"reason": reason, "compensation": compensation})
+        self._tool_sessions.close()
         self._save_checkpoint()
         return True
 
@@ -2000,7 +2312,66 @@ class WorkflowEngine:
     # Human tasks (specification 5.6)
     # ------------------------------------------------------------------
 
-    def resume_token(self, token_id: str, output: dict[str, Any]) -> bool:
+    def _park_for_agent(self, token: Token, activity: Activity, awaiting: dict[str, Any], analytics: dict[str, Any],
+                        since: float) -> None:
+        """Park a token whose agent asks for input (28.6)"""
+        analytics["waste_categories"].append(WasteCategory.waiting.value)
+        token.update_status(TokenStatus.WAITING, analytics=analytics)
+        token.set_data("_awaiting_agent_input", awaiting)
+        token.set_data("_waiting_since", self._iso(since))
+        event = {"reason": "agent_input", "agent": awaiting.get("agent"), "task_id": awaiting.get("task_id")}
+        if awaiting.get("context_id"):
+            event["context_id"] = awaiting["context_id"]
+        event["request"] = self._journal.payload(awaiting.get("request"))
+        self._record("token.waiting", event, token=token, node_id=str(activity.id))
+        self._log(f"Token waits for the input agent {awaiting.get('agent')} asks for")
+
+    def agent_requests(self) -> list[dict[str, Any]]:
+        """The tokens waiting for input an agent asked for, with what it asked (28.6)"""
+        return [{"token_id": t.id, "node_id": str(t.activity_id), **t.get_data("_awaiting_agent_input")}
+                for t in self._tokens.values()
+                if t.status == TokenStatus.WAITING and t.get_data("_awaiting_agent_input")] + self._calls.agent_requests()
+
+    def answer_agent(self, token_id: str, input: dict[str, Any] | str) -> bool:
+        """
+        Give an agent the input it asked for (28.6). The token's activity is performed again: the input is
+        sent on the agent's task, which is then followed as before. Call run() afterwards.
+        Returns whether the token was waiting for an agent's input.
+        """
+        token = self._tokens.get(token_id)
+        if token is None:
+            # An agent of a child run is answered through the parent (24.4)
+            child = self._calls.answer_agent(token_id, input)
+            if child is None:
+                return False
+            answered, woken = child
+            if woken and self._status in (EngineStatus.WAITING_EVENT, EngineStatus.WAITING_HUMAN):
+                self._status = EngineStatus.RUNNING
+            self._settle()
+            self._save_checkpoint()
+            return answered
+        awaiting = token.get_data("_awaiting_agent_input") if token.status == TokenStatus.WAITING else None
+        if not awaiting:
+            return False
+        since = token.get_data("_waiting_since")
+        waited_ms = int(self._now() - _parse_time(since)) if since else None
+        token.context_data.pop("_awaiting_agent_input", None)
+        token.context_data.pop("_waiting_since", None)
+        token.set_data("_agent_continuation", {"task_id": awaiting.get("task_id"), "context_id": awaiting.get("context_id"), "input": input})
+        analytics = {"wait_time": format_iso_duration(waited_ms / 1000), "waste_categories": [WasteCategory.waiting.value]} if waited_ms is not None else None
+        token.update_status(TokenStatus.ACTIVE, analytics=analytics)
+        self._record("token.resumed", {"reason": "agent_input", "waited_ms": waited_ms}, token=token, node_id=str(token.activity_id))
+        if self._status in (EngineStatus.WAITING_HUMAN, EngineStatus.WAITING_EVENT):
+            self._status = EngineStatus.RUNNING
+        self._save_checkpoint()
+        return True
+
+    def authorize_start(self, initial_data: dict[str, Any] | None = None) -> None:
+        """Whether the run may be started with this input, by the principal it was given (30.4). Raises AuthorizationError if not"""
+        if self._authorization is not None:
+            self._authorization.start(initial_data or {}, self.options.get("principal"))
+
+    def resume_token(self, token_id: str, output: dict[str, Any], principal: dict[str, Any] | None = None) -> bool:
         """
         Resume a token that was waiting for a person, with the person's answer.
         The answer is merged into the token's data, checked against the
@@ -2009,13 +2380,45 @@ class WorkflowEngine:
         bindings as any actor's result; the writes are applied once the answer
         is accepted. Returns False if the token was not waiting for a person or
         the answer was rejected. Call run() afterwards.
+
+        `principal` is who answers (30.4): under a policy the answer is refused with an AuthorizationError
+        (code FORBIDDEN) when they may not complete the task, and the token keeps waiting; under a four-eyes
+        rule it keeps waiting until enough distinct principals have approved.
         """
         token = self._tokens.get(token_id)
-        if not token or token.status != TokenStatus.WAITING or token.get_data("_awaiting_event"):
+        if token is None:
+            # A person's task in a child run is completed through the parent (24.4)
+            child = self._calls.resume(token_id, output, principal)
+            if child is None:
+                return False
+            resumed, woken = child
+            if woken and self._status in (EngineStatus.WAITING_EVENT, EngineStatus.WAITING_HUMAN):
+                self._status = EngineStatus.RUNNING
+            self._settle()
+            self._save_checkpoint()
+            return resumed
+        # A token waiting on a child run is resumed by the child (24.4)
+        if (token.status != TokenStatus.WAITING or token.get_data("_awaiting_event")
+                or token.get_data("_awaiting_agent_input") or token.get_data("_awaiting_subworkflow")):
             return False
 
         node_id = str(token.activity_id)
         activity = self._activities_by_id.get(node_id)
+        gate = None
+        if self._authorization is not None and activity is not None:
+            gate = self._authorization.before_completion(
+                activity, token.context_data, dict(output or {}), principal, {"token_id": token.id, "node_id": node_id})
+            if gate["pending"]:
+                token.set_data("_approvals", gate["kept"])
+                self._save_checkpoint()
+                return True
+            output = gate["output"]
+            token.context_data.pop("_approvals", None)
+        answered_by: dict[str, Any] = {}
+        if gate is not None:
+            answered_by["principal"] = principal_ref(gate["principal"])
+            if gate.get("approvals"):
+                answered_by["approvals"] = gate["approvals"]
         output = dict(output or {})
         writes = output.pop("_context_writes", _ABSENT)
         for key in _HANDED:
@@ -2034,7 +2437,8 @@ class WorkflowEngine:
         token.merge_activity_output(node_id, output)
         token.merge_data({"_human_task_status": "completed", "_requires_human_action": False})
         token.update_status(TokenStatus.ACTIVE, analytics=analytics)
-        self._record("token.resumed", {"waited_ms": waited_ms}, token=token, node_id=node_id)
+        self._record("token.resumed", {"waited_ms": waited_ms, **({"principal": answered_by["principal"]} if gate else {})},
+                     token=token, node_id=node_id)
 
         if self._status == EngineStatus.WAITING_HUMAN:
             self._status = EngineStatus.RUNNING
@@ -2071,11 +2475,14 @@ class WorkflowEngine:
             "actor_type": activity.actor_type.value if activity else "human",
             "output": self._journal.payload(public_payload(output)),
             "waited_ms": waited_ms,
+            **answered_by,
         }, token=token, node_id=node_id)
 
         # The activity is now complete: if the run fails later, its effects are undone like any other's
         self._completed_activities.append({
             "activity_id": node_id, "token_id": token.id, "output": copy.deepcopy(public_payload(output)),
+            **({"principal_ids": [a["id"] for a in gate["approvals"]] if gate.get("approvals") else [gate["principal"]["id"]]}
+               if gate is not None else {}),
         })
 
         self._advance_token(token, node_id)

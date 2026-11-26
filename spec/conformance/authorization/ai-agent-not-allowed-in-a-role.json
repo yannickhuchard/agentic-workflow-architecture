@@ -1,0 +1,152 @@
+{
+  "id": "ai-agent-not-allowed-in-a-role",
+  "level": "authorization",
+  "spec": "30.4",
+  "description": "An AI agent whose identity has no role the policy allows in the activity's role is refused before its first attempt: nothing is started, the token fails with FORBIDDEN and the denial is journalled.",
+  "workflow": {
+    "id": "678833db-311e-52e6-a541-770b8d3e6dc9",
+    "name": "ai-agent-not-allowed-in-a-role",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "a7ba1dd2-eb02-5178-becf-ccdf5d022076",
+        "name": "Assess",
+        "role_id": "4ab53536-a2fd-5a41-a145-e63335ce5ccc",
+        "actor_type": "ai_agent"
+      },
+      {
+        "id": "3ba75cde-8244-5bbc-860b-c82c247b00a6",
+        "name": "Settle",
+        "role_id": "ffe3a3d5-5ce1-5508-8ad6-1e74f9c15b25",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "17f07610-1d56-550c-b776-0cc76e4161a2",
+        "source_id": "a7ba1dd2-eb02-5178-becf-ccdf5d022076",
+        "target_id": "3ba75cde-8244-5bbc-860b-c82c247b00a6"
+      }
+    ],
+    "roles": [
+      {
+        "id": "4ab53536-a2fd-5a41-a145-e63335ce5ccc",
+        "name": "Underwriter",
+        "actor_type": "ai_agent"
+      }
+    ]
+  },
+  "authorization": {
+    "principals": [
+      {
+        "id": "agent:triage-bot",
+        "kind": "ai_agent",
+        "attributes": {
+          "roles": [
+            "triage"
+          ]
+        },
+        "acts_for": {
+          "roles": [
+            "Underwriter"
+          ]
+        }
+      }
+    ],
+    "policy": {
+      "rules": [
+        {
+          "id": "host-starts",
+          "effect": "allow",
+          "actions": [
+            "start_run"
+          ],
+          "subject": {
+            "ids": [
+              "host"
+            ]
+          }
+        },
+        {
+          "id": "underwriters-assess",
+          "effect": "allow",
+          "actions": [
+            "perform_activity"
+          ],
+          "subject": {
+            "roles": [
+              "underwriter"
+            ]
+          },
+          "resource": {
+            "roles": [
+              "Underwriter"
+            ]
+          }
+        },
+        {
+          "id": "applications-run",
+          "effect": "allow",
+          "actions": [
+            "perform_activity"
+          ],
+          "subject": {
+            "kinds": [
+              "application"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "actors": {
+    "Assess": {
+      "output": {
+        "decision": "approve"
+      }
+    }
+  },
+  "steps": [
+    {
+      "start": {},
+      "expect": {
+        "allowed": true
+      }
+    }
+  ],
+  "expect": {
+    "status": "failed",
+    "visited": [],
+    "decisions": [
+      {
+        "action": "perform_activity",
+        "decision": "deny",
+        "principal": {
+          "id": "agent:triage-bot",
+          "kind": "ai_agent"
+        },
+        "reason": "no_rule",
+        "resource": {
+          "activity_name": "Assess",
+          "role_name": "Underwriter"
+        }
+      }
+    ],
+    "journal_contains": [
+      {
+        "type": "token.failed",
+        "node_name": "Assess",
+        "data": {
+          "error": {
+            "code": "FORBIDDEN"
+          }
+        }
+      }
+    ],
+    "journal_excludes": [
+      "activity.started",
+      "activity.completed"
+    ]
+  }
+}

@@ -1,5 +1,11 @@
 import { Command } from 'commander';
+import fs from 'fs';
+import path from 'path';
 import { createServer, AuthConfig } from '../../server';
+import { parse_document } from '../../validator';
+import { FileJournalStore } from '../../runtime/journal';
+import { load_deployment } from '../deployment';
+import { Workflow } from '../../types';
 
 export const serveCommand = new Command('serve')
     .description('Start the AWA Operational API Server')
@@ -8,8 +14,14 @@ export const serveCommand = new Command('serve')
     .option('--api-key <key>', 'API key for authentication (format: key:role, can be repeated)', collectApiKeys, {})
     .option('--rate-limit <max>', 'Max requests per minute (0 to disable)', '0')
     .option('--no-auth', 'Disable authentication')
+    .option('--a2a <file>', 'Offer this workflow to other agents over A2A (can be repeated)', (value: string, previous: string[]) => [...previous, value], [] as string[])
+    .option('--public-url <url>', 'The address callers reach this server at, written in agent cards. Default: taken from each request')
+    .option('--deployment <file>', 'JSON file saying what the workflows may reach: tools.allow_commands, tools.allowed_hosts, tools.mcp_servers, tools.grpc, a2a; and who may do what: authorization')
+    .option('--store <url>', 'Keep journeys and runs in this PostgreSQL runtime store, which several servers may share (default: $AWA_RUNTIME_STORE)')
     .action(async (options) => {
         try {
+            // The routes read the store from the environment, as a server started without this option would
+            if (options.store) process.env.AWA_RUNTIME_STORE = options.store;
             const port = parseInt(options.port, 10);
             const jwtSecret = options.jwtSecret || process.env.JWT_SECRET;
             const rateLimit = parseInt(options.rateLimit, 10);
@@ -28,10 +40,30 @@ export const serveCommand = new Command('serve')
                 public_paths: ['/health']
             };
 
+            // Workflows offered over A2A run under the deployment's permissions, like any other run
+            const deployment = options.deployment ? load_deployment(path.resolve(process.cwd(), options.deployment)) : undefined;
+            const offered: Workflow[] = (options.a2a as string[]).map(file => parse_document(JSON.parse(fs.readFileSync(path.resolve(process.cwd(), file), 'utf-8'))));
+
             const app = createServer({
                 auth: authConfig.enabled ? authConfig as AuthConfig : undefined,
                 rate_limit: rateLimit > 0 ? { window_ms: 60000, max_requests: rateLimit } : undefined,
-                request_logging: true
+                request_logging: true,
+                // Who may do what, on the routes and in the runs they start (spec 30)
+                authorization: deployment?.authorization,
+                // What every run may reach, and the guardrails it adds: HTTP runs, journeys and A2A runs alike
+                deployment: deployment ? { tools: deployment.tools, a2a: deployment.a2a, guardrails: deployment.guardrails } : undefined,
+                a2a: offered.length ? {
+                    workflows: offered,
+                    options: {
+                        public_url: options.publicUrl,
+                        engine: () => ({
+                            gemini_api_key: process.env.GEMINI_API_KEY,
+                            ...(deployment ? { tools: deployment.tools, a2a: deployment.a2a, guardrails: deployment.guardrails } : {}),
+                            ...(deployment?.authorization ? { authorization: deployment.authorization } : {}),
+                            journal: process.env.AWA_JOURNAL_DIR ? new FileJournalStore(process.env.AWA_JOURNAL_DIR) : undefined,
+                        }),
+                    },
+                } : undefined,
             });
 
             app.listen(port, () => {
@@ -39,8 +71,13 @@ export const serveCommand = new Command('serve')
                 if (authConfig.enabled) {
                     console.log(`  Authentication: ${jwtSecret ? 'JWT' : ''} ${Object.keys(options.apiKey).length > 0 ? 'API Keys' : ''}`.trim());
                 }
+                if (process.env.AWA_RUNTIME_STORE) console.log('  Journeys: kept in the shared runtime store');
+                if (deployment?.authorization?.policy) console.log('  Authorization: the deployment\'s policy decides who may do what');
                 if (rateLimit > 0) {
                     console.log(`  Rate limit: ${rateLimit} requests/minute`);
+                }
+                for (const workflow of offered) {
+                    console.log(`  A2A agent "${workflow.name}": ${options.publicUrl || `http://localhost:${port}`}/a2a/${workflow.id}/.well-known/agent-card.json`);
                 }
             });
         } catch (error: unknown) {

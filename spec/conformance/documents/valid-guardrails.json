@@ -1,0 +1,61 @@
+{
+  "id": "valid-guardrails",
+  "level": "guardrails",
+  "description": "Guardrails of every check, on an activity.",
+  "valid": true,
+  "document": {
+    "id": "f92eb096-80d3-5c9e-bcba-332d236439ff",
+    "name": "valid-guardrails",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "8d398570-c445-50f9-a695-6bd19849d8f2",
+        "name": "A",
+        "role_id": "1f83a146-a168-54f7-a0a3-9e457518557a",
+        "actor_type": "ai_agent",
+        "guardrails": [
+          {
+            "id": "3929183d-f1b7-5e30-91c2-d543ed2e426b",
+            "name": "pii",
+            "stages": [
+              "input",
+              "output"
+            ],
+            "check": {
+              "kind": "personal_data"
+            },
+            "action": "redact"
+          },
+          {
+            "id": "0b48cc5a-e484-51a7-a033-954b7dc566e6",
+            "name": "size",
+            "stages": [
+              "output"
+            ],
+            "check": {
+              "kind": "size",
+              "max_tokens": 1000
+            },
+            "action": "retry_with_feedback"
+          },
+          {
+            "id": "6572dc72-1fdb-5cf5-b14e-5ab5c4f2a4a2",
+            "name": "topic",
+            "stages": [
+              "input"
+            ],
+            "check": {
+              "kind": "topic",
+              "allow": [
+                "intent == billing"
+              ]
+            },
+            "action": "escalate"
+          }
+        ]
+      }
+    ],
+    "edges": []
+  }
+}

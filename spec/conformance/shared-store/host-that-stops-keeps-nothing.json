@@ -1,0 +1,141 @@
+{
+  "id": "host-that-stops-keeps-nothing",
+  "level": "shared_store",
+  "spec": "29.4",
+  "description": "A host that stops in the middle of an operation, its work done but not yet kept, leaves nothing of it in the store, and the event it was given is not accepted. Given to another host, the event is accepted there, once.",
+  "start": "2026-03-02T09:00:00Z",
+  "hosts": [
+    "a",
+    "b"
+  ],
+  "workflows": [
+    {
+      "id": "c1b3ac8c-72e9-5938-aa9a-e3265915656e",
+      "name": "Claim",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "d9794060-b781-5384-85b5-38c2ff4dcd0e",
+          "name": "Register",
+          "role_id": "85cf52ca-df98-55d3-888f-224f05bbb0d2",
+          "actor_type": "application"
+        },
+        {
+          "id": "d04d28b6-611f-5067-9730-9a993253b05a",
+          "name": "Settle",
+          "role_id": "85cf52ca-df98-55d3-888f-224f05bbb0d2",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "2602e998-20a0-5634-a836-fecca33f6085",
+          "source_id": "d9794060-b781-5384-85b5-38c2ff4dcd0e",
+          "target_id": "b3c0be01-6973-58b2-8555-d04a44ca5c09"
+        },
+        {
+          "id": "31d1c206-214b-5f33-9dbf-78948c37c2af",
+          "source_id": "b3c0be01-6973-58b2-8555-d04a44ca5c09",
+          "target_id": "d04d28b6-611f-5067-9730-9a993253b05a"
+        }
+      ],
+      "events": [
+        {
+          "id": "b3c0be01-6973-58b2-8555-d04a44ca5c09",
+          "name": "Documents",
+          "event_type": "message",
+          "event_definition": {
+            "name": "documents.uploaded",
+            "correlation_key": "customer_id"
+          }
+        }
+      ]
+    }
+  ],
+  "journeys": [
+    {
+      "id": "478f5240-1cf2-51e7-9afa-55bc9abb778f",
+      "name": "Claim",
+      "version": "1.0.0",
+      "subject": {
+        "name": "customer",
+        "key": "customer_id"
+      },
+      "stages": [
+        {
+          "id": "open",
+          "name": "Open",
+          "workflows": [
+            "c1b3ac8c-72e9-5938-aa9a-e3265915656e"
+          ],
+          "complete_when": "paid == true",
+          "transitions": []
+        }
+      ],
+      "triggers": [
+        {
+          "event": "claim.submitted",
+          "starts_journey": true,
+          "start_workflow": "c1b3ac8c-72e9-5938-aa9a-e3265915656e"
+        }
+      ]
+    }
+  ],
+  "actors": {
+    "Register": {
+      "output": {
+        "claim_id": "CLM-1"
+      }
+    },
+    "Settle": {
+      "output": {
+        "paid": true
+      }
+    }
+  },
+  "steps": [
+    {
+      "host": "a",
+      "publish": {
+        "type": "claim.submitted",
+        "data": {
+          "customer_id": "c-1"
+        },
+        "id": "evt-1"
+      },
+      "stops_before_keeping": true
+    },
+    {
+      "host": "b",
+      "publish": {
+        "type": "claim.submitted",
+        "data": {
+          "customer_id": "c-1"
+        },
+        "id": "evt-1"
+      },
+      "expect": {
+        "accepted": true
+      }
+    }
+  ],
+  "expect": {
+    "accepted_events": 1,
+    "run_count": 1,
+    "instance_count": 1,
+    "instances": [
+      {
+        "journey": "Claim",
+        "runs": [
+          "waiting_event"
+        ],
+        "events_count": {
+          "journey.started": 1,
+          "journey.event_received": 1,
+          "journey.run_started": 1
+        }
+      }
+    ]
+  }
+}

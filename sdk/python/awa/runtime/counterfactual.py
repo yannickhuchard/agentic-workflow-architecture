@@ -19,6 +19,7 @@ from typing import Any
 
 from awa.runtime.business_event import business_event
 from awa.runtime.journal import JournalEvent, canonical_json, hash_payload
+from awa.runtime.migration import as_migrated
 from awa.runtime.tools import BINDING_KINDS, ToolError, ToolExecution, ToolOptions
 from awa.runtime.workflow_engine import WorkflowEngine
 from awa.types import Activity, ActorType, Workflow
@@ -251,7 +252,8 @@ def counterfactual_replay(workflow: Workflow, baseline: list[JournalEvent], cand
     """
     if ai not in AI_MODES:
         raise ValueError('ai must be "live" or "recorded"')
-    recorded = sorted(baseline, key=lambda e: e["seq"])
+    # A run moved to another version is matched node by node as its migrations mapped it (25.5)
+    recorded = as_migrated(baseline)
     _require_payloads(recorded)
     candidate = candidate or workflow
     options = dict(engine or {})
@@ -333,6 +335,8 @@ def counterfactual_replay(workflow: Workflow, baseline: list[JournalEvent], cand
         # With recorded AI, the choices models made at decision nodes are replayed as well
         **({"model_decision_override": recorded_decision} if ai == "recorded" else {}),
         "sleep": lambda ms: None,
+        # A call activity's result is held as recorded: no child run is started (24.7)
+        "subworkflows": {**(options.get("subworkflows") or {}), "actor": recorded_actor},
         "actors": {
             ActorType.application: recorded_actor, ActorType.human: recorded_actor, ActorType.robot: recorded_actor,
             **({ActorType.ai_agent: recorded_actor} if ai == "recorded" else {}),

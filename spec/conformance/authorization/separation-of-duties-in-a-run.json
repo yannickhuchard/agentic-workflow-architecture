@@ -1,0 +1,201 @@
+{
+  "id": "separation-of-duties-in-a-run",
+  "level": "authorization",
+  "spec": "30.3",
+  "description": "The person who submitted a claim may not approve it in the same run: separation of duties denies them, and another approver completes it.",
+  "workflow": {
+    "id": "29b08930-f1b3-5a58-9215-33336e50c84b",
+    "name": "separation-of-duties-in-a-run",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "18582703-3a4c-5639-9599-3baccaad6bc7",
+        "name": "Submit",
+        "role_id": "9bbca9b9-28f8-519d-b52d-a0d2ec2ad48f",
+        "actor_type": "human"
+      },
+      {
+        "id": "f1936c26-13ec-5133-97ca-267d96596be6",
+        "name": "Approve",
+        "role_id": "9504d1c1-9f68-590f-9b85-8e285967178a",
+        "actor_type": "human"
+      }
+    ],
+    "edges": [
+      {
+        "id": "8b3116a2-bdbe-5503-ae04-7c79d2db89e6",
+        "source_id": "18582703-3a4c-5639-9599-3baccaad6bc7",
+        "target_id": "f1936c26-13ec-5133-97ca-267d96596be6"
+      }
+    ],
+    "roles": [
+      {
+        "id": "9bbca9b9-28f8-519d-b52d-a0d2ec2ad48f",
+        "name": "Requester",
+        "actor_type": "human"
+      },
+      {
+        "id": "9504d1c1-9f68-590f-9b85-8e285967178a",
+        "name": "Approver",
+        "actor_type": "human"
+      }
+    ]
+  },
+  "authorization": {
+    "policy": {
+      "rules": [
+        {
+          "id": "host-starts",
+          "effect": "allow",
+          "actions": [
+            "start_run"
+          ],
+          "subject": {
+            "ids": [
+              "host"
+            ]
+          }
+        },
+        {
+          "id": "people-complete",
+          "effect": "allow",
+          "actions": [
+            "complete_task"
+          ],
+          "subject": {
+            "kinds": [
+              "person"
+            ]
+          }
+        }
+      ],
+      "separation_of_duties": [
+        {
+          "id": "maker-checker",
+          "activities": [
+            "Submit",
+            "Approve"
+          ]
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "start": {},
+      "expect": {
+        "allowed": true
+      }
+    },
+    {
+      "complete": {
+        "activity": "Submit",
+        "principal": {
+          "id": "alice",
+          "kind": "person",
+          "attributes": {
+            "roles": [
+              "requester",
+              "approver"
+            ],
+            "department": "claims"
+          }
+        },
+        "output": {
+          "amount": 400
+        }
+      },
+      "expect": {
+        "allowed": true
+      }
+    },
+    {
+      "complete": {
+        "activity": "Approve",
+        "principal": {
+          "id": "alice",
+          "kind": "person",
+          "attributes": {
+            "roles": [
+              "requester",
+              "approver"
+            ],
+            "department": "claims"
+          }
+        },
+        "output": {
+          "approved": true
+        }
+      },
+      "expect": {
+        "allowed": false,
+        "code": "FORBIDDEN",
+        "status": "waiting_human"
+      }
+    },
+    {
+      "complete": {
+        "activity": "Approve",
+        "principal": {
+          "id": "bob",
+          "kind": "person",
+          "attributes": {
+            "roles": [
+              "approver"
+            ],
+            "clearance": 3
+          }
+        },
+        "output": {
+          "approved": true
+        }
+      },
+      "expect": {
+        "allowed": true,
+        "status": "completed"
+      }
+    }
+  ],
+  "expect": {
+    "status": "completed",
+    "data": {
+      "amount": 400,
+      "approved": true
+    },
+    "decisions": [
+      {
+        "action": "complete_task",
+        "decision": "deny",
+        "principal": {
+          "id": "alice",
+          "kind": "person"
+        },
+        "rule": "maker-checker",
+        "reason": "separation_of_duties"
+      }
+    ],
+    "journal_contains": [
+      {
+        "type": "activity.completed",
+        "node_name": "Submit",
+        "data": {
+          "principal": {
+            "id": "alice",
+            "kind": "person"
+          }
+        }
+      },
+      {
+        "type": "activity.completed",
+        "node_name": "Approve",
+        "data": {
+          "principal": {
+            "id": "bob",
+            "kind": "person"
+          }
+        }
+      }
+    ]
+  }
+}

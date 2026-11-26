@@ -1,0 +1,117 @@
+{
+  "id": "simulation-calls-no-agent",
+  "level": "a2a",
+  "spec": "28.7",
+  "description": "In simulation no card is read and nothing is sent: the message is recorded as simulated and the activity returns what was scripted.",
+  "workflow": {
+    "id": "8f4d9519-6888-5a38-8ec2-1a70f677b72f",
+    "name": "simulation-calls-no-agent",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "a35f504b-b2f9-5031-96c5-b07a02518975",
+        "name": "Assess",
+        "role_id": "f249c160-5fe8-59b0-8185-be9eca514542",
+        "actor_type": "ai_agent",
+        "a2a": {
+          "agent_card": "https://agents.example/claims/.well-known/agent-card.json"
+        }
+      }
+    ],
+    "edges": []
+  },
+  "options": {
+    "simulate": true,
+    "simulated_outputs": {
+      "Assess": {
+        "output": {
+          "decision": "approve"
+        }
+      }
+    }
+  },
+  "agents": {
+    "https://agents.example/claims/.well-known/agent-card.json": {
+      "card": {
+        "name": "Claims assessor",
+        "description": "Claims assessor, reached over A2A",
+        "version": "1.0.0",
+        "supportedInterfaces": [
+          {
+            "url": "https://agents.example/claims/a2a",
+            "protocolBinding": "JSONRPC",
+            "protocolVersion": "1.0"
+          }
+        ],
+        "capabilities": {
+          "streaming": false,
+          "pushNotifications": false
+        },
+        "defaultInputModes": [
+          "application/json",
+          "text/plain"
+        ],
+        "defaultOutputModes": [
+          "application/json"
+        ],
+        "skills": [
+          {
+            "id": "assess",
+            "name": "Assess",
+            "description": "Assess a claim",
+            "tags": [
+              "claims"
+            ]
+          }
+        ]
+      },
+      "replies": [
+        {
+          "result": {
+            "task": {
+              "id": "task-1",
+              "contextId": "ctx-1",
+              "status": {
+                "state": "TASK_STATE_COMPLETED"
+              },
+              "artifacts": [
+                {
+                  "artifactId": "a0",
+                  "parts": [
+                    {
+                      "data": {
+                        "decision": "decline"
+                      },
+                      "mediaType": "application/json"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "data": {
+      "decision": "approve"
+    },
+    "agent_card_reads": 0,
+    "agent_requests": [],
+    "journal_contains": [
+      {
+        "type": "agent.message_sent",
+        "data": {
+          "agent": "https://agents.example/claims/.well-known/agent-card.json",
+          "simulated": true
+        }
+      }
+    ],
+    "journal_excludes": [
+      "agent.task_updated"
+    ]
+  }
+}

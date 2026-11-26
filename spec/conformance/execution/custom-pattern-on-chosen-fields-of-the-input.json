@@ -1,0 +1,94 @@
+{
+  "id": "custom-pattern-on-chosen-fields-of-the-input",
+  "level": "guardrails",
+  "spec": "31.3",
+  "description": "An input guardrail decides what the actor is given: a custom pattern, looked for only in the fields named, is redacted in the actor's input and in the journalled input, while the token's own data keeps the original.",
+  "workflow": {
+    "id": "63df1d96-7d7e-5140-b61e-4cffb0ac380a",
+    "name": "custom-pattern-on-chosen-fields-of-the-input",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "3ab37c18-d874-5bf8-8c83-80ed2851d614",
+        "name": "Summarise",
+        "role_id": "b1c27604-c652-54d4-95ae-eb61bc71e1aa",
+        "actor_type": "ai_agent",
+        "guardrails": [
+          {
+            "id": "1773a625-7d17-5796-bac8-4f7ca6ee9616",
+            "name": "Employee ids",
+            "stages": [
+              "input"
+            ],
+            "check": {
+              "kind": "personal_data",
+              "categories": [],
+              "patterns": [
+                {
+                  "name": "employee_id",
+                  "pattern": "EMP-[0-9]{6}"
+                }
+              ]
+            },
+            "action": "redact",
+            "fields": [
+              "notes"
+            ]
+          }
+        ]
+      }
+    ],
+    "edges": []
+  },
+  "input": {
+    "notes": "EMP-123456 asked for leave",
+    "ref": "EMP-999999"
+  },
+  "expect": {
+    "status": "completed",
+    "given_inputs": {
+      "Summarise": {
+        "notes": "[REDACTED:employee_id] asked for leave",
+        "ref": "EMP-999999"
+      }
+    },
+    "data": {
+      "notes": "EMP-123456 asked for leave"
+    },
+    "journal": [
+      "guardrail.triggered",
+      "activity.started",
+      "activity.completed"
+    ],
+    "journal_contains": [
+      {
+        "type": "guardrail.triggered",
+        "data": {
+          "stage": "input",
+          "check": "personal_data",
+          "action": "redact",
+          "categories": [
+            "employee_id"
+          ],
+          "findings": [
+            {
+              "category": "employee_id",
+              "path": "/notes",
+              "start": 0,
+              "end": 10
+            }
+          ]
+        }
+      },
+      {
+        "type": "activity.started",
+        "data": {
+          "input": {
+            "notes": "[REDACTED:employee_id] asked for leave"
+          }
+        }
+      }
+    ]
+  }
+}

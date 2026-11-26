@@ -1,5 +1,33 @@
 import { Command } from 'commander';
+import path from 'path';
 import { TaskService } from '../../runtime/services/task_service';
+import { AuthorizationAction, HOST_PRINCIPAL, decide, is_enforced, principal_named } from '../../runtime/authorization';
+import { load_deployment } from '../deployment';
+
+/**
+ * Under the policy of a deployment file, whether the principal named by --as (default: the host) may take the
+ * action on the task (specification 30.4). Prints the refusal and returns false when it may not.
+ */
+async function allowed(id: string, action: AuthorizationAction, options: { deployment?: string; as?: string }, subject?: string): Promise<boolean> {
+    if (!options.deployment) return true;
+    const authorization = load_deployment(path.resolve(process.cwd(), options.deployment)).authorization;
+    if (!is_enforced(authorization)) return true;
+    const task = await TaskService.get(id);
+    if (!task) { console.error(`Task ${id} not found.`); process.exitCode = 1; return false; }
+    const who = subject ?? options.as;
+    const principal = who ? principal_named(authorization, who) : authorization!.host_principal || HOST_PRINCIPAL;
+    const decision = await decide(authorization!, {
+        action, principal, run: task.inputs || {}, history: { performed: [] },
+        resource: { workflow_id: task.workflow_id, activity_id: task.activity_id, activity_name: task.activity_name, role_id: task.role_id, task_id: task.id },
+    });
+    if (decision.decision === 'allow') return true;
+    console.error(`FORBIDDEN: ${decision.message || `${action} is not allowed to ${principal.id}`}${decision.rule ? ` (rule ${decision.rule})` : ''}`);
+    process.exitCode = 1;
+    return false;
+}
+
+const AS = ['--as <principal>', 'Act as this principal, by its id in the deployment\'s authorization.principals. Default: the host'] as const;
+const DEPLOYMENT = ['--deployment <file>', 'Deployment file whose authorization policy decides (specification 30)'] as const;
 
 export const taskCommand = new Command('task')
     .description('Manage human tasks');
@@ -71,8 +99,13 @@ taskCommand.command('show <id>')
 
 taskCommand.command('assign <id> <user_id>')
     .description('Assign a task to a user')
-    .action(async (id, user_id) => {
+    .option(...AS)
+    .option(...DEPLOYMENT)
+    .action(async (id, user_id, options) => {
         try {
+            // The assignee must be allowed to claim the task; whoever assigns it to someone else, to assign it
+            if (!await allowed(id, 'claim_task', options, user_id)) return;
+            if (options.as !== user_id && !await allowed(id, 'assign_task', options)) return;
             const task = await TaskService.assign(id, user_id);
             console.log(`Task ${id} assigned to ${user_id}`);
             console.log(`New Status: ${task.status}`);
@@ -84,8 +117,11 @@ taskCommand.command('assign <id> <user_id>')
 
 taskCommand.command('complete <id> [json_outputs]')
     .description('Complete a task with optional JSON outputs')
-    .action(async (id, json_outputs) => {
+    .option(...AS)
+    .option(...DEPLOYMENT)
+    .action(async (id, json_outputs, options) => {
         try {
+            if (!await allowed(id, 'complete_task', options)) return;
             let outputs = {};
             if (json_outputs) {
                 try {
@@ -106,8 +142,11 @@ taskCommand.command('complete <id> [json_outputs]')
 
 taskCommand.command('reject <id> [reason]')
     .description('Reject a task')
-    .action(async (id, reason) => {
+    .option(...AS)
+    .option(...DEPLOYMENT)
+    .action(async (id, reason, options) => {
         try {
+            if (!await allowed(id, 'complete_task', options)) return;
             const task = await TaskService.reject(id, reason);
             console.log(`Task ${id} rejected.`);
         } catch (error: unknown) {

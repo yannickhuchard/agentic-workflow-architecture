@@ -31,11 +31,18 @@ import { RetryConfig, DEFAULT_RETRY_CONFIG, calculate_retry_delay, DeadLetterQue
 import { Logger } from '../server/logger';
 import { ModelProvider, ModelRegistry, ModelRouter, GoogleModelProvider, RouteAttempt } from './models';
 import { ToolOptions, ToolRunner } from './tools';
+import { ToolSessions } from './protocols/sessions';
+import { A2AActor, A2AOptions, A2ARunState, a2a_binding } from './protocols/a2a';
 import { decide_with_model } from './decision_model';
 import { ActorContext } from './actors/actor';
 import { BusinessEvent, EventSink } from './business_event';
 import { resolve_path } from './expression';
 import { KnowledgeBase, guidance } from './knowledge';
+import { RunTelemetry, TelemetrySetting, open_run_telemetry } from './telemetry_export';
+import { AuthorizationOptions, Principal, RunAuthorization, principal_ref } from './authorization';
+import { Guardrail } from '../types';
+import { GuardrailClassifier, GuardrailContext, GuardrailSet, GuardrailStop, guardrail_feedback, input_value, merge_guarded, output_value } from './guardrails';
+import { PerformedEntry, SubworkflowCalls, SubworkflowOptions, SubworkflowRun, SubworkflowState, is_call_activity, subworkflow_journal_tails } from './subworkflow';
 
 export type EngineStatus = 'running' | 'paused' | 'completed' | 'failed' | 'idle' | 'waiting_human' | 'waiting_event' | 'cancelled';
 
@@ -115,12 +122,26 @@ export interface WorkflowEngineOptions {
     decision_engines?: Record<string, DecisionEngine>;
     /** How the tools declared on activities are executed, and what they are allowed to do */
     tools?: ToolOptions;
+    /** How agents reached over A2A are called, and which hosts they may be reached at (spec 28) */
+    a2a?: A2AOptions;
     /** Knowledge base that activities with a `knowledge` binding draw on. */
     knowledge?: KnowledgeBase;
     /** If true, the run's journal is distilled into the knowledge base when the run ends. */
     learn?: boolean;
     /** Replaces the delay between retries. Tests use this to avoid real waiting. */
     sleep?: (ms: number) => Promise<void>;
+    /** Where the run's spans go as its journal is written (spec 26): an exporter, or `{ endpoint, headers, payloads }`. Telemetry never holds up the run. */
+    telemetry?: TelemetrySetting;
+    /** Principals of agents, and the policy that decides who may do what (spec 30). Without a policy nothing is checked */
+    authorization?: AuthorizationOptions;
+    /** Who starts the run (spec 30.1). Default: the host's principal */
+    principal?: Principal;
+    /** The deployment's guardrails, applied to every run before the document's (spec 31.1) */
+    guardrails?: Guardrail[];
+    /** Classifiers that guardrails of kind "classifier" call, by name (spec 31.8) */
+    guardrail_classifiers?: Record<string, GuardrailClassifier>;
+    /** The workflows call activities may run as child runs, and how deep they may nest (spec 24) */
+    subworkflows?: SubworkflowOptions;
 }
 
 export interface SimulatedOutput {
@@ -158,7 +179,7 @@ interface AwaitedEvent {
 }
 
 /** Error codes that are never retried, whatever the retry policy says */
-const NEVER_RETRIED = new Set(['VERIFICATION_FAILED', 'CONTRACT_VIOLATION', 'NO_ROUTE', 'SLA_BREACH', 'CONTEXT_MISSING', 'CONTEXT_ACCESS_DENIED', 'CONTEXT_INVALID', 'CONTEXT_NOT_FOUND']);
+const NEVER_RETRIED = new Set(['SUBWORKFLOW_NOT_FOUND', 'SUBWORKFLOW_DEPTH_EXCEEDED', 'VERIFICATION_FAILED', 'CONTRACT_VIOLATION', 'NO_ROUTE', 'SLA_BREACH', 'CONTEXT_MISSING', 'CONTEXT_ACCESS_DENIED', 'CONTEXT_INVALID', 'CONTEXT_NOT_FOUND', 'AGENT_UNSUPPORTED', 'PERMISSION_DENIED', 'FORBIDDEN']);
 /** Access modes that let an activity read a context, and those that let it write (22.2) */
 const CAN_READ = new Set(['read', 'read_write', 'subscribe']);
 const CAN_WRITE = new Set(['write', 'read_write', 'publish']);
@@ -201,9 +222,18 @@ export class WorkflowEngine {
     /** Activities whose outcome was accepted, in order of completion. Drives compensation. */
     /** Service level warnings and breaches already recorded, so that each is recorded once */
     private slaRecorded = new Set<string>();
-    private completedActivities: { activity_id: UUID; token_id: UUID; output: Record<string, unknown> }[] = [];
+    private completedActivities: { activity_id: UUID; token_id: UUID; output: Record<string, unknown>; principal_ids?: string[] }[] = [];
     /** Ids of the business events this run has consumed, so that a redelivery is ignored */
     private deliveredEvents = new Set<string>();
+    /** Connections the run's tools keep open (MCP servers, gRPC channels), closed when the run ends or waits (17.7) */
+    private toolSessions = new ToolSessions();
+    /** The cards of the A2A agents this run has read (28.2) */
+    private a2aState: A2ARunState = { cards: new Map() };
+    /** Who may do what in this run, and the principal performing each token's activity (spec 30) */
+    private authorization?: RunAuthorization;
+    private performers = new Map<UUID, Principal>();
+    /** The child runs of call activities (spec 24) */
+    private calls: SubworkflowCalls;
     private options: WorkflowEngineOptions;
     private roleMap: Map<UUID, Role>;
     private decisionEvaluator: DecisionEvaluator;
@@ -213,11 +243,14 @@ export class WorkflowEngine {
     private simulate: boolean;
     private runId: UUID;
     private journal: JournalWriter;
+    private telemetry?: RunTelemetry;
     private journalStore: JournalStore;
     private deadLetterQueue: DeadLetterQueue;
     private sleep: (ms: number) => Promise<void>;
     private models: ModelRegistry;
     private router: ModelRouter;
+    /** The guardrails of the document and the deployment (spec 31) */
+    private guardrails: GuardrailSet;
     private executionStats: {
         startTime: Date;
         stepsCount: number;
@@ -246,6 +279,8 @@ export class WorkflowEngine {
         this.runId = options.run_id || randomUUID();
         this.journalStore = options.journal || new InMemoryJournalStore();
         this.journal = new JournalWriter(this.runId, workflowDef.id, this.journalStore, options.journal_payloads || 'full', 0, options.now);
+        this.telemetry = open_run_telemetry(workflowDef, options.telemetry, () => this.journalStore.read(this.runId));
+        this.telemetry?.watch(this.journal);
         this.deadLetterQueue = options.dead_letter_queue || new DeadLetterQueue(new Logger({ output: () => { } }));
         this.sleep = options.sleep || (ms => new Promise(resolve => setTimeout(resolve, ms)));
         this.tokens = [];
@@ -285,6 +320,22 @@ export class WorkflowEngine {
 
         this.initializeMaps();
         this.initializeContexts();
+        if (options.authorization) {
+            this.authorization = new RunAuthorization(options.authorization, {
+                // Separation of duties is decided on the record of the run of depth 0 and all its child runs (30.6, 24)
+                workflow: workflowDef, roles: this.roleMap, record: event => this.record(event), performed: () => this.calls.record(),
+            });
+        }
+        this.guardrails = new GuardrailSet(workflowDef, options.guardrails, activity => this.roleMap.get(activity.role_id));
+        this.calls = new SubworkflowCalls({
+            run_id: () => this.runId, workflow: () => this.workflow, options: () => this.options, journal: () => this.journalStore,
+            record: input => this.record(input), node_ref: id => this.nodeRef(id), now: () => this.now(), tokens: () => this.tokens,
+            performed: () => this.completedActivities.filter(done => done.principal_ids?.length).map(done => ({
+                run_id: this.runId, activity_id: done.activity_id, activity_name: this.activityMap.get(done.activity_id)?.name, principal_ids: done.principal_ids!,
+            })),
+            make: (workflow, options) => new WorkflowEngine(workflow, options),
+            restore: (workflow, state, options, resumed) => WorkflowEngine.restore(workflow, state, options, resumed),
+        });
     }
 
     private initializeMaps(): void {
@@ -344,14 +395,24 @@ export class WorkflowEngine {
             throw new Error('Workflow has no activities');
         }
 
+        // Properties whose names begin with `_` belong to the engine (spec 5.2): the input of a run never sets them,
+        // so that no caller can pose as engine state such as a continuation or a wait
+        initialData = Object.fromEntries(Object.entries(initialData).filter(([key]) => !key.startsWith('_')));
+
         const startNodeId = this.findStartNode();
+        // Who starts the run, refused before anything is recorded when the policy says no (spec 30.4)
+        // A child run is not decided: starting it performs its parent's call activity, decided as that (spec 24.2, 30.4)
+        const starter = !this.authorization ? undefined
+            : this.calls.parent ? (this.options.principal || this.authorization.host_principal)
+                : await this.authorization.start(initialData, this.options.principal);
 
         // Add workflow metadata to initial data
         const tokenData = {
             ...initialData,
             _workflow_id: this.workflow.id,
             _workflow_name: this.workflow.name,
-            _started_at: new Date(this.now()).toISOString()
+            _started_at: new Date(this.now()).toISOString(),
+            ...(starter ? { _started_by: principal_ref(starter) } : {}),
         };
 
         const token = new Token(startNodeId, tokenData, undefined, this.workflow.id);
@@ -365,6 +426,8 @@ export class WorkflowEngine {
                 workflow_version: this.workflow.version,
                 input: this.journal.payload(initialData),
                 simulate: this.simulate,
+                ...(starter ? { principal: principal_ref(starter) } : {}),
+                ...this.calls.started_data(),
             },
         });
         this.record({ type: 'token.created', token_id: token.id, ...this.nodeRef(startNodeId), data: {} });
@@ -429,6 +492,8 @@ export class WorkflowEngine {
                 this.record({ type: 'token.cancelled', token_id: token.id, ...this.nodeRef(token.activityId), data: { reason: 'run_failed' } });
             }
         }
+        // A child run whose parent token no longer waits on it is withdrawn too (24.5)
+        await this.calls.reap();
 
         if (has('active')) return;
 
@@ -437,14 +502,16 @@ export class WorkflowEngine {
         if (has('waiting')) {
             const waiting = this.tokens.filter(t => t.status === 'waiting');
             // Waiting on a person takes precedence in the status; otherwise the run waits on events
-            this.status = waiting.some(t => !t.getData('_awaiting_event')) ? 'waiting_human' : 'waiting_event';
+            this.status = waiting.some(t => !t.getData('_awaiting_event') && !this.calls.waits_for_event(t)) ? 'waiting_human' : 'waiting_event';
             if (previous !== this.status) {
                 this.record({ type: 'run.waiting', data: { waiting_for: this.status === 'waiting_human' ? 'human' : 'event', waiting_tokens: waiting.map(t => t.id) } });
             }
+            await this.toolSessions.close();
             return;
         }
 
         const failed = has('failed');
+        await this.toolSessions.close();
         if (previous === 'completed' || previous === 'failed' || previous === 'cancelled') return;
 
         const compensation = failed ? await this.compensate() : undefined;
@@ -545,7 +612,9 @@ export class WorkflowEngine {
 
     /** Subscribe to journal events as they are recorded. Returns an unsubscribe function. */
     public onEvent(listener: JournalListener): () => void {
-        return this.journal.subscribe(listener);
+        const own = this.journal.subscribe(listener);
+        const children = this.calls.subscribe(listener);
+        return () => { own(); children(); };
     }
 
     /** The journal of this run so far, in sequence order */
@@ -577,8 +646,17 @@ export class WorkflowEngine {
                 sla_recorded: [...this.slaRecorded],
                 context_times: this.contextManager.snapshot_times(),
                 stats: { ...this.executionStats, startTime: this.executionStats.startTime.toISOString() },
+                ...this.subworkflowMetadata(),
             },
         };
+    }
+
+    /**
+     * Record that the run was moved to this version of its workflow (spec 25.3). `build` is given
+     * the run's payload mode (9.4), to apply to the data values the event carries.
+     */
+    public recordMigrated(build: (payload: (value: unknown) => unknown) => Record<string, unknown>): JournalEvent {
+        return this.record({ type: 'run.migrated', data: build(value => this.journal.payload(value)) });
     }
 
     /** Wait until every journal event recorded so far has reached the journal store */
@@ -597,7 +675,7 @@ export class WorkflowEngine {
      * Tokens that were active when the checkpoint was taken execute their
      * current activity again, so activities are executed at least once.
      */
-    public static restore(workflowDef: Workflow, state: WorkflowState, options: WorkflowEngineOptions = {}): WorkflowEngine {
+    public static restore(workflowDef: Workflow, state: WorkflowState, options: WorkflowEngineOptions = {}, record_resumed = true): WorkflowEngine {
         if (state.workflow_id !== workflowDef.id) {
             throw new Error(`Checkpoint belongs to workflow ${state.workflow_id}, not ${workflowDef.id}`);
         }
@@ -607,23 +685,31 @@ export class WorkflowEngine {
             delivered_events?: string[];
             sla_recorded?: string[];
             context_times?: Record<string, number>;
+            subworkflows?: SubworkflowState;
         };
         const engine = new WorkflowEngine(workflowDef, { ...options, run_id: meta.run_id || options.run_id });
         engine.journal = new JournalWriter(
             engine.runId, workflowDef.id, engine.journalStore, options.journal_payloads || 'full', Math.max(meta.journal_seq || 0, options.journal_tail_seq || 0), options.now);
+        engine.telemetry?.watch(engine.journal);
         engine.tokens = state.tokens.map(t => deserialize_token(t, state.workflow_id));
         engine.contextManager.restore(state.contexts, meta.context_times);
         engine.slaRecorded = new Set(meta.sla_recorded || []);
         engine.completedActivities = meta.completed_activities || [];
         engine.deliveredEvents = new Set(meta.delivered_events || []);
+        // The children the run waits on are restored with it, each from its own state (24.8)
+        engine.calls.restore(meta.subworkflows, record_resumed);
         if (meta.stats) {
-            engine.executionStats = { ...engine.executionStats, ...meta.stats, startTime: new Date(String(meta.stats.startTime)) };
+            // Written by this SDK as text; by another implementation of the same store perhaps as milliseconds (spec 29.6)
+            const raw = meta.stats.startTime ?? meta.stats.started_at;
+            const started = typeof raw === 'number' ? new Date(raw) : new Date(String(raw));
+            engine.executionStats = { ...engine.executionStats, ...meta.stats, startTime: isNaN(started.getTime()) ? engine.executionStats.startTime : started };
         }
         engine.status = engine.tokens.some(t => t.status === 'active') ? 'running'
-            : engine.tokens.some(t => t.status === 'waiting' && !t.getData('_awaiting_event')) ? 'waiting_human'
+            : engine.tokens.some(t => t.status === 'waiting' && !t.getData('_awaiting_event') && !engine.calls.waits_for_event(t)) ? 'waiting_human'
                 : engine.tokens.some(t => t.status === 'waiting') ? 'waiting_event'
                 : (state.engine_status as EngineStatus);
-        engine.record({
+        // A run another host left at rest is taken up, not resumed: nothing was interrupted (spec 29.2)
+        if (record_resumed) engine.record({
             type: 'run.resumed',
             data: { from_checkpoint_at: state.checkpoint_at, from_seq: meta.journal_seq || 0, active_tokens: engine.tokens.filter(t => t.status === 'active').length },
         });
@@ -639,7 +725,11 @@ export class WorkflowEngine {
     public static async recover(workflowDef: Workflow, state: WorkflowState, options: WorkflowEngineOptions = {}): Promise<WorkflowEngine> {
         const run_id = ((state.metadata || {}) as { run_id?: UUID }).run_id || options.run_id;
         const on_record = options.journal && run_id ? await options.journal.read(run_id) : [];
-        return WorkflowEngine.restore(workflowDef, state, { ...options, journal_tail_seq: on_record.reduce((max, e) => Math.max(max, e.seq), 0) });
+        const journal_tails = await subworkflow_journal_tails(state, options.journal);
+        return WorkflowEngine.restore(workflowDef, state, {
+            ...options, journal_tail_seq: on_record.reduce((max, e) => Math.max(max, e.seq), 0),
+            ...(Object.keys(journal_tails).length ? { subworkflows: { ...options.subworkflows, journal_tails } } : {}),
+        });
     }
 
     /**
@@ -685,6 +775,14 @@ export class WorkflowEngine {
                 return;
             }
 
+            // The agent, robot or application that performs the activity must be allowed to, in its role (spec 30.4)
+            // Decided at every execution, the one that carries an agent's requested input included: no property of the data exempts it
+            if (this.authorization) {
+                const agent = a2a_binding(activity, this.roleMap.get(activity.role_id));
+                const performer = await this.authorization.before_activity(activity, agent, token.contextData, { token_id: token.id, ...this.nodeRef(activity.id) });
+                if (performer) this.performers.set(token.id, performer); else this.performers.delete(token.id);
+            }
+
             const visit = token.history.filter(h => h.nodeId === activity.id && h.action === 'entered').length;
             const inputs = {
                 ...token.contextData,
@@ -696,6 +794,10 @@ export class WorkflowEngine {
                 // Stable across retries and recovery, so actors can deduplicate side effects
                 _idempotency_key: `${this.runId}:${token.id}:${activity.id}:${visit}`,
             };
+            // The input given to an agent that asked for it is for this execution only (28.6)
+            if (token.getData('_agent_continuation') !== undefined) delete token.contextData._agent_continuation;
+            // So is the outcome of a child run that waited (24.4)
+            if (token.getData('_subworkflow_continuation') !== undefined) delete token.contextData._subworkflow_continuation;
 
             // The service level of an activity counts from the moment the token reaches it, waits and retries included
             const enteredKey = `_entered_at:${activity.id}`;
@@ -719,7 +821,10 @@ export class WorkflowEngine {
 
             this.log(`Executing activity "${activity.name}" with ${activity.actor_type} actor`);
 
-            const { output, verificationRecords, attempts } = await this.executeActivity(token, actor, activity, inputs);
+            // Guardrails at stage input decide what the actor is given, once per visit (spec 31.3)
+            const guarded = await this.guardInput(token, activity, inputs);
+            const { output, verificationRecords, attempts } = guarded.escalated
+                || await this.executeActivity(token, actor, activity, guarded.inputs);
 
             const endTime = new Date(this.now());
             const processTime = calculate_duration(startTime, endTime);
@@ -730,6 +835,20 @@ export class WorkflowEngine {
                 value_added: activity.analytics?.value_added ?? true,
                 waste_categories: attempts > 1 ? ['defects' as WasteCategory] : [],
             };
+
+            // An agent that asks for input parks the token until the host gives it (28.6)
+            if (output._awaiting_agent_input) {
+                this.parkForAgent(token, activity, output._awaiting_agent_input as Record<string, unknown>, analytics, endTime);
+                return;
+            }
+
+            // A child run that waits parks the token on it (24.4)
+            if (output._awaiting_subworkflow) {
+                analytics.waste_categories?.push('waiting' as WasteCategory);
+                token.updateStatus('waiting', analytics);
+                this.calls.park(token, activity, output._awaiting_subworkflow as Parameters<SubworkflowCalls['park']>[2], endTime);
+                return;
+            }
 
             // A human task that has not been completed yet parks the token
             if (output._requires_human_action && this.options.wait_for_human_tasks) {
@@ -763,18 +882,20 @@ export class WorkflowEngine {
             this.trackCost(activity, output, durationMs);
             this.executionStats.stepsCount++;
 
+            const performer = this.performers.get(token.id);
             this.record({
-                type: 'activity.completed', token_id: token.id, ...this.nodeRef(activity.id), attempt: attempts,
+                type: 'activity.completed', token_id: token.id, ...this.nodeRef(activity.id), ...(attempts > 0 ? { attempt: attempts } : {}),
                 data: {
                     actor_type: activity.actor_type,
                     output: this.journal.payload(public_payload(output)),
                     duration_ms: durationMs,
                     attempts,
                     ...(output.usage ? { usage: output.usage } : {}),
+                    ...(performer ? { principal: principal_ref(performer) } : {}),
                 },
             });
 
-            this.completedActivities.push({ activity_id: activity.id, token_id: token.id, output: public_payload(output) });
+            this.completedActivities.push({ activity_id: activity.id, token_id: token.id, output: public_payload(output), ...(performer ? { principal_ids: [performer.id] } : {}) });
 
             await this.advanceToken(token, currentNodeId, analytics);
         } catch (error: unknown) {
@@ -937,6 +1058,8 @@ export class WorkflowEngine {
             await this.advanceToken(token, awaited.node_id);
             if (!awaited.broadcast) break;
         }
+        // The child runs the run waits on take the event too (24.4)
+        resumed += (await this.calls.deliver(event)).released;
 
         if (resumed > 0) {
             this.deliveredEvents.add(event.id);
@@ -955,6 +1078,8 @@ export class WorkflowEngine {
      */
     public async cancel(reason: string): Promise<boolean> {
         if (['completed', 'failed', 'cancelled', 'idle'].includes(this.status)) return false;
+        // The children first: they were working for the run (24.5)
+        await this.calls.cancel_all('parent_cancelled');
         for (const token of this.tokens.filter(t => ['active', 'waiting', 'joining'].includes(t.status))) {
             token.updateStatus('cancelled');
             this.record({ type: 'token.cancelled', token_id: token.id, ...this.nodeRef(token.activityId), data: { reason: 'run_cancelled' } });
@@ -962,6 +1087,7 @@ export class WorkflowEngine {
         const compensation = await this.compensate();
         this.status = 'cancelled';
         this.record({ type: 'run.cancelled', data: { reason, ...(compensation ? { compensation } : {}) } });
+        await this.toolSessions.close();
         await this.saveCheckpoint();
         return true;
     }
@@ -969,6 +1095,8 @@ export class WorkflowEngine {
     /** The earliest time at which a waiting token's event wait runs out, in milliseconds */
     public nextEventDeadline(): number | undefined {
         const due = this.tokens.map(t => this.awaiting(t)?.due_at).filter((d): d is string => !!d).map(d => new Date(d).getTime());
+        const children = this.calls.deadline();
+        if (children !== undefined) due.push(children);
         return due.length ? Math.min(...due) : undefined;
     }
 
@@ -1140,6 +1268,9 @@ export class WorkflowEngine {
             }
         }
         result.warnings = this.slaRecorded.size - before - result.breaches;
+        // The work child runs wait on is held to its service levels too (24.4)
+        const children = await this.calls.check_service_levels(now);
+        result.warnings += children.warnings; result.breaches += children.breaches; result.failed += children.failed;
         if (result.failed > 0) {
             if (this.status === 'waiting_event' || this.status === 'waiting_human') this.status = 'running';
             await this.settle();
@@ -1173,6 +1304,8 @@ export class WorkflowEngine {
                 this.failToken(token, new ActivityError(`No "${awaited.name}" event arrived before ${awaited.due_at}, and the event has no timeout edge`, 'EVENT_TIMEOUT'));
             }
         }
+        // The child runs the run waits on let time pass too (24.4)
+        expired += (await this.calls.expire(now)).expired;
         if (expired > 0) {
             if (this.status === 'waiting_event' || this.status === 'waiting_human') this.status = 'running';
             await this.settle();
@@ -1255,11 +1388,12 @@ export class WorkflowEngine {
         for (;;) {
             attempt++;
             const attemptStart = this.now();
-            this.record({
+            const started = this.record({
                 type: 'activity.started', ...ref, attempt,
                 data: {
                     actor_type: activity.actor_type,
                     role_id: activity.role_id,
+                    ...(this.performers.get(token.id) ? { principal: principal_ref(this.performers.get(token.id)!) } : {}),
                     input: this.journal.payload(public_payload(currentInputs)),
                     ...(currentInputs._verification_feedback ? { feedback: currentInputs._verification_feedback } : {}),
                 },
@@ -1268,14 +1402,31 @@ export class WorkflowEngine {
             // --- execute -------------------------------------------------
             let output: Record<string, unknown>;
             try {
-                const context: ActorContext = {};
+                const context: ActorContext = {
+                    record: event => this.record({ ...event, ...ref, attempt }),
+                    payload: value => this.journal.payload(value),
+                    attempt_seq: started.seq,
+                };
                 if ((activity.tools || []).length > 0) {
+                    const performer = this.performers.get(token.id);
                     context.tools = new ToolRunner(
-                        activity.tools,
-                        this.options.tools || {},
+                        this.authorization ? this.authorization.tools_for(activity.tools, performer) : activity.tools,
+                        {
+                            ...(this.options.tools || {}), sessions: this.toolSessions,
+                            // Whether the principal performing the activity may call each tool (spec 30.4)
+                            ...(this.authorization?.enforced ? { authorize: this.authorization.tool_check(activity, performer, token.contextData, { ...ref, attempt }) } : {}),
+                        },
                         event => this.record({ ...event, ...ref, attempt }),
                         value => this.journal.payload(value),
-                        { max_calls: budgets?.max_tool_calls ?? 16, simulate: this.simulate },
+                        {
+                            max_calls: budgets?.max_tool_calls ?? 16, simulate: this.simulate,
+                            ...(this.guardrails.empty ? {} : {
+                                guard: async (stage, tool, value, call_id) => {
+                                    const result = await this.guardrails.apply(stage, activity, value, { ...this.guardContext(ref, attempt), tool, call_id });
+                                    return { value: result.value, ...(result.stop ? { refused: { code: result.stop.code, message: result.stop.message } } : {}) };
+                                },
+                            }),
+                        },
                     );
                 }
                 const raw = await this.withTimeout(
@@ -1329,6 +1480,38 @@ export class WorkflowEngine {
             if (output._requires_human_action && this.options.wait_for_human_tasks) {
                 return { output, verificationRecords, attempts: attempt };
             }
+            // Nor is a task in which the agent asks for input (28.6), or a child run that waits (24.4)
+            if (output._awaiting_agent_input || output._awaiting_subworkflow) {
+                return { output, verificationRecords, attempts: attempt };
+            }
+
+            // --- guardrails at stage output: before the contract and verification (spec 31.3)
+            if (!this.guardrails.empty) {
+                const checked = output_value(output);
+                const guarded = await this.guardrails.apply('output', activity, checked, this.guardContext(ref, attempt));
+                if (guarded.value !== checked) output = merge_guarded(output, guarded.value);
+                const stop = guarded.stop;
+                if (stop) {
+                    const canRetry = stop.action === 'retry_with_feedback' && activity.actor_type === 'ai_agent' && attempt < violationCap && attempt < hardCap;
+                    this.record({
+                        type: 'activity.failed', ...ref, attempt,
+                        data: { error: { message: stop.message, code: stop.code }, retryable: canRetry, duration_ms: this.now() - attemptStart },
+                    });
+                    if (stop.action === 'escalate') return this.escalateGuardrail(token, activity, inputs, stop, attempt, output);
+                    if (!canRetry) throw new ActivityError(stop.message, stop.code);
+                    currentInputs = { ...inputs, _verification_feedback: guardrail_feedback(stop), _verification_attempt: attempt + 1 };
+                    this.record({
+                        type: 'meta.recorded', level: 'meta', ...ref, attempt,
+                        data: {
+                            subject: 'guardrail_retry',
+                            decision: 'Re-execute with what the guardrail found as feedback',
+                            rationale: `${stop.message}; the guardrail's action is "retry_with_feedback" and ${violationCap - attempt} of ${violationCap} attempts remained.`,
+                            guardrail_id: stop.guardrail.id, categories: stop.categories,
+                        },
+                    });
+                    continue;
+                }
+            }
 
             const usage = output.usage as { input_tokens?: number; output_tokens?: number } | undefined;
             tokensUsed += (usage?.input_tokens || 0) + (usage?.output_tokens || 0);
@@ -1350,7 +1533,7 @@ export class WorkflowEngine {
                 if (violations.length > 0) {
                     const message = `Outcome contract violated: ${violations.map(v => v.message).join('; ')}`;
                     const overBudget = violations.some(v => v.kind === 'budget');
-                    const canRetry = !overBudget && activity.actor_type === 'ai_agent' && attempt < violationCap;
+                    const canRetry = !overBudget && activity.actor_type === 'ai_agent' && !is_call_activity(activity) && attempt < violationCap;
                     this.record({
                         type: 'activity.failed', ...ref, attempt,
                         data: { error: { message, code: 'CONTRACT_VIOLATION' }, retryable: canRetry, duration_ms: this.now() - attemptStart },
@@ -1436,6 +1619,7 @@ export class WorkflowEngine {
             rejections++;
             const canRetry = verification.verdict === 'fail'
                 && activity.actor_type === 'ai_agent'
+                && !is_call_activity(activity)
                 && policy!.retry_with_feedback
                 && rejections < maxVerifications
                 && attempt < hardCap;
@@ -1463,6 +1647,62 @@ export class WorkflowEngine {
                 },
             });
         }
+    }
+
+    /** What the guardrails are given to check a value of this token and node (spec 31) */
+    private guardContext(ref: { token_id: UUID; node_id: UUID; node_name?: string }, attempt?: number): GuardrailContext {
+        return {
+            record: event => this.record({ ...event, ...ref, ...(attempt ? { attempt } : {}) }),
+            router: this.router, default_model: this.defaultAIModelId, classifiers: this.options.guardrail_classifiers,
+        };
+    }
+
+    /** Guardrails at stage input (spec 31.3): the input as they leave it, or the person's answer when one escalates */
+    private async guardInput(token: Token, activity: Activity, inputs: Record<string, unknown>): Promise<{
+        inputs: Record<string, unknown>; escalated?: { output: Record<string, unknown>; verificationRecords: VerificationRecord[]; attempts: number };
+    }> {
+        if (this.guardrails.empty) return { inputs };
+        const checked = input_value(inputs);
+        const guarded = await this.guardrails.apply('input', activity, checked, this.guardContext({ token_id: token.id, ...this.nodeRef(activity.id) }));
+        if (!guarded.stop) return { inputs: guarded.value === checked ? inputs : merge_guarded(inputs, guarded.value) };
+        if (guarded.stop.action !== 'escalate') throw new ActivityError(guarded.stop.message, guarded.stop.code);
+        return { inputs, escalated: await this.escalateGuardrail(token, activity, inputs, guarded.stop, 0) };
+    }
+
+    /**
+     * A guardrail whose action is escalate hands the activity to a person (spec 31.5), as an outcome
+     * contract does (11.5). At stage input no attempt was made, so `attempts` is 0.
+     */
+    private async escalateGuardrail(token: Token, activity: Activity, inputs: Record<string, unknown>, stop: GuardrailStop, attempts: number,
+        rejected?: Record<string, unknown>): Promise<{ output: Record<string, unknown>; verificationRecords: VerificationRecord[]; attempts: number }> {
+        const ref = { token_id: token.id, ...this.nodeRef(activity.id) };
+        const at = attempts > 0 ? { attempt: attempts } : {};
+        this.record({
+            type: 'meta.recorded', level: 'meta', ...ref, ...at,
+            data: { subject: 'escalation', decision: 'Hand the activity to a human', rationale: `${stop.message}, and the guardrail's action is "escalate".` },
+        });
+        const human = this.options.actors?.human
+            || new HumanAgent({ wait_for_completion: false, simulate: this.simulate && !this.options.wait_for_human_tasks });
+        const escalation = {
+            code: stop.code, message: stop.message, guardrail: { id: stop.guardrail.id, name: stop.guardrail.name }, categories: stop.categories,
+            ...(rejected ? { rejected_outcome: outcome_of(rejected) } : {}),
+        };
+        const result = this.extractTraces(await human.execute(activity, { ...inputs, _escalation: escalation }), ref, Math.max(attempts, 1));
+        if (result._requires_human_action) {
+            // Fail closed: a pending task is not an answer
+            if (!this.options.wait_for_human_tasks) throw new ActivityError(`${stop.message}. Escalated to a human, but the engine is not configured to wait for human tasks.`, stop.code);
+            return { output: { ...result, _escalated: true }, verificationRecords: [], attempts };
+        }
+        // A human answered at once. The deterministic terms of the contract still bind (11.5)
+        const contract = activity.outcome_contract;
+        if (contract) {
+            const violations = check_contract(contract, outcome_of(result));
+            this.record({ type: 'contract.checked', ...ref, ...at, data: { passed: violations.length === 0, violations, decided_by: 'human', output_hash: hash_payload(outcome_of(result)) } });
+            if (violations.length > 0) {
+                throw new ActivityError(`Outcome contract violated by the human decision: ${violations.map(v => v.message).join('; ')}`, 'CONTRACT_VIOLATION', { _contract_violations: violations });
+            }
+        }
+        return { output: { ...result, _escalated: true }, verificationRecords: [], attempts };
     }
 
     /** Fail an attempt that takes longer than the contract's duration budget */
@@ -1907,9 +2147,32 @@ export class WorkflowEngine {
      * Create the appropriate actor for an activity
      */
     private createActor(activity: Activity): Actor | undefined {
+        // A call activity is performed by a child run, whatever its actor type (24.1)
+        const call = this.calls.actor(activity);
+        if (call) return call;
+
+        // An activity whose role, or which itself, names an agent over A2A is performed by that agent (28.1)
+        const bound = a2a_binding(activity, this.roleMap.get(activity.role_id));
+        // The identity the deployment gives the agent brings its credentials (spec 30.1)
+        const agent = bound && this.authorization ? this.authorization.agent_for(activity, bound) : bound;
+        if (agent) {
+            return new A2AActor(agent, this.options.a2a || {}, this.a2aState, {
+                simulate: this.simulate, scripted: this.scriptedActor(activity),
+                tools_allowed_hosts: this.options.tools?.allowed_hosts, tools_secrets: this.options.tools?.secrets,
+            });
+        }
+
         const custom = this.options.actors?.[activity.actor_type];
         if (custom) return custom;
 
+        const scripted = this.scriptedActor(activity);
+        if (scripted) return scripted;
+
+        return this.builtInActor(activity);
+    }
+
+    /** In simulation, the actor that returns what the deployment scripted for the activity, if it scripted anything */
+    private scriptedActor(activity: Activity): Actor | undefined {
         const scripted = this.simulate ? this.options.simulated_outputs?.[activity.name] : undefined;
         if (scripted) {
             return {
@@ -1921,7 +2184,10 @@ export class WorkflowEngine {
                 },
             };
         }
+        return undefined;
+    }
 
+    private builtInActor(activity: Activity): Actor | undefined {
         switch (activity.actor_type) {
             case 'application':
                 return new SoftwareAgent();
@@ -1949,11 +2215,95 @@ export class WorkflowEngine {
         }
     }
 
-    public async resumeToken(tokenId: UUID, output: Record<string, unknown>): Promise<boolean> {
+    /** Park a token whose agent asks for input (28.6) */
+    private parkForAgent(token: Token, activity: Activity, awaiting: Record<string, unknown>, analytics: Analytics, since: Date): void {
+        analytics.waste_categories?.push('waiting' as WasteCategory);
+        token.updateStatus('waiting', analytics);
+        token.setData('_awaiting_agent_input', awaiting);
+        token.setData('_waiting_since', since.toISOString());
+        this.record({
+            type: 'token.waiting', token_id: token.id, ...this.nodeRef(activity.id),
+            data: {
+                reason: 'agent_input', agent: awaiting.agent, task_id: awaiting.task_id,
+                ...(awaiting.context_id ? { context_id: awaiting.context_id } : {}),
+                request: this.journal.payload(awaiting.request ?? null),
+            },
+        });
+        this.log(`Token waits for the input agent ${awaiting.agent} asks for`);
+    }
+
+    /** The tokens waiting for input an agent asked for, with what it asked (28.6) */
+    public getAgentRequests(): { token_id: UUID; node_id: UUID; agent: string; task_id: string; context_id?: string; request: unknown }[] {
+        return [...this.tokens.filter(t => t.status === 'waiting' && t.getData('_awaiting_agent_input')).map(t => {
+            const awaiting = t.getData('_awaiting_agent_input') as { agent: string; task_id: string; context_id?: string; request: unknown };
+            return { token_id: t.id, node_id: t.activityId, ...awaiting };
+        }), ...this.calls.agent_requests()];   // and those of the child runs it waits on (24.4)
+    }
+
+    /**
+     * Give an agent the input it asked for (28.6). The token's activity is performed again: the input is
+     * sent on the agent's task, which is then followed as before. Call run() afterwards.
+     * Returns whether the token was waiting for an agent's input.
+     */
+    public async answerAgent(tokenId: UUID, input: Record<string, unknown> | string): Promise<boolean> {
         const token = this.tokens.find(t => t.id === tokenId);
-        if (!token || token.status !== 'waiting') {
+        if (!token) {
+            // An agent of a child run is answered through the parent (24.4)
+            const child = await this.calls.answer_agent(tokenId, input);
+            if (!child) return false;
+            if (child.woken > 0 && (this.status === 'waiting_event' || this.status === 'waiting_human')) this.status = 'running';
+            await this.settle();
+            await this.saveCheckpoint();
+            return child.answered;
+        }
+        const awaiting = token.status === 'waiting' ? token.getData('_awaiting_agent_input') as { task_id: string; context_id?: string } | undefined : undefined;
+        if (!awaiting) return false;
+        const since = token.getData('_waiting_since');
+        const waitedMs = since ? this.now() - new Date(since as string).getTime() : undefined;
+        delete token.contextData._awaiting_agent_input;
+        delete token.contextData._waiting_since;
+        token.setData('_agent_continuation', { task_id: awaiting.task_id, context_id: awaiting.context_id, input });
+        token.updateStatus('active', since ? { wait_time: calculate_duration(new Date(since as string), new Date(this.now())), waste_categories: ['waiting' as WasteCategory] } : undefined);
+        this.record({ type: 'token.resumed', token_id: token.id, ...this.nodeRef(token.activityId), data: { reason: 'agent_input', waited_ms: waitedMs } });
+        if (this.status === 'waiting_event' || this.status === 'waiting_human') this.status = 'running';
+        await this.saveCheckpoint();
+        return true;
+    }
+
+    /**
+     * Resume a token that waits for a person, with the person's answer. `principal` is who answers (spec 30.4):
+     * under a policy the answer is refused with an AuthorizationError (code FORBIDDEN) when they may not complete
+     * the task, and the token keeps waiting; under a four-eyes rule it keeps waiting until enough have approved.
+     */
+    public async resumeToken(tokenId: UUID, output: Record<string, unknown>, principal?: Principal): Promise<boolean> {
+        const token = this.tokens.find(t => t.id === tokenId);
+        if (!token) {
+            // A person's task in a child run is completed through the parent (24.4)
+            const child = await this.calls.resume(tokenId, output, principal);
+            if (!child) return false;
+            if (child.woken > 0 && (this.status === 'waiting_event' || this.status === 'waiting_human')) this.status = 'running';
+            await this.settle();
+            await this.saveCheckpoint();
+            return child.resumed;
+        }
+        // A token waiting for an agent's input is answered with answerAgent, not resumed with an outcome (28.6); one waiting on a child run, by the child (24.4)
+        if (token.status !== 'waiting' || token.getData('_awaiting_agent_input') || token.getData('_awaiting_subworkflow')) {
             return false;
         }
+        const answered = this.activityMap.get(token.activityId);
+        const gate = this.authorization && answered
+            ? await this.authorization.before_completion(answered, token.contextData, output, principal, { token_id: token.id, ...this.nodeRef(token.activityId) })
+            : undefined;
+        if (gate?.pending) {
+            token.setData('_approvals', gate.kept);
+            await this.saveCheckpoint();
+            return true;
+        }
+        if (gate) {
+            output = gate.output;
+            delete token.contextData._approvals;
+        }
+        const answeredBy = gate ? { principal: principal_ref(gate.principal), ...(gate.approvals ? { approvals: gate.approvals } : {}) } : {};
 
         const waitingSince = token.getData('_waiting_since');
         let analytics: Analytics | undefined;
@@ -1968,7 +2318,7 @@ export class WorkflowEngine {
         const resumed = this.activityMap.get(token.activityId);
         const ref = { token_id: token.id, ...this.nodeRef(token.activityId) };
         token.updateStatus('active', analytics);
-        this.record({ type: 'token.resumed', ...ref, data: { waited_ms: waitedMs } });
+        this.record({ type: 'token.resumed', ...ref, data: { waited_ms: waitedMs, ...(gate ? { principal: principal_ref(gate.principal) } : {}) } });
         output = { ...output };
         const context_writes = output._context_writes;
         delete output._context_writes;
@@ -2011,6 +2361,7 @@ export class WorkflowEngine {
                 actor_type: this.activityMap.get(token.activityId)?.actor_type || 'human',
                 output: this.journal.payload(public_payload(output)),
                 waited_ms: waitedMs,
+                ...answeredBy,
             },
         });
 
@@ -2019,15 +2370,61 @@ export class WorkflowEngine {
         }
 
         // The activity is now complete: if the run fails later, its effects are undone like any other's
-        this.completedActivities.push({ activity_id: token.activityId, token_id: token.id, output: public_payload(output) });
+        this.completedActivities.push({
+            activity_id: token.activityId, token_id: token.id, output: public_payload(output),
+            ...(gate ? { principal_ids: gate.approvals ? gate.approvals.map(a => a.id) : [gate.principal.id] } : {}),
+        });
 
         await this.advanceToken(token, token.activityId);
         await this.saveCheckpoint();
         return (token.status as string) !== 'failed';
     }
 
+    /** Whether the run may be started with this input, by the principal it was given (spec 30.4). Throws an AuthorizationError if not */
+    public async authorizeStart(input: Record<string, unknown> = {}): Promise<void> {
+        await this.authorization?.start(input, this.options.principal);
+    }
+
     public getStatus(): EngineStatus {
         return this.status;
+    }
+
+    // ---------------------------------------------------------------- child runs (spec 24)
+
+    /** Every child run this run started, with theirs, in the order they started (24.7) */
+    public getSubworkflowRuns(): SubworkflowRun[] {
+        return this.calls.list();
+    }
+
+    /** Whether a run is a child run of this one, at any depth */
+    public hasSubworkflowRun(runId: UUID): boolean {
+        return this.calls.has_run(runId);
+    }
+
+    /** The journal of a child run of this one, at any depth */
+    public async getSubworkflowEvents(runId: UUID): Promise<JournalEvent[]> {
+        await this.journal.flush();
+        return this.calls.events(runId);
+    }
+
+    /** The states of the child runs this run keeps, at any depth, and of those that settled since last asked: what a store keeps of each (24.8) */
+    public subworkflowStates(): { run_id: UUID; workflow_id: UUID; state: WorkflowState }[] {
+        return this.calls.states();
+    }
+
+    /** Who performed the activities of this run and of its child runs, at any depth (spec 30.6) */
+    public performedRecord(): PerformedEntry[] {
+        return this.calls.tree();
+    }
+
+    /** Whether a token belongs to this run or to a child run it waits on */
+    public ownsToken(tokenId: UUID): boolean {
+        return this.tokens.some(t => t.id === tokenId) || this.calls.owns_token(tokenId);
+    }
+
+    private subworkflowMetadata(): { subworkflows?: SubworkflowState } {
+        const state = this.calls.snapshot();
+        return state ? { subworkflows: state } : {};
     }
 
     public getContext(contextId: UUID): unknown {

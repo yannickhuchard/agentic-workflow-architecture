@@ -1,0 +1,123 @@
+{
+  "id": "versioning-refuses-a-run-in-the-middle-of-an-activity",
+  "level": "versioning",
+  "spec": "25.2",
+  "description": "A run with a token in the middle of an activity is not at rest. Even with the identity mapping, its migration is refused, naming the token and the activity.",
+  "start": "2026-05-04T09:00:00Z",
+  "workflows": [
+    {
+      "id": "9bb6c276-c171-5191-86f0-c74dae081b7b",
+      "name": "Claim",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "29687592-cffc-5f2a-a3a5-54a2148ab56c",
+          "name": "Register",
+          "role_id": "11b02223-bf6d-5b76-a3c3-b469a5e4e286",
+          "actor_type": "application"
+        },
+        {
+          "id": "f341273d-e064-5216-a8fd-b9e28e57b6d5",
+          "name": "Assess",
+          "role_id": "11b02223-bf6d-5b76-a3c3-b469a5e4e286",
+          "actor_type": "ai_agent"
+        },
+        {
+          "id": "3554451a-b571-5a36-a0bf-9e652d92e94e",
+          "name": "Settle",
+          "role_id": "11b02223-bf6d-5b76-a3c3-b469a5e4e286",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "f053fd47-5a10-56e6-9bea-955013f35bba",
+          "source_id": "29687592-cffc-5f2a-a3a5-54a2148ab56c",
+          "target_id": "f341273d-e064-5216-a8fd-b9e28e57b6d5"
+        },
+        {
+          "id": "d18afa76-45a0-5574-8a37-33b377286489",
+          "source_id": "f341273d-e064-5216-a8fd-b9e28e57b6d5",
+          "target_id": "3554451a-b571-5a36-a0bf-9e652d92e94e"
+        }
+      ]
+    },
+    {
+      "id": "9bb6c276-c171-5191-86f0-c74dae081b7b",
+      "name": "Claim",
+      "version": "2.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "29687592-cffc-5f2a-a3a5-54a2148ab56c",
+          "name": "Register",
+          "role_id": "11b02223-bf6d-5b76-a3c3-b469a5e4e286",
+          "actor_type": "application"
+        },
+        {
+          "id": "f341273d-e064-5216-a8fd-b9e28e57b6d5",
+          "name": "Assess",
+          "role_id": "11b02223-bf6d-5b76-a3c3-b469a5e4e286",
+          "actor_type": "ai_agent"
+        },
+        {
+          "id": "3554451a-b571-5a36-a0bf-9e652d92e94e",
+          "name": "Settle",
+          "role_id": "11b02223-bf6d-5b76-a3c3-b469a5e4e286",
+          "actor_type": "application"
+        },
+        {
+          "id": "aeb1d798-ab03-53d3-8409-75a97c789b81",
+          "name": "Notify",
+          "role_id": "11b02223-bf6d-5b76-a3c3-b469a5e4e286",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "f053fd47-5a10-56e6-9bea-955013f35bba",
+          "source_id": "29687592-cffc-5f2a-a3a5-54a2148ab56c",
+          "target_id": "f341273d-e064-5216-a8fd-b9e28e57b6d5"
+        },
+        {
+          "id": "d18afa76-45a0-5574-8a37-33b377286489",
+          "source_id": "f341273d-e064-5216-a8fd-b9e28e57b6d5",
+          "target_id": "3554451a-b571-5a36-a0bf-9e652d92e94e"
+        },
+        {
+          "id": "b8efced7-4ef6-5261-b21e-c323c689d983",
+          "source_id": "3554451a-b571-5a36-a0bf-9e652d92e94e",
+          "target_id": "aeb1d798-ab03-53d3-8409-75a97c789b81"
+        }
+      ]
+    }
+  ],
+  "state": {
+    "version": "1.0.0",
+    "status": "running",
+    "tokens": [
+      {
+        "id": "6f7c1a52-2f0e-4c35-9d55-0c0c1f0b1a01",
+        "node": "Assess",
+        "status": "active",
+        "data": {
+          "claim_id": "CLM-1"
+        }
+      }
+    ]
+  },
+  "migrate": {
+    "plan": {
+      "to_version": "2.0.0"
+    }
+  },
+  "expect": {
+    "refusals": [
+      "run_in_activity"
+    ],
+    "refused_tokens": [
+      "6f7c1a52-2f0e-4c35-9d55-0c0c1f0b1a01"
+    ]
+  }
+}

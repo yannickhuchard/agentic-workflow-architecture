@@ -1,0 +1,119 @@
+{
+  "id": "agent-failure-fails-the-activity",
+  "level": "a2a",
+  "spec": "28.4",
+  "description": "A task that fails fails the attempt with AGENT_FAILED and the agent's status message.",
+  "workflow": {
+    "id": "4ee4d745-5fa2-5af3-8bee-9304e54aee06",
+    "name": "agent-failure-fails-the-activity",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "1f0ee100-d72b-5f50-8b35-7689d0cd772a",
+        "name": "Assess",
+        "role_id": "c7e11683-ba72-5cb6-898b-9ac315d53e81",
+        "actor_type": "ai_agent",
+        "a2a": {
+          "agent_card": "https://agents.example/claims/.well-known/agent-card.json"
+        }
+      },
+      {
+        "id": "a56cb312-d767-5eba-9d26-c5e19dd26d8c",
+        "name": "Settle",
+        "role_id": "c7e11683-ba72-5cb6-898b-9ac315d53e81",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "55a3dd29-20bd-5eea-a1b4-a4a47298d040",
+        "source_id": "1f0ee100-d72b-5f50-8b35-7689d0cd772a",
+        "target_id": "a56cb312-d767-5eba-9d26-c5e19dd26d8c"
+      }
+    ]
+  },
+  "agents": {
+    "https://agents.example/claims/.well-known/agent-card.json": {
+      "card": {
+        "name": "Claims assessor",
+        "description": "Claims assessor, reached over A2A",
+        "version": "1.0.0",
+        "supportedInterfaces": [
+          {
+            "url": "https://agents.example/claims/a2a",
+            "protocolBinding": "JSONRPC",
+            "protocolVersion": "1.0"
+          }
+        ],
+        "capabilities": {
+          "streaming": false,
+          "pushNotifications": false
+        },
+        "defaultInputModes": [
+          "application/json",
+          "text/plain"
+        ],
+        "defaultOutputModes": [
+          "application/json"
+        ],
+        "skills": [
+          {
+            "id": "assess",
+            "name": "Assess",
+            "description": "Assess a claim",
+            "tags": [
+              "claims"
+            ]
+          }
+        ]
+      },
+      "replies": [
+        {
+          "result": {
+            "task": {
+              "id": "task-1",
+              "contextId": "ctx-1",
+              "status": {
+                "state": "TASK_STATE_FAILED",
+                "message": {
+                  "messageId": "m-failed",
+                  "role": "ROLE_AGENT",
+                  "parts": [
+                    {
+                      "text": "Policy P-1 not found"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "expect": {
+    "status": "failed",
+    "not_visited": [
+      "Settle"
+    ],
+    "error_matches": "Policy P-1 not found",
+    "journal_contains": [
+      {
+        "type": "agent.task_updated",
+        "data": {
+          "state": "TASK_STATE_FAILED"
+        }
+      },
+      {
+        "type": "activity.failed",
+        "data": {
+          "error": {
+            "code": "AGENT_FAILED",
+            "message": "Policy P-1 not found"
+          }
+        }
+      }
+    ]
+  }
+}

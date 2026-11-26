@@ -109,7 +109,10 @@ test('simulate_workflow executes nothing a document names: no command, no HTTP, 
     assert.deepEqual(s.commands_not_called.sort(), ['shell', 'touch_file'], 'command tools are reported as not called');
     const journal = result._meta.awa.journal;
     const invoked = journal.filter(e => e.type === 'tool.invoked');
-    assert.deepEqual(invoked.map(e => e.data.tool).sort(), ['function_tool', 'grpc_tool', 'http_get', 'http_post', 'mcp_tool', 'rpc']);
+    assert.deepEqual(invoked.map(e => e.data.tool).sort(), ['function_tool', 'grpc_tool', 'http_get', 'http_post', 'rpc']);
+    // The engine runs MCP tools itself, but only on servers the deployment declares: a simulation declares none,
+    // so the MCP tool is refused before anything is recorded as invoked (specification 17.4, 17.7)
+    assert.ok(journal.some(e => e.type === 'tool.failed' && e.data.tool === 'mcp_tool' && e.data.invoked === false && e.data.error.code === 'PERMISSION_DENIED'));
     assert.ok(invoked.every(e => e.data.simulated === true), 'every recorded tool call is marked simulated');
     assert.ok(journal.filter(e => e.type === 'tool.completed').every(e => e.data.status === 'simulated'));
     assert.equal(journal.some(e => e.type === 'tool.invoked' && /touch_file|shell/.test(e.data.tool)), false);

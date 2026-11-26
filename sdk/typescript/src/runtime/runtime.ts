@@ -8,6 +8,7 @@
  */
 
 import { randomUUID } from 'crypto';
+import { AsyncLocalStorage } from 'async_hooks';
 import { UUID, Workflow } from '../types';
 import { BusinessEvent } from './business_event';
 import { resolve_path } from './expression';
@@ -18,6 +19,12 @@ import {
 } from './journey';
 import { WorkflowState } from './persistence';
 import { WorkflowEngine, WorkflowEngineOptions } from './workflow_engine';
+import { ShadowOptions, ShadowRunner } from './shadow';
+import { JourneyTelemetry, TelemetrySetting, resolve_telemetry } from './telemetry_export';
+import { HostView, SharedJournal, SharedOperation, SharedRuntimeStore, StoredRun } from './shared_store';
+import { HOST_PRINCIPAL, Principal, principal_ref } from './authorization';
+import { MigrationPlan, MigrationRefusalCode, MigrationResult, VersionComparison, compare_semver, compare_versions, plan_migration } from './migration';
+import { SubworkflowOptions, called_workflows, record_child_runs } from './subworkflow';
 import fs from 'fs/promises';
 import { rmSync } from 'fs';
 import path from 'path';
@@ -29,6 +36,22 @@ export interface RuntimeOptions {
     now?: () => number;
     /** Where the runtime keeps what it knows, so that another process can carry on (spec 19.10). Without it, everything is in memory. */
     store?: RuntimeStore;
+    /** Run a candidate workflow or model beside production, compared as runs end (spec 33.5) */
+    shadow?: ShadowOptions;
+    /** Where the spans of journeys and of the runs they start go (spec 26): an exporter, or `{ endpoint, headers, payloads }`. Runs take it unless `engine.telemetry` says otherwise. */
+    telemetry?: TelemetrySetting;
+    /** A store that several hosts use at once (spec 29), instead of `store`. Each operation then works on what it holds of the store, and keeps it there. */
+    shared?: SharedRuntimeStore;
+    /** Workflow id -> the version new runs of it start on, instead of the newest registered (spec 25.1) */
+    pinned_versions?: Record<string, string>;
+}
+
+/** Which runs of a workflow can be moved to a version, and how each position of each older version fares (spec 25.4) */
+export interface MigrationCheck {
+    workflow_id: string;
+    to_version: string;
+    comparisons: VersionComparison[];
+    runs: { run_id: string; version: string; status: string; journey_instance_id?: string; migratable: boolean; refusals: MigrationResult['refusals']; tokens: MigrationResult['tokens'] }[];
 }
 
 /** Everything a host must keep to carry on after a restart: journeys, runs, and which events it has already taken in */
@@ -97,7 +120,10 @@ export interface JourneyBundle {
 }
 
 export class AwaRuntime {
+    /** workflow id -> its newest registered version: what new runs start on (spec 25.1) */
     private workflows = new Map<string, Workflow>();
+    /** workflow id -> version -> the workflow: every version registered, for the runs that started on it */
+    private versions = new Map<string, Map<string, Workflow>>();
     private journeys = new Map<string, JourneyDefinition>();
     private instances = new Map<string, JourneyInstance>();
     private runs = new Map<string, WorkflowEngine>();
@@ -111,7 +137,27 @@ export class AwaRuntime {
     /** journey id -> the business event types that concern it */
     private concerns = new Map<string, Set<string>>();
 
-    constructor(private options: RuntimeOptions = {}) { }
+    /** On a shared store: the operation under way, its journal, and one operation of this host at a time (spec 29) */
+    private operation?: SharedOperation;
+    private shared_journal?: SharedJournal;
+    private in_operation = new AsyncLocalStorage<boolean>();
+    private queue: Promise<unknown> = Promise.resolve();
+
+    /** The shadow of production, when the runtime was given one (spec 33.5) */
+    readonly shadow?: ShadowRunner;
+
+    private journey_telemetry?: JourneyTelemetry;
+    private run_telemetry?: TelemetrySetting;
+
+    constructor(private options: RuntimeOptions = {}) {
+        if (options.shared) this.shared_journal = new SharedJournal(options.shared, () => this.operation);
+        if (options.shadow) this.shadow = new ShadowRunner(options.shadow, () => this.now());
+        const telemetry = resolve_telemetry(options.telemetry);
+        if (telemetry) {
+            this.run_telemetry = { exporter: telemetry.exporter, payloads: telemetry.payloads };
+            this.journey_telemetry = new JourneyTelemetry(telemetry.exporter, telemetry.payloads);
+        }
+    }
 
     private now(): number {
         return this.options.now ? this.options.now() : Date.now();
@@ -120,9 +166,39 @@ export class AwaRuntime {
         return new Date(this.now()).toISOString();
     }
 
+    /**
+     * Register a workflow. Several versions of one workflow may be registered: runs keep the
+     * version they started on, and new runs start on the newest (spec 25.1).
+     */
     register_workflow(workflow: Workflow): this {
-        this.workflows.set(workflow.id, workflow);
+        if (!this.versions.has(workflow.id)) this.versions.set(workflow.id, new Map());
+        this.versions.get(workflow.id)!.set(workflow.version, workflow);
+        const newest = this.workflows.get(workflow.id);
+        if (!newest || compare_semver(workflow.version, newest.version) >= 0) this.workflows.set(workflow.id, workflow);
         return this;
+    }
+
+    /** The versions of a workflow registered on this host, oldest first */
+    workflow_versions(workflow_id: string): string[] {
+        return [...(this.versions.get(workflow_id)?.keys() || [])].sort(compare_semver);
+    }
+
+    /** A registered workflow: the version named, or the newest */
+    get_workflow(workflow_id: string, version?: string): Workflow | undefined {
+        return version ? this.versions.get(workflow_id)?.get(version) : this.workflows.get(workflow_id);
+    }
+
+    /** The version a run needs: the one it started on, or the newest for a state that does not say */
+    private workflow_of(workflow_id: string, version?: string): Workflow | undefined {
+        return version ? this.versions.get(workflow_id)?.get(version) : this.workflows.get(workflow_id);
+    }
+
+    /** The version new runs of a workflow start on: the newest registered, unless the host pins another (spec 25.1) */
+    private starting_version(workflow_id: string, version?: string): Workflow {
+        const wanted = version ?? this.options.pinned_versions?.[workflow_id];
+        const workflow = this.get_workflow(workflow_id, wanted);
+        if (!workflow) throw new Error(wanted && this.workflows.has(workflow_id) ? `Workflow ${workflow_id} has no registered version ${wanted}` : `Workflow ${workflow_id} is not registered`);
+        return workflow;
     }
 
     register_journey(definition: JourneyDefinition): this {
@@ -135,7 +211,9 @@ export class AwaRuntime {
             ...definition.touchpoints.map(t => t.on.event).filter((t): t is string => !!t),
             ...(definition.sentiment?.rules || []).map(r => r.event).filter((t): t is string => !!t),
         ]);
-        const workflow_ids = [...definition.stages.flatMap(s => [...s.workflows, ...(s.on_enter ? [s.on_enter.start_workflow] : [])]), ...definition.triggers.map(t => t.start_workflow)];
+        const started_ids = [...definition.stages.flatMap(s => [...s.workflows, ...(s.on_enter ? [s.on_enter.start_workflow] : [])]), ...definition.triggers.map(t => t.start_workflow)];
+        // The workflows they call are the journey's too (24.7)
+        const workflow_ids = [...started_ids, ...called_workflows(started_ids.filter((id): id is string => !!id), this.workflows).map(w => w.id)];
         for (const id of workflow_ids) {
             for (const event of (id && this.workflows.get(id)?.events) || []) {
                 const name = (event.event_definition as { name?: string } | undefined)?.name;
@@ -146,6 +224,8 @@ export class AwaRuntime {
         return this;
     }
 
+    /** The store this host shares with others (spec 29), if it has one */
+    get shared_store(): SharedRuntimeStore | undefined { return this.options.shared; }
     get_run(run_id: string): WorkflowEngine | undefined { return this.runs.get(run_id); }
     list_runs(): WorkflowEngine[] { return [...this.runs.values()]; }
     get_journey_instance(id: string): JourneyInstance | undefined { return this.instances.get(id); }
@@ -164,6 +244,7 @@ export class AwaRuntime {
     /** One operation of the host. When the outermost one ends, what the runtime knows is saved. */
     private depth = 0;
     private async op<T>(work: () => Promise<T>): Promise<T> {
+        if (this.options.shared) return this.shared_op(work);
         this.depth++;
         try { return await work(); } finally {
             this.depth--;
@@ -175,6 +256,7 @@ export class AwaRuntime {
     async save(): Promise<void> {
         // Journals first: a state that names a journal position must never be ahead of the journal
         await Promise.all([...this.runs.values()].map(engine => engine.flush()));
+        this.journey_telemetry?.observe(this.instances.values());
         if (!this.options.store) return;
         await this.options.store.save({
             version: '1', saved_at: this.time(),
@@ -191,21 +273,24 @@ export class AwaRuntime {
      * activity execute it again, so activities are executed at least once (10.3).
      */
     async recover(): Promise<{ instances: number; runs: number; continued: string[] }> {
+        if (this.options.shared) return this.check_shared_store();
         const state = await this.options.store?.load();
         if (!state) return { instances: 0, runs: 0, continued: [] };
 
         // Everything is rebuilt aside first. A recovery that cannot complete throws here, before
         // anything is taken over or saved: the state on record stays exactly as it was (spec 19.10).
-        const missing = state.runs.filter(saved => !this.workflows.has(saved.workflow_id));
-        if (missing.length) throw new Error(`Cannot recover: ${missing.map(m => `run ${m.run_id} needs workflow ${m.workflow_id}`).join('; ')}, which is not registered. Nothing was changed.`);
+        // Each run on the version it started on, or was moved to (spec 25.1)
+        const missing = state.runs.filter(saved => !this.workflow_of(saved.workflow_id, saved.state.workflow_version));
+        if (missing.length) throw new Error(`Cannot recover: ${missing.map(m => `run ${m.run_id} needs workflow ${m.workflow_id}${m.state.workflow_version ? ` version ${m.state.workflow_version}` : ''}`).join('; ')}, which is not registered. Nothing was changed.`);
         const instances = new Map(state.instances.map(i => [i.id, i]));
         const engines: { saved: RuntimeState['runs'][number]; engine: WorkflowEngine }[] = [];
         for (const saved of state.runs) {
-            engines.push({ saved, engine: await WorkflowEngine.recover(this.workflows.get(saved.workflow_id)!, saved.state, this.engine_options(() => saved.run_id)) });
+            engines.push({ saved, engine: await WorkflowEngine.recover(this.workflow_of(saved.workflow_id, saved.state.workflow_version)!, saved.state, this.engine_options(() => saved.run_id)) });
         }
 
         return this.op(async () => {
             this.instances = instances;
+            this.journey_telemetry?.prime(instances.values());
             this.seen_events = new Set(state.seen_events);
             this.outbox = new Map(Object.entries(state.outbox || {}));
             const continued: string[] = [];
@@ -228,8 +313,23 @@ export class AwaRuntime {
     private engine_options(run_id: () => string): WorkflowEngineOptions {
         const outer_sink = this.options.engine?.event_sink;
         return {
-            ...this.options.engine, now: this.options.now,
+            ...(this.run_telemetry ? { telemetry: this.run_telemetry } : {}),
+            ...this.options.engine, now: this.options.now, ...(this.shared_journal ? { journal: this.shared_journal } : {}),
+            // Call activities run the workflows registered here (24.1); a shared store keeps each child run (24.8)
+            subworkflows: { ...this.subworkflow_options(), ...(this.options.shared ? { record_settled: true } : {}), ...this.options.engine?.subworkflows },
             event_sink: async event => { this.outbox.set(run_id(), [...(this.outbox.get(run_id()) || []), event]); await outer_sink?.(event); },
+        };
+    }
+
+    /**
+     * The workflows call activities run (24.1): a new child run starts on the version a new run of the called
+     * workflow would start on here, and a child run keeps its version when restored or taken up (25.1)
+     */
+    private subworkflow_options(): SubworkflowOptions {
+        return {
+            workflows: this.workflows,
+            version: (workflow_id, version) => version ? this.workflow_of(workflow_id, version)
+                : this.get_workflow(workflow_id, this.options.pinned_versions?.[workflow_id]),
         };
     }
 
@@ -246,19 +346,27 @@ export class AwaRuntime {
             if (!occasion) return;
             for (const touchpoint of touchpoints_for(definition, occasion)) {
                 if (occasion.event && touchpoint.direction !== 'outbound') continue;
-                record_touchpoint(definition, instance, touchpoint, event.time, { data: occasion.data, run_id, event_id: (occasion as { event_id?: string }).event_id, link: (occasion as { link?: string }).link });
+                record_touchpoint(definition, instance, touchpoint, event.time, { data: occasion.data, run_id: event.run_id || run_id, event_id: (occasion as { event_id?: string }).event_id, link: (occasion as { link?: string }).link });
             }
         });
     }
 
-    /** Start a run. With a journey instance, the run belongs to that journey. */
-    async start(workflow_id: UUID, input: Record<string, unknown> = {}, journey?: { instance: JourneyInstance; caused_by_event?: string }): Promise<WorkflowEngine> {
+    /**
+     * Start a run. With a journey instance, the run belongs to that journey. It starts on the newest version of the
+     * workflow, or on `options.version`, or the one the host pins, and keeps it (spec 25.1). `options.principal` is who
+     * starts it (spec 30.1); without one, the host does. Under a policy that refuses it, an AuthorizationError is thrown
+     * and no run exists.
+     */
+    async start(workflow_id: UUID, input: Record<string, unknown> = {}, journey?: { instance: JourneyInstance; caused_by_event?: string }, options: { version?: string; principal?: Principal } = {}): Promise<WorkflowEngine> {
+        const principal = options.principal;
         return this.op(async () => {
-            const workflow = this.workflows.get(workflow_id);
-            if (!workflow) throw new Error(`Workflow ${workflow_id} is not registered`);
+            // The newest version, unless pinned: a run then keeps the version it started on (spec 25.1)
+            const workflow = this.starting_version(workflow_id, options.version);
             // The engine's options need its run id, which exists only once the engine does
             const made: { engine?: WorkflowEngine } = {};
-            const engine = new WorkflowEngine(workflow, this.engine_options(() => made.engine!.getRunId()));
+            const engine = new WorkflowEngine(workflow, { ...this.engine_options(() => made.engine!.getRunId()), ...(principal ? { principal } : {}) });
+            // A start the policy refuses leaves no run behind (spec 30.4)
+            await engine.authorizeStart(input);
             made.engine = engine;
             this.runs.set(engine.getRunId(), engine);
 
@@ -286,12 +394,15 @@ export class AwaRuntime {
 
     /** After a run has made progress: if it ended, fold its result into its journey and move the journey on */
     private async sync(engine: WorkflowEngine): Promise<void> {
+        await this.shadow?.settled(engine);
         // What the run announced is taken in now that it has settled: after its own ending is recorded, before anything follows from it (spec 19.5)
         const flush = async () => { const events = this.outbox.get(engine.getRunId()) || []; this.outbox.delete(engine.getRunId()); for (const event of events) await this.publish(event); };
         const instance = this.instances.get(this.run_journey.get(engine.getRunId()) || '');
         if (!instance) return flush();
         const ref = instance.runs.find(r => r.run_id === engine.getRunId())!;
         const status = engine.getStatus();
+        // The runs it called belong to the journey too, and end before it does (24.7)
+        record_child_runs(engine, instance, ref, this.time());
         if (ref.status === status) return flush();
         ref.status = status;
         if (status !== 'completed' && status !== 'failed' && status !== 'cancelled') return flush();
@@ -355,8 +466,13 @@ export class AwaRuntime {
 
     private async take_in(event: BusinessEvent): Promise<PublishResult> {
         const result: PublishResult = { accepted: false, resumed_runs: [], started_runs: [], journeys: [] };
-        if (this.seen_events.has(event.id)) return result;
-        this.seen_events.add(event.id);
+        if (this.operation) {
+            // Accepted once across every host of the store, and everything it can touch held (spec 29.3)
+            if (!(await this.operation.accept(event))) return result;
+        } else {
+            if (this.seen_events.has(event.id)) return result;
+            this.seen_events.add(event.id);
+        }
         result.accepted = true;
         const data = event.data || {};
         const time = this.time();
@@ -472,8 +588,11 @@ export class AwaRuntime {
     }
 
     private async pass_time(now: number): Promise<{ timed_out_runs: string[]; stalled_journeys: string[] }> {
+        if (this.operation) await this.operation.hold_due(now);
         const timed_out_runs: string[] = [];
         for (const engine of this.runs.values()) {
+            // A run left in the middle of an activity is continued (10.3)
+            if (engine.getStatus() === 'running') { await engine.run(); await this.sync(engine); }
             if (await engine.expireEvents(now) > 0) {
                 timed_out_runs.push(engine.getRunId());
                 await engine.run();
@@ -491,40 +610,229 @@ export class AwaRuntime {
         return { timed_out_runs, stalled_journeys };
     }
 
-    /** A person completed a task in one of the runs */
-    async resume(run_id: string, token_id: string, output: Record<string, unknown>): Promise<boolean> {
-        const engine = this.runs.get(run_id);
-        if (!engine) return false;
+    /** A person completed a task in one of the runs, or in a child run one of them holds (24.4). `principal` is who (spec 30.4); a refusal throws an AuthorizationError and the task keeps waiting */
+    async resume(run_id: string, token_id: string, output: Record<string, unknown>, principal?: Principal): Promise<boolean> {
+        if (!this.options.shared && !this.holding(run_id)) return false;
         return this.op(async () => {
-            const resumed = await engine.resumeToken(token_id, output);
+            await this.operation?.hold_run(run_id);
+            // A task of a child run is completed through the run that holds it (24.4)
+            const engine = this.holding(run_id);
+            if (!engine) return false;
+            const resumed = await engine.resumeToken(token_id, output, principal);
             await engine.run();
             await this.sync(engine);
             return resumed;
         });
     }
 
+    /**
+     * Move a run at rest to another registered version of its workflow (spec 25.3): the newest,
+     * or `plan.to_version`. The plan is checked in full first; a refusal names its reasons and
+     * changes nothing. With `dry_run`, says what would happen and changes nothing either. `principal` is who moves
+     * the run, recorded on `run.migrated` where the deployment has an authorization section (spec 30.6); whether they
+     * may is decided by the route or command that calls this (30.4).
+     */
+    async migrate(run_id: string, plan: MigrationPlan = {}, options: { dry_run?: boolean; principal?: Principal } = {}): Promise<MigrationResult> {
+        const dry_run = !!options.dry_run;
+        const refused = (code: MigrationRefusalCode, message: string, extra: Partial<MigrationResult> = {}): MigrationResult => ({
+            run_id, workflow_id: plan.workflow_id ?? '', from_version: '', to_version: plan.to_version ?? '', applied: false, dry_run,
+            refusals: [{ code, message }], tokens: [], data_changes: [], completed_work: [], ...extra,
+        });
+        return this.op(async () => {
+            await this.operation?.hold_run(run_id);
+            const engine = this.runs.get(run_id);
+            if (!engine) return refused('not_found', `There is no run ${run_id} on this host.`);
+            const from = engine.getWorkflow();
+            const to = this.get_workflow(from.id, plan.to_version);
+            if (!to) return refused('unknown_version', `Workflow ${from.id} has no registered version ${plan.to_version}.`, { workflow_id: from.id, from_version: from.version });
+            await engine.flush();
+            const { state, ...result } = plan_migration(from, to, engine.snapshot(), plan, run_id);
+            result.dry_run = dry_run;
+            if (dry_run || result.refusals.length || !state) return result;
+
+            // The run goes on as a run of the new version, its journal continuing with the migration itself
+            const moved = WorkflowEngine.restore(to, state, this.engine_options(() => run_id), false);
+            moved.recordMigrated(payload => ({
+                from_version: result.from_version, to_version: result.to_version,
+                nodes: plan.nodes || {}, restart: plan.restart || [],
+                tokens: result.tokens.filter(t => t.outcome !== 'unchanged'),
+                data_changes: result.data_changes.map(c => ({
+                    token_id: c.token_id, path: c.path, change: c.change,
+                    ...(c.value !== undefined ? { value: payload(c.value) } : {}), ...(c.previous !== undefined ? { previous: payload(c.previous) } : {}),
+                })),
+                ...(result.completed_work.length ? { completed_work: result.completed_work } : {}),
+                // Who moved the run, where the deployment has an authorization section (spec 30.6)
+                ...(this.options.engine?.authorization ? { principal: principal_ref(options.principal || this.options.engine.authorization.host_principal || HOST_PRINCIPAL) } : {}),
+            }));
+            this.runs.set(run_id, moved);
+            const instance = this.instances.get(this.run_journey.get(run_id) || '');
+            if (instance) this.watch(moved, this.journeys.get(instance.journey_id)!, instance, run_id);
+            result.applied = true;
+            // A token that gave up its wait starts afresh at once (25.3)
+            if (result.tokens.some(t => t.outcome === 'restarted')) await moved.run();
+            await this.sync(moved);
+            result.status = moved.getStatus();
+            return result;
+        });
+    }
+
+    /**
+     * For a workflow: how each position of each older version with live runs fares under a move to
+     * `to_version` (the newest by default), and which of those runs the plan (the identity mapping
+     * by default) could move (spec 25.4). Changes nothing.
+     */
+    async check_migration(workflow_id: string, options: { from_version?: string; to_version?: string; plan?: MigrationPlan } = {}): Promise<MigrationCheck> {
+        await this.refresh();
+        const to = this.get_workflow(workflow_id, options.to_version ?? options.plan?.to_version);
+        if (!to) throw new Error(this.workflows.has(workflow_id) ? `Workflow ${workflow_id} has no registered version ${options.to_version ?? options.plan?.to_version}` : `Workflow ${workflow_id} is not registered`);
+        const plan = { ...(options.plan || {}), to_version: to.version };
+        const live = this.list_runs().filter(engine => {
+            const workflow = engine.getWorkflow();
+            return workflow.id === workflow_id && workflow.version !== to.version && (!options.from_version || workflow.version === options.from_version)
+                && !['completed', 'failed', 'cancelled'].includes(engine.getStatus());
+        });
+        const from_versions = [...new Set([...live.map(e => e.getWorkflow().version), ...(options.from_version ? [options.from_version] : [])])].sort(compare_semver);
+        const comparisons = from_versions.map(version => {
+            const from = this.get_workflow(workflow_id, version);
+            if (!from) throw new Error(`Workflow ${workflow_id} has no registered version ${version}`);
+            return compare_versions(from, to, plan);
+        });
+        const runs = live.map(engine => {
+            const result = plan_migration(engine.getWorkflow(), to, engine.snapshot(), plan, engine.getRunId());
+            const journey_instance_id = this.run_journey.get(engine.getRunId());
+            return {
+                run_id: engine.getRunId(), version: engine.getWorkflow().version, status: engine.getStatus(), ...(journey_instance_id ? { journey_instance_id } : {}),
+                migratable: result.refusals.length === 0, refusals: result.refusals, tokens: result.tokens.filter(t => t.outcome !== 'unchanged' || t.wait),
+            };
+        });
+        return { workflow_id, to_version: to.version, comparisons, runs };
+    }
+
+    /** The run of this id, or the run that holds it as a child run (24.8) */
+    private holding(run_id: string): WorkflowEngine | undefined {
+        return this.runs.get(run_id) ?? [...this.runs.values()].find(engine => engine.hasSubworkflowRun(run_id));
+    }
+
     /** Every journey with everything recorded about it, for a view or an audit */
     async export_portfolio(): Promise<PortfolioBundle> {
+        await this.refresh();
         const journeys = [];
         for (const definition of this.journeys.values()) {
             const instances = [];
-            for (const instance of this.list_journey_instances(definition.id)) instances.push({ instance, runs: (await this.export_journey(instance.id)).runs });
+            for (const instance of this.list_journey_instances(definition.id)) instances.push({ instance, runs: (await this.bundle(instance.id)).runs });
             journeys.push({ definition, analytics: journey_analytics(definition, this.list_journey_instances(definition.id)), instances });
         }
         return { as_of: this.time(), workflows: [...this.workflows.values()], transitions: this.transitions(), journeys };
     }
 
     async export_journey(instance_id: string): Promise<JourneyBundle> {
+        await this.refresh();
+        return this.bundle(instance_id);
+    }
+
+    private async bundle(instance_id: string): Promise<JourneyBundle> {
         const instance = this.instances.get(instance_id);
         if (!instance) throw new Error(`Journey instance ${instance_id} not found`);
         const definition = this.journeys.get(instance.journey_id)!;
         const runs = [];
         for (const ref of instance.runs) {
             const engine = this.runs.get(ref.run_id);
-            runs.push({ run_id: ref.run_id, workflow_id: ref.workflow_id, stage_id: ref.stage_id, events: engine ? await engine.getEvents() : [] });
+            const holder = engine ? undefined : this.holding(ref.run_id);
+            runs.push({ run_id: ref.run_id, workflow_id: ref.workflow_id, stage_id: ref.stage_id, events: engine ? await engine.getEvents() : holder ? await holder.getSubworkflowEvents(ref.run_id) : [] });
         }
         const workflow_ids = new Set(instance.runs.map(r => r.workflow_id));
         return { definition, instance, workflows: [...workflow_ids].map(id => this.workflows.get(id)!).filter(Boolean), runs };
+    }
+
+    // -- A shared store (spec 29) -------------------------------------------------------------
+
+    /** One operation at a time per host object */
+    private serialise<T>(work: () => Promise<T>): Promise<T> {
+        const next = this.queue.then(() => this.in_operation.run(true, work));
+        this.queue = next.catch(() => undefined);
+        return next;
+    }
+
+    /** One operation as one unit of the store: the working set starts empty and holds what the operation takes */
+    private async shared_op<T>(work: () => Promise<T>): Promise<T> {
+        // Called from within the operation under way (a run that settles publishes, a trigger starts a run): part of it
+        if (this.operation && this.in_operation.getStore()) return work();
+        let kept: SharedOperation | undefined;
+        const result = await this.serialise(() => this.options.shared!.operation(async unit => {
+            this.instances = new Map(); this.runs = new Map(); this.run_journey = new Map(); this.outbox = new Map();
+            this.operation = new SharedOperation(unit, this.shared_view());
+            try {
+                const result = await work();
+                await this.operation.write();
+                kept = this.operation;
+                return result;
+            } finally { this.operation = undefined; }
+        }));
+        this.observe_shared(kept);
+        return result;
+    }
+
+    /**
+     * The journey spans of an operation that was kept (spec 26.7). The events another host added
+     * before it were that host's to send: they are taken in without being sent.
+     */
+    private observe_shared(operation?: SharedOperation): void {
+        if (!this.journey_telemetry || !operation) return;
+        const loaded = operation.loaded_events();
+        this.journey_telemetry.prime([...this.instances.values()].map(instance =>
+            ({ ...instance, status: 'active' as const, events: instance.events.slice(0, loaded.get(instance.id) ?? 0) })));
+        this.journey_telemetry.observe(this.instances.values());
+    }
+
+    private shared_view(): HostView {
+        return {
+            workflows: this.workflows, journeys: this.journeys, concerns: this.concerns,
+            instances: this.instances, runs: this.runs, run_journey: this.run_journey, outbox: this.outbox,
+            has_workflow: (id: string, version?: string) => !!this.workflow_of(id, version),
+            all_workflows: () => [...this.versions.values()].flatMap(v => [...v.values()]),
+            adopt: (saved: StoredRun) => {
+                // Taken up where another operation left it. Only a run left in the middle of an activity is resumed (10.3).
+                const resumed = (saved.state.tokens as { status?: string }[]).some(t => t.status === 'active');
+                const engine = WorkflowEngine.restore(this.workflow_of(saved.workflow_id, saved.state.workflow_version)!, saved.state, this.engine_options(() => saved.run_id), resumed);
+                const instance = this.instances.get(saved.journey_instance_id || '');
+                if (instance) this.watch(engine, this.journeys.get(instance.journey_id)!, instance, saved.run_id);
+                return engine;
+            },
+        };
+    }
+
+    /** A host refuses to start on a store that keeps work it could not continue (19.10) */
+    private async check_shared_store(): Promise<{ instances: number; runs: number; continued: string[] }> {
+        const needed = await this.options.shared!.required_definitions();
+        const missing = [
+            ...needed.workflows.filter(id => !this.workflows.has(id)).map(id => `workflow ${id}`),
+            // Each version a run not yet settled is on (spec 25.1)
+            ...(needed.workflow_versions || []).filter(w => this.workflows.has(w.id) && !this.workflow_of(w.id, w.version)).map(w => `workflow ${w.id} version ${w.version}`),
+            ...needed.journeys.filter(id => !this.journeys.has(id)).map(id => `journey ${id}`),
+        ];
+        if (missing.length) throw new Error(`Cannot work on this store: what it keeps needs ${missing.join(', ')}, which this host has not registered. Nothing was changed.`);
+        return { instances: needed.instances, runs: needed.runs, continued: [] };
+    }
+
+    /**
+     * On a shared store, load everything as last kept, for reading: list_journey_instances(),
+     * analytics(), transitions() and get_run() then show the whole store rather than what this
+     * host's last operation held. Exports do this themselves. Without a shared store it does nothing.
+     */
+    async refresh(): Promise<void> {
+        const shared = this.options.shared;
+        if (!shared || (this.operation && this.in_operation.getStore())) return;
+        await this.serialise(async () => {
+            const kept = await shared.read_all();
+            this.instances = new Map(kept.instances.map(i => [i.id, i]));
+            this.runs = new Map(); this.run_journey = new Map(); this.outbox = new Map();
+            for (const saved of kept.runs) {
+                const workflow = this.workflow_of(saved.workflow_id, saved.state.workflow_version);
+                if (!workflow) continue;
+                this.runs.set(saved.run_id, WorkflowEngine.restore(workflow, saved.state, { ...this.options.engine, now: this.options.now, journal: shared.journal, subworkflows: { ...this.subworkflow_options(), ...this.options.engine?.subworkflows } }, false));
+                if (saved.journey_instance_id) this.run_journey.set(saved.run_id, saved.journey_instance_id);
+            }
+        });
     }
 }
 
@@ -623,7 +931,18 @@ export async function add_definition(directory: string, document: Record<string,
     const { JourneyDefinitionSchema } = await import('./journey');
     const journey = is_journey_document(document);
     const parsed = journey ? JourneyDefinitionSchema.parse(document) : parse_document(document);
-    await fs.mkdir(path.join(directory, 'definitions'), { recursive: true });
-    await fs.writeFile(path.join(directory, 'definitions', `${journey ? 'journey' : 'workflow'}-${parsed.id}.json`), JSON.stringify(document, null, 2) + '\n');
+    const definitions = path.join(directory, 'definitions');
+    await fs.mkdir(definitions, { recursive: true });
+    if (journey) {
+        await fs.writeFile(path.join(definitions, `journey-${parsed.id}.json`), JSON.stringify(document, null, 2) + '\n');
+    } else {
+        // Every version is kept beside the others, for the runs that started on it (spec 25.1)
+        const version = (parsed as Workflow).version;
+        await fs.writeFile(path.join(definitions, `workflow-${parsed.id}@${version}.json`), JSON.stringify(document, null, 2) + '\n');
+        // A file of the same version under the name earlier versions of this SDK gave it is replaced
+        const legacy = path.join(definitions, `workflow-${parsed.id}.json`);
+        const before = await fs.readFile(legacy, 'utf-8').then(text => JSON.parse(text), () => undefined);
+        if (before && (before.workflow?.version ?? before.version) === version) await fs.rm(legacy, { force: true });
+    }
     return { kind: journey ? 'journey' : 'workflow', id: parsed.id, name: parsed.name };
 }

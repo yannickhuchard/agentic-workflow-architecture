@@ -1,0 +1,11 @@
+{
+  "id": "dmn-refuses-collect-sum",
+  "level": "interchange",
+  "spec": "27.9",
+  "kind": "import_dmn",
+  "description": "AWA does not aggregate outputs.",
+  "dmn": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<definitions xmlns=\"https://www.omg.org/spec/DMN/20191111/MODEL/\" xmlns:awa=\"https://awa.io/schema/interchange/1.1\" id=\"Definitions_refused\" name=\"Decisions\" namespace=\"https://example.com/dmn\">\n<decision id=\"D1\" name=\"Refused\">\n<decisionTable id=\"DT\" hitPolicy=\"COLLECT\" aggregation=\"SUM\">\n<input id=\"I1\"><inputExpression id=\"IE1\" typeRef=\"number\"><text>a</text></inputExpression></input>\n<output id=\"O1\" name=\"o\" typeRef=\"string\"/>\n<rule id=\"R1\"><inputEntry id=\"a\"><text>-</text></inputEntry><outputEntry id=\"b\"><text>\"x\"</text></outputEntry></rule>\n</decisionTable>\n</decision>\n</definitions>\n",
+  "expect": {
+    "error_matches": "COLLECT SUM"
+  }
+}

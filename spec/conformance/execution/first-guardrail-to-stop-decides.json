@@ -1,0 +1,80 @@
+{
+  "id": "first-guardrail-to-stop-decides",
+  "level": "guardrails",
+  "spec": "31.6",
+  "description": "Evaluation stops at the first guardrail that blocks, retries or escalates: a deployment guardrail that blocks is the only one recorded, though the activity's would have escalated.",
+  "workflow": {
+    "id": "dfcb29f9-4e26-5666-8074-cf211a3a9291",
+    "name": "first-guardrail-to-stop-decides",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "fb6662da-17f1-585c-b9b5-03788fd8e2bc",
+        "name": "Draft",
+        "role_id": "f45865b5-de2d-5cc6-807a-19f1eab48bfb",
+        "actor_type": "ai_agent",
+        "guardrails": [
+          {
+            "id": "a41b0d79-0f20-5d2f-abc6-4e5c4a7e38f9",
+            "name": "Personal data",
+            "stages": [
+              "output"
+            ],
+            "check": {
+              "kind": "personal_data"
+            },
+            "action": "escalate"
+          }
+        ]
+      }
+    ],
+    "edges": []
+  },
+  "options": {
+    "guardrails": [
+      {
+        "id": "eeea50c8-9631-5051-9315-2125cdaf8f9d",
+        "name": "Organisation: code names",
+        "stages": [
+          "output"
+        ],
+        "check": {
+          "kind": "deny_list",
+          "terms": [
+            "project falcon"
+          ]
+        },
+        "action": "block"
+      }
+    ]
+  },
+  "actors": {
+    "Draft": {
+      "output": {
+        "reply": "Ask jane@example.com about Project Falcon"
+      }
+    }
+  },
+  "expect": {
+    "status": "failed",
+    "visited": [
+      "Draft"
+    ],
+    "journal_count": {
+      "guardrail.triggered": 1
+    },
+    "journal_contains": [
+      {
+        "type": "guardrail.triggered",
+        "data": {
+          "source": "deployment",
+          "action": "block"
+        }
+      }
+    ],
+    "journal_excludes": [
+      "meta.recorded"
+    ]
+  }
+}

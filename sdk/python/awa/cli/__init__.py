@@ -5,6 +5,7 @@ Command-line interface for running AWA workflows
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -43,16 +44,36 @@ def main(argv: list[str] | None = None) -> int:
         default="0.0.0.0",
         help="Host to bind to (default: 0.0.0.0)"
     )
+    serve_parser.add_argument("--a2a", action="append", default=[], metavar="FILE",
+                              help="Offer this workflow to other agents over A2A (can be repeated)")
+    serve_parser.add_argument("--public-url", metavar="URL",
+                              help="The address callers reach this server at, written in agent cards. Default: taken from each request")
+    serve_parser.add_argument("--deployment", metavar="FILE",
+                              help="JSON file saying what the workflows may reach: tools.allow_commands, tools.allowed_hosts, "
+                                   "tools.mcp_servers, tools.grpc, a2a; and who may do what: authorization")
+    serve_parser.add_argument(
+        "--store",
+        help="Keep journeys and runs in this PostgreSQL runtime store, which several servers may share (default: $AWA_RUNTIME_STORE)"
+    )
     
     # Journeys kept in a runtime directory, the measures of what was recorded, and counterfactual replay
     from awa.cli import journey as journey_commands, measures as measures_command, replay as replay_command
     from awa.cli import knowledge as knowledge_commands, run as run_command, task as task_commands
+    from awa.cli import evaluate as evaluate_commands, evidence as evidence_command
+    from awa.cli import telemetry as telemetry_commands
+    from awa.cli import interchange as interchange_commands
+    from awa.cli import migrate as migrate_commands
     run_command.add_parser(subparsers)
     task_commands.add_parser(subparsers)
     knowledge_commands.add_parser(subparsers)
     journey_commands.add_parser(subparsers)
+    migrate_commands.add_parser(subparsers)
     measures_command.add_parser(subparsers)
     replay_command.add_parser(subparsers)
+    evidence_command.add_parser(subparsers)
+    evaluate_commands.add_parser(subparsers)
+    telemetry_commands.add_parser(subparsers)
+    interchange_commands.add_parser(subparsers)
 
     args = parser.parse_args(argv)
 
@@ -111,7 +132,46 @@ def serve_api(args: argparse.Namespace) -> int:
     try:
         import uvicorn
         from awa.server import app
-        
+
+        # Who may do what, on the routes and in the runs they start (specification 30), and what every
+        # run may reach with the guardrails it adds: HTTP runs, journeys and A2A runs alike (17.4, 28.2, 31.1)
+        if args.deployment:
+            from awa.cli.deployment import load_deployment
+            from awa.server.authorization import set_authorization
+            from awa.server.deployment import set_server_deployment
+            loaded = load_deployment(args.deployment)
+            authorization = loaded.get("authorization")
+            set_authorization(authorization)
+            set_server_deployment(loaded)
+            if authorization and authorization.get("policy") is not None:
+                print("  Authorization: the deployment's policy decides who may do what")
+
+        # Workflows offered over A2A run under the deployment's permissions, like any other run (28.8)
+        if args.a2a:
+            from fastapi import Depends
+            from awa.cli.deployment import load_deployment
+            from awa.runtime.journal import FileJournalStore
+            from awa.server import AUTH_ENABLED, rate_limiter
+            from awa.server.a2a import mount_a2a
+            deployment = load_deployment(args.deployment) if args.deployment else {"tools": {}, "a2a": {}}
+
+            def engine_options() -> dict:
+                journal_dir = os.environ.get("AWA_JOURNAL_DIR")
+                return {"tools": deployment["tools"], "a2a": deployment["a2a"], "guardrails": deployment.get("guardrails") or [],
+                        **({"authorization": deployment["authorization"]} if deployment.get("authorization") else {}),
+                        **({"journal": FileJournalStore(journal_dir)} if journal_dir else {})}
+            from awa.cli.run import read_workflow
+            offered = [read_workflow(file) for file in args.a2a]
+            mount_a2a(app, offered, engine_options=engine_options, public_url=args.public_url,
+                      authenticated=AUTH_ENABLED, dependencies=[Depends(rate_limiter)])
+            for workflow in offered:
+                print(f"  A2A agent \"{workflow.name}\": {args.public_url or f'http://{args.host}:{args.port}'}/a2a/{workflow.id}/.well-known/agent-card.json")
+
+        # The routes read the store from the environment, as a server started without this option would
+        if getattr(args, "store", None):
+            os.environ["AWA_RUNTIME_STORE"] = args.store
+            print("  Journeys: kept in the shared runtime store")
+
         print(f"Starting AWA Operational API on http://{args.host}:{args.port}")
         uvicorn.run(app, host=args.host, port=args.port)
         return 0

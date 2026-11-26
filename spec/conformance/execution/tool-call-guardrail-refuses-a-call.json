@@ -1,0 +1,141 @@
+{
+  "id": "tool-call-guardrail-refuses-a-call",
+  "level": "guardrails",
+  "spec": "31.5",
+  "description": "A workflow guardrail at stage tool_call refuses a call whose arguments it blocks: nothing runs, tool.failed records the refusal with invoked false, and the actor is given it. The activity goes on; a call it allows runs.",
+  "workflow": {
+    "id": "8bbdb1af-0da3-5603-b3b1-ddf1d6ae7cc3",
+    "name": "tool-call-guardrail-refuses-a-call",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "553854db-986f-5816-a2a6-eb9163a6bd64",
+        "name": "Pay",
+        "role_id": "eed838e9-8216-5749-88f9-4edcf8032dba",
+        "actor_type": "ai_agent",
+        "tools": [
+          {
+            "name": "transfer",
+            "description": "The transfer tool",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "q": {
+                  "type": "string"
+                },
+                "account": {
+                  "type": "string"
+                }
+              }
+            },
+            "binding": {
+              "kind": "function",
+              "name": "transfer"
+            }
+          }
+        ]
+      }
+    ],
+    "edges": [],
+    "guardrails": [
+      {
+        "id": "b5f8db18-4955-5151-b436-9ce01aefa91c",
+        "name": "Known accounts",
+        "stages": [
+          "tool_call"
+        ],
+        "check": {
+          "kind": "allowed_values",
+          "path": "account",
+          "values": [
+            "A-1",
+            "A-2"
+          ]
+        },
+        "action": "block",
+        "tools": [
+          "transfer"
+        ]
+      }
+    ]
+  },
+  "actors": {
+    "Pay": {
+      "calls": [
+        {
+          "tool": "transfer",
+          "arguments": {
+            "account": "X-9"
+          }
+        },
+        {
+          "tool": "transfer",
+          "arguments": {
+            "account": "A-1"
+          }
+        }
+      ],
+      "output": {
+        "paid": true
+      }
+    }
+  },
+  "tools": {
+    "transfer": {
+      "result": {
+        "ok": true
+      }
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "journal": [
+      "guardrail.triggered",
+      "tool.failed",
+      "tool.invoked",
+      "tool.completed",
+      "activity.completed"
+    ],
+    "journal_contains": [
+      {
+        "type": "guardrail.triggered",
+        "data": {
+          "source": "workflow",
+          "stage": "tool_call",
+          "check": "allowed_values",
+          "tool": "transfer",
+          "action": "block",
+          "findings": [
+            {
+              "category": "allowed_values",
+              "path": "/account"
+            }
+          ]
+        }
+      },
+      {
+        "type": "tool.failed",
+        "data": {
+          "tool": "transfer",
+          "invoked": false,
+          "error": {
+            "code": "GUARDRAIL_BLOCKED"
+          }
+        }
+      },
+      {
+        "type": "tool.invoked",
+        "data": {
+          "arguments": {
+            "account": "A-1"
+          }
+        }
+      }
+    ],
+    "journal_count": {
+      "tool.invoked": 1,
+      "guardrail.triggered": 1
+    }
+  }
+}

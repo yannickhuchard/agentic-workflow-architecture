@@ -1,0 +1,69 @@
+{
+  "id": "guard-model-that-cannot-answer-fails-closed",
+  "level": "guardrails",
+  "spec": "31.5",
+  "description": "A check that cannot be carried out fails closed whatever the action: a guard model's reply that cannot be read fails the activity with GUARDRAIL_ERROR, though the guardrail only warns.",
+  "workflow": {
+    "id": "30dc6e2f-1be2-5654-a34d-44665ce2014c",
+    "name": "guard-model-that-cannot-answer-fails-closed",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "d38e7c14-392f-53bb-8ba8-b0db830b5aba",
+        "name": "Advise",
+        "role_id": "df1c30ea-87ff-51be-8f7b-5368d4adbe5c",
+        "actor_type": "ai_agent",
+        "guardrails": [
+          {
+            "id": "e5d4ce2b-eacb-5044-bd1b-4c47fc04e246",
+            "name": "No medical advice",
+            "stages": [
+              "output"
+            ],
+            "check": {
+              "kind": "model",
+              "instructions": "Flag advice on medication."
+            },
+            "action": "warn"
+          }
+        ]
+      }
+    ],
+    "edges": []
+  },
+  "actors": {
+    "Advise": {
+      "output": {
+        "advice": "Rest."
+      }
+    }
+  },
+  "model": {
+    "replies": [
+      {
+        "text": "I think it is fine"
+      }
+    ]
+  },
+  "expect": {
+    "status": "failed",
+    "journal_contains": [
+      {
+        "type": "guardrail.triggered",
+        "data": {
+          "check": "model",
+          "action": "block"
+        }
+      },
+      {
+        "type": "token.failed",
+        "data": {
+          "error": {
+            "code": "GUARDRAIL_ERROR"
+          }
+        }
+      }
+    ]
+  }
+}

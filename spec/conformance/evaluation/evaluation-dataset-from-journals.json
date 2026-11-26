@@ -1,0 +1,1051 @@
+{
+  "id": "evaluation-dataset-from-journals",
+  "level": "evaluation",
+  "spec": "33.1",
+  "kind": "build",
+  "description": "Every ended visit to an AI activity whose input the journal holds becomes a case: what it was given, and the outcome accepted by its contract, by verification or by a person, or what rejected it. Visits to other activities, visits not ended, and visits whose payloads were hashed are not cases.",
+  "journals": [
+    {
+      "spec_version": "1.1",
+      "id": "e1-1",
+      "run_id": "e1",
+      "seq": 1,
+      "time": "2026-04-01T09:00:00.000Z",
+      "type": "run.started",
+      "level": "execution",
+      "workflow_id": "w1",
+      "data": {
+        "workflow_name": "Claims",
+        "workflow_version": "2.0.0",
+        "input": {
+          "claim": 1
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e1-2",
+      "run_id": "e1",
+      "seq": 2,
+      "time": "2026-04-01T09:00:00.000Z",
+      "type": "activity.started",
+      "level": "execution",
+      "workflow_id": "w1",
+      "token_id": "t1",
+      "node_id": "a1",
+      "node_name": "Assess",
+      "attempt": 1,
+      "data": {
+        "actor_type": "ai_agent",
+        "input": {
+          "claim": 1
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e1-3",
+      "run_id": "e1",
+      "seq": 3,
+      "time": "2026-04-01T09:01:00.000Z",
+      "type": "contract.checked",
+      "level": "execution",
+      "workflow_id": "w1",
+      "token_id": "t1",
+      "node_id": "a1",
+      "node_name": "Assess",
+      "attempt": 1,
+      "data": {
+        "passed": false,
+        "violations": [
+          {
+            "kind": "postcondition",
+            "name": "Has a score",
+            "message": "missing"
+          }
+        ]
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e1-4",
+      "run_id": "e1",
+      "seq": 4,
+      "time": "2026-04-01T09:01:00.000Z",
+      "type": "activity.failed",
+      "level": "execution",
+      "workflow_id": "w1",
+      "token_id": "t1",
+      "node_id": "a1",
+      "node_name": "Assess",
+      "attempt": 1,
+      "data": {
+        "error": {
+          "code": "CONTRACT_VIOLATION",
+          "message": "violated"
+        },
+        "retryable": true
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e1-5",
+      "run_id": "e1",
+      "seq": 5,
+      "time": "2026-04-01T09:01:00.000Z",
+      "type": "meta.recorded",
+      "level": "meta",
+      "workflow_id": "w1",
+      "token_id": "t1",
+      "node_id": "a1",
+      "node_name": "Assess",
+      "attempt": 1,
+      "data": {
+        "subject": "contract_retry",
+        "decision": "Re-execute",
+        "rationale": "1 term"
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e1-6",
+      "run_id": "e1",
+      "seq": 6,
+      "time": "2026-04-01T09:01:00.000Z",
+      "type": "activity.started",
+      "level": "execution",
+      "workflow_id": "w1",
+      "token_id": "t1",
+      "node_id": "a1",
+      "node_name": "Assess",
+      "attempt": 2,
+      "data": {
+        "actor_type": "ai_agent",
+        "input": {
+          "claim": 1
+        },
+        "feedback": "CONTRACT VIOLATED"
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e1-7",
+      "run_id": "e1",
+      "seq": 7,
+      "time": "2026-04-01T09:02:00.000Z",
+      "type": "tool.invoked",
+      "level": "execution",
+      "workflow_id": "w1",
+      "token_id": "t1",
+      "node_id": "a1",
+      "node_name": "Assess",
+      "attempt": 2,
+      "data": {
+        "call_id": "k1",
+        "tool": "price",
+        "link": "function:price",
+        "arguments": {
+          "part": "bumper"
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e1-8",
+      "run_id": "e1",
+      "seq": 8,
+      "time": "2026-04-01T09:02:00.000Z",
+      "type": "tool.completed",
+      "level": "execution",
+      "workflow_id": "w1",
+      "token_id": "t1",
+      "node_id": "a1",
+      "node_name": "Assess",
+      "attempt": 2,
+      "data": {
+        "call_id": "k1",
+        "tool": "price",
+        "link": "function:price",
+        "status": 200,
+        "result": {
+          "price": 100
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e1-9",
+      "run_id": "e1",
+      "seq": 9,
+      "time": "2026-04-01T09:03:00.000Z",
+      "type": "contract.checked",
+      "level": "execution",
+      "workflow_id": "w1",
+      "token_id": "t1",
+      "node_id": "a1",
+      "node_name": "Assess",
+      "attempt": 2,
+      "data": {
+        "passed": true,
+        "violations": []
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e1-10",
+      "run_id": "e1",
+      "seq": 10,
+      "time": "2026-04-01T09:03:00.000Z",
+      "type": "verification.completed",
+      "level": "execution",
+      "workflow_id": "w1",
+      "token_id": "t1",
+      "node_id": "a1",
+      "node_name": "Assess",
+      "attempt": 2,
+      "data": {
+        "mode": "schema_only",
+        "verdict": "pass",
+        "score": 1,
+        "criteria": []
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e1-11",
+      "run_id": "e1",
+      "seq": 11,
+      "time": "2026-04-01T09:03:00.000Z",
+      "type": "activity.completed",
+      "level": "execution",
+      "workflow_id": "w1",
+      "token_id": "t1",
+      "node_id": "a1",
+      "node_name": "Assess",
+      "attempt": 2,
+      "data": {
+        "actor_type": "ai_agent",
+        "output": {
+          "output": {
+            "score": 7
+          },
+          "usage": {
+            "input_tokens": 10,
+            "output_tokens": 5
+          }
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e1-12",
+      "run_id": "e1",
+      "seq": 12,
+      "time": "2026-04-01T09:04:00.000Z",
+      "type": "activity.started",
+      "level": "execution",
+      "workflow_id": "w1",
+      "token_id": "t1",
+      "node_id": "a2",
+      "node_name": "Pay",
+      "attempt": 1,
+      "data": {
+        "actor_type": "application",
+        "input": {
+          "score": 7
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e1-13",
+      "run_id": "e1",
+      "seq": 13,
+      "time": "2026-04-01T09:04:00.000Z",
+      "type": "activity.completed",
+      "level": "execution",
+      "workflow_id": "w1",
+      "token_id": "t1",
+      "node_id": "a2",
+      "node_name": "Pay",
+      "attempt": 1,
+      "data": {
+        "actor_type": "application",
+        "output": {
+          "paid": true
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e1-14",
+      "run_id": "e1",
+      "seq": 14,
+      "time": "2026-04-01T09:05:00.000Z",
+      "type": "activity.started",
+      "level": "execution",
+      "workflow_id": "w1",
+      "token_id": "t1",
+      "node_id": "a3",
+      "node_name": "Notify",
+      "attempt": 1,
+      "data": {
+        "actor_type": "ai_agent",
+        "input": {
+          "score": 7,
+          "paid": true
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e1-15",
+      "run_id": "e1",
+      "seq": 15,
+      "time": "2026-04-01T09:05:00.000Z",
+      "type": "contract.checked",
+      "level": "execution",
+      "workflow_id": "w1",
+      "token_id": "t1",
+      "node_id": "a3",
+      "node_name": "Notify",
+      "attempt": 1,
+      "data": {
+        "passed": true,
+        "violations": []
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e1-16",
+      "run_id": "e1",
+      "seq": 16,
+      "time": "2026-04-01T09:05:00.000Z",
+      "type": "activity.completed",
+      "level": "execution",
+      "workflow_id": "w1",
+      "token_id": "t1",
+      "node_id": "a3",
+      "node_name": "Notify",
+      "attempt": 1,
+      "data": {
+        "actor_type": "ai_agent",
+        "output": {
+          "output": {
+            "message": "Paid"
+          }
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e1-17",
+      "run_id": "e1",
+      "seq": 17,
+      "time": "2026-04-01T09:06:00.000Z",
+      "type": "run.completed",
+      "level": "execution",
+      "workflow_id": "w1",
+      "data": {}
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e2-1",
+      "run_id": "e2",
+      "seq": 1,
+      "time": "2026-04-01T09:10:00.000Z",
+      "type": "run.started",
+      "level": "execution",
+      "workflow_id": "w1",
+      "data": {
+        "workflow_name": "Claims",
+        "workflow_version": "2.0.0",
+        "input": {
+          "claim": 2
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e2-2",
+      "run_id": "e2",
+      "seq": 2,
+      "time": "2026-04-01T09:10:00.000Z",
+      "type": "activity.started",
+      "level": "execution",
+      "workflow_id": "w1",
+      "token_id": "t1",
+      "node_id": "a1",
+      "node_name": "Assess",
+      "attempt": 1,
+      "data": {
+        "actor_type": "ai_agent",
+        "input": {
+          "claim": 2
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e2-3",
+      "run_id": "e2",
+      "seq": 3,
+      "time": "2026-04-01T09:11:00.000Z",
+      "type": "contract.checked",
+      "level": "execution",
+      "workflow_id": "w1",
+      "token_id": "t1",
+      "node_id": "a1",
+      "node_name": "Assess",
+      "attempt": 1,
+      "data": {
+        "passed": false,
+        "violations": [
+          {
+            "kind": "postcondition",
+            "name": "Has a score",
+            "message": "missing"
+          }
+        ]
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e2-4",
+      "run_id": "e2",
+      "seq": 4,
+      "time": "2026-04-01T09:11:00.000Z",
+      "type": "activity.failed",
+      "level": "execution",
+      "workflow_id": "w1",
+      "token_id": "t1",
+      "node_id": "a1",
+      "node_name": "Assess",
+      "attempt": 1,
+      "data": {
+        "error": {
+          "code": "CONTRACT_VIOLATION",
+          "message": "violated"
+        },
+        "retryable": false
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e2-5",
+      "run_id": "e2",
+      "seq": 5,
+      "time": "2026-04-01T09:11:00.000Z",
+      "type": "contract.escalated",
+      "level": "execution",
+      "workflow_id": "w1",
+      "token_id": "t1",
+      "node_id": "a1",
+      "node_name": "Assess",
+      "attempt": 1,
+      "data": {
+        "code": "CONTRACT_VIOLATION",
+        "message": "violated",
+        "rejected_output": {
+          "note": "unsure"
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e2-6",
+      "run_id": "e2",
+      "seq": 6,
+      "time": "2026-04-01T09:12:00.000Z",
+      "type": "contract.checked",
+      "level": "execution",
+      "workflow_id": "w1",
+      "token_id": "t1",
+      "node_id": "a1",
+      "node_name": "Assess",
+      "attempt": 1,
+      "data": {
+        "passed": true,
+        "violations": [],
+        "decided_by": "human"
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e2-7",
+      "run_id": "e2",
+      "seq": 7,
+      "time": "2026-04-01T09:12:00.000Z",
+      "type": "activity.completed",
+      "level": "execution",
+      "workflow_id": "w1",
+      "token_id": "t1",
+      "node_id": "a1",
+      "node_name": "Assess",
+      "attempt": 1,
+      "data": {
+        "actor_type": "ai_agent",
+        "output": {
+          "output": {
+            "score": 9
+          }
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e2-8",
+      "run_id": "e2",
+      "seq": 8,
+      "time": "2026-04-01T09:13:00.000Z",
+      "type": "activity.started",
+      "level": "execution",
+      "workflow_id": "w1",
+      "token_id": "t1",
+      "node_id": "a3",
+      "node_name": "Notify",
+      "attempt": 1,
+      "data": {
+        "actor_type": "ai_agent",
+        "input": {
+          "score": 9
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e2-9",
+      "run_id": "e2",
+      "seq": 9,
+      "time": "2026-04-01T09:13:00.000Z",
+      "type": "contract.checked",
+      "level": "execution",
+      "workflow_id": "w1",
+      "token_id": "t1",
+      "node_id": "a3",
+      "node_name": "Notify",
+      "attempt": 1,
+      "data": {
+        "passed": false,
+        "violations": [
+          {
+            "kind": "postcondition",
+            "name": "Has a message",
+            "message": "missing"
+          }
+        ]
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e2-10",
+      "run_id": "e2",
+      "seq": 10,
+      "time": "2026-04-01T09:13:00.000Z",
+      "type": "activity.failed",
+      "level": "execution",
+      "workflow_id": "w1",
+      "token_id": "t1",
+      "node_id": "a3",
+      "node_name": "Notify",
+      "attempt": 1,
+      "data": {
+        "error": {
+          "code": "CONTRACT_VIOLATION",
+          "message": "violated"
+        },
+        "retryable": true
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e2-11",
+      "run_id": "e2",
+      "seq": 11,
+      "time": "2026-04-01T09:14:00.000Z",
+      "type": "activity.started",
+      "level": "execution",
+      "workflow_id": "w1",
+      "token_id": "t1",
+      "node_id": "a3",
+      "node_name": "Notify",
+      "attempt": 2,
+      "data": {
+        "actor_type": "ai_agent",
+        "input": {
+          "score": 9
+        },
+        "feedback": "CONTRACT VIOLATED"
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e2-12",
+      "run_id": "e2",
+      "seq": 12,
+      "time": "2026-04-01T09:14:00.000Z",
+      "type": "contract.checked",
+      "level": "execution",
+      "workflow_id": "w1",
+      "token_id": "t1",
+      "node_id": "a3",
+      "node_name": "Notify",
+      "attempt": 2,
+      "data": {
+        "passed": false,
+        "violations": [
+          {
+            "kind": "postcondition",
+            "name": "Has a message",
+            "message": "missing"
+          }
+        ]
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e2-13",
+      "run_id": "e2",
+      "seq": 13,
+      "time": "2026-04-01T09:14:00.000Z",
+      "type": "activity.failed",
+      "level": "execution",
+      "workflow_id": "w1",
+      "token_id": "t1",
+      "node_id": "a3",
+      "node_name": "Notify",
+      "attempt": 2,
+      "data": {
+        "error": {
+          "code": "CONTRACT_VIOLATION",
+          "message": "violated"
+        },
+        "retryable": false
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e2-14",
+      "run_id": "e2",
+      "seq": 14,
+      "time": "2026-04-01T09:14:00.000Z",
+      "type": "token.failed",
+      "level": "execution",
+      "workflow_id": "w1",
+      "token_id": "t1",
+      "node_id": "a3",
+      "node_name": "Notify",
+      "data": {
+        "error": {
+          "code": "CONTRACT_VIOLATION"
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e2-15",
+      "run_id": "e2",
+      "seq": 15,
+      "time": "2026-04-01T09:15:00.000Z",
+      "type": "run.failed",
+      "level": "execution",
+      "workflow_id": "w1",
+      "data": {}
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e3-1",
+      "run_id": "e3",
+      "seq": 1,
+      "time": "2026-04-01T09:20:00.000Z",
+      "type": "run.started",
+      "level": "execution",
+      "workflow_id": "w1",
+      "data": {
+        "workflow_name": "Claims",
+        "workflow_version": "2.0.0",
+        "input": {
+          "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e3-2",
+      "run_id": "e3",
+      "seq": 2,
+      "time": "2026-04-01T09:20:00.000Z",
+      "type": "activity.started",
+      "level": "execution",
+      "workflow_id": "w1",
+      "token_id": "t1",
+      "node_id": "a1",
+      "node_name": "Assess",
+      "attempt": 1,
+      "data": {
+        "actor_type": "ai_agent",
+        "input": {
+          "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e3-3",
+      "run_id": "e3",
+      "seq": 3,
+      "time": "2026-04-01T09:21:00.000Z",
+      "type": "activity.completed",
+      "level": "execution",
+      "workflow_id": "w1",
+      "token_id": "t1",
+      "node_id": "a1",
+      "node_name": "Assess",
+      "attempt": 1,
+      "data": {
+        "actor_type": "ai_agent",
+        "output": {
+          "sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e3-4",
+      "run_id": "e3",
+      "seq": 4,
+      "time": "2026-04-01T09:22:00.000Z",
+      "type": "activity.started",
+      "level": "execution",
+      "workflow_id": "w1",
+      "token_id": "t1",
+      "node_id": "a3",
+      "node_name": "Notify",
+      "attempt": 1,
+      "data": {
+        "actor_type": "ai_agent",
+        "input": {
+          "score": 1
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e3-5",
+      "run_id": "e3",
+      "seq": 5,
+      "time": "2026-04-01T09:22:00.000Z",
+      "type": "run.waiting",
+      "level": "execution",
+      "workflow_id": "w1",
+      "data": {}
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e4-1",
+      "run_id": "e4",
+      "seq": 1,
+      "time": "2026-04-01T09:30:00.000Z",
+      "type": "run.started",
+      "level": "execution",
+      "workflow_id": "w1",
+      "data": {
+        "workflow_name": "Claims",
+        "workflow_version": "2.1.0",
+        "input": {
+          "claim": 4
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e4-2",
+      "run_id": "e4",
+      "seq": 2,
+      "time": "2026-04-01T09:30:00.000Z",
+      "type": "activity.started",
+      "level": "execution",
+      "workflow_id": "w1",
+      "token_id": "t1",
+      "node_id": "a1",
+      "node_name": "Assess",
+      "attempt": 1,
+      "data": {
+        "actor_type": "ai_agent",
+        "input": {
+          "claim": 4
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e4-3",
+      "run_id": "e4",
+      "seq": 3,
+      "time": "2026-04-01T09:31:00.000Z",
+      "type": "activity.completed",
+      "level": "execution",
+      "workflow_id": "w1",
+      "token_id": "t1",
+      "node_id": "a1",
+      "node_name": "Assess",
+      "attempt": 1,
+      "data": {
+        "actor_type": "ai_agent",
+        "output": {
+          "score": 2,
+          "status": "complex_completed"
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e4-4",
+      "run_id": "e4",
+      "seq": 4,
+      "time": "2026-04-01T09:31:00.000Z",
+      "type": "token.moved",
+      "level": "execution",
+      "workflow_id": "w1",
+      "token_id": "t1",
+      "node_id": "a1",
+      "node_name": "Assess",
+      "data": {
+        "from_node_id": "a1",
+        "to_node_id": "a1",
+        "edge_id": "loop",
+        "reason": "condition"
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e4-5",
+      "run_id": "e4",
+      "seq": 5,
+      "time": "2026-04-01T09:32:00.000Z",
+      "type": "activity.started",
+      "level": "execution",
+      "workflow_id": "w1",
+      "token_id": "t1",
+      "node_id": "a1",
+      "node_name": "Assess",
+      "attempt": 1,
+      "data": {
+        "actor_type": "ai_agent",
+        "input": {
+          "claim": 4,
+          "score": 2
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e4-6",
+      "run_id": "e4",
+      "seq": 6,
+      "time": "2026-04-01T09:33:00.000Z",
+      "type": "activity.failed",
+      "level": "execution",
+      "workflow_id": "w1",
+      "token_id": "t1",
+      "node_id": "a1",
+      "node_name": "Assess",
+      "attempt": 1,
+      "data": {
+        "error": {
+          "code": "TIMEOUT",
+          "message": "too slow"
+        },
+        "retryable": true
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e4-7",
+      "run_id": "e4",
+      "seq": 7,
+      "time": "2026-04-01T09:33:00.000Z",
+      "type": "activity.dead_lettered",
+      "level": "execution",
+      "workflow_id": "w1",
+      "token_id": "t1",
+      "node_id": "a1",
+      "node_name": "Assess",
+      "attempt": 1,
+      "data": {
+        "attempts": 1,
+        "error": {
+          "code": "TIMEOUT"
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "e4-8",
+      "run_id": "e4",
+      "seq": 8,
+      "time": "2026-04-01T09:34:00.000Z",
+      "type": "run.failed",
+      "level": "execution",
+      "workflow_id": "w1",
+      "data": {}
+    }
+  ],
+  "expect": {
+    "case_count": 6,
+    "skipped": 2,
+    "cases": [
+      {
+        "id": "e1:a1:1",
+        "workflow_id": "w1",
+        "workflow_version": "2.0.0",
+        "run_id": "e1",
+        "activity_id": "a1",
+        "activity_name": "Assess",
+        "input": {
+          "claim": 1
+        },
+        "label": "accepted",
+        "accepted_by": "verification",
+        "outcome": {
+          "score": 7
+        },
+        "attempts": 2,
+        "rejections": [
+          {
+            "attempt": 1,
+            "code": "CONTRACT_VIOLATION",
+            "terms": [
+              "Has a score"
+            ]
+          }
+        ],
+        "tool_calls": [
+          {
+            "tool": "price",
+            "arguments": {
+              "part": "bumper"
+            },
+            "ok": true,
+            "status": 200,
+            "result": {
+              "price": 100
+            }
+          }
+        ],
+        "sources": [
+          2,
+          3,
+          4,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ]
+      },
+      {
+        "id": "e1:a3:1",
+        "label": "accepted",
+        "accepted_by": "contract",
+        "outcome": {
+          "message": "Paid"
+        },
+        "attempts": 1,
+        "rejections": [],
+        "tool_calls": [],
+        "sources": [
+          14,
+          15,
+          16
+        ]
+      },
+      {
+        "id": "e2:a1:1",
+        "input": {
+          "claim": 2
+        },
+        "label": "accepted",
+        "accepted_by": "person",
+        "outcome": {
+          "score": 9
+        },
+        "attempts": 1,
+        "sources": [
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ]
+      },
+      {
+        "id": "e2:a3:1",
+        "label": "rejected",
+        "rejected_by": "contract",
+        "attempts": 2,
+        "rejections": [
+          {
+            "attempt": 1,
+            "code": "CONTRACT_VIOLATION",
+            "terms": [
+              "Has a message"
+            ]
+          },
+          {
+            "attempt": 2,
+            "code": "CONTRACT_VIOLATION",
+            "terms": [
+              "Has a message"
+            ]
+          }
+        ],
+        "sources": [
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14
+        ]
+      },
+      {
+        "id": "e4:a1:1",
+        "workflow_version": "2.1.0",
+        "label": "accepted",
+        "accepted_by": "unchecked",
+        "outcome": {
+          "score": 2
+        },
+        "sources": [
+          2,
+          3
+        ]
+      },
+      {
+        "id": "e4:a1:2",
+        "input": {
+          "claim": 4,
+          "score": 2
+        },
+        "label": "rejected",
+        "rejected_by": "error",
+        "rejections": [
+          {
+            "attempt": 1,
+            "code": "TIMEOUT",
+            "terms": []
+          }
+        ],
+        "sources": [
+          5,
+          6,
+          7
+        ]
+      }
+    ]
+  }
+}

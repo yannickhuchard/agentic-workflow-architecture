@@ -1,0 +1,85 @@
+{
+  "id": "5a1e0000-0000-4000-8000-000000000001",
+  "name": "Claim triage",
+  "version": "1.2.0",
+  "awa_version": "1.1",
+  "description": "Sizes a claim by its amount",
+  "activities": [
+    {
+      "id": "5a1e0000-0000-4000-8000-000000000010",
+      "name": "Record",
+      "role_id": "5a1e0000-0000-4000-8000-000000000090",
+      "actor_type": "application"
+    }
+  ],
+  "events": [
+    {
+      "id": "5a1e0000-0000-4000-8000-000000000020",
+      "name": "Received",
+      "event_type": "start"
+    },
+    {
+      "id": "5a1e0000-0000-4000-8000-000000000021",
+      "name": "Done",
+      "event_type": "end"
+    }
+  ],
+  "decision_nodes": [
+    {
+      "id": "5a1e0000-0000-4000-8000-000000000030",
+      "name": "Size",
+      "decision_table": {
+        "hit_policy": "first",
+        "inputs": [
+          {
+            "name": "amount",
+            "type": "number"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "tier",
+            "type": "string"
+          }
+        ],
+        "rules": [
+          {
+            "input_entries": [
+              "< 1000"
+            ],
+            "output_entries": [
+              "small"
+            ],
+            "output_edge_id": "5a1e0000-0000-4000-8000-000000000042"
+          },
+          {
+            "input_entries": [
+              "-"
+            ],
+            "output_entries": [
+              "large"
+            ],
+            "output_edge_id": "5a1e0000-0000-4000-8000-000000000042"
+          }
+        ]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "5a1e0000-0000-4000-8000-000000000040",
+      "source_id": "5a1e0000-0000-4000-8000-000000000020",
+      "target_id": "5a1e0000-0000-4000-8000-000000000010"
+    },
+    {
+      "id": "5a1e0000-0000-4000-8000-000000000041",
+      "source_id": "5a1e0000-0000-4000-8000-000000000010",
+      "target_id": "5a1e0000-0000-4000-8000-000000000030"
+    },
+    {
+      "id": "5a1e0000-0000-4000-8000-000000000042",
+      "source_id": "5a1e0000-0000-4000-8000-000000000030",
+      "target_id": "5a1e0000-0000-4000-8000-000000000021"
+    }
+  ]
+}

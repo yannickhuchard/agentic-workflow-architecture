@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package pricing;
+
+service Quotes {
+  rpc Get (QuoteRequest) returns (Quote);
+  rpc Watch (QuoteRequest) returns (stream Quote);
+}
+
+enum Currency {
+  EUR = 0;
+  USD = 1;
+}
+
+message QuoteRequest {
+  string sku = 1;
+  int32 quantity = 2;
+}
+
+message Detail {
+  string source = 1;
+}
+
+message Quote {
+  string sku = 1;
+  int64 total_cents = 2;
+  Currency currency = 3;
+  repeated string notes = 4;
+  Detail detail = 5;
+  bool discounted = 6;
+}

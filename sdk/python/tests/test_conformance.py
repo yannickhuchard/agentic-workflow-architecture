@@ -14,10 +14,12 @@ from uuid import uuid4
 
 import pytest
 
+from awa.runtime.authorization import AuthorizationError
 from awa.runtime.counterfactual import counterfactual_replay
 from awa.runtime.duration import parse_iso_duration
 from awa.runtime.expression import ExpressionError, evaluate_expression
 from awa.runtime.journey import time_ms
+from awa.runtime.journal import InMemoryJournalStore
 from awa.runtime.knowledge import KnowledgeBase
 from awa.runtime.models import FunctionModelProvider
 from awa.runtime.unary_test import MISSING, evaluate_unary_tests, validate_unary_tests
@@ -27,9 +29,10 @@ from awa.validator import validate_workflow_integrity
 
 CONFORMANCE = Path(__file__).resolve().parents[3] / "spec" / "conformance"
 SCHEMAS = Path(__file__).resolve().parents[3] / "spec" / "json-schema"
-CLAIMED_LEVELS = {"core", "decision", "verified", "recorded", "resilient", "contract", "flow", "events",
+CLAIMED_LEVELS = {"versioning", "interchange", "core", "decision", "verified", "recorded", "resilient", "contract", "flow", "events",
                   "tools", "model_decision", "routing", "journeys", "measures",
-                  "replay", "contexts", "service_levels", "knowledge"}
+                  "replay", "contexts", "service_levels", "knowledge", "telemetry", "shared_store", "evidence", "evaluation", "a2a",
+                  "authorization", "guardrails", "subworkflows"}
 # Integrity rules the Python SDK does not enforce. None at present.
 UNSUPPORTED_INTEGRITY_RULES: set[str] = set()
 
@@ -53,11 +56,15 @@ class ConformanceActor:
         self.given = []
         # The contexts the actor was handed at its last execution of each activity; None when it was handed none
         self.contexts = {}
+        # The input the actor was given at its last execution of each activity, without what is reserved to the engine
+        self.inputs = {}
 
     def execute(self, activity, token, context=None):
         self.visited.append(activity.name)
         self.given.append({"activity": activity.name, "ids": [k["id"] for k in token.get_data("_knowledge") or []]})
         self.contexts[activity.name] = copy.deepcopy(token.context_data.get("_contexts"))
+        self.inputs[activity.name] = copy.deepcopy(
+            {k: v for k, v in token.context_data.items() if not str(k).startswith("_") and k != "activities"})
         n = self.counts[activity.name] = self.counts.get(activity.name, 0) + 1
         script = self.scripts.get(activity.name, {})
         if "attempts" in script:
@@ -71,6 +78,12 @@ class ConformanceActor:
             context.tools.call(call["tool"], call.get("arguments", {}))
         if "error" in script:
             raise ScriptedError(script["error"], script.get("code"))
+        if script.get("waits"):
+            # A person who has not answered yet: the token waits for them (5.6)
+            return {"_requires_human_action": True, "_human_task_id": f"task:{activity.name}"}
+        # The actor hands the activity to a person: the token waits until the task is completed
+        if script.get("human_task"):
+            return {"_requires_human_action": True, "_human_task_id": f"task-{activity.name}-{n}"}
         return {
             **script.get("output", {}),
             **({"_reasoning": script["reasoning"]} if "reasoning" in script else {}),
@@ -123,6 +136,33 @@ def scripted_models(script):
         "model_providers": [provider("conformance", script.get("replies", []))],
         "model_tiers": {tier: "conformance:model" for tier in ("fast", "balanced", "reasoning")},
     }, calls
+
+
+def scripted_agents(agents):
+    """
+    Stands in for the agents a case scripts (level a2a): a GET of a card's URL answers with the card, and
+    each JSON-RPC request to the interface the card names takes the agent's next reply, the last repeating.
+    Any other address cannot be reached.
+    """
+    agents = agents or {}
+    seen = {"requests": [], "card_reads": 0, "served": {}}
+
+    def transport(method, url, headers, body):
+        if method == "GET" and url in agents:
+            seen["card_reads"] += 1
+            return 200, json.dumps(agents[url]["card"])
+        agent = next((card_url for card_url, script in agents.items()
+                      if any(i.get("url") == url for i in script["card"].get("supportedInterfaces") or [])), None)
+        if method != "POST" or agent is None:
+            raise ConnectionRefusedError(f"connection refused: {url}")
+        request = json.loads(body or "{}")
+        seen["requests"].append({"agent": agent, "method": request.get("method"), "params": request.get("params")})
+        n = seen["served"].get(agent, 0)
+        seen["served"][agent] = n + 1
+        replies = agents[agent]["replies"]
+        return 200, json.dumps({"jsonrpc": "2.0", "id": request.get("id"), **replies[min(n, len(replies) - 1)]})
+
+    return transport, seen
 
 
 def is_subset(expected, actual):
@@ -193,10 +233,20 @@ def test_execution(case):
     # Every actor is replaced by one that follows the case's script
     actor = ConformanceActor(case.get("actors"), spend)
     model_options, model_calls = scripted_models(case.get("model", {}))
+    agent_transport, agents = scripted_agents(case.get("agents"))
+    journal = InMemoryJournalStore()
     engine = WorkflowEngine(Workflow.model_validate(case["workflow"]), options={
-        "actors": {actor_type: actor for actor_type in ActorType},
+        # In simulation the activities return what the case scripts in options.simulated_outputs
+        **({} if case.get("options", {}).get("simulate") else {"actors": {actor_type: actor for actor_type in ActorType}}),
+        "a2a": {"transport": agent_transport, "poll_interval_ms": 0},
+        "journal": journal,
+        # The workflows the case's workflow may call: its own, and the case's others (specification 24.1)
+        "subworkflows": {"workflows": [Workflow.model_validate(w) for w in [case["workflow"], *case.get("workflows", [])]]},
         **({"tools": scripted_tools(case["tools"])} if "tools" in case else {}),
         **(model_options if "model" in case else {}),
+        # Classifiers that guardrails call (31.8): each gives the case's verdict
+        **({"guardrail_classifiers": {name: (lambda request, verdict=verdict: verdict)
+                                      for name, verdict in case["classifiers"].items()}} if "classifiers" in case else {}),
         **({"now": lambda: clock["now"], "sleep": lambda ms: None} if "clock" in case else {}),
         **case.get("options", {}),
     })
@@ -213,6 +263,19 @@ def test_execution(case):
             assert is_subset(step.get("expect", {}), checked), f"service levels checked: {checked}"
         elif step.get("expire"):
             engine.expire_events(float("inf"))
+        elif "cancel" in step:
+            engine.cancel(step["cancel"])
+        elif "complete_task" in step:
+            # A person completes the task of every token waiting at that activity, in the run or a run it called (24.4)
+            task = step["complete_task"]
+            resumed = sum(1 for token_id in waiting_tasks(engine, task["activity"]) if engine.resume_token(token_id, task.get("output", {})))
+            if "resumes" in step:
+                assert resumed == step["resumes"], "tasks completed"
+        elif "agent_input" in step:
+            # The host gives every agent that asked for input what the case says (28.6)
+            resumed = sum(1 for request in engine.agent_requests() if engine.answer_agent(request["token_id"], step["agent_input"]))
+            if "resumes" in step:
+                assert resumed == step["resumes"], "tokens given agent input"
         else:
             event = step["event"]
             resumed = engine.deliver_event({
@@ -238,6 +301,8 @@ def test_execution(case):
         assert actor.contexts.get(name) == given, f"contexts given to {name}"
     if "contexts" in expect:
         assert engine.get_contexts() == expect["contexts"]
+    for name, given in expect.get("given_inputs", {}).items():
+        assert is_subset(given, actor.inputs.get(name)), f"input given to {name}: {actor.inputs.get(name)}"
     if "data" in expect:
         assert any(is_subset(expect["data"], t.context_data) for t in engine.tokens)
 
@@ -255,6 +320,12 @@ def test_execution(case):
         assert any(is_subset(wanted, e) for e in events), f"no event matches {json.dumps(wanted)}"
     for excluded in expect.get("journal_excludes", []):
         assert excluded not in [e["type"] for e in events]
+    # Text that no event may hold, whatever its field: what a guardrail matched is never journalled (31.7)
+    for text in expect.get("journal_excludes_text", []):
+        holding = [e["type"] for e in events if text in json.dumps(e, ensure_ascii=False)]
+        assert holding == [], f'events holding "{text}": {holding}'
+    if "guardrail_sources" in expect:
+        assert [e["data"]["source"] for e in events if e["type"] == "guardrail.triggered"] == expect["guardrail_sources"]
     for event_type, count in expect.get("journal_count", {}).items():
         assert len([e for e in events if e["type"] == event_type]) == count, f"count of {event_type}"
     for wanted in expect.get("journal_mentions", []):
@@ -263,15 +334,75 @@ def test_execution(case):
             for e in events), f"no event matching {json.dumps(wanted['event'])} mentions {', '.join(wanted['mentions'])}"
     if "model_calls" in expect:
         assert sum(model_calls.values()) == expect["model_calls"], "calls to the model"
+    if "agent_card_reads" in expect:
+        assert agents["card_reads"] == expect["agent_card_reads"], "agent cards read"
+    if "agent_requests" in expect:
+        assert [r["method"] for r in agents["requests"]] == expect["agent_requests"], "requests to agents"
+    for wanted in expect.get("agent_requests_contain", []):
+        assert any(is_subset(wanted, r) for r in agents["requests"]), f"no request to an agent matches {json.dumps(wanted)}: {agents['requests']}"
     for provider_id, count in expect.get("provider_calls", {}).items():
         assert model_calls.get(provider_id) == count, f"calls to provider {provider_id}"
     if "error_matches" in expect:
         errors = [str(t.get_data("_error") or "") for t in engine.tokens]
         assert any(re.search(expect["error_matches"], e) for e in errors), " | ".join(errors)
+    expect_subworkflow_runs(engine, journal, events, expect.get("subworkflow_runs"))
+
+
+def waiting_tasks(engine, activity):
+    """The tokens of a run, or of a run it called, that wait for a person at an activity of this name, from the journals"""
+    journals = [engine.get_events()] + [engine.get_subworkflow_events(r["run_id"]) for r in engine.subworkflow_runs()]
+    waiting = {}
+    for events in journals:
+        for e in events:
+            if e["type"] == "token.waiting" and e.get("node_name") == activity and e["data"].get("reason") == "human_task":
+                waiting[e["token_id"]] = True
+            if e["type"] in ("token.resumed", "token.cancelled"):
+                waiting.pop(e.get("token_id"), None)
+    return list(waiting)
+
+
+def expect_subworkflow_runs(engine, journal, parent_events, expected):
+    """
+    The child runs a run started (specification 24.7): exactly those listed, in order, each journal valid and
+    numbered from 1, its run.started naming the parent and the parent's attempt, and what the case expects of it.
+    """
+    runs = engine.subworkflow_runs()
+    if expected is not None:
+        assert len(runs) == len(expected), f"child runs: {runs}"
+    for i, run in enumerate(runs):
+        events = journal.read(run["run_id"])
+        for index, event in enumerate(events):
+            check_journal_event(event, index + 1)
+        started = next(e for e in events if e["type"] == "run.started")
+        parent = started["data"]["parent"]
+        assert parent["run_id"] == run["parent_run_id"], "the child names its parent"
+        assert started["data"]["depth"] == run["depth"]
+        parent_journal = parent_events if run["parent_run_id"] == engine.run_id else journal.read(run["parent_run_id"])
+        attempt = next((e for e in parent_journal if e["seq"] == parent.get("seq")), None)
+        assert attempt is not None and is_subset(
+            {"type": "activity.started", "node_id": run["node_id"], "attempt": run["attempt"], "token_id": parent["token_id"]}, attempt), \
+            "the child names the activity.started of its parent attempt"
+        assert any(e["type"] == "subworkflow.started" and e["data"].get("run_id") == run["run_id"] for e in parent_journal), "the parent names the child"
+        if expected is None or i >= len(expected):
+            continue
+        wanted = dict(expected[i])
+        types = wanted.pop("journal", None)
+        contains = wanted.pop("journal_contains", [])
+        excludes = wanted.pop("journal_excludes", [])
+        assert is_subset(wanted, run), f"child run {i + 1}: {run}"
+        if types:
+            assert in_order(types, [e["type"] for e in events]) == [], f"journal of child run {i + 1}: {[e['type'] for e in events]}"
+        for part in contains:
+            assert any(is_subset(part, e) for e in events), f"child run {i + 1}: no event matches {json.dumps(part)}"
+        for excluded in excludes:
+            assert excluded not in [e["type"] for e in events], f"child run {i + 1}"
 
 
 @pytest.mark.parametrize("case", DOCUMENTS, ids=[c["id"] for c in DOCUMENTS])
 def test_documents(case):
+    # A document case of a level other than `document` runs when that level is claimed
+    if case.get("level") and case["level"] not in CLAIMED_LEVELS:
+        pytest.skip(f"level '{case['level']}' is not claimed by the Python SDK")
     document = unwrap(case["document"])
     if case["valid"]:
         assert validate_workflow_integrity(Workflow.model_validate(document)).valid
@@ -344,6 +475,55 @@ def in_order(wanted, actual):
     return wanted[cursor:]
 
 
+def expect_journeys(runtime, expect, journey_event_schema):
+    """What a journey case expects of the journeys a host has recorded (Appendix A). Shared by the journey and shared store cases."""
+    names = {j.id: j.name for j in runtime.list_journeys()}
+    instances = runtime.list_journey_instances()
+    if "instance_count" in expect:
+        assert len(instances) == expect["instance_count"]
+    for wanted in expect.get("instances", []):
+        found = [i for i in instances if names[i["journey_id"]] == wanted["journey"]
+                 and (not wanted.get("subject_key") or i["subject_key"] == wanted["subject_key"])]
+        assert len(found) == 1, f"instances of {wanted['journey']} {wanted.get('subject_key', '')}"
+        instance = found[0]
+        types = [e["type"] for e in instance["events"]]
+        # Every implementation that records journeys must record validly: schema-valid events, numbered from 1 without gaps
+        for position, event in enumerate(instance["events"]):
+            assert [e.message for e in journey_event_schema.iter_errors(event)] == [], event
+            assert event["seq"] == position + 1
+        for key in ("status", "stage_id", "stalled", "sentiment"):
+            if key in wanted:
+                assert instance.get(key) == wanted[key] and isinstance(instance.get(key), bool) == isinstance(wanted[key], bool), key
+        if "goals_reached" in wanted:
+            assert instance["goals_reached"] == wanted["goals_reached"]
+        if "runs" in wanted:
+            assert [r["status"] for r in instance["runs"]] == wanted["runs"]
+        if "data" in wanted:
+            assert is_subset(wanted["data"], instance["data"]), json.dumps(instance["data"])
+        if "events" in wanted:
+            assert in_order(wanted["events"], types) == [], f"record was: {', '.join(types)}"
+        if "events_exact" in wanted:
+            assert types == wanted["events_exact"]
+        for type, count in wanted.get("events_count", {}).items():
+            assert types.count(type) == count, f"count of {type}"
+        for part in wanted.get("events_contain", []):
+            rest = {k: v for k, v in part.items() if k != "has"}
+            absent = object()
+            assert any(is_subset(rest, e) and all(resolve_path(e, p, absent) is not absent for p in part.get("has", []))
+                       for e in instance["events"]), f"no journey event matches {json.dumps(part)}"
+        if "run_journal" in wanted or "run_journal_excludes" in wanted:
+            events = runtime.export_journey(instance["id"])["runs"][0]["events"]
+            for position, event in enumerate(events):
+                check_journal_event(event, position + 1)
+            types_in_journal = [e["type"] for e in events]
+            assert in_order(wanted.get("run_journal", []), types_in_journal) == [], f"journal was: {', '.join(types_in_journal)}"
+            for type in wanted.get("run_journal_excludes", []):
+                assert type not in types_in_journal, f"journal was: {', '.join(types_in_journal)}"
+    if "transitions" in expect:
+        assert [{"from": names[t["from"]], "to": names[t["to"]], "count": t["count"]}
+                for t in runtime.transitions()] == expect["transitions"]
+
+
 @pytest.mark.parametrize("case", JOURNEYS, ids=[c["id"] for c in JOURNEYS])
 def test_journeys(case):
     if case["level"] not in CLAIMED_LEVELS:
@@ -392,50 +572,114 @@ def test_journeys(case):
             if "accepted" in expect:
                 assert result["accepted"] is expect["accepted"], f"accepted {event['type']}"
 
-    expect = case["expect"]
-    names = {j.id: j.name for j in runtime.list_journeys()}
-    instances = runtime.list_journey_instances()
-    if "instance_count" in expect:
-        assert len(instances) == expect["instance_count"]
-    for wanted in expect.get("instances", []):
-        found = [i for i in instances if names[i["journey_id"]] == wanted["journey"]
-                 and (not wanted.get("subject_key") or i["subject_key"] == wanted["subject_key"])]
-        assert len(found) == 1, f"instances of {wanted['journey']} {wanted.get('subject_key', '')}"
-        instance = found[0]
-        types = [e["type"] for e in instance["events"]]
-        # Every implementation that records journeys must record validly: schema-valid events, numbered from 1 without gaps
-        for position, event in enumerate(instance["events"]):
-            assert [e.message for e in journey_event_schema.iter_errors(event)] == [], event
-            assert event["seq"] == position + 1
-        for key in ("status", "stage_id", "stalled", "sentiment"):
+    expect_journeys(runtime, case["expect"], journey_event_schema)
+
+
+SHARED_STORE = [json.loads(p.read_text()) for p in sorted((CONFORMANCE / "shared-store").glob("*.json"))]
+
+
+@pytest.fixture(scope="module")
+def postgres():
+    """One PostgreSQL for the shared store cases; each case has a database of its own"""
+    from tests.postgres_helper import TestPostgres, postgres_unavailable
+    reason = postgres_unavailable()
+    if reason:
+        pytest.skip(f"shared store cases need PostgreSQL: {reason}")
+    server = TestPostgres()
+    yield server
+    server.stop()
+
+
+@pytest.mark.parametrize("case", SHARED_STORE, ids=[c["id"] for c in SHARED_STORE])
+def test_shared_store(case, postgres):
+    """Several hosts on one store (section 29). Steps marked `together` are performed at once, one thread per host."""
+    from concurrent.futures import ThreadPoolExecutor
+    from awa.runtime.postgres_store import PostgresRuntimeStore
+    if case["level"] not in CLAIMED_LEVELS:
+        pytest.skip(f"level '{case['level']}' is not claimed by the Python SDK")
+
+    url = postgres.database()
+    clock = {"now": time_ms(case["start"])}
+    actor = ConformanceActor(case.get("actors"), lambda ms: clock.__setitem__("now", clock["now"] + ms))
+    stores = []
+
+    def open_host(name):
+        stopping = {"now": False}
+
+        def before_commit():
+            if stopping["now"]:
+                raise RuntimeError(f"host {name} stopped")
+        store = PostgresRuntimeStore(url, host_id=name, before_commit=before_commit)
+        stores.append(store)
+        runtime = AwaRuntime(now=lambda: clock["now"], shared=store,
+                             engine={"actors": {actor_type: actor for actor_type in ActorType}, "sleep": lambda ms: None})
+        for workflow in case["workflows"]:
+            runtime.register_workflow(workflow)
+        for journey in case["journeys"]:
+            runtime.register_journey(journey)
+        runtime.recover()
+        return {"runtime": runtime, "store": store, "stopping": stopping}
+
+    hosts = {name: open_host(name) for name in case["hosts"]}
+
+    def stop(name):
+        hosts.pop(name)["store"].close()
+
+    def perform(step):
+        """One host's step; what it counts towards the step's expectations"""
+        host = hosts[step["host"]]
+        if step.get("tick"):
+            result = host["runtime"].tick()
+            return {"timed_out_runs": len(result["timed_out_runs"]), "stalled_journeys": len(result["stalled_journeys"])}
+        e = step["publish"]
+        event = {"specversion": "1.0", "id": e.get("id") or f"evt-{uuid4()}", "source": "/conformance", "type": e["type"], "data": e.get("data", {})}
+        if step.get("stops_before_keeping"):
+            host["stopping"]["now"] = True
+            with pytest.raises(RuntimeError, match="stopped"):
+                host["runtime"].publish(event)
+            stop(step["host"])
+            return {}
+        return {"accepted": host["runtime"].publish(event)["accepted"]}
+
+    def check(wanted, results):
+        if not wanted:
+            return
+        if "accepted" in wanted:
+            got = results[0]["accepted"] if isinstance(wanted["accepted"], bool) else sum(1 for r in results if r.get("accepted"))
+            assert got == wanted["accepted"], "accepted"
+        for key in ("timed_out_runs", "stalled_journeys"):
             if key in wanted:
-                assert instance.get(key) == wanted[key] and isinstance(instance.get(key), bool) == isinstance(wanted[key], bool), key
-        if "goals_reached" in wanted:
-            assert instance["goals_reached"] == wanted["goals_reached"]
-        if "runs" in wanted:
-            assert [r["status"] for r in instance["runs"]] == wanted["runs"]
-        if "data" in wanted:
-            assert is_subset(wanted["data"], instance["data"]), json.dumps(instance["data"])
-        if "events" in wanted:
-            assert in_order(wanted["events"], types) == [], f"record was: {', '.join(types)}"
-        if "events_exact" in wanted:
-            assert types == wanted["events_exact"]
-        for type, count in wanted.get("events_count", {}).items():
-            assert types.count(type) == count, f"count of {type}"
-        for part in wanted.get("events_contain", []):
-            rest = {k: v for k, v in part.items() if k != "has"}
-            absent = object()
-            assert any(is_subset(rest, e) and all(resolve_path(e, p, absent) is not absent for p in part.get("has", []))
-                       for e in instance["events"]), f"no journey event matches {json.dumps(part)}"
-        if "run_journal" in wanted:
-            events = runtime.export_journey(instance["id"])["runs"][0]["events"]
-            for position, event in enumerate(events):
-                check_journal_event(event, position + 1)
-            assert in_order(wanted["run_journal"], [e["type"] for e in events]) == [], \
-                f"journal was: {', '.join(e['type'] for e in events)}"
-    if "transitions" in expect:
-        assert [{"from": names[t["from"]], "to": names[t["to"]], "count": t["count"]}
-                for t in runtime.transitions()] == expect["transitions"]
+                assert sum(r.get(key, 0) for r in results) == wanted[key], key
+
+    try:
+        for step in case["steps"]:
+            if "advance" in step:
+                clock["now"] += parse_iso_duration(step["advance"])
+            elif "stop" in step:
+                stop(step["stop"])
+            elif "start" in step:
+                hosts[step["start"]] = open_host(step["start"])
+            elif "together" in step:
+                with ThreadPoolExecutor(max_workers=len(step["together"])) as pool:
+                    check(step.get("expect"), list(pool.map(perform, step["together"])))
+            else:
+                check(step.get("expect"), [perform(step)])
+        # What the store keeps, read by a host that took no part
+        reader = open_host("reader")
+        reader["runtime"].refresh()
+        stats = reader["store"].stats()
+        expect = case["expect"]
+        if "accepted_events" in expect:
+            assert stats["accepted_events"] == expect["accepted_events"], "events accepted"
+        if "run_count" in expect:
+            assert stats["runs"] == expect["run_count"], "runs kept"
+        # Every journal is numbered from 1 without a gap, whichever host wrote which part
+        for engine in reader["runtime"].list_runs():
+            assert [e["seq"] for e in engine.get_events()] == list(range(1, len(engine.get_events()) + 1))
+        expect_journeys(reader["runtime"], expect, schema_validator("journey-event.schema.json"))
+    finally:
+        for store in stores:
+            store.close()
 
 
 @pytest.mark.parametrize("case", MEASURE_CASES, ids=[c["id"] for c in MEASURE_CASES])
@@ -486,6 +730,98 @@ def test_measures(case):
         assert len(report["attention"]) == len(expect["attention"])
         for got, want in zip(report["attention"], expect["attention"]):
             assert is_subset(want, got), f"{json.dumps(got)} does not contain {json.dumps(want)}"
+
+
+# ---------------------------------------------------------------------------
+# Telemetry (specification section 26)
+# ---------------------------------------------------------------------------
+
+from awa.runtime.kpi import MEASURES  # noqa: E402
+from awa.runtime.telemetry import (  # noqa: E402
+    gauges_to_otlp_json, journey_spans, measures_to_gauges, run_spans, spans_to_otlp_json, time_ms as telemetry_ms,
+)
+
+TELEMETRY_CASES = [json.loads(p.read_text()) for p in sorted((CONFORMANCE / "telemetry").glob("*.json"))]
+
+
+def _sorted_attributes(value):
+    """Attribute lists in any order: sorted by key at every depth"""
+    if isinstance(value, list):
+        return [_sorted_attributes(v) for v in value]
+    if not isinstance(value, dict):
+        return value
+    return {k: (sorted((_sorted_attributes(a) for a in v), key=lambda a: a["key"]) if k == "attributes" and isinstance(v, list)
+                else _sorted_attributes(v)) for k, v in value.items()}
+
+
+def _same_value(got, want):
+    """JSON equality, which keeps booleans apart from numbers and integers apart from fractions"""
+    return json.dumps(got, sort_keys=True) == json.dumps(want, sort_keys=True)
+
+
+@pytest.mark.parametrize("case", TELEMETRY_CASES, ids=[c["id"] for c in TELEMETRY_CASES])
+def test_telemetry(case):
+    if case["level"] not in CLAIMED_LEVELS:
+        pytest.skip(f"level '{case['level']}' is not claimed by the Python SDK")
+    expect = case["expect"]
+
+    if "report" in case:
+        report = case["report"]
+        request = gauges_to_otlp_json(measures_to_gauges(report, MEASURES), report)
+        metrics = request["resourceMetrics"][0]["scopeMetrics"][0]["metrics"]
+        assert len(metrics) == expect["metric_count"]
+        names = [m["name"] for m in metrics]
+        for name in expect.get("absent", []):
+            assert name not in names
+        for want in expect["metrics"]:
+            got = next(m for m in metrics if m["name"] == want["name"])
+            assert got["unit"] == want["unit"], want["name"]
+            points = [{"attributes": {a["key"]: a["value"]["stringValue"] for a in p["attributes"]}, "value": p["asDouble"]}
+                      for p in got["gauge"]["dataPoints"]]
+            assert points == want["points"], want["name"]
+            for p in got["gauge"]["dataPoints"]:
+                assert p["timeUnixNano"] == str(telemetry_ms(expect["time"]) * 1_000_000)
+                assert p["startTimeUnixNano"] == str(telemetry_ms(expect["start_time"]) * 1_000_000)
+        return
+
+    payloads = (case.get("options") or {}).get("payloads", False)
+    spans = run_spans(case["decision_nodes"], case["journal"], payloads) if "journal" in case else journey_spans(case["journey"], payloads)
+    assert len(spans) == expect["span_count"]
+    assert {s.trace_id for s in spans} == {expect["trace_id"]}
+    if "otlp_json" in expect:
+        assert _sorted_attributes(spans_to_otlp_json(spans)) == _sorted_attributes(expect["otlp_json"])
+    for want in expect.get("spans", []):
+        matching = [s for s in spans if s.span_id == want["span_id"]]
+        assert len(matching) == 1, f"span {want['span_id']}"
+        got = matching[0]
+        where = f"{got.name} ({got.span_id})"
+        if "parent_span_id" in want:
+            assert got.parent_span_id == want["parent_span_id"], f"{where} parent"
+        if "name" in want:
+            assert got.name == want["name"]
+        if "kind" in want:
+            assert got.kind == want["kind"], f"{where} kind"
+        if "start" in want:
+            assert got.start_ms == telemetry_ms(want["start"]), f"{where} start"
+        if "end" in want:
+            assert got.end_ms == telemetry_ms(want["end"]), f"{where} end"
+        if "status" in want:
+            assert got.status["code"] == want["status"], f"{where} status"
+        if "status_message" in want:
+            assert got.status.get("message") == want["status_message"], f"{where} status message"
+        for key, value in want.get("attributes", {}).items():
+            assert key in got.attributes and _same_value(got.attributes[key], value), f"{where} {key}: {got.attributes.get(key)!r} != {value!r}"
+        for key in want.get("absent", []):
+            assert key not in got.attributes, f"{where} has {key}"
+        if "events" in want:
+            assert [e.name for e in got.events] == want["events"], f"{where} events"
+        for e in want.get("events_contain", []):
+            found = [x for x in got.events if x.name == e["name"]
+                     and all(k in x.attributes and _same_value(x.attributes[k], v) for k, v in e.get("attributes", {}).items())
+                     and all(k not in x.attributes for k in e.get("absent", []))]
+            assert found, f"{where}: no event {e} among {[(x.name, x.attributes) for x in got.events]}"
+        if "links" in want:
+            assert [{"trace_id": l["trace_id"], "span_id": l["span_id"]} for l in got.links] == want["links"], f"{where} links"
 
 
 # ---------------------------------------------------------------------------
@@ -614,3 +950,457 @@ def test_knowledge(case):
             assert source["event_seqs"], f'{entry["id"]} cites events'
             for seq in source["event_seqs"]:
                 assert any(e["seq"] == seq for e in journal), f'{entry["id"]} cites event {seq}'
+
+
+# ---------------------------------------------------------------------------
+# Evidence (specification section 32) and evaluation from journals (section 33)
+# ---------------------------------------------------------------------------
+
+from awa.runtime.evaluation import build_dataset, evaluate_dataset  # noqa: E402
+from awa.runtime.evidence import compute_evidence, unresolved_citations  # noqa: E402
+
+EVIDENCE_CASES = [json.loads(p.read_text()) for p in sorted((CONFORMANCE / "evidence").glob("*.json"))]
+EVALUATION_CASES = [json.loads(p.read_text()) for p in sorted((CONFORMANCE / "evaluation").glob("*.json"))]
+
+
+@pytest.mark.parametrize("case", EVIDENCE_CASES, ids=[c["id"] for c in EVIDENCE_CASES])
+def test_evidence(case):
+    if case["level"] not in CLAIMED_LEVELS:
+        pytest.skip(f"level '{case['level']}' is not claimed by the Python SDK")
+    report = compute_evidence(case["recorded"], case.get("options"))
+    assert [e.message for e in schema_validator("evidence-report.schema.json").iter_errors(report)] == []
+    # Every statement rests on records that exist (32.2)
+    assert unresolved_citations(report, case["recorded"]) == []
+    parts = {p["id"]: p for p in report["parts"]}
+    expect = case["expect"]
+    for id, summary in expect.get("summaries", {}).items():
+        assert is_subset(summary, parts[id]["summary"]), f"summary of {id}: {json.dumps(parts[id]['summary'])}"
+    for want in expect.get("statements", []):
+        found = [s for s in parts[want["part"]]["statements"] if s["kind"] == want["kind"] and is_subset(want["facts"], s["facts"])]
+        assert len(found) == 1, f"{want['part']}/{want['kind']} {json.dumps(want['facts'])} among {json.dumps([s['facts'] for s in parts[want['part']]['statements']])}"
+        if "citations" in want:
+            def key(citations):
+                return sorted(json.dumps(c, sort_keys=True) for c in citations)
+            assert key(found[0]["citations"]) == key(want["citations"]), f"citations of {want['part']}/{want['kind']} {json.dumps(want['facts'])}"
+    for want in expect.get("absent", []):
+        assert [s for s in parts[want["part"]]["statements"] if s["kind"] == want["kind"] and is_subset(want["facts"], s["facts"])] == []
+    if "cited_runs" in expect:
+        cited = {c["run_id"] for p in report["parts"] for s in p["statements"] for c in s["citations"] if "run_id" in c}
+        assert sorted(cited) == sorted(expect["cited_runs"])
+
+
+@pytest.mark.parametrize("case", EVALUATION_CASES, ids=[c["id"] for c in EVALUATION_CASES])
+def test_evaluation(case):
+    if case["level"] not in CLAIMED_LEVELS:
+        pytest.skip(f"level '{case['level']}' is not claimed by the Python SDK")
+    expect = case["expect"]
+    if case["kind"] == "build":
+        built = build_dataset(case["journals"])
+        validator = schema_validator("evaluation-case.schema.json")
+        for c in built["cases"]:
+            assert [e.message for e in validator.iter_errors(c)] == []
+        assert len(built["cases"]) == expect["case_count"], [c["id"] for c in built["cases"]]
+        assert len(built["skipped"]) == expect["skipped"], built["skipped"]
+        for want in expect["cases"]:
+            got = next((c for c in built["cases"] if c["id"] == want["id"]), None)
+            assert got is not None, f"case {want['id']}"
+            for key, value in want.items():
+                assert got.get(key, "absent") == value, f"{want['id']}.{key}: {got.get(key, 'absent')!r}"
+        return
+
+    def engine_for_case(k):
+        scripts = {name: script.get("cases", {}).get(k["id"], script) for name, script in case["candidate_actors"].items()}
+        return {"actors": {ActorType.ai_agent: ConformanceActor(scripts)}}
+    report = evaluate_dataset(Workflow.model_validate(case["workflow"]), case["dataset"],
+                              candidate=Workflow.model_validate(case["candidate"]) if "candidate" in case else None,
+                              engine={"sleep": lambda ms: None}, engine_for_case=engine_for_case)
+    assert [e.message for e in schema_validator("evaluation-report.schema.json").iter_errors(report)] == []
+    for key in ("evaluated",):
+        if key in expect:
+            assert report[key] == expect[key]
+    for key in ("skipped", "regressions", "improvements"):
+        if key in expect:
+            assert len(report[key]) == expect[key], json.dumps(report[key])
+
+    def same(got, want):
+        if want is None:
+            return got is None
+        if isinstance(want, (int, float)) and not isinstance(want, bool):
+            return isinstance(got, (int, float)) and not isinstance(got, bool) and abs(got - want) < 1e-9
+        return got == want
+    for name, want in expect.get("activities", {}).items():
+        got = next((a for a in report["activities"] if a["activity_name"] == name), None)
+        assert got is not None, f"activity {name}"
+        for key, value in want.items():
+            actual = got[key]["value"] if isinstance(got[key], dict) and "value" in got[key] else got[key]
+            assert same(actual, value), f"{name}.{key}: got {actual!r}, expected {value!r}"
+    for case_id, want in expect.get("results", {}).items():
+        got = next((r for r in report["results"] if r["case_id"] == case_id), None)
+        assert got is not None, f"result of {case_id}"
+        for key, value in want.items():
+            actual = len(got["unrecorded"]) if key == "unrecorded" else got[key]
+            assert actual == value if not isinstance(value, bool) else actual is value, f"{case_id}.{key}: got {actual!r}"
+
+
+# ---------------------------------------------------------------------------
+# Level interchange (specification section 27)
+# ---------------------------------------------------------------------------
+
+INTERCHANGE_CASES = [json.loads(p.read_text()) for p in sorted((CONFORMANCE / "interchange").glob("*.json"))]
+FEEL = json.loads((CONFORMANCE / "feel.json").read_text())
+
+
+@pytest.mark.parametrize("case", INTERCHANGE_CASES, ids=[c["id"] for c in INTERCHANGE_CASES])
+def test_interchange(case):
+    from awa.interchange import InterchangeError, export_bpmn, export_serverless_workflow, import_bpmn, import_dmn
+    from awa.interchange.common import json_equal
+
+    if case["level"] not in CLAIMED_LEVELS:
+        pytest.skip(f"level '{case['level']}' is not claimed by the Python SDK")
+    expect = case["expect"]
+    if "error_matches" in expect:
+        with pytest.raises(InterchangeError, match=expect["error_matches"]):
+            if case["kind"] == "import_dmn":
+                import_dmn(case["dmn"])
+            else:
+                import_bpmn(case["bpmn"], case.get("dmn"))
+        return
+    if case["kind"] == "import_bpmn":
+        assert import_bpmn(case["bpmn"], case.get("dmn")).documents == expect["documents"]
+    elif case["kind"] == "import_dmn":
+        assert import_dmn(case["dmn"])[0] == expect["decisions"]
+    elif case["kind"] == "round_trip":
+        exported = export_bpmn([case["workflow"]])
+        back = import_bpmn(exported.bpmn, [exported.dmn] if exported.dmn else [])
+        assert json_equal(back.documents[0], case["workflow"])
+    elif case["kind"] == "export_serverless_workflow":
+        result = export_serverless_workflow(case["workflow"])
+        assert result.document == expect["document"]
+        assert result.not_mapped == expect["not_mapped"]
+    else:
+        raise AssertionError(f"unknown kind {case['kind']}")
+
+
+def _interchange_claimed():
+    if "interchange" not in CLAIMED_LEVELS:
+        pytest.skip("level 'interchange' is not claimed by the Python SDK")
+
+
+@pytest.mark.parametrize("case", FEEL["unary"], ids=[c["feel"] for c in FEEL["unary"]])
+def test_feel_unary_tests(case):
+    from awa.interchange import feel_unary_to_awa
+    _interchange_claimed()
+    assert feel_unary_to_awa(case["feel"]) == case["awa"]
+
+
+@pytest.mark.parametrize("text", FEEL["unary_invalid"])
+def test_feel_unary_tests_refused(text):
+    from awa.interchange import InterchangeError, feel_unary_to_awa
+    _interchange_claimed()
+    with pytest.raises(InterchangeError, match="FEEL"):
+        feel_unary_to_awa(text)
+
+
+@pytest.mark.parametrize("case", FEEL["unary_export"], ids=[c["awa"] for c in FEEL["unary_export"]])
+def test_feel_unary_export(case):
+    from awa.interchange import awa_unary_to_feel
+    _interchange_claimed()
+    assert awa_unary_to_feel(case["awa"], case.get("type")) == case["feel"]
+
+
+@pytest.mark.parametrize("case", FEEL["conditions"], ids=[c["bpmn"] for c in FEEL["conditions"]])
+def test_feel_conditions(case):
+    from awa.interchange import feel_condition_to_awa
+    _interchange_claimed()
+    assert feel_condition_to_awa(case["bpmn"]) == case["awa"]
+
+
+@pytest.mark.parametrize("text", FEEL["conditions_invalid"])
+def test_feel_conditions_refused(text):
+    from awa.interchange import InterchangeError, feel_condition_to_awa
+    _interchange_claimed()
+    with pytest.raises(InterchangeError, match="cannot be read"):
+        feel_condition_to_awa(text)
+
+
+@pytest.mark.parametrize("case", FEEL["conditions_export"], ids=[c["awa"] for c in FEEL["conditions_export"]])
+def test_feel_conditions_export(case):
+    from awa.interchange import awa_condition_to_feel
+    _interchange_claimed()
+    assert awa_condition_to_feel(case["awa"]) == case["feel"]
+
+
+AUTHORIZATION = [json.loads(p.read_text()) for p in sorted((CONFORMANCE / "authorization").glob("*.json"))]
+
+
+class WaitingPerson:
+    """A person's activity waits for its task to be completed (level authorization)"""
+
+    def execute(self, activity, token, context=None):
+        return {"_requires_human_action": True, "_human_task_id": f"task-{activity.name}"}
+
+
+@pytest.mark.parametrize("case", AUTHORIZATION, ids=[c["id"] for c in AUTHORIZATION])
+def test_authorization(case):
+    if case["level"] not in CLAIMED_LEVELS:
+        pytest.skip(f"level '{case['level']}' is not claimed by the Python SDK")
+    workflow = Workflow.model_validate(case["workflow"])
+    # Activities of human actors wait for a person; the others follow the case's scripts
+    actor = ConformanceActor(case.get("actors"))
+    agent_transport, agents = scripted_agents(case.get("agents"))
+    engine = None
+
+    def outcome(work):
+        try:
+            work()
+            return {"allowed": True}
+        except AuthorizationError as error:
+            return {"allowed": False, "code": error.code, "reason": error.decision["reason"]}
+
+    for step in case["steps"]:
+        if "start" in step:
+            engine = WorkflowEngine(workflow, options={
+                "actors": {"application": actor, "ai_agent": actor, "robot": actor, "human": WaitingPerson()},
+                "wait_for_human_tasks": True,
+                "a2a": {"transport": agent_transport, "poll_interval_ms": 0},
+                "authorization": case["authorization"],
+                **({"principal": step["start"]["principal"]} if step["start"].get("principal") else {}),
+                **({"tools": scripted_tools(case["tools"])} if "tools" in case else {}),
+            })
+            result = outcome(lambda: engine.start(step["start"].get("input") or {}))
+            if result["allowed"]:
+                engine.run()
+        else:
+            name = step["complete"]["activity"]
+            node = next(str(a.id) for a in workflow.activities if a.name == name)
+            token = next((t for t in engine.tokens if t.status.value == "waiting" and str(t.activity_id) == node), None)
+            assert token is not None, f"a token waits at {name}"
+
+            def answer():
+                assert engine.resume_token(token.id, step["complete"].get("output") or {}, step["complete"]["principal"]) is True
+            result = outcome(answer)
+            engine.run()
+        assert result["allowed"] == step["expect"]["allowed"], f"step {json.dumps(step)}"
+        if "code" in step["expect"]:
+            assert result["code"] == step["expect"]["code"]
+        if "reason" in step["expect"]:
+            assert result["reason"] == step["expect"]["reason"]
+        if "status" in step["expect"]:
+            assert engine.status.value == step["expect"]["status"], "status after the step"
+
+    expect = case["expect"]
+    events = engine.get_events() if engine else []
+    if expect.get("started") is False:
+        assert events == [], "a refused start leaves no journal"
+        return
+    assert engine.status.value == expect["status"]
+    for index, event in enumerate(events):
+        check_journal_event(event, index + 1)
+    decisions = [e["data"] for e in events if e["type"] == "authorization.decided"]
+    if "decisions" in expect:
+        assert len(decisions) == len(expect["decisions"]), f"decisions were {decisions}"
+        for i, wanted in enumerate(expect["decisions"]):
+            assert is_subset(wanted, decisions[i]), f"decision {i}: {decisions[i]}"
+    if "visited" in expect:
+        assert actor.visited == expect["visited"]
+    if "data" in expect:
+        assert any(is_subset(expect["data"], t.context_data) for t in engine.tokens), "data"
+    if "journal" in expect:
+        assert in_order(expect["journal"], [e["type"] for e in events]) == [], f"journal was: {', '.join(e['type'] for e in events)}"
+    for wanted in expect.get("journal_contains", []):
+        assert any(is_subset(wanted, e) for e in events), f"no event matches {json.dumps(wanted)}"
+    for excluded in expect.get("journal_excludes", []):
+        assert excluded not in [e["type"] for e in events]
+    for event_type, count in expect.get("journal_count", {}).items():
+        assert len([e for e in events if e["type"] == event_type]) == count, f"count of {event_type}"
+    if "agent_card_reads" in expect:
+        assert agents["card_reads"] == expect["agent_card_reads"], "agent cards read"
+    if "agent_requests" in expect:
+        assert [r["method"] for r in agents["requests"]] == expect["agent_requests"], "requests to agents"
+
+
+VERSIONING = [json.loads(p.read_text()) for p in sorted((CONFORMANCE / "versioning").glob("*.json"))]
+
+
+@pytest.mark.parametrize("case", VERSIONING, ids=[c["id"] for c in VERSIONING])
+def test_versioning(case):
+    """Changing a workflow while runs are in flight (section 25). A host plays the steps; a case that gives a
+    run's `state` instead has its plan checked against that state, without a host."""
+    if case["level"] not in CLAIMED_LEVELS:
+        pytest.skip(f"level '{case['level']}' is not claimed by the Python SDK")
+    from awa.runtime.migration import plan_migration
+
+    versions = {w["version"]: w for w in case["workflows"]}
+    models = {v: Workflow.model_validate(w) for v, w in versions.items()}
+    names = {str(n.id): n.name for w in models.values() for n in [*w.activities, *w.events, *w.decision_nodes]}
+
+    def token_view(t):
+        return {"from": names.get(t["from_node_id"]), "to": names.get(t["to_node_id"]), "wait": t["wait"], "outcome": t["outcome"]}
+
+    def codes(refusals):
+        return sorted(r["code"] for r in refusals)
+
+    expect = case["expect"]
+    if "state" in case:
+        # A run's state as recorded, in the form this implementation keeps it (10.3)
+        old, new = models[case["state"]["version"]], models[case["migrate"]["plan"]["to_version"]]
+        by_name = {n.name: str(n.id) for n in [*old.activities, *old.events]}
+        tokens = []
+        for t in case["state"]["tokens"]:
+            node = by_name[t["node"]]
+            waits = t.get("waits") or {}
+            data = dict(t.get("data") or {})
+            if waits.get("kind") == "timer":
+                data[f"_timer_due:{node}"] = waits["due_at"]
+            if waits.get("kind") == "human":
+                data.update({"_requires_human_action": True, "_human_task_id": "task"})
+            if waits.get("kind") == "event":
+                data["_awaiting_event"] = {"node_id": node, "name": waits["name"], "correlation_key": waits.get("correlation_key"),
+                                           "correlation_value": waits.get("correlation_value")}
+            tokens.append({"id": t["id"], "activity_id": node, "status": t["status"], "context_data": data})
+        state = {"version": "1.0", "workflow_id": str(old.id), "workflow_name": old.name, "workflow_version": old.version,
+                 "engine_status": case["state"]["status"], "contexts": {}, "checkpoint_at": case["start"], "tokens": tokens,
+                 "metadata": {"run_id": "recorded-run"}}
+        result = plan_migration(old, new, state, case["migrate"]["plan"])
+        assert codes(result["refusals"]) == sorted(expect["refusals"]), result["refusals"]
+        if "refused_tokens" in expect:
+            assert [r.get("token_id") for r in result["refusals"]] == expect["refused_tokens"]
+        if "tokens" in expect:
+            assert [token_view(t) for t in result["tokens"] if t["wait"]] == expect["tokens"]
+        for token_id, due in (expect.get("timers") or {}).items():
+            token = next(t for t in result["state"]["tokens"] if t["id"] == token_id)
+            assert token["context_data"][f"_timer_due:{token['activity_id']}"] == due
+        return
+
+    clock = {"now": time_ms(case["start"])}
+    store, journal = InMemoryRuntimeStore(), InMemoryJournalStore()
+
+    def spend(ms):
+        clock["now"] += ms
+
+    actor = ConformanceActor(case.get("actors"), spend)
+    registered: list[str] = []
+    runs: dict[str, str] = {}
+    workflow_id = case["workflows"][0]["id"]
+
+    def host(with_versions):
+        runtime = AwaRuntime(now=lambda: clock["now"], store=store,
+                             engine={"actors": {actor_type: actor for actor_type in ActorType}, "journal": journal, "sleep": lambda ms: None})
+        for version in with_versions:
+            runtime.register_workflow(versions[version])
+        if with_versions:
+            for journey in case.get("journeys") or []:
+                runtime.register_journey(journey)
+        return runtime
+
+    runtime = host([])
+
+    def engine_of(name):
+        return runtime.get_run(runs[name])
+
+    def check_run(name, wanted):
+        if not wanted:
+            return
+        engine = engine_of(name)
+        if "version" in wanted:
+            assert engine.workflow.version == wanted["version"], f"version of {name}"
+        if "status" in wanted:
+            assert engine.status.value == wanted["status"], f"status of {name}"
+
+    for number, step in enumerate(case["steps"]):
+        wanted = step.get("expect") or {}
+        if "register" in step:
+            runtime.register_workflow(versions[step["register"]])
+            if not registered:
+                for journey in case.get("journeys") or []:
+                    runtime.register_journey(journey)
+            registered.append(step["register"])
+        elif "restart" in step:
+            with_versions = step["restart"]["versions"] if isinstance(step["restart"], dict) else registered
+            following = host(with_versions)
+            if wanted.get("refused"):
+                with pytest.raises(RuntimeError, match="not registered"):
+                    following.recover()
+                continue
+            following.recover()
+            runtime, registered = following, list(with_versions)
+        elif "advance" in step:
+            spend(parse_iso_duration(step["advance"]))
+        elif step.get("tick"):
+            runtime.tick()
+        elif "publish" in step:
+            event = step["publish"]
+            result = runtime.publish({"specversion": "1.0", "id": event.get("id") or f"evt-{number}-{uuid4()}", "source": "/conformance",
+                                      "type": event["type"], "data": event.get("data", {})})
+            if "as" in step:
+                runs[step["as"]] = result["started_runs"][0]
+                check_run(step["as"], wanted)
+        elif "start" in step:
+            engine = runtime.start(workflow_id, step["start"].get("input") or {}, version=step["start"].get("version"))
+            runs[step["as"]] = engine.run_id
+            check_run(step["as"], wanted)
+        elif "complete" in step:
+            engine = engine_of(step["complete"]["run"])
+            token = next((t for t in engine.tokens if t.status.value == "waiting" and names.get(str(t.activity_id)) == step["complete"]["node"]), None)
+            assert token is not None, f"a token of {step['complete']['run']} waiting at {step['complete']['node']}"
+            assert runtime.resume(engine.run_id, token.id, step["complete"].get("output") or {}) is True
+        elif "migrate" in step:
+            result = runtime.migrate(runs[step["migrate"]["run"]], step["migrate"]["plan"], dry_run=bool(step["migrate"].get("dry_run")))
+            assert codes(result["refusals"]) == sorted(wanted.get("refusals") or []), result["refusals"]
+            for key in ("applied", "dry_run", "status"):
+                if key in wanted:
+                    assert result.get(key) == wanted[key], key
+            if "tokens" in wanted:
+                assert [token_view(t) for t in result["tokens"] if t["wait"]] == wanted["tokens"]
+            if "data_changes" in wanted:
+                assert len(result["data_changes"]) == len(wanted["data_changes"]), result["data_changes"]
+                for change, got in zip(wanted["data_changes"], result["data_changes"]):
+                    assert is_subset(change, got), got
+            engine = engine_of(step["migrate"]["run"])
+            if "run_version" in wanted:
+                assert engine.workflow.version == wanted["run_version"], "the version the run is on"
+            if "run_status" in wanted:
+                assert engine.status.value == wanted["run_status"], "the status of the run"
+        elif "check" in step:
+            check = step["check"]
+            report = runtime.check_migration(workflow_id, from_version=check.get("from_version"), to_version=check.get("to_version"), plan=check.get("plan"))
+            positions = [p for c in report["comparisons"] for p in c["positions"]]
+            if "automatic" in wanted:
+                assert all(c["automatic"] for c in report["comparisons"]) is wanted["automatic"]
+            if "positions" in wanted:
+                assert len(positions) == len(wanted["positions"]), positions
+                for p, got in zip(wanted["positions"], positions):
+                    view = {"node": got["node_name"], "wait": got["wait"], "class": got["class"]}
+                    if "to" in p:
+                        view["to"] = got.get("to_node_name")
+                    if "outcome" in p:
+                        view["outcome"] = got.get("outcome")
+                    if "candidates" in p:
+                        view["candidates"] = [n["node_name"] for n in got.get("candidates") or []]
+                    assert view == p
+            for r in wanted.get("runs") or []:
+                got = next((x for x in report["runs"] if x["run_id"] == runs[r["run"]]), None)
+                assert got is not None, f"run {r['run']} in the check"
+                assert got["migratable"] is r["migratable"], f"{r['run']} migratable"
+
+    if "visited" in expect:
+        assert actor.visited == expect["visited"]
+    for name, wanted in (expect.get("runs") or {}).items():
+        check_run(name, wanted)
+        engine = engine_of(name)
+        if "data" in wanted:
+            assert any(is_subset(wanted["data"], t.context_data) for t in engine.tokens), [t.context_data for t in engine.tokens]
+        for key in wanted.get("data_absent") or []:
+            assert all(resolve_path(t.context_data, key) is None for t in engine.tokens), f"{key} absent"
+        events = engine.get_events()
+        for position, event in enumerate(events, 1):
+            check_journal_event(event, position)
+        types = [e["type"] for e in events]
+        if "journal" in wanted:
+            assert in_order(wanted["journal"], types) == [], f"journal was: {', '.join(types)}"
+        for type_ in wanted.get("journal_excludes") or []:
+            assert type_ not in types
+        for type_, n in (wanted.get("journal_count") or {}).items():
+            assert types.count(type_) == n, f"count of {type_}"
+        for part in wanted.get("journal_contains") or []:
+            assert any(is_subset(part, e) for e in events), f"no event matches {part}"

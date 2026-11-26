@@ -20,11 +20,17 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from awa.runtime.telemetry_export import shared_telemetry_from_env
 from awa.types import Workflow, HumanTask, ActorType
 from awa.runtime import WorkflowEngine, EngineStatus
 from awa.runtime.journal import FileJournalStore
 from awa.runtime.services.task_service import TaskService
 from awa.runtime.logger import get_logger
+from awa.runtime.authorization import AuthorizationError
+from awa.server.deployment import server_deployment_options  # noqa: E402
+from awa.server.authorization import (
+    authorize_request, forbidden, named_principal, request_principal, server_authorization, set_authorization, task_resource,
+)
 
 app = FastAPI(
     title="AWA Operational API",
@@ -123,6 +129,8 @@ async def get_current_user(
     correlation_id = request.headers.get("x-correlation-id") or f"{int(time.time() * 1000)}-{str(uuid4())[:8]}"
     logger.set_correlation_id(correlation_id)
 
+    # The authenticated user is kept on the request, from which its principal is taken (specification 30.1)
+    request.state.awa_user = None
     if not AUTH_ENABLED:
         return {"id": "dev-user", "role": "admin", "permissions": ["*"]}
 
@@ -130,6 +138,7 @@ async def get_current_user(
     if x_api_key and x_api_key in API_KEYS:
         user = API_KEYS[x_api_key]
         logger.debug(f"API key authentication successful: {user['id']}")
+        request.state.awa_user = user
         return user
 
     # Try JWT verification
@@ -147,9 +156,11 @@ async def get_current_user(
             user = {
                 "id": payload.get("sub"),
                 "role": payload.get("role"),
-                "permissions": payload.get("permissions", ["*"])
+                "permissions": payload.get("permissions", ["*"]),
+                "claims": payload,
             }
             logger.debug(f"JWT authentication successful: {user['id']}")
+            request.state.awa_user = user
             return user
 
     logger.warn("Authentication failed")
@@ -254,6 +265,7 @@ def _workflow_file(file_path: str) -> str:
 @app.post("/api/v1/workflows/run", dependencies=[Depends(rate_limiter)])
 async def run_workflow(
     request: WorkflowRunRequest,
+    http: Request,
     user: Dict[str, Any] = Depends(get_current_user)
 ):
     try:
@@ -273,14 +285,24 @@ async def run_workflow(
         wf = Workflow(**wf_data)
         api_key = request.apiKey or os.environ.get("GEMINI_API_KEY")
         journal_dir = os.environ.get("AWA_JOURNAL_DIR")
+        principal = request_principal(http)
+        authorization = server_authorization()
         engine = WorkflowEngine(wf, gemini_api_key=api_key, options={
+            # What the deployment lets the run reach, and its guardrails (specification 17.4, 28.2, 31.1)
+            **server_deployment_options(),
             "user_id": user.get("id"),
             "simulate": request.simulate is True,
             **({"journal": FileJournalStore(journal_dir)} if journal_dir else {}),
+            **({"telemetry": telemetry} if (telemetry := shared_telemetry_from_env()) else {}),
+            # Who starts the run, and what the policy lets them and the run's agents do (specification 30)
+            **({"authorization": authorization, "principal": principal} if authorization is not None else {}),
         })
-        _track(engine, wf_data)
         initial = request.input if request.input is not None else request.initial_data
-        engine.start(initial or {})
+        try:
+            engine.start(initial or {})
+        except AuthorizationError as refused:
+            return forbidden(refused, principal)
+        _track(engine, wf_data)
         status_now = engine.status.value
         _continue(engine, "in the background")
         return {
@@ -295,6 +317,7 @@ async def run_workflow(
 
 @app.post("/api/v1/workflows/events", status_code=202, dependencies=[Depends(rate_limiter)])
 async def deliver_workflow_event(
+    http: Request,
     event: Dict[str, Any] = Body(...),
     user: Dict[str, Any] = Depends(get_current_user)
 ):
@@ -304,6 +327,10 @@ async def deliver_workflow_event(
     """
     if not isinstance(event.get("type"), str) or not isinstance(event.get("id"), str):
         return _error(400, "VALIDATION_ERROR", 'A CloudEvents event with "id" and "type" is required')
+    refused = authorize_request("publish_event", request_principal(http), {"event_type": event["type"]},
+                                event.get("data") if isinstance(event.get("data"), dict) else {})
+    if refused is not None:
+        return refused
     resumed: List[str] = []
     for engine in list(active_engines.values()):
         lock = run_locks.setdefault(engine.run_id, threading.Lock())
@@ -317,6 +344,41 @@ async def deliver_workflow_event(
 
 def _tracked(run_id: str) -> Optional[WorkflowEngine]:
     return active_engines.get(run_id)
+
+
+def _run_resource(engine: WorkflowEngine) -> Dict[str, Any]:
+    """A run as the resource of an action (specification 30.2)"""
+    return {"workflow_id": str(engine.workflow.id), "workflow_name": engine.workflow.name, "run_id": engine.run_id}
+
+
+@app.get("/api/v1/workflows/runs/{run_id}/agent-requests", dependencies=[Depends(rate_limiter)])
+async def get_agent_requests(run_id: str, user: Dict[str, Any] = Depends(get_current_user)):
+    """The tokens of a run waiting for input an agent over A2A asked for, with what it asked (specification 28.6)"""
+    engine = _tracked(run_id)
+    if not engine:
+        return _error(404, "NOT_FOUND", "Run not found")
+    return engine.agent_requests()
+
+
+@app.post("/api/v1/workflows/runs/{run_id}/tokens/{token_id}/agent-input", dependencies=[Depends(rate_limiter)])
+async def give_agent_input(run_id: str, token_id: str, http: Request, body: Dict[str, Any] = Body(...),
+                           user: Dict[str, Any] = Depends(get_current_user)):
+    """Give an agent the input it asked for: `{"input": <object or text>}`. The run goes on in the background."""
+    engine = _tracked(run_id)
+    if not engine:
+        return _error(404, "NOT_FOUND", "Run not found")
+    if not isinstance(body.get("input"), (dict, str)):
+        return _error(400, "VALIDATION_ERROR", 'An "input" object or text is required')
+    refused = authorize_request("answer_agent", request_principal(http), _run_resource(engine))
+    if refused is not None:
+        return refused
+    lock = run_locks.setdefault(engine.run_id, threading.Lock())
+    with lock:
+        answered = engine.answer_agent(token_id, body["input"])
+    if not answered:
+        return _error(409, "CONFLICT", "That token is not waiting for an agent's input")
+    _continue(engine, f"after agent input for token {token_id}")
+    return {"runId": engine.run_id, "status": engine.status.value}
 
 
 @app.get("/api/v1/workflows/runs/{run_id}", dependencies=[Depends(rate_limiter)])
@@ -349,11 +411,14 @@ def _after(value: Optional[str]) -> int:
 
 
 @app.get("/api/v1/workflows/runs/{run_id}/events", dependencies=[Depends(rate_limiter)])
-async def list_run_events(run_id: str, after: Optional[str] = None, user: Dict[str, Any] = Depends(get_current_user)):
+async def list_run_events(run_id: str, http: Request, after: Optional[str] = None, user: Dict[str, Any] = Depends(get_current_user)):
     """The journal of a run. `?after=<seq>` returns only later events."""
     engine = _tracked(run_id)
     if not engine:
         return _error(404, "NOT_FOUND", "Run not found")
+    refused = authorize_request("read_journal", request_principal(http), _run_resource(engine))
+    if refused is not None:
+        return refused
     return engine.get_events(_after(after))
 
 
@@ -375,6 +440,9 @@ async def stream_run_events(
     engine = _tracked(run_id)
     if not engine:
         return _error(404, "NOT_FOUND", "Run not found")
+    refused = authorize_request("read_journal", request_principal(request), _run_resource(engine))
+    if refused is not None:
+        return refused
 
     loop = asyncio.get_running_loop()
     queue: "asyncio.Queue[Dict[str, Any]]" = asyncio.Queue()
@@ -496,8 +564,21 @@ async def get_task(
 async def assign_task(
     task_id: str,
     request: AssignTaskRequest,
+    http: Request,
     user: Dict[str, Any] = Depends(get_current_user)
 ):
+    # The assignee must be allowed to claim the task; a caller who assigns it to someone else, to assign it (30.4)
+    if server_authorization() is not None:
+        current = TaskService.get(task_id)
+        if current is None:
+            raise HTTPException(status_code=404, detail="Task not found")
+        caller = request_principal(http)
+        assignee = caller if caller["id"] == request.user_id else named_principal(request.user_id)
+        refused = authorize_request("claim_task", assignee, task_resource(current), current.inputs or {})
+        if refused is None and assignee is not caller:
+            refused = authorize_request("assign_task", caller, task_resource(current), current.inputs or {})
+        if refused is not None:
+            return refused
     try:
         task = TaskService.assign(
             task_id,
@@ -520,21 +601,34 @@ async def assign_task(
 async def complete_task(
     task_id: str,
     request: CompleteTaskRequest,
+    http: Request,
     user: Dict[str, Any] = Depends(get_current_user)
 ):
+    refused = _may_answer(task_id, http)
+    if refused is not None:
+        return refused
     try:
-        task = TaskService.complete(task_id, request.result)
-        
-        # Resume the engine if it was active and waiting in memory
+        # Resume the engine if it was active and waiting in memory. Where the run is hosted, the answer is held to
+        # the whole policy, separation of duties and four eyes included (30.4); a refusal leaves the task as it was.
+        principal = request_principal(http) if server_authorization() is not None else None
+        pending = False
         for engine in active_engines.values():
             if engine.status == EngineStatus.WAITING_HUMAN:
                 # Find matching waiting token
                 for token in engine.tokens:
                     if token.status.value == "waiting" and token.context_data.get("_human_task_id") == task_id:
                         with run_locks.setdefault(engine.run_id, threading.Lock()):
-                            engine.resume_token(token.id, request.result)
+                            try:
+                                engine.resume_token(token.id, request.result, principal)
+                            except AuthorizationError as error:
+                                return forbidden(error, principal)
+                            # Under a four-eyes rule the task stays open until enough have approved
+                            pending = token.status.value == "waiting"
                         _continue(engine, f"after task {task_id}")
                         break
+        if pending:
+            return {"message": "Approval recorded; the task waits for further approvals", "task": TaskService.get(task_id).dict()}
+        task = TaskService.complete(task_id, request.result)
 
         return {
             "message": "Task completed",
@@ -551,8 +645,13 @@ async def complete_task(
 async def reject_task(
     task_id: str,
     request: RejectTaskRequest,
+    http: Request,
     user: Dict[str, Any] = Depends(get_current_user)
 ):
+    # Rejecting a task is answering it (specification 30.2)
+    refused = _may_answer(task_id, http)
+    if refused is not None:
+        return refused
     try:
         task = TaskService.reject(task_id, request.reason)
         
@@ -576,6 +675,19 @@ async def reject_task(
     except Exception as e:
         logger.error(f"Failed to reject task {task_id}", e)
         raise HTTPException(status_code=400, detail=str(e))
+
+
+def _may_answer(task_id: str, http: Request) -> Optional[JSONResponse]:
+    """
+    Under a policy, whether the caller may answer the task (complete_task, 30.4). The queue does not host the run:
+    the task's inputs are the run's data, and separation of duties and four-eyes rules apply where the run is hosted.
+    """
+    if server_authorization() is None:
+        return None
+    current = TaskService.get(task_id)
+    if current is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return authorize_request("complete_task", request_principal(http), task_resource(current), current.inputs or {})
 
 
 @app.get("/api/v1/tasks/queue/stats", dependencies=[Depends(rate_limiter)])
@@ -612,3 +724,7 @@ from awa.server.journeys import journey_router, measures_router, set_journey_run
 
 app.include_router(journey_router, prefix="/api/v1/journeys", dependencies=[Depends(rate_limiter)])
 app.include_router(measures_router, prefix="/api/v1/measures", dependencies=[Depends(rate_limiter)])
+
+from awa.server.evidence import evidence_router  # noqa: E402
+
+app.include_router(evidence_router, prefix="/api/v1/evidence", dependencies=[Depends(rate_limiter)])

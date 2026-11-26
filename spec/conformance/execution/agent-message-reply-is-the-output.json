@@ -1,0 +1,92 @@
+{
+  "id": "agent-message-reply-is-the-output",
+  "level": "a2a",
+  "spec": "28.5",
+  "description": "An agent may answer with a message instead of a task: its parts are the reply. A text that is not an object becomes the output's `result`.",
+  "workflow": {
+    "id": "dc37be6c-1d69-5e51-8698-9a6c9da91248",
+    "name": "agent-message-reply-is-the-output",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "fe936d02-0d71-54b4-9efd-ecd829432675",
+        "name": "Assess",
+        "role_id": "b81fc135-a781-5a47-b9db-d006913fdd30",
+        "actor_type": "ai_agent",
+        "a2a": {
+          "agent_card": "https://agents.example/claims/.well-known/agent-card.json"
+        }
+      }
+    ],
+    "edges": []
+  },
+  "agents": {
+    "https://agents.example/claims/.well-known/agent-card.json": {
+      "card": {
+        "name": "Claims assessor",
+        "description": "Claims assessor, reached over A2A",
+        "version": "1.0.0",
+        "supportedInterfaces": [
+          {
+            "url": "https://agents.example/claims/a2a",
+            "protocolBinding": "JSONRPC",
+            "protocolVersion": "1.0"
+          }
+        ],
+        "capabilities": {
+          "streaming": false,
+          "pushNotifications": false
+        },
+        "defaultInputModes": [
+          "application/json",
+          "text/plain"
+        ],
+        "defaultOutputModes": [
+          "application/json"
+        ],
+        "skills": [
+          {
+            "id": "assess",
+            "name": "Assess",
+            "description": "Assess a claim",
+            "tags": [
+              "claims"
+            ]
+          }
+        ]
+      },
+      "replies": [
+        {
+          "result": {
+            "message": {
+              "messageId": "r-1",
+              "role": "ROLE_AGENT",
+              "contextId": "ctx-9",
+              "parts": [
+                {
+                  "text": "Covered"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "data": {
+      "result": "Covered"
+    },
+    "journal_contains": [
+      {
+        "type": "agent.task_updated",
+        "data": {
+          "state": "message",
+          "context_id": "ctx-9"
+        }
+      }
+    ]
+  }
+}

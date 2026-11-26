@@ -1,0 +1,106 @@
+{
+  "id": "agent-without-json-rpc-interface-is-unsupported",
+  "level": "a2a",
+  "spec": "28.2",
+  "description": "A card that offers no JSON-RPC interface of A2A 1.x fails the activity with AGENT_UNSUPPORTED, which is not retried.",
+  "workflow": {
+    "id": "2190a388-fa9f-59f8-8e17-8ca0a4ec275b",
+    "name": "agent-without-json-rpc-interface-is-unsupported",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "8d8b4a5d-c619-5557-9808-68de40d35162",
+        "name": "Assess",
+        "role_id": "610e0902-5f87-563b-a790-7e7ffc225595",
+        "actor_type": "ai_agent",
+        "a2a": {
+          "agent_card": "https://agents.example/claims/.well-known/agent-card.json"
+        },
+        "retry": {
+          "max_attempts": 3,
+          "initial_delay": "PT0S"
+        }
+      }
+    ],
+    "edges": []
+  },
+  "agents": {
+    "https://agents.example/claims/.well-known/agent-card.json": {
+      "card": {
+        "name": "Claims assessor",
+        "description": "Claims assessor, reached over A2A",
+        "version": "1.0.0",
+        "supportedInterfaces": [
+          {
+            "url": "https://agents.example/claims/a2a",
+            "protocolBinding": "GRPC",
+            "protocolVersion": "1.0"
+          }
+        ],
+        "capabilities": {
+          "streaming": false,
+          "pushNotifications": false
+        },
+        "defaultInputModes": [
+          "application/json",
+          "text/plain"
+        ],
+        "defaultOutputModes": [
+          "application/json"
+        ],
+        "skills": [
+          {
+            "id": "assess",
+            "name": "Assess",
+            "description": "Assess a claim",
+            "tags": [
+              "claims"
+            ]
+          }
+        ]
+      },
+      "replies": [
+        {
+          "result": {
+            "task": {
+              "id": "task-1",
+              "contextId": "ctx-1",
+              "status": {
+                "state": "TASK_STATE_COMPLETED"
+              },
+              "artifacts": [
+                {
+                  "artifactId": "a0",
+                  "parts": [
+                    {
+                      "data": {},
+                      "mediaType": "application/json"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  "expect": {
+    "status": "failed",
+    "agent_requests": [],
+    "journal_count": {
+      "activity.started": 1
+    },
+    "journal_contains": [
+      {
+        "type": "activity.failed",
+        "data": {
+          "error": {
+            "code": "AGENT_UNSUPPORTED"
+          }
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,209 @@
+{
+  "id": "tool-call-denied",
+  "level": "authorization",
+  "spec": "30.4",
+  "description": "A tool call the policy does not allow the agent is refused with FORBIDDEN before it runs, after the deployment's permissions: it is journalled as tool.failed with invoked false, beside the denial, and returned to the agent. It does not fail the activity.",
+  "workflow": {
+    "id": "a8b37ee8-3ff4-5636-a0aa-9573e1cc39e9",
+    "name": "tool-call-denied",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "2e81ce30-d1a8-5161-828a-2e74acaf4979",
+        "name": "Assess",
+        "role_id": "5d7aa025-6dcd-5298-9925-c97102591d84",
+        "actor_type": "ai_agent",
+        "tools": [
+          {
+            "name": "lookup",
+            "description": "The lookup tool",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "q": {
+                  "type": "string"
+                }
+              }
+            },
+            "binding": {
+              "kind": "function",
+              "name": "lookup"
+            }
+          },
+          {
+            "name": "refund",
+            "description": "The refund tool",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "q": {
+                  "type": "string"
+                }
+              }
+            },
+            "binding": {
+              "kind": "function",
+              "name": "refund"
+            }
+          }
+        ]
+      }
+    ],
+    "edges": []
+  },
+  "authorization": {
+    "principals": [
+      {
+        "id": "agent:claims-bot",
+        "kind": "ai_agent",
+        "attributes": {
+          "roles": [
+            "assessor"
+          ]
+        },
+        "acts_for": {
+          "activities": [
+            "Assess"
+          ]
+        }
+      }
+    ],
+    "policy": {
+      "rules": [
+        {
+          "id": "host-starts",
+          "effect": "allow",
+          "actions": [
+            "start_run"
+          ],
+          "subject": {
+            "ids": [
+              "host"
+            ]
+          }
+        },
+        {
+          "id": "assessors-assess",
+          "effect": "allow",
+          "actions": [
+            "perform_activity"
+          ],
+          "subject": {
+            "roles": [
+              "assessor"
+            ]
+          }
+        },
+        {
+          "id": "assessors-look-up",
+          "effect": "allow",
+          "actions": [
+            "call_tool"
+          ],
+          "subject": {
+            "roles": [
+              "assessor"
+            ]
+          },
+          "resource": {
+            "tools": [
+              "lookup"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "actors": {
+    "Assess": {
+      "calls": [
+        {
+          "tool": "lookup",
+          "arguments": {
+            "q": "C-1"
+          }
+        },
+        {
+          "tool": "refund",
+          "arguments": {
+            "q": "C-1"
+          }
+        }
+      ],
+      "output": {
+        "done": true
+      }
+    }
+  },
+  "tools": {
+    "lookup": {
+      "result": {
+        "found": true
+      }
+    },
+    "refund": {
+      "result": {
+        "refunded": true
+      }
+    }
+  },
+  "steps": [
+    {
+      "start": {},
+      "expect": {
+        "allowed": true
+      }
+    }
+  ],
+  "expect": {
+    "status": "completed",
+    "data": {
+      "done": true
+    },
+    "decisions": [
+      {
+        "action": "call_tool",
+        "decision": "deny",
+        "principal": {
+          "id": "agent:claims-bot",
+          "kind": "ai_agent"
+        },
+        "reason": "no_rule",
+        "resource": {
+          "tool": "refund",
+          "activity_name": "Assess"
+        }
+      }
+    ],
+    "journal": [
+      "activity.started",
+      "tool.invoked",
+      "tool.completed",
+      "authorization.decided",
+      "tool.failed",
+      "activity.completed"
+    ],
+    "journal_contains": [
+      {
+        "type": "tool.failed",
+        "data": {
+          "tool": "refund",
+          "invoked": false,
+          "error": {
+            "code": "FORBIDDEN"
+          }
+        }
+      },
+      {
+        "type": "tool.completed",
+        "data": {
+          "tool": "lookup"
+        }
+      }
+    ],
+    "journal_count": {
+      "tool.invoked": 1
+    }
+  }
+}

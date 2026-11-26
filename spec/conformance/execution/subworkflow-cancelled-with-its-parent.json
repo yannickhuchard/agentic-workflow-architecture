@@ -1,0 +1,142 @@
+{
+  "id": "subworkflow-cancelled-with-its-parent",
+  "level": "subworkflows",
+  "spec": "24.5",
+  "description": "Cancelling the parent cancels the child run it waits on first, with reason parent_cancelled; neither run goes on.",
+  "workflow": {
+    "id": "2e87f44c-187d-56dd-94cd-c2bd3a5aad98",
+    "name": "subworkflow-cancelled-with-its-parent",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "adb68310-3f47-5fc4-b2e5-570cc0de5f1b",
+        "name": "Collect",
+        "role_id": "a28e01c9-b33d-54ff-bac9-4114aa9c55b7",
+        "actor_type": "application",
+        "is_expandable": true,
+        "expansion_workflow_id": "19b968e2-daf6-5c37-9251-735ac93d94a7"
+      },
+      {
+        "id": "cb7c98e2-1251-51d3-b034-c29ae7f8cc5d",
+        "name": "Assess",
+        "role_id": "a28e01c9-b33d-54ff-bac9-4114aa9c55b7",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "88ffc85a-8c9c-5a40-b835-31550585447e",
+        "source_id": "adb68310-3f47-5fc4-b2e5-570cc0de5f1b",
+        "target_id": "cb7c98e2-1251-51d3-b034-c29ae7f8cc5d"
+      }
+    ]
+  },
+  "input": {
+    "claim_id": "CL-1"
+  },
+  "deliver": [
+    {
+      "cancel": "the customer withdrew the claim"
+    }
+  ],
+  "workflows": [
+    {
+      "id": "19b968e2-daf6-5c37-9251-735ac93d94a7",
+      "name": "Collect documents",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "10a8a956-0cc4-5d3c-9638-efc60da9d79d",
+          "name": "Request",
+          "role_id": "1d54f030-548f-54df-bdb8-fb8ce4a05460",
+          "actor_type": "application"
+        },
+        {
+          "id": "c77a33b7-3504-5cb2-a4f1-d52613d708f9",
+          "name": "File",
+          "role_id": "1d54f030-548f-54df-bdb8-fb8ce4a05460",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "e9e80fe4-2626-5c73-9c0f-9d324ecb4e8d",
+          "source_id": "10a8a956-0cc4-5d3c-9638-efc60da9d79d",
+          "target_id": "222460b4-bed7-589c-b80d-9fb99c5a355c"
+        },
+        {
+          "id": "cc4008fc-9a87-56d9-a180-e1b47447ef83",
+          "source_id": "222460b4-bed7-589c-b80d-9fb99c5a355c",
+          "target_id": "c77a33b7-3504-5cb2-a4f1-d52613d708f9"
+        }
+      ],
+      "events": [
+        {
+          "id": "222460b4-bed7-589c-b80d-9fb99c5a355c",
+          "name": "Documents received",
+          "event_type": "message",
+          "event_definition": {
+            "name": "documents.received",
+            "correlation_key": "claim_id"
+          }
+        }
+      ]
+    }
+  ],
+  "expect": {
+    "status": "cancelled",
+    "visited": [
+      "Request"
+    ],
+    "not_visited": [
+      "File",
+      "Assess"
+    ],
+    "journal": [
+      "subworkflow.started",
+      "token.waiting",
+      "run.waiting",
+      "subworkflow.cancelled",
+      "token.cancelled",
+      "run.cancelled"
+    ],
+    "journal_contains": [
+      {
+        "type": "subworkflow.cancelled",
+        "node_name": "Collect",
+        "data": {
+          "workflow_id": "19b968e2-daf6-5c37-9251-735ac93d94a7",
+          "reason": "parent_cancelled"
+        }
+      },
+      {
+        "type": "run.cancelled",
+        "data": {
+          "reason": "the customer withdrew the claim"
+        }
+      }
+    ],
+    "subworkflow_runs": [
+      {
+        "workflow_name": "Collect documents",
+        "status": "cancelled",
+        "journal": [
+          "event.waiting",
+          "run.waiting",
+          "token.cancelled",
+          "run.cancelled"
+        ],
+        "journal_contains": [
+          {
+            "type": "run.cancelled",
+            "data": {
+              "reason": "parent_cancelled"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

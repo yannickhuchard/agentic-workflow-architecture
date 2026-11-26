@@ -10,6 +10,9 @@ pip install agentic-workflow-architecture
 
 The distribution is named `agentic-workflow-architecture`; the package you import, and the command, are `awa`. Do not install the unrelated PyPI project named `awa`.
 
+Extras: `web` for `awa serve`, `grpc` for tools with `grpc` bindings (`pip install "agentic-workflow-architecture[grpc]"`), `contracts` for outcome contracts with an output schema.
+For several hosts sharing one PostgreSQL store (see [Hosts that share a store](#hosts-that-share-a-store)), install the extra: `pip install "agentic-workflow-architecture[postgres]"`.
+
 ## Usage
 
 ```python
@@ -40,7 +43,7 @@ print(result)
 
 ## Conformance
 
-The Python SDK passes every case of every conformance level of the specification (`docs/specification.md`, section 2.1): `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts` and `service_levels`. No case is skipped. Run them with `pytest tests/test_conformance.py -rs`.
+The Python SDK passes every case of every conformance level of the specification (`docs/specification.md`, section 2.1): `document`, `core`, `decision`, `verified`, `recorded`, `resilient`, `contract`, `routing`, `flow`, `knowledge`, `events`, `model_decision`, `tools`, `journeys`, `replay`, `measures`, `contexts`, `service_levels`, `subworkflows`, `versioning`, `telemetry`, `interchange`, `shared_store` (with the extra `postgres`), `a2a`, `authorization`, `guardrails`, `evidence` and `evaluation`. No case is skipped. Run them with `pytest tests/test_conformance.py -rs`.
 
 What it still lacks compared with the TypeScript reference implementation, none of which belongs to a conformance level:
 
@@ -55,15 +58,24 @@ What it still lacks compared with the TypeScript reference implementation, none 
 
 ```
 awa run claim.awa.json [-s] [--outputs simulation.json] [-j run.jsonl] [-c checkpoints/] [-i '{"claim_id": "C-1"}']
-                       [-p openai,ollama] [--allow-commands [all|git,jq]] [--db] [-v]
+                       [-p openai,ollama] [--allow-commands [all|git,jq]] [--deployment deployment.json] [--as <principal>] [--db] [-v]
+                       [-w credit-check.awa.json ...]
 awa validate claim.awa.json
-awa serve [--port 3000] [--host 0.0.0.0]
+awa serve [--port 3000] [--host 0.0.0.0] [--a2a claim.awa.json ...] [--public-url URL] [--deployment deployment.json]
 awa task list [-s pending] [-r <role id>] [-a <assignee>]
 awa task show <id> | assign <id> <user_id> | complete <id> ['{"approved": true}'] | reject <id> [reason]
+                                          # assign, complete, reject: [--deployment deployment.json] [--as <principal>]
 awa knowledge ingest claim.awa.json run1.jsonl run2.jsonl [--kb knowledge.json]
 awa knowledge list [--status draft|reviewed|deprecated] [--kb knowledge.json]
 awa knowledge review <id...|all> --by <reviewer> [--kb knowledge.json]
 awa knowledge deprecate <id> [--superseded-by <id>] [--kb knowledge.json]
+awa telemetry export claim.awa.json run.jsonl (--endpoint http://collector:4318 | --file run.otlp.json) [--protocol http/json] [--header k=v] [--payloads]
+awa telemetry journeys [--dir .awa | --portfolio journeys.json] (--endpoint <url> | --file <out.json>)
+awa telemetry measures [--dir .awa | --portfolio journeys.json] [--from <instant>] [--to <instant>] (--endpoint <url> | --file <out.json>)
+awa export bpmn claim.awa.json [-o claim.bpmn] [--no-diagram]     # and claim.dmn for its decision tables
+awa import bpmn claim.bpmn [--dmn claim.dmn] [-o claim.awa.json]
+awa import dmn rules.dmn | awa export dmn claim.awa.json
+awa export serverless-workflow claim.awa.json [--format json|yaml]
 ```
 
 `awa run` takes the options of the reference command, with the same meaning:
@@ -75,14 +87,50 @@ awa knowledge deprecate <id> [--superseded-by <id>] [--kb knowledge.json]
 | `-j, --journal <file>` | Write the execution journal to this file, as JSON Lines |
 | `-c, --checkpoint-dir <dir>` | Save the run state to `<dir>/<run id>.checkpoint.json` after every step |
 | `-i, --input <json>` | The data the run starts with, a JSON object |
+| `-w, --workflows <files...>` | Workflow documents that call activities may run as child runs (specification 24); the workflow itself is always one. The status of each child run is printed when the run ends |
 | `-p, --providers <list>` | Model providers in order of preference: `openai` (reads `OPENAI_API_KEY`) and `ollama` (reads `OLLAMA_BASE_URL`, default `http://localhost:11434/v1`, which can point at any OpenAI-compatible server). `google` and `embedded` are refused: the Python SDK does not have them |
 | `--allow-commands [list]` | Let tools run commands on this machine: all, or a comma-separated list of program names |
+| `--deployment <file>` | What the workflow may reach: `tools.allow_commands`, `tools.allowed_hosts`, `tools.mcp_servers`, `tools.grpc` and `a2a`; who may do what, `authorization` (section 30); and `guardrails`, the deployment's guardrails (specification 31.1); in the format of the reference's [CLI guide](../typescript/docs/cli-guide.md). `--allow-commands` takes precedence over the file's `allow_commands` |
+| `--as <principal>` | Start the run as this principal, by its id in the deployment's `authorization.principals`. Default: the host |
 | `--db` | Write the execution record to the database (`AWA_DATABASE_URL`, default `awa.db`) instead of printing it |
 | `-k, --key` | Accepted for compatibility; the Python SDK has no Google provider |
 
 The reference maps each provider's capability tiers to its preset models. This SDK names no models, so the model behind a tier is read from `AWA_<PROVIDER>_MODEL_<TIER>` (for example `AWA_OLLAMA_MODEL_FAST`) or `AWA_<PROVIDER>_MODEL`; each tier falls back down the list of providers, and a tier none of them names is `<first provider>:default`. At the end the command prints the run's metrics (status, duration, steps, tokens and cost, at the reference's example rates), `Workflow finished with status: ...` and, with `--journal`, where the journal was written. It exits with status 1 when the run fails.
 
 `awa task` works on the human tasks in the database named by `AWA_DATABASE_URL`. `awa knowledge` keeps the knowledge base in one JSON file, `knowledge.json` by default.
+
+## BPMN, DMN and Serverless Workflow
+
+Level `interchange` (specification section 27), with the same commands, defaults and results as the TypeScript SDK. Exporting a workflow to BPMN 2.0 (and its decision tables to DMN 1.3) and importing the result gives back the same document; what BPMN has no element for travels in the `awa:` namespace of `spec/xsd/awa-interchange.xsd`. An import refuses, naming the element and the reason, what AWA cannot express without changing its meaning.
+
+```python
+from awa.interchange import export_bpmn, import_bpmn, import_dmn, export_serverless_workflow
+
+result = export_bpmn([workflow_document])          # result.bpmn, result.dmn
+back = import_bpmn(result.bpmn, [result.dmn])      # back.documents == [workflow_document]
+decisions, warnings = import_dmn(dmn_text)
+sw = export_serverless_workflow(workflow_document)  # sw.document, sw.not_mapped
+```
+
+Only the standard library's XML is used; the reference BPMN, DMN and Serverless Workflow libraries are JavaScript, and the test suite reads this SDK's exports with them when Node and `sdk/typescript/node_modules` are present. Writing Serverless Workflow as YAML needs PyYAML; `--format json` does not.
+## Telemetry
+
+Level `telemetry` (specification section 26): every run and every journey as an OpenTelemetry trace, with the same trace and span identifiers the TypeScript reference gives for the same record. A test exports the journals of `examples/claims-settlement` and compares them with the files the reference wrote, request for request.
+
+```python
+from awa import OtlpHttpExporter, WorkflowEngine, run_spans, spans_to_otlp_json
+
+# Live: spans leave as the journal is written, from a background thread; the run never waits for them
+exporter = OtlpHttpExporter("http://collector:4318/v1/traces", protocol="http/protobuf", headers={"x-tenant": "claims"})
+engine = WorkflowEngine(workflow, options={"telemetry": {"exporter": exporter, "payloads": False}})
+engine.run({"claim_id": "C-1"})
+exporter.flush()                       # before the process ends; exporter.stats() counts what was sent and dropped
+
+# Recorded: the same spans from a journal, as OTLP/JSON
+request = spans_to_otlp_json(run_spans(workflow, events))
+```
+
+`telemetry` may also be `{"endpoint": "http://collector:4318", "headers": {...}, "protocol": "http/json", "payloads": False}`, or any object with `export(spans)`. `AwaRuntime(telemetry=...)` and `open_runtime_directory(..., telemetry=...)` send each journey's trace as well, whose run spans link to the runs' traces. `awa run`, `awa journey` and `awa serve` read `OTEL_EXPORTER_OTLP_ENDPOINT` and the rest of that family (`telemetry_from_env`); without an endpoint nothing is sent. Inputs, outputs and tool arguments go on spans only with `payloads` (or `AWA_TELEMETRY_PAYLOADS=true`), and then only as the journal holds them. The exporter needs only the standard library; the tests decode protobuf with `opentelemetry-proto` (in the `dev` extra). `GET /api/v1/measures?format=otlp` gives the measures as OpenTelemetry gauges.
 
 ## Tools, model routing and model decisions
 
@@ -118,11 +166,40 @@ engine = WorkflowEngine(workflow, options={
 | `http` | An HTTP request, with the standard library | Only `http` and `https` URLs. Redirects are followed only to allowed hosts |
 | `jsonrpc` | A JSON-RPC 2.0 call over HTTP | |
 | `command` | A program, without a shell | Refused unless `allow_commands` is `True` or lists the program |
-| `mcp`, `grpc` | An executor from `tools.executors` | Without one the call fails with `VALIDATION_ERROR` |
+| `mcp` | A tool on a server named in `tools.mcp_servers` (17.7): `{"command", "args", "env", "cwd"}`, started and spoken to over standard input and output, or `{"url", "headers"}`, over Streamable HTTP | A server not declared there is refused. A program is held to `allow_commands`, an address to `allowed_hosts`. MCP revision 2025-11-25, standard library only |
+| `grpc` | A unary call (17.8), described by `tools.grpc.protos` (with `include_dirs`) or by server reflection | The `grpc` extra. TLS unless the host is in `grpc.plaintext_hosts`; the endpoint is held to `allowed_hosts`. Arguments and results use the field names of the `.proto` file |
+
+A deployment may still register its own executor for any kind in `tools.executors`; it replaces the built-in one. MCP connections and gRPC channels are opened at a run's first call, reused by every later call of the run, and closed when the run ends or waits.
 
 The output of a command and the body of an HTTP response are limited to `max_output_bytes` (4 MiB by default); a longer one fails the call. A handler that is still running at the timeout cannot be interrupted in Python: the call fails with `TIMEOUT` and the handler's result is ignored. In simulation mode no binding runs: the call is journalled with `simulated: true` and returns `tools.simulated_results[<tool name>]`.
 
 The built-in `AIAgent` calls tools when the model asks for them (see [The AI agent](#the-ai-agent)); an actor you supply calls them through `context.tools`.
+
+### Agents over A2A
+
+Level `a2a` (specification section 28). A role or an activity that names an agent card in `a2a` is performed by that agent over A2A 1.0 (JSON-RPC binding), whatever its actor type:
+
+```json
+{ "a2a": { "agent_card": "https://agents.example.com/.well-known/agent-card.json", "on_input_required": "wait" } }
+```
+
+The engine reads the card once per run, sends the activity and its public data as a message, follows the task with `GetTask` until it ends, and turns the artifacts into the output, which the outcome contract and verification then check as any actor's. `agent.message_sent` and `agent.task_updated` record the exchange. A task that asks for input parks the token (`waiting_human`); `engine.agent_requests()` lists what the agents ask, and `engine.answer_agent(token_id, input)` sends the answer on the same task, after which `run()` goes on. Options under `a2a`: `allowed_hosts` (default: the tools' `allowed_hosts`), `secrets`, `poll_interval_ms`, `max_wait_ms`, `transport`. In simulation nothing is called.
+
+### Identity and authorization
+
+Level `authorization` (specification section 30). The engine option `authorization` holds the deployment's `principals` (identities of the agents and applications that perform activities, by `acts_for` activities, roles, actor types or agent cards, with optional `credentials` headers) and its `policy`: `rules` (subject, actions, resource, condition, `allow` or `deny`), `separation_of_duties` and `four_eyes`. The option `principal` is who starts the run.
+
+```python
+engine = WorkflowEngine(workflow, options={
+    "authorization": {"principals": [{"id": "agent:assessor", "kind": "ai_agent", "attributes": {"roles": ["underwriter"]},
+                                      "acts_for": {"roles": ["Underwriter"]}}],
+                      "policy": {"rules": [{"id": "underwriters", "effect": "allow", "actions": ["perform_activity"], "subject": {"roles": ["underwriter"]}}]}},
+    "principal": {"id": "alice", "kind": "person", "attributes": {"roles": ["requester"]}},
+})
+engine.resume_token(token_id, {"approved": True}, {"id": "bob", "kind": "person", "attributes": {"roles": ["manager"]}})
+```
+
+Under a policy, what no rule allows is denied and a denial wins over an allow. A refused start or answer raises `AuthorizationError` (code `FORBIDDEN`), and the task keeps waiting; a refused activity fails its token with `FORBIDDEN`; a refused tool call is returned to the agent as `tool.failed`. Denials are journalled as `authorization.decided`, and `run.started`, `activity.started`, `activity.completed` and `token.resumed` name their `principal`. `authorization["decider"]`, any object with `decide(request)`, replaces the built-in policy, for example with an external policy engine; a decider that fails denies. `AwaRuntime.start(..., principal=)` and `AwaRuntime.resume(..., principal)` take principals too, and `awa serve --deployment` applies the file's `authorization` to every route: a refusal is a `403` with code `FORBIDDEN`, and a caller's principal comes from its JWT claims or its API key (set with `awa.server.authorization.set_authorization` when the app is mounted by hand).
 
 ### Model references and routing
 
@@ -163,6 +240,37 @@ A decision node with a `decision_model` lets a model choose among the options th
 `model_decision_override` (a callable taking the decision node) supplies a decision without calling a model. In simulation mode no model is called; `simulated_outputs[<node name>]["output"]` scripts the decision.
 
 External decision engines (specification 5.5.4) are registered by name in `decision_engines`: a callable, or an object with `decide(request)`, that returns `{"option": ..., "outputs": ..., "explanation": ..., "fired_rules": ...}`.
+
+## Guardrails
+
+Guardrails (specification section 31) check what goes into and comes out of AI agents and tools while a run executes. A document declares them in `guardrails` on the workflow, a role, an activity or a tool; a deployment adds its own with the engine option `guardrails` (or `guardrails` in a deployment file), which apply first and which a document cannot remove.
+
+```python
+engine = WorkflowEngine(workflow, options={
+    "guardrails": [{"id": "0b6f5a52-3c2e-4d7b-9a51-6d0f8f1c2e10", "name": "Organisation: personal data",
+                    "stages": ["output", "tool_call"], "check": {"kind": "personal_data"}, "action": "redact"}],
+    "guardrail_classifiers": {"tone": lambda request: {"flagged": False}},
+})
+```
+
+- **Stages**: `input` (what the actor is given, once per visit), `output` (the result, before the outcome contract and verification), `tool_call` (a call's arguments, before they are validated and run) and `tool_result` (what a call returned, before it is recorded or given back).
+- **Checks**: `personal_data` (emails, phone numbers, IBANs with their checksum, card numbers with the Luhn check, and custom patterns), `deny_list`, `prompt_injection` (a documented list of markers: a floor, not a defence), `size` (characters, and tokens as a quarter of them), `json_schema`, `allowed_values`, `topic` (condition expressions over the data), `model` (a guard model through the router, the engine default unless the guardrail names a reference) and `classifier` (a function registered in `guardrail_classifiers`).
+- **Actions**: `block` (`GUARDRAIL_BLOCKED`, never retried by a retry policy), `redact` (the redacted value is what goes on and what is journalled), `retry_with_feedback` (as a contract violation), `escalate` (to the human actor, as an outcome contract does) and `warn`. A check that cannot be carried out fails closed with `GUARDRAIL_ERROR`.
+- **Record**: `guardrail.triggered` with the guardrail, its source, stage, check, action, categories and findings (JSON Pointer paths and code point positions), never the text it matched.
+
+`awa.runtime.guardrails` holds `GuardrailSet`, `run_check`, `redact` and the built-in pattern lists, `PERSONAL_DATA_PATTERNS` and `INJECTION_MARKERS`, identical to the reference's.
+
+## Sub-workflows
+
+Level `subworkflows` (specification section 24). An activity with `is_expandable: true` and an `expansion_workflow_id` is performed by a child run of that workflow, whatever its actor type. The engine is given the workflows it may call under the option `subworkflows`:
+
+```python
+engine = WorkflowEngine(claim, options={"subworkflows": {"workflows": [claim, credit_check], "max_depth": 8}})
+result = engine.run({"applicant": {"name": "Ada"}})
+result["subworkflow_runs"]   # each child run: run_id, parent_run_id, workflow_id, workflow_name, node_id, token_id, attempt, depth, status
+```
+
+The child is given the parent's data without engine properties (or what the activity's `subworkflow.input` maps, each property a path in the parent's data), and its output, the data of its completed tokens (or what `subworkflow.output` maps), is the attempt's result, checked by the activity's outcome contract and verification. A child that fails fails the attempt with `SUBWORKFLOW_FAILED`, retried under the retry policy with a new child run; a workflow not given fails with `SUBWORKFLOW_NOT_FOUND` and a call deeper than `max_depth` with `SUBWORKFLOW_DEPTH_EXCEEDED`, neither retried. A child that waits makes the parent wait: `deliver_event`, `expire_events`, `check_service_levels` and `resume_token` (with the token of the child's task) on the parent reach it, and the parent's next `run()` takes its outcome. `cancel()` cancels the child first. The parent's journal records `subworkflow.started`, `.completed`, `.failed` and `.cancelled`; the child's own journal (`get_subworkflow_events(run_id)`) starts with `run.started` naming its `parent`. A host (`AwaRuntime`, a runtime directory, a shared store) gives every run the workflows registered with it, lists child runs on the journey with their `parent_run_id`, keeps them with their parent, and completes a child's task by the child's run id; in a shared store each child is a run of its own in its parent's partition, which hosts of the TypeScript SDK take up too.
 
 ## Contexts and service levels
 
@@ -237,6 +345,35 @@ awa replay claim.awa.json run.journal.jsonl [--candidate changed.awa.json] [--js
 
 The command replays recorded AI outputs (`ai: "recorded"`), so it tests a changed contract, criterion, table or edge without a model. It exits with status 2 when the candidate regresses, 1 on an error, and 0 otherwise. The reference command's `--ai live`, `--providers` and `--key` options are not available: a live replay is made in code.
 
+## Evidence, evaluation and shadow runs
+
+The levels `evidence` (specification section 32) and `evaluation` (section 33). They follow the reference: on the claims examples both SDKs give identical reports and datasets.
+
+```python
+from awa import compute_evidence, render_evidence_markdown, build_dataset, evaluate_dataset, render_evaluation_report
+from awa.runtime.evidence_sources import read_evidence_input, read_journals
+
+record = read_evidence_input([".awa", "more-runs/"])        # runtime directories, journals, exports
+report = compute_evidence(record, {"from": "2026-09-01T00:00:00Z", "workflow_ids": [...]})
+print(render_evidence_markdown(report))                     # or render_evidence_html(report)
+
+cases = build_dataset(read_journals(["runs/"]))["cases"]    # one case per visit to an AI activity
+scores = evaluate_dataset(workflow, cases, candidate=changed, engine={"model_providers": [...], "model_tiers": {...}})
+print(render_evaluation_report(scores))                     # pass rates per activity, regressions, improvements
+```
+
+Every statement of an evidence report cites the journal records it rests on (`run_id` and `seq`), and each part names the EU AI Act articles, NIST AI RMF functions and ISO/IEC 42001 clauses it can serve. It is evidence a deployer can use, not a certification of compliance. `unresolved_citations(report, record)` lists any citation that does not point at a record: none, for a report computed here.
+
+A host runs a candidate beside production with `AwaRuntime(..., shadow={"candidates": {workflow_id: candidate}, "engine": {...}})`. Each production run that completes or fails is replayed under the candidate as it ends: tools, people and other actors are answered from production's record and never run, and nothing is published or learnt. `runtime.shadow.report()` gives the measures of section 21 for production and shadow and the runs where they part. Comparisons are kept in memory. Shadow runs have no conformance cases; `tests/test_evidence_evaluation.py` fixes them.
+
+```
+awa evidence <dir-or-journals...> [--from <instant>] [--to <instant>] [--workflow <id or name>...] [--as-of <instant>] [--format json|md|html] [-o file]
+awa eval build <journals...> -o dataset.jsonl
+awa eval run <workflow> dataset.jsonl [--candidate changed.awa.json] --providers ollama [--json] [-o report.md]
+```
+
+`awa eval run` exits with status 2 when the candidate loses a case the recording had accepted. Of the reference command's providers it offers `ollama` (any OpenAI-compatible server, from `OLLAMA_BASE_URL`); other providers are given to `evaluate_dataset` in code.
+
 ## Business events, journeys and measures
 
 The levels `journeys` (specification section 19) and `measures` (section 21). The cases are run by `tests/test_conformance.py`; `tests/test_journeys_measures.py` covers what the cases cannot reach: recovery from files by a second host, the lock on a runtime directory, duplicate event ids, the form of an export, the command line and the HTTP routes.
@@ -297,6 +434,46 @@ with open_runtime_directory(".awa") as runtime:
     runtime.publish(event)
 ```
 
+### Hosts that share a store
+
+A runtime directory belongs to one host at a time. A **PostgreSQL store** is shared: any number of hosts, in any number of processes and machines, keep journeys and runs in one database and take any work (specification section 29). Each operation of a host (accepting an event, letting time pass, completing a task) is one transaction that holds only the subjects it touches, so work on different subjects goes on at once; an event id is recorded under a primary key in the same transaction, so no event is accepted twice; rows are written back at the version read; a host that dies releases what it held when its connection drops, and one that hangs when its lease (`lease_ms`, five minutes by default) runs out, keeping nothing of its operation. The outcome is that of one host doing everything one operation at a time.
+
+```python
+from awa import PostgresRuntimeStore, open_runtime_store
+
+store = PostgresRuntimeStore("postgres://awa@db.internal/awa")   # creates its tables, in schema awa_runtime, the first time
+store.add_definition(workflow_document)
+store.add_definition(journey_document)
+store.close()
+
+with open_runtime_store("postgres://awa@db.internal/awa", engine={...}) as runtime:   # on every host
+    runtime.publish(event)
+    runtime.refresh()                      # to read the whole store, as other hosts left it
+    runtime.list_journey_instances()
+```
+
+One store object holds one connection and its host does one operation at a time: run several hosts, in threads or processes, for more. The tables are those of `spec/ddl/awa.postgresql.sql`, section "Runtime store". The TypeScript SDK runs the same migrations and keeps the same forms: a TypeScript host and a Python host can share one store. `tests/test_shared_store.py` starts a throwaway PostgreSQL (or uses the one `AWA_TEST_POSTGRES_URL` names) and plays bursts of events and ticks across host objects and processes, a process killed mid-operation, a lease that runs out, and an event racing a new wait.
+
+### Versions of a workflow, and runs that move between them
+
+Level `versioning` (specification section 25). A host may have several versions of one workflow registered: a run keeps the version it started on, new runs start on the newest (or on `start(..., version=...)`, or on the version `AwaRuntime(pinned_versions={workflow_id: version})` pins). A runtime directory keeps each version in its own file (`definitions/workflow-<id>@<version>.json`), a shared store each as its own row; a host refuses to start where a run needs a version it has not registered.
+
+A run at rest (waiting for a person, an event, an agent, a timer or a join) moves to another version only by a plan, checked whole before anything changes:
+
+```python
+plan = {
+    "to_version": "2.0.0",                                   # default: the newest registered
+    "nodes": {review_v1_id: automated_review_v2_id},         # a node not listed keeps its id
+    "restart": [review_v1_id],                               # its wait is withdrawn; the token starts afresh there
+    "data": [{"set": "currency", "value": "EUR"}, {"set": "priority", "expression": "amount > 1000"}, {"remove": "legacy_code"}],
+}
+runtime.migrate(run_id, plan, dry_run=True)    # what would happen: tokens, data changes, or every refusal with its code
+runtime.migrate(run_id, plan, principal=who)   # applied as one change, recorded in the journal as run.migrated, naming who under authorization
+runtime.check_migration(workflow_id)           # each position of the older versions: compatible, needs_mapping or impossible; each run: migratable
+```
+
+Without a host, `plan_migration(old, new, state, plan)` and `compare_versions(old, new, plan)` in `awa.runtime.migration` do the same on a run's state and two workflow models, and `as_migrated(journal)` reads a migrated journal as its migrations mapped it, which is how `counterfactual_replay` replays it. `tests/test_migration.py` covers what the conformance cases cannot reach: the files of a runtime directory, a shared store, replay, telemetry, evidence and measures of a migrated run, the command line and the HTTP routes.
+
 ### Measures
 
 `compute_measures(record, options)` computes every measure of section 21 from an export; `MEASURES` lists them with their definitions; `measures_to_openmetrics(report)` gives the OpenMetrics text. A measure is `{"value": ..., "n": ...}`, and `value` is `None` when there is nothing to compute it from. The report validates against `spec/json-schema/measure-report.schema.json`.
@@ -322,12 +499,19 @@ awa journey list --dir .awa [--stalled]
 awa journey show --dir .awa <subject key or instance id> [--json]
 awa journey analytics --dir .awa
 awa journey export --dir .awa [-o journeys.json]
+awa journey publish --store postgres://awa@db/awa claim.submitted -d '{"customer_id": "c-1"}'   # a shared store instead
+
+awa migrate check --dir .awa <workflow_id> [--from <version>] [--to <version>] [--plan plan.json] [--json]
+awa migrate plan --dir .awa <run_id> [--plan plan.json] [--to <version>] [--json]    # a dry run; exit status 2 when refused
+awa migrate apply --dir .awa <run_id>... [--plan plan.json] [--to <version>]         # exit status 2 when one is refused
 
 awa measures --dir .awa                # as text
 awa measures --file journeys.json --json [--from <instant>] [--to <instant>] [--journey <id>] [--workflow <id>]
 awa measures --dir .awa --openmetrics
 awa measures --list
 ```
+
+Every `awa journey` subcommand takes `--store <url>`, or reads `AWA_RUNTIME_STORE`, to work on a shared PostgreSQL store instead of `--dir`; `awa serve --store <url>` does the same for the HTTP routes. `AWA_DATABASE_URL` is another thing: the SQLite file of human tasks.
 
 `publish`, `tick` and `resume` accept `-s/--simulate` with `--outputs <file>`: activities then call no model, tool or person and return what the file gives under their name. The reference command's `--html` option (the measures page as one file) is not available in this SDK.
 
@@ -344,6 +528,8 @@ awa measures --list
 | `GET /api/v1/workflows/runs/{run_id}/events` | The journal; `?after=<seq>` for later events only |
 | `GET /api/v1/workflows/runs/{run_id}/events/stream` | The journal as Server-Sent Events, from `?after=` or `Last-Event-ID`; the stream ends once the run has completed, failed or been cancelled |
 | `GET /api/v1/workflows/run/{run_id}` | The route of earlier versions: status and tokens in full |
+| `GET /api/v1/workflows/runs/{run_id}/agent-requests` | The tokens waiting for input an agent over A2A asked for, with what it asked |
+| `POST /api/v1/workflows/runs/{run_id}/tokens/{token_id}/agent-input` | `{"input": <object or text>}`: the answer, sent on the agent's task; the run goes on in the background. `409` when the token is not waiting for an agent |
 
 Errors of these routes are `{"code", "message"}`, as the OpenAPI description gives them. With `AWA_JOURNAL_DIR` set, each run's journal is written there.
 
@@ -360,5 +546,10 @@ Errors of these routes are `{"code", "message"}`, as the OpenAPI description giv
 | `GET /api/v1/journeys/transitions`, `/portfolio` | Movement between journeys; the full export |
 | `GET /api/v1/measures` | The report (`from`, `to`, `journey_id`, `workflow_id`); `format=openmetrics` for the text format |
 | `GET /api/v1/measures/definitions` | The measures and their definitions |
+| `GET /api/v1/evidence` | The evidence report (`from`, `to`, `workflow_id` repeated); `format=md` or `html` for a document |
 
-With `AWA_DATA_DIR` set the server keeps a runtime directory there and survives a restart; without it journeys live in the process. `AWA_SIMULATE=1` and `AWA_SIMULATED_OUTPUTS=<file>` simulate activities as on the command line.
+With `AWA_RUNTIME_STORE` set to a PostgreSQL URL the server keeps journeys in that shared store, which several servers use at once. Otherwise, with `AWA_DATA_DIR` set the server keeps a runtime directory there and survives a restart; without it journeys live in the process. `AWA_SIMULATE=1` and `AWA_SIMULATED_OUTPUTS=<file>` simulate activities as on the command line.
+
+`awa serve --deployment <file>` gives the file's `tools`, `a2a` and `guardrails` to every run the server starts, as the reference does: runs started over `/api/v1/workflows/run`, the runs of journeys, and the runs of workflows offered over A2A.
+
+`awa serve --a2a <file>` offers a workflow to other agents over A2A 1.0, with the routes of the reference's [operational-api.md](../typescript/docs/operational-api.md): the card at `/a2a/<workflow id>/.well-known/agent-card.json` (and at `/.well-known/agent-card.json` for a single workflow), and `SendMessage`, `GetTask` and `CancelTask` at `POST /a2a/<workflow id>`. `mount_a2a(app, workflows, ...)` in `awa.server.a2a` adds them to any FastAPI application.

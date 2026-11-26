@@ -1,0 +1,45 @@
+{
+  "id": "invalid-guardrail-stage-on-tool",
+  "level": "guardrails",
+  "description": "A guardrail on a tool applies at tool_call and tool_result only.",
+  "valid": false,
+  "document": {
+    "id": "ac105585-3c75-5770-b4e4-9fefa58164d4",
+    "name": "invalid-guardrail-stage-on-tool",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "1ad1210f-ec53-5483-a1ae-b2f4b405f8f9",
+        "name": "A",
+        "role_id": "4c5c046c-4ddb-5725-809d-a32a01e1f3c7",
+        "actor_type": "ai_agent",
+        "tools": [
+          {
+            "name": "search",
+            "binding": {
+              "kind": "function",
+              "name": "search"
+            },
+            "guardrails": [
+              {
+                "id": "136d680e-5eb9-5b64-999c-3f5568940879",
+                "name": "g",
+                "stages": [
+                  "output"
+                ],
+                "check": {
+                  "kind": "personal_data"
+                },
+                "action": "warn"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "edges": []
+  },
+  "stage": "integrity",
+  "error_code": "invalid_guardrail"
+}

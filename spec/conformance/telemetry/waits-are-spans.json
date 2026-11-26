@@ -1,0 +1,358 @@
+{
+  "id": "waits-are-spans",
+  "level": "telemetry",
+  "spec": "26.2",
+  "description": "A person's task, a business event and a timer are each a wait span. A person's wait is a child of the attempt it interrupts, which an activity.completed without attempt ends. A wait that runs out is unset, not an error. The correlation value is a payload.",
+  "decision_nodes": [],
+  "journal": [
+    {
+      "spec_version": "1.1",
+      "id": "78fae22e-bed8-5a54-b46e-7cfa83976dc3",
+      "run_id": "776e0730-d178-5920-9dc8-738a818bcb3a",
+      "seq": 1,
+      "time": "2026-03-02T09:00:00.000Z",
+      "type": "run.started",
+      "level": "execution",
+      "workflow_id": "08a7fe2b-dd3f-5e9a-a884-7e42a9da5eca",
+      "data": {
+        "workflow_name": "Approve",
+        "input": {},
+        "simulate": false
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "78eca5ec-f044-5678-886f-68c90fef800b",
+      "run_id": "776e0730-d178-5920-9dc8-738a818bcb3a",
+      "seq": 2,
+      "time": "2026-03-02T09:00:00.000Z",
+      "type": "token.created",
+      "level": "execution",
+      "workflow_id": "08a7fe2b-dd3f-5e9a-a884-7e42a9da5eca",
+      "token_id": "e078ac1b-2078-58cf-bbc5-139bd8e1f562",
+      "node_id": "389db660-afb4-57fd-8e1f-f91d6389bc3f",
+      "node_name": "Approve refund",
+      "data": {}
+    },
+    {
+      "spec_version": "1.1",
+      "id": "992b0218-4b37-5f6b-8f09-a62415c83ebc",
+      "run_id": "776e0730-d178-5920-9dc8-738a818bcb3a",
+      "seq": 3,
+      "time": "2026-03-02T09:00:00.000Z",
+      "type": "activity.started",
+      "level": "execution",
+      "workflow_id": "08a7fe2b-dd3f-5e9a-a884-7e42a9da5eca",
+      "token_id": "e078ac1b-2078-58cf-bbc5-139bd8e1f562",
+      "node_id": "389db660-afb4-57fd-8e1f-f91d6389bc3f",
+      "node_name": "Approve refund",
+      "attempt": 1,
+      "data": {
+        "actor_type": "human",
+        "input": {}
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "18f7e751-81d8-5db4-ad44-7ecca3ed32e5",
+      "run_id": "776e0730-d178-5920-9dc8-738a818bcb3a",
+      "seq": 4,
+      "time": "2026-03-02T09:00:00.005Z",
+      "type": "token.waiting",
+      "level": "execution",
+      "workflow_id": "08a7fe2b-dd3f-5e9a-a884-7e42a9da5eca",
+      "token_id": "e078ac1b-2078-58cf-bbc5-139bd8e1f562",
+      "node_id": "389db660-afb4-57fd-8e1f-f91d6389bc3f",
+      "node_name": "Approve refund",
+      "data": {
+        "reason": "human_task",
+        "human_task_id": "task-1"
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "6a7dff22-c34f-5156-a157-cb94b0e67909",
+      "run_id": "776e0730-d178-5920-9dc8-738a818bcb3a",
+      "seq": 5,
+      "time": "2026-03-02T09:00:00.005Z",
+      "type": "run.waiting",
+      "level": "execution",
+      "workflow_id": "08a7fe2b-dd3f-5e9a-a884-7e42a9da5eca",
+      "data": {
+        "waiting_for": "human",
+        "waiting_tokens": [
+          "e078ac1b-2078-58cf-bbc5-139bd8e1f562"
+        ]
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "4124a99e-6c69-5704-8785-d044889c2fae",
+      "run_id": "776e0730-d178-5920-9dc8-738a818bcb3a",
+      "seq": 6,
+      "time": "2026-03-02T10:00:00.005Z",
+      "type": "token.resumed",
+      "level": "execution",
+      "workflow_id": "08a7fe2b-dd3f-5e9a-a884-7e42a9da5eca",
+      "token_id": "e078ac1b-2078-58cf-bbc5-139bd8e1f562",
+      "node_id": "389db660-afb4-57fd-8e1f-f91d6389bc3f",
+      "node_name": "Approve refund",
+      "data": {
+        "waited_ms": 3600000
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "01a68fd2-bd06-5388-a214-bf4d68922b4d",
+      "run_id": "776e0730-d178-5920-9dc8-738a818bcb3a",
+      "seq": 7,
+      "time": "2026-03-02T10:00:00.005Z",
+      "type": "activity.completed",
+      "level": "execution",
+      "workflow_id": "08a7fe2b-dd3f-5e9a-a884-7e42a9da5eca",
+      "token_id": "e078ac1b-2078-58cf-bbc5-139bd8e1f562",
+      "node_id": "389db660-afb4-57fd-8e1f-f91d6389bc3f",
+      "node_name": "Approve refund",
+      "data": {
+        "actor_type": "human",
+        "output": {
+          "approved": true
+        },
+        "waited_ms": 3600000
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "4a432741-f99c-5630-bb39-0a277293cdaf",
+      "run_id": "776e0730-d178-5920-9dc8-738a818bcb3a",
+      "seq": 8,
+      "time": "2026-03-02T10:00:00.010Z",
+      "type": "token.moved",
+      "level": "execution",
+      "workflow_id": "08a7fe2b-dd3f-5e9a-a884-7e42a9da5eca",
+      "token_id": "e078ac1b-2078-58cf-bbc5-139bd8e1f562",
+      "node_id": "b32e9e98-773c-5cf2-89f9-77746250c642",
+      "node_name": "Payment confirmed",
+      "data": {
+        "from_node_id": "389db660-afb4-57fd-8e1f-f91d6389bc3f",
+        "to_node_id": "b32e9e98-773c-5cf2-89f9-77746250c642",
+        "edge_id": "54b7aceb-7a52-52e5-84c9-d45992ddd5d7",
+        "reason": "unconditional"
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "1c85cdb3-6b39-565b-bf0e-d892360f7aba",
+      "run_id": "776e0730-d178-5920-9dc8-738a818bcb3a",
+      "seq": 9,
+      "time": "2026-03-02T10:00:00.010Z",
+      "type": "event.waiting",
+      "level": "execution",
+      "workflow_id": "08a7fe2b-dd3f-5e9a-a884-7e42a9da5eca",
+      "token_id": "e078ac1b-2078-58cf-bbc5-139bd8e1f562",
+      "node_id": "b32e9e98-773c-5cf2-89f9-77746250c642",
+      "node_name": "Payment confirmed",
+      "data": {
+        "name": "payment.confirmed",
+        "correlation_key": "order_id",
+        "correlation_value": "O-17",
+        "due_at": "2026-03-03T10:00:00.010Z"
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "0b18772d-76ff-5199-b5f7-e7cba1542f29",
+      "run_id": "776e0730-d178-5920-9dc8-738a818bcb3a",
+      "seq": 10,
+      "time": "2026-03-03T10:00:00.010Z",
+      "type": "event.timed_out",
+      "level": "execution",
+      "workflow_id": "08a7fe2b-dd3f-5e9a-a884-7e42a9da5eca",
+      "token_id": "e078ac1b-2078-58cf-bbc5-139bd8e1f562",
+      "node_id": "b32e9e98-773c-5cf2-89f9-77746250c642",
+      "node_name": "Payment confirmed",
+      "data": {
+        "name": "payment.confirmed",
+        "due_at": "2026-03-03T10:00:00.010Z"
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "323a0994-dbbe-50af-b9f7-5ba2a5d51e0c",
+      "run_id": "776e0730-d178-5920-9dc8-738a818bcb3a",
+      "seq": 11,
+      "time": "2026-03-03T10:00:00.011Z",
+      "type": "token.moved",
+      "level": "execution",
+      "workflow_id": "08a7fe2b-dd3f-5e9a-a884-7e42a9da5eca",
+      "token_id": "e078ac1b-2078-58cf-bbc5-139bd8e1f562",
+      "node_id": "ff3f79ae-9f1f-524d-ab5a-0f3043d463da",
+      "node_name": "Cool-off",
+      "data": {
+        "from_node_id": "b32e9e98-773c-5cf2-89f9-77746250c642",
+        "to_node_id": "ff3f79ae-9f1f-524d-ab5a-0f3043d463da",
+        "edge_id": "d8207484-3264-5df0-844c-93f396731f89",
+        "reason": "unconditional"
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "6243c603-4d59-5442-9e48-295bd4846779",
+      "run_id": "776e0730-d178-5920-9dc8-738a818bcb3a",
+      "seq": 12,
+      "time": "2026-03-03T10:00:00.011Z",
+      "type": "timer.started",
+      "level": "execution",
+      "workflow_id": "08a7fe2b-dd3f-5e9a-a884-7e42a9da5eca",
+      "token_id": "e078ac1b-2078-58cf-bbc5-139bd8e1f562",
+      "node_id": "ff3f79ae-9f1f-524d-ab5a-0f3043d463da",
+      "node_name": "Cool-off",
+      "data": {
+        "duration": "PT1H",
+        "duration_ms": 3600000,
+        "due_at": "2026-03-03T11:00:00.011Z"
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "bd0d60d6-d678-56ac-9357-c90cfa403d1d",
+      "run_id": "776e0730-d178-5920-9dc8-738a818bcb3a",
+      "seq": 13,
+      "time": "2026-03-03T11:00:00.011Z",
+      "type": "timer.fired",
+      "level": "execution",
+      "workflow_id": "08a7fe2b-dd3f-5e9a-a884-7e42a9da5eca",
+      "token_id": "e078ac1b-2078-58cf-bbc5-139bd8e1f562",
+      "node_id": "ff3f79ae-9f1f-524d-ab5a-0f3043d463da",
+      "node_name": "Cool-off",
+      "data": {
+        "due_at": "2026-03-03T11:00:00.011Z"
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "6b938d02-c6e1-5eee-9e87-ebc5ac8c497c",
+      "run_id": "776e0730-d178-5920-9dc8-738a818bcb3a",
+      "seq": 14,
+      "time": "2026-03-03T11:00:00.011Z",
+      "type": "token.completed",
+      "level": "execution",
+      "workflow_id": "08a7fe2b-dd3f-5e9a-a884-7e42a9da5eca",
+      "token_id": "e078ac1b-2078-58cf-bbc5-139bd8e1f562",
+      "node_id": "ff3f79ae-9f1f-524d-ab5a-0f3043d463da",
+      "node_name": "Cool-off",
+      "data": {}
+    },
+    {
+      "spec_version": "1.1",
+      "id": "8dbee1f7-783a-5755-ad04-4b04a11f7fa2",
+      "run_id": "776e0730-d178-5920-9dc8-738a818bcb3a",
+      "seq": 15,
+      "time": "2026-03-03T11:00:00.011Z",
+      "type": "run.completed",
+      "level": "execution",
+      "workflow_id": "08a7fe2b-dd3f-5e9a-a884-7e42a9da5eca",
+      "data": {
+        "duration_ms": 93600011,
+        "steps": 1,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cost": 0,
+        "currency": "EUR"
+      }
+    }
+  ],
+  "options": {
+    "payloads": false
+  },
+  "expect": {
+    "trace_id": "8fe7a1f8e7cb20355c0e963461d6ab24",
+    "span_count": 5,
+    "spans": [
+      {
+        "span_id": "cf1be3592f32678c",
+        "events": [
+          "token.created",
+          "run.waiting",
+          "token.moved",
+          "token.moved",
+          "token.completed"
+        ],
+        "events_contain": [
+          {
+            "name": "run.waiting",
+            "attributes": {
+              "awa.data.waiting_for": "human",
+              "awa.data.waiting_tokens": "[\"e078ac1b-2078-58cf-bbc5-139bd8e1f562\"]"
+            },
+            "absent": [
+              "awa.token.id",
+              "awa.attempt"
+            ]
+          }
+        ]
+      },
+      {
+        "span_id": "4b3852b9aa75e1bf",
+        "parent_span_id": "cf1be3592f32678c",
+        "name": "activity Approve refund",
+        "start": "2026-03-02T09:00:00.000Z",
+        "end": "2026-03-02T10:00:00.005Z",
+        "status": "ok",
+        "attributes": {
+          "awa.actor.type": "human"
+        }
+      },
+      {
+        "span_id": "13cff3fb6127c3f2",
+        "parent_span_id": "4b3852b9aa75e1bf",
+        "name": "wait Approve refund",
+        "kind": "internal",
+        "start": "2026-03-02T09:00:00.005Z",
+        "end": "2026-03-02T10:00:00.005Z",
+        "status": "ok",
+        "attributes": {
+          "awa.wait.kind": "human",
+          "awa.wait.reason": "human_task",
+          "awa.human_task.id": "task-1",
+          "awa.wait.outcome": "resumed",
+          "awa.wait.waited_ms": 3600000
+        },
+        "events": []
+      },
+      {
+        "span_id": "61e52bfd62e19ba2",
+        "parent_span_id": "cf1be3592f32678c",
+        "name": "wait Payment confirmed",
+        "start": "2026-03-02T10:00:00.010Z",
+        "end": "2026-03-03T10:00:00.010Z",
+        "status": "unset",
+        "attributes": {
+          "awa.wait.kind": "event",
+          "awa.business_event.name": "payment.confirmed",
+          "awa.business_event.correlation_key": "order_id",
+          "awa.business_event.due_at": "2026-03-03T10:00:00.010Z",
+          "awa.wait.outcome": "timed_out"
+        },
+        "absent": [
+          "awa.business_event.correlation_value",
+          "awa.business_event.id"
+        ]
+      },
+      {
+        "span_id": "6563f60ee8380860",
+        "parent_span_id": "cf1be3592f32678c",
+        "name": "wait Cool-off",
+        "start": "2026-03-03T10:00:00.011Z",
+        "end": "2026-03-03T11:00:00.011Z",
+        "status": "ok",
+        "attributes": {
+          "awa.wait.kind": "timer",
+          "awa.timer.duration": "PT1H",
+          "awa.timer.due_at": "2026-03-03T11:00:00.011Z",
+          "awa.wait.outcome": "fired"
+        }
+      }
+    ]
+  }
+}

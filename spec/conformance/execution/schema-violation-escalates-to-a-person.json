@@ -1,0 +1,115 @@
+{
+  "id": "schema-violation-escalates-to-a-person",
+  "level": "guardrails",
+  "spec": "31.5",
+  "description": "With escalate, a rejected output is handed to a person, whose decision is what goes on. The attempt is recorded as failed with GUARDRAIL_BLOCKED, and the escalation as a meta record.",
+  "workflow": {
+    "id": "9e1b9b7a-d694-5da3-b1b6-7ac5c9a12963",
+    "name": "schema-violation-escalates-to-a-person",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "d06718d6-a71e-5207-8c7a-4dbfe89770cd",
+        "name": "Assess",
+        "role_id": "a3f17b33-91ee-5c88-b309-569f71194331",
+        "actor_type": "ai_agent",
+        "guardrails": [
+          {
+            "id": "f2f8433b-c1de-5529-8817-67fd07d6dc06",
+            "name": "Known decisions",
+            "stages": [
+              "output"
+            ],
+            "check": {
+              "kind": "json_schema",
+              "schema": {
+                "type": "object",
+                "required": [
+                  "decision"
+                ],
+                "properties": {
+                  "decision": {
+                    "enum": [
+                      "approve",
+                      "refer"
+                    ]
+                  }
+                }
+              }
+            },
+            "action": "escalate"
+          }
+        ]
+      },
+      {
+        "id": "0429b7f7-27b0-5eee-aef0-ae7b9d828696",
+        "name": "Notify",
+        "role_id": "a3f17b33-91ee-5c88-b309-569f71194331",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "92e43aa7-266e-5ad4-b8f0-1118465e5364",
+        "source_id": "d06718d6-a71e-5207-8c7a-4dbfe89770cd",
+        "target_id": "0429b7f7-27b0-5eee-aef0-ae7b9d828696"
+      }
+    ]
+  },
+  "actors": {
+    "Assess": {
+      "attempts": [
+        {
+          "output": {
+            "decision": "maybe"
+          }
+        },
+        {
+          "output": {
+            "decision": "refer"
+          }
+        }
+      ]
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "Assess",
+      "Assess",
+      "Notify"
+    ],
+    "data": {
+      "decision": "refer"
+    },
+    "journal": [
+      "guardrail.triggered",
+      "activity.failed",
+      "meta.recorded",
+      "activity.completed"
+    ],
+    "journal_contains": [
+      {
+        "type": "guardrail.triggered",
+        "data": {
+          "check": "json_schema",
+          "action": "escalate",
+          "findings": [
+            {
+              "category": "schema",
+              "path": "/decision",
+              "keyword": "enum"
+            }
+          ]
+        }
+      },
+      {
+        "type": "meta.recorded",
+        "data": {
+          "subject": "escalation"
+        }
+      }
+    ]
+  }
+}

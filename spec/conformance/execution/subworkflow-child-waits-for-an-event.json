@@ -1,0 +1,184 @@
+{
+  "id": "subworkflow-child-waits-for-an-event",
+  "level": "subworkflows",
+  "spec": "24.4",
+  "description": "A child run that waits for a business event leaves the parent waiting_event. Events delivered to the parent reach the child, by its own correlation; the one that matches resumes the child and then the parent.",
+  "workflow": {
+    "id": "e84be82e-09e8-5777-a5c5-bb82823b0fe2",
+    "name": "subworkflow-child-waits-for-an-event",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "fee396cb-3a97-5fe3-9fb4-5ea5ee8df13a",
+        "name": "Collect",
+        "role_id": "1278bc25-989d-546d-8ba8-a73a565fd6a8",
+        "actor_type": "application",
+        "is_expandable": true,
+        "expansion_workflow_id": "62473e71-0e12-5a49-9ec9-c4eb0e76d8a8"
+      },
+      {
+        "id": "7376a2a6-dd12-550d-ae88-49b20a7a7ad4",
+        "name": "Assess",
+        "role_id": "1278bc25-989d-546d-8ba8-a73a565fd6a8",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "97b4a7bb-19b2-547b-a1c1-9f804e061394",
+        "source_id": "fee396cb-3a97-5fe3-9fb4-5ea5ee8df13a",
+        "target_id": "7376a2a6-dd12-550d-ae88-49b20a7a7ad4"
+      }
+    ]
+  },
+  "input": {
+    "claim_id": "CL-3"
+  },
+  "actors": {
+    "File": {
+      "output": {
+        "filed": true
+      }
+    }
+  },
+  "deliver": [
+    {
+      "event": {
+        "type": "documents.received",
+        "id": "evt-other",
+        "data": {
+          "claim_id": "CL-9",
+          "pages": 1
+        }
+      },
+      "resumes": 0
+    },
+    {
+      "event": {
+        "type": "documents.received",
+        "id": "evt-mine",
+        "data": {
+          "claim_id": "CL-3",
+          "pages": 4
+        }
+      },
+      "resumes": 1
+    },
+    {
+      "event": {
+        "type": "documents.received",
+        "id": "evt-mine",
+        "data": {
+          "claim_id": "CL-3",
+          "pages": 4
+        }
+      },
+      "resumes": 0
+    }
+  ],
+  "workflows": [
+    {
+      "id": "62473e71-0e12-5a49-9ec9-c4eb0e76d8a8",
+      "name": "Collect documents",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "1f2b3c7b-d934-5264-a7e3-d4161abd9302",
+          "name": "Request",
+          "role_id": "fa067bf9-5bce-57cb-9e89-6572a9225746",
+          "actor_type": "application"
+        },
+        {
+          "id": "1e16467a-4a17-52e3-a1f3-2da5f39f85bf",
+          "name": "File",
+          "role_id": "fa067bf9-5bce-57cb-9e89-6572a9225746",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "dfd1947e-a647-555c-87c5-4de908b06e0c",
+          "source_id": "1f2b3c7b-d934-5264-a7e3-d4161abd9302",
+          "target_id": "dd75a6c6-dd6f-5770-b7d6-03eba7f90076"
+        },
+        {
+          "id": "6b0de370-29df-5d92-a0f8-3f012e1c8fa2",
+          "source_id": "dd75a6c6-dd6f-5770-b7d6-03eba7f90076",
+          "target_id": "1e16467a-4a17-52e3-a1f3-2da5f39f85bf"
+        }
+      ],
+      "events": [
+        {
+          "id": "dd75a6c6-dd6f-5770-b7d6-03eba7f90076",
+          "name": "Documents received",
+          "event_type": "message",
+          "event_definition": {
+            "name": "documents.received",
+            "correlation_key": "claim_id"
+          }
+        }
+      ]
+    }
+  ],
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "Request",
+      "File",
+      "Assess"
+    ],
+    "data": {
+      "pages": 4,
+      "filed": true
+    },
+    "journal": [
+      "subworkflow.started",
+      "token.waiting",
+      "run.waiting",
+      "token.resumed",
+      "activity.started",
+      "subworkflow.completed",
+      "activity.completed",
+      "run.completed"
+    ],
+    "journal_contains": [
+      {
+        "type": "token.waiting",
+        "node_name": "Collect",
+        "data": {
+          "reason": "subworkflow",
+          "waiting_for": "event"
+        }
+      },
+      {
+        "type": "run.waiting",
+        "data": {
+          "waiting_for": "event"
+        }
+      }
+    ],
+    "subworkflow_runs": [
+      {
+        "workflow_name": "Collect documents",
+        "status": "completed",
+        "journal": [
+          "event.waiting",
+          "run.waiting",
+          "event.received",
+          "activity.completed",
+          "run.completed"
+        ],
+        "journal_contains": [
+          {
+            "type": "event.received",
+            "data": {
+              "event_id": "evt-mine"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

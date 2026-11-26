@@ -1,0 +1,318 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://awa.io/schema/guardrail.schema.json",
+    "title": "Guardrail",
+    "description": "A check applied at run time to what goes into or comes out of an AI agent or a tool, and the action taken when it finds something (specification section 31)",
+    "type": "object",
+    "required": [
+        "id",
+        "stages",
+        "check",
+        "action"
+    ],
+    "properties": {
+        "id": {
+            "$ref": "awa.schema.json#/$defs/uuid",
+            "description": "Unique among the guardrails of the document"
+        },
+        "name": {
+            "type": "string",
+            "description": "Carried by the record"
+        },
+        "stages": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+                "type": "string",
+                "enum": [
+                    "input",
+                    "output",
+                    "tool_call",
+                    "tool_result"
+                ]
+            },
+            "description": "input: what the actor is given. output: the actor's result, before the outcome contract and verification. tool_call: the arguments of a call, before it runs. tool_result: what a call returned, before the actor is given it."
+        },
+        "check": {
+            "$ref": "#/$defs/check"
+        },
+        "action": {
+            "type": "string",
+            "enum": [
+                "block",
+                "redact",
+                "retry_with_feedback",
+                "escalate",
+                "warn"
+            ],
+            "description": "What happens when the check finds something (31.5)"
+        },
+        "actor_types": {
+            "type": "array",
+            "items": {
+                "$ref": "awa.schema.json#/$defs/actor_type"
+            },
+            "description": "The actor types of the activities it applies to. Default: ai_agent only. Not used on a tool."
+        },
+        "tools": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "description": "At tool_call and tool_result: the tools it applies to, by name. Default: every tool. Not used on a tool."
+        },
+        "fields": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "description": "Paths within the value checked that personal_data, deny_list, prompt_injection and size checks look at. Default: the whole value."
+        },
+        "replacement": {
+            "type": "string",
+            "default": "[REDACTED:{category}]",
+            "description": "For redact: what replaces each match; {category} is replaced by the match's category"
+        }
+    },
+    "$defs": {
+        "pattern": {
+            "type": "object",
+            "required": [
+                "name",
+                "pattern"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The category of a match"
+                },
+                "pattern": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "A regular expression in the syntax ECMAScript (with the u flag) and Python's re module read the same way"
+                }
+            },
+            "additionalProperties": false
+        },
+        "check": {
+            "description": "What the guardrail looks for (31.4)",
+            "oneOf": [
+                {
+                    "type": "object",
+                    "required": [
+                        "kind"
+                    ],
+                    "properties": {
+                        "kind": {
+                            "const": "personal_data"
+                        },
+                        "categories": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "enum": [
+                                    "email",
+                                    "phone",
+                                    "iban",
+                                    "credit_card"
+                                ]
+                            },
+                            "description": "Built-in categories looked for. Default: all four."
+                        },
+                        "patterns": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/$defs/pattern"
+                            }
+                        }
+                    }
+                },
+                {
+                    "type": "object",
+                    "required": [
+                        "kind"
+                    ],
+                    "properties": {
+                        "kind": {
+                            "const": "deny_list"
+                        },
+                        "terms": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "Words or phrases, compared without regard to case"
+                        },
+                        "patterns": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/$defs/pattern"
+                            }
+                        },
+                        "whole_words": {
+                            "type": "boolean",
+                            "default": true
+                        }
+                    }
+                },
+                {
+                    "type": "object",
+                    "required": [
+                        "kind"
+                    ],
+                    "properties": {
+                        "kind": {
+                            "const": "prompt_injection"
+                        },
+                        "markers": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "enum": [
+                                    "ignore_instructions",
+                                    "new_instructions",
+                                    "reveal_instructions",
+                                    "jailbreak_mode",
+                                    "chat_template_token",
+                                    "role_header"
+                                ]
+                            },
+                            "description": "Built-in markers looked for. Default: all."
+                        },
+                        "patterns": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/$defs/pattern"
+                            }
+                        }
+                    }
+                },
+                {
+                    "type": "object",
+                    "required": [
+                        "kind"
+                    ],
+                    "properties": {
+                        "kind": {
+                            "const": "size"
+                        },
+                        "max_characters": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "max_tokens": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Characters divided by four, rounded up"
+                        }
+                    }
+                },
+                {
+                    "type": "object",
+                    "required": [
+                        "kind",
+                        "schema"
+                    ],
+                    "properties": {
+                        "kind": {
+                            "const": "json_schema"
+                        },
+                        "schema": {
+                            "type": "object",
+                            "description": "A JSON Schema (2020-12)"
+                        }
+                    }
+                },
+                {
+                    "type": "object",
+                    "required": [
+                        "kind",
+                        "path",
+                        "values"
+                    ],
+                    "properties": {
+                        "kind": {
+                            "const": "allowed_values"
+                        },
+                        "path": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "values": {
+                            "type": "array"
+                        }
+                    }
+                },
+                {
+                    "type": "object",
+                    "required": [
+                        "kind",
+                        "allow"
+                    ],
+                    "properties": {
+                        "kind": {
+                            "const": "topic"
+                        },
+                        "allow": {
+                            "type": "array",
+                            "minItems": 1,
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "Condition expressions (section 6); the value is on topic when one is true"
+                        }
+                    }
+                },
+                {
+                    "type": "object",
+                    "required": [
+                        "kind",
+                        "instructions"
+                    ],
+                    "properties": {
+                        "kind": {
+                            "const": "model"
+                        },
+                        "instructions": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "What the guard model is to flag"
+                        },
+                        "model": {
+                            "type": "string",
+                            "description": "Model reference (12.1). Default: the engine default"
+                        },
+                        "categories": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                },
+                {
+                    "type": "object",
+                    "required": [
+                        "kind",
+                        "name"
+                    ],
+                    "properties": {
+                        "kind": {
+                            "const": "classifier"
+                        },
+                        "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "A classifier the deployment registers"
+                        },
+                        "config": {
+                            "type": "object"
+                        }
+                    }
+                }
+            ]
+        }
+    }
+}

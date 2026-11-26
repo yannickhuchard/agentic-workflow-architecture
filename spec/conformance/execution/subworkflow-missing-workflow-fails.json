@@ -1,0 +1,64 @@
+{
+  "id": "subworkflow-missing-workflow-fails",
+  "level": "subworkflows",
+  "spec": "24.1",
+  "description": "A call activity whose workflow is not registered fails with SUBWORKFLOW_NOT_FOUND, is never retried, and starts no run.",
+  "workflow": {
+    "id": "fc5442a7-dc98-5a86-97e5-03563d0d1771",
+    "name": "subworkflow-missing-workflow-fails",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "8fe3e7f5-7bff-5c87-b081-89b08f1b8243",
+        "name": "Check",
+        "role_id": "8c80f344-e101-55be-81e7-fb8616cee451",
+        "actor_type": "application",
+        "is_expandable": true,
+        "expansion_workflow_id": "c049efbb-ee9e-53fe-98ef-53a7cf050afa",
+        "retry": {
+          "max_attempts": 3,
+          "initial_delay": "PT0S",
+          "jitter": false
+        }
+      },
+      {
+        "id": "8d7f5526-642a-52a7-a95e-2e4b2d56afde",
+        "name": "Approve",
+        "role_id": "8c80f344-e101-55be-81e7-fb8616cee451",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "08e3d6e0-9507-5ca3-894c-8a3bda711c8e",
+        "source_id": "8fe3e7f5-7bff-5c87-b081-89b08f1b8243",
+        "target_id": "8d7f5526-642a-52a7-a95e-2e4b2d56afde"
+      }
+    ]
+  },
+  "expect": {
+    "status": "failed",
+    "visited": [],
+    "journal_contains": [
+      {
+        "type": "activity.failed",
+        "node_name": "Check",
+        "data": {
+          "error": {
+            "code": "SUBWORKFLOW_NOT_FOUND"
+          },
+          "retryable": false
+        }
+      }
+    ],
+    "journal_count": {
+      "activity.started": 1
+    },
+    "journal_excludes": [
+      "subworkflow.started",
+      "activity.retry_scheduled"
+    ],
+    "subworkflow_runs": []
+  }
+}

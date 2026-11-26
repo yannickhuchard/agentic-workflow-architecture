@@ -47,6 +47,7 @@
                 "run.cancelled",
                 "run.waiting",
                 "run.resumed",
+                "run.migrated",
                 "token.created",
                 "token.moved",
                 "token.completed",
@@ -66,6 +67,8 @@
                 "tool.invoked",
                 "tool.completed",
                 "tool.failed",
+                "agent.message_sent",
+                "agent.task_updated",
                 "verification.completed",
                 "contract.checked",
                 "contract.escalated",
@@ -83,7 +86,13 @@
                 "context.written",
                 "context.denied",
                 "sla.warning",
-                "sla.breached"
+                "sla.breached",
+                "authorization.decided",
+                "guardrail.triggered",
+                "subworkflow.started",
+                "subworkflow.completed",
+                "subworkflow.failed",
+                "subworkflow.cancelled"
             ]
         },
         "level": {

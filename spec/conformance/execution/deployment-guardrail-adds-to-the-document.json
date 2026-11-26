@@ -1,0 +1,118 @@
+{
+  "id": "deployment-guardrail-adds-to-the-document",
+  "level": "guardrails",
+  "spec": "31.1",
+  "description": "A deployment's guardrails are added to the document's and run first. Both act; the order of the records is the order of evaluation.",
+  "workflow": {
+    "id": "e8d811c5-7608-5188-a62a-cf581df61ce3",
+    "name": "deployment-guardrail-adds-to-the-document",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "b1e5d3b5-688f-5469-b840-d9466965c5c9",
+        "name": "Draft",
+        "role_id": "07ad25c4-b38c-5647-a759-c35b69a15dd8",
+        "actor_type": "ai_agent"
+      },
+      {
+        "id": "362cc90c-3433-5853-864f-8a4061b1a8bf",
+        "name": "Send",
+        "role_id": "07ad25c4-b38c-5647-a759-c35b69a15dd8",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "d91c69a5-1e5d-58b0-bd26-23672da3af79",
+        "source_id": "b1e5d3b5-688f-5469-b840-d9466965c5c9",
+        "target_id": "362cc90c-3433-5853-864f-8a4061b1a8bf"
+      }
+    ],
+    "guardrails": [
+      {
+        "id": "e6504385-5786-5dfe-8dc9-8e466339cb05",
+        "name": "Code names",
+        "stages": [
+          "output"
+        ],
+        "check": {
+          "kind": "deny_list",
+          "terms": [
+            "project falcon"
+          ]
+        },
+        "action": "warn"
+      }
+    ]
+  },
+  "options": {
+    "guardrails": [
+      {
+        "id": "93475a4a-20f0-504e-ab7a-71f003f75551",
+        "name": "Organisation: personal data",
+        "stages": [
+          "output"
+        ],
+        "check": {
+          "kind": "personal_data"
+        },
+        "action": "redact"
+      }
+    ]
+  },
+  "actors": {
+    "Draft": {
+      "output": {
+        "reply": "Ask jane@example.com about Project Falcon"
+      }
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "data": {
+      "reply": "Ask [REDACTED:email] about Project Falcon"
+    },
+    "journal_count": {
+      "guardrail.triggered": 2
+    },
+    "journal_contains": [
+      {
+        "type": "guardrail.triggered",
+        "data": {
+          "source": "deployment",
+          "action": "redact",
+          "categories": [
+            "email"
+          ],
+          "findings": [
+            {
+              "start": 4,
+              "end": 20
+            }
+          ]
+        }
+      },
+      {
+        "type": "guardrail.triggered",
+        "data": {
+          "source": "workflow",
+          "action": "warn",
+          "categories": [
+            "term"
+          ],
+          "findings": [
+            {
+              "start": 27,
+              "end": 41
+            }
+          ]
+        }
+      }
+    ],
+    "guardrail_sources": [
+      "deployment",
+      "workflow"
+    ]
+  }
+}

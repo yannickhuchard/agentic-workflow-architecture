@@ -127,16 +127,29 @@ def run_command(args: argparse.Namespace) -> int:
         if not isinstance(initial, dict):
             raise ValueError("--input must be a JSON object")
         names = [n.strip() for n in (args.providers or "").split(",") if n.strip()]
+        # What the workflow may reach (specification 17.4, 28.2)
+        from awa.cli.deployment import load_deployment
+        deployment = load_deployment(args.deployment) if args.deployment else {"tools": {}, "a2a": {}}
 
         options: dict[str, Any] = {
             **model_options(names),
             "simulate": bool(args.simulate),
-            "tools": {"allow_commands": _allow_commands(args.allow_commands)},
+            "tools": {**deployment["tools"], "allow_commands": _allow_commands(args.allow_commands)
+                      if args.allow_commands is not None else deployment["tools"].get("allow_commands", False)},
+            "a2a": deployment["a2a"],
+            # Who may do what, and who starts the run (specification 30)
+            **({"authorization": deployment["authorization"]} if deployment.get("authorization") else {}),
+            "guardrails": deployment.get("guardrails") or [],
             "pricing_config": dict(PRICING),
             # The execution record goes to the database only when asked; otherwise it is printed
             "log_execution": bool(args.db),
             "verbose": bool(args.verbose),
+            # A call activity runs one of these as a child run: the workflow itself, and those given (specification 24.1)
+            "subworkflows": {"workflows": [workflow, *(read_workflow(f) for f in (args.workflows or []))]},
         }
+        if args.as_principal:
+            from awa.runtime.authorization import principal_named
+            options["principal"] = principal_named(deployment.get("authorization"), args.as_principal)
         if args.outputs:
             options["simulated_outputs"] = json.loads(Path(args.outputs).read_text(encoding="utf-8"))
         if args.journal:
@@ -148,6 +161,11 @@ def run_command(args: argparse.Namespace) -> int:
         if args.simulate:
             print("Running in SIMULATION MODE. No real API calls will be made.")
 
+        # OTEL_EXPORTER_OTLP_ENDPOINT and its family send the run's spans as it proceeds (specification 26.11)
+        from awa.runtime.telemetry_export import shared_telemetry_from_env
+        telemetry = shared_telemetry_from_env()
+        if telemetry:
+            options["telemetry"] = telemetry
         engine = WorkflowEngine(workflow, gemini_api_key=args.key, options=options)
         engine.start(initial)
         print(f"Workflow started (Run ID: {engine.run_id})")
@@ -160,9 +178,14 @@ def run_command(args: argparse.Namespace) -> int:
                 print(f"Active tokens: {sum(1 for t in engine.tokens if t.status == TokenStatus.ACTIVE)}")
 
         status = engine.status
+        if telemetry:
+            # Spans still queued leave before the command ends; this waits at most the export timeout
+            telemetry["exporter"].flush()
         if not args.db and status in (EngineStatus.COMPLETED, EngineStatus.FAILED):
             _metrics(workflow, engine)
         print(f"Workflow finished with status: {status.value}")
+        for child in engine.subworkflow_runs():
+            print(f"{'  ' * child['depth']}Child run {child['run_id']} of {child['workflow_name']}: {child['status']}")
         if args.journal:
             print(f"Journal written to {args.journal}")
 
@@ -202,10 +225,18 @@ def add_parser(subparsers: Any) -> None:
                              "Each capability tier falls back down the list")
     parser.add_argument("--allow-commands", nargs="?", const=True, default=None, metavar="LIST",
                         help="Let tools run commands on this machine: all, or a comma-separated list of program names")
+    parser.add_argument("--deployment", metavar="FILE",
+                        help="JSON file saying what the workflow may reach: tools.allow_commands, tools.allowed_hosts, "
+                             "tools.mcp_servers, tools.grpc, a2a; and who may do what: authorization")
+    parser.add_argument("--as", dest="as_principal", metavar="PRINCIPAL",
+                        help="Start the run as this principal, by its id in the deployment's authorization.principals. Default: the host")
     parser.add_argument("--outputs", metavar="FILE",
                         help="With --simulate: JSON file giving what each activity returns, by activity name")
     parser.add_argument("-j", "--journal", metavar="FILE", help="Write the execution journal to this .jsonl file")
     parser.add_argument("-c", "--checkpoint-dir", metavar="DIR",
                         help="Checkpoint the run state to this directory after every step")
     parser.add_argument("-i", "--input", metavar="JSON", help="Initial data for the run, as a JSON object")
+    parser.add_argument("-w", "--workflows", nargs="+", metavar="FILE",
+                        help="Workflow documents that call activities may run as child runs (specification 24); "
+                             "the workflow itself is always one")
     parser.set_defaults(handler=run_command)

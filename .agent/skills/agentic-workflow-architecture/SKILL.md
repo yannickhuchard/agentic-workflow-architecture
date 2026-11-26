@@ -1,7 +1,7 @@
 ---
 name: agentic-workflow-architecture
 description: Expert guide for working with the Agentic Workflow Architecture (AWA) framework. Use this skill when users need to create, edit, validate, execute, or visualize AI-native workflow processes using AWA's SDK (TypeScript & Python), CLI, API, or visualization tools. This skill covers workflow building with the fluent API, running workflows via CLI, triggering workflows via REST API, creating workflow JSON files, understanding AWA concepts (actors, contexts, skills, access rights, decision nodes), and rendering workflow diagrams.
-Sync: Updated for AWA 1.1 (normative specification, outcome contracts, model routing, tools, journal, knowledge)
+Sync: Updated for AWA 1.1 (normative specification, outcome contracts, model routing, tools with MCP and gRPC, agents over A2A, identity and authorization, guardrails, journal, knowledge)
 ---
 
 # Agentic Workflow Architecture (AWA) Skill
@@ -223,7 +223,60 @@ Declare what an agent may call on the activity. Every call is journalled with th
 } ]
 ```
 
-Binding kinds: `http`, `command` (needs `--allow-commands`), `jsonrpc`, `grpc` and `mcp` (need a registered executor), `function`.
+Binding kinds: `http`, `command` (needs `--allow-commands`), `jsonrpc`, `function`, `mcp` and `grpc`. An `mcp` binding (`{ "kind": "mcp", "server": "docs", "tool": "search" }`) names a server the deployment declares in its deployment file (`awa run --deployment deployment.json`, under `tools.mcp_servers`): a program, which also needs `allow_commands`, or a Streamable HTTP address. A `grpc` binding makes one unary call, described by the deployment's `.proto` files or by server reflection, over TLS unless the deployment allows plaintext for the host.
+
+### Agents over A2A
+
+An activity can be performed by an agent reached over the Agent2Agent protocol 1.0. Name its agent card on the role or the activity:
+
+```json
+{ "id": "…", "name": "Fraud screen", "actor_type": "ai_agent", "a2a": { "agent_card": "https://fraud.example/.well-known/agent-card.json" } }
+```
+
+The agent gets the activity and its data as a message; its artifacts become the output, held to the outcome contract and verification like any actor's. If the agent asks for input, the run waits (`waiting_human`) until the host answers with `answerAgent` (`answer_agent` in Python). Agents are held to the deployment's allowed hosts; in simulation nothing is called. `awa serve --a2a workflow.awa.json` offers a workflow to other agents, with its card at `/.well-known/agent-card.json`.
+
+### Who may do what (identity and authorization)
+
+Roles in the document say what kind of actor performs an activity; the deployment says who, and whether they may (specification section 30). Put the policy in the deployment file, never in the workflow document:
+
+```json
+{ "authorization": {
+    "principals": [{ "id": "agent:assessor", "kind": "ai_agent", "attributes": { "roles": ["underwriter"] }, "acts_for": { "roles": ["Underwriter"] } }],
+    "policy": {
+      "rules": [{ "id": "underwriters", "effect": "allow", "actions": ["perform_activity", "call_tool"], "subject": { "roles": ["underwriter"] } },
+                { "id": "managers", "effect": "allow", "actions": ["start_run", "complete_task", "approve"], "subject": { "roles": ["manager"] }, "condition": "run.amount < 50000" }],
+      "separation_of_duties": [{ "id": "maker-checker", "activities": ["Submit", "Approve"] }],
+      "four_eyes": [{ "id": "two-approvers", "activities": ["Approve"], "approvals": 2 }] } } }
+```
+
+Under a policy what no rule allows is denied, and a denial wins over an allow. Actions: `start_run`, `perform_activity`, `reach_agent`, `call_tool`, `claim_task`, `assign_task`, `complete_task`, `approve`, `answer_agent`, `publish_event`, `read_journal`, `cancel_run`, `migrate_run`. A refusal fails with `FORBIDDEN` (a refused tool call is returned to the agent; a refused answer leaves the task waiting) and is journalled as `authorization.decided`; `run.started`, `activity.started`, `activity.completed` and `token.resumed` name their `principal`. People come from the request (JWT claims, API keys); runs started without a principal are started by the host (`{"id": "host", "kind": "service"}`), which a policy must allow too. `awa run --deployment d.json --as alice`, `awa serve --deployment d.json`, `awa task complete <id> --deployment d.json --as bob`. An external policy engine plugs in as `authorization.decider` in code.
+
+### Guardrails
+
+Put guardrails on what goes into and comes out of agents and tools (specification section 31). Declare them in `guardrails` on the workflow, a role, an activity or a tool; a deployment adds its own (`guardrails` in the deployment file), which run first and cannot be removed by a document.
+
+```json
+"guardrails": [
+  { "id": "…", "name": "No personal data out", "stages": ["output", "tool_call"], "check": { "kind": "personal_data" }, "action": "redact" },
+  { "id": "…", "name": "Injection in data", "stages": ["input"], "check": { "kind": "prompt_injection" }, "action": "block" },
+  { "id": "…", "name": "Known decisions", "stages": ["output"], "check": { "kind": "allowed_values", "path": "decision", "values": ["approve", "refer"] }, "action": "retry_with_feedback" }
+]
+```
+
+Stages: `input` (what the actor is given), `output` (before the outcome contract and verification), `tool_call`, `tool_result`. Checks: `personal_data`, `deny_list`, `prompt_injection`, `size`, `json_schema`, `allowed_values`, `topic` (condition expressions), `model` (a guard model; the engine default unless a reference is named) and `classifier` (registered by the deployment). Actions: `block` (`GUARDRAIL_BLOCKED`), `redact`, `retry_with_feedback` (output only), `escalate` (to a person; input and output) and `warn`; a guardrail on a tool takes only `tool_call` and `tool_result`. The journal records `guardrail.triggered` with positions and categories, never the matched text. Pattern lists are a floor, not a defence: bound what an agent can do with tools, permissions and contracts.
+
+### Sub-workflows
+
+An activity can be performed by a run of another workflow (specification section 24). Mark it as a call and name the workflow; map what goes in and what comes out, or leave the mapping out to pass the activity's data and take back the child's:
+
+```json
+{ "id": "…", "name": "Credit check", "role_id": "…", "actor_type": "application",
+  "is_expandable": true, "expansion_workflow_id": "<id of the called workflow>",
+  "subworkflow": { "input": { "applicant": "applicant", "amount": "request.amount" },
+                   "output": { "credit_grade": "grade" } } }
+```
+
+The child's output is held to the activity's outcome contract and verification like any actor's. A child that fails fails the activity with `SUBWORKFLOW_FAILED`, which the retry policy may retry with a new child run; a workflow that is not registered fails with `SUBWORKFLOW_NOT_FOUND`; calls nest at most 8 deep (`SUBWORKFLOW_DEPTH_EXCEEDED`). A child that waits for a person or an event makes the parent wait; give the event, or complete the task (with the child's run id), to the parent's host as usual. Cancelling the parent cancels the child. A host (runtime directory, shared store, `awa serve`) gives runs every workflow registered with it; `awa run parent.json --workflows child.json` gives them on the command line. Both journals name each other (`subworkflow.started`, `.completed`, `.failed`, `.cancelled`; `run.started.parent`), and journeys list child runs with their `parent_run_id`.
 
 ### After a run: journal, recipe, replay, knowledge
 
@@ -241,6 +294,19 @@ awa knowledge export knowledge/
 - **Knowledge** is distilled from journals, accumulates across runs, reaches agents only after a person reviews it (the activity opts in with `"knowledge": {}`), and exports as an Open Knowledge Format bundle.
 
 A complete worked example is `examples/claims-settlement`.
+
+### BPMN, DMN and Serverless Workflow
+
+```bash
+awa import bpmn process.bpmn --dmn rules.dmn -o process.awa.json   # a BPMN 2.0 process from a modeller
+awa export bpmn workflow.awa.json      # workflow.bpmn (+ workflow.dmn); importing it gives the same document
+awa export serverless-workflow workflow.awa.json   # CNCF Serverless Workflow 1.0, and what does not map
+```
+
+- Task types give actor types (user/manual task: human; service/script task: application). Mark an AI agent's task with `awa:actorType="ai_agent"` (namespace `https://awa.io/schema/interchange/1.1`). Lanes are roles.
+- A business rule task names its DMN decision (`awa:decisionRef`, or Camunda's `decisionRef`); without the DMN file it becomes an external decision engine named `dmn`.
+- The import refuses, with the element and the reason, what AWA cannot run the same way: complex gateways, transactions, terminate end events, error and escalation boundary events, loops and multi-instance tasks, timers at a date, FEEL with names or arithmetic. Rework those in the BPMN before importing (specification 27.8).
+- Comparison with BPMN, DMN, Serverless Workflow, Arazzo and agent frameworks: `docs/interchange.md`.
 
 ## Core Concepts
 
@@ -381,7 +447,7 @@ result = (
 )
 ```
 
-The Python SDK passes every conformance level and has the same commands as the TypeScript one (`awa run`, `validate`, `journey`, `measures`, `replay`, `knowledge`, `task`, `serve`), with the same options. It has no recipe, Open Knowledge Format exchange, Google or embedded provider, or views.
+The Python SDK passes every conformance level and has the same commands as the TypeScript one (`awa run`, `validate`, `journey`, `migrate`, `measures`, `replay`, `evidence`, `eval`, `knowledge`, `task`, `telemetry`, `serve`), with the same options. It has no recipe, Open Knowledge Format exchange, Google or embedded provider, or views.
 
 ### Key Builder Methods
 
@@ -419,6 +485,9 @@ awa serve
 
 # Custom port
 awa serve --port 8080
+
+# Offer a workflow to other agents over A2A, under a deployment's permissions
+awa serve --a2a workflow.awa.json --deployment deployment.json
 ```
 
 ### CLI Commands Reference
@@ -429,10 +498,16 @@ awa serve --port 8080
 | `awa run <file>` | Execute a workflow file | `-v, --verbose`, `-k, --key <key>`, `-s, --simulate`, `--outputs <file>`, `-p, --providers <list>`, `-j, --journal <file>`, `-c, --checkpoint-dir <dir>`, `-i, --input <json>`, `--allow-commands [list]` |
 | `awa recipe <workflow> [journal]` | Compile a build-from-scratch recipe | `-o, --output <file>`, `--no-definition`, `--no-payloads` |
 | `awa knowledge <ingest\|list\|review\|deprecate\|export\|import>` | Build, review and exchange knowledge | `--kb <file>` |
-| `awa journey <add\|publish\|tick\|resume\|list\|show\|analytics\|export>` | Journeys in a runtime directory | `--dir <dir>`, `--simulate`, `--outputs <file>` |
+| `awa journey <add\|publish\|tick\|resume\|list\|show\|analytics\|export>` | Journeys in a runtime directory, or a shared PostgreSQL store | `--dir <dir>`, `--store <url>` (or `AWA_RUNTIME_STORE`), `--simulate`, `--outputs <file>` |
+| `awa migrate <check\|plan\|apply>` | Compare versions of a workflow, and move runs at rest to another version by a plan (section 25) | `--dir`, `--store`, `--plan <file>`, `--to <version>`, `--from <version>` (check), `--json` |
 | `awa measures` | The measures of journeys and workflows | `--dir`, `--file`, `--from`, `--to`, `--json`, `--openmetrics`, `--html <file>`, `--list` |
+| `awa telemetry export <workflow> <journal>` | A recorded run as OpenTelemetry traces; also `journeys` and `measures` | `--endpoint <url>`, `--file <out.json>`, `--protocol`, `--header k=v`, `--service-name`, `--payloads` |
 | `awa replay <workflow> <journal>` | Counterfactual replay; exit status 2 on a regression | `--candidate <file>`, `--ai live\|recorded`, `-o`, `--json` |
+| `awa evidence <sources...>` | An evidence report from journals and journey records, every statement citing its records | `--from`, `--to`, `--workflow <id or name...>`, `--as-of`, `--format json\|md\|html`, `-o` |
+| `awa eval <build\|run>` | Evaluation datasets from journals; a candidate scored against one, exit status 2 on a regression | `build <journals...> -o`; `run <workflow> <dataset> --candidate <file> --providers <list> --json -o` |
 | `awa task <list\|show\|assign\|complete\|reject>` | Human tasks in the task database | - |
+| `awa import <bpmn\|dmn> <file>` | Read a BPMN 2.0 process or DMN decision tables into AWA | `--dmn <files...>`, `-o, --output <file>` |
+| `awa export <bpmn\|dmn\|serverless-workflow> <files...>` | Write BPMN 2.0 (+ DMN), DMN, or CNCF Serverless Workflow | `-o, --output <file>`, `--no-diagram`, `--format yaml\|json` |
 | `awa init` / `awa generate <prompt>` | Create a starter workflow / generate one from a description | - |
 | `awa serve` | Start REST API server | `-p, --port <port>`, `--jwt-secret <secret>`, `--api-key <key:role>`, `--rate-limit <max>`, `--no-auth` |
 | `awa --version` | Display version | - |
@@ -617,6 +692,38 @@ const runtime = await open_runtime_directory('.awa');  // recovers journeys and 
 
 Over HTTP: `AWA_DATA_DIR=.awa awa serve`, then `POST /api/v1/journeys/events`, `GET /api/v1/journeys/portfolio`.
 
+A runtime directory belongs to one host at a time. For several hosts (servers on several machines, scheduled jobs, commands) keep journeys in a **shared PostgreSQL store** instead (specification section 29). Each operation holds only the subjects it touches, an event id is accepted once across all hosts, and a host that dies leaves nothing half done. TypeScript and Python hosts can share one store. It needs `npm install pg` (or the Python extra `postgres`); the store creates its tables, in schema `awa_runtime`, itself.
+
+```bash
+export AWA_RUNTIME_STORE=postgres://awa@db.internal/awa   # not AWA_DATABASE_URL, which is the task database
+awa journey add intake.awa.json claim.journey.json        # definitions go into the store
+awa serve --port 3000                                      # the same on every machine; or --store <url>
+```
+
+```typescript
+const runtime = await open_runtime_store(process.env.AWA_RUNTIME_STORE!);  // registers the store's definitions
+await runtime.publish(event);       // one transaction, holding only this subject
+await runtime.refresh();            // read the whole store, as every host left it
+```
+
+**Changing a workflow while runs are in flight** (specification section 25). Give the new document the same `id` and a higher `version` and add it: every version is kept, runs under way stay on the version they started on, new runs (and those journeys start) take the newest. Nothing moves by itself. To move a run that is at rest (waiting for a person, an event, an agent, a timer or a join), write a plan and check it first:
+
+```bash
+awa migrate check <workflow_id>                     # per waiting step of the old version: compatible, needs_mapping (with candidates) or impossible; and which runs can move
+awa migrate plan <run_id> --plan plan.json          # dry run; exit 2 with every reason when it would be refused
+awa migrate apply <run_id> --plan plan.json         # one change, recorded as run.migrated
+```
+
+```json
+{ "to_version": "2.0.0", "nodes": { "<old node id>": "<new node id>" }, "restart": ["<old node id>"],
+  "data": [{ "set": "currency", "value": "EUR" }, { "set": "priority", "expression": "amount > 1000" }, { "remove": "legacy_code" }] }
+```
+
+- Keep node ids for steps that stay the same: the identity mapping then moves runs without a plan.
+- A waiting token is kept only where its wait still means something: a person's task at an activity of the same actor type, an event wait at a node waiting for the same event and correlation, a timer at a timer, a join at a join. Otherwise map it elsewhere, or list it in `restart` to withdraw the wait and start the step afresh.
+- A run in the middle of an activity is refused (`run_in_activity`): wait for it to come to rest.
+- `runtime.migrate(run_id, plan, { dry_run })`, `runtime.check_migration(workflow_id)`; HTTP `POST /api/v1/journeys/runs/{run_id}/migrate[?dry_run=true]`, `POST /api/v1/journeys/migrations/check`.
+
 **Counterfactual replay** answers "what if this run had used another model or rule":
 
 ```bash
@@ -651,7 +758,42 @@ report.journeys[0].measures['journey.completion_rate'];   // { value: 0.5, n: 6 
 report.attention;                                         // who is stuck, in which stage, and its owner
 ```
 
-A measure is `{ value, n }`: `n` is what it was computed over, and `value` is `null`, never 0, when that is nothing. `GET /api/v1/measures` serves the report and `?format=openmetrics` gives it to a metrics system. `tools/visualization/dashboard.html` shows it (`?live=http://localhost:3000` reads a running server). Give a stage an `owner` so that a stalled journey names who must act.
+A measure is `{ value, n }`: `n` is what it was computed over, and `value` is `null`, never 0, when that is nothing. `GET /api/v1/measures` serves the report and `?format=openmetrics` gives it to a metrics system (`?format=otlp` as OpenTelemetry gauges). `tools/visualization/dashboard.html` shows it (`?live=http://localhost:3000` reads a running server). Give a stage an `owner` so that a stalled journey names who must act.
+
+### Telemetry (specification section 26)
+
+Every run and journey can be watched in OpenTelemetry. A run is one trace: a span for the run (`invoke_workflow`), each attempt (`invoke_agent` for an AI agent), each tool call (`execute_tool`), each model call (`chat`, with provider, model and token usage in the generative AI conventions), each decision and each wait; everything else in the journal is a span event. A journey is one trace whose run spans link to the runs' traces. Trace and span ids are derived from the run id, so the spans sent live and those exported later from the journal are the same, in either SDK.
+
+```bash
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 awa run workflow.awa.json      # spans leave as the run proceeds
+awa telemetry export workflow.awa.json run.journal.jsonl --endpoint http://localhost:4318
+awa telemetry export workflow.awa.json run.journal.jsonl --file run.otlp.json   # OTLP/JSON
+```
+
+```typescript
+import { OtlpHttpExporter, WorkflowEngine } from 'agentic-workflow-architecture';
+const exporter = new OtlpHttpExporter({ traces_url: 'http://localhost:4318/v1/traces' });
+const engine = new WorkflowEngine(workflow, { telemetry: exporter });   // or { telemetry: { endpoint, headers, payloads } }
+```
+
+Telemetry never holds up or fails a run: a backend that is down costs dropped spans, counted and reported, and the journal can send them again. Inputs, outputs and tool arguments go on spans only with `payloads: true` (or `AWA_TELEMETRY_PAYLOADS=true`). `awa serve` and `awa journey` honour the same `OTEL_*` variables.
+
+### Evidence, evaluation and shadow runs (specification sections 32 and 33)
+
+**Evidence** for regulators and auditors, computed from the record: what ran, which models decided what, every human decision, override and escalation, every contract and verification result, refusals, failures, compensations, service level breaches, tool calls by target, data by payload mode, and the records held. Each statement cites the journal records it rests on (run id and `seq`); each part names the EU AI Act articles (12, 13, 14, 15, 26), NIST AI RMF functions and ISO/IEC 42001 clauses it can serve. Say it as the report does: evidence a deployer can use, **not a certification of compliance**.
+
+```bash
+awa evidence .awa --from 2026-09-01 --to 2026-10-01 --format html -o evidence.html   # also md (default) or json
+```
+
+**Evaluation** turns recorded runs into a dataset, one case per visit to an AI activity (its input; the outcome accepted by contract, verification or a person, or what rejected it), and scores a candidate against it per activity, through counterfactual replay: tools answer as recorded.
+
+```bash
+awa eval build runs/*.jsonl -o dataset.jsonl
+awa eval run claims.awa.json dataset.jsonl --candidate changed.awa.json --providers ollama   # exit 2 on a regression
+```
+
+**Shadow runs**: `new AwaRuntime({ ..., shadow: { candidates: { [workflow.id]: candidate }, engine: { model_providers, model_tiers } } })`. Each production run that ends is replayed under the candidate; tools, people and other actors never run. `runtime.shadow.report()` gives the measures of both and the runs where they part.
 
 ## Production Infrastructure
 

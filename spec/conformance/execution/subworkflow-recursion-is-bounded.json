@@ -1,0 +1,130 @@
+{
+  "id": "subworkflow-recursion-is-bounded",
+  "level": "subworkflows",
+  "spec": "24.1",
+  "description": "A workflow may call itself. The depth limit, 8 by default, stops it: the attempt that would start a run at depth 9 fails with SUBWORKFLOW_DEPTH_EXCEEDED and starts nothing, and each run above it fails in turn.",
+  "workflow": {
+    "id": "46f13133-3e66-501c-8744-f41b0a3272f2",
+    "name": "subworkflow-recursion-is-bounded",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "3bd7ae24-c041-537a-9510-b3c787403ef7",
+        "name": "Count",
+        "role_id": "a45ed5ea-7a99-5f3a-a60a-682f126b2f63",
+        "actor_type": "application"
+      },
+      {
+        "id": "811d40b7-b31a-54f9-a1a7-4fbcf0493772",
+        "name": "Again",
+        "role_id": "a45ed5ea-7a99-5f3a-a60a-682f126b2f63",
+        "actor_type": "application",
+        "is_expandable": true,
+        "expansion_workflow_id": "46f13133-3e66-501c-8744-f41b0a3272f2"
+      }
+    ],
+    "edges": [
+      {
+        "id": "9fcdff8a-7ab3-52a8-a7d3-a047468f7fea",
+        "source_id": "3bd7ae24-c041-537a-9510-b3c787403ef7",
+        "target_id": "811d40b7-b31a-54f9-a1a7-4fbcf0493772"
+      }
+    ]
+  },
+  "actors": {
+    "Count": {
+      "output": {
+        "counted": true
+      }
+    }
+  },
+  "expect": {
+    "status": "failed",
+    "visited": [
+      "Count",
+      "Count",
+      "Count",
+      "Count",
+      "Count",
+      "Count",
+      "Count",
+      "Count",
+      "Count"
+    ],
+    "journal_contains": [
+      {
+        "type": "subworkflow.failed",
+        "node_name": "Again",
+        "data": {
+          "workflow_id": "46f13133-3e66-501c-8744-f41b0a3272f2"
+        }
+      },
+      {
+        "type": "activity.failed",
+        "node_name": "Again",
+        "data": {
+          "error": {
+            "code": "SUBWORKFLOW_FAILED"
+          }
+        }
+      }
+    ],
+    "subworkflow_runs": [
+      {
+        "workflow_name": "subworkflow-recursion-is-bounded",
+        "depth": 1,
+        "status": "failed"
+      },
+      {
+        "workflow_name": "subworkflow-recursion-is-bounded",
+        "depth": 2,
+        "status": "failed"
+      },
+      {
+        "workflow_name": "subworkflow-recursion-is-bounded",
+        "depth": 3,
+        "status": "failed"
+      },
+      {
+        "workflow_name": "subworkflow-recursion-is-bounded",
+        "depth": 4,
+        "status": "failed"
+      },
+      {
+        "workflow_name": "subworkflow-recursion-is-bounded",
+        "depth": 5,
+        "status": "failed"
+      },
+      {
+        "workflow_name": "subworkflow-recursion-is-bounded",
+        "depth": 6,
+        "status": "failed"
+      },
+      {
+        "workflow_name": "subworkflow-recursion-is-bounded",
+        "depth": 7,
+        "status": "failed"
+      },
+      {
+        "workflow_name": "subworkflow-recursion-is-bounded",
+        "depth": 8,
+        "status": "failed",
+        "journal_contains": [
+          {
+            "type": "activity.failed",
+            "node_name": "Again",
+            "data": {
+              "error": {
+                "code": "SUBWORKFLOW_DEPTH_EXCEEDED"
+              }
+            }
+          }
+        ],
+        "journal_excludes": [
+          "subworkflow.started"
+        ]
+      }
+    ]
+  }
+}

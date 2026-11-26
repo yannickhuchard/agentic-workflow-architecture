@@ -1,0 +1,109 @@
+{
+  "id": "bpmn-exclusive-gateway-after-a-task",
+  "level": "interchange",
+  "spec": "27.4",
+  "kind": "import_bpmn",
+  "description": "An exclusive gateway right after a task is the task's routing: its flows leave the task, FEEL and tool conditions become AWA conditions, and its default is the task's default edge.",
+  "bpmn": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<bpmn:definitions xmlns:bpmn=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:awa=\"https://awa.io/schema/interchange/1.1\" id=\"Definitions_xor\" targetNamespace=\"https://example.com/bpmn\">\n<bpmn:process id=\"P\" name=\"Order routing\">\n<bpmn:startEvent id=\"S\"/>\n<bpmn:serviceTask id=\"T_check\" name=\"Check order\"/>\n<bpmn:exclusiveGateway id=\"G\" name=\"Value?\" default=\"F_std\"/>\n<bpmn:userTask id=\"T_approve\" name=\"Approve\"/>\n<bpmn:serviceTask id=\"T_vip\" name=\"VIP handling\"/>\n<bpmn:serviceTask id=\"T_std\" name=\"Standard\"/>\n<bpmn:endEvent id=\"E\"/>\n<bpmn:sequenceFlow id=\"F1\" sourceRef=\"S\" targetRef=\"T_check\"/>\n<bpmn:sequenceFlow id=\"F2\" sourceRef=\"T_check\" targetRef=\"G\"/>\n<bpmn:sequenceFlow id=\"F_big\" sourceRef=\"G\" targetRef=\"T_approve\" name=\"big\"><bpmn:conditionExpression xsi:type=\"bpmn:tFormalExpression\" language=\"https://www.omg.org/spec/DMN/20191111/FEEL/\">amount &gt; 1000 and not(flagged)</bpmn:conditionExpression></bpmn:sequenceFlow>\n<bpmn:sequenceFlow id=\"F_vip\" sourceRef=\"G\" targetRef=\"T_vip\"><bpmn:conditionExpression xsi:type=\"bpmn:tFormalExpression\">${tier == 'gold'}</bpmn:conditionExpression></bpmn:sequenceFlow>\n<bpmn:sequenceFlow id=\"F_std\" sourceRef=\"G\" targetRef=\"T_std\"/>\n<bpmn:sequenceFlow id=\"F_a\" sourceRef=\"T_approve\" targetRef=\"E\"/>\n<bpmn:sequenceFlow id=\"F_v\" sourceRef=\"T_vip\" targetRef=\"E\"/>\n<bpmn:sequenceFlow id=\"F_s\" sourceRef=\"T_std\" targetRef=\"E\"/>\n</bpmn:process>\n</bpmn:definitions>\n",
+  "expect": {
+    "documents": [
+      {
+        "id": "d0760d65-293e-5765-98ab-264507b46e47",
+        "name": "Order routing",
+        "version": "1.0.0",
+        "awa_version": "1.1",
+        "roles": [
+          {
+            "id": "aca514e2-f460-5da8-bd01-95e7257c8190",
+            "name": "Application",
+            "actor_type": "application"
+          },
+          {
+            "id": "4617d97d-0215-5e3b-950e-5fe443192177",
+            "name": "Human",
+            "actor_type": "human"
+          }
+        ],
+        "activities": [
+          {
+            "id": "6ef37a5c-66a3-5bf5-ad48-d05d0754f31f",
+            "name": "Check order",
+            "role_id": "aca514e2-f460-5da8-bd01-95e7257c8190",
+            "actor_type": "application"
+          },
+          {
+            "id": "8dab3c39-f981-57b1-8a3f-44a76e1c69c5",
+            "name": "Approve",
+            "role_id": "4617d97d-0215-5e3b-950e-5fe443192177",
+            "actor_type": "human"
+          },
+          {
+            "id": "a7484e28-d3fc-54c3-a9cd-a2ec1868db5b",
+            "name": "VIP handling",
+            "role_id": "aca514e2-f460-5da8-bd01-95e7257c8190",
+            "actor_type": "application"
+          },
+          {
+            "id": "57d193b3-6934-5b39-a3b7-d5f07a8e858a",
+            "name": "Standard",
+            "role_id": "aca514e2-f460-5da8-bd01-95e7257c8190",
+            "actor_type": "application"
+          }
+        ],
+        "edges": [
+          {
+            "id": "18a553e7-74e3-5785-abd4-fb95ed65f4a7",
+            "source_id": "c603e42a-9ff0-5828-8128-548ca5a1b873",
+            "target_id": "6ef37a5c-66a3-5bf5-ad48-d05d0754f31f"
+          },
+          {
+            "id": "8b262dab-9fad-5942-a346-dc82741b01a6",
+            "source_id": "6ef37a5c-66a3-5bf5-ad48-d05d0754f31f",
+            "target_id": "8dab3c39-f981-57b1-8a3f-44a76e1c69c5",
+            "condition": "amount > 1000 && !flagged",
+            "label": "big"
+          },
+          {
+            "id": "f279ce67-79e4-5995-91a4-3f7dc18783b6",
+            "source_id": "6ef37a5c-66a3-5bf5-ad48-d05d0754f31f",
+            "target_id": "a7484e28-d3fc-54c3-a9cd-a2ec1868db5b",
+            "condition": "tier == \"gold\""
+          },
+          {
+            "id": "5d7310a9-e39a-5898-b8e6-3c326488fe97",
+            "source_id": "6ef37a5c-66a3-5bf5-ad48-d05d0754f31f",
+            "target_id": "57d193b3-6934-5b39-a3b7-d5f07a8e858a",
+            "is_default": true
+          },
+          {
+            "id": "c381e844-b8ac-553f-abbf-26fafbe12c3e",
+            "source_id": "8dab3c39-f981-57b1-8a3f-44a76e1c69c5",
+            "target_id": "6934b180-7909-5606-aba1-a21b7ad4ebd7"
+          },
+          {
+            "id": "7b3ca240-ab59-5eb2-995e-f1a7902a73b6",
+            "source_id": "a7484e28-d3fc-54c3-a9cd-a2ec1868db5b",
+            "target_id": "6934b180-7909-5606-aba1-a21b7ad4ebd7"
+          },
+          {
+            "id": "0f621636-dc19-5390-afe9-0bda9253a48d",
+            "source_id": "57d193b3-6934-5b39-a3b7-d5f07a8e858a",
+            "target_id": "6934b180-7909-5606-aba1-a21b7ad4ebd7"
+          }
+        ],
+        "events": [
+          {
+            "id": "c603e42a-9ff0-5828-8128-548ca5a1b873",
+            "name": "S",
+            "event_type": "start"
+          },
+          {
+            "id": "6934b180-7909-5606-aba1-a21b7ad4ebd7",
+            "name": "E",
+            "event_type": "end"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -49,6 +49,12 @@ public class Role extends AwaObject {
     @JsonProperty("mcp_tools")
     private List<McpTool> mcpTools;
 
+    /** The agent, reached over A2A, that performs the activities of this role (section 28). */
+    private A2AAgent a2a;
+
+    /** Guardrails on the activities of this role and their tool calls (section 31). */
+    private List<Guardrail> guardrails;
+
     /** Model configuration for {@code ai_agent} roles (specification section 12). */
     @Data
     @Builder

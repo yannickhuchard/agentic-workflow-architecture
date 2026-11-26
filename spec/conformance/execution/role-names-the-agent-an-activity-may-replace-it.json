@@ -1,0 +1,210 @@
+{
+  "id": "role-names-the-agent-an-activity-may-replace-it",
+  "level": "a2a",
+  "spec": "28.1",
+  "description": "A role's agent performs its activities, whatever their actor type; an activity's own binding replaces its role's. The card of an agent is read once per run.",
+  "workflow": {
+    "id": "e5584417-03ee-5fac-8643-3f62b2c67fb8",
+    "name": "role-names-the-agent-an-activity-may-replace-it",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "e763328b-8f1d-54af-a066-32a4899300eb",
+        "name": "Assess",
+        "role_id": "1e187127-10ad-51bd-90a6-231ed785f615",
+        "actor_type": "human"
+      },
+      {
+        "id": "18c5d11a-29ab-57ca-a7a6-0ca81c78471a",
+        "name": "Review",
+        "role_id": "1e187127-10ad-51bd-90a6-231ed785f615",
+        "actor_type": "human"
+      },
+      {
+        "id": "07e9e354-0015-5bf9-988d-2fbc3f7e9360",
+        "name": "Screen",
+        "role_id": "1e187127-10ad-51bd-90a6-231ed785f615",
+        "actor_type": "ai_agent",
+        "a2a": {
+          "agent_card": "https://fraud.example/.well-known/agent-card.json"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "5abc1673-86d0-5892-9d80-08eaac7110ab",
+        "source_id": "e763328b-8f1d-54af-a066-32a4899300eb",
+        "target_id": "18c5d11a-29ab-57ca-a7a6-0ca81c78471a"
+      },
+      {
+        "id": "bdebf672-a905-51c0-9872-a9e4bec5470a",
+        "source_id": "18c5d11a-29ab-57ca-a7a6-0ca81c78471a",
+        "target_id": "07e9e354-0015-5bf9-988d-2fbc3f7e9360"
+      }
+    ],
+    "roles": [
+      {
+        "id": "1e187127-10ad-51bd-90a6-231ed785f615",
+        "name": "Assessor",
+        "actor_type": "human",
+        "a2a": {
+          "agent_card": "https://agents.example/claims/.well-known/agent-card.json"
+        }
+      }
+    ]
+  },
+  "agents": {
+    "https://agents.example/claims/.well-known/agent-card.json": {
+      "card": {
+        "name": "Claims assessor",
+        "description": "Claims assessor, reached over A2A",
+        "version": "1.0.0",
+        "supportedInterfaces": [
+          {
+            "url": "https://agents.example/claims/a2a",
+            "protocolBinding": "JSONRPC",
+            "protocolVersion": "1.0"
+          }
+        ],
+        "capabilities": {
+          "streaming": false,
+          "pushNotifications": false
+        },
+        "defaultInputModes": [
+          "application/json",
+          "text/plain"
+        ],
+        "defaultOutputModes": [
+          "application/json"
+        ],
+        "skills": [
+          {
+            "id": "assess",
+            "name": "Assess",
+            "description": "Assess a claim",
+            "tags": [
+              "claims"
+            ]
+          }
+        ]
+      },
+      "replies": [
+        {
+          "result": {
+            "task": {
+              "id": "task-1",
+              "contextId": "ctx-1",
+              "status": {
+                "state": "TASK_STATE_COMPLETED"
+              },
+              "artifacts": [
+                {
+                  "artifactId": "a0",
+                  "parts": [
+                    {
+                      "data": {
+                        "decision": "approve"
+                      },
+                      "mediaType": "application/json"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "https://fraud.example/.well-known/agent-card.json": {
+      "card": {
+        "name": "Fraud screen",
+        "description": "Fraud screen, reached over A2A",
+        "version": "1.0.0",
+        "supportedInterfaces": [
+          {
+            "url": "https://fraud.example/a2a",
+            "protocolBinding": "JSONRPC",
+            "protocolVersion": "1.0"
+          }
+        ],
+        "capabilities": {
+          "streaming": false,
+          "pushNotifications": false
+        },
+        "defaultInputModes": [
+          "application/json",
+          "text/plain"
+        ],
+        "defaultOutputModes": [
+          "application/json"
+        ],
+        "skills": [
+          {
+            "id": "assess",
+            "name": "Assess",
+            "description": "Assess a claim",
+            "tags": [
+              "claims"
+            ]
+          }
+        ]
+      },
+      "replies": [
+        {
+          "result": {
+            "task": {
+              "id": "task-1",
+              "contextId": "ctx-1",
+              "status": {
+                "state": "TASK_STATE_COMPLETED"
+              },
+              "artifacts": [
+                {
+                  "artifactId": "a0",
+                  "parts": [
+                    {
+                      "data": {
+                        "fraud": false
+                      },
+                      "mediaType": "application/json"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [],
+    "data": {
+      "decision": "approve",
+      "fraud": false
+    },
+    "agent_card_reads": 2,
+    "agent_requests": [
+      "SendMessage",
+      "SendMessage",
+      "SendMessage"
+    ],
+    "agent_requests_contain": [
+      {
+        "agent": "https://fraud.example/.well-known/agent-card.json",
+        "method": "SendMessage",
+        "params": {
+          "message": {
+            "metadata": {
+              "awa": {
+                "activity": "Screen"
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

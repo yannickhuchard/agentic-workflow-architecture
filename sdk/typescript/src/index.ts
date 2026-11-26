@@ -9,6 +9,21 @@ export * from './types';
 // Runtime
 export * from './runtime';
 
+// Changing a workflow while runs are in flight (specification section 25)
+export * from './runtime/migration';
+
+// Evidence, evaluation from journals, and shadow runs (specification sections 32 and 33)
+export * from './runtime/evidence';
+export * from './runtime/evaluation';
+export * from './runtime/shadow';
+// Identity and authorization: principals, the policy, and the decider (specification section 30)
+export * from './runtime/authorization';
+export { set_server_authorization, server_authorization, principal_of_user, request_principal } from './server/authorization';
+// Guardrails on what goes into and comes out of agents and tools (specification section 31)
+export * from './runtime/guardrails';
+// A workflow offered to other agents over A2A (specification 28.8)
+export { a2a_routes, workflow_agent_card, message_input, run_output, type A2AServeOptions } from './server/a2a';
+
 // Builder
 export { WorkflowBuilder, workflow, type ActivityConfig, type ContextConfig } from './builder';
 
@@ -35,3 +50,6 @@ export {
     ContextBindingQuery,
     query,
 } from './client/query';
+
+// Interchange: BPMN 2.0, DMN and CNCF Serverless Workflow (specification section 27)
+export * from './interchange';

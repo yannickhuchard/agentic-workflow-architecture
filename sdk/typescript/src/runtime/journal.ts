@@ -21,7 +21,7 @@ export const JOURNAL_SPEC_VERSION = '1.1';
 export type TraceLevel = 'execution' | 'reasoning' | 'meta';
 
 export type JournalEventType =
-    | 'run.started' | 'run.completed' | 'run.failed' | 'run.cancelled' | 'run.waiting' | 'run.resumed'
+    | 'run.started' | 'run.completed' | 'run.failed' | 'run.cancelled' | 'run.waiting' | 'run.resumed' | 'run.migrated'
     | 'token.created' | 'token.moved' | 'token.completed' | 'token.failed'
     | 'token.waiting' | 'token.resumed' | 'token.joined' | 'token.cancelled'
     | 'activity.started' | 'activity.completed' | 'activity.failed'
@@ -29,6 +29,7 @@ export type JournalEventType =
     | 'activity.compensated' | 'activity.compensation_failed'
     | 'decision.evaluated'
     | 'tool.invoked' | 'tool.completed' | 'tool.failed'
+    | 'agent.message_sent' | 'agent.task_updated'
     | 'verification.completed'
     | 'contract.checked' | 'contract.escalated'
     | 'timer.started' | 'timer.fired'
@@ -38,6 +39,9 @@ export type JournalEventType =
     | 'knowledge.retrieved'
     | 'context.read' | 'context.written' | 'context.denied'
     | 'sla.warning' | 'sla.breached'
+    | 'authorization.decided'
+    | 'guardrail.triggered'
+    | 'subworkflow.started' | 'subworkflow.completed' | 'subworkflow.failed' | 'subworkflow.cancelled'
     | 'checkpoint.saved';
 
 export interface JournalEvent {

@@ -1,0 +1,171 @@
+{
+  "id": "deadline-taken-once-by-hosts-together",
+  "level": "shared_store",
+  "spec": "29.5",
+  "description": "Hosts that let time pass at the same moment take each deadline once between them: the wait times out once and the stage that outstayed its limit is stalled once.",
+  "start": "2026-03-02T09:00:00Z",
+  "hosts": [
+    "a",
+    "b"
+  ],
+  "workflows": [
+    {
+      "id": "bb501bbc-8bc3-55ea-b451-6a7bad2ff251",
+      "name": "Claim",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "428361f7-f986-5df7-850d-04946b6a1213",
+          "name": "Register",
+          "role_id": "8154048a-681b-5e5c-af70-628d5e1fa222",
+          "actor_type": "application"
+        },
+        {
+          "id": "5ac66daf-8ef5-5919-8eb9-c0538fc8489f",
+          "name": "Settle",
+          "role_id": "8154048a-681b-5e5c-af70-628d5e1fa222",
+          "actor_type": "application"
+        },
+        {
+          "id": "21029f4d-7ba1-502f-b798-b74c71d319c2",
+          "name": "Close",
+          "role_id": "8154048a-681b-5e5c-af70-628d5e1fa222",
+          "actor_type": "application"
+        }
+      ],
+      "edges": [
+        {
+          "id": "2176057c-3cb7-59b6-9be7-b5da00e5c9e1",
+          "source_id": "428361f7-f986-5df7-850d-04946b6a1213",
+          "target_id": "7311110d-6c61-589b-9d5d-b1e3dff2df06"
+        },
+        {
+          "id": "dd28ffd4-592e-51fc-bb64-de04b4f3e965",
+          "source_id": "7311110d-6c61-589b-9d5d-b1e3dff2df06",
+          "target_id": "5ac66daf-8ef5-5919-8eb9-c0538fc8489f"
+        },
+        {
+          "id": "39cdd404-b005-59bf-80e6-dcf8d163b2e1",
+          "source_id": "7311110d-6c61-589b-9d5d-b1e3dff2df06",
+          "target_id": "21029f4d-7ba1-502f-b798-b74c71d319c2"
+        }
+      ],
+      "events": [
+        {
+          "id": "7311110d-6c61-589b-9d5d-b1e3dff2df06",
+          "name": "Documents",
+          "event_type": "message",
+          "event_definition": {
+            "name": "documents.uploaded",
+            "correlation_key": "customer_id",
+            "timeout": "P5D",
+            "timeout_edge_id": "39cdd404-b005-59bf-80e6-dcf8d163b2e1"
+          }
+        }
+      ]
+    }
+  ],
+  "journeys": [
+    {
+      "id": "90eee340-d342-5ee5-a9bf-baf9a2de202d",
+      "name": "Claim",
+      "version": "1.0.0",
+      "subject": {
+        "name": "customer",
+        "key": "customer_id"
+      },
+      "stages": [
+        {
+          "id": "open",
+          "name": "Open",
+          "workflows": [
+            "bb501bbc-8bc3-55ea-b451-6a7bad2ff251"
+          ],
+          "complete_when": "paid == true",
+          "transitions": [],
+          "max_duration": "P2D"
+        }
+      ],
+      "triggers": [
+        {
+          "event": "claim.submitted",
+          "starts_journey": true,
+          "start_workflow": "bb501bbc-8bc3-55ea-b451-6a7bad2ff251"
+        }
+      ]
+    }
+  ],
+  "actors": {
+    "Register": {
+      "output": {
+        "claim_id": "CLM-1"
+      }
+    },
+    "Settle": {
+      "output": {
+        "paid": true
+      }
+    },
+    "Close": {
+      "output": {
+        "closed": true
+      }
+    }
+  },
+  "steps": [
+    {
+      "host": "a",
+      "publish": {
+        "type": "claim.submitted",
+        "data": {
+          "customer_id": "c-1"
+        }
+      }
+    },
+    {
+      "advance": "P6D"
+    },
+    {
+      "together": [
+        {
+          "host": "a",
+          "tick": true
+        },
+        {
+          "host": "b",
+          "tick": true
+        }
+      ],
+      "expect": {
+        "timed_out_runs": 1,
+        "stalled_journeys": 1
+      }
+    },
+    {
+      "host": "b",
+      "tick": true,
+      "expect": {
+        "timed_out_runs": 0,
+        "stalled_journeys": 0
+      }
+    }
+  ],
+  "expect": {
+    "run_count": 1,
+    "instances": [
+      {
+        "journey": "Claim",
+        "status": "active",
+        "stalled": true,
+        "runs": [
+          "completed"
+        ],
+        "events_count": {
+          "journey.stalled": 1,
+          "journey.run_ended": 1
+        }
+      }
+    ]
+  }
+}

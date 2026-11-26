@@ -1,0 +1,177 @@
+{
+  "id": "measures-as-gauges",
+  "level": "telemetry",
+  "spec": "26.12",
+  "description": "A measure report sent as OpenTelemetry metrics: one gauge per measure with a value, named awa.<id>, with the labels of the OpenMetrics exposition as attributes, the time as_of and the start of the period. A measure with no value sends nothing.",
+  "report": {
+    "spec_version": "1.1",
+    "as_of": "2026-03-31T00:00:00.000Z",
+    "period": {
+      "from": "2026-03-01T00:00:00.000Z",
+      "to": "2026-03-31T00:00:00.000Z"
+    },
+    "currency": "EUR",
+    "totals": {},
+    "attention": [],
+    "series": {
+      "bucket": "day",
+      "points": []
+    },
+    "journeys": [
+      {
+        "name": "Order",
+        "measures": {
+          "journey.started": {
+            "value": 4,
+            "n": 4
+          },
+          "journey.completion_rate": {
+            "value": 0.5,
+            "n": 4
+          },
+          "journey.mood_end": {
+            "value": null,
+            "n": 0
+          }
+        },
+        "stages": [
+          {
+            "name": "Placed",
+            "measures": {
+              "stage.duration_median_ms": {
+                "value": 3600000,
+                "n": 2
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "workflows": [
+      {
+        "name": "Fulfil",
+        "measures": {
+          "workflow.success_rate": {
+            "value": 0.75,
+            "n": 4
+          },
+          "workflow.cost": {
+            "value": 0.04,
+            "n": 4
+          },
+          "workflow.input_tokens": {
+            "value": 400,
+            "n": 4
+          }
+        },
+        "activities": [
+          {
+            "name": "Pack",
+            "measures": {
+              "activity.attempts": {
+                "value": 5,
+                "n": 5
+              }
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "expect": {
+    "metric_count": 7,
+    "absent": [
+      "awa.journey.mood_end"
+    ],
+    "metrics": [
+      {
+        "name": "awa.journey.started",
+        "unit": "1",
+        "points": [
+          {
+            "attributes": {
+              "journey": "Order"
+            },
+            "value": 4
+          }
+        ]
+      },
+      {
+        "name": "awa.journey.completion_rate",
+        "unit": "1",
+        "points": [
+          {
+            "attributes": {
+              "journey": "Order"
+            },
+            "value": 0.5
+          }
+        ]
+      },
+      {
+        "name": "awa.stage.duration_median_ms",
+        "unit": "ms",
+        "points": [
+          {
+            "attributes": {
+              "journey": "Order",
+              "stage": "Placed"
+            },
+            "value": 3600000
+          }
+        ]
+      },
+      {
+        "name": "awa.workflow.success_rate",
+        "unit": "1",
+        "points": [
+          {
+            "attributes": {
+              "workflow": "Fulfil"
+            },
+            "value": 0.75
+          }
+        ]
+      },
+      {
+        "name": "awa.workflow.cost",
+        "unit": "{EUR}",
+        "points": [
+          {
+            "attributes": {
+              "workflow": "Fulfil"
+            },
+            "value": 0.04
+          }
+        ]
+      },
+      {
+        "name": "awa.workflow.input_tokens",
+        "unit": "{token}",
+        "points": [
+          {
+            "attributes": {
+              "workflow": "Fulfil"
+            },
+            "value": 400
+          }
+        ]
+      },
+      {
+        "name": "awa.activity.attempts",
+        "unit": "1",
+        "points": [
+          {
+            "attributes": {
+              "workflow": "Fulfil",
+              "activity": "Pack"
+            },
+            "value": 5
+          }
+        ]
+      }
+    ],
+    "time": "2026-03-31T00:00:00.000Z",
+    "start_time": "2026-03-01T00:00:00.000Z"
+  }
+}

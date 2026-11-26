@@ -1,0 +1,201 @@
+{
+  "id": "agent-asking-for-input-waits-for-the-host",
+  "level": "a2a",
+  "spec": "28.6",
+  "description": "A task that needs input parks the token. The input the host gives is sent on the same task, which is followed to its end; the outcome is then accepted as any other.",
+  "workflow": {
+    "id": "f2af28ed-5b31-565a-82a8-e938278e0bdd",
+    "name": "agent-asking-for-input-waits-for-the-host",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "cf507906-fcae-5768-8f66-1c17a993e21f",
+        "name": "Assess",
+        "role_id": "72fbca80-355a-57b3-8af7-4d599eb18d06",
+        "actor_type": "ai_agent",
+        "a2a": {
+          "agent_card": "https://agents.example/claims/.well-known/agent-card.json"
+        }
+      },
+      {
+        "id": "91fafcf4-6438-5ee4-9a03-e25380d8a65b",
+        "name": "Settle",
+        "role_id": "72fbca80-355a-57b3-8af7-4d599eb18d06",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "407c8370-0f3b-5ca8-8950-51132b3384f3",
+        "source_id": "cf507906-fcae-5768-8f66-1c17a993e21f",
+        "target_id": "91fafcf4-6438-5ee4-9a03-e25380d8a65b"
+      }
+    ]
+  },
+  "input": {
+    "claim_id": "C-7"
+  },
+  "deliver": [
+    {
+      "agent_input": {
+        "policy": "P-9"
+      },
+      "resumes": 1
+    }
+  ],
+  "agents": {
+    "https://agents.example/claims/.well-known/agent-card.json": {
+      "card": {
+        "name": "Claims assessor",
+        "description": "Claims assessor, reached over A2A",
+        "version": "1.0.0",
+        "supportedInterfaces": [
+          {
+            "url": "https://agents.example/claims/a2a",
+            "protocolBinding": "JSONRPC",
+            "protocolVersion": "1.0"
+          }
+        ],
+        "capabilities": {
+          "streaming": false,
+          "pushNotifications": false
+        },
+        "defaultInputModes": [
+          "application/json",
+          "text/plain"
+        ],
+        "defaultOutputModes": [
+          "application/json"
+        ],
+        "skills": [
+          {
+            "id": "assess",
+            "name": "Assess",
+            "description": "Assess a claim",
+            "tags": [
+              "claims"
+            ]
+          }
+        ]
+      },
+      "replies": [
+        {
+          "result": {
+            "task": {
+              "id": "task-1",
+              "contextId": "ctx-1",
+              "status": {
+                "state": "TASK_STATE_INPUT_REQUIRED",
+                "message": {
+                  "messageId": "m-input_required",
+                  "role": "ROLE_AGENT",
+                  "parts": [
+                    {
+                      "text": "Which policy covers the claim?"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "result": {
+            "task": {
+              "id": "task-1",
+              "contextId": "ctx-1",
+              "status": {
+                "state": "TASK_STATE_COMPLETED"
+              },
+              "artifacts": [
+                {
+                  "artifactId": "a0",
+                  "parts": [
+                    {
+                      "data": {
+                        "decision": "approve"
+                      },
+                      "mediaType": "application/json"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "Settle"
+    ],
+    "data": {
+      "decision": "approve"
+    },
+    "journal": [
+      "activity.started",
+      "agent.message_sent",
+      "agent.task_updated",
+      "token.waiting",
+      "run.waiting",
+      "token.resumed",
+      "activity.started",
+      "agent.message_sent",
+      "agent.task_updated",
+      "activity.completed"
+    ],
+    "journal_contains": [
+      {
+        "type": "token.waiting",
+        "node_name": "Assess",
+        "data": {
+          "reason": "agent_input",
+          "agent": "https://agents.example/claims/.well-known/agent-card.json",
+          "task_id": "task-1",
+          "context_id": "ctx-1"
+        }
+      },
+      {
+        "type": "run.waiting",
+        "data": {
+          "waiting_for": "human"
+        }
+      },
+      {
+        "type": "agent.message_sent",
+        "data": {
+          "task_id": "task-1",
+          "context_id": "ctx-1"
+        }
+      }
+    ],
+    "journal_excludes": [
+      "activity.failed"
+    ],
+    "agent_requests": [
+      "SendMessage",
+      "SendMessage"
+    ],
+    "agent_requests_contain": [
+      {
+        "method": "SendMessage",
+        "params": {
+          "message": {
+            "taskId": "task-1",
+            "contextId": "ctx-1",
+            "parts": [
+              {
+                "data": {
+                  "policy": "P-9"
+                }
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}

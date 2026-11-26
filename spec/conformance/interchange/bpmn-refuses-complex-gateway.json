@@ -1,0 +1,11 @@
+{
+  "id": "bpmn-refuses-complex-gateway",
+  "level": "interchange",
+  "spec": "27.8",
+  "kind": "import_bpmn",
+  "description": "A complex gateway's activation rule has no AWA counterpart.",
+  "bpmn": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<bpmn:definitions xmlns:bpmn=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:awa=\"https://awa.io/schema/interchange/1.1\" id=\"Definitions_refused\" targetNamespace=\"https://example.com/bpmn\">\n<bpmn:process id=\"P\" name=\"Refused\">\n<bpmn:startEvent id=\"S\"/><bpmn:complexGateway id=\"G1\"/><bpmn:endEvent id=\"E\"/><bpmn:sequenceFlow id=\"F1\" sourceRef=\"S\" targetRef=\"G1\"/>\n<bpmn:sequenceFlow id=\"F2\" sourceRef=\"G1\" targetRef=\"E\"/>\n</bpmn:process>\n</bpmn:definitions>\n",
+  "expect": {
+    "error_matches": "complexGateway \"G1\""
+  }
+}

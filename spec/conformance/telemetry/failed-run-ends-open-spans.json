@@ -1,0 +1,247 @@
+{
+  "id": "failed-run-ends-open-spans",
+  "level": "telemetry",
+  "spec": "26.3",
+  "description": "A failed run is an error described by its first error. A token that is cancelled ends its open spans, unset, after the cancellation is recorded on the innermost of them.",
+  "decision_nodes": [],
+  "journal": [
+    {
+      "spec_version": "1.1",
+      "id": "e661b3da-8041-5ce2-bbcb-9bf11671e1e5",
+      "run_id": "c38a0d1a-e92b-555d-9043-4af09845d34c",
+      "seq": 1,
+      "time": "2026-03-02T09:00:00.000Z",
+      "type": "run.started",
+      "level": "execution",
+      "workflow_id": "5806b45a-53ed-5d30-966f-b4054c4ef28f",
+      "data": {
+        "workflow_name": "Post",
+        "input": {},
+        "simulate": false
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "5bf3b41b-f0fb-5b17-afb7-f9e125003a23",
+      "run_id": "c38a0d1a-e92b-555d-9043-4af09845d34c",
+      "seq": 2,
+      "time": "2026-03-02T09:00:00.000Z",
+      "type": "token.created",
+      "level": "execution",
+      "workflow_id": "5806b45a-53ed-5d30-966f-b4054c4ef28f",
+      "token_id": "637ce7a3-394b-5a83-a6b7-f477d9ad8def",
+      "node_id": "dbcd58dd-0740-5a57-93f1-b41020d04cad",
+      "node_name": "Post ledger",
+      "data": {}
+    },
+    {
+      "spec_version": "1.1",
+      "id": "cf49cb6f-a30d-5ec2-8fd7-731ee4ef688a",
+      "run_id": "c38a0d1a-e92b-555d-9043-4af09845d34c",
+      "seq": 3,
+      "time": "2026-03-02T09:00:00.000Z",
+      "type": "token.created",
+      "level": "execution",
+      "workflow_id": "5806b45a-53ed-5d30-966f-b4054c4ef28f",
+      "token_id": "16202bb6-7a71-5066-84d5-a371dd2d2efd",
+      "node_id": "f8daaf15-8d5c-5f28-a942-d6324e3807b6",
+      "node_name": "Write letter",
+      "data": {
+        "parent_token_id": "637ce7a3-394b-5a83-a6b7-f477d9ad8def",
+        "reason": "parallel_split"
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "4eac9499-e782-5d15-a672-8de051280e23",
+      "run_id": "c38a0d1a-e92b-555d-9043-4af09845d34c",
+      "seq": 4,
+      "time": "2026-03-02T09:00:00.001Z",
+      "type": "activity.started",
+      "level": "execution",
+      "workflow_id": "5806b45a-53ed-5d30-966f-b4054c4ef28f",
+      "token_id": "637ce7a3-394b-5a83-a6b7-f477d9ad8def",
+      "node_id": "dbcd58dd-0740-5a57-93f1-b41020d04cad",
+      "node_name": "Post ledger",
+      "attempt": 1,
+      "data": {
+        "actor_type": "application",
+        "input": {}
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "bd993ddc-0038-57cb-b108-bb3ca03598cb",
+      "run_id": "c38a0d1a-e92b-555d-9043-4af09845d34c",
+      "seq": 5,
+      "time": "2026-03-02T09:00:00.002Z",
+      "type": "activity.started",
+      "level": "execution",
+      "workflow_id": "5806b45a-53ed-5d30-966f-b4054c4ef28f",
+      "token_id": "16202bb6-7a71-5066-84d5-a371dd2d2efd",
+      "node_id": "f8daaf15-8d5c-5f28-a942-d6324e3807b6",
+      "node_name": "Write letter",
+      "attempt": 1,
+      "data": {
+        "actor_type": "ai_agent",
+        "input": {}
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "11187b91-4b94-5cc2-a5e4-27e3b2b64008",
+      "run_id": "c38a0d1a-e92b-555d-9043-4af09845d34c",
+      "seq": 6,
+      "time": "2026-03-02T09:00:00.050Z",
+      "type": "activity.failed",
+      "level": "execution",
+      "workflow_id": "5806b45a-53ed-5d30-966f-b4054c4ef28f",
+      "token_id": "637ce7a3-394b-5a83-a6b7-f477d9ad8def",
+      "node_id": "dbcd58dd-0740-5a57-93f1-b41020d04cad",
+      "node_name": "Post ledger",
+      "attempt": 1,
+      "data": {
+        "error": {
+          "message": "Ledger unavailable",
+          "code": "LEDGER_DOWN"
+        },
+        "retryable": false,
+        "duration_ms": 49
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "6dd06a50-a78b-5c4e-9862-5d46ad377428",
+      "run_id": "c38a0d1a-e92b-555d-9043-4af09845d34c",
+      "seq": 7,
+      "time": "2026-03-02T09:00:00.050Z",
+      "type": "activity.dead_lettered",
+      "level": "execution",
+      "workflow_id": "5806b45a-53ed-5d30-966f-b4054c4ef28f",
+      "token_id": "637ce7a3-394b-5a83-a6b7-f477d9ad8def",
+      "node_id": "dbcd58dd-0740-5a57-93f1-b41020d04cad",
+      "node_name": "Post ledger",
+      "attempt": 1,
+      "data": {
+        "error": {
+          "message": "Ledger unavailable",
+          "code": "LEDGER_DOWN"
+        },
+        "attempts": 1
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "829a37e2-e85b-51de-9416-c6231947497e",
+      "run_id": "c38a0d1a-e92b-555d-9043-4af09845d34c",
+      "seq": 8,
+      "time": "2026-03-02T09:00:00.050Z",
+      "type": "token.failed",
+      "level": "execution",
+      "workflow_id": "5806b45a-53ed-5d30-966f-b4054c4ef28f",
+      "token_id": "637ce7a3-394b-5a83-a6b7-f477d9ad8def",
+      "node_id": "dbcd58dd-0740-5a57-93f1-b41020d04cad",
+      "node_name": "Post ledger",
+      "data": {
+        "error": {
+          "message": "Ledger unavailable",
+          "code": "LEDGER_DOWN"
+        }
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "02c1ed23-9b2f-54dc-9be5-455e2302dd05",
+      "run_id": "c38a0d1a-e92b-555d-9043-4af09845d34c",
+      "seq": 9,
+      "time": "2026-03-02T09:00:00.051Z",
+      "type": "token.cancelled",
+      "level": "execution",
+      "workflow_id": "5806b45a-53ed-5d30-966f-b4054c4ef28f",
+      "token_id": "16202bb6-7a71-5066-84d5-a371dd2d2efd",
+      "node_id": "f8daaf15-8d5c-5f28-a942-d6324e3807b6",
+      "node_name": "Write letter",
+      "data": {
+        "reason": "run_failed"
+      }
+    },
+    {
+      "spec_version": "1.1",
+      "id": "350527d2-700c-502b-88fe-5e556a9c1328",
+      "run_id": "c38a0d1a-e92b-555d-9043-4af09845d34c",
+      "seq": 10,
+      "time": "2026-03-02T09:00:00.052Z",
+      "type": "run.failed",
+      "level": "execution",
+      "workflow_id": "5806b45a-53ed-5d30-966f-b4054c4ef28f",
+      "data": {
+        "duration_ms": 52,
+        "steps": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cost": 0,
+        "currency": "EUR",
+        "errors": [
+          {
+            "token_id": "637ce7a3-394b-5a83-a6b7-f477d9ad8def",
+            "node_id": "dbcd58dd-0740-5a57-93f1-b41020d04cad",
+            "message": "Ledger unavailable"
+          }
+        ]
+      }
+    }
+  ],
+  "options": {
+    "payloads": false
+  },
+  "expect": {
+    "trace_id": "1d0ad1a78c924de122efc7640099ca6d",
+    "span_count": 3,
+    "spans": [
+      {
+        "span_id": "38854980d11b47cd",
+        "status": "error",
+        "status_message": "Ledger unavailable",
+        "end": "2026-03-02T09:00:00.052Z",
+        "attributes": {
+          "awa.run.status": "failed"
+        },
+        "events": [
+          "token.created",
+          "token.created",
+          "activity.dead_lettered",
+          "token.failed"
+        ],
+        "events_contain": [
+          {
+            "name": "token.failed",
+            "attributes": {
+              "awa.data.error": "{\"code\":\"LEDGER_DOWN\",\"message\":\"Ledger unavailable\"}"
+            }
+          }
+        ]
+      },
+      {
+        "span_id": "9a1b3295492cbc6e",
+        "status": "error",
+        "status_message": "Ledger unavailable",
+        "end": "2026-03-02T09:00:00.050Z",
+        "attributes": {
+          "error.type": "LEDGER_DOWN",
+          "awa.error.retryable": false
+        }
+      },
+      {
+        "span_id": "bb84ec87ca50a76c",
+        "status": "unset",
+        "end": "2026-03-02T09:00:00.051Z",
+        "events": [
+          "token.cancelled"
+        ],
+        "absent": [
+          "error.type"
+        ]
+      }
+    ]
+  }
+}

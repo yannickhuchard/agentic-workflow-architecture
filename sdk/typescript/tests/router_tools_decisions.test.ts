@@ -346,10 +346,11 @@ describe('Tools', () => {
         }, { max_calls: 3 });
 
         expect((await run.call('nope', {})).result).toMatchObject({ code: 'UNKNOWN_TOOL' });
-        expect((await run.call('search', { q: 'x' })).result).toMatchObject({ code: 'VALIDATION_ERROR', error: expect.stringMatching(/No executor is registered for "mcp"/) });
+        // The engine has an MCP executor (17.7), but a binding reaches only a server the deployment declares
+        expect((await run.call('search', { q: 'x' })).result).toMatchObject({ code: 'PERMISSION_DENIED', error: expect.stringMatching(/declares no MCP server "docs"/) });
         expect((await run.call('slow', {})).result).toMatchObject({ code: 'TIMEOUT' });
         expect((await run.call('slow', {})).result).toMatchObject({ code: 'TOOL_BUDGET_EXCEEDED' });
-        expect(events.find(e => e.data.tool === 'search' && e.type === 'tool.invoked')!.data.link).toBe('mcp://docs/search');
+        expect(events.find(e => e.data.tool === 'search' && e.type === 'tool.failed')!.data).toMatchObject({ link: 'mcp://docs/search', invoked: false });
     });
 
     it('applies the tool timeout to registered function handlers', async () => {

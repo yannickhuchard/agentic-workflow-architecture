@@ -1,0 +1,96 @@
+{
+  "id": "bpmn-parallel-gateways",
+  "level": "interchange",
+  "spec": "27.4",
+  "kind": "import_bpmn",
+  "description": "A diverging parallel gateway is an intermediate event that splits; a converging one before a task is that task's join \"all\". An unnamed process takes its participant's name.",
+  "bpmn": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<bpmn:definitions xmlns:bpmn=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:awa=\"https://awa.io/schema/interchange/1.1\" id=\"Definitions_and\" targetNamespace=\"https://example.com/bpmn\">\n<bpmn:collaboration id=\"C\"><bpmn:participant id=\"Pool\" name=\"Parallel checks\" processRef=\"P\"/></bpmn:collaboration>\n<bpmn:process id=\"P\">\n<bpmn:startEvent id=\"S\"/>\n<bpmn:parallelGateway id=\"Gs\" name=\"Split\"/>\n<bpmn:serviceTask id=\"T_a\" name=\"Check identity\"/>\n<bpmn:serviceTask id=\"T_b\" name=\"Check credit\"/>\n<bpmn:parallelGateway id=\"Gj\"/>\n<bpmn:serviceTask id=\"T_c\" name=\"Decide\"/>\n<bpmn:endEvent id=\"E\"/>\n<bpmn:sequenceFlow id=\"F1\" sourceRef=\"S\" targetRef=\"Gs\"/>\n<bpmn:sequenceFlow id=\"F2\" sourceRef=\"Gs\" targetRef=\"T_a\"/>\n<bpmn:sequenceFlow id=\"F3\" sourceRef=\"Gs\" targetRef=\"T_b\"/>\n<bpmn:sequenceFlow id=\"F4\" sourceRef=\"T_a\" targetRef=\"Gj\"/>\n<bpmn:sequenceFlow id=\"F5\" sourceRef=\"T_b\" targetRef=\"Gj\"/>\n<bpmn:sequenceFlow id=\"F6\" sourceRef=\"Gj\" targetRef=\"T_c\"/>\n<bpmn:sequenceFlow id=\"F7\" sourceRef=\"T_c\" targetRef=\"E\"/>\n</bpmn:process>\n</bpmn:definitions>\n",
+  "expect": {
+    "documents": [
+      {
+        "id": "91e98ba0-05fe-5ae7-852d-8499e09a4bed",
+        "name": "Parallel checks",
+        "version": "1.0.0",
+        "awa_version": "1.1",
+        "roles": [
+          {
+            "id": "173419c9-9706-5eab-bfe6-62ab6579b2eb",
+            "name": "Application",
+            "actor_type": "application"
+          }
+        ],
+        "activities": [
+          {
+            "id": "97ce307c-5afb-53a5-93cc-b80821472791",
+            "name": "Check identity",
+            "role_id": "173419c9-9706-5eab-bfe6-62ab6579b2eb",
+            "actor_type": "application"
+          },
+          {
+            "id": "59cc9b13-9680-5354-8e25-666958eedc8c",
+            "name": "Check credit",
+            "role_id": "173419c9-9706-5eab-bfe6-62ab6579b2eb",
+            "actor_type": "application"
+          },
+          {
+            "id": "6369132f-a1ba-5ab2-b7b1-1970ab700a49",
+            "name": "Decide",
+            "role_id": "173419c9-9706-5eab-bfe6-62ab6579b2eb",
+            "actor_type": "application",
+            "join": "all"
+          }
+        ],
+        "edges": [
+          {
+            "id": "19ae5ad9-3991-552e-bfcd-c4aa3a431951",
+            "source_id": "02b3150e-749b-5f6f-b25b-ffecaa1094a4",
+            "target_id": "e83182ef-1de0-51f6-ab88-19728daa7718"
+          },
+          {
+            "id": "a2565d10-84bf-5c36-9cc7-0cecc54227b8",
+            "source_id": "e83182ef-1de0-51f6-ab88-19728daa7718",
+            "target_id": "97ce307c-5afb-53a5-93cc-b80821472791"
+          },
+          {
+            "id": "a2281a75-4b61-5dff-898c-13ccd5cc1889",
+            "source_id": "e83182ef-1de0-51f6-ab88-19728daa7718",
+            "target_id": "59cc9b13-9680-5354-8e25-666958eedc8c"
+          },
+          {
+            "id": "1ce2def7-1ad8-5504-aa8b-585bd9dd9cca",
+            "source_id": "97ce307c-5afb-53a5-93cc-b80821472791",
+            "target_id": "6369132f-a1ba-5ab2-b7b1-1970ab700a49"
+          },
+          {
+            "id": "cfca2503-c4e4-5030-8869-21e315aeb251",
+            "source_id": "59cc9b13-9680-5354-8e25-666958eedc8c",
+            "target_id": "6369132f-a1ba-5ab2-b7b1-1970ab700a49"
+          },
+          {
+            "id": "5e262ff2-7a5c-5666-af84-3412056b2acd",
+            "source_id": "6369132f-a1ba-5ab2-b7b1-1970ab700a49",
+            "target_id": "ee99e9c9-0afe-5127-8f8d-1acf1d0bfdfc"
+          }
+        ],
+        "events": [
+          {
+            "id": "02b3150e-749b-5f6f-b25b-ffecaa1094a4",
+            "name": "S",
+            "event_type": "start"
+          },
+          {
+            "id": "e83182ef-1de0-51f6-ab88-19728daa7718",
+            "name": "Split",
+            "event_type": "intermediate",
+            "bpmn:gateway": "parallel"
+          },
+          {
+            "id": "ee99e9c9-0afe-5127-8f8d-1acf1d0bfdfc",
+            "name": "E",
+            "event_type": "end"
+          }
+        ]
+      }
+    ]
+  }
+}

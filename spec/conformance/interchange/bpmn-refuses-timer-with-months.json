@@ -1,0 +1,11 @@
+{
+  "id": "bpmn-refuses-timer-with-months",
+  "level": "interchange",
+  "spec": "27.8",
+  "kind": "import_bpmn",
+  "description": "Months have no fixed length.",
+  "bpmn": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<bpmn:definitions xmlns:bpmn=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:awa=\"https://awa.io/schema/interchange/1.1\" id=\"Definitions_refused\" targetNamespace=\"https://example.com/bpmn\">\n<bpmn:process id=\"P\" name=\"Refused\">\n<bpmn:startEvent id=\"S\"/><bpmn:intermediateCatchEvent id=\"W\"><bpmn:timerEventDefinition id=\"TD\"><bpmn:timeDuration xsi:type=\"bpmn:tFormalExpression\">P1M</bpmn:timeDuration></bpmn:timerEventDefinition></bpmn:intermediateCatchEvent><bpmn:endEvent id=\"E\"/><bpmn:sequenceFlow id=\"F1\" sourceRef=\"S\" targetRef=\"W\"/>\n<bpmn:sequenceFlow id=\"F2\" sourceRef=\"W\" targetRef=\"E\"/>\n</bpmn:process>\n</bpmn:definitions>\n",
+  "expect": {
+    "error_matches": "intermediateCatchEvent \"W\".*P1M"
+  }
+}

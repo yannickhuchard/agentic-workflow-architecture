@@ -7,6 +7,9 @@ import { parse_document } from '../../validator';
 import { FileJournalStore } from '../../runtime/journal';
 import { EmbeddedModelProvider, ModelProvider, OpenAIModelProvider, ollama_provider, tier_fallbacks } from '../../runtime/models';
 import { FilePersistenceAdapter } from '../../runtime/persistence';
+import { load_deployment } from '../deployment';
+import { shared_telemetry_from_env } from '../../runtime/telemetry_export';
+import { principal_named } from '../../runtime/authorization';
 
 export const runCommand = new Command('run')
     .description('Run a workflow file')
@@ -17,10 +20,13 @@ export const runCommand = new Command('run')
     .option('-s, --simulate', 'Run in simulation mode (no real API calls)')
     .option('-p, --providers <list>', 'Model providers in order of preference, comma separated: google, openai, ollama, embedded. Each capability tier falls back down the list')
     .option('--allow-commands [list]', 'Let tools run commands on this machine: all, or a comma-separated list of program names')
+    .option('--deployment <file>', 'JSON file saying what the workflow may reach: tools.allow_commands, tools.allowed_hosts, tools.mcp_servers, tools.grpc, a2a; and who may do what: authorization')
+    .option('--as <principal>', 'Start the run as this principal, by its id in the deployment\'s authorization.principals. Default: the host')
     .option('--outputs <file>', 'With --simulate: JSON file giving what each activity returns, by activity name')
     .option('-j, --journal <file>', 'Write the execution journal to this .jsonl file')
     .option('-c, --checkpoint-dir <dir>', 'Checkpoint the run state to this directory after every step')
     .option('-i, --input <json>', 'Initial data for the run, as a JSON object')
+    .option('-w, --workflows <files...>', 'Workflow documents that call activities may run as child runs (spec 24); the workflow itself is always one')
     .action(async (file, options) => {
         try {
             const filePath = path.resolve(process.cwd(), file);
@@ -66,16 +72,32 @@ export const runCommand = new Command('run')
                 }
             }
 
+            const deployment = options.deployment ? load_deployment(path.resolve(process.cwd(), options.deployment)) : undefined;
+            // OTEL_EXPORTER_OTLP_ENDPOINT and its family send the run's spans as it proceeds (spec 26.11)
+            const telemetry = shared_telemetry_from_env();
             const engine = new WorkflowEngine(workflow, {
+                ...(deployment?.a2a ? { a2a: deployment.a2a } : {}),
+                // Who may do what, and who starts the run (spec 30)
+                ...(deployment?.authorization ? { authorization: deployment.authorization } : {}),
+                ...(options.as ? { principal: principal_named(deployment?.authorization, String(options.as)) } : {}),
+                ...(deployment?.guardrails.length ? { guardrails: deployment.guardrails } : {}),
+                telemetry,
                 ...(names.length ? {
                     model_providers: providers,
                     default_model_provider: names[0],
                     model_tiers: tier_fallbacks(names),
                     default_ai_model_id: 'tier:balanced',
                 } : {}),
+                // A call activity runs one of these as a child run: the workflow itself, and those given (spec 24.1)
+                subworkflows: {
+                    workflows: [workflow, ...await Promise.all(((options.workflows as string[] | undefined) || [])
+                        .map(async (f: string) => parse_document(JSON.parse(await fs.readFile(path.resolve(process.cwd(), f), 'utf-8')))))],
+                },
                 tools: {
+                    ...(deployment?.tools || {}),
                     allow_commands: options.allowCommands === true ? true
-                        : typeof options.allowCommands === 'string' ? options.allowCommands.split(',').map((c: string) => c.trim()) : false,
+                        : typeof options.allowCommands === 'string' ? options.allowCommands.split(',').map((c: string) => c.trim())
+                            : deployment?.tools.allow_commands ?? false,
                 },
                 gemini_api_key: names.length && !names.includes('google') ? undefined : apiKey,
                 simulate: options.simulate,
@@ -116,7 +138,12 @@ export const runCommand = new Command('run')
 
             const status = await execute();
             await engine.getEvents();
+            // Spans still queued leave before the command ends; this waits at most the export timeout
+            await telemetry?.exporter?.flush?.();
             console.log(`Workflow finished with status: ${status}`);
+            for (const child of engine.getSubworkflowRuns()) {
+                console.log(`${'  '.repeat(child.depth)}Child run ${child.run_id} of ${child.workflow_name}: ${child.status}`);
+            }
             if (options.journal) {
                 console.log(`Journal written to ${options.journal}`);
             }
