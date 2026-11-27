@@ -1,5 +1,5 @@
 {
-  "about": "What the scripted actors of this example do, by activity name: the tools they call, the time they take and what they return. A scenario overrides an entry, or one attempt of it, under its own `actors`. Read by scenarios/play.mjs (TypeScript) and sdk/python/tests/test_life_insurance_savings.py (Python), which fill the {{...}} placeholders from the activity's input, the results of the calls and the scenario. `takes` is the business time the work takes; `delay_ms` is how long the live demonstration lets it take.",
+  "about": "What the scripted actors of this example do, by activity name: the tools they call, the time they take and what they return. A scenario overrides an entry, or one attempt of it, under its own `actors`. Read by scenarios/play.mjs (TypeScript) and sdk/python/tests/test_life_insurance_savings.py (Python), which fill the {{path}} placeholders from the activity's input, the results of the calls and the scenario. `takes` is the business time the work takes; `delay_ms` is how long the live demonstration lets it take.",
   "activities": {
     "Register enrolment": {
       "takes": "PT15S", "delay_ms": 600,
