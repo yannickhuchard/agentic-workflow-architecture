@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { registerAppResource, registerAppTool, RESOURCE_MIME_TYPE } from '@modelcontextprotocol/ext-apps/server';
-import { RELEASE } from './sdk.js';
+import { RELEASE, brand_module } from './sdk.js';
 import { LIMITS } from './limits.js';
 import * as S from './schemas.js';
 import { WIDGETS, widget_html } from './widgets.js';
@@ -25,6 +25,24 @@ export const INSTRUCTIONS = [
     'Validate a document before showing or simulating it when the user wrote or edited it. Report problems in the plain words the tool returns.',
     'If the user has no document yet, call load_claims_example.',
 ].join(' ');
+
+/**
+ * A brand given to a tool, checked as the view will read it: refused when it cannot be read or its logo is not a data: URL.
+ * Returns undefined without a brand, else { brand: what the view is given, warnings: what the view will leave out or adjust }.
+ */
+function brand_of(given) {
+    if (given === undefined) return undefined;
+    const B = brand_module(), read = B.read_brand(given, { data_only: true });
+    if (read.invalid) throw new DocumentError(`The brand could not be read: ${read.warnings.join(' ')}`);
+    const logo = read.warnings.find(w => /must be a data: URL/.test(w));
+    if (logo) throw new DocumentError(`The brand's ${logo.split(' ')[0]} must be a data: URL (such as data:image/svg+xml;base64,...): this server reaches no network, and neither does the view.`);
+    const warnings = [...read.warnings, ...B.palette(read, { prefers_dark: true }).warnings].map(w => String(w).slice(0, 300)).slice(0, 20);
+    return { brand: given, name: read.name, warnings };
+}
+/** The parts of a result a brand adds: in the summary, its name and what was adjusted; for the view, the brand itself */
+const with_brand = (branded, structured, meta) => (branded
+    ? [{ ...structured, brand: { name: branded.name || null, warnings: branded.warnings } }, { ...meta, awa: { ...meta.awa, brand: branded.brand } }]
+    : [structured, meta]);
 
 const text_result = (text, structuredContent, meta) => ({ content: [{ type: 'text', text }], ...(structuredContent ? { structuredContent } : {}), ...(meta ? { _meta: meta } : {}) });
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
@@ -55,15 +73,15 @@ function scripted(outputs) {
     return Object.fromEntries(Object.entries(outputs).map(([name, entry]) => [name, { ...step(entry), ...(entry.attempts ? { attempts: entry.attempts.map(step) } : {}) }]));
 }
 
-function journeys_result(story, played, extra = {}) {
+function journeys_result(story, played, extra = {}, branded) {
     const summary = story_summary(story);
     const customers = summary.journeys.reduce((n, j) => n + j.customers.length, 0);
     const empty = 'No journey has started: none of the events played is one that begins a journey (a trigger with starts_journey), or its data lacks the property that identifies the subject.';
     const text = summary.journeys.length
         ? `Simulated: ${plural(summary.journeys.length, 'journey')}, ${plural(customers, 'journey record')}. ${summary.journeys.map(j => `${j.name}: ${j.customers.map(c => `${c.name} (${c.outcome || 'under way'})`).join(', ')}`).join('. ')}. Tools and models were simulated; nothing was executed.`
         : empty;
-    return text_result(text, { simulated: true, ...summary, ...(played ? { events_played: played } : {}), ...extra },
-        { awa: { view: 'journeys', story, source: 'simulated', ...(summary.journeys.length ? {} : { empty }) } });
+    return text_result(text, ...with_brand(branded, { simulated: true, ...summary, ...(played ? { events_played: played } : {}), ...extra },
+        { awa: { view: 'journeys', story, source: 'simulated', ...(summary.journeys.length ? {} : { empty }) } }));
 }
 
 /**
@@ -100,6 +118,7 @@ export async function createMcpServer({ widget_domain = process.env.AWA_MCP_WIDG
      */
     function tool(name, title, description, shape, handler, { widget, invoking, invoked } = {}) {
         const securitySchemes = [{ type: 'noauth' }];
+        if (shape.brand) description += ' Pass brand (a DESIGN.md text or a brand.json, with any logo as a data: URL) to show the view in a company\'s colours, fonts and logo; the colours of states keep their meaning.';
         const input = z.strictObject(shape);
         const resourceUri = widget ? WIDGETS[widget].uri : undefined;
         const config = {
@@ -140,13 +159,14 @@ export async function createMcpServer({ widget_domain = process.env.AWA_MCP_WIDG
 
     tool('show_workflow', 'Show a workflow and its data',
         'Show an AWA workflow as a graph: activities with their actor type (human, AI agent, robot, application) and role, decisions, events and edges, and the data that moves: what each activity takes in and gives out, the contexts it reads and writes, and the access it needs. A view of the definition only; nothing runs. Returns the same facts as structured content.',
-        { workflow: S.json_document('The workflow').describe('The workflow document, as JSON.') },
+        { workflow: S.json_document('The workflow').describe('The workflow document, as JSON.'), brand: S.brand.optional() },
         async args => {
+            const branded = brand_of(args.brand);
             const workflow = await require_workflow(args.workflow);
             const data = workflow_data_view(workflow);
             const c = data.counts;
             const text = `${data.workflow.name} v${data.workflow.version}: ${`${c.activities} ${c.activities === 1 ? "activity" : "activities"}`}, ${plural(c.decisions, 'decision')}, ${plural(c.events, 'event')}, ${plural(c.roles, 'role')}, ${plural(c.contexts, 'context')}. Actors: ${Object.entries(data.actor_types).map(([t, n]) => `${n} ${t}`).join(', ') || 'none'}. ${plural(data.data.length, 'named data item')} move between activities.`;
-            return text_result(text, data, { awa: { view: 'workflow', workflow, data } });
+            return text_result(text, ...with_brand(branded, data, { awa: { view: 'workflow', workflow, data } }));
         }, { widget: 'workflow', invoking: 'Drawing the workflow…', invoked: 'Workflow shown' });
 
     tool('simulate_workflow', 'Simulate a workflow run',
@@ -160,8 +180,10 @@ export async function createMcpServer({ widget_domain = process.env.AWA_MCP_WIDG
             let_waits_time_out: z.boolean().default(false).describe('When the run waits for an event that is not in events: true lets the wait run out on the simulated clock; false leaves the run waiting.'),
             pricing: S.pricing.optional(),
             start_time: S.iso_time.optional().describe('Where the simulated clock starts. Default: now.'),
+            brand: S.brand.optional(),
         },
         async args => {
+            const branded = brand_of(args.brand);
             const workflow = await require_workflow(args.workflow);
             const run = await simulate_workflow_run(workflow, {
                 input: args.input, outputs: scripted(args.simulated_outputs), tool_results: args.simulated_tool_results,
@@ -176,7 +198,7 @@ export async function createMcpServer({ widget_domain = process.env.AWA_MCP_WIDG
                 + (summary.stopped ? ` ${summary.stopped}` : '')
                 + (summary.hint ? ` ${summary.hint}` : '')
                 + ' Tools and models were simulated; nothing was executed.';
-            return text_result(text, summary, { awa: { view: 'run', workflow, journal: run.events, summary, data: workflow_data_view(workflow) } });
+            return text_result(text, ...with_brand(branded, summary, { awa: { view: 'run', workflow, journal: run.events, summary, data: workflow_data_view(workflow) } }));
         }, { widget: 'run', invoking: 'Simulating the run…', invoked: 'Simulated run ready' });
 
     const journey_inputs = {
@@ -193,8 +215,10 @@ export async function createMcpServer({ widget_domain = process.env.AWA_MCP_WIDG
             journeys: journey_inputs.journeys.optional(), workflows: journey_inputs.workflows.optional(),
             events: z.array(S.journey_event).max(LIMITS.events).optional().describe('With journeys and workflows: the business events to play, in order.'),
             simulated_outputs: journey_inputs.simulated_outputs, start_time: journey_inputs.start_time,
+            brand: S.brand.optional(),
         },
         async args => {
+            const branded = brand_of(args.brand);
             if (args.portfolio) {
                 if (args.journeys || args.workflows || args.events) throw new DocumentError('Give either a portfolio, or journeys with workflows and events, not both.');
                 const story = build_story(require_portfolio(args.portfolio));
@@ -202,11 +226,11 @@ export async function createMcpServer({ widget_domain = process.env.AWA_MCP_WIDG
                 const customers = summary.journeys.reduce((n, j) => n + j.customers.length, 0);
                 const empty = 'This portfolio holds no journey record yet.';
                 return text_result(summary.journeys.length ? `From the portfolio given: ${plural(summary.journeys.length, 'journey')}, ${plural(customers, 'journey record')}. ${summary.journeys.map(j => `${j.name}: ${j.customers.map(c => `${c.name} (${c.outcome || 'under way'})`).join(', ')}`).join('. ')}.` : empty,
-                    { simulated: false, source: 'portfolio given by the caller', ...summary }, { awa: { view: 'journeys', story, source: 'portfolio', ...(summary.journeys.length ? {} : { empty }) } });
+                    ...with_brand(branded, { simulated: false, source: 'portfolio given by the caller', ...summary }, { awa: { view: 'journeys', story, source: 'portfolio', ...(summary.journeys.length ? {} : { empty }) } }));
             }
             if (!args.journeys || !args.workflows) throw new DocumentError('Give a portfolio, or both journeys and workflows (with the events to play).');
             const { story, result } = await play(args);
-            return journeys_result(story, result.played, result.stopped ? { stopped: result.stopped } : {});
+            return journeys_result(story, result.played, result.stopped ? { stopped: result.stopped } : {}, branded);
         }, { widget: 'journeys', invoking: 'Opening the journey view…', invoked: 'Journeys shown' });
 
     tool('simulate_journey', 'Simulate customer journeys',
@@ -217,27 +241,30 @@ export async function createMcpServer({ widget_domain = process.env.AWA_MCP_WIDG
             simulated_tool_results: S.simulated_tool_results.optional(),
             then_wait: S.iso_duration.optional().describe('Simulated time to let pass after the last event, so that deadlines run out and stalled journeys show.'),
             pricing: S.pricing.optional(),
+            brand: S.brand.optional(),
         },
         async args => {
+            const branded = brand_of(args.brand);
             const { story, result } = await play(args);
             return journeys_result(story, result.played, {
                 ...(result.stopped ? { stopped: result.stopped } : {}),
                 ...(result.commands_not_called.length ? { commands_not_called: result.commands_not_called } : {}),
                 runs: result.portfolio.journeys.flatMap(j => j.instances.flatMap(i => i.instance.runs.map(r => ({ journey: String(j.definition.name).slice(0, 120), subject: String(i.instance.subject_key).slice(0, 80), workflow: String(r.workflow_name).slice(0, 120), status: String(r.status).slice(0, 40) })))).slice(0, 200),
-            });
+            }, branded);
         }, { widget: 'journeys', invoking: 'Simulating the journeys…', invoked: 'Simulated journeys ready' });
 
     const example_names = Object.keys(EXAMPLE_DOCUMENTS);
     tool('load_claims_example', 'Load the claims example',
         'Open the example bundled with AWA: six fictional customers who buy a motor policy, make a claim and come up for renewal, across three journeys and five workflows. The records were produced by a scripted simulation; no customer or claim is real. Shows the journey view. Pass document to also get one of the example\'s documents as JSON, to show, validate or simulate it with the other tools.',
-        { document: z.enum(example_names).optional().describe('One document of the example to return as JSON.') },
+        { document: z.enum(example_names).optional().describe('One document of the example to return as JSON.'), brand: S.brand.optional() },
         async args => {
+            const branded = brand_of(args.brand);
             const story = example_story();
             const summary = story_summary(story);
             const document = args.document ? example_document(args.document) : undefined;
             return text_result(`The bundled claims example (fictional, produced by a scripted simulation): ${summary.journeys.map(j => `${j.name} with ${plural(j.customers.length, 'customer')}`).join(', ')}. Documents available with the document argument: ${example_names.join(', ')}.${args.document ? ` The document "${args.document}" is in the structured content.` : ''}`,
-                { example: 'claims-journey', simulated: true, fictional: true, ...summary, documents: example_names, ...(document ? { document: { name: args.document, content: document } } : {}) },
-                { awa: { view: 'journeys', story, source: 'example: six customers, three journeys (fictional)' } });
+                ...with_brand(branded, { example: 'claims-journey', simulated: true, fictional: true, ...summary, documents: example_names, ...(document ? { document: { name: args.document, content: document } } : {}) },
+                    { awa: { view: 'journeys', story, source: 'example: six customers, three journeys (fictional)' } }));
         }, { widget: 'journeys', invoking: 'Loading the claims example…', invoked: 'Claims example shown' });
 
     tool('show_dashboard', 'Show the measures dashboard',
@@ -251,8 +278,10 @@ export async function createMcpServer({ widget_domain = process.env.AWA_MCP_WIDG
             use_claims_example: z.boolean().optional().describe('Measure the bundled fictional claims example.'),
             from: S.iso_time.optional().describe('Keep journeys and runs started at or after this instant.'),
             to: S.iso_time.optional().describe('Keep journeys and runs started before this instant.'),
+            brand: S.brand.optional(),
         },
         async args => {
+            const branded = brand_of(args.brand);
             const given = [args.portfolio, args.journeys || args.workflows || args.events, args.use_claims_example].filter(Boolean).length;
             if (given !== 1) throw new DocumentError('Give exactly one of: a portfolio; journeys with workflows and events; use_claims_example.');
             let portfolio, source, simulated;
@@ -268,7 +297,7 @@ export async function createMcpServer({ widget_domain = process.env.AWA_MCP_WIDG
             const sentence = n
                 ? `Measures of ${plural(n, 'journey')} and ${plural(t['workflow.runs']?.value || 0, 'run')}${simulated ? ' (simulated)' : ''}: ${done ? `${Math.round(done.value * done.of)} of ${done.of} reached the end` : 'none has ended'}; ${summary.needs_someone_now.length ? `${plural(summary.needs_someone_now.length, 'customer')} stuck (${summary.needs_someone_now.slice(0, 3).map(a => `${a.customer} in ${a.stage}${a.owner ? `, owner ${a.owner}` : ', no owner named'}`).join('; ')})` : 'nobody is stuck'}. Quote counts with rates: these are over few.`
                 : 'There is nothing to measure yet: no journey has started in what was given.';
-            return text_result(sentence, { simulated, source, ...summary }, { awa: { view: 'dashboard', record, source, ...(args.from || args.to ? { period: { ...(args.from ? { from: args.from } : {}), ...(args.to ? { to: args.to } : {}) } } : {}) } });
+            return text_result(sentence, ...with_brand(branded, { simulated, source, ...summary }, { awa: { view: 'dashboard', record, source, ...(args.from || args.to ? { period: { ...(args.from ? { from: args.from } : {}), ...(args.to ? { to: args.to } : {}) } } : {}) } }));
         }, { widget: 'dashboard', invoking: 'Computing the measures…', invoked: 'Measures shown' });
 
     // The SDK serialises only the standard fields of a tool. ChatGPT also reads a

@@ -20,6 +20,40 @@
  *   sentences?:    { [event type]: (name, data) => [title, sentence] }
  * }
  */
+// ---------------------------------------------------------------------------
+// How wide a node's name is, without a browser: the builder also runs in Node.
+// The width in pixels of each printable ASCII character at 12 px, semibold: the
+// wider of Inter 600 and Arial bold, so that a name measured here never takes
+// more room in the browser than it is given.
+// ---------------------------------------------------------------------------
+const GLYPH = [3.33, 4, 6.28, 7.72, 7.8, 12.05, 8.67, 3.91, 4.48, 4.48, 6.47, 8.07, 3.83, 5.58, 3.83, 4.55, 7.92, 6.67, 7.48, 7.63, 7.99, 7.55, 7.68, 6.91, 7.68, 7.68, 4, 4, 8.07, 8.07, 8.07, 7.33, 11.99,
+    8.73, 8.67, 8.84, 8.67, 8, 7.33, 9.33, 8.95, 3.33, 6.96, 8.67, 7.33, 11.07, 9.11, 9.33, 8, 9.33, 8.67, 8, 7.92, 8.83, 8.73, 12.24, 8.64, 8.56, 7.83, 4.48, 4.55, 4.48, 7.01, 6.67,
+    4.21, 6.89, 7.49, 6.99, 7.49, 7.1, 4.66, 7.51, 7.35, 3.33, 3.33, 6.83, 3.33, 10.8, 7.34, 7.33, 7.49, 7.49, 4.76, 6.67, 4.24, 7.35, 7.04, 10.07, 6.83, 7.06, 6.79, 5.46, 4.31, 5.46, 8.07];
+const MARGIN = 1.05;                                             // a font that sets a little wider still fits
+/** The width of one character: an accented letter as its letter, anything else outside ASCII as a wide one */
+const glyph = ch => {
+    const code = ch.codePointAt(0);
+    if (code >= 32 && code < 127) return GLYPH[code - 32];
+    const base = ch.normalize('NFD').charCodeAt(0);
+    if (base >= 32 && base < 127) return GLYPH[base - 32];
+    return code >= 0x2e80 ? 12 : 9;
+};
+const text_width = text => [...String(text)].reduce((w, ch) => w + glyph(ch), 0) * MARGIN;
+/** The lines a name takes in a box whose text is `width` pixels wide, broken at spaces as a browser breaks it; a word too long for a line takes several */
+function name_lines(name, width) {
+    const space = glyph(' ') * MARGIN;
+    let lines = 0, used = Infinity;
+    for (const word of String(name).split(/\s+/).filter(Boolean)) {
+        const w = text_width(word);
+        if (used !== Infinity && used + space + w <= width) { used += space + w; continue; }
+        if (w <= width) { lines++; used = w; continue; }
+        const parts = Math.ceil(w / width); lines += parts; used = w - (parts - 1) * width;
+    }
+    return Math.max(lines, 1);
+}
+/** Activity boxes: 140 wide, then 164, 188 and so on up to 260; `inset` is the padding and border on both sides, around the text */
+const ACTIVITY_W = { min: 140, step: 24, max: 260, inset: 23 };
+
 function build_story(sample, options) {
     options = options || {};
     /** The subject's name from the instance's data, by the paths options.subject_name gives ("applicant.first_name") */
@@ -82,9 +116,15 @@ function build_story(sample, options) {
         return grid;
     }
 
-    const SIZE = { activity: [112, 56], event: [40, 40], decision: [64, 64] };
-    const GAP_X = 32, ROW = 96, TRACK = 30;
+    // Every activity box of a workflow has the same size: 140 by 72 holds a name of three lines of 12 px.
+    // A name that needs a fourth line at that width widens every activity box of its workflow, by 24 at a time.
+    const SIZE = { activity: [140, 72], event: [40, 40], decision: [64, 64] };
+    const GAP_X = 32, ROW = 100, CELL = 72, TRACK = 30;
     const BANDS = options.bands || {};
+    const activity_width = names => {
+        for (let w = ACTIVITY_W.min; w < ACTIVITY_W.max; w += ACTIVITY_W.step) if (names.every(name => name_lines(name, w - ACTIVITY_W.inset) <= 3)) return w;
+        return ACTIVITY_W.max;                                    // past that, the view cuts the name at three lines and shows it whole on hover
+    };
 
     function layout(workflow) {
         const nodes = [
@@ -92,18 +132,19 @@ function build_story(sample, options) {
             ...workflow.events.map(e => ({ id: e.id, name: e.name, kind: 'event', sub: e.event_type, mode: e.event_definition?.mode === 'publish' ? 'publish' : e.event_type === 'message' || e.event_type === 'signal' ? 'wait' : e.event_type, timeout_edge: e.event_definition?.timeout_edge_id })),
             ...workflow.decision_nodes.map(d => ({ id: d.id, name: d.name, kind: 'decision' })),
         ];
+        const size = { ...SIZE, activity: [activity_width(nodes.filter(n => n.kind === 'activity').map(n => n.name)), SIZE.activity[1]] };
         const hand = GRID[workflow.name] && nodes.every(n => GRID[workflow.name][n.name]);
         const grid = hand ? GRID[workflow.name] : auto_grid(workflow, nodes);
         // A long workflow may wrap into bands, each a row of columns of its own, read one at a time
         const band_def = Array.isArray(BANDS[workflow.name]) && BANDS[workflow.name].length ? [...BANDS[workflow.name]].sort((a, b) => a.row - b.row) : null;
         const band_at = r => { let k = 0; if (band_def) band_def.forEach((b, i) => { if (r >= b.row) k = i; }); return k; };
         const cols = Math.max(...nodes.map(n => grid[n.name][0])) + 1, rows = Math.max(...nodes.map(n => grid[n.name][1])) + 1;
-        const top = TRACK, height = top + (rows - 1) * ROW + 64 + TRACK, row_top = r => top + r * ROW;
+        const top = TRACK, height = top + (rows - 1) * ROW + CELL + TRACK, row_top = r => top + r * ROW;
         const columns = band => {
             const mine = nodes.filter(n => band === undefined || band_at(grid[n.name][1]) === band);
             const last = Math.max(...mine.map(n => grid[n.name][0]));
             // A column with nothing in it (in a band) keeps the width of the narrowest node, so that the band keeps its shape
-            const col_w = Array.from({ length: band === undefined ? cols : last + 1 }, (_, c) => Math.max(...mine.filter(n => grid[n.name][0] === c).map(n => SIZE[n.kind][0]), band === undefined ? -Infinity : SIZE.event[0]));
+            const col_w = Array.from({ length: band === undefined ? cols : last + 1 }, (_, c) => Math.max(...mine.filter(n => grid[n.name][0] === c).map(n => size[n.kind][0]), band === undefined ? -Infinity : size.event[0]));
             const col_x = []; let x = 0;
             col_w.forEach((w, c) => {
                 // In a band, two narrow columns side by side (events, decisions) leave room for their names
@@ -115,8 +156,8 @@ function build_story(sample, options) {
         const geometry = band_def ? band_def.map((_, k) => columns(k)) : [columns()];
         const width = Math.max(...geometry.map(g => g.width));
         for (const n of nodes) {
-            const [c, r] = grid[n.name], [w, h] = SIZE[n.kind], k = band_def ? band_at(r) : 0, { col_w, col_x } = geometry[k];
-            n.w = w; n.h = h; n.x = col_x[c] + (col_w[c] - w) / 2; n.y = row_top(r) + (64 - h) / 2; n.c = c; n.r = r; n.band = k;
+            const [c, r] = grid[n.name], [w, h] = size[n.kind], k = band_def ? band_at(r) : 0, { col_w, col_x } = geometry[k];
+            n.w = w; n.h = h; n.x = col_x[c] + (col_w[c] - w) / 2; n.y = row_top(r) + (CELL - h) / 2; n.c = c; n.r = r; n.band = k;
             n.cx = n.x + w / 2; n.cy = n.y + h / 2;
             n.gap_right = col_x[c] + col_w[c] + GAP_X / 2;                // the clear lane between this column and the next, in its band
         }
@@ -126,7 +167,7 @@ function build_story(sample, options) {
         const bands = band_def ? band_def.map((b, k) => {
             const mine = nodes.filter(n => n.band === k);
             const r0 = Math.min(...mine.map(n => n.r)), r1 = Math.max(...mine.map(n => n.r));
-            return { label: b.label || `Band ${k + 1}`, row: b.row, r0, r1, x0: 0, x1: geometry[k].width, y0: row_top(r0), y1: row_top(r1) + 64 };
+            return { label: b.label || `Band ${k + 1}`, row: b.row, r0, r1, x0: 0, x1: geometry[k].width, y0: row_top(r0), y1: row_top(r1) + CELL };
         }) : null;
         const notes = [];
 
@@ -515,5 +556,5 @@ function build_story(sample, options) {
 }
 
 root.AWA_build_story = build_story;
-if (typeof module !== 'undefined' && module.exports) module.exports = { build_story };
+if (typeof module !== 'undefined' && module.exports) module.exports = { build_story, name_lines, text_width };
 })(typeof window !== 'undefined' ? window : globalThis);

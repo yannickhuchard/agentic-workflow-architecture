@@ -7,6 +7,9 @@
 | `dashboard.html` | The measures of journeys and workflows (specification section 21): who is stuck and whose it is, what became of the journeys, how the work went, where the time and the money go, with every number opening the customers behind it |
 | `index.html` | A workflow definition, in 2D or 3D |
 | `live.html` | A running workflow, by polling a local demo server |
+| `awa-brand.js` | Reads a company's brand (a DESIGN.md or a brand.json) and puts it on the journey view, the replay and the measures page ([Branding](#branding)) |
+| `awa-glossary.js` | The terms the journey view's glossary explains ([Glossary](#glossary)) |
+| `brands/` | AWA's own design tokens (`awa.DESIGN.md`) and a fictional company's brand to start from (Valoria Life, light and dark) |
 
 ## Replay
 
@@ -84,12 +87,17 @@ To see your own journeys:
 | `bands` | By workflow name, `[{ "row": 0, "label": "…" }, …]`: the rows where each band of a long workflow starts. Each band is a row of columns of its own, and the run view shows one band at a time |
 | `subject_name` | Paths in a journey instance's data whose values, joined by a space, name its customer: `["applicant.first_name", "applicant.last_name"]`. The record's `subject_name` comes first; without either, the customer is named by the journey's key |
 | `sentences` | By event type, `(name, data) => [title, sentence]`: how a business event is told. A function, so only for a page or a script that calls the builder |
+| `glossary` | The journey's own words, shown in the glossary under "This journey": `[{ "id"?, "term", "definition", "see"?, "aliases"? }]`. `see` is an https address, shown as a link, or a short text such as "Example"; `aliases` are other words a search finds the term by. The view reads the options, not the builder |
 
 `examples/electricity-onboarding/views/story-options.json` is a complete example: names, a 43-node layout in three bands, and a layout of its child workflow. The measures page takes the same `?options=` to name customers, and passes it on to the journey view it links to.
 
 In a layout with bands, an edge to a node in another band leaves by the clear lane beside its source's column, runs along the gap next to the target's band, and comes into the target; a band beyond the next one is reached round the left edge of the bands. An edge back to an earlier column of the same row goes over a track above the row. A small note says where an edge comes from or goes to, "from band 1", "to band 3, Generate contract". Layouts without bands are routed as before.
 
-`journey.check.mjs` checks the view in a browser (needs Playwright), the options included.
+Every activity box of a workflow has the same size: 140 × 72, which holds a tag and a name of three lines at 12 px. When a name of the workflow needs a fourth line, the builder widens every activity box of that workflow together, to 164, then 188, by 24 at a time up to 260, until each name fits in three lines. The builder measures names without a browser, since it also runs in Node (the checks, the MCP server): a table of character widths at 12 px semibold, the wider of Inter and Arial for each character, plus 5 %, so that a name it measures at three lines never wraps to a fourth on screen. A name longer still is cut after three lines with an ellipsis, and the box's tooltip gives it whole.
+
+The run view draws names at 11 px or more on the 1440 × 900 stage: it scales a band, or a workflow without bands, to fill the graph's area, at 11/12 of its size at the least. A graph wider than that shows the part around the step being read, follows the steps as they move, and offers an arrow at each edge where there is more to see; a horizontal scroll (or Shift and the wheel) moves it too. The next step brings the step being read back to the centre.
+
+`journey.check.mjs` checks the view in a browser (needs Playwright), the options included. In the run views it opens (every workflow of the sample, each band of the electricity example and its child workflow) it checks that every name stays inside its box, that no node lies on another, and that names are drawn at 11 px or more.
 
 | Height | Shows | Go down by | 
 |---|---|---|
@@ -106,7 +114,98 @@ The switch at the top right moves sideways to another journey; on one customer's
 | ← → | Step back or forward |
 | Esc | Go up one height |
 | The address | Carries the place, `#level/journey/customer/run/position` (`#story/0/2/0/999` is the third customer's latest moment): copy it to share exactly what you are looking at. A page that embeds the view, or a link, may change it while the page is open, and the view goes there |
+| Glossary, or ? | Opens the glossary beside the view; ? or Esc closes it, and the focus returns to where it was |
+| / | Goes to the glossary's search, opening it if it is closed |
+
+### Glossary
+
+The Glossary button in the top bar (or the ? key) opens a panel beside the view. It lists the words of the view and of AWA, each in one plain sentence with where it comes from: the section of the specification for AWA's terms (§19.2 for a stage), "View" for a word of the view itself, and for a journey's own terms the short text or the https link its options give. A search ("Search 53 terms") filters as you type, by the term, its other names and its sentence; chips show one group: This journey, Journeys, Work, Trust, Measures. While the panel is open, Tab stays inside it; Esc or the close button closes it.
+
+Words of the view are dotted, and selecting one opens its entry: the legend of the run view ("working now", "waiting", "done", "failed", "undone afterwards", "path taken on a missed deadline"), the legend and the row names of the blueprint, the actor tags on activity boxes (AI agent, Person, System, Robot, Undo step), the run's status, "stalled" and "left" on the stage cards, "Bands", and "Journal record" in the evidence.
+
+The address opens it too: `#glossary` or `#glossary/<term id>`, alone or after the place, as in `#run/1/1/1/3/glossary/four-eyes`. The view writes the panel into the address while it is open, so a copied address opens the same entry.
+
+AWA's terms are in `awa-glossary.js` (`window.AWA_GLOSSARY` in a page, `require()` in Node): 53 terms, each citing a section checked against `docs/specification.md`. A journey adds its own through the `glossary` option; `examples/electricity-onboarding/views/story-options.json` adds eight (metering point, EAN code, prosumer, export tariff, grid export registration, supplier switch, direct debit mandate, commissioning report). Option text is shown as text, never as markup, and `see` becomes a link only when it is an https address.
 
 On one customer's journey nothing is hidden: selecting a mark reads that moment and dims what comes after. "Read as a list" gives the same story as a dated list, by default only the customer's side.
 
 A filled dot and a solid stretch of the mood line are something the customer said. A hollow dot and a dashed stretch are an inference by a rule of the journey; the caption gives the rule's reason.
+
+## Branding
+
+A company can show the journey view, the replay and the measures page in its own colours, fonts and corner radius, with its logo and name in the header and "powered by AWA" beside them. The views read the brand from a [DESIGN.md](https://github.com/google-labs-code/design.md) file, the open format Google Labs published for describing a design system to agents (Markdown with YAML design tokens; the format is specified in [docs/spec.md](https://github.com/google-labs-code/design.md/blob/main/docs/spec.md) of that repository, version "alpha" when this was written), or from a small `brand.json` with the same tokens.
+
+### Step by step
+
+1. Write or export a DESIGN.md. A design tool or an agent that writes the format gives you one; otherwise copy `brands/valoria-life.DESIGN.md` and change the values. At least `colors.primary`; usually also `colors.surface` and `colors.on-surface`, a heading and a body font under `typography`, and `rounded`. Write hex colours in quotes: in YAML, a `#` starts a comment.
+2. Add your logo beside it (an SVG or a PNG), and name it in the front matter: `logo: my-logo.svg`, and `logo_dark:` for a version that reads on a dark page. These two keys are AWA's addition to the format; other tools ignore them.
+3. Host the DESIGN.md and the logo next to the views, on the same server (a page opened from a file cannot fetch another file).
+4. Open a view with `?brand=<address of the DESIGN.md>`: `journey.html?brand=brands/my-company.DESIGN.md`, `dashboard.html?brand=…`, `replay.html?brand=…`. The address is relative to the page. With `?options=<url>`, the options can carry it instead: `"brand": "my-company.DESIGN.md"` (relative to the options file) or a brand.json object. The measures page passes `?brand=` on to the journey view it links to.
+5. Open the browser's console: the view names every token it left out or adjusted, such as `colors.primary (#ffe08a) reads at 1.4:1 on the page, under 3:1 for a mark; its lightness is adjusted`.
+
+### What the tokens become
+
+| DESIGN.md token | In the views |
+|---|---|
+| `colors.primary` | The accent: buttons, focus, the selected crumb and chip, the stage and step in view, bars on the measures page, links and words in the accent colour. A button's fill is the primary, darkened or lightened until `on-primary` reads on it at 4.5:1 |
+| `colors.on-primary` | Text and icons on a button |
+| `colors.surface` | The page |
+| `colors.on-surface` | Text; at low opacity, the lines between things. The softer and muted words are mixed from it and the surface, at 4.5:1 or more |
+| `colors.on-surface-variant` | Secondary text |
+| `colors.surface-container-low` | Panels and the top bar (else a step from the surface) |
+| `colors.surface-container` | Cards and the boxes of a workflow (else white in light mode, a step lighter in dark mode) |
+| `colors.surface-container-high` | Hover and raised surfaces |
+| `colors.outline` | The borders of a workflow's boxes |
+| `colors.light.*`, `colors.dark.*` | The same tokens for one mode: the mode group is laid over the top-level tokens |
+| `typography.<headline…, display…, title…, h1…>.fontFamily` | The display font: titles, the company's name, large numbers |
+| `typography.<body…>.fontFamily` | The body font |
+| `rounded.md`, `rounded.lg` | The radius of buttons and boxes, and of cards and panels (`lg` defaults to `md` × 1.5) |
+| `name` | The company's name in the header |
+| `logo`, `logo_dark` (AWA's addition) | The logo in the header, as an image |
+| `{colors.primary}` | A token reference is followed to the value it names |
+
+The mode is the brand's `mode` (brand.json), else that of its surface (dark below a relative luminance of 0.18), else, for a brand with both a `light` and a `dark` group or with no surface, the reader's preference. A token the brand leaves out comes from AWA's own tokens for that mode (`brands/awa.DESIGN.md`, which `awa-brand.js` holds as `AWA`): the views look as they always have when no brand is given.
+
+A font is loaded from Google Fonts with a stylesheet link (`fonts.googleapis.com`, weights 400 to 700) unless the page already has it (Inter, the system fonts); a family Google Fonts does not have falls back to the view's own stack. A family name is read only when it is plain letters, digits, spaces and hyphens.
+
+### brand.json
+
+```json
+{
+  "name": "Valoria Life",
+  "logo": "valoria-life.svg",
+  "logo_dark": "valoria-life-dark.svg",
+  "mode": "light",
+  "colors": { "primary": "#0E7C66", "on-primary": "#FFFFFF", "surface": "#F6F7FB", "on-surface": "#0F172A" },
+  "typography": { "heading": { "fontFamily": "Space Grotesk" }, "body": { "fontFamily": "Inter" } },
+  "rounded": { "md": "8px", "lg": "12px" }
+}
+```
+
+`colors`, `typography` (by DESIGN.md token, or `heading` and `body`), `rounded` and `name` are the DESIGN.md tokens; `logo` and `logo_dark` are addresses (relative to the brand.json) or `data:` images; `mode` is `dark`, `light` or `auto`.
+
+### Contrast and meaning
+
+- The colours of states keep their hue whatever the brand: working now (purple), waiting (amber), done (green), failed (red), undone (grey), and on the measures page stuck (amber) and left (orange). Only their lightness changes, so that each reads at 3:1 as a mark and 4.5:1 as a word on the brand's page, panels and cards (WCAG 2.2, 1.4.11 and 1.4.3).
+- `on-surface` must read at 4.5:1 on `surface`, and `primary` at 3:1 on the page and the panels; the accent used for words reads at 4.5:1. Where a brand's colour fails, the view moves its lightness as little as needed and says so in the console, naming the token.
+- Every colour, dimension and font is checked before it is used. A colour is read as hex (`#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA`), `rgb()`/`rgba()` or `hsl()`/`hsla()`; anything else is left out with a warning, so a value can never carry CSS of its own.
+- The name is shown as text. The logo is shown in an `<img>` (an SVG is never inlined), from an http or https address or a `data:` image of up to 400 kB.
+
+### What the views do not read
+
+The DESIGN.md format has more than the views use. They do not read `spacing`, `motion`, `components`, `omitted`, external `@` references, font sizes, weights, line heights and letter spacing (the views keep their own type scale, sized for the 1440 × 900 stage), named colours (`red`), `hwb()`, `oklch()`, `oklab()`, `lch()`, `lab()` and `color-mix()`, breakpoint groups of `typography`, or the Markdown prose. `secondary`, `tertiary`, `neutral` and `error` are accepted and not used (`neutral` stands for the surface when there is no `surface`): the views have one accent, and their red for "failed" is a state colour, not a brand colour. The YAML reader takes the subset the format uses (maps, lists, flow maps and lists, quoted and plain scalars, block scalars, comments) and refuses anchors, aliases and tags.
+
+### Examples
+
+| File | What it is |
+|---|---|
+| `brands/awa.DESIGN.md` | AWA's own tokens, dark by default with a light mode. A root `DESIGN.md` would clash with the repository's `DESIGN.MD` on a file system that ignores case, so it lives here |
+| `brands/valoria-life.DESIGN.md`, `valoria-life.brand.json` | A fictional insurer: teal primary (#0E7C66) on a light page, Space Grotesk and Inter, with its logo (`valoria-life.svg`) |
+| `brands/valoria-life-dark.DESIGN.md` | The same brand on a dark page, with the logo for dark backgrounds (`valoria-life-dark.svg`) |
+
+Valoria Life is made up for AWA's examples; its name, logo and colours belong to no real company.
+
+`journey.check.mjs` and `dashboard.check.mjs` check a DESIGN.md and a brand.json (accent, page, fonts, logo, name), that the light mode reads at 4.5:1 at every height of the journey view and on the measures page, that a colour that is not one is refused, that a primary too light is darkened with a warning, and that the colours of states keep their hue and pass contrast.
+
+The MCP server's widgets take a brand inline: see `apps/mcp-server/README.md`.
+

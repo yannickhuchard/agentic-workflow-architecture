@@ -1,3 +1,5 @@
+> This document describes the original style of AWA's visualizer. The views now also take a company's brand: a [DESIGN.md](https://github.com/google-labs-code/design.md) file or a brand.json, with `?brand=<url>` (see [tools/visualization/README.md](tools/visualization/README.md#branding)). AWA's own design tokens, in that format, are in [tools/visualization/brands/awa.DESIGN.md](tools/visualization/brands/awa.DESIGN.md).
+
 # Agentic Workflow Architecture (AWA) Visual Design System
 
 This document outlines the visual standards, color harmony, layout metrics, and interactive paradigms of the AWA Process Visualization layer.

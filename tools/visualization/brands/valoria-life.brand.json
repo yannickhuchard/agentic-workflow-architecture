@@ -1,0 +1,22 @@
+{
+  "name": "Valoria Life",
+  "logo": "valoria-life.svg",
+  "logo_dark": "valoria-life-dark.svg",
+  "mode": "light",
+  "colors": {
+    "primary": "#0E7C66",
+    "on-primary": "#FFFFFF",
+    "surface": "#F6F7FB",
+    "on-surface": "#0F172A",
+    "on-surface-variant": "#3B4656",
+    "surface-container-low": "#FFFFFF",
+    "surface-container": "#FFFFFF",
+    "surface-container-high": "#E9EEF2",
+    "outline": "#B8C2CC"
+  },
+  "typography": {
+    "heading": { "fontFamily": "Space Grotesk" },
+    "body": { "fontFamily": "Inter" }
+  },
+  "rounded": { "md": "8px", "lg": "12px" }
+}

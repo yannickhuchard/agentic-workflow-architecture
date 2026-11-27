@@ -69,12 +69,12 @@ test('a widget domain is declared only when configured, and only as an https ori
     const client = new Client({ name: 't', version: '1' });
     await server.connect(a); await client.connect(b);
     t.after(() => client.close());
-    const meta = (await client.readResource({ uri: 'ui://awa/journeys-v1.html' })).contents[0]._meta;
+    const meta = (await client.readResource({ uri: 'ui://awa/journeys-v2.html' })).contents[0]._meta;
     assert.equal(meta.ui.domain, 'https://widgets.example.org'); assert.equal(meta['openai/widgetDomain'], 'https://widgets.example.org');
     assert.deepEqual(meta.ui.csp, { connectDomains: [], resourceDomains: [] });
     await assert.rejects(createMcpServer({ widget_domain: 'http://widgets.example.org' }), /https origin/);
     await assert.rejects(createMcpServer({ widget_domain: 'https://widgets.example.org/path' }), /https origin/);
-    const plain = (await (await connect(t)).readResource({ uri: 'ui://awa/journeys-v1.html' })).contents[0]._meta;
+    const plain = (await (await connect(t)).readResource({ uri: 'ui://awa/journeys-v2.html' })).contents[0]._meta;
     assert.equal('domain' in plain.ui, false); assert.equal('openai/widgetDomain' in plain, false);
 });
 
@@ -317,6 +317,36 @@ test('show_dashboard: measures of the example, of a simulation and of a portfoli
     assert.equal(two.isError, true);
     const not = await call(client, 'show_dashboard', { portfolio: { hello: 1 } });
     assert.equal(not.isError, true); assert.match(text_of(not), /not a journey portfolio export/);
+});
+
+test('a brand: a DESIGN.md text or a brand.json goes to the view as given, checked; a logo by address and an unreadable brand are refused', async t => {
+    const client = await connect(t);
+    const design = '---\nname: Valoria Life\ncolors:\n  primary: "#0E7C66"\n  surface: "#F6F7FB"\n  on-surface: "#0F172A"\n  error: oklch(0.6 0.2 25)\ntypography:\n  headline-lg: { fontFamily: Space Grotesk }\nrounded:\n  md: 8px\n---\n# Valoria Life\n';
+    const shown = await call(client, 'show_dashboard', { use_claims_example: true, brand: design });
+    assert.equal(shown.isError, undefined, text_of(shown));
+    assert.equal(shown._meta.awa.brand, design, 'the view is given the brand as it was sent');
+    assert.equal(shown.structuredContent.brand.name, 'Valoria Life');
+    assert.ok(shown.structuredContent.brand.warnings.some(w => /colors\.error/.test(w)), 'a colour the view cannot read is reported, with its token');
+    const logo = 'data:image/svg+xml;base64,' + Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8"><rect width="8" height="8" fill="#0E7C66"/></svg>').toString('base64');
+    const json = { name: 'Valoria Life', logo, colors: { primary: '#0E7C66', surface: '#F6F7FB' }, mode: 'light' };
+    for (const [tool, args] of [['load_claims_example', {}], ['show_workflow', { workflow: settlement() }], ['simulate_workflow', { workflow: settlement() }]]) {
+        const result = await call(client, tool, { ...args, brand: json });
+        assert.equal(result.isError, undefined, `${tool}: ${text_of(result)}`);
+        assert.deepEqual(result._meta.awa.brand, json, `${tool} passes the brand to its view`);
+    }
+    const plain = await call(client, 'load_claims_example', {});
+    assert.equal(plain._meta.awa.brand, undefined); assert.equal(plain.structuredContent.brand, undefined);
+    const remote = await call(client, 'show_dashboard', { use_claims_example: true, brand: { ...json, logo: 'https://example.com/logo.svg' } });
+    assert.equal(remote.isError, true); assert.match(text_of(remote), /logo must be a data: URL/);
+    const broken = await call(client, 'show_dashboard', { use_claims_example: true, brand: '{ not json' });
+    assert.equal(broken.isError, true); assert.match(text_of(broken), /could not be read/);
+    await refuses(call(client, 'show_dashboard', { use_claims_example: true, brand: { __proto__: null, constructor: 1 } }), /constructor/);
+    const { tools } = await client.listTools();
+    for (const name of TOOLS.filter(n => n !== 'validate_document')) {
+        const tool = tools.find(x => x.name === name);
+        assert.ok(tool.inputSchema.properties.brand && /DESIGN\.md/.test(tool.description), `${name} takes a brand and says so`);
+        assert.deepEqual(tool.annotations, { readOnlyHint: true, destructiveHint: false, openWorldHint: false });
+    }
 });
 
 test('simulate_workflow: context bindings are enforced; a script may write contexts, and a missing one is explained', async t => {

@@ -8,11 +8,14 @@
     function first_text(result) { var c = (result.content || []).find(function (x) { return x && typeof x.text === 'string'; }); return c ? c.text : 'The tool failed.'; }
     say('Waiting for journeys from the conversation…');
 
+    // A company's brand, given inline with the tool call: its colours, fonts and logo (a data: URL); nothing is fetched
+    function brand(awa) { try { if (awa && awa.brand && window.AWA_set_brand) window.AWA_set_brand(awa.brand, { data_only: true, network: false }); } catch (error) { console.warn('The brand could not be applied: ' + error.message); } }
     function update(result) {
         if (!result) return;
         if (result.isError) { say(first_text(result)); return; }
         var awa = (result._meta && result._meta.awa) || (result.structuredContent && result.structuredContent.awa);
         if (!awa || awa.view !== 'journeys') return;
+        brand(awa);
         if (!awa.story || !Array.isArray(awa.story.journeys) || !awa.story.journeys.length) { story = null; say(typeof awa.empty === 'string' ? awa.empty : 'No journey has started yet: no event that begins a journey was played.'); return; }
         story = awa.story;
         // The view reads its place from the address when it is shown a record. A new result starts at the top, not where the last one was left.

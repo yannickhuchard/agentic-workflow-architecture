@@ -126,6 +126,8 @@ They are declared with an empty Content-Security-Policy domain list (`_meta.ui.c
 
 Theme: the workflow and replay widgets follow the host's light or dark theme. The journey view is drawn dark in both: its stage is a fixed dark design, and it is scaled to its frame (it is designed for 1440 by 900, so it is small on a phone when shown inline).
 
+Brand: every tool with a widget takes an optional `brand`, a company's DESIGN.md text or a brand.json object, inline ([tools/visualization/README.md, Branding](../../tools/visualization/README.md#branding)). The server reads it as the view will, refuses it when it cannot be read or when its logo is not a `data:` URL (the server and the widgets reach no network), and reports in `structuredContent.brand` the name and every token the view leaves out or adjusts. The widget is given the brand in `_meta.awa.brand` and applies it with `awa-brand.js`: colours, the corner radius, the name and the logo. Fonts are used only when the host already has them, since a widget loads nothing; the views fall back to their own. The colours of states keep their hue and are adjusted for contrast.
+
 One hook was added to a view for this: `window.AWA_show = show;` in `tools/visualization/journey.html`. The replay view already exposed `window.AWAReplay`.
 
 ## Adding a widget
@@ -174,7 +176,7 @@ runs the unit tests: the tools, the input limits, statelessness, simulation safe
 NODE_PATH=$(npm root -g) npm run verify
 ```
 
-needs Playwright with Chromium. It lists the tools and resources through an MCP client, calls every tool, then loads each widget in Chromium inside a fake MCP Apps host (an iframe sandboxed without same-origin access, served with a policy that allows no network), delivers the tool results through the bridge and checks what is drawn: the example at every height of the journey view, simulated journeys, the workflow graph and its Data tab, the replay stepped through, hostile names shown as text, light and dark themes, maximum height, fullscreen, a 390 px wide frame, that every message a widget sends is valid against the MCP Apps SDK's schemas, and that no request leaves the page. Screenshots and `verification.json` go to `artifacts/verify/`. `npm run preview` serves the fake host for you to look at.
+needs Playwright with Chromium. It lists the tools and resources through an MCP client, calls every tool, then loads each widget in Chromium inside a fake MCP Apps host (an iframe sandboxed without same-origin access, served with a policy that allows no network), delivers the tool results through the bridge and checks what is drawn: the example at every height of the journey view, simulated journeys, the workflow graph and its Data tab, the replay stepped through, hostile names shown as text, a brand given inline (colours, name and a data: logo, with nothing fetched), light and dark themes, maximum height, fullscreen, a 390 px wide frame, that every message a widget sends is valid against the MCP Apps SDK's schemas, and that no request leaves the page. Screenshots and `verification.json` go to `artifacts/verify/`. `npm run preview` serves the fake host for you to look at.
 
 ```bash
 npm run plugin:check

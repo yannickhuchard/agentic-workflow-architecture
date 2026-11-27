@@ -149,10 +149,11 @@ describe('The views that come with the SDK', () => {
         const record = { as_of: '2026-01-01T00:00:00Z', journeys: [{ definition: { id: 'j', name: '</script><script>alert(1)</script>', stages: [] }, instances: [] }] };
         const page = measures_page(record, { source: '</script>' });
         expect(page).not.toContain('src="awa-kpis.js"');
+        expect(page).not.toContain('src="awa-brand.js"');
         expect(page).not.toContain('</script><script>alert(1)');
         expect(page).toContain('\\u003c/script>\\u003cscript>alert(1)');
-        expect(page.match(/<script>/g)).toHaveLength(3);          // the measures, the record, the page's own
-        expect(page.match(/<\/script>/g)).toHaveLength(3);
+        expect(page.match(/<script>/g)).toHaveLength(4);          // the brand module, the measures, the record, the page's own
+        expect(page.match(/<\/script>/g)).toHaveLength(4);
     });
 
     it('is served by the server', async () => {
