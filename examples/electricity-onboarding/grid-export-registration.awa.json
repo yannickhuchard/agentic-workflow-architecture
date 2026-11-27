@@ -313,7 +313,7 @@
       "name": "Record export refusal",
       "role_id": "ae4589d5-75e5-532f-a61d-1bbe15a6c8ca",
       "actor_type": "application",
-      "description": "Record that the grid operator did not approve the export."
+      "description": "Record that the export is not registered: the installation is not valid, or the grid operator did not approve the export."
     },
     {
       "id": "527df5b8-a81f-5ac4-aadf-2f7520d9e957",
@@ -473,7 +473,16 @@
     {
       "id": "a0ea30fc-3924-5c11-b037-e04cea20c4fe",
       "source_id": "e85ae5c0-61e2-59cb-9d7a-776df3813e0f",
-      "target_id": "09068ea1-5618-5f81-b4c5-d9082e024324"
+      "target_id": "09068ea1-5618-5f81-b4c5-d9082e024324",
+      "condition": "installation_valid == true",
+      "label": "installation valid"
+    },
+    {
+      "id": "6e8baa87-d407-576d-9dce-7ba3c2307c6e",
+      "source_id": "e85ae5c0-61e2-59cb-9d7a-776df3813e0f",
+      "target_id": "5129c05e-f0bb-5abd-b36f-56971f0693b8",
+      "is_default": true,
+      "label": "installation not valid"
     },
     {
       "id": "39e8e880-ac5c-5e85-adbd-54a047aa15ba",

@@ -224,7 +224,7 @@ grid = {
             "Two grid engineers approve the export of an installation above the four-eyes threshold; the deployment's four-eyes rule makes the second approval necessary.",
             outcome_contract={"output_schema": obj(["approved"], approved=B, approved_export_kw={"type": "number", "minimum": 0}, note=S)}),
         act("Refer to commercial team", "application", "grid-desk", "Open a case for the commercial team, who agree a large installation's export individually."),
-        act("Record export refusal", "application", "grid-desk", "Record that the grid operator did not approve the export."),
+        act("Record export refusal", "application", "grid-desk", "Record that the export is not registered: the installation is not valid, or the grid operator did not approve the export."),
         act("Register export meter and tariff", "application", "meter-data", "Register the export meter and the export tariff with the meter-data system.",
             tools=[TOOLS["register_export"]], retry={"max_attempts": 3, "initial_delay": "PT1S"}),
     ],
@@ -254,7 +254,9 @@ grid = {
     }],
     "edges": [
         edge("Export registration requested", "Verify installation documents"),
-        edge("Verify installation documents", "Classify installation"),
+        # An installation found not valid is refused, whatever its class: only a valid one is classified
+        edge("Verify installation documents", "Classify installation", condition="installation_valid == true", label="installation valid"),
+        edge("Verify installation documents", "Record export refusal", is_default=True, label="installation not valid"),
         {**edge("Classify installation", "Send simplified notification"), "label": "small"},
         {**edge("Classify installation", "Grid operator approval"), "label": "medium"},
         {**edge("Classify installation", "Grid operator approval, two engineers"), "label": "medium, above the four-eyes threshold"},

@@ -282,8 +282,8 @@ def executors(port):
     return {kind: (lambda run: lambda binding, args, context: run(moved(binding), args, context))(BUILT_IN_EXECUTORS[kind]) for kind in ("http", "jsonrpc")}
 
 
-def host(port, clock, journal):
-    by_application = {s["application"]["application_id"]: s for s in SCENARIOS}
+def host(port, clock, journal, extra=()):
+    by_application = {s["application"]["application_id"]: s for s in [*SCENARIOS, *extra]}
     actor = ScriptedActor(clock, by_application.get)
     runtime = AwaRuntime(now=lambda: clock.now, engine={
         "actors": {"application": actor, "ai_agent": actor, "robot": actor, "human": Person()},
@@ -378,6 +378,45 @@ def test_each_scenario_runs_to_its_end(adapters, scenario):
     assert all(e["data"]["link"].startswith("http://localhost:4545/") for e in events if e["type"] == "tool.invoked")
 
 
+def test_an_installation_that_is_not_valid_is_refused_without_registration(adapters):
+    """Small wind, but the verifier finds the installation not valid while every document is legible and it is sure"""
+    small_wind = next(s for s in SCENARIOS if s["name"] == "small-wind")
+    invalid = {
+        **copy.deepcopy(small_wind), "name": "small-wind-invalid",
+        "application": {**copy.deepcopy(small_wind["application"]), "application_id": "APP-24903"},
+        "actors": {
+            **copy.deepcopy(small_wind["actors"]),
+            "Verify installation documents": {"output": {
+                "installation_valid": False, "serials_match": True, "confidence": 0.95,
+                "notes": "The compliance certificate is for a turbine model that is not certified for export at this connection."}},
+        },
+        "expect": {
+            "run_status": "completed", "journey_status": "completed",
+            "records": [
+                {"type": "subworkflow.completed", "node_name": "Register grid export", "data": {"output": {"export_status": "not_approved"}}},
+                {"type": "activity.completed", "node_name": "Record export refusal"},
+            ],
+            "absent": [
+                {"type": "decision.evaluated", "node_name": "Classify installation"},
+                {"type": "activity.started", "node_name": "Send simplified notification"},
+                {"type": "activity.started", "node_name": "Register export meter and tariff"},
+                {"type": "contract.escalated", "node_name": "Verify installation documents"},
+            ],
+        },
+    }
+    clock, journal = Clock(1793955600000), WatchingJournal()
+    runtime = host(adapters, clock, journal, [invalid])
+    instance = play(runtime, journal, clock, invalid)
+    runs = runtime.export_journey(instance["id"])["runs"]
+    assert check_expectations(invalid, instance, runs) == []
+    child = next(r for r in instance["runs"] if r.get("parent_run_id"))
+    assert child["workflow_id"] == GRID["id"] and child["status"] == "completed"
+    # From the verifier, the token takes the default edge to the refusal, and ends at "Export not registered"
+    events = next(r for r in runs if r["run_id"] == child["run_id"])["events"]
+    assert [(e["node_name"], e["data"]["reason"]) for e in events if e["type"] == "token.moved"] == [
+        ("Verify installation documents", "unconditional"), ("Record export refusal", "default"), ("Export not registered", "unconditional")]
+
+
 def test_a_compensation_handler_is_given_the_tools_it_declares():
     """Without the example: the handler's call is checked, made and journalled like any activity's (13.6, 17.3)"""
     from awa.runtime.workflow_engine import WorkflowEngine
@@ -414,6 +453,122 @@ def test_a_compensation_handler_is_given_the_tools_it_declares():
     completed = next(e for e in events if e["type"] == "tool.completed")
     assert completed["attempt"] == 1 and completed["data"]["link"] == "function:cancel"
     assert events[-1]["data"]["compensation"] == {"attempted": 1, "succeeded": 1}
+
+
+_IDS = [f"00000000-0000-4000-8000-{n:012d}" for n in range(13)]
+
+
+def _book_and_fail(guardrails=None, binding=None, tool_guardrails=None):
+    """Book, then fail, so that "Cancel booking" compensates; its tool is bound as given"""
+    ids = _IDS
+    tool = {"name": "cancel", "description": "Cancel a booking", "binding": binding or {"kind": "function", "name": "cancel"},
+            "parameters": {"type": "object", "required": ["booking"], "properties": {"booking": {"type": "string"}}}}
+    if tool_guardrails:
+        tool["guardrails"] = tool_guardrails
+    return Workflow.model_validate({
+        "id": ids[1], "name": "Book and fail", "version": "1.0.0", "awa_version": "1.1",
+        **({"guardrails": guardrails} if guardrails else {}),
+        "roles": [{"id": ids[2], "name": "System", "actor_type": "application"}],
+        "activities": [
+            {"id": ids[3], "name": "Book", "role_id": ids[2], "actor_type": "application", "compensation": {"activity_id": ids[5]}},
+            {"id": ids[4], "name": "Fail", "role_id": ids[2], "actor_type": "application"},
+            {"id": ids[5], "name": "Cancel booking", "role_id": ids[2], "actor_type": "application", "tools": [tool]},
+        ],
+        "edges": [{"id": ids[6], "source_id": ids[3], "target_id": ids[4]}],
+    })
+
+
+class _BookingActor:
+    def __init__(self, booking, after=None):
+        self.booking, self.after = booking, after
+
+    def execute(self, activity, token, context=None):
+        if activity.name == "Book":
+            return {"booking": self.booking}
+        if activity.name == "Fail":
+            raise ValueError("Nothing more can be done")
+        call = context.tools.call("cancel", {"booking": token.context_data["booking"]})
+        if self.after:
+            self.after(call)
+        return {"cancelled": call.ok, "result": call.result}
+
+
+def test_a_compensation_handlers_tool_calls_are_held_to_the_guardrails():
+    """The deployment's, the workflow's and the tool's guardrails at tool_call and tool_result (31.3)"""
+    from awa.runtime.workflow_engine import WorkflowEngine
+    ids = _IDS
+    cancelled = []
+    workflow = _book_and_fail(
+        guardrails=[{"id": ids[10], "name": "No internal bookings", "stages": ["tool_call"], "action": "block", "actor_types": ["application"],
+                     "check": {"kind": "deny_list", "terms": ["INTERNAL"], "whole_words": False}}],
+        tool_guardrails=[{"id": ids[11], "name": "No email in results", "stages": ["tool_result"], "action": "redact", "replacement": "[email]",
+                          "check": {"kind": "personal_data", "categories": ["email"]}}])
+    handlers = {"cancel": lambda args: cancelled.append(args) or {"note": "Cancelled, receipt sent to ada@example.com"}}
+
+    def run(booking, workflow=workflow, **options):
+        engine = WorkflowEngine(workflow, options={"actors": {"application": _BookingActor(booking)}, "log_execution": False,
+                                                   "tools": {"handlers": handlers}, **options})
+        engine.start({})
+        engine.run()
+        return engine.get_events()
+
+    # The call goes out, and what comes back is redacted by the tool's own guardrail
+    events = run("B-1")
+    assert cancelled == [{"booking": "B-1"}]
+    triggered = [e for e in events if e["type"] == "guardrail.triggered"]
+    assert [(e["data"]["guardrail_id"], e["data"]["source"], e["data"]["stage"], e["data"]["action"], e["data"]["tool"]) for e in triggered] \
+        == [(ids[11], "tool", "tool_result", "redact", "cancel")]
+    assert triggered[0]["node_name"] == "Cancel booking" and triggered[0]["attempt"] == 1
+    compensated = next(e for e in events if e["type"] == "activity.compensated")
+    assert compensated["data"]["output"] == {"cancelled": True, "result": {"note": "Cancelled, receipt sent to [email]"}}
+
+    # The workflow's guardrail refuses the call: the tool is not called
+    events = run("INTERNAL-7")
+    assert len(cancelled) == 1
+    triggered = [e for e in events if e["type"] == "guardrail.triggered"]
+    assert [(e["data"]["guardrail_id"], e["data"]["source"], e["data"]["stage"], e["data"]["action"]) for e in triggered] \
+        == [(ids[10], "workflow", "tool_call", "block")]
+    assert [e["type"] for e in events if e.get("node_name") == "Cancel booking"] == ["guardrail.triggered", "tool.failed", "activity.compensated"]
+    assert next(e for e in events if e["type"] == "tool.failed")["data"]["error"]["code"] == "GUARDRAIL_BLOCKED"
+
+    # A deployment's guardrail applies the same way
+    events = run("B-2", workflow=_book_and_fail(), guardrails=[
+        {"id": ids[12], "stages": ["tool_call"], "check": {"kind": "deny_list", "terms": ["B-2"]}, "action": "block", "actor_types": ["application"]}])
+    assert len(cancelled) == 1
+    assert [(e["data"]["source"], e["data"]["stage"], e["data"]["action"]) for e in events if e["type"] == "guardrail.triggered"] \
+        == [("deployment", "tool_call", "block")]
+
+
+@pytest.mark.parametrize("fails", [False, True])
+def test_the_sessions_a_compensation_handler_opens_are_closed(fails):
+    """The run's sessions were closed when it settled; those its compensation opens are closed after it, whatever happens"""
+    from awa.runtime.tools import ToolExecution
+    from awa.runtime.workflow_engine import WorkflowEngine
+    counts = {"opened": 0, "closed": 0}
+
+    class Session:
+        def close(self):
+            counts["closed"] += 1
+
+    def mcp(binding, args, context):
+        def create():
+            counts["opened"] += 1
+            return Session()
+        context.sessions.get("fake-server", create)
+        return ToolExecution({"ok": True})
+
+    def after(call):
+        if fails:
+            raise RuntimeError("The booking system is down")
+
+    engine = WorkflowEngine(_book_and_fail(binding={"kind": "mcp", "server": "bookings", "tool": "cancel"}),
+                            options={"actors": {"application": _BookingActor("B-1", after)}, "log_execution": False,
+                                     "tools": {"executors": {"mcp": mcp}}})
+    engine.start({})
+    engine.run()
+    assert engine.status.value == "failed"
+    assert any(e["type"] == ("activity.compensation_failed" if fails else "activity.compensated") for e in engine.get_events())
+    assert counts == {"opened": 1, "closed": 1}
 
 
 def test_a_compensation_handler_calls_its_tools_through_the_runner(adapters):

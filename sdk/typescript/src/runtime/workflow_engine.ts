@@ -30,7 +30,7 @@ import { PersistenceAdapter, WorkflowState, serialize_token, deserialize_token }
 import { RetryConfig, DEFAULT_RETRY_CONFIG, calculate_retry_delay, DeadLetterQueue } from './retry';
 import { Logger } from '../server/logger';
 import { ModelProvider, ModelRegistry, ModelRouter, GoogleModelProvider, RouteAttempt } from './models';
-import { ToolOptions, ToolRunner } from './tools';
+import { ToolGuard, ToolOptions, ToolRunner } from './tools';
 import { ToolSessions } from './protocols/sessions';
 import { A2AActor, A2AOptions, A2ARunState, a2a_binding } from './protocols/a2a';
 import { decide_with_model } from './decision_model';
@@ -562,6 +562,15 @@ export class WorkflowEngine {
      * not stop the others.
      */
     private async compensate(): Promise<{ attempted: number; succeeded: number }> {
+        // The run's sessions were closed when it settled: what the handlers open is closed here, whatever happens (13.6)
+        try {
+            return await this.compensateAll();
+        } finally {
+            await this.toolSessions.close();
+        }
+    }
+
+    private async compensateAll(): Promise<{ attempted: number; succeeded: number }> {
         let attempted = 0;
         let succeeded = 0;
 
@@ -577,12 +586,12 @@ export class WorkflowEngine {
                 const actor = this.createActor(handler);
                 if (!actor) throw new Error(`No actor for compensation handler "${handler.name}"`);
                 // A handler calls the tools it declares through the same runner as any activity, so its calls are checked and journalled (17.3).
-                // It undoes work already allowed and is not decided under a policy (30.4).
+                // It undoes work already allowed and is not decided under a policy (30.4), but its calls are held to the guardrails (31.3).
                 const record = (event: Parameters<NonNullable<ActorContext['record']>>[0]) => this.record({ ...event, ...ref, attempt: 1 });
                 const context: ActorContext = { record, payload: value => this.journal.payload(value) };
                 if ((handler.tools || []).length > 0) {
                     context.tools = new ToolRunner(handler.tools!, { ...(this.options.tools || {}), sessions: this.toolSessions }, record, value => this.journal.payload(value),
-                        { max_calls: handler.outcome_contract?.budgets?.max_tool_calls ?? 16, simulate: this.simulate });
+                        { max_calls: handler.outcome_contract?.budgets?.max_tool_calls ?? 16, simulate: this.simulate, ...this.toolGuard(handler, ref, 1) });
                 }
                 const result = await actor.execute(handler, {
                     ...done.output,
@@ -1438,13 +1447,7 @@ export class WorkflowEngine {
                         event => this.record({ ...event, ...ref, attempt }),
                         value => this.journal.payload(value),
                         {
-                            max_calls: budgets?.max_tool_calls ?? 16, simulate: this.simulate,
-                            ...(this.guardrails.empty ? {} : {
-                                guard: async (stage, tool, value, call_id) => {
-                                    const result = await this.guardrails.apply(stage, activity, value, { ...this.guardContext(ref, attempt), tool, call_id });
-                                    return { value: result.value, ...(result.stop ? { refused: { code: result.stop.code, message: result.stop.message } } : {}) };
-                                },
-                            }),
+                            max_calls: budgets?.max_tool_calls ?? 16, simulate: this.simulate, ...this.toolGuard(activity, ref, attempt),
                         },
                     );
                 }
@@ -1676,6 +1679,17 @@ export class WorkflowEngine {
         return {
             record: event => this.record({ ...event, ...ref, ...(attempt ? { attempt } : {}) }),
             router: this.router, default_model: this.defaultAIModelId, classifiers: this.options.guardrail_classifiers,
+        };
+    }
+
+    /** The guardrails around each tool call an activity's attempt makes (spec 31.3), for its tool runner */
+    private toolGuard(activity: Activity, ref: { token_id: UUID; node_id: UUID; node_name?: string }, attempt: number): { guard?: ToolGuard } {
+        if (this.guardrails.empty) return {};
+        return {
+            guard: async (stage, tool, value, call_id) => {
+                const result = await this.guardrails.apply(stage, activity, value, { ...this.guardContext(ref, attempt), tool, call_id });
+                return { value: result.value, ...(result.stop ? { refused: { code: result.stop.code, message: result.stop.message } } : {}) };
+            },
         };
     }
 
