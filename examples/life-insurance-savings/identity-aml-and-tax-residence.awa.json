@@ -1,0 +1,678 @@
+{
+  "$schema": "https://awa.io/schema/awa.schema.json",
+  "id": "d0fb8198-0fde-5fd9-8d79-2b3c558ca363",
+  "name": "Identity, AML and Tax Residence Checks",
+  "version": "1.0.0",
+  "awa_version": "1.1",
+  "description": "Customer due diligence before a life insurance contract is issued: identity documents read by an agent, screening against the lists of politically exposed persons and sanctions, the CRS and FATCA tax residence self-certification, and a compliance officer, then two approvers, for a politically exposed person or a possible sanctions match.",
+  "roles": [
+    {
+      "id": "aba5493f-675f-58e0-88ae-2d45aa6605ae",
+      "name": "Document reader",
+      "actor_type": "ai_agent",
+      "description": "Reads identity documents and proofs of address and checks them against the enrolment.",
+      "capabilities": [
+        "document extraction",
+        "identity documents"
+      ],
+      "ai_model_config": {
+        "model_id": "tier:reasoning",
+        "temperature": 0.2
+      }
+    },
+    {
+      "id": "c66bbb2d-f550-58b0-8efb-d4de4404a765",
+      "name": "Screening service",
+      "actor_type": "application",
+      "description": "Screens people against the lists of politically exposed persons, sanctions and adverse media."
+    },
+    {
+      "id": "c5fe41aa-9bfe-5cdf-bd9f-8cb2566a2191",
+      "name": "KYC service",
+      "actor_type": "application",
+      "description": "Holds the due diligence files and validates tax self-certifications."
+    },
+    {
+      "id": "feb1964d-e4b1-5db4-ab8e-1127a1361a26",
+      "name": "Compliance officer",
+      "actor_type": "human",
+      "description": "Resolves screening alerts, establishes the source of wealth and approves business relationships with politically exposed persons."
+    }
+  ],
+  "events": [
+    {
+      "id": "790d2cf0-af27-5078-b0ee-1feebbf72c8e",
+      "name": "Checks requested",
+      "event_type": "start",
+      "description": "The subscription asks for the employee's due diligence."
+    },
+    {
+      "id": "41ae06b4-73ee-5f55-b3da-fc9b6b6d7fdb",
+      "name": "Checks back",
+      "event_type": "intermediate",
+      "description": "The screening and the self-certification are both back.",
+      "join": "all"
+    },
+    {
+      "id": "ac4ac0de-c073-58e1-b89c-2c01a4336e23",
+      "name": "Checks passed",
+      "event_type": "end"
+    },
+    {
+      "id": "7f15c95d-0529-540a-b03a-155025c1ff31",
+      "name": "Checks failed",
+      "event_type": "end"
+    }
+  ],
+  "activities": [
+    {
+      "id": "56c27f40-daf5-5d75-87c7-fa07dbf62500",
+      "name": "Verify identity documents",
+      "role_id": "aba5493f-675f-58e0-88ae-2d45aa6605ae",
+      "actor_type": "ai_agent",
+      "description": "Check the identity document and the proof of address: legible, in date, and matching the employee's name, date of birth and address.",
+      "procedure": "Extract each uploaded document with the document tool. Compare the name and date of birth with the enrolment. Check the identity document is in date. Count the documents you could not read. Say how sure you are.",
+      "tools": [
+        {
+          "name": "extract_document",
+          "description": "Read an uploaded identity document or proof of address: its type, whether it is legible, the fields printed on it and its text.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "file_id",
+              "document_type"
+            ],
+            "properties": {
+              "file_id": {
+                "type": "string"
+              },
+              "document_type": {
+                "type": "string"
+              },
+              "enrolment_id": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4560/documents/v1/extractions",
+            "headers": {
+              "x-api-key": "{{secret:DOCUMENTS_API_KEY}}"
+            }
+          }
+        }
+      ],
+      "guardrails": [
+        {
+          "id": "940d7e5e-6b45-57a6-9fcd-73017699705f",
+          "name": "Instructions inside uploaded documents",
+          "stages": [
+            "tool_result"
+          ],
+          "check": {
+            "kind": "prompt_injection"
+          },
+          "action": "block",
+          "tools": [
+            "extract_document"
+          ]
+        },
+        {
+          "id": "16a5fa6d-ba6e-52dc-9a39-b427d7870b2d",
+          "name": "Personal data in what the agent writes",
+          "stages": [
+            "output"
+          ],
+          "check": {
+            "kind": "personal_data",
+            "categories": [
+              "email",
+              "phone",
+              "iban"
+            ]
+          },
+          "fields": [
+            "notes"
+          ],
+          "action": "redact"
+        }
+      ],
+      "outcome_contract": {
+        "output_schema": {
+          "type": "object",
+          "required": [
+            "identity_verified",
+            "unreadable_count",
+            "confidence",
+            "notes"
+          ],
+          "properties": {
+            "identity_verified": {
+              "type": "boolean"
+            },
+            "unreadable_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "document_expiry": {
+              "type": "string"
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "notes": {
+              "type": "string",
+              "minLength": 10
+            }
+          }
+        },
+        "postconditions": [
+          {
+            "name": "Every document is legible",
+            "expression": "unreadable_count == 0"
+          },
+          {
+            "name": "Sure enough to act on",
+            "expression": "confidence >= 0.8"
+          }
+        ],
+        "budgets": {
+          "max_attempts": 2,
+          "max_duration": "PT5M",
+          "max_tokens": 30000,
+          "max_tool_calls": 6
+        },
+        "on_violation": "escalate_human"
+      }
+    },
+    {
+      "id": "e7cca41a-238f-5e05-9bd0-574b792cd9be",
+      "name": "Screen PEP and sanctions",
+      "role_id": "c66bbb2d-f550-58b0-8efb-d4de4404a765",
+      "actor_type": "application",
+      "description": "Screen the employee against the lists of politically exposed persons, sanctions and adverse media.",
+      "tools": [
+        {
+          "name": "screen_person",
+          "description": "Screen a person against the lists of politically exposed persons, sanctions and adverse media.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "enrolment_id",
+              "first_name",
+              "last_name",
+              "date_of_birth"
+            ],
+            "properties": {
+              "enrolment_id": {
+                "type": "string"
+              },
+              "first_name": {
+                "type": "string"
+              },
+              "last_name": {
+                "type": "string"
+              },
+              "date_of_birth": {
+                "type": "string"
+              },
+              "nationality": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4560/screening/v1/screenings",
+            "headers": {
+              "authorization": "Bearer {{secret:SCREENING_TOKEN}}"
+            }
+          }
+        }
+      ],
+      "retry": {
+        "max_attempts": 3,
+        "initial_delay": "PT2S",
+        "backoff_multiplier": 2
+      }
+    },
+    {
+      "id": "a7eabc03-11fb-5739-9ba1-5d6740e18278",
+      "name": "Validate tax self-certification",
+      "role_id": "c5fe41aa-9bfe-5cdf-bd9f-8cb2566a2191",
+      "actor_type": "application",
+      "description": "Check the CRS and FATCA self-certification: the countries of tax residence, each tax identification number, and US status.",
+      "tools": [
+        {
+          "name": "validate_self_certification",
+          "description": "Check a tax residence self-certification for CRS and FATCA: the countries of residence, the format of each tax identification number, and US status.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "enrolment_id",
+              "self_certification"
+            ],
+            "properties": {
+              "enrolment_id": {
+                "type": "string"
+              },
+              "self_certification": {
+                "type": "object"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4560/kyc/v1/self-certifications/validations",
+            "headers": {
+              "authorization": "Bearer {{secret:KYC_TOKEN}}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "2719d7e3-ff82-544f-b15f-c53a44934029",
+      "name": "Resolve compliance alert",
+      "role_id": "feb1964d-e4b1-5db4-ab8e-1127a1361a26",
+      "actor_type": "human",
+      "description": "A compliance officer resolves a screening alert or a self-certification that does not hold: confirms or clears the match, establishes the source of wealth and of the funds, and rates the risk.",
+      "sla": {
+        "id": "083776d8-a10d-5f70-919b-7c750ccd6425",
+        "name": "Alerts resolved within two working days",
+        "target_time": "P1D",
+        "max_time": "P2D",
+        "escalation_policy": {
+          "breach_action": "record",
+          "notify_roles": [
+            "feb1964d-e4b1-5db4-ab8e-1127a1361a26"
+          ]
+        }
+      },
+      "outcome_contract": {
+        "output_schema": {
+          "type": "object",
+          "required": [
+            "pep_confirmed",
+            "relationship_refused",
+            "note"
+          ],
+          "properties": {
+            "pep_confirmed": {
+              "type": "boolean"
+            },
+            "relationship_refused": {
+              "type": "boolean"
+            },
+            "source_of_wealth": {
+              "type": "string"
+            },
+            "risk_rating": {
+              "type": "string",
+              "enum": [
+                "low",
+                "medium",
+                "high"
+              ]
+            },
+            "note": {
+              "type": "string",
+              "minLength": 10
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "82380bf0-48eb-501e-917f-a97ec28d202d",
+      "name": "Approve PEP relationship",
+      "role_id": "feb1964d-e4b1-5db4-ab8e-1127a1361a26",
+      "actor_type": "human",
+      "description": "Two approvers accept, or refuse, a business relationship with a politically exposed person; the deployment's four-eyes rule makes the second approval necessary.",
+      "outcome_contract": {
+        "output_schema": {
+          "type": "object",
+          "required": [
+            "approved"
+          ],
+          "properties": {
+            "approved": {
+              "type": "boolean"
+            },
+            "note": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "ff0e18c1-3c9d-5e16-a102-c00ec85e3655",
+      "name": "Record due diligence",
+      "role_id": "c5fe41aa-9bfe-5cdf-bd9f-8cb2566a2191",
+      "actor_type": "application",
+      "description": "Record the due diligence file as accepted, with its level, its CRS reporting and its FATCA status.",
+      "tools": [
+        {
+          "name": "record_due_diligence",
+          "description": "Record the customer due diligence file: its level, the screening, the tax residences to report under CRS and the FATCA status.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "enrolment_id",
+              "cdd_level",
+              "outcome"
+            ],
+            "properties": {
+              "enrolment_id": {
+                "type": "string"
+              },
+              "cdd_level": {
+                "type": "string"
+              },
+              "outcome": {
+                "type": "string",
+                "enum": [
+                  "accepted",
+                  "refused"
+                ]
+              },
+              "screening_reference": {
+                "type": "string"
+              },
+              "crs_reportable": {
+                "type": "boolean"
+              },
+              "fatca_status": {
+                "type": "string"
+              },
+              "note": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4560/kyc/v1/files",
+            "headers": {
+              "authorization": "Bearer {{secret:KYC_TOKEN}}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "38b7886b-4698-5c36-920f-1b4a93056434",
+      "name": "Record refusal of relationship",
+      "role_id": "c5fe41aa-9bfe-5cdf-bd9f-8cb2566a2191",
+      "actor_type": "application",
+      "description": "Record that the business relationship is refused.",
+      "tools": [
+        {
+          "name": "record_due_diligence",
+          "description": "Record the customer due diligence file: its level, the screening, the tax residences to report under CRS and the FATCA status.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "enrolment_id",
+              "cdd_level",
+              "outcome"
+            ],
+            "properties": {
+              "enrolment_id": {
+                "type": "string"
+              },
+              "cdd_level": {
+                "type": "string"
+              },
+              "outcome": {
+                "type": "string",
+                "enum": [
+                  "accepted",
+                  "refused"
+                ]
+              },
+              "screening_reference": {
+                "type": "string"
+              },
+              "crs_reportable": {
+                "type": "boolean"
+              },
+              "fatca_status": {
+                "type": "string"
+              },
+              "note": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4560/kyc/v1/files",
+            "headers": {
+              "authorization": "Bearer {{secret:KYC_TOKEN}}"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "decision_nodes": [
+    {
+      "id": "ad61d1cd-b838-5150-b862-0cb76f516565",
+      "name": "Customer due diligence",
+      "description": "The level of due diligence and who decides it, from the identity check, the screening and the self-certification.",
+      "decision_table": {
+        "hit_policy": "first",
+        "inputs": [
+          {
+            "name": "identity_verified",
+            "label": "Identity verified",
+            "type": "boolean"
+          },
+          {
+            "name": "screening_result",
+            "label": "Screening",
+            "type": "string"
+          },
+          {
+            "name": "self_certification_valid",
+            "label": "Self-certification valid",
+            "type": "boolean"
+          },
+          {
+            "name": "us_person",
+            "label": "US person",
+            "type": "boolean"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "cdd_level",
+            "type": "string"
+          },
+          {
+            "name": "fatca_status",
+            "type": "string"
+          }
+        ],
+        "rules": [
+          {
+            "description": "Identity not verified: refused",
+            "input_entries": [
+              "false",
+              "-",
+              "-",
+              "-"
+            ],
+            "output_entries": [
+              "refused",
+              "not_assessed"
+            ],
+            "output_edge_id": "d6829d81-e75a-5a58-bea1-c28fb4e84f98"
+          },
+          {
+            "description": "A politically exposed person or a possible sanctions match: enhanced due diligence by compliance",
+            "input_entries": [
+              "-",
+              "\"pep\", \"possible_sanctions_match\"",
+              "-",
+              "-"
+            ],
+            "output_entries": [
+              "enhanced",
+              "pending"
+            ],
+            "output_edge_id": "95a52f58-cddf-55f7-805d-c8a71a93ca2d"
+          },
+          {
+            "description": "A self-certification that does not hold: compliance",
+            "input_entries": [
+              "-",
+              "-",
+              "false",
+              "-"
+            ],
+            "output_entries": [
+              "standard",
+              "pending"
+            ],
+            "output_edge_id": "95a52f58-cddf-55f7-805d-c8a71a93ca2d"
+          },
+          {
+            "description": "A US person: reportable under FATCA",
+            "input_entries": [
+              "-",
+              "\"clear\"",
+              "true",
+              "true"
+            ],
+            "output_entries": [
+              "standard",
+              "us_reportable"
+            ],
+            "output_edge_id": "7c753667-c0a2-5710-b23f-36380a6e553c"
+          },
+          {
+            "description": "Clear",
+            "input_entries": [
+              "-",
+              "\"clear\"",
+              "true",
+              "-"
+            ],
+            "output_entries": [
+              "standard",
+              "not_us"
+            ],
+            "output_edge_id": "7c753667-c0a2-5710-b23f-36380a6e553c"
+          }
+        ]
+      },
+      "default_output_edge_id": "95a52f58-cddf-55f7-805d-c8a71a93ca2d"
+    }
+  ],
+  "edges": [
+    {
+      "id": "42b56e71-afca-5b1d-9f46-c2ce21945ed6",
+      "source_id": "790d2cf0-af27-5078-b0ee-1feebbf72c8e",
+      "target_id": "56c27f40-daf5-5d75-87c7-fa07dbf62500"
+    },
+    {
+      "id": "2c5c5d7e-b7ae-565e-84ec-91a65a858eac",
+      "source_id": "56c27f40-daf5-5d75-87c7-fa07dbf62500",
+      "target_id": "e7cca41a-238f-5e05-9bd0-574b792cd9be"
+    },
+    {
+      "id": "446e5df5-eef5-5543-8e04-8fcb90eab955",
+      "source_id": "56c27f40-daf5-5d75-87c7-fa07dbf62500",
+      "target_id": "a7eabc03-11fb-5739-9ba1-5d6740e18278"
+    },
+    {
+      "id": "3e5da5f8-7980-5bb3-ba98-e1fd3019b74a",
+      "source_id": "e7cca41a-238f-5e05-9bd0-574b792cd9be",
+      "target_id": "41ae06b4-73ee-5f55-b3da-fc9b6b6d7fdb"
+    },
+    {
+      "id": "07419c0e-641b-556e-9617-a16d1ba590c5",
+      "source_id": "a7eabc03-11fb-5739-9ba1-5d6740e18278",
+      "target_id": "41ae06b4-73ee-5f55-b3da-fc9b6b6d7fdb"
+    },
+    {
+      "id": "0c125a69-1183-594f-90bf-05e9af7fd5dd",
+      "source_id": "41ae06b4-73ee-5f55-b3da-fc9b6b6d7fdb",
+      "target_id": "ad61d1cd-b838-5150-b862-0cb76f516565"
+    },
+    {
+      "id": "d6829d81-e75a-5a58-bea1-c28fb4e84f98",
+      "source_id": "ad61d1cd-b838-5150-b862-0cb76f516565",
+      "target_id": "38b7886b-4698-5c36-920f-1b4a93056434",
+      "label": "identity not verified"
+    },
+    {
+      "id": "95a52f58-cddf-55f7-805d-c8a71a93ca2d",
+      "source_id": "ad61d1cd-b838-5150-b862-0cb76f516565",
+      "target_id": "2719d7e3-ff82-544f-b15f-c53a44934029",
+      "label": "alert"
+    },
+    {
+      "id": "7c753667-c0a2-5710-b23f-36380a6e553c",
+      "source_id": "ad61d1cd-b838-5150-b862-0cb76f516565",
+      "target_id": "ff0e18c1-3c9d-5e16-a102-c00ec85e3655",
+      "label": "clear"
+    },
+    {
+      "id": "ee70cc1f-3de9-5681-8a2f-ac53f02e7472",
+      "source_id": "2719d7e3-ff82-544f-b15f-c53a44934029",
+      "target_id": "82380bf0-48eb-501e-917f-a97ec28d202d",
+      "condition": "pep_confirmed == true",
+      "label": "politically exposed"
+    },
+    {
+      "id": "c0d5507e-4481-52ba-b19b-b151d950c676",
+      "source_id": "2719d7e3-ff82-544f-b15f-c53a44934029",
+      "target_id": "38b7886b-4698-5c36-920f-1b4a93056434",
+      "condition": "relationship_refused == true",
+      "label": "refused"
+    },
+    {
+      "id": "2baf6af8-08b2-55aa-8d98-2afa873c6ac4",
+      "source_id": "2719d7e3-ff82-544f-b15f-c53a44934029",
+      "target_id": "ff0e18c1-3c9d-5e16-a102-c00ec85e3655",
+      "is_default": true,
+      "label": "cleared"
+    },
+    {
+      "id": "f69b3cd9-6540-54b7-98ac-eb150ad5b7f3",
+      "source_id": "82380bf0-48eb-501e-917f-a97ec28d202d",
+      "target_id": "ff0e18c1-3c9d-5e16-a102-c00ec85e3655",
+      "condition": "approved == true",
+      "label": "approved"
+    },
+    {
+      "id": "07ceec69-3f46-5855-a52c-4ec2856b376f",
+      "source_id": "82380bf0-48eb-501e-917f-a97ec28d202d",
+      "target_id": "38b7886b-4698-5c36-920f-1b4a93056434",
+      "is_default": true,
+      "label": "not approved"
+    },
+    {
+      "id": "94ad8bb4-ea05-5722-8294-7a6c1db64ea5",
+      "source_id": "ff0e18c1-3c9d-5e16-a102-c00ec85e3655",
+      "target_id": "ac4ac0de-c073-58e1-b89c-2c01a4336e23"
+    },
+    {
+      "id": "c91a31d4-85ec-56f4-b91c-78c0752a44b7",
+      "source_id": "38b7886b-4698-5c36-920f-1b4a93056434",
+      "target_id": "7f15c95d-0529-540a-b03a-155025c1ff31"
+    }
+  ]
+}

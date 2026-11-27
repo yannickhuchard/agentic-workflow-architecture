@@ -1,0 +1,766 @@
+{
+  "$schema": "https://awa.io/schema/awa.schema.json",
+  "id": "fda1e521-702a-518a-bdba-97c991f9e71d",
+  "name": "Year-End Tax",
+  "version": "1.0.0",
+  "awa_version": "1.1",
+  "description": "From November to January: the deductible amount per article of the income tax law, a top-up proposal to reach the ceiling before 31 December, and the annual tax certificate for the tax return. A cross-border worker's file goes to a tax adviser first, since whether the deduction applies depends on their situation.",
+  "sla": {
+    "id": "d36074d9-8995-5ffa-a120-b543eebc4551",
+    "name": "Certificate by the end of February",
+    "target_time": "P90D",
+    "max_time": "P120D",
+    "escalation_policy": {
+      "breach_action": "record",
+      "notify_roles": [
+        "707c0626-fad0-5873-ad39-2527cd21987b"
+      ]
+    }
+  },
+  "roles": [
+    {
+      "id": "71ab4a84-84f4-54ef-8227-1ceca5e136e6",
+      "name": "Tax computation service",
+      "actor_type": "application",
+      "description": "Computes deductible amounts from premiums and the ceilings of the decision table."
+    },
+    {
+      "id": "0cc07954-26ac-5c80-b4a3-c39ae4aa44d1",
+      "name": "Tax adviser",
+      "actor_type": "human",
+      "description": "Valoria Life's tax adviser for cross-border workers."
+    },
+    {
+      "id": "53946c75-5e83-5f37-8e56-5c9ad49afbab",
+      "name": "AI adviser",
+      "actor_type": "ai_agent",
+      "description": "Writes the top-up proposal.",
+      "capabilities": [
+        "Luxembourg personal income tax",
+        "customer writing"
+      ],
+      "ai_model_config": {
+        "model_id": "tier:balanced",
+        "temperature": 0.2
+      }
+    },
+    {
+      "id": "0a240d8f-95ae-5076-9b9c-26f4e44d8cce",
+      "name": "Tax certificate service",
+      "actor_type": "application",
+      "description": "Issues the annual tax certificates of premiums paid."
+    },
+    {
+      "id": "707c0626-fad0-5873-ad39-2527cd21987b",
+      "name": "Back-office administrator",
+      "actor_type": "human",
+      "description": "Valoria Life's back-office."
+    },
+    {
+      "id": "811db54a-f8f9-5d08-9f42-a26f54dc9315",
+      "name": "HR portal",
+      "actor_type": "application",
+      "description": "The HR portal Valoria Life provides to the employer."
+    }
+  ],
+  "events": [
+    {
+      "id": "2da659c0-b7ea-5ba1-9bdb-d115e98d93a3",
+      "name": "Tax review due",
+      "event_type": "start",
+      "description": "November: the insurer's calendar opens the year-end review of the tax year.",
+      "event_definition": {
+        "name": "tax_year.review_due"
+      }
+    },
+    {
+      "id": "9fde317f-9e1e-5407-884c-7faaa6b655fc",
+      "name": "Year's premiums known",
+      "event_type": "message",
+      "description": "Wait for the close of the savings year after the December payroll.",
+      "event_definition": {
+        "name": "savings_year.closed",
+        "correlation_key": "enrolment_id",
+        "timeout": "P75D",
+        "timeout_edge_id": "399d1d1b-33f9-58f7-bb35-d30c3de4a23c"
+      }
+    },
+    {
+      "id": "e513f492-5f53-54c7-b544-7b0f521b5eb2",
+      "name": "Certificates due",
+      "event_type": "message",
+      "description": "Wait for the January certificate run of the policy administration.",
+      "event_definition": {
+        "name": "tax_certificates.due",
+        "correlation_key": "enrolment_id",
+        "timeout": "P60D",
+        "timeout_edge_id": "8f58220b-eb79-524a-b221-f8b3c4b8cc2f"
+      }
+    },
+    {
+      "id": "0cc83d63-75b8-5479-adb9-1478263576d6",
+      "name": "Tax certificate issued",
+      "event_type": "message",
+      "description": "Tell the journey the certificate is in the HR portal.",
+      "event_definition": {
+        "name": "tax_certificate.issued",
+        "mode": "publish",
+        "data": [
+          "enrolment_id",
+          "tax_year",
+          "certificate_id",
+          "deduction_article",
+          "deductible_eur",
+          "tax_certificate_issued"
+        ]
+      }
+    },
+    {
+      "id": "bc8d7791-0daa-5c13-a755-2a39529b6251",
+      "name": "Year-end done",
+      "event_type": "end"
+    }
+  ],
+  "activities": [
+    {
+      "id": "e6ff3dda-ee76-54be-9d25-04a1d114017e",
+      "name": "Tax adviser review",
+      "role_id": "0cc07954-26ac-5c80-b4a3-c39ae4aa44d1",
+      "actor_type": "human",
+      "description": "A tax adviser looks at a cross-border worker's situation: whether they can be assimilated to a resident (at least 90% of their income taxable in Luxembourg, or the other thresholds of Art. 157ter LIR) and so deduct the premiums, and what to tell them.",
+      "sla": {
+        "id": "101d2524-e284-5dcf-8655-9bb2aba6b631",
+        "name": "Cross-border files answered within ten days",
+        "target_time": "P5D",
+        "max_time": "P10D",
+        "escalation_policy": {
+          "breach_action": "record",
+          "notify_roles": [
+            "707c0626-fad0-5873-ad39-2527cd21987b"
+          ]
+        }
+      },
+      "outcome_contract": {
+        "output_schema": {
+          "type": "object",
+          "required": [
+            "deduction_applicable",
+            "note"
+          ],
+          "properties": {
+            "deduction_applicable": {
+              "type": "boolean"
+            },
+            "assimilated_to_resident": {
+              "type": "boolean"
+            },
+            "note": {
+              "type": "string",
+              "minLength": 20
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "6faf986a-08fa-5eb6-a797-afca824079f5",
+      "name": "Project the year",
+      "role_id": "71ab4a84-84f4-54ef-8227-1ceca5e136e6",
+      "actor_type": "application",
+      "description": "Project the year's premiums and the deductible amount, with the contributions still to come, and the shortfall to the ceiling.",
+      "tools": [
+        {
+          "name": "compute_deductions",
+          "description": "Compute the deductible amount of premiums per article of the income tax law, from the premiums paid, the contributions still to come and the ceilings the decision table gives.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "tax_year",
+              "articles",
+              "ceilings_eur",
+              "premiums_eur"
+            ],
+            "properties": {
+              "tax_year": {
+                "type": "integer"
+              },
+              "articles": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "ceilings_eur": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              },
+              "bases": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "premiums_eur": {
+                "type": "number",
+                "minimum": 0
+              },
+              "monthly_contribution_eur": {
+                "type": "number",
+                "minimum": 0
+              },
+              "months_remaining": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "household_members": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4560/tax/v1/deduction-computations",
+            "headers": {
+              "authorization": "Bearer {{secret:TAX_SERVICE_TOKEN}}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "52d284cd-c7b4-54cd-b35e-4192bbfe94cd",
+      "name": "Write top-up proposal",
+      "role_id": "53946c75-5e83-5f37-8e56-5c9ad49afbab",
+      "actor_type": "ai_agent",
+      "description": "Propose a top-up that reaches the ceiling before 31 December: the ceiling, the shortfall, how the top-up is collected with the December payroll, and that the deduction depends on the employee's own tax situation.",
+      "tools": [
+        {
+          "name": "send_notification",
+          "description": "Send the employee a message in the HR portal's inbox, by e-mail, or both.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "enrolment_id",
+              "channel",
+              "template"
+            ],
+            "properties": {
+              "enrolment_id": {
+                "type": "string"
+              },
+              "channel": {
+                "type": "string",
+                "enum": [
+                  "portal",
+                  "email",
+                  "portal_and_email"
+                ]
+              },
+              "template": {
+                "type": "string"
+              },
+              "subject": {
+                "type": "string"
+              },
+              "body": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4560/portal/v1/notifications",
+            "headers": {
+              "authorization": "Bearer {{secret:PORTAL_TOKEN}}"
+            }
+          }
+        }
+      ],
+      "outcome_contract": {
+        "output_schema": {
+          "type": "object",
+          "required": [
+            "proposal",
+            "proposed_top_up_eur",
+            "ceiling_stated",
+            "deadline_stated",
+            "tax_caveat_given"
+          ],
+          "properties": {
+            "proposal": {
+              "type": "string",
+              "minLength": 120
+            },
+            "proposed_top_up_eur": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "ceiling_stated": {
+              "type": "boolean"
+            },
+            "deadline_stated": {
+              "type": "boolean"
+            },
+            "tax_caveat_given": {
+              "type": "boolean"
+            }
+          }
+        },
+        "postconditions": [
+          {
+            "name": "States the ceiling",
+            "expression": "ceiling_stated == true"
+          },
+          {
+            "name": "States the deadline of 31 December",
+            "expression": "deadline_stated == true"
+          },
+          {
+            "name": "Says the deduction depends on the employee's situation",
+            "expression": "tax_caveat_given == true"
+          }
+        ]
+      }
+    },
+    {
+      "id": "8fd7d8fe-fad4-53f3-84ba-9d6062837ace",
+      "name": "Confirm premiums by hand",
+      "role_id": "707c0626-fad0-5873-ad39-2527cd21987b",
+      "actor_type": "human",
+      "description": "The savings year did not close: a back-office administrator confirms the premiums of the tax year."
+    },
+    {
+      "id": "c9bc74b5-4a3b-54e2-853b-01e102fc1e58",
+      "name": "Compute deductible amounts",
+      "role_id": "71ab4a84-84f4-54ef-8227-1ceca5e136e6",
+      "actor_type": "application",
+      "description": "Compute the deductible amount per article from the premiums of the tax year.",
+      "tools": [
+        {
+          "name": "compute_deductions",
+          "description": "Compute the deductible amount of premiums per article of the income tax law, from the premiums paid, the contributions still to come and the ceilings the decision table gives.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "tax_year",
+              "articles",
+              "ceilings_eur",
+              "premiums_eur"
+            ],
+            "properties": {
+              "tax_year": {
+                "type": "integer"
+              },
+              "articles": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "ceilings_eur": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              },
+              "bases": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "premiums_eur": {
+                "type": "number",
+                "minimum": 0
+              },
+              "monthly_contribution_eur": {
+                "type": "number",
+                "minimum": 0
+              },
+              "months_remaining": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "household_members": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4560/tax/v1/deduction-computations",
+            "headers": {
+              "authorization": "Bearer {{secret:TAX_SERVICE_TOKEN}}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "2bdf56b7-04a3-5162-819a-08dbc259c86e",
+      "name": "Issue tax certificate",
+      "role_id": "0a240d8f-95ae-5076-9b9c-26f4e44d8cce",
+      "actor_type": "application",
+      "description": "Issue the annual tax certificate and put it in the HR portal.",
+      "tools": [
+        {
+          "name": "issue_tax_certificate",
+          "description": "Issue the annual tax certificate of the premiums paid, for the employee's tax return.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "policy_id",
+              "tax_year",
+              "article",
+              "premiums_eur",
+              "deductible_eur"
+            ],
+            "properties": {
+              "policy_id": {
+                "type": "string"
+              },
+              "tax_year": {
+                "type": "integer"
+              },
+              "article": {
+                "type": "string"
+              },
+              "premiums_eur": {
+                "type": "number"
+              },
+              "deductible_eur": {
+                "type": "number"
+              },
+              "employee": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4560/tax-certificates/v1/certificates",
+            "headers": {
+              "authorization": "Bearer {{secret:CERTIFICATES_TOKEN}}"
+            }
+          }
+        },
+        {
+          "name": "send_notification",
+          "description": "Send the employee a message in the HR portal's inbox, by e-mail, or both.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "enrolment_id",
+              "channel",
+              "template"
+            ],
+            "properties": {
+              "enrolment_id": {
+                "type": "string"
+              },
+              "channel": {
+                "type": "string",
+                "enum": [
+                  "portal",
+                  "email",
+                  "portal_and_email"
+                ]
+              },
+              "template": {
+                "type": "string"
+              },
+              "subject": {
+                "type": "string"
+              },
+              "body": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4560/portal/v1/notifications",
+            "headers": {
+              "authorization": "Bearer {{secret:PORTAL_TOKEN}}"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "decision_nodes": [
+    {
+      "id": "616c2901-c046-5d10-89f8-4497eb7db24c",
+      "name": "Tax residence route",
+      "description": "A resident of Luxembourg goes straight to the deduction rules. A cross-border worker goes to a tax adviser first.",
+      "decision_table": {
+        "hit_policy": "first",
+        "inputs": [
+          {
+            "name": "tax_residence",
+            "label": "Country of tax residence",
+            "type": "string"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "tax_route",
+            "type": "string"
+          }
+        ],
+        "rules": [
+          {
+            "description": "Resident of Luxembourg",
+            "input_entries": [
+              "\"LU\""
+            ],
+            "output_entries": [
+              "resident"
+            ],
+            "output_edge_id": "a3ad2f2d-70f5-5fac-a43e-6cbaff4adff9"
+          },
+          {
+            "description": "Cross-border worker from France, Belgium or Germany",
+            "input_entries": [
+              "\"FR\", \"BE\", \"DE\""
+            ],
+            "output_entries": [
+              "cross_border"
+            ],
+            "output_edge_id": "40fb8121-ef90-54e2-bd35-a57fae75bc5c"
+          }
+        ]
+      },
+      "default_output_edge_id": "40fb8121-ef90-54e2-bd35-a57fae75bc5c"
+    },
+    {
+      "id": "e1ff76ec-d75b-5648-8bff-5de3dff3de27",
+      "name": "Deduction rules",
+      "description": "The articles of the Luxembourg income tax law (LIR) under which premiums are deductible as special expenses, with their ceilings, AS DATA: a tax change is a new rule here, not a change of code. FACTS.md gives the source of each figure and marks those a tax adviser must confirm. This is not tax advice.",
+      "decision_table": {
+        "hit_policy": "collect",
+        "inputs": [
+          {
+            "name": "contract_type",
+            "label": "Contract",
+            "type": "string"
+          },
+          {
+            "name": "tax_year",
+            "label": "Tax year",
+            "type": "number"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "article",
+            "type": "string"
+          },
+          {
+            "name": "annual_ceiling_eur",
+            "type": "number"
+          },
+          {
+            "name": "ceiling_basis",
+            "type": "string"
+          },
+          {
+            "name": "figure_confirmed",
+            "type": "boolean"
+          }
+        ],
+        "rules": [
+          {
+            "description": "Pension savings contract (prévoyance-vieillesse), Art. 111bis LIR, from tax year 2026",
+            "input_entries": [
+              "\"pension_savings\"",
+              ">= 2026"
+            ],
+            "output_entries": [
+              "111bis",
+              4500,
+              "per_taxpayer",
+              true
+            ]
+          },
+          {
+            "description": "Pension savings contract, Art. 111bis LIR, up to tax year 2025",
+            "input_entries": [
+              "\"pension_savings\"",
+              "< 2026"
+            ],
+            "output_entries": [
+              "111bis",
+              3200,
+              "per_taxpayer",
+              true
+            ]
+          },
+          {
+            "description": "Life insurance premiums, Art. 111 LIR, shared with other insurance premiums",
+            "input_entries": [
+              "\"life_insurance\"",
+              "-"
+            ],
+            "output_entries": [
+              "111",
+              672,
+              "per_household_member",
+              true
+            ]
+          },
+          {
+            "description": "Personal contributions to an employer's supplementary pension scheme, Art. 110 LIR",
+            "input_entries": [
+              "\"employer_scheme_personal\"",
+              "-"
+            ],
+            "output_entries": [
+              "110",
+              1200,
+              "per_taxpayer",
+              true
+            ]
+          }
+        ]
+      },
+      "default_output_edge_id": "8122d39d-1a02-5958-bb6f-6fd5dddbad5f"
+    },
+    {
+      "id": "fc57fcda-b79c-5dbf-ab80-df512694d99a",
+      "name": "Top-up worth proposing",
+      "description": "A top-up is proposed when the year's premiums will stay below the ceiling.",
+      "decision_table": {
+        "hit_policy": "first",
+        "inputs": [
+          {
+            "name": "shortfall_eur",
+            "label": "Shortfall to the ceiling (EUR)",
+            "type": "number"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "top_up_proposed",
+            "type": "boolean"
+          }
+        ],
+        "rules": [
+          {
+            "description": "Below the ceiling",
+            "input_entries": [
+              "> 0"
+            ],
+            "output_entries": [
+              true
+            ],
+            "output_edge_id": "c9bfdc4b-8c66-504c-981f-b8e221c883a3"
+          }
+        ]
+      },
+      "default_output_edge_id": "d4ceb2ee-b27b-59e4-9ce1-986d643e0822"
+    }
+  ],
+  "edges": [
+    {
+      "id": "afaa42a8-11b8-522a-9b91-d0dac2a4d536",
+      "source_id": "2da659c0-b7ea-5ba1-9bdb-d115e98d93a3",
+      "target_id": "616c2901-c046-5d10-89f8-4497eb7db24c"
+    },
+    {
+      "id": "a3ad2f2d-70f5-5fac-a43e-6cbaff4adff9",
+      "source_id": "616c2901-c046-5d10-89f8-4497eb7db24c",
+      "target_id": "e1ff76ec-d75b-5648-8bff-5de3dff3de27",
+      "label": "resident"
+    },
+    {
+      "id": "40fb8121-ef90-54e2-bd35-a57fae75bc5c",
+      "source_id": "616c2901-c046-5d10-89f8-4497eb7db24c",
+      "target_id": "e6ff3dda-ee76-54be-9d25-04a1d114017e",
+      "label": "cross-border worker"
+    },
+    {
+      "id": "fddf879d-8e6e-5795-a108-a84136f993ac",
+      "source_id": "e6ff3dda-ee76-54be-9d25-04a1d114017e",
+      "target_id": "e1ff76ec-d75b-5648-8bff-5de3dff3de27"
+    },
+    {
+      "id": "8122d39d-1a02-5958-bb6f-6fd5dddbad5f",
+      "source_id": "e1ff76ec-d75b-5648-8bff-5de3dff3de27",
+      "target_id": "6faf986a-08fa-5eb6-a797-afca824079f5"
+    },
+    {
+      "id": "28ca994a-050f-549b-a454-f2ae09c6b9c3",
+      "source_id": "6faf986a-08fa-5eb6-a797-afca824079f5",
+      "target_id": "fc57fcda-b79c-5dbf-ab80-df512694d99a"
+    },
+    {
+      "id": "c9bfdc4b-8c66-504c-981f-b8e221c883a3",
+      "source_id": "fc57fcda-b79c-5dbf-ab80-df512694d99a",
+      "target_id": "52d284cd-c7b4-54cd-b35e-4192bbfe94cd",
+      "label": "below the ceiling"
+    },
+    {
+      "id": "d4ceb2ee-b27b-59e4-9ce1-986d643e0822",
+      "source_id": "fc57fcda-b79c-5dbf-ab80-df512694d99a",
+      "target_id": "9fde317f-9e1e-5407-884c-7faaa6b655fc",
+      "label": "at the ceiling"
+    },
+    {
+      "id": "7115f239-52eb-5e65-acc6-9a1c506f7b8d",
+      "source_id": "52d284cd-c7b4-54cd-b35e-4192bbfe94cd",
+      "target_id": "9fde317f-9e1e-5407-884c-7faaa6b655fc"
+    },
+    {
+      "id": "70dac8d6-c2be-5c03-96e1-a108838a1d6f",
+      "source_id": "9fde317f-9e1e-5407-884c-7faaa6b655fc",
+      "target_id": "c9bc74b5-4a3b-54e2-853b-01e102fc1e58"
+    },
+    {
+      "id": "399d1d1b-33f9-58f7-bb35-d30c3de4a23c",
+      "source_id": "9fde317f-9e1e-5407-884c-7faaa6b655fc",
+      "target_id": "8fd7d8fe-fad4-53f3-84ba-9d6062837ace",
+      "label": "the year did not close"
+    },
+    {
+      "id": "f1f5cbb8-4948-56b2-a64f-b7f612f19f6b",
+      "source_id": "8fd7d8fe-fad4-53f3-84ba-9d6062837ace",
+      "target_id": "c9bc74b5-4a3b-54e2-853b-01e102fc1e58"
+    },
+    {
+      "id": "44284bc6-a4c3-5917-9148-cce0d5d4d979",
+      "source_id": "c9bc74b5-4a3b-54e2-853b-01e102fc1e58",
+      "target_id": "e513f492-5f53-54c7-b544-7b0f521b5eb2"
+    },
+    {
+      "id": "cd42a23a-3301-5b53-9059-f50955ff7f23",
+      "source_id": "e513f492-5f53-54c7-b544-7b0f521b5eb2",
+      "target_id": "2bdf56b7-04a3-5162-819a-08dbc259c86e"
+    },
+    {
+      "id": "8f58220b-eb79-524a-b221-f8b3c4b8cc2f",
+      "source_id": "e513f492-5f53-54c7-b544-7b0f521b5eb2",
+      "target_id": "2bdf56b7-04a3-5162-819a-08dbc259c86e",
+      "label": "no certificate run in 60 days"
+    },
+    {
+      "id": "7c2232d7-d9d4-5c83-a40e-0849707cb1ab",
+      "source_id": "2bdf56b7-04a3-5162-819a-08dbc259c86e",
+      "target_id": "0cc83d63-75b8-5479-adb9-1478263576d6"
+    },
+    {
+      "id": "08e453eb-0baa-562d-aec8-e4a3a216e458",
+      "source_id": "0cc83d63-75b8-5479-adb9-1478263576d6",
+      "target_id": "bc8d7791-0daa-5c13-a755-2a39529b6251"
+    }
+  ]
+}

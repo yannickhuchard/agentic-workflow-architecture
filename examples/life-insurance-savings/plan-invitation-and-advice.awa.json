@@ -1,0 +1,1131 @@
+{
+  "$schema": "https://awa.io/schema/awa.schema.json",
+  "id": "6ff49b2a-cde9-5c66-9eb1-51d66d2472ac",
+  "name": "Plan Invitation and Advice",
+  "version": "1.0.0",
+  "awa_version": "1.1",
+  "description": "Invites an employee to the employer's pension savings plan in the HR portal, reminds them, explains the plan, its tax ceiling and its risks through an AI adviser that hands over to a licensed adviser on request or when unsure, and establishes the demands and needs and the risk profile from the questionnaire.",
+  "sla": {
+    "id": "05a5ffb6-9caf-574e-a3b8-0079bd961011",
+    "name": "Advice and profile within six weeks",
+    "target_time": "P21D",
+    "max_time": "P42D",
+    "escalation_policy": {
+      "breach_action": "record",
+      "notify_roles": [
+        "883e4f3b-ee2e-5c46-aeda-993ba4419ad6"
+      ]
+    }
+  },
+  "roles": [
+    {
+      "id": "46def729-3ca3-5b9c-9ea7-fbb9b25ac1a3",
+      "name": "Policy administration",
+      "actor_type": "application",
+      "description": "Valoria Life's policy administration system: plans, enrolments, policies and premiums."
+    },
+    {
+      "id": "c2185c99-afda-5fea-bb83-cfc609dae54c",
+      "name": "HR portal",
+      "actor_type": "application",
+      "description": "The HR portal Valoria Life provides to the employer: inbox, questionnaires, self-service."
+    },
+    {
+      "id": "22038c7b-2f25-586a-bdd3-e665486610a2",
+      "name": "Reminder writer",
+      "actor_type": "ai_agent",
+      "description": "Writes short reminders in the employee's language.",
+      "capabilities": [
+        "customer writing"
+      ],
+      "ai_model_config": {
+        "model_id": "tier:fast",
+        "temperature": 0.2
+      }
+    },
+    {
+      "id": "2eccfa65-fc8e-5ef9-b698-d7433973e3d2",
+      "name": "AI adviser",
+      "actor_type": "ai_agent",
+      "description": "Explains the plan, its tax treatment and its risks, and turns the questionnaire into a demands-and-needs statement. Never prices, underwrites or decides on compliance.",
+      "capabilities": [
+        "life insurance savings",
+        "Luxembourg personal income tax",
+        "insurance distribution rules"
+      ],
+      "ai_model_config": {
+        "model_id": "tier:reasoning",
+        "temperature": 0.2
+      }
+    },
+    {
+      "id": "e43ce575-fe84-5c56-9e27-111bd093f70e",
+      "name": "Advice calendar",
+      "actor_type": "application",
+      "description": "Books video calls with licensed advisers."
+    },
+    {
+      "id": "883e4f3b-ee2e-5c46-aeda-993ba4419ad6",
+      "name": "Licensed adviser",
+      "actor_type": "human",
+      "description": "An insurance distributor registered with the supervisor, who gives advice by video call and takes over from the AI adviser."
+    }
+  ],
+  "contexts": [
+    {
+      "id": "2351dbe0-0346-586a-a113-f4165b9d5f68",
+      "name": "employee_profile",
+      "type": "data",
+      "sync_pattern": "shared_state",
+      "description": "The employee as the agents that serve them need to know them: first name, language, age, retirement age, tax residence and, once assessed, the risk profile. Salary and identity documents are not in it.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "first_name",
+          "tax_residence"
+        ],
+        "properties": {
+          "first_name": {
+            "type": "string"
+          },
+          "preferred_language": {
+            "type": "string"
+          },
+          "age": {
+            "type": "integer"
+          },
+          "retirement_age": {
+            "type": "integer"
+          },
+          "tax_residence": {
+            "type": "string"
+          },
+          "risk_profile": {
+            "type": "string"
+          },
+          "max_sri": {
+            "type": "integer"
+          },
+          "horizon_years": {
+            "type": "number"
+          },
+          "sustainability_preference": {
+            "type": "string"
+          },
+          "monthly_contribution_eur": {
+            "type": "number"
+          }
+        }
+      }
+    }
+  ],
+  "events": [
+    {
+      "id": "b99a7e35-12bd-5ef4-8985-249f9aa6634d",
+      "name": "Employee invited",
+      "event_type": "start",
+      "description": "The employer opens the plan to the employee in the HR portal.",
+      "event_definition": {
+        "name": "savings.invited"
+      }
+    },
+    {
+      "id": "03110dc5-e514-57ef-bba2-bb4f2e1d6291",
+      "name": "Invitation opened",
+      "event_type": "message",
+      "description": "Wait for the employee to open the invitation.",
+      "event_definition": {
+        "name": "invitation.opened",
+        "correlation_key": "enrolment_id",
+        "timeout": "P7D",
+        "timeout_edge_id": "681b66ed-28ea-5d59-a5bd-45c263d9831e"
+      }
+    },
+    {
+      "id": "56593040-1e05-5efe-9a38-2e2a56693ecf",
+      "name": "Invitation opened after reminder",
+      "event_type": "message",
+      "description": "Wait once more after the reminder.",
+      "event_definition": {
+        "name": "invitation.opened",
+        "correlation_key": "enrolment_id",
+        "timeout": "P7D",
+        "timeout_edge_id": "3c3d321e-13f6-5122-8e1b-acdfab1050e2"
+      }
+    },
+    {
+      "id": "f755c6fb-eeb0-5c3f-99ae-dcedb61c2dd9",
+      "name": "Invitation opened after last reminder",
+      "event_type": "message",
+      "description": "Wait a last time after the employer's reminder.",
+      "event_definition": {
+        "name": "invitation.opened",
+        "correlation_key": "enrolment_id",
+        "timeout": "P14D",
+        "timeout_edge_id": "b888032a-b2d2-5814-897f-0f7aefcdd609"
+      }
+    },
+    {
+      "id": "8a928207-ab26-5165-ba6c-8367d44a1e71",
+      "name": "Advice given",
+      "event_type": "message",
+      "description": "Tell the journey the plan has been explained, and by whom.",
+      "event_definition": {
+        "name": "advice.given",
+        "mode": "publish",
+        "data": [
+          "enrolment_id",
+          "advice_given",
+          "advice_channel"
+        ]
+      }
+    },
+    {
+      "id": "1260f3b5-b60f-5b82-9ba7-9ba6beda0f81",
+      "name": "Questionnaire answered",
+      "event_type": "message",
+      "description": "Wait for the questionnaire.",
+      "event_definition": {
+        "name": "questionnaire.submitted",
+        "correlation_key": "enrolment_id",
+        "timeout": "P14D",
+        "timeout_edge_id": "9cc49300-0df7-5fac-8128-cd6aa572396a"
+      }
+    },
+    {
+      "id": "49ffed8a-de1e-57f8-afad-d1eef883a9b3",
+      "name": "Profile completed",
+      "event_type": "message",
+      "description": "Tell the journey and the subscription the employee's profile.",
+      "event_definition": {
+        "name": "profile.completed",
+        "mode": "publish",
+        "data": [
+          "enrolment_id",
+          "plan_id",
+          "employee",
+          "employer",
+          "tax_residence",
+          "retirement_age",
+          "risk_profile",
+          "max_sri",
+          "horizon_years",
+          "capacity_for_loss",
+          "sustainability_preference",
+          "demands_and_needs",
+          "monthly_contribution_eur",
+          "profile_reference"
+        ]
+      }
+    },
+    {
+      "id": "bfefa930-2ca1-574e-9895-f2ec99aac455",
+      "name": "Invitation lapsed",
+      "event_type": "message",
+      "description": "Tell the journey the invitation lapsed.",
+      "event_definition": {
+        "name": "savings.invitation_lapsed",
+        "mode": "publish",
+        "data": [
+          "enrolment_id",
+          "lapsed_reason"
+        ]
+      }
+    },
+    {
+      "id": "98c62bce-ab99-50b6-9a02-db1403825d97",
+      "name": "Advice completed",
+      "event_type": "end"
+    },
+    {
+      "id": "b0d9e3b8-9de0-5ed4-a873-d5b854bcd195",
+      "name": "Not taken up",
+      "event_type": "end"
+    }
+  ],
+  "activities": [
+    {
+      "id": "b9947f8a-a162-55d7-85d6-e4d6fbdfa1f2",
+      "name": "Register enrolment",
+      "role_id": "46def729-3ca3-5b9c-9ea7-fbb9b25ac1a3",
+      "actor_type": "application",
+      "description": "Create the enrolment and the employee profile the agents read.",
+      "tools": [
+        {
+          "name": "register_enrolment",
+          "description": "Create the enrolment of an invited employee in the policy administration system.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "enrolment_id",
+              "plan_id",
+              "employee",
+              "employer"
+            ],
+            "properties": {
+              "enrolment_id": {
+                "type": "string"
+              },
+              "plan_id": {
+                "type": "string"
+              },
+              "employee": {
+                "type": "object"
+              },
+              "employer": {
+                "type": "object"
+              },
+              "tax_residence": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4560/policy-admin/v1/enrolments",
+            "headers": {
+              "authorization": "Bearer {{secret:POLICY_ADMIN_TOKEN}}"
+            }
+          }
+        }
+      ],
+      "retry": {
+        "max_attempts": 3,
+        "initial_delay": "PT1S"
+      },
+      "context_bindings": [
+        {
+          "context_id": "2351dbe0-0346-586a-a113-f4165b9d5f68",
+          "access_mode": "write"
+        }
+      ]
+    },
+    {
+      "id": "f7441a3d-db46-50e2-b4df-ed674945e911",
+      "name": "Send invitation",
+      "role_id": "c2185c99-afda-5fea-bb83-cfc609dae54c",
+      "actor_type": "application",
+      "description": "Invite the employee to the plan in the HR portal's inbox and by e-mail.",
+      "tools": [
+        {
+          "name": "send_notification",
+          "description": "Send the employee a message in the HR portal's inbox, by e-mail, or both.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "enrolment_id",
+              "channel",
+              "template"
+            ],
+            "properties": {
+              "enrolment_id": {
+                "type": "string"
+              },
+              "channel": {
+                "type": "string",
+                "enum": [
+                  "portal",
+                  "email",
+                  "portal_and_email"
+                ]
+              },
+              "template": {
+                "type": "string"
+              },
+              "subject": {
+                "type": "string"
+              },
+              "body": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4560/portal/v1/notifications",
+            "headers": {
+              "authorization": "Bearer {{secret:PORTAL_TOKEN}}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "0f8b56af-2bea-58eb-893d-101bcfe728dc",
+      "name": "Send invitation reminder",
+      "role_id": "22038c7b-2f25-586a-bdd3-e665486610a2",
+      "actor_type": "ai_agent",
+      "description": "Remind the employee of the invitation: what the plan is, and until when it stays open.",
+      "tools": [
+        {
+          "name": "send_notification",
+          "description": "Send the employee a message in the HR portal's inbox, by e-mail, or both.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "enrolment_id",
+              "channel",
+              "template"
+            ],
+            "properties": {
+              "enrolment_id": {
+                "type": "string"
+              },
+              "channel": {
+                "type": "string",
+                "enum": [
+                  "portal",
+                  "email",
+                  "portal_and_email"
+                ]
+              },
+              "template": {
+                "type": "string"
+              },
+              "subject": {
+                "type": "string"
+              },
+              "body": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4560/portal/v1/notifications",
+            "headers": {
+              "authorization": "Bearer {{secret:PORTAL_TOKEN}}"
+            }
+          }
+        }
+      ],
+      "context_bindings": [
+        {
+          "context_id": "2351dbe0-0346-586a-a113-f4165b9d5f68",
+          "access_mode": "read"
+        }
+      ],
+      "outcome_contract": {
+        "output_schema": {
+          "type": "object",
+          "required": [
+            "message",
+            "deadline_stated"
+          ],
+          "properties": {
+            "message": {
+              "type": "string",
+              "minLength": 60
+            },
+            "deadline_stated": {
+              "type": "boolean"
+            },
+            "reminder_id": {
+              "type": "string"
+            }
+          }
+        },
+        "postconditions": [
+          {
+            "name": "States until when the invitation is open",
+            "expression": "deadline_stated == true"
+          }
+        ]
+      }
+    },
+    {
+      "id": "e0b9a421-e120-5f6f-8697-a36d5634dbc2",
+      "name": "Send last reminder",
+      "role_id": "c2185c99-afda-5fea-bb83-cfc609dae54c",
+      "actor_type": "application",
+      "description": "Send the employer's last reminder from Kestrel HR, through the HR portal.",
+      "tools": [
+        {
+          "name": "send_notification",
+          "description": "Send the employee a message in the HR portal's inbox, by e-mail, or both.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "enrolment_id",
+              "channel",
+              "template"
+            ],
+            "properties": {
+              "enrolment_id": {
+                "type": "string"
+              },
+              "channel": {
+                "type": "string",
+                "enum": [
+                  "portal",
+                  "email",
+                  "portal_and_email"
+                ]
+              },
+              "template": {
+                "type": "string"
+              },
+              "subject": {
+                "type": "string"
+              },
+              "body": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4560/portal/v1/notifications",
+            "headers": {
+              "authorization": "Bearer {{secret:PORTAL_TOKEN}}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "1c9b1875-1fc2-51af-97ae-01dcff0d3cb9",
+      "name": "Close invitation",
+      "role_id": "46def729-3ca3-5b9c-9ea7-fbb9b25ac1a3",
+      "actor_type": "application",
+      "description": "Close the enrolment: the employee did not answer, or did not continue."
+    },
+    {
+      "id": "ba81557c-6186-5621-9aea-dbe11b995fe3",
+      "name": "Explain the plan",
+      "role_id": "2eccfa65-fc8e-5ef9-b698-d7433973e3d2",
+      "actor_type": "ai_agent",
+      "description": "Explain the plan in the HR portal's chat: how it works, the tax ceiling under the article it is written under, the fees, that the value of unit-linked funds can fall, and the right to cancel. Hand over to a licensed adviser when the employee asks for one.",
+      "procedure": "Read the plan's terms with the plan tool. Explain, in the employee's language: the contract and its minimum duration of ten years; that savings are paid out from age 60 and no later than 75; the deduction ceiling of the article the plan is written under for the current tax year; the fees; that the value of unit-linked funds goes down as well as up and is not guaranteed; the 30 days to cancel with a full refund. List every topic you covered. Offer a licensed adviser, and book one if the employee asks. Never state a guaranteed return. Say how sure you are that the employee has understood.",
+      "tools": [
+        {
+          "name": "get_plan_rules",
+          "description": "Read the terms of the employer's savings plan: the contract, its minimum duration, the fees, the fund range and the tax article it is written under.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "plan_id"
+            ],
+            "properties": {
+              "plan_id": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "GET",
+            "url": "http://localhost:4560/policy-admin/v1/plans/{plan_id}",
+            "headers": {
+              "authorization": "Bearer {{secret:POLICY_ADMIN_TOKEN}}"
+            }
+          }
+        }
+      ],
+      "context_bindings": [
+        {
+          "context_id": "2351dbe0-0346-586a-a113-f4165b9d5f68",
+          "access_mode": "read"
+        }
+      ],
+      "outcome_contract": {
+        "output_schema": {
+          "type": "object",
+          "required": [
+            "explanation",
+            "topics_covered",
+            "uncovered_count",
+            "risk_warning_given",
+            "tax_ceiling_eur",
+            "handover_requested",
+            "confidence"
+          ],
+          "properties": {
+            "explanation": {
+              "type": "string",
+              "minLength": 200
+            },
+            "topics_covered": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "contract",
+                  "duration",
+                  "payout_age",
+                  "tax_ceiling",
+                  "fees",
+                  "investment_risk",
+                  "right_to_cancel"
+                ]
+              }
+            },
+            "uncovered_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "risk_warning_given": {
+              "type": "boolean"
+            },
+            "tax_ceiling_eur": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "handover_requested": {
+              "type": "boolean"
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "advice_given": {
+              "type": "boolean"
+            },
+            "advice_channel": {
+              "type": "string"
+            }
+          }
+        },
+        "postconditions": [
+          {
+            "name": "Every topic of the plan is covered",
+            "expression": "uncovered_count == 0"
+          },
+          {
+            "name": "The investment risk is stated",
+            "expression": "risk_warning_given == true"
+          },
+          {
+            "name": "Sure enough the employee has understood",
+            "expression": "confidence >= 0.8"
+          }
+        ],
+        "budgets": {
+          "max_attempts": 2,
+          "max_duration": "PT10M",
+          "max_tokens": 40000,
+          "max_tool_calls": 4
+        },
+        "on_violation": "escalate_human"
+      }
+    },
+    {
+      "id": "a78daefe-7cf3-5fc8-8033-b460b83de505",
+      "name": "Book video call",
+      "role_id": "e43ce575-fe84-5c56-9e27-111bd093f70e",
+      "actor_type": "application",
+      "description": "Book a video call with a licensed adviser at the time the employee chose.",
+      "tools": [
+        {
+          "name": "book_video_call",
+          "description": "Book a video call with a licensed adviser in the advice calendar.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "enrolment_id",
+              "topic"
+            ],
+            "properties": {
+              "enrolment_id": {
+                "type": "string"
+              },
+              "topic": {
+                "type": "string"
+              },
+              "preferred_slot": {
+                "type": "string"
+              },
+              "language": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4560/advice/v1/appointments",
+            "headers": {
+              "authorization": "Bearer {{secret:ADVICE_CALENDAR_TOKEN}}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "adaa6959-0b29-5032-b530-4fedbccbbca7",
+      "name": "Advise in video call",
+      "role_id": "883e4f3b-ee2e-5c46-aeda-993ba4419ad6",
+      "actor_type": "human",
+      "description": "A licensed adviser explains the plan by video call, answers the employee's questions and records the advice given.",
+      "outcome_contract": {
+        "output_schema": {
+          "type": "object",
+          "required": [
+            "advice_given",
+            "advice_summary"
+          ],
+          "properties": {
+            "advice_given": {
+              "type": "boolean"
+            },
+            "advice_summary": {
+              "type": "string",
+              "minLength": 20
+            },
+            "advice_channel": {
+              "type": "string"
+            },
+            "monthly_contribution_eur": {
+              "type": "number",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "ddacbd33-f911-5a97-a83b-3d376d130015",
+      "name": "Send questionnaire",
+      "role_id": "c2185c99-afda-5fea-bb83-cfc609dae54c",
+      "actor_type": "application",
+      "description": "Open the questionnaire in the HR portal: demands and needs, knowledge and experience, financial situation and capacity for loss, objectives and risk tolerance, sustainability preferences.",
+      "tools": [
+        {
+          "name": "open_questionnaire",
+          "description": "Open the demands-and-needs and suitability questionnaire for the employee in the HR portal.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "enrolment_id",
+              "questionnaire"
+            ],
+            "properties": {
+              "enrolment_id": {
+                "type": "string"
+              },
+              "questionnaire": {
+                "type": "string"
+              },
+              "language": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4560/portal/v1/questionnaires",
+            "headers": {
+              "authorization": "Bearer {{secret:PORTAL_TOKEN}}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "cd4e6821-b157-5900-bb13-2e3a0a36115f",
+      "name": "Assess demands and needs",
+      "role_id": "2eccfa65-fc8e-5ef9-b698-d7433973e3d2",
+      "actor_type": "ai_agent",
+      "description": "Turn the answers into the demands-and-needs statement and the suitability assessment of the Insurance Distribution Directive, and flag answers that contradict each other.",
+      "procedure": "Read the answers. Write the demands and needs in plain words. Check every section is answered: knowledge and experience, financial situation including the capacity for loss, objectives including the horizon and risk tolerance, sustainability preferences. List answers that contradict each other, such as a short horizon with a high risk tolerance. Say how sure you are.",
+      "context_bindings": [
+        {
+          "context_id": "2351dbe0-0346-586a-a113-f4165b9d5f68",
+          "access_mode": "read"
+        }
+      ],
+      "guardrails": [
+        {
+          "id": "67c8f788-8fd1-5e65-aaf7-1b0b0b92c6a7",
+          "name": "Personal data in what the agent writes",
+          "stages": [
+            "output"
+          ],
+          "check": {
+            "kind": "personal_data",
+            "categories": [
+              "email",
+              "phone",
+              "iban"
+            ]
+          },
+          "fields": [
+            "demands_and_needs",
+            "notes"
+          ],
+          "action": "redact"
+        }
+      ],
+      "outcome_contract": {
+        "output_schema": {
+          "type": "object",
+          "required": [
+            "demands_and_needs",
+            "sections_unanswered",
+            "contradictions",
+            "confidence",
+            "notes"
+          ],
+          "properties": {
+            "demands_and_needs": {
+              "type": "string",
+              "minLength": 80
+            },
+            "sections_unanswered": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "contradictions": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "notes": {
+              "type": "string",
+              "minLength": 10
+            }
+          }
+        },
+        "postconditions": [
+          {
+            "name": "Every section of the questionnaire is answered",
+            "expression": "sections_unanswered == 0"
+          },
+          {
+            "name": "Sure enough to profile",
+            "expression": "confidence >= 0.75"
+          }
+        ],
+        "budgets": {
+          "max_attempts": 2,
+          "max_duration": "PT5M",
+          "max_tokens": 30000
+        },
+        "on_violation": "escalate_human"
+      }
+    },
+    {
+      "id": "676d01b1-888b-5517-a445-5f31bb16468f",
+      "name": "Record suitability profile",
+      "role_id": "46def729-3ca3-5b9c-9ea7-fbb9b25ac1a3",
+      "actor_type": "application",
+      "description": "Record the demands and needs, the suitability assessment and the risk profile on the enrolment.",
+      "tools": [
+        {
+          "name": "record_suitability_profile",
+          "description": "Record the demands and needs, the suitability assessment and the risk profile on the enrolment.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "enrolment_id",
+              "risk_profile",
+              "max_sri"
+            ],
+            "properties": {
+              "enrolment_id": {
+                "type": "string"
+              },
+              "risk_profile": {
+                "type": "string",
+                "enum": [
+                  "cautious",
+                  "moderate",
+                  "balanced",
+                  "dynamic"
+                ]
+              },
+              "max_sri": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 7
+              },
+              "demands_and_needs": {
+                "type": "string"
+              },
+              "sustainability_preference": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4560/policy-admin/v1/enrolments/{enrolment_id}/profile",
+            "headers": {
+              "authorization": "Bearer {{secret:POLICY_ADMIN_TOKEN}}"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "decision_nodes": [
+    {
+      "id": "d906cec7-1cbf-506d-9418-a79a7d289a01",
+      "name": "Risk profile",
+      "description": "The risk profile, and the highest summary risk indicator (SRI, 1 to 7, from the key information documents) a choice may reach, from the suitability answers. THE BANDS ARE EXAMPLES each insurer sets in its own advice policy.",
+      "decision_table": {
+        "hit_policy": "first",
+        "inputs": [
+          {
+            "name": "capacity_for_loss",
+            "label": "Capacity for loss",
+            "type": "string"
+          },
+          {
+            "name": "horizon_years",
+            "label": "Horizon (years)",
+            "type": "number"
+          },
+          {
+            "name": "risk_tolerance",
+            "label": "Risk tolerance (1 to 5)",
+            "type": "number"
+          },
+          {
+            "name": "knowledge_level",
+            "label": "Knowledge and experience",
+            "type": "string"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "risk_profile",
+            "type": "string"
+          },
+          {
+            "name": "max_sri",
+            "type": "number"
+          }
+        ],
+        "rules": [
+          {
+            "description": "No loss can be borne",
+            "input_entries": [
+              "\"none\"",
+              "-",
+              "-",
+              "-"
+            ],
+            "output_entries": [
+              "cautious",
+              2
+            ]
+          },
+          {
+            "description": "A horizon under five years",
+            "input_entries": [
+              "-",
+              "< 5",
+              "-",
+              "-"
+            ],
+            "output_entries": [
+              "cautious",
+              2
+            ]
+          },
+          {
+            "description": "A low risk tolerance, or a limited capacity for loss",
+            "input_entries": [
+              "-",
+              "-",
+              "<= 2",
+              "-"
+            ],
+            "output_entries": [
+              "moderate",
+              3
+            ]
+          },
+          {
+            "description": "A limited capacity for loss",
+            "input_entries": [
+              "\"limited\"",
+              "-",
+              "-",
+              "-"
+            ],
+            "output_entries": [
+              "moderate",
+              3
+            ]
+          },
+          {
+            "description": "High tolerance, long horizon, informed investor",
+            "input_entries": [
+              "\"moderate\", \"substantial\"",
+              ">= 15",
+              ">= 4",
+              "\"informed\", \"advanced\""
+            ],
+            "output_entries": [
+              "dynamic",
+              5
+            ]
+          },
+          {
+            "description": "Everyone else",
+            "input_entries": [
+              "-",
+              "-",
+              "-",
+              "-"
+            ],
+            "output_entries": [
+              "balanced",
+              4
+            ]
+          }
+        ]
+      },
+      "default_output_edge_id": "f007ac1c-d18a-5b7b-8738-731f70aeaef0"
+    }
+  ],
+  "edges": [
+    {
+      "id": "16fa6f16-f8b2-526a-893e-346dbcd34d24",
+      "source_id": "b99a7e35-12bd-5ef4-8985-249f9aa6634d",
+      "target_id": "b9947f8a-a162-55d7-85d6-e4d6fbdfa1f2"
+    },
+    {
+      "id": "09b503ef-3d77-57c9-b335-f8ea06e74d32",
+      "source_id": "b9947f8a-a162-55d7-85d6-e4d6fbdfa1f2",
+      "target_id": "f7441a3d-db46-50e2-b4df-ed674945e911"
+    },
+    {
+      "id": "528560f7-7ade-5a3e-944d-a6451c41e1e3",
+      "source_id": "f7441a3d-db46-50e2-b4df-ed674945e911",
+      "target_id": "03110dc5-e514-57ef-bba2-bb4f2e1d6291"
+    },
+    {
+      "id": "ac80475a-0a44-510b-b33f-e6cb52da4f95",
+      "source_id": "03110dc5-e514-57ef-bba2-bb4f2e1d6291",
+      "target_id": "ba81557c-6186-5621-9aea-dbe11b995fe3"
+    },
+    {
+      "id": "681b66ed-28ea-5d59-a5bd-45c263d9831e",
+      "source_id": "03110dc5-e514-57ef-bba2-bb4f2e1d6291",
+      "target_id": "0f8b56af-2bea-58eb-893d-101bcfe728dc",
+      "label": "not opened in 7 days"
+    },
+    {
+      "id": "344c7e7b-aa68-5dd0-a6cf-d41b842b0fa5",
+      "source_id": "0f8b56af-2bea-58eb-893d-101bcfe728dc",
+      "target_id": "56593040-1e05-5efe-9a38-2e2a56693ecf"
+    },
+    {
+      "id": "85418702-dcb0-567e-9e27-283a6803451f",
+      "source_id": "56593040-1e05-5efe-9a38-2e2a56693ecf",
+      "target_id": "ba81557c-6186-5621-9aea-dbe11b995fe3"
+    },
+    {
+      "id": "3c3d321e-13f6-5122-8e1b-acdfab1050e2",
+      "source_id": "56593040-1e05-5efe-9a38-2e2a56693ecf",
+      "target_id": "e0b9a421-e120-5f6f-8697-a36d5634dbc2",
+      "label": "not opened in 7 more days"
+    },
+    {
+      "id": "d4df8a1f-dd81-5b07-9556-6d71ab7498da",
+      "source_id": "e0b9a421-e120-5f6f-8697-a36d5634dbc2",
+      "target_id": "f755c6fb-eeb0-5c3f-99ae-dcedb61c2dd9"
+    },
+    {
+      "id": "aa0a3094-a67b-5e1c-b990-ae741504cfbf",
+      "source_id": "f755c6fb-eeb0-5c3f-99ae-dcedb61c2dd9",
+      "target_id": "ba81557c-6186-5621-9aea-dbe11b995fe3"
+    },
+    {
+      "id": "b888032a-b2d2-5814-897f-0f7aefcdd609",
+      "source_id": "f755c6fb-eeb0-5c3f-99ae-dcedb61c2dd9",
+      "target_id": "1c9b1875-1fc2-51af-97ae-01dcff0d3cb9",
+      "label": "not opened in 14 more days"
+    },
+    {
+      "id": "1ab7938d-7f14-5068-971c-995d2f987054",
+      "source_id": "1c9b1875-1fc2-51af-97ae-01dcff0d3cb9",
+      "target_id": "bfefa930-2ca1-574e-9895-f2ec99aac455"
+    },
+    {
+      "id": "12511793-9ae4-5e9f-aae3-6f9303333b02",
+      "source_id": "bfefa930-2ca1-574e-9895-f2ec99aac455",
+      "target_id": "b0d9e3b8-9de0-5ed4-a873-d5b854bcd195"
+    },
+    {
+      "id": "610b5e75-3a9c-53b4-8d13-fdcabeb89a45",
+      "source_id": "ba81557c-6186-5621-9aea-dbe11b995fe3",
+      "target_id": "a78daefe-7cf3-5fc8-8033-b460b83de505",
+      "condition": "handover_requested == true",
+      "label": "asks for a person"
+    },
+    {
+      "id": "8a81a144-fdd1-50e0-b400-16c13df46204",
+      "source_id": "ba81557c-6186-5621-9aea-dbe11b995fe3",
+      "target_id": "8a928207-ab26-5165-ba6c-8367d44a1e71",
+      "is_default": true
+    },
+    {
+      "id": "bd2da9fd-9e37-5b64-a33b-b32fc3e3d23b",
+      "source_id": "a78daefe-7cf3-5fc8-8033-b460b83de505",
+      "target_id": "adaa6959-0b29-5032-b530-4fedbccbbca7"
+    },
+    {
+      "id": "2bb043d3-d180-592c-b344-c9d82531c53f",
+      "source_id": "adaa6959-0b29-5032-b530-4fedbccbbca7",
+      "target_id": "8a928207-ab26-5165-ba6c-8367d44a1e71"
+    },
+    {
+      "id": "c8fb6ef0-76e1-5888-898c-304e51f50b3c",
+      "source_id": "8a928207-ab26-5165-ba6c-8367d44a1e71",
+      "target_id": "ddacbd33-f911-5a97-a83b-3d376d130015"
+    },
+    {
+      "id": "aca3c042-c4a7-501a-8bb8-e041c1456d89",
+      "source_id": "ddacbd33-f911-5a97-a83b-3d376d130015",
+      "target_id": "1260f3b5-b60f-5b82-9ba7-9ba6beda0f81"
+    },
+    {
+      "id": "d0018cb7-0f4a-571f-8304-149e4cc41b30",
+      "source_id": "1260f3b5-b60f-5b82-9ba7-9ba6beda0f81",
+      "target_id": "cd4e6821-b157-5900-bb13-2e3a0a36115f"
+    },
+    {
+      "id": "9cc49300-0df7-5fac-8128-cd6aa572396a",
+      "source_id": "1260f3b5-b60f-5b82-9ba7-9ba6beda0f81",
+      "target_id": "1c9b1875-1fc2-51af-97ae-01dcff0d3cb9",
+      "label": "no answer in 14 days"
+    },
+    {
+      "id": "2a83b5c9-5747-5379-8537-3bdcfd58ee55",
+      "source_id": "cd4e6821-b157-5900-bb13-2e3a0a36115f",
+      "target_id": "d906cec7-1cbf-506d-9418-a79a7d289a01"
+    },
+    {
+      "id": "f007ac1c-d18a-5b7b-8738-731f70aeaef0",
+      "source_id": "d906cec7-1cbf-506d-9418-a79a7d289a01",
+      "target_id": "676d01b1-888b-5517-a445-5f31bb16468f"
+    },
+    {
+      "id": "933a7557-05cd-583f-9e71-308c97826044",
+      "source_id": "676d01b1-888b-5517-a445-5f31bb16468f",
+      "target_id": "49ffed8a-de1e-57f8-afad-d1eef883a9b3"
+    },
+    {
+      "id": "8ae9917a-2b69-5634-82f1-c91a8456279d",
+      "source_id": "49ffed8a-de1e-57f8-afad-d1eef883a9b3",
+      "target_id": "98c62bce-ab99-50b6-9a02-db1403825d97"
+    }
+  ]
+}

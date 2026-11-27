@@ -1,0 +1,840 @@
+{
+  "id": "37a41753-a4b5-564d-828f-60fba735e5a8",
+  "name": "Workplace Pension Savings",
+  "version": "1.0.0",
+  "awa_version": "1.1",
+  "description": "An employee's way through the pension savings plan Valoria Life runs for Kestrel Engineering: the invitation in the HR portal, advice, the questionnaire and the risk profile, the choice of funds, the subscription with its due diligence, the 30 days to cancel, a year of payroll contributions and self-service, the year-end tax certificate, and the annual review.",
+  "subject": {
+    "name": "employee",
+    "key": "enrolment_id"
+  },
+  "stages": [
+    {
+      "id": "invitation",
+      "name": "Invitation",
+      "description": "The employer opens the plan; the employee is invited in the HR portal and by e-mail, and reminded.",
+      "workflows": [
+        "6ff49b2a-cde9-5c66-9eb1-51d66d2472ac"
+      ],
+      "complete_when": "invitation_opened == true",
+      "max_duration": "P30D",
+      "owner": "Kestrel HR"
+    },
+    {
+      "id": "discovery",
+      "name": "Discovery and advice",
+      "description": "The AI adviser explains the plan, the tax ceiling and the risks; a licensed adviser takes over by video call on request.",
+      "workflows": [
+        "6ff49b2a-cde9-5c66-9eb1-51d66d2472ac"
+      ],
+      "complete_when": "advice_given == true",
+      "max_duration": "P14D",
+      "owner": "Valoria advice desk"
+    },
+    {
+      "id": "profile",
+      "name": "Needs and profile",
+      "description": "The questionnaire: demands and needs, knowledge and experience, capacity for loss, horizon, risk tolerance, sustainability preferences; the risk profile.",
+      "workflows": [
+        "6ff49b2a-cde9-5c66-9eb1-51d66d2472ac"
+      ],
+      "complete_when": "risk_profile exists",
+      "max_duration": "P21D",
+      "owner": "Valoria advice desk"
+    },
+    {
+      "id": "investments",
+      "name": "Investments",
+      "description": "A model portfolio or the employee's own choice of unit-linked funds, each with its key information document, checked against the profile.",
+      "workflows": [
+        "51bb950b-7579-5ee2-81fb-4e1e29d7c18f"
+      ],
+      "complete_when": "allocation_confirmed == true",
+      "max_duration": "P21D",
+      "owner": "Valoria advice desk"
+    },
+    {
+      "id": "subscription",
+      "name": "Subscription",
+      "description": "Identity, anti-money-laundering and tax residence checks, the beneficiary clause, the payroll mandate, the e-signature.",
+      "workflows": [
+        "d0fb8198-0fde-5fd9-8d79-2b3c558ca363"
+      ],
+      "complete_when": "contract_signed == true",
+      "max_duration": "P30D",
+      "owner": "Valoria subscription desk"
+    },
+    {
+      "id": "cooling-off",
+      "name": "Cooling-off and issue",
+      "description": "The policy is issued and the first premium invested; the employee has 30 days to cancel with a full refund.",
+      "complete_when": "policy_in_force == true",
+      "max_duration": "P60D",
+      "owner": "Valoria back-office"
+    },
+    {
+      "id": "saving",
+      "name": "Saving",
+      "description": "Monthly payroll contributions, switches and top-ups in self-service, quarterly statements.",
+      "workflows": [
+        "bbbdb5da-0532-5292-918e-c5a6224d576a",
+        "bacf22dc-eb73-5156-8025-c4a318db6e4e"
+      ],
+      "complete_when": "tax_review_due == true",
+      "max_duration": "P300D",
+      "owner": "Kestrel payroll"
+    },
+    {
+      "id": "year-end-tax",
+      "name": "Year-end tax",
+      "description": "The deductible amount, a top-up proposed before 31 December, the tax certificate in January for the tax return.",
+      "workflows": [
+        "fda1e521-702a-518a-bdba-97c991f9e71d"
+      ],
+      "complete_when": "tax_certificate_issued == true",
+      "max_duration": "P100D",
+      "owner": "Valoria tax desk"
+    },
+    {
+      "id": "annual-review",
+      "name": "Annual review",
+      "description": "Recommendations: rebalance, reduce the risk with age, update the beneficiary clause after a life event.",
+      "workflows": [
+        "ac38e3b7-996e-5ca8-85b3-6591b9457d3b"
+      ],
+      "complete_when": "review_completed == true",
+      "max_duration": "P45D",
+      "owner": "Valoria advice desk",
+      "transitions": []
+    }
+  ],
+  "triggers": [
+    {
+      "event": "savings.invited",
+      "starts_journey": true,
+      "start_workflow": "6ff49b2a-cde9-5c66-9eb1-51d66d2472ac"
+    },
+    {
+      "event": "profile.completed",
+      "start_workflow": "51bb950b-7579-5ee2-81fb-4e1e29d7c18f"
+    },
+    {
+      "event": "policy.in_force",
+      "start_workflow": "bbbdb5da-0532-5292-918e-c5a6224d576a"
+    },
+    {
+      "event": "self_service.requested",
+      "start_workflow": "bacf22dc-eb73-5156-8025-c4a318db6e4e"
+    },
+    {
+      "event": "tax_year.review_due",
+      "start_workflow": "fda1e521-702a-518a-bdba-97c991f9e71d"
+    },
+    {
+      "event": "annual_review.due",
+      "start_workflow": "ac38e3b7-996e-5ca8-85b3-6591b9457d3b"
+    }
+  ],
+  "goals": [
+    {
+      "id": "policy-issued",
+      "name": "Policy issued",
+      "expression": "policy_issued == true"
+    },
+    {
+      "id": "first-deduction-claimed",
+      "name": "First year's deduction claimed",
+      "expression": "deduction_claimed == true"
+    }
+  ],
+  "exits": [
+    {
+      "event": "savings.invitation_lapsed",
+      "outcome": "abandoned",
+      "reason": "Did not take up the invitation"
+    },
+    {
+      "event": "subscription.lapsed",
+      "outcome": "abandoned",
+      "reason": "Did not complete the subscription"
+    },
+    {
+      "event": "subscription.refused",
+      "outcome": "abandoned",
+      "reason": "Not accepted after due diligence"
+    },
+    {
+      "event": "policy.cancellation_requested",
+      "outcome": "abandoned",
+      "reason": "Cancelled within the 30-day period"
+    }
+  ],
+  "artefacts": [
+    {
+      "id": "invitation",
+      "name": "Plan invitation",
+      "kind": "notice",
+      "description": "What the plan is, who runs it, and until when the invitation is open."
+    },
+    {
+      "id": "reminder",
+      "name": "Reminder",
+      "kind": "notice",
+      "description": "The invitation is still open, and until when."
+    },
+    {
+      "id": "plan-explanation",
+      "name": "Plan explanation",
+      "kind": "notice",
+      "description": "The contract, the tax ceiling, the fees, the investment risk and the right to cancel."
+    },
+    {
+      "id": "appointment",
+      "name": "Video call appointment",
+      "kind": "notice",
+      "description": "A call with a licensed adviser."
+    },
+    {
+      "id": "advice-record",
+      "name": "Advice record",
+      "kind": "report",
+      "description": "What the licensed adviser advised."
+    },
+    {
+      "id": "questionnaire",
+      "name": "Suitability questionnaire",
+      "kind": "survey",
+      "description": "Demands and needs, knowledge and experience, financial situation, objectives, sustainability preferences."
+    },
+    {
+      "id": "kid",
+      "name": "Key information documents",
+      "kind": "notice",
+      "description": "The PRIIPs key information document of each fund proposed."
+    },
+    {
+      "id": "fund-proposal",
+      "name": "Investment proposal",
+      "kind": "quote",
+      "description": "The model portfolio proposed and the funds within the profile."
+    },
+    {
+      "id": "risk-warning",
+      "name": "Risk warning",
+      "kind": "notice",
+      "description": "The choice is riskier than the profile, and what the employee can do."
+    },
+    {
+      "id": "identity-documents",
+      "name": "Identity documents",
+      "kind": "evidence",
+      "description": "Identity card or passport, proof of address."
+    },
+    {
+      "id": "self-certification",
+      "name": "Tax residence self-certification",
+      "kind": "attestation",
+      "description": "Countries of tax residence, tax identification numbers, US status (CRS and FATCA)."
+    },
+    {
+      "id": "beneficiary-clause",
+      "name": "Beneficiary clause",
+      "kind": "form",
+      "description": "Who receives the savings if the employee dies before the payout."
+    },
+    {
+      "id": "payroll-mandate",
+      "name": "Payroll deduction mandate",
+      "kind": "attestation",
+      "description": "The employee's authorisation to deduct the contribution from the salary."
+    },
+    {
+      "id": "contract",
+      "name": "Policy contract",
+      "kind": "contract",
+      "description": "The pension savings contract under Art. 111bis LIR."
+    },
+    {
+      "id": "policy-schedule",
+      "name": "Policy schedule",
+      "kind": "certificate",
+      "description": "The policy issued, with the right to cancel within 30 days."
+    },
+    {
+      "id": "premium",
+      "name": "Premium",
+      "kind": "receipt",
+      "description": "A payroll contribution paid to the policy."
+    },
+    {
+      "id": "statement",
+      "name": "Statement",
+      "kind": "report",
+      "description": "The value, the units by fund and the premiums paid."
+    },
+    {
+      "id": "top-up-proposal",
+      "name": "Top-up proposal",
+      "kind": "quote",
+      "description": "The amount that reaches the ceiling before 31 December."
+    },
+    {
+      "id": "tax-certificate",
+      "name": "Tax certificate",
+      "kind": "certificate",
+      "description": "The premiums paid in the tax year and the article they fall under, for the tax return."
+    },
+    {
+      "id": "recommendations",
+      "name": "Recommendations",
+      "kind": "report",
+      "description": "What the review recommends, and why."
+    },
+    {
+      "id": "cancellation",
+      "name": "Cancellation request",
+      "kind": "form",
+      "description": "The employee cancels within 30 days."
+    }
+  ],
+  "touchpoints": [
+    {
+      "id": "invited",
+      "name": "Is invited in the HR portal",
+      "party": "subject",
+      "direction": "outbound",
+      "channel": "email",
+      "technology": "HR portal and e-mail",
+      "on": {
+        "activity": "Send invitation"
+      },
+      "exchanges": [
+        {
+          "artefact": "invitation"
+        }
+      ]
+    },
+    {
+      "id": "opens",
+      "name": "Opens the invitation",
+      "party": "subject",
+      "direction": "inbound",
+      "channel": "web",
+      "technology": "HR portal",
+      "on": {
+        "event": "invitation.opened"
+      },
+      "exchanges": []
+    },
+    {
+      "id": "reminded",
+      "name": "Is reminded of the invitation",
+      "party": "subject",
+      "direction": "outbound",
+      "channel": "email",
+      "technology": "HR portal and e-mail",
+      "on": {
+        "activity": "Send invitation reminder"
+      },
+      "exchanges": [
+        {
+          "artefact": "reminder",
+          "reference": "reminder_id"
+        }
+      ]
+    },
+    {
+      "id": "last-reminder",
+      "name": "Receives Kestrel HR's last reminder",
+      "party": "subject",
+      "direction": "outbound",
+      "channel": "web",
+      "technology": "HR portal",
+      "on": {
+        "activity": "Send last reminder"
+      },
+      "exchanges": [
+        {
+          "artefact": "reminder"
+        }
+      ]
+    },
+    {
+      "id": "explained",
+      "name": "Is explained the plan by the AI adviser",
+      "party": "subject",
+      "direction": "outbound",
+      "channel": "chat",
+      "technology": "HR portal (AI adviser chat)",
+      "on": {
+        "activity": "Explain the plan"
+      },
+      "exchanges": [
+        {
+          "artefact": "plan-explanation"
+        }
+      ]
+    },
+    {
+      "id": "video-call",
+      "name": "Talks to a licensed adviser by video",
+      "party": "subject",
+      "direction": "outbound",
+      "channel": "video",
+      "technology": "Advice video calls",
+      "on": {
+        "activity": "Advise in video call"
+      },
+      "exchanges": [
+        {
+          "artefact": "appointment",
+          "reference": "appointment_id"
+        },
+        {
+          "artefact": "advice-record"
+        }
+      ]
+    },
+    {
+      "id": "answers-questionnaire",
+      "name": "Answers the questionnaire",
+      "party": "subject",
+      "direction": "inbound",
+      "channel": "web",
+      "technology": "HR portal",
+      "on": {
+        "event": "questionnaire.submitted"
+      },
+      "exchanges": [
+        {
+          "artefact": "questionnaire"
+        }
+      ]
+    },
+    {
+      "id": "funds-proposed",
+      "name": "Receives an investment proposal",
+      "party": "subject",
+      "direction": "outbound",
+      "channel": "web",
+      "technology": "HR portal",
+      "on": {
+        "activity": "Propose investments"
+      },
+      "exchanges": [
+        {
+          "artefact": "fund-proposal"
+        },
+        {
+          "artefact": "kid"
+        }
+      ]
+    },
+    {
+      "id": "chooses-funds",
+      "name": "Chooses the funds",
+      "party": "subject",
+      "direction": "inbound",
+      "channel": "web",
+      "technology": "HR portal",
+      "on": {
+        "event": "investments.chosen"
+      },
+      "exchanges": [
+        {
+          "artefact": "kid"
+        }
+      ]
+    },
+    {
+      "id": "warned",
+      "name": "Is warned the choice is above the profile",
+      "party": "subject",
+      "direction": "outbound",
+      "channel": "web",
+      "technology": "HR portal",
+      "on": {
+        "activity": "Warn about the risk"
+      },
+      "exchanges": [
+        {
+          "artefact": "risk-warning"
+        }
+      ]
+    },
+    {
+      "id": "reconsiders",
+      "name": "Adjusts or keeps the choice",
+      "party": "subject",
+      "direction": "inbound",
+      "channel": "web",
+      "technology": "HR portal",
+      "on": {
+        "event": "investments.reconsidered"
+      },
+      "exchanges": []
+    },
+    {
+      "id": "subscribes",
+      "name": "Submits the subscription form",
+      "party": "subject",
+      "direction": "inbound",
+      "channel": "web",
+      "technology": "HR portal",
+      "on": {
+        "event": "subscription.submitted"
+      },
+      "exchanges": [
+        {
+          "artefact": "identity-documents",
+          "reference": "documents"
+        },
+        {
+          "artefact": "self-certification",
+          "reference": "self_certification"
+        },
+        {
+          "artefact": "beneficiary-clause",
+          "reference": "beneficiary_clause"
+        },
+        {
+          "artefact": "payroll-mandate"
+        }
+      ]
+    },
+    {
+      "id": "screened",
+      "name": "Is screened for PEP and sanctions",
+      "party": "screening provider",
+      "direction": "outbound",
+      "channel": "api",
+      "technology": "Screening provider (HTTP)",
+      "on": {
+        "tool": "screen_person"
+      },
+      "exchanges": []
+    },
+    {
+      "id": "signs",
+      "name": "Signs the contract",
+      "party": "subject",
+      "direction": "inbound",
+      "channel": "web",
+      "technology": "E-signature service",
+      "on": {
+        "event": "contract.signed"
+      },
+      "exchanges": [
+        {
+          "artefact": "contract",
+          "reference": "envelope_id"
+        }
+      ]
+    },
+    {
+      "id": "payroll-mandate",
+      "name": "Is asked to deduct the contribution",
+      "party": "employer payroll",
+      "direction": "outbound",
+      "channel": "api",
+      "technology": "Kestrel payroll (JSON-RPC)",
+      "on": {
+        "tool": "create_payroll_deduction"
+      },
+      "exchanges": [
+        {
+          "artefact": "payroll-mandate",
+          "reference": "deduction_id"
+        }
+      ]
+    },
+    {
+      "id": "units-bought",
+      "name": "Is asked to buy units",
+      "party": "custodian bank",
+      "direction": "outbound",
+      "channel": "api",
+      "technology": "Custodian bank (JSON-RPC)",
+      "on": {
+        "tool": "place_order"
+      },
+      "exchanges": []
+    },
+    {
+      "id": "policy-documents",
+      "name": "Receives the policy documents",
+      "party": "subject",
+      "direction": "outbound",
+      "channel": "email",
+      "technology": "HR portal and e-mail",
+      "on": {
+        "activity": "Send policy documents"
+      },
+      "exchanges": [
+        {
+          "artefact": "policy-schedule"
+        },
+        {
+          "artefact": "kid"
+        }
+      ]
+    },
+    {
+      "id": "cancels",
+      "name": "Cancels within 30 days",
+      "party": "subject",
+      "direction": "inbound",
+      "channel": "web",
+      "technology": "HR portal",
+      "on": {
+        "event": "policy.cancellation_requested"
+      },
+      "exchanges": [
+        {
+          "artefact": "cancellation"
+        }
+      ]
+    },
+    {
+      "id": "contribution",
+      "name": "Pays a contribution through payroll",
+      "party": "employer payroll",
+      "direction": "inbound",
+      "channel": "api",
+      "technology": "Kestrel payroll",
+      "on": {
+        "event": "payroll.contribution_paid"
+      },
+      "exchanges": [
+        {
+          "artefact": "premium",
+          "reference": "period"
+        }
+      ]
+    },
+    {
+      "id": "quarterly-statement",
+      "name": "Receives a quarterly statement",
+      "party": "subject",
+      "direction": "outbound",
+      "channel": "email",
+      "technology": "HR portal and e-mail",
+      "on": {
+        "activity": "Send quarterly statement"
+      },
+      "exchanges": [
+        {
+          "artefact": "statement"
+        }
+      ]
+    },
+    {
+      "id": "annual-statement",
+      "name": "Receives the annual statement",
+      "party": "subject",
+      "direction": "outbound",
+      "channel": "email",
+      "technology": "HR portal and e-mail",
+      "on": {
+        "activity": "Send annual statement"
+      },
+      "exchanges": [
+        {
+          "artefact": "statement"
+        }
+      ]
+    },
+    {
+      "id": "self-service",
+      "name": "Asks for a change in self-service",
+      "party": "subject",
+      "direction": "inbound",
+      "channel": "web",
+      "technology": "HR portal (self-service)",
+      "on": {
+        "event": "self_service.requested"
+      },
+      "exchanges": []
+    },
+    {
+      "id": "change-declined",
+      "name": "Is told a change cannot be made",
+      "party": "subject",
+      "direction": "outbound",
+      "channel": "web",
+      "technology": "HR portal",
+      "on": {
+        "activity": "Decline the change"
+      },
+      "exchanges": []
+    },
+    {
+      "id": "top-up-proposed",
+      "name": "Receives a top-up proposal",
+      "party": "subject",
+      "direction": "outbound",
+      "channel": "email",
+      "technology": "HR portal and e-mail",
+      "on": {
+        "activity": "Write top-up proposal"
+      },
+      "exchanges": [
+        {
+          "artefact": "top-up-proposal"
+        }
+      ]
+    },
+    {
+      "id": "tax-adviser",
+      "name": "Talks to a tax adviser",
+      "party": "subject",
+      "direction": "outbound",
+      "channel": "phone",
+      "technology": "Tax desk telephony",
+      "on": {
+        "activity": "Tax adviser review"
+      },
+      "exchanges": []
+    },
+    {
+      "id": "tax-certificate",
+      "name": "Receives the tax certificate",
+      "party": "subject",
+      "direction": "outbound",
+      "channel": "web",
+      "technology": "HR portal",
+      "on": {
+        "activity": "Issue tax certificate"
+      },
+      "exchanges": [
+        {
+          "artefact": "tax-certificate",
+          "reference": "certificate_id"
+        }
+      ]
+    },
+    {
+      "id": "review-invited",
+      "name": "Is invited to the annual review",
+      "party": "subject",
+      "direction": "outbound",
+      "channel": "web",
+      "technology": "HR portal",
+      "on": {
+        "activity": "Invite to annual review"
+      },
+      "exchanges": []
+    },
+    {
+      "id": "review-answers",
+      "name": "Answers the review questions",
+      "party": "subject",
+      "direction": "inbound",
+      "channel": "web",
+      "technology": "HR portal",
+      "on": {
+        "event": "annual_review.answered"
+      },
+      "exchanges": []
+    },
+    {
+      "id": "recommendations",
+      "name": "Receives recommendations",
+      "party": "subject",
+      "direction": "outbound",
+      "channel": "web",
+      "technology": "HR portal",
+      "on": {
+        "activity": "Publish recommendations"
+      },
+      "exchanges": [
+        {
+          "artefact": "recommendations"
+        }
+      ]
+    },
+    {
+      "id": "decides-recommendations",
+      "name": "Accepts or declines the recommendations",
+      "party": "subject",
+      "direction": "inbound",
+      "channel": "web",
+      "technology": "HR portal",
+      "on": {
+        "event": "recommendations.answered"
+      },
+      "exchanges": []
+    }
+  ],
+  "sentiment": {
+    "min": -2,
+    "max": 2,
+    "initial": 0,
+    "rules": [
+      {
+        "on": "touchpoint",
+        "touchpoint": "reminded",
+        "change": -0.25,
+        "reason": "had to be reminded"
+      },
+      {
+        "on": "touchpoint",
+        "touchpoint": "last-reminder",
+        "change": -0.25,
+        "reason": "reminded again by the employer"
+      },
+      {
+        "on": "touchpoint",
+        "touchpoint": "video-call",
+        "change": 0.5,
+        "reason": "talked to a person"
+      },
+      {
+        "on": "touchpoint",
+        "touchpoint": "warned",
+        "change": -0.25,
+        "reason": "was told the choice is too risky"
+      },
+      {
+        "on": "touchpoint",
+        "touchpoint": "change-declined",
+        "change": -0.25,
+        "reason": "a change was refused"
+      },
+      {
+        "on": "goal_reached",
+        "goal": "policy-issued",
+        "change": 0.5,
+        "reason": "the policy is issued"
+      },
+      {
+        "on": "touchpoint",
+        "touchpoint": "tax-certificate",
+        "change": 0.5,
+        "reason": "has the certificate for the tax return"
+      },
+      {
+        "on": "event",
+        "event": "annual_review.answered",
+        "measure": {
+          "path": "satisfaction",
+          "from": [
+            1,
+            5
+          ]
+        },
+        "reason": "said how satisfied they are in the review"
+      },
+      {
+        "on": "run_failed",
+        "change": -1,
+        "reason": "a step of the plan failed"
+      },
+      {
+        "on": "stalled",
+        "change": -0.5,
+        "reason": "nothing has moved for too long"
+      }
+    ]
+  }
+}

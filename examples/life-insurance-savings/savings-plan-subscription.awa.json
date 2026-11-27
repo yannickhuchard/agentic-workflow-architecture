@@ -1,0 +1,1442 @@
+{
+  "$schema": "https://awa.io/schema/awa.schema.json",
+  "id": "51bb950b-7579-5ee2-81fb-4e1e29d7c18f",
+  "name": "Savings Plan Subscription",
+  "version": "1.0.0",
+  "awa_version": "1.1",
+  "description": "Subscribes an employee to the plan: proposes unit-linked funds or a model portfolio with their key information documents, checks the choice against the risk profile, runs the due diligence as a child run, reviews the beneficiary clause, has the contract signed, issues the policy, sets up the payroll deduction, invests the first premium and keeps the 30 days in which the employee may cancel with a full refund.",
+  "sla": {
+    "id": "71185281-781e-55db-8ba1-17005f33161f",
+    "name": "Policy in force within two months of the profile",
+    "target_time": "P60D",
+    "max_time": "P90D",
+    "escalation_policy": {
+      "breach_action": "record",
+      "notify_roles": [
+        "50553dac-90de-578f-9aad-f97f51b13ed5"
+      ]
+    }
+  },
+  "roles": [
+    {
+      "id": "a53afcdd-729b-5cdb-919a-1f7dbbf0830d",
+      "name": "AI adviser",
+      "actor_type": "ai_agent",
+      "description": "Proposes funds within the profile and warns, in plain words, when a choice goes beyond it.",
+      "capabilities": [
+        "unit-linked funds",
+        "key information documents"
+      ],
+      "ai_model_config": {
+        "model_id": "tier:balanced",
+        "temperature": 0.2
+      }
+    },
+    {
+      "id": "51e7044f-e4b6-5c60-b947-b03ad660d7b5",
+      "name": "Fund platform",
+      "actor_type": "application",
+      "description": "The range of unit-linked funds and model portfolios, with their key information documents and summary risk indicators."
+    },
+    {
+      "id": "e51d88ee-5990-5af3-8c27-3d7220017a38",
+      "name": "Licensed adviser",
+      "actor_type": "human",
+      "description": "Discusses a choice above the profile with the employee."
+    },
+    {
+      "id": "048cfcae-b06d-535b-a8c4-58474b7c05f2",
+      "name": "Compliance officer",
+      "actor_type": "human",
+      "description": "Approves, or not, a choice above the profile the employee insists on."
+    },
+    {
+      "id": "6a8a7187-1b85-5846-83a6-a35663eb4992",
+      "name": "Due diligence desk",
+      "actor_type": "application",
+      "description": "Runs the customer due diligence; the work is done by the Identity, AML and Tax Residence Checks workflow."
+    },
+    {
+      "id": "ceedbcfc-b6be-55df-be0b-63a7f5ec2454",
+      "name": "Contract checker",
+      "actor_type": "ai_agent",
+      "description": "Checks a beneficiary clause is complete and unambiguous.",
+      "capabilities": [
+        "beneficiary clauses"
+      ],
+      "ai_model_config": {
+        "model_id": "tier:balanced",
+        "temperature": 0.2
+      }
+    },
+    {
+      "id": "393242a7-7977-53d9-a8cb-17c40bf689d9",
+      "name": "E-signature service",
+      "actor_type": "application",
+      "description": "Sends documents for qualified e-signature and reports them signed."
+    },
+    {
+      "id": "50553dac-90de-578f-9aad-f97f51b13ed5",
+      "name": "Policy administration",
+      "actor_type": "application",
+      "description": "Valoria Life's policy administration system."
+    },
+    {
+      "id": "60c53a0b-0655-5bdc-a434-e40619468524",
+      "name": "Employer payroll",
+      "actor_type": "application",
+      "description": "Kestrel's payroll system, which deducts the contribution from the salary and pays it to the insurer."
+    },
+    {
+      "id": "df800a2c-a94f-5992-a4ea-b21f93f96b2f",
+      "name": "Custodian bank",
+      "actor_type": "application",
+      "description": "The custodian bank that holds the assets covering the policies, apart from the insurer's own."
+    },
+    {
+      "id": "2617bb5c-c57d-51f3-a904-086f3db57d63",
+      "name": "HR portal",
+      "actor_type": "application",
+      "description": "The HR portal Valoria Life provides to the employer."
+    },
+    {
+      "id": "83161e21-2b66-557b-807f-cb53d923044d",
+      "name": "Back-office administrator",
+      "actor_type": "human",
+      "description": "Valoria Life's back-office, who takes over a file an agent could not settle."
+    }
+  ],
+  "events": [
+    {
+      "id": "538b268e-e50d-5ad3-8db9-54671fd19de8",
+      "name": "Profile completed",
+      "event_type": "start",
+      "description": "The employee's profile is known: the subscription starts.",
+      "event_definition": {
+        "name": "profile.completed"
+      }
+    },
+    {
+      "id": "a5f61c4d-f860-50c7-b0df-c1ced688aa37",
+      "name": "Investments chosen",
+      "event_type": "message",
+      "description": "Wait for the employee's choice of funds in the portal.",
+      "event_definition": {
+        "name": "investments.chosen",
+        "correlation_key": "enrolment_id",
+        "timeout": "P14D",
+        "timeout_edge_id": "7adad2c2-0e78-59fd-95c8-8cca6befa9db"
+      }
+    },
+    {
+      "id": "6af23654-f6e1-5622-ab7b-0c5f8329ae2d",
+      "name": "Choice reconsidered",
+      "event_type": "message",
+      "description": "Wait for the employee to adjust the choice, or to keep it and acknowledge the risk.",
+      "event_definition": {
+        "name": "investments.reconsidered",
+        "correlation_key": "enrolment_id",
+        "timeout": "P14D",
+        "timeout_edge_id": "4c45bcb0-443b-5c22-af0a-a1ac797c69a9"
+      }
+    },
+    {
+      "id": "46d43db2-8216-5573-8432-b0804eea5010",
+      "name": "Investments confirmed",
+      "event_type": "message",
+      "description": "Tell the journey the investments are settled.",
+      "event_definition": {
+        "name": "investments.confirmed",
+        "mode": "publish",
+        "data": [
+          "enrolment_id",
+          "allocation",
+          "portfolio_sri",
+          "allocation_confirmed"
+        ]
+      }
+    },
+    {
+      "id": "6cf047d2-369b-5e24-b425-8311e33b1ffc",
+      "name": "Subscription form submitted",
+      "event_type": "message",
+      "description": "Wait for the subscription form: documents, tax self-certification, beneficiary clause, monthly contribution.",
+      "event_definition": {
+        "name": "subscription.submitted",
+        "correlation_key": "enrolment_id",
+        "timeout": "P14D",
+        "timeout_edge_id": "8d0a8ea5-5b3b-5e01-863f-f1e3d6ff65eb"
+      }
+    },
+    {
+      "id": "edd322e0-f06e-5878-8284-eb0d5975c7c8",
+      "name": "Contract signed",
+      "event_type": "message",
+      "description": "Wait for the e-signature service to report the signed contract.",
+      "event_definition": {
+        "name": "contract.signed",
+        "correlation_key": "enrolment_id",
+        "timeout": "P14D",
+        "timeout_edge_id": "a92a5f58-32cc-5de0-913a-ce460134daa9"
+      }
+    },
+    {
+      "id": "9477f38c-cc91-56e1-b6aa-8987a1c50121",
+      "name": "First premium received",
+      "event_type": "message",
+      "description": "Wait for the first payroll contribution. If none comes in 45 days the wait fails the run (EVENT_TIMEOUT), and compensation stops the deduction and cancels the policy.",
+      "event_definition": {
+        "name": "payroll.contribution_paid",
+        "correlation_key": "enrolment_id",
+        "timeout": "P45D"
+      }
+    },
+    {
+      "id": "d75ac4f9-ff37-5af8-a321-ab29daf1d9b2",
+      "name": "Policy issued",
+      "event_type": "message",
+      "description": "Tell the journey the policy is issued and the first premium invested.",
+      "event_definition": {
+        "name": "policy.issued",
+        "mode": "publish",
+        "data": [
+          "enrolment_id",
+          "policy_id",
+          "policy_issued",
+          "plan_id",
+          "employee",
+          "monthly_contribution_eur",
+          "allocation",
+          "max_sri",
+          "premiums_paid_eur",
+          "tax_year",
+          "deduction_id"
+        ]
+      }
+    },
+    {
+      "id": "2534910f-c442-5d68-a4a0-0a4ad090c7d0",
+      "name": "Cooling-off period",
+      "event_type": "message",
+      "description": "The 30 days in which the employee may cancel. A cancellation is the journey's exit policy.cancellation_requested: the host withdraws this run and compensation undoes the issue, the investment and the deduction. At the deadline, or when the policy administration closes the period, the policy is in force.",
+      "event_definition": {
+        "name": "cooling_off.ended",
+        "correlation_key": "enrolment_id",
+        "timeout": "P30D",
+        "timeout_edge_id": "3a67da7d-7765-53e7-8682-516d003c4e7d"
+      }
+    },
+    {
+      "id": "07b34480-bd39-5128-a84c-340bd756e369",
+      "name": "Policy in force",
+      "event_type": "message",
+      "description": "Tell the journey the policy is in force.",
+      "event_definition": {
+        "name": "policy.in_force",
+        "mode": "publish",
+        "data": [
+          "enrolment_id",
+          "policy_id",
+          "policy_in_force",
+          "in_force_on",
+          "premiums_paid_eur"
+        ]
+      }
+    },
+    {
+      "id": "d8bb94a2-b80c-57de-873b-0506711ccf39",
+      "name": "Subscription closed",
+      "event_type": "message",
+      "description": "Tell the journey the subscription was not completed.",
+      "event_definition": {
+        "name": "subscription.lapsed",
+        "mode": "publish",
+        "data": [
+          "enrolment_id",
+          "lapsed_reason"
+        ]
+      }
+    },
+    {
+      "id": "8560818d-e47a-5a63-9db7-630b0865bcab",
+      "name": "Subscription refused",
+      "event_type": "message",
+      "description": "Tell the journey the subscription was refused after due diligence.",
+      "event_definition": {
+        "name": "subscription.refused",
+        "mode": "publish",
+        "data": [
+          "enrolment_id",
+          "refusal_reason"
+        ]
+      }
+    },
+    {
+      "id": "d344b08f-38ff-58e0-baaa-b9e61f18d9de",
+      "name": "Plan in force",
+      "event_type": "end"
+    },
+    {
+      "id": "325581ab-63b4-5ee2-bc7c-62bdf7d43567",
+      "name": "Not subscribed",
+      "event_type": "end"
+    },
+    {
+      "id": "8454c33e-9881-591b-a5f8-f854ce2c12e0",
+      "name": "Refused",
+      "event_type": "end"
+    }
+  ],
+  "activities": [
+    {
+      "id": "712db9d0-6232-5c79-b2fc-767fce4145ce",
+      "name": "Propose investments",
+      "role_id": "a53afcdd-729b-5cdb-919a-1f7dbbf0830d",
+      "actor_type": "ai_agent",
+      "description": "Propose the model portfolio that fits the risk profile and the sustainability preferences, and the funds the employee may choose instead, each with its key information document.",
+      "procedure": "List the plan's funds and model portfolios with the fund tool. Propose the model portfolio whose summary risk indicator fits the profile, taking the sustainability preferences into account. List the funds within the profile as alternatives. Give the key information document of every fund you name. Never state a guaranteed return.",
+      "tools": [
+        {
+          "name": "list_funds",
+          "description": "List the unit-linked funds and model portfolios of the plan, each with its key information document and its summary risk indicator.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "plan_id"
+            ],
+            "properties": {
+              "plan_id": {
+                "type": "string"
+              },
+              "max_sri": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 7
+              },
+              "sustainability": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "GET",
+            "url": "http://localhost:4560/funds/v1/plans/{plan_id}/funds",
+            "headers": {
+              "x-api-key": "{{secret:FUND_PLATFORM_KEY}}"
+            }
+          }
+        }
+      ],
+      "outcome_contract": {
+        "output_schema": {
+          "type": "object",
+          "required": [
+            "proposed_allocation",
+            "allocation_total",
+            "max_fund_sri",
+            "kids",
+            "missing_kid_count",
+            "explanation"
+          ],
+          "properties": {
+            "proposed_allocation": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "required": [
+                  "fund_id",
+                  "percent"
+                ],
+                "properties": {
+                  "fund_id": {
+                    "type": "string"
+                  },
+                  "percent": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 100
+                  }
+                }
+              }
+            },
+            "allocation_total": {
+              "type": "number"
+            },
+            "max_fund_sri": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 7
+            },
+            "kids": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "required": [
+                  "fund_id",
+                  "kid_id"
+                ],
+                "properties": {
+                  "fund_id": {
+                    "type": "string"
+                  },
+                  "kid_id": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "missing_kid_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "model_portfolio": {
+              "type": "string"
+            },
+            "explanation": {
+              "type": "string",
+              "minLength": 60
+            }
+          }
+        },
+        "postconditions": [
+          {
+            "name": "The allocation adds up to 100%",
+            "expression": "allocation_total == 100"
+          },
+          {
+            "name": "Every fund named has its key information document",
+            "expression": "missing_kid_count == 0"
+          }
+        ],
+        "budgets": {
+          "max_attempts": 2,
+          "max_tool_calls": 4
+        }
+      }
+    },
+    {
+      "id": "f2a8ecb0-a039-5bfb-afa6-b6503373232d",
+      "name": "Check choice against profile",
+      "role_id": "51e7044f-e4b6-5c60-b947-b03ad660d7b5",
+      "actor_type": "application",
+      "description": "Check the chosen allocation against the risk profile: its weighted summary risk indicator, the excess over the profile's maximum, and that every key information document was delivered.",
+      "tools": [
+        {
+          "name": "check_allocation",
+          "description": "Check an allocation against a risk profile: the weighted summary risk indicator, its excess over the profile's maximum, and whether every fund's key information document was delivered.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "allocation",
+              "max_sri"
+            ],
+            "properties": {
+              "allocation": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "fund_id",
+                    "percent"
+                  ],
+                  "properties": {
+                    "fund_id": {
+                      "type": "string"
+                    },
+                    "percent": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 100
+                    }
+                  }
+                }
+              },
+              "max_sri": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 7
+              },
+              "enrolment_id": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4560/funds/v1/suitability-checks",
+            "headers": {
+              "x-api-key": "{{secret:FUND_PLATFORM_KEY}}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "3ac8e49e-a6b0-5154-bfa6-8b139dcc3c1b",
+      "name": "Warn about the risk",
+      "role_id": "a53afcdd-729b-5cdb-919a-1f7dbbf0830d",
+      "actor_type": "ai_agent",
+      "description": "Tell the employee, in plain words, that the choice is riskier than the profile allows, by how much, and what they can do: adjust it, or keep it and acknowledge the risk after talking to an adviser.",
+      "tools": [
+        {
+          "name": "send_notification",
+          "description": "Send the employee a message in the HR portal's inbox, by e-mail, or both.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "enrolment_id",
+              "channel",
+              "template"
+            ],
+            "properties": {
+              "enrolment_id": {
+                "type": "string"
+              },
+              "channel": {
+                "type": "string",
+                "enum": [
+                  "portal",
+                  "email",
+                  "portal_and_email"
+                ]
+              },
+              "template": {
+                "type": "string"
+              },
+              "subject": {
+                "type": "string"
+              },
+              "body": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4560/portal/v1/notifications",
+            "headers": {
+              "authorization": "Bearer {{secret:PORTAL_TOKEN}}"
+            }
+          }
+        }
+      ],
+      "outcome_contract": {
+        "output_schema": {
+          "type": "object",
+          "required": [
+            "warning",
+            "portfolio_sri_stated",
+            "profile_stated",
+            "options_given"
+          ],
+          "properties": {
+            "warning": {
+              "type": "string",
+              "minLength": 80
+            },
+            "portfolio_sri_stated": {
+              "type": "boolean"
+            },
+            "profile_stated": {
+              "type": "boolean"
+            },
+            "options_given": {
+              "type": "boolean"
+            }
+          }
+        },
+        "postconditions": [
+          {
+            "name": "States the choice's risk indicator",
+            "expression": "portfolio_sri_stated == true"
+          },
+          {
+            "name": "States the profile",
+            "expression": "profile_stated == true"
+          },
+          {
+            "name": "Says what the employee can do",
+            "expression": "options_given == true"
+          }
+        ]
+      }
+    },
+    {
+      "id": "aa073b03-5054-5eb5-9396-a20c4fd577a2",
+      "name": "Discuss the risk with an adviser",
+      "role_id": "e51d88ee-5990-5af3-8c27-3d7220017a38",
+      "actor_type": "human",
+      "description": "A licensed adviser talks the choice through with an employee who wants to keep it, and records the employee's informed acknowledgement.",
+      "outcome_contract": {
+        "output_schema": {
+          "type": "object",
+          "required": [
+            "acknowledgement_recorded",
+            "note"
+          ],
+          "properties": {
+            "acknowledgement_recorded": {
+              "type": "boolean"
+            },
+            "note": {
+              "type": "string",
+              "minLength": 10
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "5be98006-cbad-5d8f-be5e-527840e3256a",
+      "name": "Approve choice above profile",
+      "role_id": "048cfcae-b06d-535b-a8c4-58474b7c05f2",
+      "actor_type": "human",
+      "description": "A compliance officer accepts, or not, a choice above the profile that the employee insists on. Whoever advised the employee on it may not approve it.",
+      "outcome_contract": {
+        "output_schema": {
+          "type": "object",
+          "required": [
+            "approved",
+            "allocation_confirmed"
+          ],
+          "properties": {
+            "approved": {
+              "type": "boolean"
+            },
+            "allocation_confirmed": {
+              "type": "boolean"
+            },
+            "note": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "50dc64c6-2c14-56e2-848d-a960866e4298",
+      "name": "Run identity and AML checks",
+      "role_id": "6a8a7187-1b85-5846-83a6-a35663eb4992",
+      "actor_type": "application",
+      "description": "Run the customer due diligence by the Identity, AML and Tax Residence Checks workflow.",
+      "is_expandable": true,
+      "expansion_workflow_id": "d0fb8198-0fde-5fd9-8d79-2b3c558ca363",
+      "subworkflow": {
+        "input": {
+          "enrolment_id": "enrolment_id",
+          "employee": "employee",
+          "documents": "documents",
+          "self_certification": "self_certification",
+          "tax_residence": "tax_residence"
+        },
+        "output": {
+          "kyc_status": "kyc_status",
+          "cdd_level": "cdd_level",
+          "fatca_status": "fatca_status",
+          "crs_reportable": "crs_reportable",
+          "kyc_file_id": "kyc_file_id",
+          "screening_result": "screening_result"
+        }
+      },
+      "outcome_contract": {
+        "postconditions": [
+          {
+            "name": "Says how the due diligence ended",
+            "expression": "kyc_status exists"
+          }
+        ]
+      }
+    },
+    {
+      "id": "d5f45515-cadc-5ccb-b890-eadbabc5a25f",
+      "name": "Review beneficiary clause",
+      "role_id": "ceedbcfc-b6be-55df-be0b-63a7f5ec2454",
+      "actor_type": "ai_agent",
+      "description": "Check the beneficiary clause: the standard clause, or named beneficiaries each identified, with shares that add up to 100%.",
+      "outcome_contract": {
+        "output_schema": {
+          "type": "object",
+          "required": [
+            "clause_type",
+            "shares_total",
+            "unidentified_count",
+            "beneficiary_clause_valid"
+          ],
+          "properties": {
+            "clause_type": {
+              "type": "string",
+              "enum": [
+                "standard",
+                "named"
+              ]
+            },
+            "shares_total": {
+              "type": "number"
+            },
+            "unidentified_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "beneficiary_clause_valid": {
+              "type": "boolean"
+            },
+            "note": {
+              "type": "string"
+            }
+          }
+        },
+        "postconditions": [
+          {
+            "name": "Shares add up to 100%",
+            "expression": "shares_total == 100"
+          },
+          {
+            "name": "Every beneficiary is identified",
+            "expression": "unidentified_count == 0"
+          }
+        ],
+        "on_violation": "escalate_human"
+      }
+    },
+    {
+      "id": "de20ccd9-2e2a-5dee-ae78-ac63df97f0f8",
+      "name": "Prepare contract for signature",
+      "role_id": "393242a7-7977-53d9-a8cb-17c40bf689d9",
+      "actor_type": "application",
+      "description": "Send the contract, the beneficiary clause and the payroll deduction mandate for e-signature.",
+      "tools": [
+        {
+          "name": "request_signature",
+          "description": "Send the subscription contract, the beneficiary clause and the payroll deduction mandate for e-signature.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "enrolment_id",
+              "documents"
+            ],
+            "properties": {
+              "enrolment_id": {
+                "type": "string"
+              },
+              "documents": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "signer_email": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4560/esign/v1/envelopes",
+            "headers": {
+              "authorization": "Bearer {{secret:ESIGN_TOKEN}}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "ed60951c-f37c-5b76-9ac5-7f9e4fce092c",
+      "name": "Issue policy",
+      "role_id": "50553dac-90de-578f-9aad-f97f51b13ed5",
+      "actor_type": "application",
+      "description": "Issue the policy and open its account with the custodian bank.",
+      "tools": [
+        {
+          "name": "issue_policy",
+          "description": "Issue the policy in the policy administration system and open its unit-linked account with the custodian bank.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "enrolment_id",
+              "plan_id",
+              "monthly_contribution_eur",
+              "allocation",
+              "beneficiary_clause"
+            ],
+            "properties": {
+              "enrolment_id": {
+                "type": "string"
+              },
+              "plan_id": {
+                "type": "string"
+              },
+              "monthly_contribution_eur": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "allocation": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "fund_id",
+                    "percent"
+                  ],
+                  "properties": {
+                    "fund_id": {
+                      "type": "string"
+                    },
+                    "percent": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 100
+                    }
+                  }
+                }
+              },
+              "beneficiary_clause": {
+                "type": "object"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4560/policy-admin/v1/policies",
+            "headers": {
+              "authorization": "Bearer {{secret:POLICY_ADMIN_TOKEN}}"
+            }
+          }
+        }
+      ],
+      "compensation": {
+        "activity_id": "ffc7cd3c-f0fc-5291-86fa-49daf7cccfad"
+      }
+    },
+    {
+      "id": "def60566-e9e2-5626-8349-1141b03be9d6",
+      "name": "Set up payroll deduction",
+      "role_id": "60c53a0b-0655-5bdc-a434-e40619468524",
+      "actor_type": "application",
+      "description": "Set up the monthly payroll deduction the employee signed, from the next payroll.",
+      "tools": [
+        {
+          "name": "create_payroll_deduction",
+          "description": "Set up the monthly payroll deduction the employee signed, from the next payroll.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "employee_number",
+              "policy_id",
+              "monthly_amount_eur"
+            ],
+            "properties": {
+              "employee_number": {
+                "type": "string"
+              },
+              "policy_id": {
+                "type": "string"
+              },
+              "monthly_amount_eur": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            }
+          },
+          "binding": {
+            "kind": "jsonrpc",
+            "endpoint": "http://localhost:4560/payroll/rpc",
+            "method": "payroll.create_deduction"
+          }
+        }
+      ],
+      "compensation": {
+        "activity_id": "eb5ef360-8afd-59a8-8c55-dd4faab08425"
+      }
+    },
+    {
+      "id": "064546c0-fcb8-5cb1-92d7-742cc19da66f",
+      "name": "Invest first premium",
+      "role_id": "df800a2c-a94f-5992-a4ea-b21f93f96b2f",
+      "actor_type": "application",
+      "description": "Record the first premium and buy the units of the chosen allocation through the custodian bank.",
+      "tools": [
+        {
+          "name": "record_premium",
+          "description": "Record a premium on the policy and return the premiums paid in the tax year so far.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "policy_id",
+              "period",
+              "amount_eur"
+            ],
+            "properties": {
+              "policy_id": {
+                "type": "string"
+              },
+              "period": {
+                "type": "string"
+              },
+              "amount_eur": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "paid_before_eur": {
+                "type": "number",
+                "minimum": 0
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4560/policy-admin/v1/policies/{policy_id}/premiums",
+            "headers": {
+              "authorization": "Bearer {{secret:POLICY_ADMIN_TOKEN}}"
+            }
+          }
+        },
+        {
+          "name": "place_order",
+          "description": "Buy units with a premium through the custodian bank: in the allocation given, or else in the policy's current allocation.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "policy_id",
+              "amount_eur"
+            ],
+            "properties": {
+              "policy_id": {
+                "type": "string"
+              },
+              "amount_eur": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "allocation": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "fund_id",
+                    "percent"
+                  ],
+                  "properties": {
+                    "fund_id": {
+                      "type": "string"
+                    },
+                    "percent": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 100
+                    }
+                  }
+                }
+              },
+              "period": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "jsonrpc",
+            "endpoint": "http://localhost:4560/custody/rpc",
+            "method": "custody.place_order"
+          }
+        }
+      ],
+      "compensation": {
+        "activity_id": "e5bdad1f-5e0f-5ba9-90ad-d19597b3fa47"
+      }
+    },
+    {
+      "id": "2d932caa-81db-5a58-9c40-ac9769efa875",
+      "name": "Send policy documents",
+      "role_id": "2617bb5c-c57d-51f3-a904-086f3db57d63",
+      "actor_type": "application",
+      "description": "Send the policy documents: the policy schedule, the key information documents, and the right to cancel within 30 days with a full refund.",
+      "tools": [
+        {
+          "name": "send_notification",
+          "description": "Send the employee a message in the HR portal's inbox, by e-mail, or both.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "enrolment_id",
+              "channel",
+              "template"
+            ],
+            "properties": {
+              "enrolment_id": {
+                "type": "string"
+              },
+              "channel": {
+                "type": "string",
+                "enum": [
+                  "portal",
+                  "email",
+                  "portal_and_email"
+                ]
+              },
+              "template": {
+                "type": "string"
+              },
+              "subject": {
+                "type": "string"
+              },
+              "body": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4560/portal/v1/notifications",
+            "headers": {
+              "authorization": "Bearer {{secret:PORTAL_TOKEN}}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "7c9cf587-2e49-5ce5-a4c4-5bb4e68c860a",
+      "name": "Confirm policy in force",
+      "role_id": "50553dac-90de-578f-9aad-f97f51b13ed5",
+      "actor_type": "application",
+      "description": "Mark the policy in force once the 30 days have passed without a cancellation."
+    },
+    {
+      "id": "c1bf7220-5ff5-5fcc-8c65-b6c06571981b",
+      "name": "Close subscription",
+      "role_id": "50553dac-90de-578f-9aad-f97f51b13ed5",
+      "actor_type": "application",
+      "description": "Close the subscription: the employee did not continue within the time given."
+    },
+    {
+      "id": "43c2dbdb-2396-53e3-b698-8b0aabf173cb",
+      "name": "Record refusal",
+      "role_id": "50553dac-90de-578f-9aad-f97f51b13ed5",
+      "actor_type": "application",
+      "description": "Record that the subscription is refused after the due diligence, and tell the employee."
+    },
+    {
+      "id": "ffc7cd3c-f0fc-5291-86fa-49daf7cccfad",
+      "name": "Cancel policy",
+      "role_id": "50553dac-90de-578f-9aad-f97f51b13ed5",
+      "actor_type": "application",
+      "description": "Cancel the policy from its start.",
+      "tools": [
+        {
+          "name": "cancel_policy",
+          "description": "Cancel a policy from its start, as if it had never been issued.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "policy_id",
+              "reason"
+            ],
+            "properties": {
+              "policy_id": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4560/policy-admin/v1/policies/{policy_id}/cancellation",
+            "headers": {
+              "authorization": "Bearer {{secret:POLICY_ADMIN_TOKEN}}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "eb5ef360-8afd-59a8-8c55-dd4faab08425",
+      "name": "Stop payroll deduction",
+      "role_id": "60c53a0b-0655-5bdc-a434-e40619468524",
+      "actor_type": "application",
+      "description": "Stop the payroll deduction.",
+      "tools": [
+        {
+          "name": "stop_payroll_deduction",
+          "description": "Stop a payroll deduction.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "deduction_id",
+              "reason"
+            ],
+            "properties": {
+              "deduction_id": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "jsonrpc",
+            "endpoint": "http://localhost:4560/payroll/rpc",
+            "method": "payroll.stop_deduction"
+          }
+        }
+      ]
+    },
+    {
+      "id": "e5bdad1f-5e0f-5ba9-90ad-d19597b3fa47",
+      "name": "Redeem units and refund premium",
+      "role_id": "df800a2c-a94f-5992-a4ea-b21f93f96b2f",
+      "actor_type": "application",
+      "description": "Sell the units bought and refund every premium paid in full: the plan bears any loss in value during the 30 days.",
+      "tools": [
+        {
+          "name": "redeem_units",
+          "description": "Sell every unit bought for a policy, through the custodian bank.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "policy_id",
+              "reason"
+            ],
+            "properties": {
+              "policy_id": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "jsonrpc",
+            "endpoint": "http://localhost:4560/custody/rpc",
+            "method": "custody.redeem_all"
+          }
+        },
+        {
+          "name": "refund_premium",
+          "description": "Refund premiums to the employee's account.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "policy_id",
+              "amount_eur",
+              "reason"
+            ],
+            "properties": {
+              "policy_id": {
+                "type": "string"
+              },
+              "amount_eur": {
+                "type": "number",
+                "minimum": 0
+              },
+              "reason": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4560/policy-admin/v1/refunds",
+            "headers": {
+              "authorization": "Bearer {{secret:POLICY_ADMIN_TOKEN}}"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "decision_nodes": [
+    {
+      "id": "9417c5db-ad9d-5883-adac-42142c0747e0",
+      "name": "Suitability of the choice",
+      "description": "Whether the chosen allocation fits the risk profile: its weighted summary risk indicator against the profile's maximum, and the key information documents delivered.",
+      "decision_table": {
+        "hit_policy": "first",
+        "inputs": [
+          {
+            "name": "kids_delivered",
+            "label": "Key information documents delivered",
+            "type": "boolean"
+          },
+          {
+            "name": "sri_excess",
+            "label": "Excess over the profile's SRI",
+            "type": "number"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "suitability",
+            "type": "string"
+          },
+          {
+            "name": "allocation_confirmed",
+            "type": "boolean"
+          }
+        ],
+        "rules": [
+          {
+            "description": "A key information document was not delivered: the choice cannot be accepted yet",
+            "input_entries": [
+              "false",
+              "-"
+            ],
+            "output_entries": [
+              "kid_missing",
+              false
+            ],
+            "output_edge_id": "1328a473-5944-5000-bf77-0939d7663f53"
+          },
+          {
+            "description": "Within the profile",
+            "input_entries": [
+              "true",
+              "<= 0"
+            ],
+            "output_entries": [
+              "suitable",
+              true
+            ],
+            "output_edge_id": "5944609d-317b-53d4-966c-63a519320e69"
+          },
+          {
+            "description": "Above the profile",
+            "input_entries": [
+              "true",
+              "> 0"
+            ],
+            "output_entries": [
+              "above_profile",
+              false
+            ],
+            "output_edge_id": "1328a473-5944-5000-bf77-0939d7663f53"
+          }
+        ]
+      },
+      "default_output_edge_id": "1328a473-5944-5000-bf77-0939d7663f53"
+    }
+  ],
+  "edges": [
+    {
+      "id": "1bb02f7b-8a53-5d6a-891a-776c61ec37ac",
+      "source_id": "538b268e-e50d-5ad3-8db9-54671fd19de8",
+      "target_id": "712db9d0-6232-5c79-b2fc-767fce4145ce"
+    },
+    {
+      "id": "b753f199-7e9f-57cf-8233-cce5d524a378",
+      "source_id": "712db9d0-6232-5c79-b2fc-767fce4145ce",
+      "target_id": "a5f61c4d-f860-50c7-b0df-c1ced688aa37"
+    },
+    {
+      "id": "44fb3e4d-e066-5c30-9663-53bb7341ae1f",
+      "source_id": "a5f61c4d-f860-50c7-b0df-c1ced688aa37",
+      "target_id": "f2a8ecb0-a039-5bfb-afa6-b6503373232d"
+    },
+    {
+      "id": "7adad2c2-0e78-59fd-95c8-8cca6befa9db",
+      "source_id": "a5f61c4d-f860-50c7-b0df-c1ced688aa37",
+      "target_id": "c1bf7220-5ff5-5fcc-8c65-b6c06571981b",
+      "label": "no choice in 14 days"
+    },
+    {
+      "id": "75fbf1f2-f5db-5f56-a898-88c9759d73ff",
+      "source_id": "f2a8ecb0-a039-5bfb-afa6-b6503373232d",
+      "target_id": "9417c5db-ad9d-5883-adac-42142c0747e0"
+    },
+    {
+      "id": "5944609d-317b-53d4-966c-63a519320e69",
+      "source_id": "9417c5db-ad9d-5883-adac-42142c0747e0",
+      "target_id": "46d43db2-8216-5573-8432-b0804eea5010",
+      "label": "within the profile"
+    },
+    {
+      "id": "1328a473-5944-5000-bf77-0939d7663f53",
+      "source_id": "9417c5db-ad9d-5883-adac-42142c0747e0",
+      "target_id": "3ac8e49e-a6b0-5154-bfa6-8b139dcc3c1b",
+      "label": "above the profile"
+    },
+    {
+      "id": "459c27c3-0773-518e-b978-4ef660e8baea",
+      "source_id": "3ac8e49e-a6b0-5154-bfa6-8b139dcc3c1b",
+      "target_id": "6af23654-f6e1-5622-ab7b-0c5f8329ae2d"
+    },
+    {
+      "id": "459b3923-2b09-549c-81a6-97cf464ca0e0",
+      "source_id": "6af23654-f6e1-5622-ab7b-0c5f8329ae2d",
+      "target_id": "f2a8ecb0-a039-5bfb-afa6-b6503373232d",
+      "condition": "reconsider_decision == adjust",
+      "label": "adjusts the choice"
+    },
+    {
+      "id": "6734c3ec-1a3b-588b-8a46-b5434739cdc8",
+      "source_id": "6af23654-f6e1-5622-ab7b-0c5f8329ae2d",
+      "target_id": "aa073b03-5054-5eb5-9396-a20c4fd577a2",
+      "is_default": true,
+      "label": "keeps the choice"
+    },
+    {
+      "id": "4c45bcb0-443b-5c22-af0a-a1ac797c69a9",
+      "source_id": "6af23654-f6e1-5622-ab7b-0c5f8329ae2d",
+      "target_id": "c1bf7220-5ff5-5fcc-8c65-b6c06571981b",
+      "label": "no answer in 14 days"
+    },
+    {
+      "id": "d01716bb-7090-5cef-8c36-82bc68067699",
+      "source_id": "aa073b03-5054-5eb5-9396-a20c4fd577a2",
+      "target_id": "5be98006-cbad-5d8f-be5e-527840e3256a"
+    },
+    {
+      "id": "0ed410d1-da0f-5bdd-8016-f04bffbd7c42",
+      "source_id": "5be98006-cbad-5d8f-be5e-527840e3256a",
+      "target_id": "46d43db2-8216-5573-8432-b0804eea5010",
+      "condition": "approved == true",
+      "label": "approved"
+    },
+    {
+      "id": "1fe0cd4e-ee5f-5802-acc9-9a08f884da09",
+      "source_id": "5be98006-cbad-5d8f-be5e-527840e3256a",
+      "target_id": "6af23654-f6e1-5622-ab7b-0c5f8329ae2d",
+      "is_default": true,
+      "label": "not approved: adjust"
+    },
+    {
+      "id": "3d4b7f1d-bed5-5f45-a1b3-3c60b2d99812",
+      "source_id": "46d43db2-8216-5573-8432-b0804eea5010",
+      "target_id": "6cf047d2-369b-5e24-b425-8311e33b1ffc"
+    },
+    {
+      "id": "52569559-7a51-5693-b11b-fd8097104b63",
+      "source_id": "6cf047d2-369b-5e24-b425-8311e33b1ffc",
+      "target_id": "50dc64c6-2c14-56e2-848d-a960866e4298"
+    },
+    {
+      "id": "8d0a8ea5-5b3b-5e01-863f-f1e3d6ff65eb",
+      "source_id": "6cf047d2-369b-5e24-b425-8311e33b1ffc",
+      "target_id": "c1bf7220-5ff5-5fcc-8c65-b6c06571981b",
+      "label": "no form in 14 days"
+    },
+    {
+      "id": "ba8407b4-3e82-5e00-814b-032734f054ae",
+      "source_id": "50dc64c6-2c14-56e2-848d-a960866e4298",
+      "target_id": "d5f45515-cadc-5ccb-b890-eadbabc5a25f",
+      "condition": "kyc_status == passed",
+      "label": "due diligence passed"
+    },
+    {
+      "id": "071b7ecf-1946-53fb-8aad-d531191a7c76",
+      "source_id": "50dc64c6-2c14-56e2-848d-a960866e4298",
+      "target_id": "43c2dbdb-2396-53e3-b698-8b0aabf173cb",
+      "is_default": true,
+      "label": "refused"
+    },
+    {
+      "id": "1c2ec18a-98ce-5f23-abc3-acab645dfce9",
+      "source_id": "d5f45515-cadc-5ccb-b890-eadbabc5a25f",
+      "target_id": "de20ccd9-2e2a-5dee-ae78-ac63df97f0f8"
+    },
+    {
+      "id": "fd5bc0c8-7daa-5b48-ba65-76d50081f803",
+      "source_id": "de20ccd9-2e2a-5dee-ae78-ac63df97f0f8",
+      "target_id": "edd322e0-f06e-5878-8284-eb0d5975c7c8"
+    },
+    {
+      "id": "fe65ea72-c26f-5db7-8266-3b28fcb0fee2",
+      "source_id": "edd322e0-f06e-5878-8284-eb0d5975c7c8",
+      "target_id": "ed60951c-f37c-5b76-9ac5-7f9e4fce092c"
+    },
+    {
+      "id": "a92a5f58-32cc-5de0-913a-ce460134daa9",
+      "source_id": "edd322e0-f06e-5878-8284-eb0d5975c7c8",
+      "target_id": "c1bf7220-5ff5-5fcc-8c65-b6c06571981b",
+      "label": "not signed in 14 days"
+    },
+    {
+      "id": "5b9e427a-ed88-57dc-80ae-ccf363d868ba",
+      "source_id": "ed60951c-f37c-5b76-9ac5-7f9e4fce092c",
+      "target_id": "def60566-e9e2-5626-8349-1141b03be9d6"
+    },
+    {
+      "id": "6f38c57d-72d1-5c99-8e99-8596d5da8c49",
+      "source_id": "def60566-e9e2-5626-8349-1141b03be9d6",
+      "target_id": "9477f38c-cc91-56e1-b6aa-8987a1c50121"
+    },
+    {
+      "id": "a16f8724-91b8-5737-99a7-31410718c83e",
+      "source_id": "9477f38c-cc91-56e1-b6aa-8987a1c50121",
+      "target_id": "064546c0-fcb8-5cb1-92d7-742cc19da66f"
+    },
+    {
+      "id": "3f6f6046-b063-5538-a45a-2fabcfdb1d4b",
+      "source_id": "064546c0-fcb8-5cb1-92d7-742cc19da66f",
+      "target_id": "d75ac4f9-ff37-5af8-a321-ab29daf1d9b2"
+    },
+    {
+      "id": "a9775942-4de8-528a-be2e-71f2d7f712aa",
+      "source_id": "d75ac4f9-ff37-5af8-a321-ab29daf1d9b2",
+      "target_id": "2d932caa-81db-5a58-9c40-ac9769efa875"
+    },
+    {
+      "id": "a497f203-d6ce-5339-a1d7-e2d427aeec2e",
+      "source_id": "2d932caa-81db-5a58-9c40-ac9769efa875",
+      "target_id": "2534910f-c442-5d68-a4a0-0a4ad090c7d0"
+    },
+    {
+      "id": "f2ba0a20-993f-50bb-9688-9e73151cb04d",
+      "source_id": "2534910f-c442-5d68-a4a0-0a4ad090c7d0",
+      "target_id": "7c9cf587-2e49-5ce5-a4c4-5bb4e68c860a",
+      "label": "period closed"
+    },
+    {
+      "id": "3a67da7d-7765-53e7-8682-516d003c4e7d",
+      "source_id": "2534910f-c442-5d68-a4a0-0a4ad090c7d0",
+      "target_id": "7c9cf587-2e49-5ce5-a4c4-5bb4e68c860a",
+      "label": "30 days without a cancellation"
+    },
+    {
+      "id": "b5493b17-3329-576f-ae28-8f18c44517ae",
+      "source_id": "7c9cf587-2e49-5ce5-a4c4-5bb4e68c860a",
+      "target_id": "07b34480-bd39-5128-a84c-340bd756e369"
+    },
+    {
+      "id": "7f16539f-fc51-52ac-ab41-446e0d1fa05f",
+      "source_id": "07b34480-bd39-5128-a84c-340bd756e369",
+      "target_id": "d344b08f-38ff-58e0-baaa-b9e61f18d9de"
+    },
+    {
+      "id": "493b098b-b19b-560d-b1b1-66132a438453",
+      "source_id": "c1bf7220-5ff5-5fcc-8c65-b6c06571981b",
+      "target_id": "d8bb94a2-b80c-57de-873b-0506711ccf39"
+    },
+    {
+      "id": "4f178aaa-af7a-5835-bf8b-00d41c7b65bf",
+      "source_id": "d8bb94a2-b80c-57de-873b-0506711ccf39",
+      "target_id": "325581ab-63b4-5ee2-bc7c-62bdf7d43567"
+    },
+    {
+      "id": "3928f66e-22df-52f0-be5b-ac4691a52485",
+      "source_id": "43c2dbdb-2396-53e3-b698-8b0aabf173cb",
+      "target_id": "8560818d-e47a-5a63-9db7-630b0865bcab"
+    },
+    {
+      "id": "e6458c9a-1b53-58ff-888a-ab05973e1789",
+      "source_id": "8560818d-e47a-5a63-9db7-630b0865bcab",
+      "target_id": "8454c33e-9881-591b-a5f8-f854ce2c12e0"
+    }
+  ]
+}

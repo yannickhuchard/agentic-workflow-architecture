@@ -1,0 +1,499 @@
+{
+  "$schema": "https://awa.io/schema/awa.schema.json",
+  "id": "bbbdb5da-0532-5292-918e-c5a6224d576a",
+  "name": "Payroll Contributions",
+  "version": "1.0.0",
+  "awa_version": "1.1",
+  "description": "From the policy's coming into force, invests each monthly payroll contribution, a top-up included, records it on the policy, sends a statement each quarter, and closes the savings year with the premiums of the tax year after the December payroll.",
+  "roles": [
+    {
+      "id": "961a77de-df61-5036-817a-a752c0fbe1c2",
+      "name": "Custodian bank",
+      "actor_type": "application",
+      "description": "The custodian bank that holds the assets covering the policies."
+    },
+    {
+      "id": "d05ab4e4-c99b-54cd-8eb9-387a5188d618",
+      "name": "Policy administration",
+      "actor_type": "application",
+      "description": "Valoria Life's policy administration system."
+    },
+    {
+      "id": "78e0bb16-e0de-5aa2-8171-728a602652f5",
+      "name": "HR portal",
+      "actor_type": "application",
+      "description": "The HR portal Valoria Life provides to the employer."
+    }
+  ],
+  "events": [
+    {
+      "id": "e19d9d08-c979-5577-a4a7-e8b34b97b9a2",
+      "name": "Policy in force",
+      "event_type": "start",
+      "description": "The 30 days to cancel have passed: from the next payroll, the contributions are invested here.",
+      "event_definition": {
+        "name": "policy.in_force"
+      }
+    },
+    {
+      "id": "db76daf1-e439-5599-a977-23c4e03326d8",
+      "name": "Contribution paid",
+      "event_type": "message",
+      "description": "Wait for the next payroll: the employer pays the month's contribution.",
+      "event_definition": {
+        "name": "payroll.contribution_paid",
+        "correlation_key": "enrolment_id",
+        "timeout": "P40D",
+        "timeout_edge_id": "b2c1f359-2060-5117-8a4c-94d0db0b2d3c"
+      }
+    },
+    {
+      "id": "c730430e-1e47-5e79-9d00-81518142c3e6",
+      "name": "Contribution recorded",
+      "event_type": "message",
+      "description": "Tell the journey the premiums paid in the tax year so far.",
+      "event_definition": {
+        "name": "contribution.recorded",
+        "mode": "publish",
+        "data": [
+          "enrolment_id",
+          "period",
+          "premiums_paid_eur"
+        ]
+      }
+    },
+    {
+      "id": "5ccef1f4-bd25-510d-9660-17358ec74abd",
+      "name": "Savings year closed",
+      "event_type": "message",
+      "description": "Tell the journey and the year-end tax the premiums of the tax year.",
+      "event_definition": {
+        "name": "savings_year.closed",
+        "mode": "publish",
+        "data": [
+          "enrolment_id",
+          "policy_id",
+          "tax_year",
+          "premiums_paid_eur",
+          "savings_year_closed"
+        ]
+      }
+    },
+    {
+      "id": "2ae945ca-0ab0-55fc-9566-1e8281b8a066",
+      "name": "Year closed",
+      "event_type": "end"
+    }
+  ],
+  "activities": [
+    {
+      "id": "0d3763d2-4a8d-5106-95d4-3d1bd40f699c",
+      "name": "Invest contribution",
+      "role_id": "961a77de-df61-5036-817a-a752c0fbe1c2",
+      "actor_type": "application",
+      "description": "Record the contribution on the policy and buy units of the allocation through the custodian bank.",
+      "tools": [
+        {
+          "name": "record_premium",
+          "description": "Record a premium on the policy and return the premiums paid in the tax year so far.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "policy_id",
+              "period",
+              "amount_eur"
+            ],
+            "properties": {
+              "policy_id": {
+                "type": "string"
+              },
+              "period": {
+                "type": "string"
+              },
+              "amount_eur": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "paid_before_eur": {
+                "type": "number",
+                "minimum": 0
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4560/policy-admin/v1/policies/{policy_id}/premiums",
+            "headers": {
+              "authorization": "Bearer {{secret:POLICY_ADMIN_TOKEN}}"
+            }
+          }
+        },
+        {
+          "name": "place_order",
+          "description": "Buy units with a premium through the custodian bank: in the allocation given, or else in the policy's current allocation.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "policy_id",
+              "amount_eur"
+            ],
+            "properties": {
+              "policy_id": {
+                "type": "string"
+              },
+              "amount_eur": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "allocation": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "fund_id",
+                    "percent"
+                  ],
+                  "properties": {
+                    "fund_id": {
+                      "type": "string"
+                    },
+                    "percent": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 100
+                    }
+                  }
+                }
+              },
+              "period": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "jsonrpc",
+            "endpoint": "http://localhost:4560/custody/rpc",
+            "method": "custody.place_order"
+          }
+        }
+      ],
+      "retry": {
+        "max_attempts": 3,
+        "initial_delay": "PT5S"
+      }
+    },
+    {
+      "id": "8ad7581e-72f3-572e-a740-3c9a80caec32",
+      "name": "Report missing contribution",
+      "role_id": "78e0bb16-e0de-5aa2-8171-728a602652f5",
+      "actor_type": "application",
+      "description": "Tell the employee and Kestrel HR that no contribution arrived for the month."
+    },
+    {
+      "id": "fbd26665-ce61-53a3-8642-2ef40aa7ea2d",
+      "name": "Send quarterly statement",
+      "role_id": "78e0bb16-e0de-5aa2-8171-728a602652f5",
+      "actor_type": "application",
+      "description": "Send the quarterly statement: the value, the units by fund and the premiums paid this year.",
+      "tools": [
+        {
+          "name": "get_position",
+          "description": "Read the value of a policy, its units by fund and how far its allocation has drifted from the target.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "policy_id"
+            ],
+            "properties": {
+              "policy_id": {
+                "type": "string"
+              },
+              "target_allocation": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "fund_id",
+                    "percent"
+                  ],
+                  "properties": {
+                    "fund_id": {
+                      "type": "string"
+                    },
+                    "percent": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 100
+                    }
+                  }
+                }
+              },
+              "premiums_eur": {
+                "type": "number",
+                "minimum": 0
+              }
+            }
+          },
+          "binding": {
+            "kind": "jsonrpc",
+            "endpoint": "http://localhost:4560/custody/rpc",
+            "method": "custody.get_position"
+          }
+        },
+        {
+          "name": "send_notification",
+          "description": "Send the employee a message in the HR portal's inbox, by e-mail, or both.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "enrolment_id",
+              "channel",
+              "template"
+            ],
+            "properties": {
+              "enrolment_id": {
+                "type": "string"
+              },
+              "channel": {
+                "type": "string",
+                "enum": [
+                  "portal",
+                  "email",
+                  "portal_and_email"
+                ]
+              },
+              "template": {
+                "type": "string"
+              },
+              "subject": {
+                "type": "string"
+              },
+              "body": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4560/portal/v1/notifications",
+            "headers": {
+              "authorization": "Bearer {{secret:PORTAL_TOKEN}}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "e90cc9e4-ed55-5bd7-b39e-8d1272d0248e",
+      "name": "Send annual statement",
+      "role_id": "78e0bb16-e0de-5aa2-8171-728a602652f5",
+      "actor_type": "application",
+      "description": "Send the annual statement after the December payroll.",
+      "tools": [
+        {
+          "name": "get_position",
+          "description": "Read the value of a policy, its units by fund and how far its allocation has drifted from the target.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "policy_id"
+            ],
+            "properties": {
+              "policy_id": {
+                "type": "string"
+              },
+              "target_allocation": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "fund_id",
+                    "percent"
+                  ],
+                  "properties": {
+                    "fund_id": {
+                      "type": "string"
+                    },
+                    "percent": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 100
+                    }
+                  }
+                }
+              },
+              "premiums_eur": {
+                "type": "number",
+                "minimum": 0
+              }
+            }
+          },
+          "binding": {
+            "kind": "jsonrpc",
+            "endpoint": "http://localhost:4560/custody/rpc",
+            "method": "custody.get_position"
+          }
+        },
+        {
+          "name": "send_notification",
+          "description": "Send the employee a message in the HR portal's inbox, by e-mail, or both.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "enrolment_id",
+              "channel",
+              "template"
+            ],
+            "properties": {
+              "enrolment_id": {
+                "type": "string"
+              },
+              "channel": {
+                "type": "string",
+                "enum": [
+                  "portal",
+                  "email",
+                  "portal_and_email"
+                ]
+              },
+              "template": {
+                "type": "string"
+              },
+              "subject": {
+                "type": "string"
+              },
+              "body": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4560/portal/v1/notifications",
+            "headers": {
+              "authorization": "Bearer {{secret:PORTAL_TOKEN}}"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "decision_nodes": [
+    {
+      "id": "f3fc651a-b99b-5549-9e92-eb9c3f5bdc05",
+      "name": "After the contribution",
+      "description": "What follows a contribution: a statement at the end of a quarter, the close of the savings year after December, otherwise the next payroll.",
+      "decision_table": {
+        "hit_policy": "first",
+        "inputs": [
+          {
+            "name": "period",
+            "label": "Payroll period",
+            "type": "string"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "statement_due",
+            "type": "string"
+          }
+        ],
+        "rules": [
+          {
+            "description": "December: the year closes",
+            "input_entries": [
+              "ends with \"-12\""
+            ],
+            "output_entries": [
+              "annual"
+            ],
+            "output_edge_id": "645043db-92e7-5190-b885-d6170475df76"
+          },
+          {
+            "description": "End of a quarter",
+            "input_entries": [
+              "matches(\"-(03|06|09)$\")"
+            ],
+            "output_entries": [
+              "quarterly"
+            ],
+            "output_edge_id": "b1ffdf6b-7db6-5344-8d0a-33d5e874f2cd"
+          }
+        ]
+      },
+      "default_output_edge_id": "a7dbbc0d-5512-544f-b6d3-152084f0ab4e"
+    }
+  ],
+  "edges": [
+    {
+      "id": "3e8bb491-d9b0-514c-82a7-d4105c6a702e",
+      "source_id": "e19d9d08-c979-5577-a4a7-e8b34b97b9a2",
+      "target_id": "db76daf1-e439-5599-a977-23c4e03326d8"
+    },
+    {
+      "id": "d71231b5-4a91-5bcd-b926-5338551a7977",
+      "source_id": "db76daf1-e439-5599-a977-23c4e03326d8",
+      "target_id": "0d3763d2-4a8d-5106-95d4-3d1bd40f699c"
+    },
+    {
+      "id": "b2c1f359-2060-5117-8a4c-94d0db0b2d3c",
+      "source_id": "db76daf1-e439-5599-a977-23c4e03326d8",
+      "target_id": "8ad7581e-72f3-572e-a740-3c9a80caec32",
+      "label": "no payroll in 40 days"
+    },
+    {
+      "id": "b4467691-1bc6-5a01-b445-194aec24549f",
+      "source_id": "8ad7581e-72f3-572e-a740-3c9a80caec32",
+      "target_id": "db76daf1-e439-5599-a977-23c4e03326d8"
+    },
+    {
+      "id": "a6d8081d-6a6e-5f84-b6e1-c6bf48eff60c",
+      "source_id": "0d3763d2-4a8d-5106-95d4-3d1bd40f699c",
+      "target_id": "c730430e-1e47-5e79-9d00-81518142c3e6"
+    },
+    {
+      "id": "7891c224-1c12-5784-a95c-509bb01d9d64",
+      "source_id": "c730430e-1e47-5e79-9d00-81518142c3e6",
+      "target_id": "f3fc651a-b99b-5549-9e92-eb9c3f5bdc05"
+    },
+    {
+      "id": "645043db-92e7-5190-b885-d6170475df76",
+      "source_id": "f3fc651a-b99b-5549-9e92-eb9c3f5bdc05",
+      "target_id": "e90cc9e4-ed55-5bd7-b39e-8d1272d0248e",
+      "label": "December"
+    },
+    {
+      "id": "b1ffdf6b-7db6-5344-8d0a-33d5e874f2cd",
+      "source_id": "f3fc651a-b99b-5549-9e92-eb9c3f5bdc05",
+      "target_id": "fbd26665-ce61-53a3-8642-2ef40aa7ea2d",
+      "label": "end of a quarter"
+    },
+    {
+      "id": "a7dbbc0d-5512-544f-b6d3-152084f0ab4e",
+      "source_id": "f3fc651a-b99b-5549-9e92-eb9c3f5bdc05",
+      "target_id": "db76daf1-e439-5599-a977-23c4e03326d8",
+      "label": "next payroll"
+    },
+    {
+      "id": "40d2771b-6b9a-579a-a811-4df2d0e12187",
+      "source_id": "fbd26665-ce61-53a3-8642-2ef40aa7ea2d",
+      "target_id": "db76daf1-e439-5599-a977-23c4e03326d8"
+    },
+    {
+      "id": "0cea2f32-b069-534b-9e12-060b35fec574",
+      "source_id": "e90cc9e4-ed55-5bd7-b39e-8d1272d0248e",
+      "target_id": "5ccef1f4-bd25-510d-9660-17358ec74abd"
+    },
+    {
+      "id": "8df2141f-acc8-5796-bf4a-c271e334eb2b",
+      "source_id": "5ccef1f4-bd25-510d-9660-17358ec74abd",
+      "target_id": "2ae945ca-0ab0-55fc-9566-1e8281b8a066"
+    }
+  ]
+}

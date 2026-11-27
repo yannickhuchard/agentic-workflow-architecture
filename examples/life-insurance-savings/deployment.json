@@ -1,0 +1,80 @@
+{
+  "tools": {
+    "allowed_hosts": ["localhost:4560"]
+  },
+  "authorization": {
+    "principals": [
+      { "id": "agent:adviser", "kind": "ai_agent", "name": "AI adviser agent", "acts_for": { "roles": ["AI adviser"] } },
+      { "id": "agent:writer", "kind": "ai_agent", "name": "Reminder writer agent", "acts_for": { "roles": ["Reminder writer"] } },
+      { "id": "agent:documents", "kind": "ai_agent", "name": "Document reader agent", "acts_for": { "roles": ["Document reader"] } },
+      { "id": "agent:contracts", "kind": "ai_agent", "name": "Contract checker agent", "acts_for": { "roles": ["Contract checker"] } },
+      { "id": "system:policy-admin", "kind": "application", "name": "Valoria Life policy administration (enrolments, policies, premiums, due diligence files)", "acts_for": { "roles": ["Policy administration", "Due diligence desk", "KYC service"] } },
+      { "id": "system:portal", "kind": "application", "name": "Valoria Life HR portal (inbox, questionnaires, self-service, advice calendar)", "acts_for": { "roles": ["HR portal", "Advice calendar"] } },
+      { "id": "system:esign", "kind": "application", "name": "E-signature service", "acts_for": { "roles": ["E-signature service"] } },
+      { "id": "system:funds", "kind": "application", "name": "Fund platform and custodian bank gateway", "acts_for": { "roles": ["Fund platform", "Custodian bank"] } },
+      { "id": "system:payroll", "kind": "application", "name": "Kestrel Engineering payroll", "acts_for": { "roles": ["Employer payroll"] } },
+      { "id": "system:screening", "kind": "application", "name": "Screening service (PEP, sanctions, adverse media)", "acts_for": { "roles": ["Screening service"] } },
+      { "id": "system:tax", "kind": "application", "name": "Tax computation and certificate services", "acts_for": { "roles": ["Tax computation service", "Tax certificate service"] } },
+      { "id": "hugo", "kind": "person", "name": "Hugo Lentz, licensed adviser", "attributes": { "roles": ["licensed_adviser"] } },
+      { "id": "mireille", "kind": "person", "name": "Mireille Faber, licensed adviser and compliance officer", "attributes": { "roles": ["licensed_adviser", "compliance_officer"] } },
+      { "id": "ines", "kind": "person", "name": "Inès Kieffer, compliance officer", "attributes": { "roles": ["compliance_officer"] } },
+      { "id": "jonas", "kind": "person", "name": "Jonas Becker, compliance officer", "attributes": { "roles": ["compliance_officer"] } },
+      { "id": "claire", "kind": "person", "name": "Claire Hoffmann, head of compliance", "attributes": { "roles": ["compliance_officer", "senior_management"] } },
+      { "id": "yann", "kind": "person", "name": "Yann Thill, tax adviser", "attributes": { "roles": ["tax_adviser"] } },
+      { "id": "sofia", "kind": "person", "name": "Sofia Marques, back-office administrator", "attributes": { "roles": ["back_office"] } }
+    ],
+    "policy": {
+      "rules": [
+        { "id": "host-starts-the-plan-workflows", "effect": "allow", "actions": ["start_run"], "subject": { "ids": ["host"] },
+          "resource": { "workflows": ["Plan Invitation and Advice", "Savings Plan Subscription", "Payroll Contributions", "Self-Service Change", "Year-End Tax", "Annual Review"] } },
+        { "id": "agents-and-systems-work", "effect": "allow", "actions": ["perform_activity", "call_tool"], "subject": { "kinds": ["ai_agent", "application"] } },
+        { "id": "licensed-advisers-advise", "effect": "allow", "actions": ["complete_task"], "subject": { "roles": ["licensed_adviser"] },
+          "resource": { "activities": ["Explain the plan", "Advise in video call", "Assess demands and needs", "Discuss the risk with an adviser", "Confirm recommendations with an adviser"] } },
+        { "id": "compliance-decides-due-diligence-and-overrides", "effect": "allow", "actions": ["complete_task", "approve"], "subject": { "roles": ["compliance_officer"] },
+          "resource": { "activities": ["Verify identity documents", "Resolve compliance alert", "Approve PEP relationship", "Approve choice above profile"] } },
+        { "id": "tax-advisers-review-cross-border-files", "effect": "allow", "actions": ["complete_task"], "subject": { "roles": ["tax_adviser"] },
+          "resource": { "activities": ["Tax adviser review"] } },
+        { "id": "back-office-settles-files", "effect": "allow", "actions": ["complete_task"], "subject": { "roles": ["back_office"] },
+          "resource": { "activities": ["Review beneficiary clause", "Confirm premiums by hand"] } }
+      ],
+      "separation_of_duties": [
+        { "id": "who-resolves-a-compliance-alert-does-not-approve-it", "activities": ["Resolve compliance alert", "Approve PEP relationship"] },
+        { "id": "the-adviser-who-advised-does-not-approve-the-override", "activities": ["Discuss the risk with an adviser", "Approve choice above profile"] }
+      ],
+      "four_eyes": [
+        { "id": "two-approvals-for-a-politically-exposed-person", "activities": ["Approve PEP relationship"], "approvals": 2 }
+      ]
+    },
+    "classifications": {
+      "Plan Invitation and Advice": "personal_data", "Savings Plan Subscription": "personal_data", "Identity, AML and Tax Residence Checks": "personal_data",
+      "Payroll Contributions": "personal_data", "Self-Service Change": "personal_data", "Year-End Tax": "personal_data", "Annual Review": "personal_data"
+    },
+    "record_allows": false
+  },
+  "guardrails": [
+    {
+      "id": "7a3f0c21-5d4e-4b8a-9c61-2e8f4a1b6d01",
+      "name": "Instructions hidden in employee data",
+      "stages": ["input"],
+      "check": { "kind": "prompt_injection" },
+      "action": "escalate"
+    },
+    {
+      "id": "7a3f0c21-5d4e-4b8a-9c61-2e8f4a1b6d02",
+      "name": "Bank and card numbers never leave an agent",
+      "stages": ["output"],
+      "check": { "kind": "personal_data", "categories": ["iban", "credit_card"] },
+      "action": "redact"
+    },
+    {
+      "id": "7a3f0c21-5d4e-4b8a-9c61-2e8f4a1b6d03",
+      "name": "No promise of a guaranteed return on unit-linked funds",
+      "stages": ["output"],
+      "check": { "kind": "deny_list", "patterns": [
+        { "name": "guaranteed_return", "pattern": "(?<![Nn]o )(?<![Nn]ot )[Gg]uarantee[ds]? (?:an? )?(?:[0-9]+(?:[.,][0-9]+)? ?% ?)?(?:annual |yearly )?(?:return|yield|growth|performance|gain)s?" },
+        { "name": "capital_guarantee", "pattern": "(?:capital|returns?) (?:is |are )?(?:fully )?(?:guaranteed|protected) (?:by|on|in) (?:this|the|your) (?:fund|plan|portfolio)" }
+      ] },
+      "action": "retry_with_feedback"
+    }
+  ]
+}

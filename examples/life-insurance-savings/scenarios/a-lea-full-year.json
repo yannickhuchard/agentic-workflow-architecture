@@ -1,0 +1,78 @@
+{
+  "name": "lea-full-year",
+  "title": "Léa saves through payroll for a year and deducts 4,500 EUR under Art. 111bis LIR",
+  "summary": "Léa Muller, 34, resident in Luxembourg, is invited in the HR portal. The AI adviser explains the plan and she asks to talk to a person: Hugo, a licensed adviser, advises her by video call. Her questionnaire gives a balanced profile; she takes the balanced model portfolio, subscribes with the standard beneficiary clause and 375 EUR a month, and signs. The January payroll pays the first premium, the policy is issued, and 30 days later it is in force. Eleven more payroll contributions are invested, with a statement each quarter; in May she switches a fifth of her savings to a climate fund in self-service, within her profile. In November the year's premiums reach the ceiling, so no top-up is proposed; in January her tax certificate states 4,500 EUR deductible under Art. 111bis LIR for 2026. In the annual review she says she claimed the deduction, and accepts the AI adviser's recommendation to rebalance.",
+  "starts": "2026-01-12T08:30:00Z",
+  "invitation": {
+    "enrolment_id": "ENR-26001", "plan_id": "KES-PENSION-111BIS", "contract_type": "pension_savings",
+    "employer": { "name": "Kestrel Engineering S.à r.l.", "employer_id": "KES-0001" },
+    "employee": { "employee_number": "K-0412", "first_name": "Léa", "last_name": "Muller", "date_of_birth": "1991-04-18", "age": 34, "email": "lea.muller@kestrel.example", "nationality": "LU", "language": "en" },
+    "tax_residence": "LU", "retirement_age": 65, "household_members": 1
+  },
+  "world": {
+    "position": { "drift_pp": 6.4, "performance_pct": 4.2 }
+  },
+  "actors": {
+    "Explain the plan": { "output": { "handover_requested": true, "advice_given": false,
+      "explanation": "The Valoria Pension Plan is a pension savings contract written under Art. 111bis LIR: you pay from your salary each month, and the premiums are deductible from your taxable income up to 4500 EUR a year from tax year 2026, whatever your age. The contract runs for at least 10 years, and the savings are paid out from age 60 and no later than 75. Your money is invested in unit-linked funds held by the custodian bank, apart from Valoria Life's own assets: their value goes down as well as up, the return is not guaranteed, and you bear the investment risk. You asked to talk it through with a person: I am booking a video call with a licensed adviser." } },
+    "Recommend changes": { "output": {
+      "recommendations": [{ "type": "rebalance", "reason": "Equity funds rose and the allocation has drifted 6.4 points from its target." }],
+      "recommendation_text": "Dear Léa, your equity funds grew faster than the others this year, so your plan now holds 6.4 points more equity than the target you chose. We recommend bringing it back to your target allocation. Your risk profile and your retirement age are unchanged. The value of your funds can fall as well as rise.",
+      "requires_adviser": false, "target_allocation": "{{allocation}}" } },
+    "Apply accepted changes": {
+      "calls": [{ "tool": "switch_funds", "as": "rebalance", "arguments": { "policy_id": "{{policy_id}}", "allocation": "{{target_allocation}}" } }],
+      "output": { "changes_applied": ["rebalance"], "rebalance_id": "{{rebalance.switch_id}}" } }
+  },
+  "steps": [
+    { "at": "2026-01-12T12:40:00Z", "say": "Léa opens the invitation in the HR portal", "publish": "invitation.opened", "source": "/hr-portal", "data": { "invitation_opened": true } },
+    { "at": "2026-01-14T10:30:00Z", "say": "Hugo, licensed adviser, advises Léa by video call", "complete": "Advise in video call", "by": "hugo",
+      "output": { "advice_given": true, "advice_channel": "video_call", "monthly_contribution_eur": 375,
+        "advice_summary": "Explained the contract, the 4,500 EUR ceiling for 2026, the payout from 60 to 75 and the investment risk; Léa will contribute 375 EUR a month to use the whole ceiling." } },
+    { "at": "2026-01-15T19:10:00Z", "say": "Léa answers the questionnaire", "publish": "questionnaire.submitted", "source": "/hr-portal/questionnaire",
+      "data": { "knowledge_level": "informed", "capacity_for_loss": "moderate", "horizon_years": 31, "risk_tolerance": 3, "sustainability_preference": "esg_preferred", "monthly_contribution_eur": 375 } },
+    { "at": "2026-01-16T20:05:00Z", "say": "Léa chooses the balanced model portfolio and reads its key information documents", "publish": "investments.chosen", "source": "/hr-portal/investments",
+      "data": { "choice": "model_portfolio", "kids_acknowledged": true,
+        "allocation": [{ "fund_id": "VL-BOND-GREEN", "percent": 30 }, { "fund_id": "VL-MIX-BAL", "percent": 30 }, { "fund_id": "VL-EQ-WORLD-ESG", "percent": 40 }] } },
+    { "at": "2026-01-17T11:00:00Z", "say": "Léa submits the subscription form: identity card, proof of address, tax residence in Luxembourg, the standard beneficiary clause, 375 EUR a month", "publish": "subscription.submitted", "source": "/hr-portal/subscription",
+      "data": { "documents": [{ "type": "identity_card", "file_id": "F-26001-ID" }, { "type": "proof_of_address", "file_id": "F-26001-ADDR" }],
+        "self_certification": { "tax_residences": [{ "country": "LU", "tin": "1991041812345" }], "us_person": false },
+        "beneficiary_clause": { "type": "standard" }, "monthly_contribution_eur": 375, "payroll_mandate_signed": true } },
+    { "at": "2026-01-19T09:15:00Z", "say": "The e-signature service reports Léa's signed contract", "publish": "contract.signed", "source": "/e-signature", "data": { "contract_signed": true, "envelope_id": "ENV-26001" } },
+    { "at": "2026-01-27T06:00:00Z", "monthly": 12, "say": "Kestrel's payroll pays Léa's contribution for {{period}}", "publish": "payroll.contribution_paid", "source": "/kestrel-payroll",
+      "data": { "period": "{{period}}", "amount_eur": 375 } },
+    { "at": "2026-02-26T12:00:00Z", "say": "Thirty days pass without a cancellation", "tick": true },
+    { "at": "2026-05-12T18:30:00Z", "say": "Léa moves a fifth of her savings to the climate fund in self-service", "publish": "self_service.requested", "source": "/hr-portal/self-service",
+      "data": { "request_type": "switch",
+        "new_allocation": [{ "fund_id": "VL-BOND-GREEN", "percent": 30 }, { "fund_id": "VL-MIX-BAL", "percent": 20 }, { "fund_id": "VL-EQ-WORLD-ESG", "percent": 30 }, { "fund_id": "VL-EQ-CLIMATE", "percent": 20 }] } },
+    { "at": "2026-11-02T07:00:00Z", "say": "The insurer's calendar opens the year-end review of tax year 2026", "publish": "tax_year.review_due", "source": "/policy-administration/calendar",
+      "data": { "tax_year": 2026, "months_remaining": 2, "tax_review_due": true } },
+    { "at": "2027-01-15T06:00:00Z", "say": "The January certificate run of the policy administration", "publish": "tax_certificates.due", "source": "/policy-administration/calendar", "data": { "tax_year": 2026 } },
+    { "at": "2027-01-26T07:00:00Z", "say": "The anniversary of Léa's policy opens the annual review", "publish": "annual_review.due", "source": "/policy-administration/calendar", "data": { "review_year": 2027 } },
+    { "at": "2027-01-28T20:15:00Z", "say": "Léa answers the review: nothing changed, she claimed the deduction in her 2026 tax return", "publish": "annual_review.answered", "source": "/hr-portal/review",
+      "data": { "deduction_claimed": true, "life_events": [], "satisfaction": 5 } },
+    { "at": "2027-01-30T09:40:00Z", "say": "Léa accepts the rebalancing", "publish": "recommendations.answered", "source": "/hr-portal/review", "data": { "recommendations_accepted": true } }
+  ],
+  "expect": {
+    "runs": {
+      "Plan Invitation and Advice": ["completed"], "Savings Plan Subscription": ["completed"], "Identity, AML and Tax Residence Checks": ["completed"],
+      "Payroll Contributions": ["completed"], "Self-Service Change": ["completed"], "Year-End Tax": ["completed"], "Annual Review": ["completed"]
+    },
+    "journey_status": "completed", "journey_stage": "annual-review", "goals": ["policy-issued", "first-deduction-claimed"],
+    "data": { "premiums_paid_eur": 4500, "deductible_eur": 4500, "deduction_article": "111bis", "risk_profile": "balanced" },
+    "records": [
+      { "type": "activity.completed", "node_name": "Advise in video call", "data": { "principal": { "id": "hugo" } } },
+      { "type": "decision.evaluated", "node_name": "Risk profile", "data": { "outputs": { "risk_profile": "balanced", "max_sri": 4 } } },
+      { "type": "decision.evaluated", "node_name": "Suitability of the choice", "data": { "outputs": { "suitability": "suitable" } } },
+      { "type": "decision.evaluated", "node_name": "Customer due diligence", "data": { "outputs": { "cdd_level": "standard" } } },
+      { "type": "activity.completed", "node_name": "Invest first premium", "count": 1 },
+      { "type": "activity.completed", "node_name": "Invest contribution", "count": 11 },
+      { "type": "activity.completed", "node_name": "Send quarterly statement", "count": 3 },
+      { "type": "activity.completed", "node_name": "Switch funds" },
+      { "type": "decision.evaluated", "node_name": "Deduction rules", "data": { "outputs": { "article": ["111bis"], "annual_ceiling_eur": [4500] } } },
+      { "type": "decision.evaluated", "node_name": "Top-up worth proposing", "data": { "outputs": {} } },
+      { "type": "tool.completed", "node_name": "Issue tax certificate", "data": { "tool": "issue_tax_certificate" } }
+    ],
+    "absent": [{ "type": "activity.started", "node_name": "Write top-up proposal" }, { "type": "event.timed_out", "node_name": "Contribution paid" }],
+    "journey_records": [{ "type": "journey.goal_reached", "data": { "goal_id": "first-deduction-claimed" } }]
+  }
+}
