@@ -382,7 +382,11 @@ function build_story(sample, options) {
         const day0 = Math.floor(ms(instance.started_at) / DAY) * DAY, start = ms(instance.started_at);
         const when = t => `Day ${Math.floor((t - day0) / DAY) + 1} · ${clock(t)}`;
         const stage_name = id => definition.stages.find(s => s.id === id)?.name;
-        const run_list = runs.map(r => ({ run_id: r.run_id, wf: layouts.findIndex(l => l.id === r.workflow_id), name: layout_of(r.workflow_id).name, stage: r.stage_id, status: instance.runs.find(x => x.run_id === r.run_id).status, steps: condense(r, name, day0) }));
+        // The stage a run serves is the one the journey instance records for it (spec 23), whatever stage the journey is in while the run goes on
+        const run_list = runs.map(r => {
+            const recorded = instance.runs.find(x => x.run_id === r.run_id);
+            return { run_id: r.run_id, wf: layouts.findIndex(l => l.id === r.workflow_id), name: layout_of(r.workflow_id).name, stage: recorded.stage_id ?? r.stage_id, status: recorded.status, steps: condense(r, name, day0) };
+        });
         const run_ix = id => run_list.findIndex(r => r.run_id === id);
 
         const beats = [];

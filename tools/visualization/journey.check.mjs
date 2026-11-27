@@ -1,6 +1,7 @@
 // Checks the journey view in a real browser: the sample at every height, a
 // record opened from a file, a host followed live while its journeys move, and the
-// builder's options (names, bands, routes) on the electricity onboarding example.
+// builder's options (names, bands, routes) on the electricity onboarding example, and
+// a long journey of the life insurance savings example.
 //
 //   cd sdk/typescript && npm run build
 //   node tools/visualization/journey.check.mjs        (needs Playwright)
@@ -413,6 +414,41 @@ awa('export', '-o', record);
         await page.close();
     }
     server.close();
+}
+
+// 5. A long journey: Léa Muller's year in the life insurance savings example, nine stages and more than a hundred moments
+{
+    const savings = path.join(root, 'examples/life-insurance-savings'), record = JSON.parse(fs.readFileSync(path.join(savings, 'journeys.json'), 'utf-8'));
+    const server = http.createServer((req, res) => {
+        const file = path.join(root, decodeURIComponent(new URL(req.url, 'http://x').pathname));
+        if (!file.startsWith(root) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); res.end(); return; }
+        res.writeHead(200, { 'content-type': file.endsWith('.html') ? 'text/html; charset=utf-8' : file.endsWith('.js') ? 'text/javascript' : 'application/json' });
+        fs.createReadStream(file).pipe(res);
+    });
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    const base = `http://127.0.0.1:${server.address().port}`;
+    try {
+        const page = await open(`${base}/tools/visualization/journey.html?data=${encodeURIComponent(`${base}/examples/life-insurance-savings/journeys.json`)}&options=${encodeURIComponent(`${base}/examples/life-insurance-savings/views/story-options.json`)}`);
+        await settle(page);
+        const journey = record.journeys[0], entry = journey.instances.find(e => e.instance.subject_key === 'ENR-26001');
+        const story = build_story(record, JSON.parse(fs.readFileSync(path.join(savings, 'views/story-options.json'), 'utf-8')));
+        const lea = story.journeys[0].instances.findIndex(c => c.name === 'Léa Muller');
+        // The run view names the stage the journey instance records for the run, at every moment of the run
+        const stage_name = id => journey.definition.stages.find(s => s.id === id).name;
+        const runs = story.journeys[0].instances[lea].runs.map(r => ({ run_id: r.run_id, name: r.name, steps: r.steps.length }));
+        const wrong = [];
+        for (const [r, run] of runs.entries()) {
+            const recorded = stage_name(entry.instance.runs.find(x => x.run_id === run.run_id).stage_id);
+            for (const at of [0, Math.floor(run.steps / 2), run.steps - 1]) {
+                await page.evaluate(([i, r, at]) => { location.hash = `#run/0/${i}/${r}/${at}`; }, [lea, r, at]); await settle(page);
+                const shown = await page.textContent('#runstage');
+                if (shown !== recorded) wrong.push(`${run.name} at step ${at + 1}: "${shown}", recorded "${recorded}"`);
+            }
+        }
+        check(!wrong.length, `each of Léa's ${runs.length} runs names the stage its journey instance records, from its first step to its last ${wrong.join('; ')}`);
+        check(page.errors.length === 0, `no page errors on Léa's journey ${page.errors.join('; ')}`);
+        await page.close();
+    } finally { server.close(); }
 }
 
 await browser.close();
