@@ -308,7 +308,7 @@ export async function createMcpServer({ widget_domain = process.env.AWA_MCP_WIDG
             options: z.record(z.string(), z.unknown()).optional().describe('The journey view\'s options: subject_name, glossary, recommendations (thresholds, wording, rules), dossier (subject, lead, say, facts, personas). Paths to other files are not read.'),
             edition: z.enum(['professional', 'client']).optional().describe('professional (default) or client.'),
             customer: z.string().max(200).optional().describe('With edition client: the customer, by subject key or name.'),
-            evidence: z.record(z.string(), z.unknown()).optional().describe('An evidence report (awa evidence --json), for the appendix.'),
+            evidence: z.record(z.string(), z.unknown()).optional().describe('An evidence report (awa evidence --format json), for the appendix.'),
             brand: S.brand.optional(),
         },
         async args => {

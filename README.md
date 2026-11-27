@@ -98,6 +98,8 @@ To write a new implementation, start from [`spec/conformance/README.md`](spec/co
 npm install agentic-workflow-architecture
 ```
 
+Version 2 of the packages, which this README describes, is published with the next release. Until then, build the SDK from a clone: `cd sdk/typescript && npm ci && npm run build && npm link` gives the `awa` command, and `pip install -e sdk/python` gives the Python package.
+
 The following command runs a workflow in simulation. Each activity returns what the simulation file states, and the journal records the run.
 
 ```bash

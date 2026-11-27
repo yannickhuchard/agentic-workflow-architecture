@@ -15,7 +15,7 @@ export const dossierCommand = new Command('dossier')
     .option('--options <file>', 'The journey view\'s options for this record (names, glossary, brand, recommendations, dossier)')
     .option('--edition <edition>', 'professional (every customer, internal cost, the agents\' internals) or client (one customer\'s own story)', 'professional')
     .option('--customer <key>', 'With --edition client: the customer, by subject key or name')
-    .option('--evidence <file>', 'The evidence report (awa evidence --json) for the appendix')
+    .option('--evidence <file>', 'The evidence report (awa evidence --format json) for the appendix')
     .option('--format <list>', 'html, pdf, docx, separated by commas', 'html')
     .option('--out <path>', 'Where to write, without the extension', 'dossier')
     .action(async options => {
