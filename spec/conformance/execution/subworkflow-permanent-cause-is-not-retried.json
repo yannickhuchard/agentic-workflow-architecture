@@ -1,0 +1,122 @@
+{
+  "id": "subworkflow-permanent-cause-is-not-retried",
+  "level": "subworkflows",
+  "spec": "24.3",
+  "description": "A child run that failed with a code the engine never retries (10.1) fails the same way on every attempt: the call activity fails with SUBWORKFLOW_FAILED and the cause, is not retried, and starts no second child run.",
+  "workflow": {
+    "id": "ace7977a-8f84-55fe-b283-e1edaad1aac2",
+    "name": "subworkflow-permanent-cause-is-not-retried",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "14e0b492-22aa-579c-8a7f-269d43177c64",
+        "name": "Payment",
+        "role_id": "5a7141fe-909c-5654-91ac-b20fea89a20e",
+        "actor_type": "application",
+        "is_expandable": true,
+        "expansion_workflow_id": "f1bbc089-35db-57a0-94e7-d06af1064231",
+        "retry": {
+          "max_attempts": 3,
+          "initial_delay": "PT0S",
+          "jitter": false
+        }
+      },
+      {
+        "id": "c0fbcb23-efc4-584d-a0d9-87361d903f22",
+        "name": "Notify",
+        "role_id": "5a7141fe-909c-5654-91ac-b20fea89a20e",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "1d7fac3a-fbf0-549d-b628-de9bee516f90",
+        "source_id": "14e0b492-22aa-579c-8a7f-269d43177c64",
+        "target_id": "c0fbcb23-efc4-584d-a0d9-87361d903f22"
+      }
+    ]
+  },
+  "actors": {
+    "Pay": {
+      "error": "the policy refuses this payment",
+      "code": "FORBIDDEN"
+    }
+  },
+  "workflows": [
+    {
+      "id": "f1bbc089-35db-57a0-94e7-d06af1064231",
+      "name": "Settle payment",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "ce75e3d9-a3c1-5428-8ed5-09cb9c7eafab",
+          "name": "Pay",
+          "role_id": "288ba93d-8978-5040-8b25-f4aecbdd21a5",
+          "actor_type": "application"
+        }
+      ],
+      "edges": []
+    }
+  ],
+  "expect": {
+    "status": "failed",
+    "visited": [
+      "Pay"
+    ],
+    "journal": [
+      "activity.started",
+      "subworkflow.started",
+      "subworkflow.failed",
+      "activity.failed",
+      "token.failed",
+      "run.failed"
+    ],
+    "journal_contains": [
+      {
+        "type": "subworkflow.failed",
+        "node_name": "Payment",
+        "data": {
+          "error": {
+            "code": "FORBIDDEN"
+          }
+        }
+      },
+      {
+        "type": "activity.failed",
+        "node_name": "Payment",
+        "attempt": 1,
+        "data": {
+          "error": {
+            "code": "SUBWORKFLOW_FAILED",
+            "cause": "FORBIDDEN"
+          },
+          "retryable": false
+        }
+      },
+      {
+        "type": "token.failed",
+        "data": {
+          "error": {
+            "code": "SUBWORKFLOW_FAILED",
+            "cause": "FORBIDDEN"
+          }
+        }
+      }
+    ],
+    "journal_excludes": [
+      "activity.retry_scheduled"
+    ],
+    "journal_count": {
+      "subworkflow.started": 1
+    },
+    "subworkflow_runs": [
+      {
+        "workflow_name": "Settle payment",
+        "attempt": 1,
+        "status": "failed"
+      }
+    ]
+  }
+}

@@ -163,6 +163,8 @@ from awa.runtime.kpi import compute_measures
 
 **Journeys.** Open [`tools/visualization/journey.html`](tools/visualization/journey.html) to follow six customers through a year with an insurer as they buy a policy, claim on it and renew it. The view goes from an atlas of the journeys down to the workflow run behind any moment. The data comes from [`examples/claims-journey`](examples/claims-journey), and [`docs/ux/journey-visualisation-research.md`](docs/ux/journey-visualisation-research.md) explains the design of the view.
 
+**A whole process, live.** `node examples/electricity-onboarding/demo/live.mjs` onboards a household with solar panels in about 70 seconds: agents verify documents, a grid engineer approves the export, and the journey view, the measures page and the run replay follow it as it happens ([`examples/electricity-onboarding`](examples/electricity-onboarding)).
+
 Journeys outlive the process that touches them. Each of these commands is a separate process that works on the same runtime directory:
 
 ```bash
@@ -276,7 +278,7 @@ graph TD
 | `tools/visualization` | The run replay, the journey view and the measures page |
 | `apps/mcp-server`, `plugins/awa` | The MCP server with embedded views, and its packaging as a ChatGPT plugin |
 | `apps/kanban-web` | A Kanban board (Next.js) for the tasks of people |
-| `examples/` | Examples, starting with `claims-settlement` and `claims-journey` |
+| `examples/` | Examples, starting with `claims-settlement` and `claims-journey`; `electricity-onboarding` is a reference process a utility can plug into its own systems |
 | `docs/ux` | The research behind the journey view and the measures page |
 
 ---
@@ -304,7 +306,7 @@ cd agentic-workflow-architecture/apps/kanban-web && npm install && npm run dev
 - **[EU AI Act guide](docs/compliance/eu-ai-act.md)** maps the obligations of the AI Act, the NIST AI RMF and ISO/IEC 42001 to the records and the evidence report, with a worked example.
 - **Guides** cover [getting started](docs/getting-started.html), [developers](docs/developer-guide.html), [the data model](docs/data-model-guide.html), [process owners](docs/abpm-guide.html) and [architects](docs/architect-guide.html).
 - **[Skill](skills/agentic-workflow-architecture/SKILL.md)** teaches AWA to AI coding assistants.
-- **[Examples](examples/)** start with [claims-settlement](examples/claims-settlement/) for one workflow and [claims-journey](examples/claims-journey/) for journeys.
+- **[Examples](examples/)** start with [claims-settlement](examples/claims-settlement/) for one workflow and [claims-journey](examples/claims-journey/) for journeys. [electricity-onboarding](examples/electricity-onboarding/) is a reference example to take off the shelf: a supplier's onboarding of a household, with a sub-workflow for home generation, documented integration points, reference adapters, eight scenarios and a live demonstration.
 - **[Releasing](RELEASING.md)** describes how a version is published.
 - **[Release notes](release_notes.md)** list every change.
 

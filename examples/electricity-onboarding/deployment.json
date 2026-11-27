@@ -1,0 +1,56 @@
+{
+  "tools": {
+    "allowed_hosts": ["localhost:4545"]
+  },
+  "authorization": {
+    "principals": [
+      { "id": "agent:documents", "kind": "ai_agent", "name": "Document verification agent", "acts_for": { "roles": ["Document verifier"] } },
+      { "id": "agent:installation", "kind": "ai_agent", "name": "Installation verification agent", "acts_for": { "roles": ["Installation verifier"] } },
+      { "id": "agent:plans", "kind": "ai_agent", "name": "Plan advice agent", "acts_for": { "roles": ["Plan advisor"] } },
+      { "id": "agent:writer", "kind": "ai_agent", "name": "Customer letters agent", "acts_for": { "roles": ["Customer letters", "Notification writer"] } },
+      { "id": "system:customer-platform", "kind": "application", "name": "Customer platform (CRM, contracts, onboarding desk)", "acts_for": { "roles": ["Customer platform", "Contract service", "Grid export desk"] } },
+      { "id": "system:market", "kind": "application", "name": "Market and credit gateway (credit bureau, metering-point registry)", "acts_for": { "roles": ["Credit and identity service", "Metering-point registry"] } },
+      { "id": "system:billing", "kind": "application", "name": "Billing system", "acts_for": { "roles": ["Billing system"] } },
+      { "id": "system:grid", "kind": "application", "name": "Grid connections and meter data", "acts_for": { "roles": ["Grid connection service", "Meter-data system"] } },
+      { "id": "olivia", "kind": "person", "name": "Olivia Brandt, credit officer", "attributes": { "roles": ["credit_officer"] } },
+      { "id": "gabriel", "kind": "person", "name": "Gabriel Okoye, grid engineer", "attributes": { "roles": ["grid_engineer"] } },
+      { "id": "hana", "kind": "person", "name": "Hana Novak, grid engineer", "attributes": { "roles": ["grid_engineer"] } },
+      { "id": "marco", "kind": "person", "name": "Marco Silva, customer care", "attributes": { "roles": ["customer_care"] } }
+    ],
+    "policy": {
+      "rules": [
+        { "id": "host-starts-onboarding", "effect": "allow", "actions": ["start_run"], "subject": { "ids": ["host"] }, "resource": { "workflows": ["Electricity Customer Onboarding"] } },
+        { "id": "agents-and-systems-work", "effect": "allow", "actions": ["perform_activity", "call_tool"], "subject": { "kinds": ["ai_agent", "application"] } },
+        { "id": "credit-officers-decide-referrals", "effect": "allow", "actions": ["complete_task"], "subject": { "roles": ["credit_officer"] }, "resource": { "activities": ["Credit referral"] } },
+        { "id": "grid-engineers-decide-exports", "effect": "allow", "actions": ["complete_task", "approve"], "subject": { "roles": ["grid_engineer"] },
+          "resource": { "activities": ["Verify installation documents", "Grid operator approval", "Grid operator approval, two engineers"] } },
+        { "id": "customer-care-tasks", "effect": "allow", "actions": ["complete_task"], "subject": { "roles": ["customer_care"] },
+          "resource": { "activities": ["Verify documents", "Confirm plan by phone", "Agree another plan", "Advise on electricity source"] } }
+      ],
+      "separation_of_duties": [
+        { "id": "who-resolves-the-installation-file-does-not-approve-it", "activities": ["Verify installation documents", "Grid operator approval", "Grid operator approval, two engineers"] }
+      ],
+      "four_eyes": [
+        { "id": "two-engineers-above-the-threshold", "activities": ["Grid operator approval, two engineers"], "approvals": 2 }
+      ]
+    },
+    "classifications": { "Electricity Customer Onboarding": "personal_data", "Grid Export Registration": "personal_data" },
+    "record_allows": false
+  },
+  "guardrails": [
+    {
+      "id": "3d1c7a52-8e44-4f0b-9a6e-5c2b1f7e9a10",
+      "name": "Instructions hidden in customer data",
+      "stages": ["input"],
+      "check": { "kind": "prompt_injection" },
+      "action": "escalate"
+    },
+    {
+      "id": "3d1c7a52-8e44-4f0b-9a6e-5c2b1f7e9a11",
+      "name": "Bank and card numbers never leave an agent",
+      "stages": ["output"],
+      "check": { "kind": "personal_data", "categories": ["iban", "credit_card"] },
+      "action": "redact"
+    }
+  ]
+}

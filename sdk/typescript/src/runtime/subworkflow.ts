@@ -132,8 +132,8 @@ export function is_call_activity(activity: Activity): boolean {
 const WAITING = new Set(['waiting_human', 'waiting_event']);
 const SETTLED = new Set(['completed', 'failed', 'cancelled']);
 
-function failure(message: string, code: string): Error {
-    return Object.assign(new Error(message), { code });
+function failure(message: string, code: string, cause?: string): Error {
+    return Object.assign(new Error(message), { code, ...(cause ? { cause_code: cause } : {}) });
 }
 
 function copy<T>(value: T): T {
@@ -350,12 +350,16 @@ export class SubworkflowCalls {
         }
         const failed = child.getTokens().find(t => t.status === 'failed');
         const code = failed?.getData('_error_code');
+        // The cause is the code of the first failure at the deepest level: a grandchild's, through its child (24.3)
+        const deeper = failed?.getData('_error_cause');
+        const cause = typeof deeper === 'string' ? deeper : typeof code === 'string' ? code : undefined;
         const error = {
             message: String(failed?.getData('_error') ?? (status === 'cancelled' ? 'the run was cancelled' : `the run ended with status ${status}`)),
             ...(typeof code === 'string' ? { code } : {}),
+            ...(cause && cause !== code ? { cause } : {}),
         };
         context.record?.({ type: 'subworkflow.failed', data: { run_id, workflow_id: workflow.id, error } });
-        throw failure(`Sub-workflow "${workflow.name}" (run ${run_id}) failed: ${error.message}`, SUBWORKFLOW_FAILED);
+        throw failure(`Sub-workflow "${workflow.name}" (run ${run_id}) failed: ${error.message}`, SUBWORKFLOW_FAILED, cause);
     }
 
     private child_options(run_id: UUID, parent: SubworkflowParent, depth: number): WorkflowEngineOptions {

@@ -46,9 +46,11 @@ _ABSENT = object()
 class SubworkflowError(Exception):
     """An attempt of a call activity that fails, with its error code"""
 
-    def __init__(self, message: str, code: str):
+    def __init__(self, message: str, code: str, cause: str | None = None):
         super().__init__(message)
         self.code = code
+        # The code of the first failure at the deepest level, when a child run failed (24.3)
+        self.cause_code = cause
 
 
 def is_call_activity(activity: "Activity") -> bool:
@@ -268,11 +270,15 @@ class SubworkflowCalls:
             return {"output": outcome}
         failed = next((t for t in child.tokens if t.status.value == "failed"), None)
         code = failed.get_data("_error_code") if failed else None
+        # The cause is the code of the first failure at the deepest level: a grandchild's, through its child (24.3)
+        deeper = failed.get_data("_error_cause") if failed else None
+        cause = deeper if isinstance(deeper, str) else code if isinstance(code, str) else None
         default = "the run was cancelled" if status == "cancelled" else f"the run ended with status {status}"
         error = {"message": str(failed.get_data("_error") if failed and failed.get_data("_error") is not None else default),
-                 **({"code": code} if isinstance(code, str) else {})}
+                 **({"code": code} if isinstance(code, str) else {}),
+                 **({"cause": cause} if cause and cause != code else {})}
         record("subworkflow.failed", {"run_id": run_id, "workflow_id": str(workflow.id), "error": error})
-        raise SubworkflowError(f'Sub-workflow "{workflow.name}" (run {run_id}) failed: {error["message"]}', SUBWORKFLOW_FAILED)
+        raise SubworkflowError(f'Sub-workflow "{workflow.name}" (run {run_id}) failed: {error["message"]}', SUBWORKFLOW_FAILED, cause)
 
     def _child_options(self, run_id: str, parent: dict[str, Any], depth: int) -> dict[str, Any]:
         return {

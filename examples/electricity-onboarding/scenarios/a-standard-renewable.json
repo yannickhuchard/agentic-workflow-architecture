@@ -1,0 +1,39 @@
+{
+  "name": "standard-renewable",
+  "title": "A household chooses 100% renewable electricity and a 12-month fixed plan",
+  "summary": "Lena Marsh moves into a flat with a smart meter. Her documents arrive the same day, the checks pass, renewable electricity is offered everywhere, and she takes the fixed plan she asked for. The welcome message names her mobile number, which a guardrail redacts before it leaves the agent.",
+  "application": {
+    "application_id": "APP-24001",
+    "applicant": { "first_name": "Lena", "last_name": "Marsh", "date_of_birth": "1986-04-12" },
+    "contact": { "email": "lena.marsh@example.org", "phone": "+49 151 2345 6701" },
+    "supply_address": { "line1": "14 Orchard Row", "postcode": "40217", "city": "Riverton" },
+    "metering_point_id": "MP-40217-000141",
+    "consumption_basis": "estimate", "annual_consumption_kwh": 3200,
+    "electricity_source": "renewable_100", "plan_preference": "fixed_12",
+    "has_generation": false, "ev_charger": false, "heat_pump": false
+  },
+  "world": {
+    "credit": { "credit_band": "A", "score": 812, "outstanding_debt_eur": 0, "identity_result": "verified" },
+    "metering_point": { "meter_type": "smart", "smart_meter": true, "current_supplier": "Northgrid Energy", "connection_capacity_kva": 13.8, "region": "south-west", "grid_operator": "Southvale Grid", "phases": 1 }
+  },
+  "actors": {
+    "Recommend plan": { "output": { "reasons": "Lena asked for a fixed price for a year. For 3,200 kWh a year the 12-month fixed plan costs about the same as the variable plan today and protects her from price rises; time of use would only save money if she moved most of her use to the night." } },
+    "Write welcome pack": { "output": { "message": "Welcome, Lena! Your electricity supply at 14 Orchard Row starts on {{supply_start_date}}. You are on our 12-month fixed plan, so your unit price will not change for a year, and every kilowatt-hour is 100% renewable, backed by guarantees of origin. Your first bill follows a month later, paid by direct debit. We will text you at {{contact.phone}} a few days before your first meter reading." } }
+  },
+  "steps": [
+    { "after": "PT5H", "say": "Lena uploads her identity card, her tenancy agreement and the signed direct debit mandate", "publish": "documents.uploaded", "source": "/customer-portal/documents",
+      "data": { "documents": [{ "type": "proof_of_identity", "file_id": "F-24001-ID" }, { "type": "proof_of_address", "file_id": "F-24001-ADDR" }, { "type": "direct_debit_mandate", "file_id": "F-24001-MAND" }], "mandate_reference": "MND-24001" } },
+    { "after": "PT20H", "say": "Lena confirms the 12-month fixed plan in the portal", "publish": "plan.confirmed", "source": "/customer-portal", "data": { "plan": "fixed_12" } },
+    { "after": "PT6H", "say": "The e-signature service reports the signed contract", "publish": "contract.signed", "source": "/e-signature", "data": { "contract_signed": true, "signature_id": "ESIG-24001" } },
+    { "after": "P13D", "say": "The registry confirms the switch: the supply starts today", "publish": "switch.completed", "source": "/metering-point-registry", "data": { "switch_completed": true, "supply_start_date": "{{today}}" } }
+  ],
+  "expect": {
+    "run_status": "completed", "journey_status": "completed", "journey_stage": "active", "goals": ["active-customer"],
+    "records": [
+      { "type": "decision.evaluated", "node_name": "Eligibility", "data": { "method": "table", "outputs": { "eligibility": "accept" } } },
+      { "type": "guardrail.triggered", "node_name": "Write welcome pack", "data": { "stage": "output", "action": "redact", "categories": ["phone"] } },
+      { "type": "run.completed" }
+    ],
+    "absent": [{ "type": "subworkflow.started" }, { "type": "token.waiting", "data": { "reason": "human_task" } }]
+  }
+}

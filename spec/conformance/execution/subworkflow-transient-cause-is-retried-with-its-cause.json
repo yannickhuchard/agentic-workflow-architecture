@@ -1,0 +1,84 @@
+{
+  "id": "subworkflow-transient-cause-is-retried-with-its-cause",
+  "level": "subworkflows",
+  "spec": "24.3",
+  "description": "A cause that may pass is retried as before: the failed attempt names the cause, and the retry starts a new child run.",
+  "workflow": {
+    "id": "e87c5c83-3566-511a-bb89-2d4b8c4a6f7e",
+    "name": "subworkflow-transient-cause-is-retried-with-its-cause",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "37d9cdca-7d0d-5a48-bcd2-cd823a954fad",
+        "name": "Gather",
+        "role_id": "ba970b79-5a10-5791-b11e-642b864fff6b",
+        "actor_type": "application",
+        "is_expandable": true,
+        "expansion_workflow_id": "9da5fb6a-156a-5f54-a24a-e21d28416638",
+        "retry": {
+          "max_attempts": 2,
+          "initial_delay": "PT0S",
+          "jitter": false
+        }
+      }
+    ],
+    "edges": []
+  },
+  "actors": {
+    "Fetch": {
+      "attempts": [
+        {
+          "error": "archive timed out",
+          "code": "TIMEOUT"
+        },
+        {
+          "output": {
+            "documents": 3
+          }
+        }
+      ]
+    }
+  },
+  "workflows": [
+    {
+      "id": "9da5fb6a-156a-5f54-a24a-e21d28416638",
+      "name": "Fetch archive",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "f1d8998b-5a41-5eca-be0d-770a4ab16a09",
+          "name": "Fetch",
+          "role_id": "470c76f5-9bf6-5a23-801b-f078233a9466",
+          "actor_type": "application"
+        }
+      ],
+      "edges": []
+    }
+  ],
+  "expect": {
+    "status": "completed",
+    "visited": [
+      "Fetch",
+      "Fetch"
+    ],
+    "journal_contains": [
+      {
+        "type": "activity.failed",
+        "node_name": "Gather",
+        "attempt": 1,
+        "data": {
+          "error": {
+            "code": "SUBWORKFLOW_FAILED",
+            "cause": "TIMEOUT"
+          },
+          "retryable": true
+        }
+      }
+    ],
+    "journal_count": {
+      "subworkflow.started": 2
+    }
+  }
+}

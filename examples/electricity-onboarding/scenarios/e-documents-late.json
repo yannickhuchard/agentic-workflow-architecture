@@ -1,0 +1,58 @@
+{
+  "name": "documents-late",
+  "title": "The documents are missing at the deadline: a reminder, then they arrive, and a person reads an illegible one",
+  "summary": "Joaquim Ferreira applies and then forgets. After seven days the workflow sends a reminder and waits seven more; two days later the documents arrive. His proof of address is a photo the document service cannot read, twice, so the verification goes to Marco in customer care, who takes three hours: past the activity's service level, which is breached and recorded. The rest goes as planned.",
+  "application": {
+    "application_id": "APP-24005",
+    "applicant": { "first_name": "Joaquim", "last_name": "Ferreira", "date_of_birth": "1995-06-30" },
+    "contact": { "email": "joaquim.f@example.org", "phone": "+49 157 3322 1105" },
+    "supply_address": { "line1": "Flat 3, 22 Harbour Street", "postcode": "30115", "city": "Portwell" },
+    "metering_point_id": "MP-30115-004410",
+    "consumption_basis": "estimate", "annual_consumption_kwh": 2400,
+    "electricity_source": "low_carbon_mix", "plan_preference": "variable",
+    "has_generation": false, "ev_charger": false, "heat_pump": false
+  },
+  "world": {
+    "credit": { "credit_band": "B", "score": 731, "outstanding_debt_eur": 0, "identity_result": "verified" },
+    "metering_point": { "meter_type": "standard", "smart_meter": false, "current_supplier": "Harbour Energy", "connection_capacity_kva": 13.8, "region": "south-east", "grid_operator": "Southvale Grid", "phases": 1 },
+    "documents": { "F-24005-ADDR": { "legible": false } }
+  },
+  "actors": {
+    "Verify documents": {
+      "attempts": [
+        { "output": { "documents": [{ "type": "proof_of_identity", "status": "valid" }, { "type": "proof_of_address", "status": "unreadable" }, { "type": "direct_debit_mandate", "status": "valid" }],
+            "documents_valid": false, "unreadable_count": 1, "confidence": 0.6, "notes": "The proof of address is a photo too dark to read; the identity document and the mandate are in order." },
+          "agent": { "confidence": 0.6, "rationale": "Two documents are in order; the proof of address cannot be read." } },
+        { "output": { "documents": [{ "type": "proof_of_identity", "status": "valid" }, { "type": "proof_of_address", "status": "unreadable" }, { "type": "direct_debit_mandate", "status": "valid" }],
+            "documents_valid": false, "unreadable_count": 1, "confidence": 0.6, "notes": "Read again with contrast enhanced: the proof of address is still illegible. A person must check it." },
+          "agent": { "confidence": 0.6, "rationale": "A second reading does not make the proof of address legible." } }
+      ]
+    },
+    "Recommend plan": { "output": { "reasons": "Joaquim asked for the variable plan. Without a smart meter, time of use is not available; at 2,400 kWh a year the variable plan is the cheapest today." } },
+    "Write welcome pack": { "output": { "message": "Welcome, Joaquim! Your supply at Flat 3, 22 Harbour Street starts on {{supply_start_date}} on our variable plan, with our low-carbon mix. Your first bill follows a month later, paid by direct debit. Thank you for sending your documents; we know the photo took a second try." } }
+  },
+  "steps": [
+    { "after": "P7DT1H", "say": "Seven days pass without documents", "tick": true },
+    { "after": "P2D", "say": "Joaquim uploads his documents after the reminder", "publish": "documents.uploaded", "source": "/customer-portal/documents",
+      "data": { "documents": [{ "type": "proof_of_identity", "file_id": "F-24005-ID" }, { "type": "proof_of_address", "file_id": "F-24005-ADDR" }, { "type": "direct_debit_mandate", "file_id": "F-24005-MAND" }], "mandate_reference": "MND-24005" } },
+    { "after": "PT3H", "say": "Marco, customer care, checks the proof of address with Joaquim by phone", "complete": "Verify documents", "by": "marco",
+      "output": { "documents": [{ "type": "proof_of_identity", "status": "valid" }, { "type": "proof_of_address", "status": "valid" }, { "type": "direct_debit_mandate", "status": "valid" }],
+        "documents_valid": true, "mandate_reference": "MND-24005", "unchecked_count": 0, "unreadable_count": 0, "confidence": 1,
+        "notes": "Called the customer: the tenancy agreement was sent again by e-mail and matches the supply address." } },
+    { "after": "PT20H", "say": "Joaquim confirms the variable plan in the portal", "publish": "plan.confirmed", "source": "/customer-portal", "data": { "plan": "variable" } },
+    { "after": "PT10H", "say": "The e-signature service reports the signed contract", "publish": "contract.signed", "source": "/e-signature", "data": { "contract_signed": true, "signature_id": "ESIG-24005" } },
+    { "after": "P13D", "say": "The registry confirms the switch: the supply starts today", "publish": "switch.completed", "source": "/metering-point-registry", "data": { "switch_completed": true, "supply_start_date": "{{today}}" } }
+  ],
+  "expect": {
+    "run_status": "completed", "journey_status": "completed", "journey_stage": "active", "goals": ["active-customer"],
+    "records": [
+      { "type": "event.timed_out", "node_name": "Documents uploaded" },
+      { "type": "activity.completed", "node_name": "Send document reminder" },
+      { "type": "event.received", "node_name": "Documents uploaded after reminder" },
+      { "type": "contract.escalated", "node_name": "Verify documents" },
+      { "type": "activity.completed", "node_name": "Verify documents", "data": { "principal": { "id": "marco" } } },
+      { "type": "sla.breached", "node_name": "Verify documents", "data": { "scope": "activity" } }
+    ],
+    "journey_records": [{ "type": "journey.touchpoint", "data": { "touchpoint_id": "reminded" } }]
+  }
+}

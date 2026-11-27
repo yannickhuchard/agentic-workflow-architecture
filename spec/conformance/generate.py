@@ -3091,6 +3091,89 @@ def subworkflow_cases() -> list[Case]:
     }
     cases.append(c)
 
+    # --- 7b. A permanent cause ends the call activity at once (AEP 0004) --------------------------
+    c = Case("subworkflow-permanent-cause-is-not-retried", "subworkflows", "24.3",
+             "A child run that failed with a code the engine never retries (10.1) fails the same way on every attempt: the call activity "
+             "fails with SUBWORKFLOW_FAILED and the cause, is not retried, and starts no second child run.")
+    sub = child(c, "Settle payment")
+    sub.act("Pay")
+    calls(c, "Payment", sub, retry={"max_attempts": 3, **retry})
+    c.act("Notify").edge("Payment", "Notify")
+    c.workflows = [workflow_of(sub)]
+    c.actors = {"Pay": {"error": "the policy refuses this payment", "code": "FORBIDDEN"}}
+    c.expect = {
+        "status": "failed", "visited": ["Pay"],
+        "journal": ["activity.started", "subworkflow.started", "subworkflow.failed", "activity.failed", "token.failed", "run.failed"],
+        "journal_contains": [
+            {"type": "subworkflow.failed", "node_name": "Payment", "data": {"error": {"code": "FORBIDDEN"}}},
+            {"type": "activity.failed", "node_name": "Payment", "attempt": 1,
+             "data": {"error": {"code": "SUBWORKFLOW_FAILED", "cause": "FORBIDDEN"}, "retryable": False}},
+            {"type": "token.failed", "data": {"error": {"code": "SUBWORKFLOW_FAILED", "cause": "FORBIDDEN"}}}],
+        "journal_excludes": ["activity.retry_scheduled"],
+        "journal_count": {"subworkflow.started": 1},
+        "subworkflow_runs": [{"workflow_name": "Settle payment", "attempt": 1, "status": "failed"}],
+    }
+    cases.append(c)
+
+    c = Case("subworkflow-cause-named-by-the-retry-policy-is-not-retried", "subworkflows", "24.3",
+             "A cause that the call activity's retry policy lists in non_retryable_errors ends the activity at once, as a cause the engine "
+             "never retries does.")
+    sub = child(c, "Assess claim")
+    sub.act("Assess")
+    calls(c, "Assessment", sub, retry={"max_attempts": 3, "non_retryable_errors": ["CLAIM_REJECTED"], **retry})
+    c.act("Pay").edge("Assessment", "Pay")
+    c.workflows = [workflow_of(sub)]
+    c.actors = {"Assess": {"error": "the claim is outside the policy", "code": "CLAIM_REJECTED"}}
+    c.expect = {
+        "status": "failed", "visited": ["Assess"],
+        "journal_contains": [{"type": "activity.failed", "node_name": "Assessment",
+                              "data": {"error": {"code": "SUBWORKFLOW_FAILED", "cause": "CLAIM_REJECTED"}, "retryable": False}}],
+        "journal_excludes": ["activity.retry_scheduled"],
+        "journal_count": {"subworkflow.started": 1},
+    }
+    cases.append(c)
+
+    c = Case("subworkflow-transient-cause-is-retried-with-its-cause", "subworkflows", "24.3",
+             "A cause that may pass is retried as before: the failed attempt names the cause, and the retry starts a new child run.")
+    sub = child(c, "Fetch archive")
+    sub.act("Fetch")
+    calls(c, "Gather", sub, retry={"max_attempts": 2, **retry})
+    c.workflows = [workflow_of(sub)]
+    c.actors = {"Fetch": {"attempts": [{"error": "archive timed out", "code": "TIMEOUT"}, {"output": {"documents": 3}}]}}
+    c.expect = {
+        "status": "completed", "visited": ["Fetch", "Fetch"],
+        "journal_contains": [{"type": "activity.failed", "node_name": "Gather", "attempt": 1,
+                              "data": {"error": {"code": "SUBWORKFLOW_FAILED", "cause": "TIMEOUT"}, "retryable": True}}],
+        "journal_count": {"subworkflow.started": 2},
+    }
+    cases.append(c)
+
+    c = Case("subworkflow-cause-comes-from-the-deepest-run", "subworkflows", "24.3",
+             "The cause is the code of the first failure at the deepest level: a grandchild that fails permanently ends its parent's call "
+             "activity and the root's, neither retried, and both name the grandchild's code.")
+    grand = child(c, "Screen sanctions")
+    grand.act("Screen")
+    sub = child(c, "Onboard customer")
+    calls(sub, "Screening", grand, retry={"max_attempts": 3, **retry})
+    calls(c, "Onboarding", sub, retry={"max_attempts": 3, **retry})
+    c.workflows = [workflow_of(sub), workflow_of(grand)]
+    c.actors = {"Screen": {"error": "a guardrail blocked the request", "code": "GUARDRAIL_BLOCKED"}}
+    c.expect = {
+        "status": "failed", "visited": ["Screen"],
+        "journal_contains": [
+            {"type": "subworkflow.failed", "node_name": "Onboarding", "data": {"error": {"code": "SUBWORKFLOW_FAILED", "cause": "GUARDRAIL_BLOCKED"}}},
+            {"type": "activity.failed", "node_name": "Onboarding",
+             "data": {"error": {"code": "SUBWORKFLOW_FAILED", "cause": "GUARDRAIL_BLOCKED"}, "retryable": False}}],
+        "journal_count": {"subworkflow.started": 1},
+        "subworkflow_runs": [
+            {"workflow_name": "Onboard customer", "depth": 1, "status": "failed",
+             "journal_contains": [{"type": "activity.failed", "node_name": "Screening",
+                                   "data": {"error": {"code": "SUBWORKFLOW_FAILED", "cause": "GUARDRAIL_BLOCKED"}, "retryable": False}}],
+             "journal_excludes": ["activity.retry_scheduled"]},
+            {"workflow_name": "Screen sanctions", "depth": 2, "status": "failed"}],
+    }
+    cases.append(c)
+
     # --- 8. Cancellation -----------------------------------------------------------------------
     def awaiting_documents(case: Case) -> Case:
         sub = child(case, "Collect documents")

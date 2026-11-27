@@ -1,0 +1,178 @@
+{
+  "about": "What the scripted actors of this example do, by activity name: the tools they call, the time they take and what they return. A scenario overrides an entry, or one attempt of it, under its own `actors`. Read by scenarios/play.mjs (TypeScript) and sdk/python/tests/test_electricity_onboarding.py (Python), which fill the {{...}} placeholders from the activity's input, the results of the calls and the scenario. `takes` is the business time the work takes; `delay_ms` is how long the live demonstration lets it take.",
+  "activities": {
+    "Register application": {
+      "takes": "PT20S", "delay_ms": 700,
+      "calls": [{ "tool": "register_customer", "as": "crm", "arguments": { "application_id": "{{application_id}}", "applicant": "{{applicant}}", "contact": "{{contact}}", "supply_address": "{{supply_address}}" } }],
+      "output": { "customer_id": "{{crm.customer_id}}" },
+      "writes": {
+        "customer_profile": {
+          "first_name": "{{applicant.first_name}}", "last_name": "{{applicant.last_name}}",
+          "supply_postcode": "{{supply_address.postcode}}", "supply_city": "{{supply_address.city}}",
+          "annual_consumption_kwh": "{{annual_consumption_kwh}}", "consumption_basis": "{{consumption_basis}}",
+          "electricity_source": "{{electricity_source}}", "plan_preference": "{{plan_preference}}",
+          "has_generation": "{{has_generation}}", "generation_technology": "{{generation_technology}}", "generation_capacity_kw": "{{generation_capacity_kw}}",
+          "ev_charger": "{{ev_charger}}", "heat_pump": "{{heat_pump}}", "preferred_channel": "email"
+        }
+      }
+    },
+    "Request documents": {
+      "takes": "PT30S", "delay_ms": 600,
+      "calls": [{ "tool": "send_message", "as": "sent", "arguments": { "application_id": "{{application_id}}", "channel": "email", "template": "document_request", "subject": "Documents for your electricity application", "body": "To set up your supply we need a few documents. Please upload them on your application page within 7 days." } }],
+      "output": { "documents_requested": "{{required_documents}}", "request_message_id": "{{sent.message_id}}" }
+    },
+    "Send document reminder": {
+      "takes": "PT1M", "delay_ms": 1500,
+      "calls": [{ "tool": "send_message", "as": "sent", "arguments": { "application_id": "{{application_id}}", "channel": "email", "template": "document_reminder", "subject": "We still need your documents" } }],
+      "output": {
+        "message": "Dear {{_contexts.customer_profile.first_name}}, we still need your documents to set up your electricity supply at {{supply_address.line1}}. Please upload them within 7 days; after that we will have to close your application.",
+        "deadline_stated": true, "reminder_message_id": "{{sent.message_id}}"
+      },
+      "agent": { "tier": "fast", "input_tokens": 520, "output_tokens": 96, "confidence": 0.93,
+        "plan": ["Name what is missing", "State the new deadline", "Keep it short"],
+        "rationale": "A reminder is read on a phone: one sentence for what is missing, one for what happens next." }
+    },
+    "Close as abandoned": {
+      "takes": "PT10S", "delay_ms": 500,
+      "output": { "abandoned_reason": "The documents did not arrive within 14 days of the application.", "closed": true }
+    },
+    "Verify documents": {
+      "takes": "PT3M", "delay_ms": 2600,
+      "calls": [{ "tool": "extract_document", "each": "documents", "as": "extractions", "arguments": { "file_id": "{{item.file_id}}", "document_type": "{{item.type}}", "application_id": "{{application_id}}" } }],
+      "output": {
+        "documents": { "$map": "documents", "to": { "type": "{{item.type}}", "status": "valid" } },
+        "documents_valid": true, "mandate_reference": "{{mandate_reference}}",
+        "unchecked_count": 0, "unreadable_count": 0, "confidence": 0.94,
+        "notes": "Identity document in date; the address on the proof of address matches the supply address; the mandate is signed by the applicant as account holder."
+      },
+      "agent": { "tier": "reasoning", "input_tokens": 6400, "output_tokens": 610, "confidence": 0.94,
+        "plan": ["Extract each uploaded document", "Compare name and address with the customer profile", "Check the identity document's expiry date", "Check the mandate's signature and account holder", "List every required document with its status"],
+        "rationale": "Every required document is present and legible, and the details agree with the application." }
+    },
+    "Check credit and identity": {
+      "takes": "PT8S", "delay_ms": 900,
+      "calls": [{ "tool": "check_credit", "as": "credit", "arguments": { "application_id": "{{application_id}}", "first_name": "{{applicant.first_name}}", "last_name": "{{applicant.last_name}}", "date_of_birth": "{{applicant.date_of_birth}}", "postcode": "{{supply_address.postcode}}", "address_line": "{{supply_address.line1}}" } }],
+      "output": { "credit_band": "{{credit.credit_band}}", "credit_score": "{{credit.score}}", "outstanding_debt_eur": "{{credit.outstanding_debt_eur}}", "identity_result": "{{credit.identity_result}}", "credit_reference": "{{credit.reference}}" }
+    },
+    "Look up metering point": {
+      "takes": "PT4S", "delay_ms": 700,
+      "calls": [{ "tool": "lookup_metering_point", "as": "mp", "arguments": { "metering_point_id": "{{metering_point_id}}" } }],
+      "output": { "meter_type": "{{mp.meter_type}}", "smart_meter": "{{mp.smart_meter}}", "current_supplier": "{{mp.current_supplier}}", "connection_capacity_kva": "{{mp.connection_capacity_kva}}", "region": "{{mp.region}}", "grid_operator": "{{mp.grid_operator}}" }
+    },
+    "Write decline letter": {
+      "takes": "PT1M", "delay_ms": 1800,
+      "calls": [{ "tool": "send_message", "as": "sent", "arguments": { "application_id": "{{application_id}}", "channel": "post", "template": "decline_letter", "subject": "Your application for an electricity supply" } }],
+      "output": {
+        "letter": "Dear {{applicant.first_name}} {{applicant.last_name}}, thank you for choosing us. We are sorry that we cannot offer you a supply contract at present, because the credit check shows an outstanding energy debt above the limit we can accept. Your current supply is not affected. Once the debt is settled you are welcome to apply again, and our team can tell you about support schemes for energy debt.",
+        "reason_given": true, "next_steps_given": true, "decline_reason": "outstanding energy debt above the limit", "letter_id": "{{sent.message_id}}"
+      },
+      "agent": { "tier": "balanced", "input_tokens": 980, "output_tokens": 240, "confidence": 0.9,
+        "plan": ["Thank the applicant", "State the decision and its reason plainly", "Say the current supply is not affected", "Say what they can do next"],
+        "rationale": "A decline is read carefully: the reason must be clear and the next step concrete, without blame." }
+    },
+    "Recommend plan": {
+      "takes": "PT2M", "delay_ms": 2400,
+      "calls": [{ "tool": "estimate_annual_cost", "each": "eligible_plans", "as": "estimates", "arguments": { "plan": "{{item}}", "annual_consumption_kwh": "{{annual_consumption_kwh}}", "region": "{{region}}", "electricity_source": "{{source_offered}}" } }],
+      "output": {
+        "recommended_plan": "{{plan_preference}}",
+        "estimated_annual_cost_eur": { "$find": "estimates", "where": { "plan": "{{plan_preference}}" }, "get": "estimated_annual_cost_eur" },
+        "alternatives": { "$map": "estimates", "to": { "plan": "{{item.plan}}", "estimated_annual_cost_eur": "{{item.estimated_annual_cost_eur}}" } },
+        "reasons": "The customer's preferred plan is eligible for this home, and its estimated cost for this consumption is shown beside the alternatives.",
+        "follows_preference": true
+      },
+      "agent": { "tier": "balanced", "input_tokens": 2300, "output_tokens": 330, "confidence": 0.88,
+        "plan": ["Read the eligible plans and the profile", "Estimate each eligible plan's annual cost", "Put the customer's preference first if eligible", "Explain the choice"],
+        "rationale": "The preference is eligible, so it is recommended; the alternatives are listed with their costs so the customer can compare." }
+    },
+    "Generate contract": {
+      "takes": "PT15S", "delay_ms": 900,
+      "calls": [{ "tool": "generate_contract", "as": "contract", "arguments": { "application_id": "{{application_id}}", "customer_id": "{{customer_id}}", "plan": "{{plan}}", "electricity_source": "{{source_offered}}", "export_tariff_eur_per_kwh": "{{export_tariff_eur_per_kwh|null}}", "deposit_eur": "{{deposit_eur|0}}" } }],
+      "output": { "contract_id": "{{contract.contract_id}}", "contract_url": "{{contract.contract_url}}", "cooling_off_days": "{{contract.cooling_off_days}}" }
+    },
+    "Set up account and direct debit": {
+      "takes": "PT10S", "delay_ms": 800,
+      "calls": [{ "tool": "create_billing_account", "as": "account", "arguments": { "customer_id": "{{customer_id}}", "contract_id": "{{contract_id}}", "mandate_reference": "{{mandate_reference}}", "billing_day": 1 } }],
+      "output": { "account_id": "{{account.account_id}}", "mandate_id": "{{account.mandate_id}}" }
+    },
+    "Collect deposit": {
+      "takes": "PT10S", "delay_ms": 700,
+      "calls": [{ "tool": "collect_deposit", "as": "deposit", "arguments": { "account_id": "{{account_id}}", "amount_eur": "{{deposit_eur}}" } }],
+      "output": { "deposit_id": "{{deposit.deposit_id}}", "deposit_collected_eur": "{{deposit.amount_eur}}" }
+    },
+    "Request supplier switch": {
+      "takes": "PT10S", "delay_ms": 800,
+      "calls": [{ "tool": "request_switch", "as": "switch", "arguments": { "metering_point_id": "{{metering_point_id}}", "customer_id": "{{customer_id}}", "contract_id": "{{contract_id}}" } }],
+      "output": { "switch_id": "{{switch.switch_id}}", "expected_switch_date": "{{switch.expected_switch_date}}" }
+    },
+    "Write welcome pack": {
+      "takes": "PT1M", "delay_ms": 2200,
+      "output": {
+        "message": "Welcome, {{applicant.first_name}}! Your electricity supply with us starts on {{supply_start_date}} on the {{plan}} plan, with {{source_offered}} electricity. Your first bill follows a month later, paid by direct debit. We will text you at {{contact.phone}} before each meter reading.",
+        "tone": "warm",
+        "facts": { "plan": "{{plan}}", "electricity_source": "{{source_offered}}", "supply_start_date": "{{supply_start_date}}", "export_tariff_eur_per_kwh": "{{export_tariff_eur_per_kwh|null}}" }
+      },
+      "agent": { "tier": "balanced", "input_tokens": 1450, "output_tokens": 280, "confidence": 0.91,
+        "plan": ["Greet the customer by name", "State the start date, the plan and the source", "Say how billing works", "Keep the tone warm and short"],
+        "rationale": "A welcome message should confirm the facts the customer agreed to, in their own words, and say what happens next." }
+    },
+    "Activate customer": {
+      "takes": "PT10S", "delay_ms": 800,
+      "calls": [
+        { "tool": "activate_customer", "as": "activation", "arguments": { "customer_id": "{{customer_id}}", "supply_start_date": "{{supply_start_date}}" } },
+        { "tool": "send_message", "as": "sent", "arguments": { "application_id": "{{application_id}}", "channel": "email", "template": "welcome_pack", "subject": "Welcome to your new electricity supply", "body": "{{message}}" } }
+      ],
+      "output": { "customer_active": true, "activated_at": "{{activation.activated_at}}", "welcome_message_id": "{{sent.message_id}}" }
+    },
+    "Cancel account and mandate": {
+      "takes": "PT10S", "delay_ms": 700,
+      "calls": [{ "tool": "cancel_billing_account", "as": "cancelled", "arguments": { "account_id": "{{account_id}}", "reason": "The supplier switch was not confirmed." } }],
+      "output": { "account_cancelled": true, "mandate_status": "{{cancelled.mandate_status}}" }
+    },
+    "Refund deposit": {
+      "takes": "PT10S", "delay_ms": 700,
+      "calls": [{ "tool": "refund_deposit", "as": "refund", "arguments": { "deposit_id": "{{deposit_id}}", "amount_eur": "{{deposit_collected_eur}}" } }],
+      "output": { "deposit_refunded": true, "refund_id": "{{refund.refund_id}}" }
+    },
+    "Verify installation documents": {
+      "takes": "PT4M", "delay_ms": 2800,
+      "calls": [{ "tool": "extract_document", "each": "installation_documents", "as": "extractions", "arguments": { "file_id": "{{item.file_id}}", "document_type": "{{item.type}}", "application_id": "{{application_id}}" } }],
+      "output": {
+        "installation_valid": true, "serials_match": true, "rated_capacity_kw": "{{capacity_kw}}",
+        "unchecked_count": 0, "unreadable_count": 0, "confidence": 0.9,
+        "notes": "Installer's certificate, compliance certificate, commissioning report and proof of ownership checked; the generator serial number agrees across them."
+      },
+      "agent": { "tier": "reasoning", "input_tokens": 5200, "output_tokens": 520, "confidence": 0.9,
+        "plan": ["Extract each installation document", "Compare the serial numbers on the compliance certificate and the commissioning report", "Compare the declared and the rated capacity", "Note anything that does not agree"],
+        "rationale": "The certificates, the commissioning report and the ownership proof agree on the serial number and the rated capacity." }
+    },
+    "Send simplified notification": {
+      "takes": "PT10S", "delay_ms": 900,
+      "calls": [{ "tool": "notify_grid_operator", "as": "notice", "arguments": { "metering_point_id": "{{metering_point_id}}", "technology": "{{technology}}", "capacity_kw": "{{capacity_kw}}", "inverter_serial": "{{installation.serial_number}}", "commissioned_on": "{{installation.commissioned_on}}" } }],
+      "output": { "notification_id": "{{notice.notification_id}}", "approved_export_kw": "{{capacity_kw}}" }
+    },
+    "Register export meter and tariff": {
+      "takes": "PT10S", "delay_ms": 900,
+      "calls": [{ "tool": "register_export", "as": "export", "arguments": { "metering_point_id": "{{metering_point_id}}", "approved_export_kw": "{{approved_export_kw|capacity_kw}}", "technology": "{{technology}}" } }],
+      "output": { "export_status": "registered", "export_registration_id": "{{export.export_registration_id}}", "approved_export_kw": "{{export.approved_export_kw}}", "export_tariff_eur_per_kwh": "{{export.export_tariff_eur_per_kwh}}" }
+    },
+    "Refer to commercial team": {
+      "takes": "PT10S", "delay_ms": 600,
+      "output": { "export_status": "referred_to_commercial" }
+    },
+    "Record export refusal": {
+      "takes": "PT10S", "delay_ms": 600,
+      "output": { "export_status": "not_approved" }
+    }
+  },
+  "decisions": {
+    "Electricity source": {
+      "takes": "PT5S", "delay_ms": 1800,
+      "by_fact": "electricity_source",
+      "replies": {
+        "local_community": { "option": "renewable_100", "confidence": 0.86, "rationale": "No community scheme supplies this region yet; 100% renewable electricity backed by guarantees of origin keeps the customer's renewable choice." },
+        "renewable_100": { "option": "renewable_100", "confidence": 0.95, "rationale": "100% renewable electricity is available everywhere." }
+      },
+      "default": { "option": "low_carbon_mix", "confidence": 0.7, "rationale": "The low-carbon mix is the closest source available." }
+    }
+  }
+}

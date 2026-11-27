@@ -70,6 +70,17 @@ Kept in the shared PostgreSQL store `AWA_RUNTIME_STORE` names when it is set (or
 curl -s -X POST localhost:3000/api/v1/journeys/events -H 'content-type: application/json' -d '{"type":"claim.submitted","data":{"customer_id":"c-1"}}'
 ```
 
+A program that hosts its own `AwaRuntime` (with its own actors, tools and models) serves it with the same routes and views: `createServer` and `set_journey_runtime` are exported by the package.
+
+```ts
+import { AwaRuntime, createServer, set_journey_runtime } from 'agentic-workflow-architecture';
+const host = new AwaRuntime({ engine: { /* actors, tools, model_providers, authorization ... */ } });
+set_journey_runtime(host);
+createServer({ request_logging: false }).listen(3000);
+```
+
+`examples/electricity-onboarding/demo/live.mjs` does this, and adds for the runs of its journeys the routes `GET /api/v1/workflows/runs/{run_id}/workflow`, `/events` and `/events/stream`, which the server offers only for runs started through `POST /api/v1/workflows/run`.
+
 ## Versions and migration
 
 Registering a new version of a workflow (`POST /api/v1/journeys/definitions`) keeps the others: runs under way stay on the version they started on, and new runs start on the newest (specification 25.1). A run at rest moves to another version only when asked, by a plan (25.3): `{ to_version?, from_version?, nodes?: { "<old node id>": "<new node id>" }, restart?: ["<old node id>"], data?: [ { set, value | from | expression, when? } | { remove, when? } ] }`.

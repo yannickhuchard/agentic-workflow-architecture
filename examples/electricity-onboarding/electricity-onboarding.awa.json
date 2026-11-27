@@ -1,0 +1,2364 @@
+{
+  "$schema": "https://awa.io/schema/awa.schema.json",
+  "id": "b02e4023-9168-55eb-8970-11839ddcb006",
+  "name": "Electricity Customer Onboarding",
+  "version": "1.0.0",
+  "awa_version": "1.1",
+  "description": "Onboards a new household customer of an electricity supplier: collects and verifies the documents, checks credit and identity and the metering point in parallel, decides eligibility, settles the electricity source, registers home generation for export, recommends a plan, has the contract signed, sets up billing and the direct debit, switches the supply, and welcomes the customer.",
+  "sla": {
+    "id": "5ba0de13-a8ab-5e49-aa4d-addcfc4323af",
+    "name": "Onboarding within three weeks",
+    "target_time": "P21D",
+    "max_time": "P35D",
+    "escalation_policy": {
+      "breach_action": "record",
+      "notify_roles": [
+        "2eb03e94-660e-5522-8b82-ece83ca87fda"
+      ]
+    },
+    "metrics": [
+      {
+        "name": "workflow.duration_ms",
+        "target": 1814400000,
+        "unit": "ms",
+        "comparison": "lte"
+      }
+    ]
+  },
+  "roles": [
+    {
+      "id": "8b7cf80b-c733-5b6f-b21f-14c7dde73900",
+      "name": "Customer platform",
+      "actor_type": "application",
+      "description": "The supplier's customer platform (CRM): applications, customers and their messages."
+    },
+    {
+      "id": "9ac98639-1a09-5147-b5fe-518ddca1071b",
+      "name": "Document verifier",
+      "actor_type": "ai_agent",
+      "description": "Reads uploaded documents and checks that each one required is present, legible and consistent with the application.",
+      "capabilities": [
+        "document extraction",
+        "identity documents",
+        "direct debit mandates"
+      ],
+      "ai_model_config": {
+        "model_id": "tier:reasoning",
+        "temperature": 0.2
+      }
+    },
+    {
+      "id": "8f99909d-2b31-5e34-9130-9fe02ab66f56",
+      "name": "Notification writer",
+      "actor_type": "ai_agent",
+      "description": "Writes short service messages: reminders.",
+      "capabilities": [
+        "customer writing"
+      ],
+      "ai_model_config": {
+        "model_id": "tier:fast",
+        "temperature": 0.2
+      }
+    },
+    {
+      "id": "f9aa9eb7-966e-5960-8d89-816dc9437179",
+      "name": "Credit and identity service",
+      "actor_type": "application",
+      "description": "Asks the credit bureau about the applicant."
+    },
+    {
+      "id": "7de8f769-b876-597e-b3d5-6f7e6f355945",
+      "name": "Metering-point registry",
+      "actor_type": "application",
+      "description": "The registry of metering points, through which suppliers switch."
+    },
+    {
+      "id": "7e5c564e-3f72-572d-ba49-cc1ea0a27bd8",
+      "name": "Credit officer",
+      "actor_type": "human",
+      "description": "Decides applications the eligibility rules refer to a person."
+    },
+    {
+      "id": "2eb03e94-660e-5522-8b82-ece83ca87fda",
+      "name": "Customer care agent",
+      "actor_type": "human",
+      "description": "Talks to customers by phone and resolves what the automated steps cannot."
+    },
+    {
+      "id": "1acd5198-78c9-5997-abd9-953204a4883c",
+      "name": "Plan advisor",
+      "actor_type": "ai_agent",
+      "description": "Recommends the plan that suits the household's consumption, with its estimated annual cost.",
+      "capabilities": [
+        "tariff analysis"
+      ],
+      "ai_model_config": {
+        "model_id": "tier:balanced",
+        "temperature": 0.2
+      }
+    },
+    {
+      "id": "4907c0f1-2cca-5a54-b0bb-1263fe23c44f",
+      "name": "Customer letters",
+      "actor_type": "ai_agent",
+      "description": "Writes letters and e-mails to customers.",
+      "capabilities": [
+        "customer writing"
+      ],
+      "ai_model_config": {
+        "model_id": "tier:balanced",
+        "temperature": 0.2
+      }
+    },
+    {
+      "id": "3acb3d05-f0ef-5c85-82ce-6374784dd81b",
+      "name": "Grid export desk",
+      "actor_type": "application",
+      "description": "Registers home generation for export; the work is done by the Grid Export Registration workflow."
+    },
+    {
+      "id": "a91d7c1e-7944-5403-9cd1-3c2b877358de",
+      "name": "Contract service",
+      "actor_type": "application",
+      "description": "Generates supply contracts and sends them for e-signature."
+    },
+    {
+      "id": "0d0c6261-6d6d-5c6d-952a-1e8601287fc2",
+      "name": "Billing system",
+      "actor_type": "application",
+      "description": "Holds billing accounts, direct debit mandates and deposits."
+    }
+  ],
+  "contexts": [
+    {
+      "id": "c261d481-061b-5cb9-8860-765b666b6b14",
+      "name": "customer_profile",
+      "type": "data",
+      "sync_pattern": "shared_state",
+      "description": "The household as the agents that serve it need to know it: name, supply address, consumption, preferences, generation and devices. Credit results are not in it.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "first_name",
+          "last_name",
+          "supply_postcode",
+          "annual_consumption_kwh",
+          "electricity_source",
+          "has_generation"
+        ],
+        "properties": {
+          "first_name": {
+            "type": "string"
+          },
+          "last_name": {
+            "type": "string"
+          },
+          "supply_postcode": {
+            "type": "string"
+          },
+          "supply_city": {
+            "type": "string"
+          },
+          "annual_consumption_kwh": {
+            "type": "number"
+          },
+          "consumption_basis": {
+            "type": "string"
+          },
+          "electricity_source": {
+            "type": "string"
+          },
+          "plan_preference": {
+            "type": "string"
+          },
+          "has_generation": {
+            "type": "boolean"
+          },
+          "generation_technology": {
+            "type": "string"
+          },
+          "generation_capacity_kw": {
+            "type": "number"
+          },
+          "ev_charger": {
+            "type": "boolean"
+          },
+          "heat_pump": {
+            "type": "boolean"
+          },
+          "preferred_channel": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  ],
+  "events": [
+    {
+      "id": "7d65a424-9443-5447-84e8-d4cb46a25499",
+      "name": "Application received",
+      "event_type": "start",
+      "description": "A household applies to become a customer on the web form.",
+      "event_definition": {
+        "name": "onboarding.requested"
+      }
+    },
+    {
+      "id": "a4869700-6441-5bff-9d46-f4f7452d74fd",
+      "name": "Documents uploaded",
+      "event_type": "message",
+      "description": "Wait for the supporting documents.",
+      "event_definition": {
+        "name": "documents.uploaded",
+        "correlation_key": "application_id",
+        "timeout": "P7D",
+        "timeout_edge_id": "a6e80d58-4129-56d9-b34b-e91899351dc8"
+      }
+    },
+    {
+      "id": "71f05bf6-9de0-50f7-adce-24fbd030b7ae",
+      "name": "Documents uploaded after reminder",
+      "event_type": "message",
+      "description": "Wait once more after the reminder.",
+      "event_definition": {
+        "name": "documents.uploaded",
+        "correlation_key": "application_id",
+        "timeout": "P7D",
+        "timeout_edge_id": "e32d4419-fcd3-5deb-b10f-fedd6d78d5f6"
+      }
+    },
+    {
+      "id": "ad813dfd-06ad-5a80-a9c3-95eb240f9f6e",
+      "name": "Documents checked",
+      "event_type": "intermediate",
+      "description": "The documents are verified: the credit check and the metering point lookup start in parallel."
+    },
+    {
+      "id": "d39216a8-f8d6-59c2-992f-5a7acdb4f689",
+      "name": "Checks complete",
+      "event_type": "intermediate",
+      "description": "Both checks are back.",
+      "join": "all"
+    },
+    {
+      "id": "83a3cd5a-a6e3-562d-b723-104aeadfc928",
+      "name": "Applicant verified",
+      "event_type": "message",
+      "description": "Tell other systems and the journey the applicant is verified.",
+      "event_definition": {
+        "name": "onboarding.verified",
+        "mode": "publish",
+        "data": [
+          "application_id",
+          "eligibility",
+          "deposit_required"
+        ]
+      }
+    },
+    {
+      "id": "4f909882-f33b-5f3a-b204-f369f69cd8c5",
+      "name": "Plan confirmed",
+      "event_type": "message",
+      "description": "Wait for the customer to confirm the plan in the portal.",
+      "event_definition": {
+        "name": "plan.confirmed",
+        "correlation_key": "application_id",
+        "timeout": "P14D",
+        "timeout_edge_id": "0d260643-e7e3-52c2-a781-9d59cef2af1f"
+      }
+    },
+    {
+      "id": "3d9209b8-137a-5518-846f-01f72b359089",
+      "name": "Plan chosen",
+      "event_type": "message",
+      "description": "Tell other systems and the journey which plan and source the household chose.",
+      "event_definition": {
+        "name": "plan.chosen",
+        "mode": "publish",
+        "data": [
+          "application_id",
+          "plan",
+          "source_offered"
+        ]
+      }
+    },
+    {
+      "id": "6b006125-02d3-5003-ba39-7ef3e8aece1c",
+      "name": "Grid export settled",
+      "event_type": "message",
+      "description": "Tell other systems and the journey how the export registration ended.",
+      "event_definition": {
+        "name": "grid_export.completed",
+        "mode": "publish",
+        "data": [
+          "application_id",
+          "export_status",
+          "export_registration_id",
+          "approved_export_kw",
+          "export_tariff_eur_per_kwh"
+        ]
+      }
+    },
+    {
+      "id": "8029a17c-5fae-5d7d-91f9-bbe33449f345",
+      "name": "Contract signed",
+      "event_type": "message",
+      "description": "Wait for the e-signature service to report the signed contract.",
+      "event_definition": {
+        "name": "contract.signed",
+        "correlation_key": "application_id",
+        "timeout": "P14D",
+        "timeout_edge_id": "014791e0-9455-52a9-9351-b81d26171529"
+      }
+    },
+    {
+      "id": "721661b5-6756-569b-998b-bb7466a7a890",
+      "name": "Switch completed",
+      "event_type": "message",
+      "description": "Wait for the registry to confirm the switch. If it has not by the deadline the wait fails the run (EVENT_TIMEOUT), and compensation cancels the deposit, the account and the mandate.",
+      "event_definition": {
+        "name": "switch.completed",
+        "correlation_key": "application_id",
+        "timeout": "P21D"
+      }
+    },
+    {
+      "id": "470b4299-1cfc-5aed-b695-c33a1992290e",
+      "name": "Customer activated",
+      "event_type": "message",
+      "description": "Tell other systems and the journey the customer is active.",
+      "event_definition": {
+        "name": "customer.activated",
+        "mode": "publish",
+        "data": [
+          "application_id",
+          "customer_id",
+          "customer_active",
+          "plan",
+          "source_offered",
+          "supply_start_date"
+        ]
+      }
+    },
+    {
+      "id": "a0aaf1e4-0bc0-55e9-8683-fd48ef350a46",
+      "name": "Application abandoned",
+      "event_type": "message",
+      "description": "Tell other systems and the journey the application was abandoned.",
+      "event_definition": {
+        "name": "onboarding.abandoned",
+        "mode": "publish",
+        "data": [
+          "application_id",
+          "abandoned_reason"
+        ]
+      }
+    },
+    {
+      "id": "6b49bba5-d4f2-559a-8e94-7715e4d6de37",
+      "name": "Application declined",
+      "event_type": "message",
+      "description": "Tell other systems and the journey the application was declined.",
+      "event_definition": {
+        "name": "onboarding.declined",
+        "mode": "publish",
+        "data": [
+          "application_id",
+          "decline_reason"
+        ]
+      }
+    },
+    {
+      "id": "39d5ee68-c241-5937-982d-e4a8c4f1d538",
+      "name": "Customer active",
+      "event_type": "end"
+    },
+    {
+      "id": "fe02b392-c487-5f88-bdd0-b71e22efa80c",
+      "name": "Abandoned",
+      "event_type": "end"
+    },
+    {
+      "id": "b3638dfc-5dc0-5cf8-b2b2-00533f5cfa8e",
+      "name": "Declined",
+      "event_type": "end"
+    }
+  ],
+  "activities": [
+    {
+      "id": "420b5dbc-6151-58d5-bde8-f13a368ca541",
+      "name": "Register application",
+      "role_id": "8b7cf80b-c733-5b6f-b21f-14c7dde73900",
+      "actor_type": "application",
+      "description": "Create the prospective customer and the customer profile the agents read.",
+      "tools": [
+        {
+          "name": "register_customer",
+          "description": "Create the prospective customer in the customer platform (CRM) and return its identifier.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "application_id",
+              "applicant",
+              "contact",
+              "supply_address"
+            ],
+            "properties": {
+              "application_id": {
+                "type": "string"
+              },
+              "applicant": {
+                "type": "object"
+              },
+              "contact": {
+                "type": "object"
+              },
+              "supply_address": {
+                "type": "object"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4545/crm/v1/customers",
+            "headers": {
+              "authorization": "Bearer {{secret:CRM_TOKEN}}"
+            }
+          }
+        }
+      ],
+      "retry": {
+        "max_attempts": 3,
+        "initial_delay": "PT1S"
+      },
+      "context_bindings": [
+        {
+          "context_id": "c261d481-061b-5cb9-8860-765b666b6b14",
+          "access_mode": "write"
+        }
+      ]
+    },
+    {
+      "id": "07fdbc5f-1c2f-570a-aa08-2e3ebc0a8a29",
+      "name": "Request documents",
+      "role_id": "8b7cf80b-c733-5b6f-b21f-14c7dde73900",
+      "actor_type": "application",
+      "description": "Ask the household for the documents the application needs, by e-mail.",
+      "tools": [
+        {
+          "name": "send_message",
+          "description": "Send a message to the customer by e-mail, text message or post, through the notification service.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "application_id",
+              "channel",
+              "template"
+            ],
+            "properties": {
+              "application_id": {
+                "type": "string"
+              },
+              "channel": {
+                "type": "string",
+                "enum": [
+                  "email",
+                  "sms",
+                  "post"
+                ]
+              },
+              "template": {
+                "type": "string"
+              },
+              "subject": {
+                "type": "string"
+              },
+              "body": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4545/notifications/v1/messages",
+            "headers": {
+              "authorization": "Bearer {{secret:NOTIFY_TOKEN}}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "f8164c60-e0d8-557f-8031-96a2b59681de",
+      "name": "Send document reminder",
+      "role_id": "8f99909d-2b31-5e34-9130-9fe02ab66f56",
+      "actor_type": "ai_agent",
+      "description": "Remind the household which documents are still missing and when the application will be closed without them.",
+      "tools": [
+        {
+          "name": "send_message",
+          "description": "Send a message to the customer by e-mail, text message or post, through the notification service.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "application_id",
+              "channel",
+              "template"
+            ],
+            "properties": {
+              "application_id": {
+                "type": "string"
+              },
+              "channel": {
+                "type": "string",
+                "enum": [
+                  "email",
+                  "sms",
+                  "post"
+                ]
+              },
+              "template": {
+                "type": "string"
+              },
+              "subject": {
+                "type": "string"
+              },
+              "body": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4545/notifications/v1/messages",
+            "headers": {
+              "authorization": "Bearer {{secret:NOTIFY_TOKEN}}"
+            }
+          }
+        }
+      ],
+      "context_bindings": [
+        {
+          "context_id": "c261d481-061b-5cb9-8860-765b666b6b14",
+          "access_mode": "read"
+        }
+      ],
+      "outcome_contract": {
+        "output_schema": {
+          "type": "object",
+          "required": [
+            "message",
+            "deadline_stated"
+          ],
+          "properties": {
+            "message": {
+              "type": "string",
+              "minLength": 40
+            },
+            "deadline_stated": {
+              "type": "boolean"
+            }
+          }
+        },
+        "postconditions": [
+          {
+            "name": "States the deadline",
+            "expression": "deadline_stated == true"
+          }
+        ]
+      }
+    },
+    {
+      "id": "098beeb2-8f20-5644-84e9-c011e71c4678",
+      "name": "Close as abandoned",
+      "role_id": "8b7cf80b-c733-5b6f-b21f-14c7dde73900",
+      "actor_type": "application",
+      "description": "Close the application because the documents, or the signed contract, never came."
+    },
+    {
+      "id": "30aaed83-c84f-576e-9590-39eee3b7b905",
+      "name": "Verify documents",
+      "role_id": "9ac98639-1a09-5147-b5fe-518ddca1071b",
+      "actor_type": "ai_agent",
+      "description": "Check each required document: present, legible, of the right kind, and consistent with the application (name, address, account holder).",
+      "procedure": "For each document uploaded, call the document tool. Compare the name and address with the customer profile. Check that the identity document is in date and that the direct debit mandate is signed and names the applicant as account holder. List every required document with its status. Say how sure you are.",
+      "tools": [
+        {
+          "name": "extract_document",
+          "description": "Read an uploaded document: its type, whether it is legible, the fields printed on it and its text.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "file_id",
+              "document_type"
+            ],
+            "properties": {
+              "file_id": {
+                "type": "string"
+              },
+              "document_type": {
+                "type": "string"
+              },
+              "application_id": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4545/documents/v1/extractions",
+            "headers": {
+              "x-api-key": "{{secret:DOCUMENTS_API_KEY}}"
+            }
+          }
+        }
+      ],
+      "context_bindings": [
+        {
+          "context_id": "c261d481-061b-5cb9-8860-765b666b6b14",
+          "access_mode": "read"
+        }
+      ],
+      "guardrails": [
+        {
+          "id": "54ff20e7-d7db-51a7-a102-1f2588165f0d",
+          "name": "Instructions inside uploaded documents",
+          "stages": [
+            "tool_result"
+          ],
+          "check": {
+            "kind": "prompt_injection"
+          },
+          "action": "block",
+          "tools": [
+            "extract_document"
+          ]
+        },
+        {
+          "id": "47ede398-1966-5f15-b563-29c73d96fa8d",
+          "name": "Personal data in the verifier's notes",
+          "stages": [
+            "output"
+          ],
+          "check": {
+            "kind": "personal_data",
+            "categories": [
+              "email",
+              "phone",
+              "iban"
+            ]
+          },
+          "fields": [
+            "notes"
+          ],
+          "action": "redact"
+        }
+      ],
+      "sla": {
+        "id": "066d847e-d1be-5bef-8a48-4e9523f8e7cd",
+        "name": "Documents verified within the hour",
+        "target_time": "PT15M",
+        "max_time": "PT2H",
+        "escalation_policy": {
+          "breach_action": "record",
+          "notify_roles": [
+            "2eb03e94-660e-5522-8b82-ece83ca87fda"
+          ]
+        }
+      },
+      "outcome_contract": {
+        "output_schema": {
+          "type": "object",
+          "required": [
+            "documents",
+            "documents_valid",
+            "unchecked_count",
+            "unreadable_count",
+            "confidence",
+            "notes"
+          ],
+          "properties": {
+            "documents": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "required": [
+                  "type",
+                  "status"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "valid",
+                      "invalid",
+                      "unreadable"
+                    ]
+                  }
+                }
+              }
+            },
+            "documents_valid": {
+              "type": "boolean"
+            },
+            "mandate_reference": {
+              "type": "string"
+            },
+            "unchecked_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "unreadable_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "notes": {
+              "type": "string",
+              "minLength": 10
+            }
+          }
+        },
+        "postconditions": [
+          {
+            "name": "Every required document is checked",
+            "expression": "unchecked_count == 0"
+          },
+          {
+            "name": "Every document is legible",
+            "expression": "unreadable_count == 0"
+          },
+          {
+            "name": "Sure enough to act on",
+            "expression": "confidence >= 0.75"
+          }
+        ],
+        "budgets": {
+          "max_attempts": 2,
+          "max_duration": "PT5M",
+          "max_tokens": 40000,
+          "max_tool_calls": 12
+        },
+        "on_violation": "escalate_human"
+      }
+    },
+    {
+      "id": "299bb62f-bcfb-5e98-bcbc-bd892193a176",
+      "name": "Check credit and identity",
+      "role_id": "f9aa9eb7-966e-5960-8d89-816dc9437179",
+      "actor_type": "application",
+      "description": "Ask the credit bureau for the credit band, outstanding energy debt and whether the identity matches.",
+      "tools": [
+        {
+          "name": "check_credit",
+          "description": "Ask the credit bureau for the applicant's credit band, outstanding energy debt and identity match.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "application_id",
+              "first_name",
+              "last_name",
+              "date_of_birth",
+              "postcode"
+            ],
+            "properties": {
+              "application_id": {
+                "type": "string"
+              },
+              "first_name": {
+                "type": "string"
+              },
+              "last_name": {
+                "type": "string"
+              },
+              "date_of_birth": {
+                "type": "string"
+              },
+              "postcode": {
+                "type": "string"
+              },
+              "address_line": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4545/credit/v1/checks",
+            "headers": {
+              "authorization": "Bearer {{secret:CREDIT_BUREAU_TOKEN}}"
+            }
+          }
+        }
+      ],
+      "retry": {
+        "max_attempts": 3,
+        "initial_delay": "PT2S",
+        "backoff_multiplier": 2
+      }
+    },
+    {
+      "id": "54629f33-31f7-5ae7-826b-818a684239a2",
+      "name": "Look up metering point",
+      "role_id": "7de8f769-b876-597e-b3d5-6f7e6f355945",
+      "actor_type": "application",
+      "description": "Read the metering point: meter type, smart meter or not, current supplier, connection capacity and region.",
+      "tools": [
+        {
+          "name": "lookup_metering_point",
+          "description": "Read a metering point from the metering-point registry: meter type, current supplier, connection capacity, region and grid operator.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "metering_point_id"
+            ],
+            "properties": {
+              "metering_point_id": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "GET",
+            "url": "http://localhost:4545/registry/v1/metering-points/{metering_point_id}",
+            "headers": {
+              "authorization": "Bearer {{secret:REGISTRY_TOKEN}}"
+            }
+          }
+        }
+      ],
+      "retry": {
+        "max_attempts": 3,
+        "initial_delay": "PT2S",
+        "backoff_multiplier": 2
+      }
+    },
+    {
+      "id": "dccac1ce-1941-54da-8e97-a1cf475c74ff",
+      "name": "Credit referral",
+      "role_id": "7e5c564e-3f72-572d-ba49-cc1ea0a27bd8",
+      "actor_type": "human",
+      "description": "A credit officer decides an application the eligibility rules referred, and any deposit.",
+      "outcome_contract": {
+        "output_schema": {
+          "type": "object",
+          "required": [
+            "approved",
+            "reason"
+          ],
+          "properties": {
+            "approved": {
+              "type": "boolean"
+            },
+            "deposit_required": {
+              "type": "boolean"
+            },
+            "deposit_eur": {
+              "type": "number",
+              "minimum": 0
+            },
+            "reason": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "b55fef9c-1564-570a-8196-8542e04575b6",
+      "name": "Write decline letter",
+      "role_id": "4907c0f1-2cca-5a54-b0bb-1263fe23c44f",
+      "actor_type": "ai_agent",
+      "description": "Write a polite letter declining the application, with the reason and what the household can do.",
+      "tools": [
+        {
+          "name": "send_message",
+          "description": "Send a message to the customer by e-mail, text message or post, through the notification service.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "application_id",
+              "channel",
+              "template"
+            ],
+            "properties": {
+              "application_id": {
+                "type": "string"
+              },
+              "channel": {
+                "type": "string",
+                "enum": [
+                  "email",
+                  "sms",
+                  "post"
+                ]
+              },
+              "template": {
+                "type": "string"
+              },
+              "subject": {
+                "type": "string"
+              },
+              "body": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4545/notifications/v1/messages",
+            "headers": {
+              "authorization": "Bearer {{secret:NOTIFY_TOKEN}}"
+            }
+          }
+        }
+      ],
+      "outcome_contract": {
+        "output_schema": {
+          "type": "object",
+          "required": [
+            "letter",
+            "reason_given",
+            "next_steps_given",
+            "decline_reason"
+          ],
+          "properties": {
+            "letter": {
+              "type": "string",
+              "minLength": 120
+            },
+            "reason_given": {
+              "type": "boolean"
+            },
+            "next_steps_given": {
+              "type": "boolean"
+            },
+            "decline_reason": {
+              "type": "string"
+            }
+          }
+        },
+        "postconditions": [
+          {
+            "name": "Gives the reason",
+            "expression": "reason_given == true"
+          },
+          {
+            "name": "Says what the household can do",
+            "expression": "next_steps_given == true"
+          }
+        ]
+      }
+    },
+    {
+      "id": "7da3d09e-1e06-5bfc-a0c3-1e12af66780b",
+      "name": "Advise on electricity source",
+      "role_id": "2eb03e94-660e-5522-8b82-ece83ca87fda",
+      "actor_type": "human",
+      "description": "A customer care agent agrees an electricity source with the customer when no option could be proposed."
+    },
+    {
+      "id": "f985e877-656d-5ae5-b60f-891a9b961496",
+      "name": "Recommend plan",
+      "role_id": "1acd5198-78c9-5997-abd9-953204a4883c",
+      "actor_type": "ai_agent",
+      "description": "Recommend the plan that suits the household, with its estimated annual cost, putting the customer's preference first when it is eligible.",
+      "procedure": "Read the eligible plans and the customer profile. Estimate the annual cost of the customer's preferred plan and of the other eligible plans with the tariff tool. Recommend the preferred plan when it is eligible; otherwise the cheapest eligible plan for the profile. Give the reasons.",
+      "tools": [
+        {
+          "name": "estimate_annual_cost",
+          "description": "Estimate the annual cost of a plan for a consumption, a region and an electricity source, from the tariff catalogue.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "plan",
+              "annual_consumption_kwh",
+              "region"
+            ],
+            "properties": {
+              "plan": {
+                "type": "string",
+                "enum": [
+                  "fixed_12",
+                  "fixed_24",
+                  "variable",
+                  "time_of_use",
+                  "ev",
+                  "prosumer"
+                ]
+              },
+              "annual_consumption_kwh": {
+                "type": "number"
+              },
+              "region": {
+                "type": "string"
+              },
+              "electricity_source": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "GET",
+            "url": "http://localhost:4545/tariffs/v1/plans/{plan}/estimate",
+            "headers": {
+              "x-api-key": "{{secret:TARIFF_API_KEY}}"
+            }
+          }
+        }
+      ],
+      "context_bindings": [
+        {
+          "context_id": "c261d481-061b-5cb9-8860-765b666b6b14",
+          "access_mode": "read"
+        }
+      ],
+      "outcome_contract": {
+        "output_schema": {
+          "type": "object",
+          "required": [
+            "recommended_plan",
+            "estimated_annual_cost_eur",
+            "alternatives",
+            "reasons"
+          ],
+          "properties": {
+            "recommended_plan": {
+              "type": "string",
+              "enum": [
+                "fixed_12",
+                "fixed_24",
+                "variable",
+                "time_of_use",
+                "ev",
+                "prosumer"
+              ]
+            },
+            "estimated_annual_cost_eur": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "alternatives": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "plan",
+                  "estimated_annual_cost_eur"
+                ],
+                "properties": {
+                  "plan": {
+                    "type": "string",
+                    "enum": [
+                      "fixed_12",
+                      "fixed_24",
+                      "variable",
+                      "time_of_use",
+                      "ev",
+                      "prosumer"
+                    ]
+                  },
+                  "estimated_annual_cost_eur": {
+                    "type": "number"
+                  }
+                }
+              }
+            },
+            "reasons": {
+              "type": "string",
+              "minLength": 20
+            },
+            "follows_preference": {
+              "type": "boolean"
+            }
+          }
+        },
+        "postconditions": [
+          {
+            "name": "Has a cost",
+            "expression": "estimated_annual_cost_eur > 0"
+          }
+        ],
+        "budgets": {
+          "max_attempts": 2,
+          "max_tool_calls": 8
+        }
+      }
+    },
+    {
+      "id": "0450e481-722d-5d46-b28d-47637791b4cb",
+      "name": "Confirm plan by phone",
+      "role_id": "2eb03e94-660e-5522-8b82-ece83ca87fda",
+      "actor_type": "human",
+      "description": "A customer care agent calls the household, which has not confirmed a plan, and records the plan and source they choose.",
+      "outcome_contract": {
+        "output_schema": {
+          "type": "object",
+          "required": [
+            "plan"
+          ],
+          "properties": {
+            "plan": {
+              "type": "string",
+              "enum": [
+                "fixed_12",
+                "fixed_24",
+                "variable",
+                "time_of_use",
+                "ev",
+                "prosumer"
+              ]
+            },
+            "source_offered": {
+              "type": "string",
+              "enum": [
+                "renewable_100",
+                "local_community",
+                "low_carbon_mix",
+                "standard_mix"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "b3c0ba68-13a0-5531-a7eb-5ed16fb92d4e",
+      "name": "Register grid export",
+      "role_id": "3acb3d05-f0ef-5c85-82ce-6374784dd81b",
+      "actor_type": "application",
+      "description": "Register the home's generation for export to the grid, by running the Grid Export Registration workflow.",
+      "is_expandable": true,
+      "expansion_workflow_id": "ebe78a2a-8a36-5aa5-a537-a6f739b0ea83",
+      "subworkflow": {
+        "input": {
+          "application_id": "application_id",
+          "metering_point_id": "metering_point_id",
+          "technology": "generation_technology",
+          "capacity_kw": "generation_capacity_kw",
+          "installation": "installation",
+          "installation_documents": "installation_documents"
+        },
+        "output": {
+          "export_status": "export_status",
+          "export_registration_id": "export_registration_id",
+          "approved_export_kw": "approved_export_kw",
+          "export_tariff_eur_per_kwh": "export_tariff_eur_per_kwh",
+          "installation_class": "installation_class"
+        }
+      },
+      "outcome_contract": {
+        "postconditions": [
+          {
+            "name": "Says how the registration ended",
+            "expression": "export_status exists"
+          }
+        ]
+      }
+    },
+    {
+      "id": "d6504c34-ece3-5af9-9683-3248e2be2cce",
+      "name": "Agree another plan",
+      "role_id": "2eb03e94-660e-5522-8b82-ece83ca87fda",
+      "actor_type": "human",
+      "description": "The export was not registered, so the prosumer plan cannot apply: a customer care agent agrees another plan with the customer.",
+      "outcome_contract": {
+        "output_schema": {
+          "type": "object",
+          "required": [
+            "plan"
+          ],
+          "properties": {
+            "plan": {
+              "type": "string",
+              "enum": [
+                "fixed_12",
+                "fixed_24",
+                "variable",
+                "time_of_use",
+                "ev"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "c3c8e8ce-0919-5170-8e64-f6310f963aea",
+      "name": "Generate contract",
+      "role_id": "a91d7c1e-7944-5403-9cd1-3c2b877358de",
+      "actor_type": "application",
+      "description": "Generate the supply contract, with the 14-day cooling-off period, and send it for e-signature.",
+      "tools": [
+        {
+          "name": "generate_contract",
+          "description": "Generate the supply contract for e-signature, with the plan, the source, the export tariff and the cooling-off period.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "application_id",
+              "customer_id",
+              "plan",
+              "electricity_source"
+            ],
+            "properties": {
+              "application_id": {
+                "type": "string"
+              },
+              "customer_id": {
+                "type": "string"
+              },
+              "plan": {
+                "type": "string",
+                "enum": [
+                  "fixed_12",
+                  "fixed_24",
+                  "variable",
+                  "time_of_use",
+                  "ev",
+                  "prosumer"
+                ]
+              },
+              "electricity_source": {
+                "type": "string",
+                "enum": [
+                  "renewable_100",
+                  "local_community",
+                  "low_carbon_mix",
+                  "standard_mix"
+                ]
+              },
+              "export_tariff_eur_per_kwh": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "deposit_eur": {
+                "type": "number"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4545/contracts/v1/contracts",
+            "headers": {
+              "authorization": "Bearer {{secret:CONTRACTS_TOKEN}}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "48becd74-8b0d-589e-b84f-5280fe9019d2",
+      "name": "Set up account and direct debit",
+      "role_id": "0d0c6261-6d6d-5c6d-952a-1e8601287fc2",
+      "actor_type": "application",
+      "description": "Open the billing account and register the direct debit mandate.",
+      "tools": [
+        {
+          "name": "create_billing_account",
+          "description": "Open the billing account and register the direct debit mandate.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "customer_id",
+              "contract_id",
+              "mandate_reference"
+            ],
+            "properties": {
+              "customer_id": {
+                "type": "string"
+              },
+              "contract_id": {
+                "type": "string"
+              },
+              "mandate_reference": {
+                "type": "string"
+              },
+              "billing_day": {
+                "type": "number"
+              }
+            }
+          },
+          "binding": {
+            "kind": "jsonrpc",
+            "endpoint": "http://localhost:4545/billing/rpc",
+            "method": "billing.create_account"
+          }
+        }
+      ],
+      "compensation": {
+        "activity_id": "2709e085-fec6-5d05-90e0-ffcadbf26836"
+      }
+    },
+    {
+      "id": "19bc48f1-65c2-507c-9282-8299568172ca",
+      "name": "Collect deposit",
+      "role_id": "0d0c6261-6d6d-5c6d-952a-1e8601287fc2",
+      "actor_type": "application",
+      "description": "Collect the security deposit eligibility asked for.",
+      "tools": [
+        {
+          "name": "collect_deposit",
+          "description": "Collect a security deposit by direct debit.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "account_id",
+              "amount_eur"
+            ],
+            "properties": {
+              "account_id": {
+                "type": "string"
+              },
+              "amount_eur": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            }
+          },
+          "binding": {
+            "kind": "jsonrpc",
+            "endpoint": "http://localhost:4545/billing/rpc",
+            "method": "billing.collect_deposit"
+          }
+        }
+      ],
+      "compensation": {
+        "activity_id": "4fbe65e4-6f9c-5328-87be-94ca9fbc19e2"
+      }
+    },
+    {
+      "id": "7df7ca37-d53d-57d1-81ad-5d98b023699e",
+      "name": "Request supplier switch",
+      "role_id": "7de8f769-b876-597e-b3d5-6f7e6f355945",
+      "actor_type": "application",
+      "description": "Ask the registry to switch the supply from the current supplier.",
+      "tools": [
+        {
+          "name": "request_switch",
+          "description": "Ask the metering-point registry to switch the supply to this supplier.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "metering_point_id",
+              "customer_id",
+              "contract_id"
+            ],
+            "properties": {
+              "metering_point_id": {
+                "type": "string"
+              },
+              "customer_id": {
+                "type": "string"
+              },
+              "contract_id": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4545/registry/v1/switches",
+            "headers": {
+              "authorization": "Bearer {{secret:REGISTRY_TOKEN}}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "51ba2b3b-2919-5a35-ae39-790ce7bdfbb7",
+      "name": "Write welcome pack",
+      "role_id": "4907c0f1-2cca-5a54-b0bb-1263fe23c44f",
+      "actor_type": "ai_agent",
+      "description": "Write the personalised welcome message: the plan, the electricity source, the supply start date and, for a home that exports, the export tariff.",
+      "context_bindings": [
+        {
+          "context_id": "c261d481-061b-5cb9-8860-765b666b6b14",
+          "access_mode": "read"
+        }
+      ],
+      "guardrails": [
+        {
+          "id": "57de6ffc-d7a8-58de-99fd-8156266943df",
+          "name": "No bank or phone numbers in the welcome message",
+          "stages": [
+            "output"
+          ],
+          "check": {
+            "kind": "personal_data",
+            "categories": [
+              "iban",
+              "phone"
+            ]
+          },
+          "action": "redact"
+        }
+      ],
+      "outcome_contract": {
+        "output_schema": {
+          "type": "object",
+          "required": [
+            "message",
+            "tone",
+            "facts"
+          ],
+          "properties": {
+            "message": {
+              "type": "string",
+              "minLength": 120
+            },
+            "tone": {
+              "type": "string",
+              "enum": [
+                "warm",
+                "neutral"
+              ]
+            },
+            "facts": {
+              "type": "object",
+              "required": [
+                "plan",
+                "electricity_source",
+                "supply_start_date",
+                "export_tariff_eur_per_kwh"
+              ],
+              "properties": {
+                "plan": {
+                  "type": "string",
+                  "enum": [
+                    "fixed_12",
+                    "fixed_24",
+                    "variable",
+                    "time_of_use",
+                    "ev",
+                    "prosumer"
+                  ]
+                },
+                "electricity_source": {
+                  "type": "string",
+                  "enum": [
+                    "renewable_100",
+                    "local_community",
+                    "low_carbon_mix",
+                    "standard_mix"
+                  ]
+                },
+                "supply_start_date": {
+                  "type": "string"
+                },
+                "export_tariff_eur_per_kwh": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "postconditions": [
+          {
+            "name": "Warm or neutral in tone",
+            "expression": "tone == warm || tone == neutral"
+          },
+          {
+            "name": "States the plan",
+            "expression": "facts.plan exists"
+          },
+          {
+            "name": "States the supply start date",
+            "expression": "facts.supply_start_date exists"
+          }
+        ]
+      }
+    },
+    {
+      "id": "f2a7a165-a6ce-52b2-b50b-2268aae16f56",
+      "name": "Activate customer",
+      "role_id": "8b7cf80b-c733-5b6f-b21f-14c7dde73900",
+      "actor_type": "application",
+      "description": "Mark the customer active from the supply start date and send the welcome pack.",
+      "tools": [
+        {
+          "name": "activate_customer",
+          "description": "Mark the customer active in the customer platform from the supply start date.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "customer_id",
+              "supply_start_date"
+            ],
+            "properties": {
+              "customer_id": {
+                "type": "string"
+              },
+              "supply_start_date": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4545/crm/v1/customers/{customer_id}/activation",
+            "headers": {
+              "authorization": "Bearer {{secret:CRM_TOKEN}}"
+            }
+          }
+        },
+        {
+          "name": "send_message",
+          "description": "Send a message to the customer by e-mail, text message or post, through the notification service.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "application_id",
+              "channel",
+              "template"
+            ],
+            "properties": {
+              "application_id": {
+                "type": "string"
+              },
+              "channel": {
+                "type": "string",
+                "enum": [
+                  "email",
+                  "sms",
+                  "post"
+                ]
+              },
+              "template": {
+                "type": "string"
+              },
+              "subject": {
+                "type": "string"
+              },
+              "body": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4545/notifications/v1/messages",
+            "headers": {
+              "authorization": "Bearer {{secret:NOTIFY_TOKEN}}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "2709e085-fec6-5d05-90e0-ffcadbf26836",
+      "name": "Cancel account and mandate",
+      "role_id": "0d0c6261-6d6d-5c6d-952a-1e8601287fc2",
+      "actor_type": "application",
+      "description": "Close the billing account and cancel the direct debit mandate of a switch that did not happen.",
+      "tools": [
+        {
+          "name": "cancel_billing_account",
+          "description": "Close a billing account and cancel its direct debit mandate.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "account_id",
+              "reason"
+            ],
+            "properties": {
+              "account_id": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "jsonrpc",
+            "endpoint": "http://localhost:4545/billing/rpc",
+            "method": "billing.cancel_account"
+          }
+        }
+      ]
+    },
+    {
+      "id": "4fbe65e4-6f9c-5328-87be-94ca9fbc19e2",
+      "name": "Refund deposit",
+      "role_id": "0d0c6261-6d6d-5c6d-952a-1e8601287fc2",
+      "actor_type": "application",
+      "description": "Refund the deposit of a switch that did not happen.",
+      "tools": [
+        {
+          "name": "refund_deposit",
+          "description": "Refund a security deposit.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "deposit_id",
+              "amount_eur"
+            ],
+            "properties": {
+              "deposit_id": {
+                "type": "string"
+              },
+              "amount_eur": {
+                "type": "number"
+              }
+            }
+          },
+          "binding": {
+            "kind": "jsonrpc",
+            "endpoint": "http://localhost:4545/billing/rpc",
+            "method": "billing.refund_deposit"
+          }
+        }
+      ]
+    }
+  ],
+  "decision_nodes": [
+    {
+      "id": "84ae3333-dcd3-523b-a95a-2e82d9efb112",
+      "name": "Required documents",
+      "description": "The documents an application needs: three for every household, four more for a home with its own generation.",
+      "decision_table": {
+        "hit_policy": "collect",
+        "inputs": [
+          {
+            "name": "has_generation",
+            "label": "Home generation",
+            "type": "boolean"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "required_documents",
+            "type": "string"
+          }
+        ],
+        "rules": [
+          {
+            "description": "Proof of identity",
+            "input_entries": [
+              "-"
+            ],
+            "output_entries": [
+              "proof_of_identity"
+            ]
+          },
+          {
+            "description": "Proof of address or occupancy",
+            "input_entries": [
+              "-"
+            ],
+            "output_entries": [
+              "proof_of_address"
+            ]
+          },
+          {
+            "description": "Direct debit mandate",
+            "input_entries": [
+              "-"
+            ],
+            "output_entries": [
+              "direct_debit_mandate"
+            ]
+          },
+          {
+            "description": "Installer's certificate",
+            "input_entries": [
+              "true"
+            ],
+            "output_entries": [
+              "installer_certificate"
+            ]
+          },
+          {
+            "description": "Inverter or generator compliance certificate",
+            "input_entries": [
+              "true"
+            ],
+            "output_entries": [
+              "compliance_certificate"
+            ]
+          },
+          {
+            "description": "Commissioning report",
+            "input_entries": [
+              "true"
+            ],
+            "output_entries": [
+              "commissioning_report"
+            ]
+          },
+          {
+            "description": "Proof of ownership or authorisation of the installation",
+            "input_entries": [
+              "true"
+            ],
+            "output_entries": [
+              "installation_ownership"
+            ]
+          }
+        ]
+      },
+      "default_output_edge_id": "25adde84-b720-578d-9971-5fb01eb0f701"
+    },
+    {
+      "id": "480e4f31-b458-5bf1-92c1-8c7678820b1c",
+      "name": "Eligibility",
+      "description": "Whether the supplier takes the household on, from the credit band, outstanding energy debt and the identity check. The limits are examples each supplier sets.",
+      "decision_table": {
+        "hit_policy": "first",
+        "inputs": [
+          {
+            "name": "identity_result",
+            "label": "Identity",
+            "type": "string"
+          },
+          {
+            "name": "outstanding_debt_eur",
+            "label": "Outstanding energy debt (EUR)",
+            "type": "number"
+          },
+          {
+            "name": "credit_band",
+            "label": "Credit band",
+            "type": "string"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "eligibility",
+            "type": "string"
+          },
+          {
+            "name": "deposit_required",
+            "type": "boolean"
+          },
+          {
+            "name": "deposit_eur",
+            "type": "number"
+          }
+        ],
+        "rules": [
+          {
+            "description": "The identity does not match the person",
+            "input_entries": [
+              "\"mismatch\"",
+              "-",
+              "-"
+            ],
+            "output_entries": [
+              "decline",
+              false,
+              0
+            ],
+            "output_edge_id": "47500549-6495-5a29-9ace-724c41b821ca"
+          },
+          {
+            "description": "Energy debt above the limit",
+            "input_entries": [
+              "-",
+              "> 1000",
+              "-"
+            ],
+            "output_entries": [
+              "decline",
+              false,
+              0
+            ],
+            "output_edge_id": "47500549-6495-5a29-9ace-724c41b821ca"
+          },
+          {
+            "description": "Lowest credit band",
+            "input_entries": [
+              "-",
+              "-",
+              "\"E\""
+            ],
+            "output_entries": [
+              "decline",
+              false,
+              0
+            ],
+            "output_edge_id": "47500549-6495-5a29-9ace-724c41b821ca"
+          },
+          {
+            "description": "Identity not confirmed: a person decides",
+            "input_entries": [
+              "not(\"verified\")",
+              "-",
+              "-"
+            ],
+            "output_entries": [
+              "refer",
+              false,
+              0
+            ],
+            "output_edge_id": "a0a810cb-a1ff-599a-b81f-354840682dac"
+          },
+          {
+            "description": "Good credit, no energy debt",
+            "input_entries": [
+              "\"verified\"",
+              "<= 0",
+              "\"A\", \"B\""
+            ],
+            "output_entries": [
+              "accept",
+              false,
+              0
+            ],
+            "output_edge_id": "ed54d4a1-fb97-5abf-8427-2d6234cfa87d"
+          },
+          {
+            "description": "Fair credit or a small debt: accepted with a deposit",
+            "input_entries": [
+              "\"verified\"",
+              "<= 250",
+              "\"A\", \"B\", \"C\""
+            ],
+            "output_entries": [
+              "accept_with_deposit",
+              true,
+              150
+            ],
+            "output_edge_id": "ed54d4a1-fb97-5abf-8427-2d6234cfa87d"
+          },
+          {
+            "description": "Weak credit or a debt to look at: a person decides",
+            "input_entries": [
+              "-",
+              "-",
+              "-"
+            ],
+            "output_entries": [
+              "refer",
+              false,
+              0
+            ],
+            "output_edge_id": "a0a810cb-a1ff-599a-b81f-354840682dac"
+          }
+        ]
+      },
+      "default_output_edge_id": "a0a810cb-a1ff-599a-b81f-354840682dac"
+    },
+    {
+      "id": "9580a223-1fd5-5b6a-9bb3-5a40a52dae9d",
+      "name": "Electricity source",
+      "description": "Whether the source the customer chose is offered in their region. When it is not, an energy advisor model proposes the closest source that is.",
+      "decision_table": {
+        "hit_policy": "first",
+        "inputs": [
+          {
+            "name": "electricity_source",
+            "label": "Chosen source",
+            "type": "string"
+          },
+          {
+            "name": "region",
+            "label": "Region",
+            "type": "string"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "source_offered",
+            "type": "string"
+          }
+        ],
+        "rules": [
+          {
+            "description": "100% renewable, backed by guarantees of origin: everywhere",
+            "input_entries": [
+              "\"renewable_100\"",
+              "-"
+            ],
+            "output_entries": [
+              "renewable_100"
+            ],
+            "output_edge_id": "04b8c062-7f43-5e34-b863-7ba5852e6351"
+          },
+          {
+            "description": "Local community energy: where a community scheme supplies the region",
+            "input_entries": [
+              "\"local_community\"",
+              "\"north-west\", \"south-west\""
+            ],
+            "output_entries": [
+              "local_community"
+            ],
+            "output_edge_id": "04b8c062-7f43-5e34-b863-7ba5852e6351"
+          },
+          {
+            "description": "Low-carbon mix: everywhere",
+            "input_entries": [
+              "\"low_carbon_mix\"",
+              "-"
+            ],
+            "output_entries": [
+              "low_carbon_mix"
+            ],
+            "output_edge_id": "04b8c062-7f43-5e34-b863-7ba5852e6351"
+          },
+          {
+            "description": "Standard mix: everywhere",
+            "input_entries": [
+              "\"standard_mix\"",
+              "-"
+            ],
+            "output_entries": [
+              "standard_mix"
+            ],
+            "output_edge_id": "04b8c062-7f43-5e34-b863-7ba5852e6351"
+          }
+        ]
+      },
+      "default_output_edge_id": "f5feafe7-76d1-55c7-a27f-1eca46cb2f1c",
+      "decision_model": {
+        "model": "tier:fast",
+        "instructions": "The customer chose an electricity source that is not offered in their region. Propose the available source closest to what they asked for: keep a renewable choice renewable, and a local choice as close to local generation as the region allows. Give the reason in one sentence the customer can read.",
+        "options": [
+          {
+            "id": "renewable_100",
+            "description": "100% renewable electricity backed by guarantees of origin, available in every region",
+            "output_edge_id": "04b8c062-7f43-5e34-b863-7ba5852e6351"
+          },
+          {
+            "id": "low_carbon_mix",
+            "description": "A low-carbon mix of renewable and nuclear generation, available in every region",
+            "output_edge_id": "04b8c062-7f43-5e34-b863-7ba5852e6351"
+          },
+          {
+            "id": "standard_mix",
+            "description": "The standard supply mix, available in every region",
+            "output_edge_id": "04b8c062-7f43-5e34-b863-7ba5852e6351"
+          }
+        ],
+        "inputs": [
+          "electricity_source",
+          "region",
+          "annual_consumption_kwh",
+          "has_generation"
+        ],
+        "output": "source_offered",
+        "min_confidence": 0.6
+      }
+    },
+    {
+      "id": "34dd0365-c442-55d2-ad09-e6cf1cfd0773",
+      "name": "Plan eligibility",
+      "description": "The plans the household may choose: time-of-use needs a smart meter, the electric vehicle plan a declared charger, the prosumer plan home generation to register for export, the 24-month plan no deposit.",
+      "decision_table": {
+        "hit_policy": "collect",
+        "inputs": [
+          {
+            "name": "smart_meter",
+            "label": "Smart meter",
+            "type": "boolean"
+          },
+          {
+            "name": "ev_charger",
+            "label": "EV charger",
+            "type": "boolean"
+          },
+          {
+            "name": "has_generation",
+            "label": "Home generation",
+            "type": "boolean"
+          },
+          {
+            "name": "eligibility",
+            "label": "Eligibility",
+            "type": "string"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "eligible_plans",
+            "type": "string"
+          }
+        ],
+        "rules": [
+          {
+            "description": "Fixed price for 12 months",
+            "input_entries": [
+              "-",
+              "-",
+              "-",
+              "-"
+            ],
+            "output_entries": [
+              "fixed_12"
+            ]
+          },
+          {
+            "description": "Fixed price for 24 months, without a deposit",
+            "input_entries": [
+              "-",
+              "-",
+              "-",
+              "not(\"accept_with_deposit\")"
+            ],
+            "output_entries": [
+              "fixed_24"
+            ]
+          },
+          {
+            "description": "Variable price",
+            "input_entries": [
+              "-",
+              "-",
+              "-",
+              "-"
+            ],
+            "output_entries": [
+              "variable"
+            ]
+          },
+          {
+            "description": "Time of use: needs a smart meter",
+            "input_entries": [
+              "true",
+              "-",
+              "-",
+              "-"
+            ],
+            "output_entries": [
+              "time_of_use"
+            ]
+          },
+          {
+            "description": "Electric vehicle: needs a declared charger",
+            "input_entries": [
+              "-",
+              "true",
+              "-",
+              "-"
+            ],
+            "output_entries": [
+              "ev"
+            ]
+          },
+          {
+            "description": "Prosumer: needs home generation registered for export",
+            "input_entries": [
+              "-",
+              "-",
+              "true",
+              "-"
+            ],
+            "output_entries": [
+              "prosumer"
+            ]
+          }
+        ]
+      },
+      "default_output_edge_id": "9637b793-9be8-54ec-9719-c08d435e031e"
+    }
+  ],
+  "edges": [
+    {
+      "id": "1d2325da-2868-532d-b4ff-ec2b54a481de",
+      "source_id": "7d65a424-9443-5447-84e8-d4cb46a25499",
+      "target_id": "420b5dbc-6151-58d5-bde8-f13a368ca541"
+    },
+    {
+      "id": "a0c8105b-d4fa-5c2d-9b16-f38fe01e2b83",
+      "source_id": "420b5dbc-6151-58d5-bde8-f13a368ca541",
+      "target_id": "84ae3333-dcd3-523b-a95a-2e82d9efb112"
+    },
+    {
+      "id": "25adde84-b720-578d-9971-5fb01eb0f701",
+      "source_id": "84ae3333-dcd3-523b-a95a-2e82d9efb112",
+      "target_id": "07fdbc5f-1c2f-570a-aa08-2e3ebc0a8a29"
+    },
+    {
+      "id": "bbbce3b6-4238-5fe2-836f-fc0983842501",
+      "source_id": "07fdbc5f-1c2f-570a-aa08-2e3ebc0a8a29",
+      "target_id": "a4869700-6441-5bff-9d46-f4f7452d74fd"
+    },
+    {
+      "id": "3a3ff97f-7ce3-5b2c-8596-4a4ac74a3dfe",
+      "source_id": "a4869700-6441-5bff-9d46-f4f7452d74fd",
+      "target_id": "30aaed83-c84f-576e-9590-39eee3b7b905"
+    },
+    {
+      "id": "a6e80d58-4129-56d9-b34b-e91899351dc8",
+      "source_id": "a4869700-6441-5bff-9d46-f4f7452d74fd",
+      "target_id": "f8164c60-e0d8-557f-8031-96a2b59681de",
+      "label": "nothing in 7 days"
+    },
+    {
+      "id": "d10fd252-05b3-597e-acf4-69ad48099ffb",
+      "source_id": "f8164c60-e0d8-557f-8031-96a2b59681de",
+      "target_id": "71f05bf6-9de0-50f7-adce-24fbd030b7ae"
+    },
+    {
+      "id": "1a840629-edfe-5eb1-a2b7-cf297975ca91",
+      "source_id": "71f05bf6-9de0-50f7-adce-24fbd030b7ae",
+      "target_id": "30aaed83-c84f-576e-9590-39eee3b7b905"
+    },
+    {
+      "id": "e32d4419-fcd3-5deb-b10f-fedd6d78d5f6",
+      "source_id": "71f05bf6-9de0-50f7-adce-24fbd030b7ae",
+      "target_id": "098beeb2-8f20-5644-84e9-c011e71c4678",
+      "label": "nothing in 7 more days"
+    },
+    {
+      "id": "316e9bb9-5d36-579a-bd8f-7770d450dc71",
+      "source_id": "098beeb2-8f20-5644-84e9-c011e71c4678",
+      "target_id": "a0aaf1e4-0bc0-55e9-8683-fd48ef350a46"
+    },
+    {
+      "id": "45be395c-9bf2-5273-ab12-70958c3ecac9",
+      "source_id": "a0aaf1e4-0bc0-55e9-8683-fd48ef350a46",
+      "target_id": "fe02b392-c487-5f88-bdd0-b71e22efa80c"
+    },
+    {
+      "id": "0d026bf6-73dc-5e7a-baee-09f8b6260d16",
+      "source_id": "30aaed83-c84f-576e-9590-39eee3b7b905",
+      "target_id": "ad813dfd-06ad-5a80-a9c3-95eb240f9f6e"
+    },
+    {
+      "id": "1020daa4-0d42-523d-9f7e-eacd1f30ae47",
+      "source_id": "ad813dfd-06ad-5a80-a9c3-95eb240f9f6e",
+      "target_id": "07fdbc5f-1c2f-570a-aa08-2e3ebc0a8a29",
+      "condition": "documents_valid == false",
+      "label": "a document must be replaced"
+    },
+    {
+      "id": "362d69da-b0ee-5a03-a74e-6d2af7ee6141",
+      "source_id": "ad813dfd-06ad-5a80-a9c3-95eb240f9f6e",
+      "target_id": "299bb62f-bcfb-5e98-bcbc-bd892193a176"
+    },
+    {
+      "id": "ff15a7a2-52f8-58c2-b08e-41c1634cece8",
+      "source_id": "ad813dfd-06ad-5a80-a9c3-95eb240f9f6e",
+      "target_id": "54629f33-31f7-5ae7-826b-818a684239a2"
+    },
+    {
+      "id": "b04b9816-c213-5f2f-960e-af4bc71693c0",
+      "source_id": "299bb62f-bcfb-5e98-bcbc-bd892193a176",
+      "target_id": "d39216a8-f8d6-59c2-992f-5a7acdb4f689"
+    },
+    {
+      "id": "ecb53584-b1f9-5870-a8e0-45581c33f4a4",
+      "source_id": "54629f33-31f7-5ae7-826b-818a684239a2",
+      "target_id": "d39216a8-f8d6-59c2-992f-5a7acdb4f689"
+    },
+    {
+      "id": "9c2f864d-2873-5db9-923b-22c4b731385f",
+      "source_id": "d39216a8-f8d6-59c2-992f-5a7acdb4f689",
+      "target_id": "480e4f31-b458-5bf1-92c1-8c7678820b1c"
+    },
+    {
+      "id": "ed54d4a1-fb97-5abf-8427-2d6234cfa87d",
+      "source_id": "480e4f31-b458-5bf1-92c1-8c7678820b1c",
+      "target_id": "83a3cd5a-a6e3-562d-b723-104aeadfc928",
+      "label": "accept"
+    },
+    {
+      "id": "a0a810cb-a1ff-599a-b81f-354840682dac",
+      "source_id": "480e4f31-b458-5bf1-92c1-8c7678820b1c",
+      "target_id": "dccac1ce-1941-54da-8e97-a1cf475c74ff",
+      "label": "refer"
+    },
+    {
+      "id": "47500549-6495-5a29-9ace-724c41b821ca",
+      "source_id": "480e4f31-b458-5bf1-92c1-8c7678820b1c",
+      "target_id": "b55fef9c-1564-570a-8196-8542e04575b6",
+      "label": "decline"
+    },
+    {
+      "id": "cc5c500b-778d-5812-b5db-dcbc239100c0",
+      "source_id": "dccac1ce-1941-54da-8e97-a1cf475c74ff",
+      "target_id": "83a3cd5a-a6e3-562d-b723-104aeadfc928",
+      "condition": "approved == true",
+      "label": "approved"
+    },
+    {
+      "id": "6525f8a5-9a9d-5ff0-9d2a-ce53a7279a9a",
+      "source_id": "dccac1ce-1941-54da-8e97-a1cf475c74ff",
+      "target_id": "b55fef9c-1564-570a-8196-8542e04575b6",
+      "is_default": true,
+      "label": "not approved"
+    },
+    {
+      "id": "0c03ef00-e2d0-5531-9cfc-69d21b8e727e",
+      "source_id": "b55fef9c-1564-570a-8196-8542e04575b6",
+      "target_id": "6b49bba5-d4f2-559a-8e94-7715e4d6de37"
+    },
+    {
+      "id": "a6579373-a9d8-5a56-ad2d-602b21fbe9fe",
+      "source_id": "6b49bba5-d4f2-559a-8e94-7715e4d6de37",
+      "target_id": "b3638dfc-5dc0-5cf8-b2b2-00533f5cfa8e"
+    },
+    {
+      "id": "614877e4-d9da-5a2a-a956-2ea3adefd5be",
+      "source_id": "83a3cd5a-a6e3-562d-b723-104aeadfc928",
+      "target_id": "9580a223-1fd5-5b6a-9bb3-5a40a52dae9d"
+    },
+    {
+      "id": "04b8c062-7f43-5e34-b863-7ba5852e6351",
+      "source_id": "9580a223-1fd5-5b6a-9bb3-5a40a52dae9d",
+      "target_id": "34dd0365-c442-55d2-ad09-e6cf1cfd0773",
+      "label": "offered in the region"
+    },
+    {
+      "id": "f5feafe7-76d1-55c7-a27f-1eca46cb2f1c",
+      "source_id": "9580a223-1fd5-5b6a-9bb3-5a40a52dae9d",
+      "target_id": "7da3d09e-1e06-5bfc-a0c3-1e12af66780b",
+      "label": "no source proposed"
+    },
+    {
+      "id": "13d3aa8d-8164-5fdf-a487-70cca98a735b",
+      "source_id": "7da3d09e-1e06-5bfc-a0c3-1e12af66780b",
+      "target_id": "34dd0365-c442-55d2-ad09-e6cf1cfd0773"
+    },
+    {
+      "id": "9637b793-9be8-54ec-9719-c08d435e031e",
+      "source_id": "34dd0365-c442-55d2-ad09-e6cf1cfd0773",
+      "target_id": "f985e877-656d-5ae5-b60f-891a9b961496"
+    },
+    {
+      "id": "f44df280-d551-5180-843c-80c1d345430a",
+      "source_id": "f985e877-656d-5ae5-b60f-891a9b961496",
+      "target_id": "4f909882-f33b-5f3a-b204-f369f69cd8c5"
+    },
+    {
+      "id": "c1eaf8cc-04c4-5c79-9185-a5a7e634858f",
+      "source_id": "4f909882-f33b-5f3a-b204-f369f69cd8c5",
+      "target_id": "3d9209b8-137a-5518-846f-01f72b359089"
+    },
+    {
+      "id": "0d260643-e7e3-52c2-a781-9d59cef2af1f",
+      "source_id": "4f909882-f33b-5f3a-b204-f369f69cd8c5",
+      "target_id": "0450e481-722d-5d46-b28d-47637791b4cb",
+      "label": "not confirmed in 14 days"
+    },
+    {
+      "id": "36bd6f6e-6016-597f-8774-feb9531a2678",
+      "source_id": "0450e481-722d-5d46-b28d-47637791b4cb",
+      "target_id": "3d9209b8-137a-5518-846f-01f72b359089"
+    },
+    {
+      "id": "865d0ce1-eee2-5f2b-ad65-3bf5911ebdb8",
+      "source_id": "3d9209b8-137a-5518-846f-01f72b359089",
+      "target_id": "b3c0ba68-13a0-5531-a7eb-5ed16fb92d4e",
+      "condition": "has_generation == true",
+      "label": "home generation"
+    },
+    {
+      "id": "3e783fac-eda9-5ac2-9dfd-b6ec79d6d659",
+      "source_id": "3d9209b8-137a-5518-846f-01f72b359089",
+      "target_id": "c3c8e8ce-0919-5170-8e64-f6310f963aea",
+      "is_default": true
+    },
+    {
+      "id": "6c38de39-baad-5500-b2d8-6df10ca694f9",
+      "source_id": "b3c0ba68-13a0-5531-a7eb-5ed16fb92d4e",
+      "target_id": "6b006125-02d3-5003-ba39-7ef3e8aece1c"
+    },
+    {
+      "id": "9a719b40-9193-5a87-8678-6479a1af393a",
+      "source_id": "6b006125-02d3-5003-ba39-7ef3e8aece1c",
+      "target_id": "d6504c34-ece3-5af9-9683-3248e2be2cce",
+      "condition": "plan == prosumer && export_status != registered",
+      "label": "prosumer plan without an export registration"
+    },
+    {
+      "id": "396d08d7-849c-5ccc-9d10-bbf522c3f49a",
+      "source_id": "6b006125-02d3-5003-ba39-7ef3e8aece1c",
+      "target_id": "c3c8e8ce-0919-5170-8e64-f6310f963aea",
+      "is_default": true
+    },
+    {
+      "id": "285f88e4-4ba6-51b0-a58c-35bf33442b9c",
+      "source_id": "d6504c34-ece3-5af9-9683-3248e2be2cce",
+      "target_id": "c3c8e8ce-0919-5170-8e64-f6310f963aea"
+    },
+    {
+      "id": "3f3885e7-44f1-5522-9a5c-a5d59d33fb23",
+      "source_id": "c3c8e8ce-0919-5170-8e64-f6310f963aea",
+      "target_id": "8029a17c-5fae-5d7d-91f9-bbe33449f345"
+    },
+    {
+      "id": "2a5b153c-1b5b-5014-9a9b-bab0d55b10dc",
+      "source_id": "8029a17c-5fae-5d7d-91f9-bbe33449f345",
+      "target_id": "48becd74-8b0d-589e-b84f-5280fe9019d2"
+    },
+    {
+      "id": "014791e0-9455-52a9-9351-b81d26171529",
+      "source_id": "8029a17c-5fae-5d7d-91f9-bbe33449f345",
+      "target_id": "098beeb2-8f20-5644-84e9-c011e71c4678",
+      "label": "not signed in 14 days"
+    },
+    {
+      "id": "3edf617d-72c5-54a9-b34a-9ff6b70cddfb",
+      "source_id": "48becd74-8b0d-589e-b84f-5280fe9019d2",
+      "target_id": "19bc48f1-65c2-507c-9282-8299568172ca",
+      "condition": "deposit_required == true",
+      "label": "deposit"
+    },
+    {
+      "id": "87e2b32e-6140-5486-b374-a4083d62167c",
+      "source_id": "48becd74-8b0d-589e-b84f-5280fe9019d2",
+      "target_id": "7df7ca37-d53d-57d1-81ad-5d98b023699e",
+      "is_default": true
+    },
+    {
+      "id": "e0a2e777-f04b-5ea3-bdd2-243865d4011d",
+      "source_id": "19bc48f1-65c2-507c-9282-8299568172ca",
+      "target_id": "7df7ca37-d53d-57d1-81ad-5d98b023699e"
+    },
+    {
+      "id": "69bd6fca-fe69-53b8-b32c-e524a89b5b4a",
+      "source_id": "7df7ca37-d53d-57d1-81ad-5d98b023699e",
+      "target_id": "721661b5-6756-569b-998b-bb7466a7a890"
+    },
+    {
+      "id": "6290063d-82a2-5ea2-a58a-fc3c26b922b7",
+      "source_id": "721661b5-6756-569b-998b-bb7466a7a890",
+      "target_id": "51ba2b3b-2919-5a35-ae39-790ce7bdfbb7"
+    },
+    {
+      "id": "1dddb017-ec2c-5b66-a775-e662f96ed186",
+      "source_id": "51ba2b3b-2919-5a35-ae39-790ce7bdfbb7",
+      "target_id": "f2a7a165-a6ce-52b2-b50b-2268aae16f56"
+    },
+    {
+      "id": "0a5235c7-b570-5500-b59b-f1adf53b0ab9",
+      "source_id": "f2a7a165-a6ce-52b2-b50b-2268aae16f56",
+      "target_id": "470b4299-1cfc-5aed-b695-c33a1992290e"
+    },
+    {
+      "id": "30f96558-a4e2-5cba-9a6a-295877f27695",
+      "source_id": "470b4299-1cfc-5aed-b695-c33a1992290e",
+      "target_id": "39d5ee68-c241-5937-982d-e4a8c4f1d538"
+    }
+  ]
+}

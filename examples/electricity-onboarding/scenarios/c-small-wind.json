@@ -1,0 +1,46 @@
+{
+  "name": "small-wind",
+  "title": "A small wind turbine needs only a simplified notification; the energy advisor proposes a source",
+  "summary": "Ines Kowal lives in a farm cottage with a 2.5 kW wind turbine and asks for local community energy, which no scheme offers in her region. No rule of the source table covers her choice, so the energy advisor, a model deciding among the enumerated sources, proposes 100% renewable electricity and says why. Her turbine is small: a simplified notification to the grid operator is enough, and no person needs to approve it.",
+  "application": {
+    "application_id": "APP-24003",
+    "applicant": { "first_name": "Ines", "last_name": "Kowal", "date_of_birth": "1991-01-27" },
+    "contact": { "email": "ines.kowal@example.org", "phone": "+49 171 5550 1203" },
+    "supply_address": { "line1": "Hillcrest Farm Cottage", "postcode": "52011", "city": "Eastmere" },
+    "metering_point_id": "MP-52011-000913",
+    "consumption_basis": "smart_meter", "annual_consumption_kwh": 2700,
+    "electricity_source": "local_community", "plan_preference": "time_of_use",
+    "has_generation": true, "generation_technology": "wind", "generation_capacity_kw": 2.5,
+    "installation": { "installer": "Fenland Wind Services", "serial_number": "WT-SN-30477", "commissioned_on": "2025-09-02" },
+    "ev_charger": false, "heat_pump": true
+  },
+  "world": {
+    "credit": { "credit_band": "A", "score": 798, "outstanding_debt_eur": 0, "identity_result": "verified" },
+    "metering_point": { "meter_type": "smart", "smart_meter": true, "current_supplier": "Eastern Electric", "connection_capacity_kva": 17.3, "region": "east", "grid_operator": "Eastfen Grid", "phases": 1 },
+    "documents": { "F-24003-COMP": { "fields": { "serial_number": "WT-SN-30477", "rated_capacity_kw": 2.5 } } }
+  },
+  "actors": {
+    "Recommend plan": { "output": { "reasons": "Ines has a smart meter and a heat pump she can run at night, so the time-of-use plan she asked for is eligible and the cheapest for her profile." } },
+    "Write welcome pack": { "output": { "message": "Welcome, Ines! Your supply at Hillcrest Farm Cottage starts on {{supply_start_date}} on our time-of-use plan, with 100% renewable electricity backed by guarantees of origin: no community scheme reaches Eastmere yet, and we will tell you when one does. What your turbine exports is paid at {{export_tariff_eur_per_kwh}} EUR per kWh. Your first bill follows a month later, paid by direct debit." } }
+  },
+  "steps": [
+    { "after": "PT4H", "say": "Ines uploads her documents and the turbine's four installation documents", "publish": "documents.uploaded", "source": "/customer-portal/documents",
+      "data": {
+        "documents": [{ "type": "proof_of_identity", "file_id": "F-24003-ID" }, { "type": "proof_of_address", "file_id": "F-24003-ADDR" }, { "type": "direct_debit_mandate", "file_id": "F-24003-MAND" }],
+        "installation_documents": [{ "type": "installer_certificate", "file_id": "F-24003-INST" }, { "type": "compliance_certificate", "file_id": "F-24003-COMP" }, { "type": "commissioning_report", "file_id": "F-24003-COMM" }, { "type": "installation_ownership", "file_id": "F-24003-OWN" }],
+        "mandate_reference": "MND-24003" } },
+    { "after": "P1D", "say": "Ines accepts the proposed source and confirms the time-of-use plan", "publish": "plan.confirmed", "source": "/customer-portal", "data": { "plan": "time_of_use" } },
+    { "after": "PT8H", "say": "The e-signature service reports the signed contract", "publish": "contract.signed", "source": "/e-signature", "data": { "contract_signed": true, "signature_id": "ESIG-24003" } },
+    { "after": "P12D", "say": "The registry confirms the switch: the supply starts today", "publish": "switch.completed", "source": "/metering-point-registry", "data": { "switch_completed": true, "supply_start_date": "{{today}}" } }
+  ],
+  "expect": {
+    "run_status": "completed", "journey_status": "completed", "journey_stage": "active", "goals": ["active-customer"],
+    "records": [
+      { "type": "decision.evaluated", "node_name": "Electricity source", "data": { "method": "model", "model": { "option": "renewable_100" } } },
+      { "type": "subworkflow.started", "node_name": "Register grid export" },
+      { "type": "decision.evaluated", "node_name": "Classify installation", "data": { "outputs": { "installation_class": "small", "export_route": "simplified_notification" } } },
+      { "type": "tool.completed", "node_name": "Send simplified notification", "data": { "tool": "notify_grid_operator" } }
+    ],
+    "absent": [{ "type": "token.waiting", "data": { "reason": "human_task" } }]
+  }
+}

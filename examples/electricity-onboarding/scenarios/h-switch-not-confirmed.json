@@ -1,0 +1,41 @@
+{
+  "name": "switch-not-confirmed",
+  "title": "The registry never confirms the switch: the deposit is refunded and the account and mandate cancelled",
+  "summary": "Sofia Lind is accepted with a deposit. The contract is signed, the account, the mandate and the deposit are set up, and the switch is requested, but the registry does not confirm it within 21 days. The wait fails the run (EVENT_TIMEOUT), and compensation undoes what was done, in reverse order: the deposit is refunded, then the account is closed and the mandate cancelled. The journey is marked stalled for the switching team.",
+  "application": {
+    "application_id": "APP-24008",
+    "applicant": { "first_name": "Sofia", "last_name": "Lind", "date_of_birth": "1988-08-21" },
+    "contact": { "email": "sofia.lind@example.org", "phone": "+49 151 6620 3308" },
+    "supply_address": { "line1": "Unit 9, Quay Apartments", "postcode": "18250", "city": "Saltmarsh" },
+    "metering_point_id": "MP-18250-007741",
+    "consumption_basis": "smart_meter", "annual_consumption_kwh": 1900,
+    "electricity_source": "renewable_100", "plan_preference": "fixed_12",
+    "has_generation": false, "ev_charger": false, "heat_pump": false
+  },
+  "world": {
+    "credit": { "credit_band": "C", "score": 655, "outstanding_debt_eur": 120, "identity_result": "verified" },
+    "metering_point": { "meter_type": "smart", "smart_meter": true, "current_supplier": "Coastline Energy", "connection_capacity_kva": 13.8, "region": "south-west", "grid_operator": "Southvale Grid", "phases": 1 }
+  },
+  "actors": {
+    "Recommend plan": { "output": { "reasons": "Sofia asked for a fixed price for a year. The 24-month plan is not offered with a deposit; the 12-month fixed plan is the one she asked for." } }
+  },
+  "steps": [
+    { "after": "PT5H", "say": "Sofia uploads her documents", "publish": "documents.uploaded", "source": "/customer-portal/documents",
+      "data": { "documents": [{ "type": "proof_of_identity", "file_id": "F-24008-ID" }, { "type": "proof_of_address", "file_id": "F-24008-ADDR" }, { "type": "direct_debit_mandate", "file_id": "F-24008-MAND" }], "mandate_reference": "MND-24008" } },
+    { "after": "P1D", "say": "Sofia confirms the 12-month fixed plan in the portal", "publish": "plan.confirmed", "source": "/customer-portal", "data": { "plan": "fixed_12" } },
+    { "after": "PT12H", "say": "The e-signature service reports the signed contract", "publish": "contract.signed", "source": "/e-signature", "data": { "contract_signed": true, "signature_id": "ESIG-24008" } },
+    { "after": "P21DT1H", "say": "Twenty-one days pass without the registry confirming the switch", "tick": true }
+  ],
+  "expect": {
+    "run_status": "failed", "journey_status": "active", "journey_stage": "switch", "stalled": true,
+    "records": [
+      { "type": "decision.evaluated", "node_name": "Eligibility", "data": { "outputs": { "eligibility": "accept_with_deposit" } } },
+      { "type": "activity.completed", "node_name": "Collect deposit" },
+      { "type": "event.timed_out", "node_name": "Switch completed" },
+      { "type": "activity.compensated", "node_name": "Refund deposit" },
+      { "type": "activity.compensated", "node_name": "Cancel account and mandate" },
+      { "type": "run.failed", "data": { "compensation": { "attempted": 2, "succeeded": 2 } } }
+    ],
+    "journey_records": [{ "type": "journey.stalled" }]
+  }
+}

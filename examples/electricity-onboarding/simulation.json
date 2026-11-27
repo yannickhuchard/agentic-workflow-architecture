@@ -1,0 +1,43 @@
+{
+  "Register application": {
+    "output": { "customer_id": "C-24001", "application_id": "APP-24001", "electricity_source": "renewable_100", "plan_preference": "fixed_12", "has_generation": false, "ev_charger": false, "annual_consumption_kwh": 3200 },
+    "contexts": { "customer_profile": { "first_name": "Lena", "last_name": "Marsh", "supply_postcode": "40217", "supply_city": "Riverton", "annual_consumption_kwh": 3200, "consumption_basis": "estimate", "electricity_source": "renewable_100", "plan_preference": "fixed_12", "has_generation": false, "ev_charger": false, "heat_pump": false, "preferred_channel": "email" } }
+  },
+  "Request documents": { "output": { "documents_requested": ["proof_of_identity", "proof_of_address", "direct_debit_mandate"], "request_message_id": "MSG-24001-3706" } },
+  "Send document reminder": { "output": { "output": { "message": "Dear Lena, we still need your documents to set up your electricity supply. Please upload them within 7 days.", "deadline_stated": true } } },
+  "Close as abandoned": { "output": { "abandoned_reason": "The documents did not arrive within 14 days of the application.", "closed": true } },
+  "Verify documents": {
+    "output": { "output": {
+      "documents": [{ "type": "proof_of_identity", "status": "valid" }, { "type": "proof_of_address", "status": "valid" }, { "type": "direct_debit_mandate", "status": "valid" }],
+      "documents_valid": true, "mandate_reference": "MND-24001", "unchecked_count": 0, "unreadable_count": 0, "confidence": 0.94,
+      "notes": "Identity document in date; the proof of address matches; the mandate is signed by the applicant." } }
+  },
+  "Check credit and identity": { "output": { "credit_band": "A", "credit_score": 812, "outstanding_debt_eur": 0, "identity_result": "verified", "credit_reference": "CB-24001" } },
+  "Look up metering point": { "output": { "meter_type": "smart", "smart_meter": true, "current_supplier": "Northgrid Energy", "connection_capacity_kva": 13.8, "region": "south-west", "grid_operator": "Southvale Grid" } },
+  "Credit referral": { "output": { "approved": true, "reason": "Approved in simulation." } },
+  "Write decline letter": { "output": { "output": { "letter": "Dear applicant, thank you for applying. We are sorry that we cannot offer you a supply contract at present, because of an outstanding energy debt. Your current supply is not affected, and you are welcome to apply again.", "reason_given": true, "next_steps_given": true, "decline_reason": "outstanding energy debt above the limit" } } },
+  "Electricity source": { "output": { "option": "renewable_100", "confidence": 0.86 } },
+  "Recommend plan": { "output": { "output": { "recommended_plan": "fixed_12", "estimated_annual_cost_eur": 1146, "alternatives": [{ "plan": "variable", "estimated_annual_cost_eur": 1134 }], "reasons": "The customer asked for a fixed price for a year, and the plan is eligible.", "follows_preference": true } } },
+  "Confirm plan by phone": { "output": { "plan": "fixed_12" } },
+  "Register grid export": { "output": { "export_status": "registered", "export_registration_id": "EXP-002207", "approved_export_kw": 6.0, "export_tariff_eur_per_kwh": 0.082 } },
+  "Agree another plan": { "output": { "plan": "fixed_12" } },
+  "Generate contract": { "output": { "contract_id": "CT-24001", "contract_url": "http://localhost:4545/contracts/v1/contracts/CT-24001.pdf", "cooling_off_days": 14 } },
+  "Set up account and direct debit": { "output": { "account_id": "ACC-24001", "mandate_id": "MDT-24001" } },
+  "Collect deposit": { "output": { "deposit_id": "DEP-24001", "deposit_collected_eur": 150 } },
+  "Request supplier switch": { "output": { "switch_id": "SW-24001", "expected_switch_date": "2026-12-01" } },
+  "Write welcome pack": { "output": { "output": {
+    "message": "Welcome, Lena! Your electricity supply at 14 Orchard Row starts on 2026-12-01 on our 12-month fixed plan, with 100% renewable electricity backed by guarantees of origin. Your first bill follows a month later, paid by direct debit.",
+    "tone": "warm", "facts": { "plan": "fixed_12", "electricity_source": "renewable_100", "supply_start_date": "2026-12-01", "export_tariff_eur_per_kwh": null } } } },
+  "Activate customer": { "output": { "customer_active": true, "activated_at": "2026-12-01", "welcome_message_id": "MSG-24001-3085" } },
+  "Cancel account and mandate": { "output": { "account_cancelled": true, "mandate_status": "cancelled" } },
+  "Refund deposit": { "output": { "deposit_refunded": true, "refund_id": "REF-24001" } },
+  "Verify installation documents": { "output": { "output": {
+    "installation_valid": true, "serials_match": true, "rated_capacity_kw": 6.2, "unchecked_count": 0, "unreadable_count": 0, "confidence": 0.9,
+    "notes": "Installer's certificate, compliance certificate, commissioning report and proof of ownership checked." } } },
+  "Send simplified notification": { "output": { "notification_id": "GN-000913", "approved_export_kw": 2.5 } },
+  "Grid operator approval": { "output": { "approved": true, "approved_export_kw": 6.0 } },
+  "Grid operator approval, two engineers": { "output": { "approved": true, "approved_export_kw": 7.5 } },
+  "Refer to commercial team": { "output": { "export_status": "referred_to_commercial" } },
+  "Record export refusal": { "output": { "export_status": "not_approved" } },
+  "Register export meter and tariff": { "output": { "export_status": "registered", "export_registration_id": "EXP-002207", "approved_export_kw": 6.0, "export_tariff_eur_per_kwh": 0.082 } }
+}

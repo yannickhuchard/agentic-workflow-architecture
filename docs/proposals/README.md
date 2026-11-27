@@ -36,3 +36,6 @@ Fixes to wording that keep the meaning of a rule, SDK features that the specific
 | Number | Title | Status | Specification |
 |---|---|---|---|
 | 0001 | [The AEP process](0001-aep-process.md) | `final` | Governance |
+| 0002 | [The guardrail stage `tool_result`](0002-guardrail-stage-tool-result.md) | `implemented` | 31.3, 31.5, 17.3 |
+| 0003 | [Starting a child run is part of its call activity](0003-child-run-start-authorization.md) | `implemented` | 24.2, 30.4 |
+| 0004 | [A child run that failed for a permanent cause is not started again](0004-permanent-causes-of-child-failures.md) | `implemented` | 9.3, 10.1, 24.3 |

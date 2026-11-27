@@ -89,6 +89,9 @@ class EngineStatus(str, Enum):
 NEVER_RETRIED = {"SUBWORKFLOW_NOT_FOUND", "SUBWORKFLOW_DEPTH_EXCEEDED", "VERIFICATION_FAILED", "CONTRACT_VIOLATION", "NO_ROUTE", "SLA_BREACH",
                  "CONTEXT_MISSING", "CONTEXT_ACCESS_DENIED", "CONTEXT_INVALID", "CONTEXT_NOT_FOUND", "AGENT_UNSUPPORTED", "PERMISSION_DENIED",
                  "FORBIDDEN"}
+# Codes that end an activity at once whatever its retry policy (10.1): the same failure would follow on every
+# attempt. A child run that failed with one of them is not started again (24.3)
+PERMANENT_ERRORS = frozenset(NEVER_RETRIED | {"GUARDRAIL_BLOCKED", "GUARDRAIL_ERROR"})
 # Access modes of a context binding that let an activity read, and write (specification 22.2, 22.3)
 CAN_READ = {"read", "read_write", "subscribe"}
 CAN_WRITE = {"write", "read_write", "publish"}
@@ -112,6 +115,12 @@ class ActivityError(Exception):
 def _error_info(error: BaseException) -> tuple[str, str | None]:
     code = getattr(error, "code", None)
     return str(error) or type(error).__name__, code if isinstance(code, str) else None
+
+
+def _error_cause(error: BaseException) -> str | None:
+    """The code a failed child run gives as the cause of a call activity's failure (24.3)"""
+    cause = getattr(error, "cause_code", None)
+    return cause if isinstance(cause, str) else None
 
 
 def _takes_context(actor: Any) -> bool:
@@ -1144,12 +1153,16 @@ class WorkflowEngine:
             except Exception as error:
                 errors += 1
                 message, code = _error_info(error)
+                cause = _error_cause(error)
+                # A child run that failed for a permanent cause would fail the same way again (24.3)
+                permanent_cause = bool(cause) and (cause in PERMANENT_ERRORS or cause in (retry.non_retryable_errors or []))
                 retryable = (errors <= retry.max_retries
                              and attempt < hard_cap
                              and code not in NEVER_RETRIED
-                             and not (code and code in (retry.non_retryable_errors or [])))
+                             and not (code and code in (retry.non_retryable_errors or []))
+                             and not permanent_cause)
                 record("activity.failed", {
-                    "error": {"message": message, "code": code}, "retryable": retryable,
+                    "error": {"message": message, "code": code, **({"cause": cause} if cause else {})}, "retryable": retryable,
                     "duration_ms": int(self._now() - attempt_start),
                 })
 
@@ -1460,13 +1473,16 @@ class WorkflowEngine:
         data: dict[str, Any] = {"_error": message}
         if code:
             data["_error_code"] = code
+        cause = _error_cause(error)
+        if cause:
+            data["_error_cause"] = cause
         if isinstance(error, ActivityError) and error.details:
             data.update(error.details)
         token.merge_data(data)
         # A rejected result that echoed what the actor was given must not leave contexts in the token's data
         for key in (*_HANDED, "_context_writes"):
             token.context_data.pop(key, None)
-        self._record("token.failed", {"error": {"message": message, "code": code}},
+        self._record("token.failed", {"error": {"message": message, "code": code, **({"cause": cause} if cause else {})}},
                      token=token, node_id=str(token.activity_id))
 
     # ------------------------------------------------------------------
@@ -2163,6 +2179,13 @@ class WorkflowEngine:
         a compensation handler is compensated, most recently completed first.
         A handler that fails does not stop the others.
         """
+        # The run's sessions were closed when it settled: what the handlers open is closed here, whatever happens (13.6)
+        try:
+            return self._compensate_all()
+        finally:
+            self._tool_sessions.close()
+
+    def _compensate_all(self) -> dict[str, int]:
         attempted = succeeded = 0
         failure = next((t for t in self._tokens.values() if t.status == TokenStatus.FAILED), None)
 
@@ -2192,7 +2215,21 @@ class WorkflowEngine:
                     "_idempotency_key": f"{self._run_id}:{done['token_id']}:{handler_id}:compensation",
                 }, workflow_id=str(self.workflow.id))
                 scratch.id = done["token_id"]
-                result = self._call_actor(actor, handler, scratch)
+                # A handler calls the tools it declares through the same runner as any activity, so its calls are
+                # checked and journalled (17.3). It undoes work already allowed and is not decided under a policy (30.4),
+                # but its calls are held to the guardrails (31.3).
+                def record(type: str, data: dict[str, Any], level: str = "execution", _handler_id: str = handler_id,
+                           _token_id: str = done["token_id"]) -> JournalEvent:
+                    return self._record(type, data, token_id=_token_id, node_id=_handler_id, attempt=1, level=level)
+                context = ActorContext(record=record, payload=self._journal.payload)
+                if handler.tools:
+                    budgets = handler.outcome_contract.budgets if handler.outcome_contract else None
+                    context.tools = ToolRunner(
+                        handler.tools, self._tool_options, record, self._journal.payload,
+                        max_calls=budgets.max_tool_calls if budgets and budgets.max_tool_calls is not None else 16,
+                        simulate=bool(self.simulate), now=self._now,
+                        guard=None if self._guardrails.empty else self._tool_guard(scratch, handler, 1))
+                result = self._call_actor(actor, handler, scratch, context)
                 succeeded += 1
                 self._record("activity.compensated", {**about, "output": self._journal.payload(public_payload(result))},
                              token_id=done["token_id"], node_id=handler_id)

@@ -1,0 +1,60 @@
+{
+  "subject_name": ["applicant.first_name", "applicant.last_name"],
+  "bands": {
+    "Electricity Customer Onboarding": [
+      { "row": 0, "label": "Application and verification" },
+      { "row": 4, "label": "Energy choices and grid export" },
+      { "row": 7, "label": "Contract, switch and activation" }
+    ],
+    "Grid Export Registration": [
+      { "row": 0, "label": "Installation check and grid operator" }
+    ]
+  },
+  "layouts": {
+    "Electricity Customer Onboarding": {
+      "Application received": [0, 0],
+      "Register application": [1, 0],
+      "Required documents": [2, 0],
+      "Request documents": [3, 0],
+      "Documents uploaded": [4, 0],
+      "Verify documents": [5, 0],
+      "Documents checked": [6, 0],
+      "Check credit and identity": [7, 0],
+      "Checks complete": [8, 0],
+      "Eligibility": [9, 0],
+      "Applicant verified": [10, 0],
+      "Send document reminder": [4, 1],
+      "Documents uploaded after reminder": [5, 1],
+      "Look up metering point": [7, 1],
+      "Credit referral": [9, 1],
+      "Declined": [11, 1],
+      "Close as abandoned": [6, 2],
+      "Application abandoned": [7, 2],
+      "Abandoned": [8, 2],
+      "Write decline letter": [10, 2],
+      "Application declined": [11, 2],
+      "Electricity source": [0, 4],
+      "Advise on electricity source": [1, 5],
+      "Plan eligibility": [2, 4],
+      "Recommend plan": [3, 4],
+      "Plan confirmed": [4, 4],
+      "Confirm plan by phone": [5, 5],
+      "Plan chosen": [6, 4],
+      "Register grid export": [7, 4],
+      "Grid export settled": [8, 4],
+      "Agree another plan": [9, 5],
+      "Generate contract": [0, 7],
+      "Contract signed": [1, 7],
+      "Set up account and direct debit": [2, 7],
+      "Cancel account and mandate": [2, 8],
+      "Collect deposit": [3, 8],
+      "Refund deposit": [3, 9],
+      "Request supplier switch": [4, 7],
+      "Switch completed": [5, 7],
+      "Write welcome pack": [6, 7],
+      "Activate customer": [7, 7],
+      "Customer activated": [8, 7],
+      "Customer active": [9, 7]
+    }
+  }
+}

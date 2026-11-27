@@ -30,7 +30,7 @@ import { PersistenceAdapter, WorkflowState, serialize_token, deserialize_token }
 import { RetryConfig, DEFAULT_RETRY_CONFIG, calculate_retry_delay, DeadLetterQueue } from './retry';
 import { Logger } from '../server/logger';
 import { ModelProvider, ModelRegistry, ModelRouter, GoogleModelProvider, RouteAttempt } from './models';
-import { ToolOptions, ToolRunner } from './tools';
+import { ToolGuard, ToolOptions, ToolRunner } from './tools';
 import { ToolSessions } from './protocols/sessions';
 import { A2AActor, A2AOptions, A2ARunState, a2a_binding } from './protocols/a2a';
 import { decide_with_model } from './decision_model';
@@ -201,13 +201,23 @@ function outcome_fields(result: Record<string, unknown>): Record<string, unknown
     return Object.fromEntries(Object.entries(output).filter(([key]) => !key.startsWith('_') && key !== 'activities'));
 }
 
-function error_info(error: unknown): { message: string; code?: string; stack?: string } {
+function error_info(error: unknown): { message: string; code?: string; cause?: string; stack?: string } {
     if (error instanceof Error) {
         const code = (error as { code?: unknown }).code;
-        return { message: error.message, code: typeof code === 'string' ? code : undefined, stack: error.stack };
+        const cause = (error as { cause_code?: unknown }).cause_code;
+        return {
+            message: error.message, code: typeof code === 'string' ? code : undefined,
+            ...(typeof cause === 'string' ? { cause } : {}), stack: error.stack,
+        };
     }
     return { message: String(error) };
 }
+
+/**
+ * Codes that end an activity at once whatever its retry policy (spec 10.1): the same failure
+ * would follow on every attempt. A child run that failed with one of them is not started again (24.3).
+ */
+export const PERMANENT_ERRORS: ReadonlySet<string> = new Set([...NEVER_RETRIED, 'GUARDRAIL_BLOCKED', 'GUARDRAIL_ERROR']);
 
 export class WorkflowEngine {
     private workflow: Workflow;
@@ -552,6 +562,15 @@ export class WorkflowEngine {
      * not stop the others.
      */
     private async compensate(): Promise<{ attempted: number; succeeded: number }> {
+        // The run's sessions were closed when it settled: what the handlers open is closed here, whatever happens (13.6)
+        try {
+            return await this.compensateAll();
+        } finally {
+            await this.toolSessions.close();
+        }
+    }
+
+    private async compensateAll(): Promise<{ attempted: number; succeeded: number }> {
         let attempted = 0;
         let succeeded = 0;
 
@@ -566,13 +585,21 @@ export class WorkflowEngine {
             try {
                 const actor = this.createActor(handler);
                 if (!actor) throw new Error(`No actor for compensation handler "${handler.name}"`);
+                // A handler calls the tools it declares through the same runner as any activity, so its calls are checked and journalled (17.3).
+                // It undoes work already allowed and is not decided under a policy (30.4), but its calls are held to the guardrails (31.3).
+                const record = (event: Parameters<NonNullable<ActorContext['record']>>[0]) => this.record({ ...event, ...ref, attempt: 1 });
+                const context: ActorContext = { record, payload: value => this.journal.payload(value) };
+                if ((handler.tools || []).length > 0) {
+                    context.tools = new ToolRunner(handler.tools!, { ...(this.options.tools || {}), sessions: this.toolSessions }, record, value => this.journal.payload(value),
+                        { max_calls: handler.outcome_contract?.budgets?.max_tool_calls ?? 16, simulate: this.simulate, ...this.toolGuard(handler, ref, 1) });
+                }
                 const result = await actor.execute(handler, {
                     ...done.output,
                     _compensating: { activity_id: activity.id, activity_name: activity.name, output: done.output },
                     _failure: { message: failure?.getData('_error'), code: failure?.getData('_error_code') },
                     _run_id: this.runId,
                     _idempotency_key: `${this.runId}:${done.token_id}:${handler.id}:compensation`,
-                });
+                }, context);
                 succeeded++;
                 this.record({
                     type: 'activity.compensated', ...ref,
@@ -1323,6 +1350,7 @@ export class WorkflowEngine {
         token.mergeData({
             _error: info.message,
             ...(info.code ? { _error_code: info.code } : {}),
+            ...(info.cause ? { _error_cause: info.cause } : {}),
             ...(info.stack && !(error instanceof ActivityError) ? { _stack: info.stack } : {}),
             ...(details || {}),
         });
@@ -1331,7 +1359,7 @@ export class WorkflowEngine {
         token.contextData = kept;
         this.record({
             type: 'token.failed', token_id: token.id, ...this.nodeRef(token.activityId),
-            data: { error: { message: info.message, code: info.code } },
+            data: { error: { message: info.message, code: info.code, ...(info.cause ? { cause: info.cause } : {}) } },
         });
     }
 
@@ -1419,13 +1447,7 @@ export class WorkflowEngine {
                         event => this.record({ ...event, ...ref, attempt }),
                         value => this.journal.payload(value),
                         {
-                            max_calls: budgets?.max_tool_calls ?? 16, simulate: this.simulate,
-                            ...(this.guardrails.empty ? {} : {
-                                guard: async (stage, tool, value, call_id) => {
-                                    const result = await this.guardrails.apply(stage, activity, value, { ...this.guardContext(ref, attempt), tool, call_id });
-                                    return { value: result.value, ...(result.stop ? { refused: { code: result.stop.code, message: result.stop.message } } : {}) };
-                                },
-                            }),
+                            max_calls: budgets?.max_tool_calls ?? 16, simulate: this.simulate, ...this.toolGuard(activity, ref, attempt),
                         },
                     );
                 }
@@ -1438,13 +1460,16 @@ export class WorkflowEngine {
             } catch (error: unknown) {
                 errors++;
                 const info = error_info(error);
+                // A child run that failed for a permanent cause would fail the same way again (24.3)
+                const permanent_cause = !!info.cause && (PERMANENT_ERRORS.has(info.cause) || !!retry.non_retryable_errors?.includes(info.cause));
                 const retryable = errors <= retry.max_retries
                     && attempt < hardCap
                     && !NEVER_RETRIED.has(info.code || '')
-                    && !(info.code && retry.non_retryable_errors?.includes(info.code));
+                    && !(info.code && retry.non_retryable_errors?.includes(info.code))
+                    && !permanent_cause;
                 this.record({
                     type: 'activity.failed', ...ref, attempt,
-                    data: { error: { message: info.message, code: info.code }, retryable, duration_ms: this.now() - attemptStart },
+                    data: { error: { message: info.message, code: info.code, ...(info.cause ? { cause: info.cause } : {}) }, retryable, duration_ms: this.now() - attemptStart },
                 });
 
                 if (!retryable) {
@@ -1654,6 +1679,17 @@ export class WorkflowEngine {
         return {
             record: event => this.record({ ...event, ...ref, ...(attempt ? { attempt } : {}) }),
             router: this.router, default_model: this.defaultAIModelId, classifiers: this.options.guardrail_classifiers,
+        };
+    }
+
+    /** The guardrails around each tool call an activity's attempt makes (spec 31.3), for its tool runner */
+    private toolGuard(activity: Activity, ref: { token_id: UUID; node_id: UUID; node_name?: string }, attempt: number): { guard?: ToolGuard } {
+        if (this.guardrails.empty) return {};
+        return {
+            guard: async (stage, tool, value, call_id) => {
+                const result = await this.guardrails.apply(stage, activity, value, { ...this.guardContext(ref, attempt), tool, call_id });
+                return { value: result.value, ...(result.stop ? { refused: { code: result.stop.code, message: result.stop.message } } : {}) };
+            },
         };
     }
 
