@@ -7,6 +7,9 @@
 | `dashboard.html` | The measures of journeys and workflows (specification section 21): who is stuck and whose it is, what became of the journeys, how the work went, where the time and the money go, with every number opening the customers behind it |
 | `index.html` | A workflow definition, in 2D or 3D |
 | `live.html` | A running workflow, by polling a local demo server |
+| `awa-brand.js` | Reads a company's brand (a DESIGN.md or a brand.json) and puts it on the journey view, the replay and the measures page ([Branding](#branding)) |
+| `awa-glossary.js` | The terms the journey view's glossary explains ([Glossary](#glossary)) |
+| `brands/` | AWA's own design tokens (`awa.DESIGN.md`) and a fictional company's brand to start from (Valoria Life, light and dark) |
 
 ## Replay
 
@@ -127,3 +130,82 @@ AWA's terms are in `awa-glossary.js` (`window.AWA_GLOSSARY` in a page, `require(
 On one customer's journey nothing is hidden: selecting a mark reads that moment and dims what comes after. "Read as a list" gives the same story as a dated list, by default only the customer's side.
 
 A filled dot and a solid stretch of the mood line are something the customer said. A hollow dot and a dashed stretch are an inference by a rule of the journey; the caption gives the rule's reason.
+
+## Branding
+
+A company can show the journey view, the replay and the measures page in its own colours, fonts and corner radius, with its logo and name in the header and "powered by AWA" beside them. The views read the brand from a [DESIGN.md](https://github.com/google-labs-code/design.md) file, the open format Google Labs published for describing a design system to agents (Markdown with YAML design tokens; the format is specified in [docs/spec.md](https://github.com/google-labs-code/design.md/blob/main/docs/spec.md) of that repository, version "alpha" when this was written), or from a small `brand.json` with the same tokens.
+
+### Step by step
+
+1. Write or export a DESIGN.md. A design tool or an agent that writes the format gives you one; otherwise copy `brands/valoria-life.DESIGN.md` and change the values. At least `colors.primary`; usually also `colors.surface` and `colors.on-surface`, a heading and a body font under `typography`, and `rounded`. Write hex colours in quotes: in YAML, a `#` starts a comment.
+2. Add your logo beside it (an SVG or a PNG), and name it in the front matter: `logo: my-logo.svg`, and `logo_dark:` for a version that reads on a dark page. These two keys are AWA's addition to the format; other tools ignore them.
+3. Host the DESIGN.md and the logo next to the views, on the same server (a page opened from a file cannot fetch another file).
+4. Open a view with `?brand=<address of the DESIGN.md>`: `journey.html?brand=brands/my-company.DESIGN.md`, `dashboard.html?brand=…`, `replay.html?brand=…`. The address is relative to the page. With `?options=<url>`, the options can carry it instead: `"brand": "my-company.DESIGN.md"` (relative to the options file) or a brand.json object. The measures page passes `?brand=` on to the journey view it links to.
+5. Open the browser's console: the view names every token it left out or adjusted, such as `colors.primary (#ffe08a) reads at 1.4:1 on the page, under 3:1 for a mark; its lightness is adjusted`.
+
+### What the tokens become
+
+| DESIGN.md token | In the views |
+|---|---|
+| `colors.primary` | The accent: buttons, focus, the selected crumb and chip, the stage and step in view, bars on the measures page, links and words in the accent colour. A button's fill is the primary, darkened or lightened until `on-primary` reads on it at 4.5:1 |
+| `colors.on-primary` | Text and icons on a button |
+| `colors.surface` | The page |
+| `colors.on-surface` | Text; at low opacity, the lines between things. The softer and muted words are mixed from it and the surface, at 4.5:1 or more |
+| `colors.on-surface-variant` | Secondary text |
+| `colors.surface-container-low` | Panels and the top bar (else a step from the surface) |
+| `colors.surface-container` | Cards and the boxes of a workflow (else white in light mode, a step lighter in dark mode) |
+| `colors.surface-container-high` | Hover and raised surfaces |
+| `colors.outline` | The borders of a workflow's boxes |
+| `colors.light.*`, `colors.dark.*` | The same tokens for one mode: the mode group is laid over the top-level tokens |
+| `typography.<headline…, display…, title…, h1…>.fontFamily` | The display font: titles, the company's name, large numbers |
+| `typography.<body…>.fontFamily` | The body font |
+| `rounded.md`, `rounded.lg` | The radius of buttons and boxes, and of cards and panels (`lg` defaults to `md` × 1.5) |
+| `name` | The company's name in the header |
+| `logo`, `logo_dark` (AWA's addition) | The logo in the header, as an image |
+| `{colors.primary}` | A token reference is followed to the value it names |
+
+The mode is the brand's `mode` (brand.json), else that of its surface (dark below a relative luminance of 0.18), else, for a brand with both a `light` and a `dark` group or with no surface, the reader's preference. A token the brand leaves out comes from AWA's own tokens for that mode (`brands/awa.DESIGN.md`, which `awa-brand.js` holds as `AWA`): the views look as they always have when no brand is given.
+
+A font is loaded from Google Fonts with a stylesheet link (`fonts.googleapis.com`, weights 400 to 700) unless the page already has it (Inter, the system fonts); a family Google Fonts does not have falls back to the view's own stack. A family name is read only when it is plain letters, digits, spaces and hyphens.
+
+### brand.json
+
+```json
+{
+  "name": "Valoria Life",
+  "logo": "valoria-life.svg",
+  "logo_dark": "valoria-life-dark.svg",
+  "mode": "light",
+  "colors": { "primary": "#0E7C66", "on-primary": "#FFFFFF", "surface": "#F6F7FB", "on-surface": "#0F172A" },
+  "typography": { "heading": { "fontFamily": "Space Grotesk" }, "body": { "fontFamily": "Inter" } },
+  "rounded": { "md": "8px", "lg": "12px" }
+}
+```
+
+`colors`, `typography` (by DESIGN.md token, or `heading` and `body`), `rounded` and `name` are the DESIGN.md tokens; `logo` and `logo_dark` are addresses (relative to the brand.json) or `data:` images; `mode` is `dark`, `light` or `auto`.
+
+### Contrast and meaning
+
+- The colours of states keep their hue whatever the brand: working now (purple), waiting (amber), done (green), failed (red), undone (grey), and on the measures page stuck (amber) and left (orange). Only their lightness changes, so that each reads at 3:1 as a mark and 4.5:1 as a word on the brand's page, panels and cards (WCAG 2.2, 1.4.11 and 1.4.3).
+- `on-surface` must read at 4.5:1 on `surface`, and `primary` at 3:1 on the page and the panels; the accent used for words reads at 4.5:1. Where a brand's colour fails, the view moves its lightness as little as needed and says so in the console, naming the token.
+- Every colour, dimension and font is checked before it is used. A colour is read as hex (`#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA`), `rgb()`/`rgba()` or `hsl()`/`hsla()`; anything else is left out with a warning, so a value can never carry CSS of its own.
+- The name is shown as text. The logo is shown in an `<img>` (an SVG is never inlined), from an http or https address or a `data:` image of up to 400 kB.
+
+### What the views do not read
+
+The DESIGN.md format has more than the views use. They do not read `spacing`, `motion`, `components`, `omitted`, external `@` references, font sizes, weights, line heights and letter spacing (the views keep their own type scale, sized for the 1440 × 900 stage), named colours (`red`), `hwb()`, `oklch()`, `oklab()`, `lch()`, `lab()` and `color-mix()`, breakpoint groups of `typography`, or the Markdown prose. `secondary`, `tertiary`, `neutral` and `error` are accepted and not used (`neutral` stands for the surface when there is no `surface`): the views have one accent, and their red for "failed" is a state colour, not a brand colour. The YAML reader takes the subset the format uses (maps, lists, flow maps and lists, quoted and plain scalars, block scalars, comments) and refuses anchors, aliases and tags.
+
+### Examples
+
+| File | What it is |
+|---|---|
+| `brands/awa.DESIGN.md` | AWA's own tokens, dark by default with a light mode. A root `DESIGN.md` would clash with the repository's `DESIGN.MD` on a file system that ignores case, so it lives here |
+| `brands/valoria-life.DESIGN.md`, `valoria-life.brand.json` | A fictional insurer: teal primary (#0E7C66) on a light page, Space Grotesk and Inter, with its logo (`valoria-life.svg`) |
+| `brands/valoria-life-dark.DESIGN.md` | The same brand on a dark page, with the logo for dark backgrounds (`valoria-life-dark.svg`) |
+
+Valoria Life is made up for AWA's examples; its name, logo and colours belong to no real company.
+
+`journey.check.mjs` and `dashboard.check.mjs` check a DESIGN.md and a brand.json (accent, page, fonts, logo, name), that the light mode reads at 4.5:1 at every height of the journey view and on the measures page, that a colour that is not one is refused, that a primary too light is darkened with a warning, and that the colours of states keep their hue and pass contrast.
+
+The MCP server's widgets take a brand inline: see `apps/mcp-server/README.md`.
+

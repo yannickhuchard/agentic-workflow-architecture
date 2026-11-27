@@ -29,6 +29,38 @@ const open = async url => {
     return page;
 };
 const settle = page => page.waitForTimeout(900);
+
+/**
+ * How well the text of the view reads: for each element matched (visible, with text, not dimmed on purpose), the contrast of its colour
+ * on the background behind it. Returns [{ sel, text, ratio }].
+ */
+const legibility = (page, selectors) => page.evaluate(selectors => {
+    const parse = v => {
+        let m = /^rgba?\(([^)]+)\)/.exec(v);
+        if (m) { const p = m[1].split(/[\s,/]+/).filter(Boolean).map(Number); return { r: p[0], g: p[1], b: p[2], a: p[3] ?? 1 }; }
+        m = /^color\(srgb ([^)]+)\)/.exec(v);
+        if (m) { const p = m[1].split(/[\s/]+/).filter(Boolean).map(Number); return { r: p[0] * 255, g: p[1] * 255, b: p[2] * 255, a: p[3] ?? 1 }; }
+        return null;
+    };
+    const over = (c, bg) => ({ r: c.r * c.a + bg.r * (1 - c.a), g: c.g * c.a + bg.g * (1 - c.a), b: c.b * c.a + bg.b * (1 - c.a), a: 1 });
+    const lum = c => { const f = x => { x /= 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b); };
+    const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+    const behind = el => {
+        const layers = [];
+        for (let e = el; e; e = e.parentElement) { const c = parse(getComputedStyle(e).backgroundColor); if (c && c.a > 0) { layers.push(c); if (c.a >= 1) break; } }
+        let bg = layers.length && layers[layers.length - 1].a >= 1 ? layers.pop() : parse(getComputedStyle(document.body).backgroundColor);
+        for (const c of layers.reverse()) bg = over(c, bg);
+        return bg;
+    };
+    const dimmed = el => { for (let e = el; e; e = e.parentElement) { const cs = getComputedStyle(e); if (Number(cs.opacity) < 0.99 || cs.filter !== 'none' || cs.visibility !== 'visible') return true; } return false; };
+    const out = [];
+    for (const sel of selectors) for (const el of [...document.querySelectorAll(sel)].filter(e => e.getClientRects().length && e.textContent.trim() && !dimmed(e)).slice(0, 12)) {
+        const bg = behind(el), fg = over(parse(getComputedStyle(el).color), bg);
+        out.push({ sel, text: el.textContent.trim().slice(0, 30), ratio: Math.round(ratio(fg, bg) * 100) / 100 });
+    }
+    return out;
+}, selectors);
+
 /**
  * The run view on screen: every activity's name inside its box and not cut (three lines fit; the builder widens the boxes of
  * a workflow until each name does), no two nodes on top of each other, and names never drawn smaller than 11 px.
@@ -284,6 +316,103 @@ awa('export', '-o', record);
         check(!shown.pwned && shown.imgs === 0 && shown.links === 0 && shown.first.startsWith('<img') && shown.mine === 2, `glossary options are text: no markup, no link that is not https, a term that is not text left out (${JSON.stringify(shown)})`);
         await evil.close();
     } finally { server.close(); }
+}
+
+
+// 4. A company's brand: a DESIGN.md or a brand.json, from ?brand= or the options
+{
+    const B = createRequire(import.meta.url)('./awa-brand.js');
+    const server = http.createServer((req, res) => {
+        const file = path.join(root, decodeURIComponent(new URL(req.url, 'http://x').pathname));
+        if (!file.startsWith(root) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); res.end(); return; }
+        const type = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.md': 'text/markdown; charset=utf-8' }[path.extname(file)] || 'application/json';
+        res.writeHead(200, { 'content-type': type }); fs.createReadStream(file).pipe(res);
+    });
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    const base = `http://127.0.0.1:${server.address().port}`, view = `${base}/tools/visualization/journey.html`;
+    const branded = async (url, setup) => {
+        const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+        page.errors = []; page.warnings = []; page.outside = [];
+        page.on('pageerror', e => page.errors.push(e.message));
+        page.on('console', m => { if (m.type() === 'warning') page.warnings.push(m.text()); });
+        await page.route('https://fonts.googleapis.com/**', route => { page.outside.push(route.request().url()); route.fulfill({ contentType: 'text/css', body: '' }); });
+        if (setup) await setup(page);
+        await page.goto(url); await page.waitForTimeout(1200);
+        return page;
+    };
+    const look = page => page.evaluate(() => {
+        const css = getComputedStyle(document.documentElement), v = name => css.getPropertyValue(name).trim();
+        const img = document.querySelector('#brandmark img');
+        return { accent: v('--accent'), bg: getComputedStyle(document.body).backgroundColor, text: v('--text'), theme: document.documentElement.dataset.theme,
+            display: getComputedStyle(document.querySelector('#brandmark .awa-brand-n') || document.body).fontFamily, body: getComputedStyle(document.body).fontFamily,
+            radius: getComputedStyle(document.querySelector('.crumb')).borderTopLeftRadius,
+            name: (document.querySelector('#brandmark .awa-brand-n') || {}).textContent, powered: (document.querySelector('#brandmark .awa-brand-p') || {}).textContent,
+            logo: img ? img.getAttribute('src') : null, logo_loaded: img ? img.complete && img.naturalWidth > 0 : false, inline_svg: !!document.querySelector('#brandmark svg'),
+            states: Object.fromEntries(['run', 'wait', 'ok', 'bad', 'undone', 'run-ink', 'wait-ink', 'ok-ink', 'bad-ink', 'bg', 'panel', 'card'].map(k => [k, v('--' + k)])) };
+    });
+    const TEXT = ['#crumbs .crumb', '#cap', '#when', '#facts b', '#facts span', '#count', '.layer.on .sub', '.layer.on .pt', '.layer.on .hd', '.layer.on .nm', '.layer.on .tg', '.layer.on .lg', '.layer.on .ct span', '.layer.on .rowl', '.layer.on .evl', '.layer.on .evt2', '.layer.on .tr', '.layer.on .bchip', '#gloss .ge-d', '#gloss .ge-t', '#gloss .gloss-g'];
+    const readable = async (page, where) => {
+        const all = await legibility(page, TEXT), low = all.filter(x => x.ratio < 4.5);
+        check(all.length > 20 && !low.length, `${where}: every word reads at 4.5:1 or more (${all.length} checked, the lowest ${Math.min(...all.map(x => x.ratio))}:1) ${low.map(x => `${x.sel} "${x.text}" ${x.ratio}:1`).join('; ')}`);
+    };
+    // The DESIGN.md of a light brand
+    {
+        const page = await branded(`${view}?brand=brands/valoria-life.DESIGN.md`);
+        const l = await look(page);
+        check(l.accent === '#0e7c66' && l.bg === 'rgb(246, 247, 251)' && l.theme === 'light', `a DESIGN.md sets the accent (colors.primary ${l.accent}) and the page (colors.surface ${l.bg}), in light mode`);
+        check(l.name === 'Valoria Life' && l.powered === 'powered by AWA' && /valoria-life\.svg$/.test(l.logo) && l.logo_loaded && !l.inline_svg, 'the header shows the logo (an SVG as an image, not inlined), the company\'s name and "powered by AWA"');
+        check(/^"?Space Grotesk/.test(l.display) && /^"?Inter/.test(l.body) && l.radius === '8px', `the fonts and the radius follow typography and rounded (${l.display.split(',')[0]}, ${l.body.split(',')[0]}, ${l.radius})`);
+        // The colours of states keep their hue and read on the brand's background
+        const hue = h => { const c = B.parse_color(h), r = c.r / 255, g = c.g / 255, b = c.b / 255, max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min; if (!d) return 0; const x = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4; return x * 60; };
+        const st = l.states, bgs = ['bg', 'panel', 'card'].map(k => B.parse_color(st[k]));
+        const kept = Object.entries({ run: '#A855F7', wait: '#FBBF24', ok: '#10B981', bad: '#FF4D4F' }).map(([k, base]) => ({ k, turn: Math.abs(hue(st[k]) - hue(base)), mark: Math.min(...bgs.map(b => B.contrast(B.parse_color(st[k]), b))), word: Math.min(...bgs.map(b => B.contrast(B.parse_color(st[`${k}-ink`]), b))) }));
+        check(kept.every(x => x.turn < 3 && x.mark >= 3 && x.word >= 4.5), `the colours of states keep their hue and pass contrast: ${kept.map(x => `${x.k} ${x.mark.toFixed(1)}:1 as a mark, ${x.word.toFixed(1)}:1 as a word`).join(', ')}`);
+        await readable(page, 'light brand, journeys');
+        await page.evaluate(() => { location.hash = '#story/1/1/0/12'; }); await settle(page);
+        await readable(page, 'light brand, one customer\'s journey');
+        await page.evaluate(() => { location.hash = '#run/1/1/1/10'; }); await settle(page);
+        await readable(page, 'light brand, a run');
+        await page.click('#L3 .gw:text("undone afterwards")'); await page.waitForTimeout(300);
+        await readable(page, 'light brand, the glossary');
+        check(page.outside.every(u => u.startsWith('https://fonts.googleapis.com/css2?family=')) && page.errors.length === 0, `nothing is fetched but the fonts, and no page error ${page.errors.join('; ')}`);
+        await page.close();
+    }
+    // The brand.json of the same brand, through the options
+    {
+        const page = await branded(`${view}?options=${encodeURIComponent(`${base}/brand-options.json`)}`, page => page.route('**/brand-options.json', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ brand: 'tools/visualization/brands/valoria-life.brand.json' }) })));
+        const l = await look(page);
+        check(l.accent === '#0e7c66' && l.bg === 'rgb(246, 247, 251)' && l.name === 'Valoria Life' && l.logo_loaded, 'a brand.json, named by the options\' "brand", applies the same accent, page, name and logo');
+        await page.close();
+    }
+    // A dark brand, and the default
+    {
+        const page = await branded(`${view}?brand=brands/valoria-life-dark.DESIGN.md`);
+        const l = await look(page);
+        check(l.accent === '#2bb596' && l.theme === 'dark' && l.bg === 'rgb(12, 20, 22)', `a dark DESIGN.md gives a dark view (${l.accent} on ${l.bg})`);
+        await page.evaluate(() => { location.hash = '#run/1/1/1/10'; }); await settle(page);
+        await readable(page, 'dark brand, a run');
+        await page.close();
+        const plain = await branded(view);
+        const p = await look(plain);
+        check(p.name === undefined && (await plain.textContent('#brandmark')) === 'AWA' && p.accent === '#818cf8' && p.bg === 'rgb(11, 15, 25)' && plain.outside.length === 0, 'without a brand, the view is AWA\'s own and loads nothing');
+        await plain.close();
+    }
+    // A brand with a colour that is not one, a primary too light for its page, and fonts the page does not have
+    {
+        const design = ['---', 'name: Test & Co <b>', 'logo: "javascript:alert(1)"', 'colors:', '  primary: "#FFE08A"', '  surface: "#FFFFFF"', '  on-surface: "url(javascript:alert(1))"', '  surface-container: "red; background: url(x)"',
+            'typography:', '  headline-lg: { fontFamily: Lora }', '  body-md: { fontFamily: "Source Sans 3" }', '  label-md: { fontFamily: "x\\"; } body { color: red" }', 'rounded:', '  md: "expression(1)"', '  lg: 4px', '---', '# Test'].join('\n');
+        const page = await branded(`${view}?brand=${encodeURIComponent(`${base}/test.DESIGN.md`)}`, page => page.route('**/test.DESIGN.md', route => route.fulfill({ contentType: 'text/markdown', body: design })));
+        const l = await look(page), warned = page.warnings.join(' | ');
+        check(/colors\.on-surface/.test(warned) && /colors\.surface-container/.test(warned) && /rounded\.md/.test(warned) && /logo/.test(warned) && !l.logo && l.text !== 'url(javascript:alert(1))',
+            'a colour, a dimension or a logo that is not one is refused, with a warning naming its token');
+        const accent = B.parse_color(l.accent);
+        check(/colors\.primary/.test(warned) && B.contrast(accent, B.parse_color('#FFFFFF')) >= 3 && l.accent !== '#ffe08a', `a primary too light for its page is darkened to 3:1 (${l.accent}), with a warning naming colors.primary`);
+        check(l.name === 'Test & Co <b>' && !(await page.$('#brandmark b')), 'the brand\'s name is text, never markup');
+        check(/^"?Source Sans 3/.test(l.body) && page.outside.some(u => /family=Lora/.test(u)) && page.outside.some(u => /family=Source\+Sans\+3/.test(u)), 'fonts the page does not have are asked of Google Fonts, and the body takes the brand\'s');
+        await readable(page, 'a brand with a light primary');
+        await page.close();
+    }
+    server.close();
 }
 
 await browser.close();

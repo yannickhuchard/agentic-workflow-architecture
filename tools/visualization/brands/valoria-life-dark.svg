@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Valoria Life">
+  <rect width="64" height="64" rx="14" fill="#2BB596"/>
+  <path d="M16 18h8.5L32 39.5 39.5 18H48L36.2 48h-8.4z" fill="#06241D"/>
+  <circle cx="32" cy="13" r="3.5" fill="#E3C35A"/>
+</svg>

@@ -89,4 +89,9 @@ export const journey_event = z.strictObject({
 export const workflows = z.array(json_document('A workflow')).min(1).max(LIMITS.workflows);
 export const journeys = z.array(json_document('A journey')).min(1).max(LIMITS.journeys);
 export const portfolio = bounded(z.record(z.string(), z.unknown()), LIMITS.portfolio_bytes, 'The portfolio');
+/** A company's brand for the view: a DESIGN.md text, or a brand.json object, inline. Logos only as data: URLs */
+export const brand = z.union([
+    z.string().min(1).max(LIMITS.brand_bytes).describe('The text of a DESIGN.md file: YAML front matter with colors (primary, surface, on-surface and their variants), typography, rounded, and name.'),
+    bounded(z.record(z.string(), z.unknown()), LIMITS.brand_bytes, 'The brand').describe('A brand.json: { "name", "logo", "logo_dark", "colors": { "primary", "surface", "on-surface", ... }, "typography": { "heading", "body" }, "rounded": { "md", "lg" }, "mode": "dark" | "light" | "auto" }.'),
+]).describe('Optional. A company\'s brand for the view: its colours, fonts, corner radius, name and logo, in the DESIGN.md format or as a brand.json. A logo must be a data: URL (image/png, image/svg+xml, image/jpeg, image/webp), since the view reaches no network. Colours are read as hex, rgb() or hsl(); the colours of states keep their hue and are adjusted for contrast.');
 export { iso_duration, iso_time };

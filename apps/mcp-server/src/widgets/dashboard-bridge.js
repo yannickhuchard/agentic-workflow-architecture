@@ -10,6 +10,8 @@
     // A record cannot be opened from a file here, and there is no page to go to
     ['open', 'tojourney'].forEach(function (id) { var el = document.getElementById(id); if (el) el.hidden = true; });
 
+    // A company's brand, given inline with the tool call: its colours, fonts and logo (a data: URL); nothing is fetched
+    function brand(awa) { try { if (awa && awa.brand && window.AWA_set_brand) window.AWA_set_brand(awa.brand, { data_only: true, network: false }); } catch (error) { console.warn('The brand could not be applied: ' + error.message); } }
     var host = window.AWA_HOST.connect({
         name: 'awa-dashboard',
         onResult: function (result) {
@@ -17,6 +19,7 @@
             if (result.isError) { if (!shown) say(first_text(result)); return; }
             var awa = (result._meta && result._meta.awa) || (result.structuredContent && result.structuredContent.awa);
             if (!awa || awa.view !== 'dashboard' || !awa.record) return;
+            brand(awa);
             try { window.AWA_dashboard_show(awa.record, typeof awa.source === 'string' ? awa.source : 'simulated', '', awa.period && typeof awa.period === 'object' ? awa.period : undefined); shown = true; }
             catch (error) { say('These measures could not be shown: ' + error.message); }
         },

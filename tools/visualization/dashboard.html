@@ -40,7 +40,8 @@
   --focus: #86b6ef; --stuck-ink: #fab219; --bad-ink: #e66767;
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; background: var(--plane); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+html, body { margin: 0; background: var(--plane); color: var(--ink); font: 14px/1.45 var(--font-body, system-ui, -apple-system, "Segoe UI", sans-serif); }
+h1, h2 { font-family: var(--font-display, inherit); }
 button, select, input { font: inherit; color: inherit; }
 button { cursor: pointer; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
@@ -50,7 +51,7 @@ header.top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
 header.top h1 { font-size: 18px; margin: 0; font-weight: 650; }
 .src { color: var(--mute); font-size: 12px; }
 .grow { flex: 1 1 auto; }
-.ctl { height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--ring); background: var(--raised); }
+.ctl { height: 32px; padding: 0 10px; border-radius: var(--radius, 8px); border: 1px solid var(--ring); background: var(--raised); }
 a.ctl { display: inline-flex; align-items: center; text-decoration: none; color: inherit; }
 .ctl:hover { background: var(--wash); }
 .asof { color: var(--ink2); font-size: 12px; margin: 0 0 14px; }
@@ -59,7 +60,7 @@ a.ctl { display: inline-flex; align-items: center; text-decoration: none; color:
 section { margin-top: 22px; }
 section > h2 { font-size: 15px; margin: 0 0 2px; font-weight: 650; }
 section > p.sub { margin: 0 0 10px; color: var(--ink2); font-size: 12.5px; }
-.card { background: var(--surface); border: 1px solid var(--ring); border-radius: 12px; }
+.card { background: var(--surface); border: 1px solid var(--ring); border-radius: var(--radius-lg, 12px); }
 
 /* Numbers that open what they were computed over */
 .n { background: none; border: 0; padding: 0; text-align: inherit; border-bottom: 1px dotted var(--axis); }
@@ -174,7 +175,7 @@ footer { margin-top: 28px; color: var(--mute); font-size: 12px; }
 <body>
 <div class="wrap">
   <header class="top">
-    <h1>Measures</h1><span class="src" id="source"></span><span class="grow"></span>
+    <span id="brandmark" hidden></span><h1>Measures</h1><span class="src" id="source"></span><span class="grow"></span>
     <label class="note" for="journey">Journey</label>
     <select class="ctl" id="journey"></select>
     <label class="note" for="period">Started</label>
@@ -222,6 +223,7 @@ footer { margin-top: 28px; color: var(--mute); font-size: 12px; }
 </aside>
 <div id="tip" hidden></div>
 
+<script src="awa-brand.js"></script>
 <script src="awa-kpis.js"></script>
 <script src="dashboard-sample.js"></script>
 <script>
@@ -556,7 +558,9 @@ function message(text) { $('msg').textContent = text; $('msg').hidden = false; $
 function show(data, from, how, options) {
     if (!K) return message('awa-kpis.js is missing: run "npm run build:measures" in sdk/typescript.');
     if (!data || typeof data !== 'object' || !(Array.isArray(data.journeys) || Array.isArray(data.runs))) return message(`${from || 'This'} is not a record of journeys: it has no "journeys". Export one with "awa journey export".`);
-    P = data; source = from || ''; link = how ? how + (query.get('options') ? `&options=${encodeURIComponent(query.get('options'))}` : '') : '';
+    // The journey view is told to load the same record, with the same options and brand
+    const passed = [how ? how.replace(/^\?/, '') : '', ...['options', 'brand'].filter(k => how || k === 'brand').filter(k => query.get(k)).map(k => `${k}=${encodeURIComponent(query.get(k))}`)].filter(Boolean);
+    P = data; source = from || ''; link = passed.length ? '?' + passed.join('&') : '';
     // A customer named by the paths the journey view's options give, where the record names nobody
     if (Array.isArray(OPTIONS.subject_name)) for (const j of P.journeys || []) for (const row of j.instances) {
         if (row.subject_name) continue;
@@ -607,8 +611,22 @@ document.addEventListener('pointermove', e => {
     tip.style.left = `${Math.max(8, x)}px`; tip.style.top = `${Math.max(8, e.clientY - tip.offsetHeight - 10)}px`;
 });
 
+// A company's brand (?brand=<url>: a DESIGN.md or a brand.json, or the options' "brand"): its colours under this page's own names, its fonts and its logo
+const BRAND_MAP = { '--plane': '--bg', '--surface': '--panel', '--raised': '--card', '--ink': '--text', '--ink2': '--soft', '--hair': '--line', '--axis': '--stroke', '--ring': '--line-strong',
+    '--focus': '--accent-text', '--done': '--accent', '--work': '--accent', '--wait': '--accent-soft', '--left': '--left', '--idle': '--undone', '--stuck': '--wait', '--good': '--ok', '--stuck-ink': '--wait-ink' };
+function setBrand(source, { data_only = false, network = true } = {}) {
+    const B = window.AWA_brand; if (!B || !source) return null;
+    const brand = typeof source === 'object' && source.colors && source.colors.top ? source : B.read_brand(source, { data_only });
+    if (brand.invalid) { for (const w of brand.warnings) console.warn(`Brand: ${w}`); return null; }
+    $('brandmark').hidden = false;
+    return B.apply(brand, { header: $('brandmark'), map: BRAND_MAP, network });
+}
+window.AWA_set_brand = setBrand;
 const get = async url => { const r = await fetch(url, { headers: { accept: 'application/json' } }); if (!r.ok) throw new Error(`${url} answered ${r.status}`); return r.json(); };
-(query.get('options') ? get(query.get('options')).then(o => { OPTIONS = o || {}; }, error => console.warn(`Cannot load the options: ${error.message}`)) : Promise.resolve()).then(() => {
+(query.get('options') ? get(query.get('options')).then(o => { OPTIONS = o || {}; }, error => console.warn(`Cannot load the options: ${error.message}`)) : Promise.resolve())
+.then(() => window.AWA_brand && window.AWA_brand.from_page({ options: OPTIONS, options_url: query.get('options') ? new URL(query.get('options'), location.href).href : undefined }))
+.then(brand => { if (brand) setBrand(brand); }, error => console.warn(`Brand: ${error.message}`))
+.then(() => {
 if (query.get('live')) {
     const host = query.get('live').replace(/\/$/, ''), url = `${host}/api/v1/journeys/portfolio`;
     let last = '';

@@ -26,3 +26,10 @@ export function story_builder() {
     if (!builder) builder = createRequire(import.meta.url)(path.join(VIEWS_DIR, 'journey-story-builder.js')).build_story;
     return builder;
 }
+
+let brand;
+/** tools/visualization/awa-brand.js: reads a DESIGN.md or a brand.json, and checks its colours */
+export function brand_module() {
+    if (!brand) brand = createRequire(import.meta.url)(path.join(VIEWS_DIR, 'awa-brand.js'));
+    return brand;
+}

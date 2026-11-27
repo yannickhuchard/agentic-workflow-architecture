@@ -11,28 +11,39 @@
   examples/claims-journey/make-story.mjs. No build step and no network.
 -->
 <style>
-:root { --bg: #0b0f19; --panel: #111827; --card: #1e293b; --line: rgba(255,255,255,.08); --text: #f8fafc; --mute: #9ca3af; --soft: #cbd5e1; --focus: #818cf8; --run: #a855f7; --wait: #fbbf24; --ok: #10b981; --bad: #ff4d4f; }
+:root {
+  color-scheme: dark;
+  /* The palette, in AWA's own colours (brands/awa.DESIGN.md). A brand (?brand=, awa-brand.js) replaces these */
+  --bg: #0b0f19; --panel: #111827; --card: #1e293b; --raised: #2a3a52; --text: #f8fafc; --soft: #cbd5e1; --mute: #9ca3af; --faint: #64748b; --stroke: #475569; --edge: #334155;
+  --line: rgba(255,255,255,.08); --line-strong: rgba(255,255,255,.16); --hover: rgba(255,255,255,.07); --wash: rgba(255,255,255,.04); --shadow: rgba(0,0,0,.55);
+  --accent: #818cf8; --accent-text: #a5b4fc; --accent-fill: #4f46e5; --on-accent: #ffffff; --focus: #818cf8;
+  /* The colours that carry meaning: a brand keeps their hue */
+  --run: #a855f7; --wait: #fbbf24; --ok: #10b981; --bad: #ff4d4f; --undone: #9ca3af; --sky: #38bdf8;
+  --run-ink: #c084fc; --wait-ink: #fcd34d; --ok-ink: #34d399; --bad-ink: #ff8a8c; --undone-ink: #9ca3af; --sky-ink: #38bdf8;
+  --font-display: 'Space Grotesk', Inter, system-ui, sans-serif; --font-body: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --radius: 8px; --radius-lg: 12px;
+}
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif; overflow: hidden; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-body); overflow: hidden; }
 button { font: inherit; color: inherit; }
-button:focus-visible, input:focus-visible { outline: 2px solid #a5b4fc; outline-offset: 2px; }
-.hd { font-family: 'Space Grotesk', Inter, system-ui, sans-serif; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+.hd { font-family: var(--font-display); }
 .mono { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
 #fit { position: absolute; left: 0; top: 0; width: 1440px; height: 900px; transform-origin: 0 0; overflow: hidden; background: var(--bg); }
 
 #top { position: absolute; left: 0; top: 0; width: 1440px; height: 56px; padding: 0 24px; display: flex; align-items: center; gap: 12px; background: var(--panel); border-bottom: 1px solid var(--line); z-index: 5; }
-.crumb { height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid transparent; background: none; cursor: pointer; font-size: 14px; color: var(--soft); white-space: nowrap; }
-.crumb:hover { background: rgba(255,255,255,.07); }
-.crumb.on { color: #fff; font-weight: 600; background: rgba(129,140,248,.18); border-color: rgba(129,140,248,.45); }
-.sep { color: #64748b; }
-.seg-ctl { display: flex; border: 1px solid rgba(255,255,255,.16); border-radius: 9px; overflow: hidden; }
-.seg-ctl button { height: 32px; padding: 0 12px; border: 0; border-right: 1px solid rgba(255,255,255,.12); background: none; cursor: pointer; font-size: 13px; color: var(--soft); white-space: nowrap; }
+.crumb { height: 32px; padding: 0 12px; border-radius: var(--radius); border: 1px solid transparent; background: none; cursor: pointer; font-size: 14px; color: var(--soft); white-space: nowrap; }
+.crumb:hover { background: color-mix(in srgb, var(--text) 7%, transparent); }
+.crumb.on { color: var(--text); font-weight: 600; background: color-mix(in srgb, var(--accent) 18%, transparent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.sep { color: var(--faint); }
+.seg-ctl { display: flex; border: 1px solid color-mix(in srgb, var(--text) 16%, transparent); border-radius: 9px; overflow: hidden; }
+.seg-ctl button { height: 32px; padding: 0 12px; border: 0; border-right: 1px solid color-mix(in srgb, var(--text) 12%, transparent); background: none; cursor: pointer; font-size: 13px; color: var(--soft); white-space: nowrap; }
 .seg-ctl button:last-child { border-right: 0; }
-.seg-ctl button:hover:not(:disabled) { background: rgba(255,255,255,.07); }
-.seg-ctl button.on { background: #4338ca; color: #fff; font-weight: 600; }
+.seg-ctl button:hover:not(:disabled) { background: color-mix(in srgb, var(--text) 7%, transparent); }
+.seg-ctl button.on { background: var(--accent-fill); color: var(--on-accent); font-weight: 600; }
 .seg-ctl button:disabled { opacity: .4; cursor: default; }
-.nav { width: 32px; height: 32px; border-radius: 8px; border: 1px solid rgba(255,255,255,.16); background: var(--card); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
-.nav:hover { background: #2a3a52; }
+.nav { width: 32px; height: 32px; border-radius: var(--radius); border: 1px solid color-mix(in srgb, var(--text) 16%, transparent); background: var(--card); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+.nav:hover { background: var(--raised); }
 .ic { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
 /* The heights are layers of one stage; moving between them is a zoom into the thing pointed at */
@@ -43,12 +54,12 @@ button:focus-visible, input:focus-visible { outline: 2px solid #a5b4fc; outline-
 
 /* Shapes: every kind of moment has its own, so colour is never the only cue */
 .sh { display: block; width: 100%; height: 100%; }
-.k-event { background: #f8fafc; transform: rotate(45deg) scale(.76); border-radius: 2px; }
+.k-event { background: var(--text); transform: rotate(45deg) scale(.76); border-radius: 2px; }
 .k-told { border: 2px solid var(--soft); background: var(--bg); transform: rotate(45deg) scale(.76); border-radius: 2px; }
 .k-timeout { border: 2px dashed var(--wait); background: var(--bg); transform: rotate(45deg) scale(.76); }
 .k-signal { border: 2px solid var(--soft); background: var(--bg); transform: scale(.6); }
 .k-announced { border: 2px solid var(--soft); background: var(--bg); border-radius: 50%; transform: scale(.55); }
-.k-partner { background: #38bdf8; border-radius: 2px; transform: scale(.55); }
+.k-partner { background: var(--sky); border-radius: 2px; transform: scale(.55); }
 .k-stage_in { border: 3px solid var(--soft); border-radius: 50%; background: var(--bg); transform: scale(.82); }
 .k-stage_out { background: var(--soft); border-radius: 50%; transform: scale(.6); }
 .k-goal { background: var(--ok); border-radius: 50%; transform: scale(.56); box-shadow: 0 0 0 4px var(--bg), 0 0 0 7px var(--ok); }
@@ -64,102 +75,102 @@ button:focus-visible, input:focus-visible { outline: 2px solid #a5b4fc; outline-
 .k-human_done { background: var(--wait); border-radius: 50%; transform: scale(.7); }
 .k-undone { border: 2px dashed var(--bad); border-radius: 50%; background: var(--bg); transform: scale(.8); }
 @keyframes wait { 50% { opacity: .4; } }
-@keyframes glow { 50% { box-shadow: 0 0 0 5px rgba(168,85,247,.12), 0 0 26px rgba(168,85,247,.6); } }
+@keyframes glow { 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--run) 12%, transparent), 0 0 26px color-mix(in srgb, var(--run) 60%, transparent); } }
 @keyframes capin { from { opacity: 0; transform: translateY(8px); } }
 
 /* Mood, said in a word and a number as well as a colour */
-.m-up2, .m-up1 { color: #34d399; } .m-mid { color: var(--soft); } .m-dn1 { color: #fbbf24; } .m-dn2 { color: #ff8a8c; }
+.m-up2, .m-up1 { color: var(--ok-ink); } .m-mid { color: var(--soft); } .m-dn1 { color: var(--wait-ink); } .m-dn2 { color: var(--bad-ink); }
 
 /* Atlas: the journeys and the people who pass through them */
-.jcard { position: absolute; top: 14px; width: 360px; height: 196px; padding: 14px 16px; border-radius: 14px; background: var(--panel); border: 1px solid var(--line); cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 8px; transition: border-color .2s, background-color .2s; }
-.jcard:hover { border-color: rgba(129,140,248,.6); background: #162033; }
+.jcard { position: absolute; top: 14px; width: 360px; height: 196px; padding: 14px 16px; border-radius: var(--radius-lg); background: var(--panel); border: 1px solid var(--line); cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 8px; transition: border-color .2s, background-color .2s; }
+.jcard:hover { border-color: color-mix(in srgb, var(--accent) 60%, transparent); background: color-mix(in srgb, var(--accent) 6%, var(--panel)); }
 .stg { display: flex; gap: 4px; flex-wrap: wrap; }
-.stg span { font-size: 11px; padding: 2px 7px; border-radius: 5px; background: #27364d; color: #e2e8f0; }
+.stg span { font-size: 11px; padding: 2px 7px; border-radius: 5px; background: color-mix(in srgb, var(--accent) 12%, var(--card)); color: var(--text); }
 .kv { display: flex; gap: 14px; }
 .ct { display: flex; flex-direction: column; gap: 1px; min-width: 50px; }
 .jcard .ct span { line-height: 14px; }
-.ct b { font-family: 'Space Grotesk', Inter, sans-serif; font-size: 22px; line-height: 24px; font-weight: 600; }
+.ct b { font-family: var(--font-display); font-size: 22px; line-height: 24px; font-weight: 600; }
 .ct span { font-size: 12px; color: var(--mute); }
 .ct.warn b { color: var(--wait); }
 .ct .gw { font-size: 12px; color: var(--mute); }
 .hand { position: absolute; top: 80px; width: 32px; text-align: center; font-size: 12px; color: var(--soft); pointer-events: none; }
-.prow { position: absolute; left: 16px; width: 1408px; height: 66px; border-radius: 12px; border: 1px solid transparent; transition: background-color .3s, border-color .3s; pointer-events: none; }
-.prow.hot { background: rgba(129,140,248,.09); border-color: rgba(129,140,248,.4); }
+.prow { position: absolute; left: 16px; width: 1408px; height: 66px; border-radius: var(--radius-lg); border: 1px solid transparent; transition: background-color .3s, border-color .3s; pointer-events: none; }
+.prow.hot { background: color-mix(in srgb, var(--accent) 9%, transparent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
 .pname { position: absolute; left: 28px; width: 226px; display: flex; flex-direction: column; gap: 2px; pointer-events: none; }
-.pcell { position: absolute; width: 360px; height: 58px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255,255,255,.02); cursor: pointer; padding: 0 12px; display: flex; align-items: center; gap: 12px; text-align: left; transition: border-color .2s, background-color .2s; }
-.pcell:hover { border-color: rgba(129,140,248,.6); background: rgba(129,140,248,.08); }
+.pcell { position: absolute; width: 360px; height: 58px; border-radius: 10px; border: 1px solid var(--line); background: color-mix(in srgb, var(--text) 2%, transparent); cursor: pointer; padding: 0 12px; display: flex; align-items: center; gap: 12px; text-align: left; transition: border-color .2s, background-color .2s; }
+.pcell:hover { border-color: color-mix(in srgb, var(--accent) 60%, transparent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .spark { flex: none; width: 150px; height: 40px; overflow: visible; }
 
 /* All journeys of one kind, on calendar time */
-.card { position: absolute; top: 20px; height: 104px; padding: 14px 18px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; }
+.card { position: absolute; top: 20px; height: 104px; padding: 14px 18px; border-radius: var(--radius-lg); background: var(--panel); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; }
 /* A journey of many stages has narrow cards: the name, the time given, and the four counts two by two */
 .card.narrow { padding: 9px 8px 8px 10px; gap: 4px; }
 .card.narrow .kv { display: grid; grid-template-columns: 1fr 1fr; gap: 1px 4px; }
 .card.narrow .kv div { white-space: nowrap; font-size: 11px; line-height: 17px; color: var(--mute); }
-.card.narrow .kv b { font-family: 'Space Grotesk', Inter, sans-serif; font-size: 15px; font-weight: 600; color: var(--text); margin-right: 4px; }
+.card.narrow .kv b { font-family: var(--font-display); font-size: 15px; font-weight: 600; color: var(--text); margin-right: 4px; }
 .card.narrow .kv .warn b { color: var(--wait); }
-.tick { position: absolute; top: 142px; height: 548px; border-left: 1px solid rgba(255,255,255,.06); padding-left: 6px; font-size: 12px; color: var(--mute); pointer-events: none; }
-.lane { position: absolute; left: 16px; width: 1408px; height: 76px; border-radius: 12px; border: 1px solid transparent; background: transparent; cursor: pointer; text-align: left; padding: 9px 12px; display: flex; flex-direction: column; gap: 3px; transition: background-color .3s, border-color .3s; }
-.lane:hover { background: rgba(255,255,255,.045); }
-.lane.hot { background: rgba(129,140,248,.09); border-color: rgba(129,140,248,.4); }
+.tick { position: absolute; top: 142px; height: 548px; border-left: 1px solid color-mix(in srgb, var(--text) 6%, transparent); padding-left: 6px; font-size: 12px; color: var(--mute); pointer-events: none; }
+.lane { position: absolute; left: 16px; width: 1408px; height: 76px; border-radius: var(--radius-lg); border: 1px solid transparent; background: transparent; cursor: pointer; text-align: left; padding: 9px 12px; display: flex; flex-direction: column; gap: 3px; transition: background-color .3s, border-color .3s; }
+.lane:hover { background: color-mix(in srgb, var(--text) 4.5%, transparent); }
+.lane.hot { background: color-mix(in srgb, var(--accent) 9%, transparent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
 .ls { font-size: 12px; line-height: 15px; color: var(--mute); width: 222px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.seg { position: absolute; height: 24px; border-radius: 6px; overflow: hidden; white-space: nowrap; font-size: 12px; line-height: 24px; color: #e2e8f0; text-indent: 8px; pointer-events: none; transition: width .6s linear; }
-.seg.st0 { background: #27364d; } .seg.st1 { background: #34486a; } .seg.st2 { background: #445b85; }
+.seg { position: absolute; height: 24px; border-radius: 6px; overflow: hidden; white-space: nowrap; font-size: 12px; line-height: 24px; color: var(--text); text-indent: 8px; pointer-events: none; transition: width .6s linear; }
+.seg.st0 { background: color-mix(in srgb, var(--accent) 14%, var(--card)); } .seg.st1 { background: color-mix(in srgb, var(--accent) 24%, var(--card)); } .seg.st2 { background: color-mix(in srgb, var(--accent) 34%, var(--card)); }
 .seg.stalled { outline: 2px dashed var(--wait); outline-offset: -2px; }
 .mk { position: absolute; width: 16px; height: 16px; margin: -8px 0 0 -8px; pointer-events: none; transition: opacity .3s ease .2s, transform .35s cubic-bezier(.3,1.5,.5,1) .2s; }
 .mk.off { opacity: 0; transform: scale(.2); transition-delay: 0s; }
 .endl { position: absolute; font-size: 12px; font-weight: 600; white-space: nowrap; pointer-events: none; transition: opacity .4s ease .3s; }
 .endl.rt { transform: translateX(-100%); }
 .endl.off { opacity: 0; transition-delay: 0s; }
-.e-completed { color: #34d399; } .e-stalled { color: #fbbf24; } .e-abandoned { color: var(--soft); }
-.ph { position: absolute; top: 132px; width: 2px; height: 558px; margin-left: -1px; background: var(--focus); box-shadow: 0 0 12px rgba(129,140,248,.7); pointer-events: none; transition: left .6s linear; }
-.phl { position: absolute; top: -20px; left: 50%; transform: translateX(-50%); white-space: nowrap; font-size: 12px; font-weight: 600; color: #fff; background: #4338ca; padding: 2px 8px; border-radius: 6px; }
-.ring { position: absolute; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; border: 2px solid var(--focus); box-shadow: 0 0 18px rgba(129,140,248,.6); pointer-events: none; z-index: 2; transition: left .5s cubic-bezier(.4,0,.2,1), top .5s cubic-bezier(.4,0,.2,1); }
+.e-completed { color: var(--ok-ink); } .e-stalled { color: var(--wait-ink); } .e-abandoned { color: var(--soft); }
+.ph { position: absolute; top: 132px; width: 2px; height: 558px; margin-left: -1px; background: var(--focus); box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 70%, transparent); pointer-events: none; transition: left .6s linear; }
+.phl { position: absolute; top: -20px; left: 50%; transform: translateX(-50%); white-space: nowrap; font-size: 12px; font-weight: 600; color: var(--on-accent); background: var(--accent-fill); padding: 2px 8px; border-radius: 6px; }
+.ring { position: absolute; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; border: 2px solid var(--focus); box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 60%, transparent); pointer-events: none; z-index: 2; transition: left .5s cubic-bezier(.4,0,.2,1), top .5s cubic-bezier(.4,0,.2,1); }
 .ring.sm { width: 30px; height: 30px; margin: -15px 0 0 -15px; transition: left .6s linear, top .4s ease; }
 
 /* One journey: the living blueprint */
-.band { position: absolute; top: 58px; height: 596px; border-radius: 14px; padding: 4px 12px; font-size: 13px; font-weight: 600; color: #e2e8f0; white-space: nowrap; overflow: hidden; transition: opacity .4s ease; }
-.band.b0 { background: rgba(255,255,255,.03); } .band.b1 { background: rgba(255,255,255,.06); }
+.band { position: absolute; top: 58px; height: 596px; border-radius: var(--radius-lg); padding: 4px 12px; font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; transition: opacity .4s ease; }
+.band.b0 { background: color-mix(in srgb, var(--text) 3%, transparent); } .band.b1 { background: color-mix(in srgb, var(--text) 6%, transparent); }
 .band.off { opacity: .28; }
-.col { position: absolute; top: 58px; width: 34px; height: 596px; margin-left: -17px; border-radius: 10px; background: rgba(129,140,248,.10); pointer-events: none; transition: left .5s cubic-bezier(.4,0,.2,1); }
+.col { position: absolute; top: 58px; width: 34px; height: 596px; margin-left: -17px; border-radius: 10px; background: color-mix(in srgb, var(--accent) 10%, transparent); pointer-events: none; transition: left .5s cubic-bezier(.4,0,.2,1); }
 .ll { position: absolute; left: 28px; width: 150px; }
-.pt { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #e2e8f0; }
+.pt { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text); }
 .sub { font-size: 12px; line-height: 15px; color: var(--mute); }
 .rail { position: absolute; left: 176px; width: 1240px; height: 0; pointer-events: none; }
 .rowl { position: absolute; left: 28px; width: 150px; font-size: 11px; line-height: 16px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .g { position: absolute; width: 34px; height: 34px; margin: -17px 0 0 -17px; padding: 8px; border: 0; background: none; cursor: pointer; border-radius: 50%; z-index: 3; transition: opacity .3s ease .45s, transform .35s cubic-bezier(.3,1.5,.5,1) .45s; }
 .g.off { opacity: 0; transform: scale(.2); pointer-events: none; transition-delay: 0s; }
-.dot { position: absolute; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: #38bdf8; pointer-events: none; transition: opacity .3s ease .55s, transform .3s ease .55s; }
-.dot.out { background: var(--bg); border: 2px solid #38bdf8; }
-.doc { position: absolute; width: 11px; height: 13px; margin: -7px 0 0 -6px; border-radius: 2px 5px 2px 2px; background: #e2e8f0; pointer-events: auto; transition: opacity .3s ease .6s, transform .3s ease .6s; }
-.doc.out { background: var(--bg); border: 2px solid #e2e8f0; }
+.dot { position: absolute; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: var(--sky); pointer-events: none; transition: opacity .3s ease .55s, transform .3s ease .55s; }
+.dot.out { background: var(--bg); border: 2px solid var(--sky); }
+.doc { position: absolute; width: 11px; height: 13px; margin: -7px 0 0 -6px; border-radius: 2px 5px 2px 2px; background: var(--text); pointer-events: auto; transition: opacity .3s ease .6s, transform .3s ease .6s; }
+.doc.out { background: var(--bg); border: 2px solid var(--text); }
 .dot.off, .doc.off { opacity: 0; transform: scale(.2); transition-delay: 0s; }
-.th { position: absolute; background: #94a3b8; pointer-events: none; transition: transform .3s ease, opacity .3s ease; }
+.th { position: absolute; background: var(--mute); pointer-events: none; transition: transform .3s ease, opacity .3s ease; }
 .th.h { height: 2px; margin-top: -1px; transform-origin: left center; }
 .th.v { width: 2px; margin-left: -1px; transition-delay: .25s; }
 .th.v.down { transform-origin: center top; } .th.v.up { transform-origin: center bottom; }
 .th.h.off { transform: scaleX(0); transition-delay: 0s; } .th.v.off { transform: scaleY(0); transition-delay: 0s; }
-.th.h.time { background: none; background-image: repeating-linear-gradient(90deg, #64748b 0 5px, transparent 5px 10px); }
-.th.v.time { background: none; background-image: repeating-linear-gradient(180deg, #64748b 0 5px, transparent 5px 10px); }
-.gap { position: absolute; top: 136px; transform: translateX(-50%); font-size: 11px; color: #e2e8f0; padding: 1px 8px; border: 1px dashed #94a3b8; border-radius: 10px; background: var(--bg); white-space: nowrap; pointer-events: none; z-index: 2; transition: opacity .3s ease .1s; }
+.th.h.time { background: none; background-image: repeating-linear-gradient(90deg, var(--faint) 0 5px, transparent 5px 10px); }
+.th.v.time { background: none; background-image: repeating-linear-gradient(180deg, var(--faint) 0 5px, transparent 5px 10px); }
+.gap { position: absolute; top: 136px; transform: translateX(-50%); font-size: 11px; color: var(--text); padding: 1px 8px; border: 1px dashed var(--mute); border-radius: 10px; background: var(--bg); white-space: nowrap; pointer-events: none; z-index: 2; transition: opacity .3s ease .1s; }
 .gap.off { opacity: 0; transition-delay: 0s; }
-.rb { position: absolute; height: 40px; margin-top: -20px; border-radius: 20px; background: var(--card); border: 1.5px solid #475569; cursor: pointer; padding: 0; z-index: 1; transform-origin: left center; transition: opacity .3s ease .4s, transform .45s ease .4s, border-color .3s, background-color .2s; }
-.rb:hover { background: #2a3a52; }
+.rb { position: absolute; height: 40px; margin-top: -20px; border-radius: 20px; background: var(--card); border: 1.5px solid var(--stroke); cursor: pointer; padding: 0; z-index: 1; transform-origin: left center; transition: opacity .3s ease .4s, transform .45s ease .4s, border-color .3s, background-color .2s; }
+.rb:hover { background: var(--raised); }
 .rb.off { opacity: 0; transform: scaleX(.05); pointer-events: none; transition-delay: 0s; }
 .rb.r-running { border-color: var(--run); border-style: dashed; } .rb.r-completed { border-color: var(--ok); } .rb.r-failed { border-color: var(--bad); } .rb.r-cancelled { border-color: var(--mute); border-style: dotted; }
-.rbl { position: absolute; font-size: 12px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; border: 1px solid rgba(255,255,255,.22); background: var(--card); padding: 3px 9px; border-radius: 8px; cursor: pointer; z-index: 3; transition: opacity .3s ease .5s; }
-.rbl:hover { background: #2a3a52; border-color: var(--focus); }
+.rbl { position: absolute; font-size: 12px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; border: 1px solid color-mix(in srgb, var(--text) 22%, transparent); background: var(--card); padding: 3px 9px; border-radius: var(--radius); cursor: pointer; z-index: 3; transition: opacity .3s ease .5s; }
+.rbl:hover { background: var(--raised); border-color: var(--focus); }
 .rbl.off { opacity: 0; pointer-events: none; transition-delay: 0s; }
-.fl { position: absolute; font-size: 12px; font-weight: 600; color: #fff; background: #312e81; border: 1px solid var(--focus); padding: 3px 9px; border-radius: 8px; white-space: nowrap; pointer-events: none; z-index: 4; transition: left .5s cubic-bezier(.4,0,.2,1), top .5s cubic-bezier(.4,0,.2,1); }
+.fl { position: absolute; font-size: 12px; font-weight: 600; color: var(--text); background: color-mix(in srgb, var(--accent) 30%, var(--panel)); border: 1px solid var(--focus); padding: 3px 9px; border-radius: var(--radius); white-space: nowrap; pointer-events: none; z-index: 4; transition: left .5s cubic-bezier(.4,0,.2,1), top .5s cubic-bezier(.4,0,.2,1); }
 .fl.ct { transform: translateX(-50%); } .fl.rt { transform: translateX(-100%) translateX(14px); } .fl.lt { transform: translateX(-14px); }
-.chip { height: 28px; padding: 0 12px; border-radius: 14px; display: inline-flex; align-items: center; gap: 8px; font-size: 13px; border: 1px solid rgba(255,255,255,.16); color: var(--soft); white-space: nowrap; transition: background-color .4s, border-color .4s, color .4s, opacity .3s; }
-.chip.ok { background: rgba(16,185,129,.16); border-color: var(--ok); color: #6ee7b7; }
-.chip.miss { background: rgba(251,191,36,.12); border-color: var(--wait); color: #fcd34d; border-style: dashed; }
-.chip.e-completed { background: rgba(16,185,129,.16); border-color: var(--ok); color: #6ee7b7; }
-.chip.e-stalled { background: rgba(251,191,36,.14); border-color: var(--wait); color: #fcd34d; }
-.chip.e-abandoned { background: rgba(156,163,175,.16); border-color: var(--mute); color: #e5e7eb; }
+.chip { height: 28px; padding: 0 12px; border-radius: var(--radius-lg); display: inline-flex; align-items: center; gap: 8px; font-size: 13px; border: 1px solid color-mix(in srgb, var(--text) 16%, transparent); color: var(--soft); white-space: nowrap; transition: background-color .4s, border-color .4s, color .4s, opacity .3s; }
+.chip.ok { background: color-mix(in srgb, var(--ok) 16%, transparent); border-color: var(--ok); color: var(--ok-ink); }
+.chip.miss { background: color-mix(in srgb, var(--wait) 12%, transparent); border-color: var(--wait); color: var(--wait-ink); border-style: dashed; }
+.chip.e-completed { background: color-mix(in srgb, var(--ok) 16%, transparent); border-color: var(--ok); color: var(--ok-ink); }
+.chip.e-stalled { background: color-mix(in srgb, var(--wait) 14%, transparent); border-color: var(--wait); color: var(--wait-ink); }
+.chip.e-abandoned { background: color-mix(in srgb, var(--undone) 16%, transparent); border-color: var(--mute); color: var(--text); }
 .chip.hide { opacity: 0; }
-.moodline { fill: none; stroke: #e2e8f0; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; transition: stroke-dashoffset .5s ease; }
+.moodline { fill: none; stroke: var(--text); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; transition: stroke-dashoffset .5s ease; }
 .mdot { transition: opacity .3s ease .4s; } .mdot.off { opacity: 0; transition-delay: 0s; }
 .lg { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--soft); white-space: nowrap; }
 .lgi { width: 14px; height: 14px; flex: none; position: relative; }
@@ -172,27 +183,27 @@ button:focus-visible, input:focus-visible { outline: 2px solid #a5b4fc; outline-
 #L2 .rb.off { opacity: .35; transform: none; pointer-events: auto; }
 #L2 .rbl.off { opacity: .45; pointer-events: auto; }
 #L2 .band.off { opacity: .55; }
-.ms { stroke: #e2e8f0; stroke-width: 2; stroke-linecap: round; transition: opacity .3s ease; }
+.ms { stroke: var(--text); stroke-width: 2; stroke-linecap: round; transition: opacity .3s ease; }
 .ms.said { stroke-width: 3.5; } .ms.guess { stroke-dasharray: 5 5; } .ms.off { opacity: .25; }
-.md { position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; border: 2px solid #e2e8f0; background: var(--bg); padding: 0; cursor: pointer; z-index: 3; transition: opacity .3s ease; }
-.md.said { background: #e2e8f0; } .md.off { opacity: .45; }
+.md { position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; border: 2px solid var(--text); background: var(--bg); padding: 0; cursor: pointer; z-index: 3; transition: opacity .3s ease; }
+.md.said { background: var(--text); } .md.off { opacity: .45; }
 .nd[data-n] { cursor: pointer; }
 
-.listp { position: absolute; right: 24px; top: 58px; width: 560px; height: 596px; border-radius: 14px; background: var(--panel); border: 1px solid rgba(129,140,248,.5); box-shadow: 0 20px 60px rgba(0,0,0,.6); z-index: 6; display: flex; flex-direction: column; overflow: hidden; }
+.listp { position: absolute; right: 24px; top: 58px; width: 560px; height: 596px; border-radius: var(--radius-lg); background: var(--panel); border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent); box-shadow: 0 20px 60px var(--shadow); z-index: 6; display: flex; flex-direction: column; overflow: hidden; }
 .listp[hidden] { display: none; }
 .listh { flex: none; display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
 .listb { flex: 1 1 auto; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 2px; }
-.ll2 { display: flex; gap: 12px; align-items: baseline; width: 100%; padding: 7px 8px; border-radius: 8px; border: 1px solid transparent; background: none; cursor: pointer; text-align: left; font-size: 13px; line-height: 18px; color: #e2e8f0; }
-.ll2:hover { background: rgba(255,255,255,.05); }
-.ll2.cur { background: rgba(129,140,248,.14); border-color: rgba(129,140,248,.45); }
+.ll2 { display: flex; gap: 12px; align-items: baseline; width: 100%; padding: 7px 8px; border-radius: var(--radius); border: 1px solid transparent; background: none; cursor: pointer; text-align: left; font-size: 13px; line-height: 18px; color: var(--text); }
+.ll2:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
+.ll2.cur { background: color-mix(in srgb, var(--accent) 14%, transparent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
 .ll2 .w { flex: none; width: 104px; font-size: 12px; color: var(--mute); white-space: nowrap; }
-.ll2 .gapl { color: #a5b4fc; font-size: 12px; }
+.ll2 .gapl { color: var(--accent-text); font-size: 12px; }
 
 /* One run */
 .nd { position: absolute; transition: border-color .25s ease .35s, box-shadow .25s ease .35s, background-color .25s ease .35s, opacity .25s ease .35s; }
-.nd.act { border: 1.5px solid #475569; border-radius: 8px; background: var(--card); padding: 8px 10px; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
-.nd.evt { border: 2px solid #64748b; border-radius: 50%; background: var(--bg); }
-.nd.dec { clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); background: #475569; }
+.nd.act { border: 1.5px solid var(--stroke); border-radius: var(--radius); background: var(--card); padding: 8px 10px; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.nd.evt { border: 2px solid var(--faint); border-radius: 50%; background: var(--bg); }
+.nd.dec { clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); background: var(--stroke); }
 .tg { font-size: 10px; line-height: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--mute); }
 /* Three lines of a name fit in the box (the builder widens the boxes of a workflow until they do); a fourth is cut, and the box's title gives the whole name */
 .nm { align-self: stretch; font-size: 12px; line-height: 13px; font-weight: 600; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
@@ -201,10 +212,10 @@ button:focus-visible, input:focus-visible { outline: 2px solid #a5b4fc; outline-
 .m-timer .ev-in { display: block; left: 50%; top: 50%; width: 2px; height: 11px; margin: -11px 0 0 -1px; background: var(--soft); }
 .m-wait .ev-in { display: block; inset: 6px; border: 2px dashed var(--soft); border-radius: 50%; }
 .m-publish .ev-in { display: block; inset: 10px; background: var(--soft); border-radius: 50%; }
-.nd.s1 { border-color: var(--run); box-shadow: 0 0 0 3px rgba(168,85,247,.25), 0 0 16px rgba(168,85,247,.45); animation: glow 1.5s ease-in-out infinite; }
-.nd.s2 { border-color: var(--wait); border-style: dashed; box-shadow: 0 0 14px rgba(251,191,36,.3); }
+.nd.s1 { border-color: var(--run); box-shadow: 0 0 0 3px color-mix(in srgb, var(--run) 25%, transparent), 0 0 16px color-mix(in srgb, var(--run) 45%, transparent); animation: glow 1.5s ease-in-out infinite; }
+.nd.s2 { border-color: var(--wait); border-style: dashed; box-shadow: 0 0 14px color-mix(in srgb, var(--wait) 30%, transparent); }
 .nd.s3 { border-color: var(--ok); }
-.nd.s4 { border-color: var(--bad); background: #3b1d24; box-shadow: 0 0 14px rgba(255,77,79,.35); }
+.nd.s4 { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 16%, var(--card)); box-shadow: 0 0 14px color-mix(in srgb, var(--bad) 35%, transparent); }
 .nd.s5 { border-color: var(--mute); border-style: dotted; opacity: .8; }
 .nd.s6 { border-style: dashed; opacity: .55; }
 .nd.dec.s1 { background: var(--run); } .nd.dec.s3 { background: var(--ok); } .nd.dec.s4 { background: var(--bad); }
@@ -212,52 +223,52 @@ button:focus-visible, input:focus-visible { outline: 2px solid #a5b4fc; outline-
 .nl { position: absolute; width: 104px; margin-left: -52px; text-align: center; font-size: 12px; line-height: 14px; color: var(--soft); pointer-events: none; z-index: 2; }
 .nl span { background: var(--bg); padding: 0 3px; }
 .nl.dl { width: auto; margin-left: 0; text-align: left; white-space: nowrap; }
-.eg { position: absolute; background: #334155; pointer-events: none; }
-.eg.timeout { background: none; background-image: repeating-linear-gradient(90deg, #7c6a2e 0 5px, transparent 5px 9px); }
-.eg.timeout.vv { background-image: repeating-linear-gradient(180deg, #7c6a2e 0 5px, transparent 5px 9px); }
-.eg.undo { background: none; background-image: repeating-linear-gradient(180deg, #64748b 0 2px, transparent 2px 6px); }
+.eg { position: absolute; background: var(--edge); pointer-events: none; }
+.eg.timeout { background: none; background-image: repeating-linear-gradient(90deg, color-mix(in srgb, var(--wait) 45%, var(--bg)) 0 5px, transparent 5px 9px); }
+.eg.timeout.vv { background-image: repeating-linear-gradient(180deg, color-mix(in srgb, var(--wait) 45%, var(--bg)) 0 5px, transparent 5px 9px); }
+.eg.undo { background: none; background-image: repeating-linear-gradient(180deg, var(--faint) 0 2px, transparent 2px 6px); }
 .ef { position: absolute; inset: 0; background: var(--ok); transition: transform .2s linear; }
 .ef.timeout { background: var(--wait); } .ef.undo { background: var(--bad); }
 .ef.r { transform-origin: left center; transform: scaleX(0); } .ef.l { transform-origin: right center; transform: scaleX(0); }
 .ef.d { transform-origin: center top; transform: scaleY(0); } .ef.u { transform-origin: center bottom; transform: scaleY(0); }
 .ef.on { transform: none; }
 .tip { position: absolute; width: 0; height: 0; border: 6px solid transparent; pointer-events: none; transition: border-color .2s linear .4s; }
-.tip.r { border-left-color: #475569; } .tip.l { border-right-color: #475569; } .tip.d { border-top-color: #475569; } .tip.u { border-bottom-color: #475569; }
+.tip.r { border-left-color: var(--stroke); } .tip.l { border-right-color: var(--stroke); } .tip.d { border-top-color: var(--stroke); } .tip.u { border-bottom-color: var(--stroke); }
 .tip.r.on { border-left-color: var(--ok); } .tip.l.on { border-right-color: var(--ok); } .tip.d.on { border-top-color: var(--ok); } .tip.u.on { border-bottom-color: var(--ok); }
 .tip.timeout.r.on { border-left-color: var(--wait); } .tip.timeout.d.on { border-top-color: var(--wait); } .tip.timeout.u.on { border-bottom-color: var(--wait); }
-.pn { height: 250px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; overflow: hidden; }
-.tr { display: flex; gap: 10px; align-items: baseline; width: 100%; min-width: 0; padding: 6px 8px; border-radius: 8px; border: 1px solid transparent; background: none; cursor: pointer; text-align: left; font-size: 13px; line-height: 17px; color: var(--mute); }
-.tr:hover { background: rgba(255,255,255,.05); }
-.tr.cur { color: #fff; background: rgba(129,140,248,.14); border-color: rgba(129,140,248,.45); }
+.pn { height: 250px; border-radius: var(--radius-lg); background: var(--panel); border: 1px solid var(--line); padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; overflow: hidden; }
+.tr { display: flex; gap: 10px; align-items: baseline; width: 100%; min-width: 0; padding: 6px 8px; border-radius: var(--radius); border: 1px solid transparent; background: none; cursor: pointer; text-align: left; font-size: 13px; line-height: 17px; color: var(--mute); }
+.tr:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
+.tr.cur { color: var(--text); background: color-mix(in srgb, var(--accent) 14%, transparent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
 .trw { flex: none; width: 112px; font-size: 12px; color: var(--mute); white-space: nowrap; }
 .one { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .clamp2 { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .ev { display: flex; gap: 12px; font-size: 13px; line-height: 17px; }
 .evl { flex: none; width: 128px; color: var(--mute); }
-.evt2 { color: #e2e8f0; overflow-wrap: anywhere; }
+.evt2 { color: var(--text); overflow-wrap: anywhere; }
 /* A long workflow in bands: one band at a time, the others a click away */
-.bchip { height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--line); background: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--soft); white-space: nowrap; transition: background-color .3s, border-color .3s, color .3s; }
-.bchip:hover { background: rgba(255,255,255,.05); }
-.bchip.on { color: #fff; font-weight: 600; background: rgba(129,140,248,.18); border-color: rgba(129,140,248,.45); }
+.bchip { height: 32px; padding: 0 12px; border-radius: var(--radius); border: 1px solid var(--line); background: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--soft); white-space: nowrap; transition: background-color .3s, border-color .3s, color .3s; }
+.bchip:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
+.bchip.on { color: var(--text); font-weight: 600; background: color-mix(in srgb, var(--accent) 18%, transparent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
 .bchip .bn { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
 .bchip .bs { font-size: 11px; font-weight: 500; }
-.b-done .bn, .b-done .bs { color: var(--ok); } .b-now .bn, .b-now .bs { color: #a5b4fc; } .b-next .bn, .b-next .bs { color: #64748b; }
+.b-done .bn, .b-done .bs { color: var(--ok); } .b-now .bn, .b-now .bs { color: var(--accent-text); } .b-next .bn, .b-next .bs { color: var(--faint); }
 .gclip { position: absolute; left: 0; width: 1440px; overflow: hidden; }
 .gband { position: absolute; left: 0; top: 0; transform-origin: 0 0; transition: transform .8s cubic-bezier(.4,0,.2,1); }
 .gband.panning { transition: transform .12s linear; }
 /* A graph wider than the stage at the smallest legible scale: the part around the step being read is shown, and the rest is a scroll or a click away */
 .gmore { position: absolute; top: 0; width: 56px; height: 100%; display: flex; align-items: center; pointer-events: none; z-index: 2; }
-.gmore.l { left: 0; justify-content: flex-start; padding-left: 8px; background: linear-gradient(90deg, var(--bg) 20%, rgba(11,15,25,0)); }
-.gmore.r { right: 0; justify-content: flex-end; padding-right: 8px; background: linear-gradient(270deg, var(--bg) 20%, rgba(11,15,25,0)); }
+.gmore.l { left: 0; justify-content: flex-start; padding-left: 8px; background: linear-gradient(90deg, var(--bg) 20%, transparent); }
+.gmore.r { right: 0; justify-content: flex-end; padding-right: 8px; background: linear-gradient(270deg, var(--bg) 20%, transparent); }
 .gmore[hidden] { display: none; }
-.gmore button { pointer-events: auto; width: 30px; height: 30px; border-radius: 50%; border: 1px solid rgba(255,255,255,.2); background: var(--card); color: var(--soft); cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; }
-.gmore button:hover { background: #2a3a52; color: #fff; }
+.gmore button { pointer-events: auto; width: 30px; height: 30px; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--text) 20%, transparent); background: var(--card); color: var(--soft); cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; }
+.gmore button:hover { background: var(--raised); color: var(--text); }
 .gband [data-band] { transition: filter .5s ease; }
 .gband .dimb { filter: opacity(.14); }
 .bnote { position: absolute; font-size: 11px; line-height: 14px; color: var(--mute); white-space: nowrap; pointer-events: none; }
 /* A record that grows is shown again without replaying what was already on screen */
 .instant, .instant * { transition: none !important; }
-.rawd { font-size: 12px; position: relative; } .rawd summary { cursor: pointer; color: var(--soft); } .rawd pre { margin: 6px 0 0; padding: 8px 10px; border-radius: 8px; background: rgba(255,255,255,.04); border: 1px solid var(--line); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; line-height: 15px; color: #e2e8f0; }
+.rawd { font-size: 12px; position: relative; } .rawd summary { cursor: pointer; color: var(--soft); } .rawd pre { margin: 6px 0 0; padding: 8px 10px; border-radius: var(--radius); background: color-mix(in srgb, var(--text) 4%, transparent); border: 1px solid var(--line); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; line-height: 15px; color: var(--text); }
 .rawc { position: absolute; right: 0; top: -2px; height: 22px; padding: 0 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); color: var(--soft); cursor: pointer; font-size: 11px; } .rawd:not([open]) .rawc { display: none; }
 
 /* Caption and transport: the sentence is the primary account, the diagram illustrates it */
@@ -265,43 +276,43 @@ button:focus-visible, input:focus-visible { outline: 2px solid #a5b4fc; outline-
 #cap { flex: 1 1 auto; min-width: 0; font-size: 19px; line-height: 27px; font-weight: 500; }
 #cap.in { animation: capin .4s ease both; }
 #facts { flex: none; width: 420px; overflow: hidden; display: flex; flex-direction: column; gap: 2px; font-size: 12px; line-height: 16px; }
-#facts div { display: flex; gap: 8px; min-width: 0; } #facts span { flex: none; width: 76px; color: var(--mute); } #facts b { font-weight: 500; color: #e2e8f0; }
-.tb { width: 44px; height: 44px; flex: none; border-radius: 10px; border: 1px solid rgba(255,255,255,.16); background: var(--card); color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; transition: background-color .2s; }
-.tb:hover { background: #2a3a52; }
-.tb.pri { width: 60px; background: #4f46e5; border-color: var(--focus); } .tb.pri:hover { background: #6366f1; }
+#facts div { display: flex; gap: 8px; min-width: 0; } #facts span { flex: none; width: 76px; color: var(--mute); } #facts b { font-weight: 500; color: var(--text); }
+.tb { width: 44px; height: 44px; flex: none; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--text) 16%, transparent); background: var(--card); color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; transition: background-color .2s; }
+.tb:hover { background: var(--raised); }
+.tb.pri { width: 60px; background: var(--accent-fill); color: var(--on-accent); border-color: var(--focus); } .tb.pri:hover { background: color-mix(in srgb, var(--accent-fill) 86%, var(--text)); }
 .tb.txt { width: 56px; font-size: 13px; font-weight: 600; }
 #scrub { flex: 1 1 auto; min-width: 0; height: 44px; accent-color: var(--focus); cursor: pointer; }
 #none[hidden] { display: none; }
 #none { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 40px; text-align: center; font-size: 18px; line-height: 28px; color: var(--soft); }
 /* The glossary: a panel beside the view, and the words of the view that open it */
-.gbtn { display: inline-flex; align-items: center; gap: 8px; border-color: rgba(255,255,255,.16); }
-.gbtn[aria-expanded="true"] { color: #fff; font-weight: 600; background: rgba(129,140,248,.18); border-color: var(--focus); }
-.kbd { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 11px; line-height: 16px; padding: 0 5px; border-radius: 4px; border: 1px solid rgba(165,180,252,.5); color: #a5b4fc; }
+.gbtn { display: inline-flex; align-items: center; gap: 8px; border-color: color-mix(in srgb, var(--text) 16%, transparent); }
+.gbtn[aria-expanded="true"] { color: var(--text); font-weight: 600; background: color-mix(in srgb, var(--accent) 18%, transparent); border-color: var(--focus); }
+.kbd { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 11px; line-height: 16px; padding: 0 5px; border-radius: 4px; border: 1px solid color-mix(in srgb, var(--accent-text) 50%, transparent); color: var(--accent-text); }
 .gw { background: none; border: 0; padding: 0; margin: 0; cursor: help; text-decoration: underline dotted; text-decoration-color: var(--mute); text-decoration-thickness: 1px; text-underline-offset: 3px; text-align: inherit; }
-.gw:hover { color: #fff; text-decoration-color: currentColor; }
+.gw:hover { color: var(--text); text-decoration-color: currentColor; }
 .tg.gw { align-self: flex-start; }
-#gloss { position: absolute; right: 0; top: 0; width: 480px; height: 900px; z-index: 20; display: flex; flex-direction: column; background: var(--panel); border-left: 1px solid rgba(255,255,255,.14); box-shadow: -24px 0 48px rgba(0,0,0,.45); }
+#gloss { position: absolute; right: 0; top: 0; width: 480px; height: 900px; z-index: 20; display: flex; flex-direction: column; background: var(--panel); border-left: 1px solid color-mix(in srgb, var(--text) 14%, transparent); box-shadow: -24px 0 48px var(--shadow); }
 #gloss[hidden] { display: none; }
 .gloss-h { flex: none; padding: 18px 20px 12px; display: flex; flex-direction: column; gap: 12px; border-bottom: 1px solid var(--line); }
 .gloss-t { display: flex; align-items: center; }
-.gloss-t h2 { margin: 0; font-family: 'Space Grotesk', Inter, system-ui, sans-serif; font-size: 22px; font-weight: 600; }
-.gloss-x { margin-left: auto; width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--line); background: none; color: var(--soft); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
-.gloss-x:hover { background: rgba(255,255,255,.07); color: #fff; }
+.gloss-t h2 { margin: 0; font-family: var(--font-display); font-size: 22px; font-weight: 600; }
+.gloss-x { margin-left: auto; width: 32px; height: 32px; border-radius: var(--radius); border: 1px solid var(--line); background: none; color: var(--soft); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+.gloss-x:hover { background: color-mix(in srgb, var(--text) 7%, transparent); color: var(--text); }
 .gloss-s { position: relative; }
-.gloss-s input { width: 100%; height: 38px; border-radius: 8px; border: 1px solid rgba(255,255,255,.18); background: var(--bg); color: var(--text); font: inherit; font-size: 14px; padding: 0 34px 0 12px; }
+.gloss-s input { width: 100%; height: 38px; border-radius: var(--radius); border: 1px solid color-mix(in srgb, var(--text) 18%, transparent); background: var(--bg); color: var(--text); font: inherit; font-size: 14px; padding: 0 34px 0 12px; }
 .gloss-s input::placeholder { color: var(--mute); }
 .gloss-s .kbd { position: absolute; right: 10px; top: 10px; color: var(--mute); border-color: var(--line); pointer-events: none; }
 .gloss-c { display: flex; gap: 6px; flex-wrap: wrap; }
 .gloss-c button { font: inherit; font-size: 12px; height: 26px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--line); background: none; color: var(--soft); cursor: pointer; }
-.gloss-c button:hover { background: rgba(255,255,255,.05); }
-.gloss-c button[aria-pressed="true"] { border-color: var(--focus); color: #fff; background: rgba(129,140,248,.14); }
+.gloss-c button:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
+.gloss-c button[aria-pressed="true"] { border-color: var(--focus); color: var(--text); background: color-mix(in srgb, var(--accent) 14%, transparent); }
 #glist { flex: 1 1 auto; overflow-y: auto; padding: 4px 8px 12px; }
 .gloss-g { padding: 14px 12px 4px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--mute); }
-.ge { padding: 10px 12px; border-radius: 8px; border: 1px solid transparent; display: flex; flex-direction: column; gap: 3px; scroll-margin: 8px; }
-.ge.on { background: rgba(129,140,248,.12); border-color: rgba(129,140,248,.45); }
+.ge { padding: 10px 12px; border-radius: var(--radius); border: 1px solid transparent; display: flex; flex-direction: column; gap: 3px; scroll-margin: 8px; }
+.ge.on { background: color-mix(in srgb, var(--accent) 12%, transparent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
 .ge-h { display: flex; align-items: baseline; gap: 8px; }
 .ge-t { font-size: 14px; font-weight: 600; font-style: normal; }
-.ge-r { margin-left: auto; flex: none; font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 11px; color: #a5b4fc; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ge-r { margin-left: auto; flex: none; font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 11px; color: var(--accent-text); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 a.ge-r { text-decoration: underline; text-underline-offset: 2px; }
 .ge-d { margin: 0; font-size: 13px; line-height: 1.45; color: var(--soft); }
 .gloss-none { padding: 24px 12px; font-size: 13px; color: var(--mute); }
@@ -313,13 +324,13 @@ a.ge-r { text-decoration: underline; text-underline-offset: 2px; }
 <body>
 <div id="fit">
   <div id="top">
-    <div class="hd" style="font-size:18px;font-weight:700;letter-spacing:.06em">AWA</div>
-    <div style="width:1px;height:22px;background:rgba(255,255,255,.16)"></div>
-    <nav id="crumbs" aria-label="Where you are" style="display:flex;align-items:center;gap:6px"></nav>
+    <div class="hd" id="brandmark" style="flex:none;font-size:18px;font-weight:700;letter-spacing:.06em">AWA</div>
+    <div style="width:1px;height:22px;background:color-mix(in srgb, var(--text) 16%, transparent)"></div>
+    <nav id="crumbs" aria-label="Where you are" style="display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden"></nav>
     <div style="flex:1"></div>
     <button class="crumb gbtn" id="b-gloss" type="button" aria-expanded="false" aria-controls="gloss" title="What the words of this view mean (?)">Glossary <span class="kbd" aria-hidden="true">?</span></button>
-    <div id="source" style="font-size:12px;color:var(--mute);white-space:nowrap;max-width:260px;min-width:0;flex:0 1 auto;overflow:hidden;text-overflow:ellipsis"></div>
-    <button class="crumb" id="b-open" style="border-color:rgba(255,255,255,.16)" title="Open a record: the file written by awa journey export, or by GET /api/v1/journeys/portfolio">Open a record</button>
+    <div id="source" style="font-size:12px;color:var(--mute);white-space:nowrap;max-width:260px;min-width:0;flex:0 1000 auto;overflow:hidden;text-overflow:ellipsis"></div>
+    <button class="crumb" id="b-open" style="border-color:color-mix(in srgb, var(--text) 16%, transparent)" title="Open a record: the file written by awa journey export, or by GET /api/v1/journeys/portfolio">Open a record</button>
     <input id="file" type="file" accept=".json,application/json" hidden>
     <div id="switch" class="seg-ctl" role="group" aria-label="Journey"></div>
   </div>
@@ -329,7 +340,7 @@ a.ge-r { text-decoration: underline; text-underline-offset: 2px; }
   <div class="layer" id="L3"><div class="scene"></div></div>
   <div id="bar">
     <div style="display:flex;gap:20px;align-items:flex-start;height:58px">
-      <div id="when" class="mono" style="flex:none;width:150px;padding-top:4px;font-size:13px;color:#a5b4fc"></div>
+      <div id="when" class="mono" style="flex:none;width:150px;padding-top:4px;font-size:13px;color:var(--accent-text)"></div>
       <div id="cap" class="clamp2" aria-live="polite"></div>
       <div id="facts"></div>
     </div>
@@ -340,7 +351,7 @@ a.ge-r { text-decoration: underline; text-underline-offset: 2px; }
       <button class="tb" id="b-next" aria-label="One step forward"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
       <button class="tb txt" id="b-pace" aria-label="Change the pace of the telling">1x</button>
       <input id="scrub" type="range" min="0" max="0" step="1" value="0" aria-label="Position in the story">
-      <div id="count" class="mono" style="flex:none;width:76px;text-align:right;font-size:13px;color:#cbd5e1"></div>
+      <div id="count" class="mono" style="flex:none;width:76px;text-align:right;font-size:13px;color:var(--soft)"></div>
     </div>
   </div>
   <div id="none" hidden></div>
@@ -354,6 +365,7 @@ a.ge-r { text-decoration: underline; text-underline-offset: 2px; }
     <div class="gloss-f">AWA terms come with the view and cite the specification (docs/specification.md). Terms of this journey come from its options file (<code>glossary</code>).</div>
   </aside>
 </div>
+<script src="awa-brand.js"></script>
 <script src="awa-glossary.js"></script>
 <script src="journey-story-builder.js"></script>
 <script src="journey-story.js"></script>
@@ -479,7 +491,7 @@ scenes.atlas = () => {
             const inst = S.journeys[life.j].instances[life.i], sc = S.journeys[life.j].scale || { min: -2, max: 2 }, n = inst.beats.length;
             const pts = inst.beats.map((b, k) => `${r(4 + k / Math.max(n - 1, 1) * 142)},${r(20 - (b.mood ?? 0) / sc.max * 15)}`).join(' ');
             h += `<button class="pcell" style="left:${CX(life.j)}px;top:${PY(i)}px${tight ? `;height:${cellH}px` : ''}" data-open-s="${life.j},${life.i}" aria-label="Follow ${esc(c.name)} through ${esc(S.journeys[life.j].name)}">
-              <svg class="spark" viewBox="0 0 150 40" aria-hidden="true"><line x1="0" y1="20" x2="150" y2="20" stroke="#334155" stroke-dasharray="3 4"/><polyline points="${pts}" fill="none" stroke="#e2e8f0" stroke-width="2" stroke-linejoin="round"/></svg>
+              <svg class="spark" viewBox="0 0 150 40" aria-hidden="true"><line x1="0" y1="20" x2="150" y2="20" style="stroke:var(--edge)" stroke-dasharray="3 4"/><polyline points="${pts}" fill="none" style="stroke:var(--text)" stroke-width="2" stroke-linejoin="round"/></svg>
               <span style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="e-${tok(inst.ending.kind)}" style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(inst.ending.label)}</span><span style="font-size:12px">${mood(inst.mood_end)}${basisOf(inst) ? ` <span style="color:var(--mute)">&middot; ${basisOf(inst)}</span>` : ''}</span></span></button>`;
         }
     });
@@ -492,7 +504,7 @@ scenes.journey = () => {
     let h = `<div style="position:absolute;left:28px;top:22px;width:216px;display:flex;flex-direction:column;gap:8px">
       <div class="hd" style="font-size:22px;line-height:26px;font-weight:600">${esc(j.name)}</div>
       <div class="sub" style="font-size:13px;line-height:18px">Calendar time, ${day(j.t0)} to ${day(j.t1)}. One lane per customer. Select a lane to follow that customer.</div>
-      <div id="asof" style="font-size:13px;font-weight:600;color:#a5b4fc"></div></div>`;
+      <div id="asof" style="font-size:13px;font-weight:600;color:var(--accent-text)"></div></div>`;
     const narrow = w < 200;
     j.stages.forEach((s, k) => {
         h += narrow
@@ -522,9 +534,9 @@ scenes.story = () => {
     const ys = beats.map(b => beatY(j, b));
     let h = `<div style="position:absolute;left:28px;top:12px;width:1384px;display:flex;align-items:center;gap:10px">
       <div class="hd" style="font-size:22px;font-weight:600;white-space:nowrap" title="${esc((person.persona || '') + ' ' + c.summary)}">${esc(c.name)}</div>
-      <button class="crumb" style="border-color:rgba(255,255,255,.16);font-size:12px;height:28px;padding:0 9px" data-person="-1" title="The previous customer in this journey">&lsaquo; previous customer</button>
-      <button class="crumb" style="border-color:rgba(255,255,255,.16);font-size:12px;height:28px;padding:0 9px" data-person="1" title="The next customer in this journey">next customer &rsaquo;</button>
-      <button class="crumb" style="border-color:var(--focus);color:#fff;font-size:12px;height:28px;padding:0 9px" data-list="toggle" title="The whole story as a dated list you can read from top to bottom">Read as a list</button>
+      <button class="crumb" style="border-color:color-mix(in srgb, var(--text) 16%, transparent);font-size:12px;height:28px;padding:0 9px" data-person="-1" title="The previous customer in this journey">&lsaquo; previous customer</button>
+      <button class="crumb" style="border-color:color-mix(in srgb, var(--text) 16%, transparent);font-size:12px;height:28px;padding:0 9px" data-person="1" title="The next customer in this journey">next customer &rsaquo;</button>
+      <button class="crumb" style="border-color:var(--focus);color:var(--text);font-size:12px;height:28px;padding:0 9px" data-list="toggle" title="The whole story as a dated list you can read from top to bottom">Read as a list</button>
 <div style="flex:1 1 auto"></div>
       ${c.mood_from ? `<div class="chip" title="A journey begins at the mood the customer's last one left them in">Arrived ${mood(c.mood_start)} from ${esc(c.mood_from)}</div>` : ''}
       <div class="chip" id="moodchip"></div>
@@ -540,13 +552,13 @@ scenes.story = () => {
     // Lane labels and rails. The journey itself is the line of visibility: customer above, work below.
     const label = (y, title, sub) => `<div class="ll" style="top:${y - 16}px"><div class="pt">${title}</div><div class="sub">${sub}</div></div>`;
     h += label(96, word('Mood', 'mood'), 'solid: said &middot; dashed: inferred') + label(LY.world, 'Customer', word('touchpoints', 'touchpoint')) + label(LY.journey, word('Journey', 'journey'), word('line of visibility', 'line-of-visibility')) + label(LY.work, word('Workflows', 'workflow'), 'the work behind it');
-    h += `<div class="rail" style="top:${moodY(0)}px;border-top:1px dashed rgba(255,255,255,.14)"></div><div class="rail" style="top:${LY.world}px;border-top:1px dashed rgba(255,255,255,.10)"></div>
-      <div class="rail" style="top:${LY.journey - 1}px;border-top:2px solid #475569"></div><div class="rail" style="top:${LY.work}px;border-top:1px dashed rgba(255,255,255,.10)"></div>
-      <div class="rowl" style="top:${moodY(2) - 8}px;left:150px;width:auto;color:#34d399">+2</div><div class="rowl" style="top:${moodY(-2) - 8}px;left:150px;width:auto;color:#ff8a8c">&minus;2</div>`;
+    h += `<div class="rail" style="top:${moodY(0)}px;border-top:1px dashed color-mix(in srgb, var(--text) 14%, transparent)"></div><div class="rail" style="top:${LY.world}px;border-top:1px dashed color-mix(in srgb, var(--text) 10%, transparent)"></div>
+      <div class="rail" style="top:${LY.journey - 1}px;border-top:2px solid var(--stroke)"></div><div class="rail" style="top:${LY.work}px;border-top:1px dashed color-mix(in srgb, var(--text) 10%, transparent)"></div>
+      <div class="rowl" style="top:${moodY(2) - 8}px;left:150px;width:auto;color:var(--ok-ink)">+2</div><div class="rowl" style="top:${moodY(-2) - 8}px;left:150px;width:auto;color:var(--bad-ink)">&minus;2</div>`;
     h += `<div class="ll" style="top:${techY(0) - 26}px"><div class="pt">${word('Technology', 'technology')}</div></div>`;
-    j.technologies.forEach((t, k) => { h += `<div class="rowl" style="top:${techY(k) - 8}px" title="${esc(t)}">${esc(t)}</div><div class="rail" style="top:${techY(k)}px;border-top:1px solid rgba(255,255,255,.05)"></div>`; });
+    j.technologies.forEach((t, k) => { h += `<div class="rowl" style="top:${techY(k) - 8}px" title="${esc(t)}">${esc(t)}</div><div class="rail" style="top:${techY(k)}px;border-top:1px solid color-mix(in srgb, var(--text) 5%, transparent)"></div>`; });
     h += `<div class="ll" style="top:${kindY(j, 0) - 26}px"><div class="pt">${word('Exchanged', 'artefact')}</div></div>`;
-    j.kinds.forEach((t, k) => { h += `<div class="rowl" style="top:${kindY(j, k) - 8}px">${esc(KIND(t))}</div><div class="rail" style="top:${kindY(j, k)}px;border-top:1px solid rgba(255,255,255,.05)"></div>`; });
+    j.kinds.forEach((t, k) => { h += `<div class="rowl" style="top:${kindY(j, k) - 8}px">${esc(KIND(t))}</div><div class="rail" style="top:${kindY(j, k)}px;border-top:1px solid color-mix(in srgb, var(--text) 5%, transparent)"></div>`; });
 
     // Mood: one line, revealed as the story is told. A filled dot was said by the customer; a hollow one was inferred.
     if (j.scale) {
@@ -591,7 +603,7 @@ scenes.story = () => {
       <div style="position:absolute;left:28px;top:654px;width:1384px;display:flex;align-items:center;gap:16px">
         ${[['k-event', 'customer acts', 'touchpoint'], ['k-told', 'customer is told', 'touchpoint'], ['k-timeout', 'nothing arrives in time', 'missed-deadline'], ['k-stage_in', 'stage begins', 'stage'], ['k-goal', 'goal reached', 'goal'], ['k-model_decision', 'a model decides', 'model-decision'], ['k-human_wait', 'waits for a person', 'person'], ['k-partner', 'a partner system is called', 'technology']].map(([k, t, term]) => `<div class="lg"><span class="lgi"><span class="sh ${k}"></span></span>${word(t, term)}</div>`).join('')}
         <div class="lg"><span class="lgi"><span class="doc" style="left:7px;top:8px"></span></span>${word('received', 'artefact')}</div><div class="lg"><span class="lgi"><span class="doc out" style="left:7px;top:8px"></span></span>${word('sent out', 'artefact')}</div>
-        <div class="lg"><span style="width:20px;border-top:2px solid #94a3b8"></span>${word('caused', 'business-event')}</div><div class="lg"><span style="width:20px;border-top:2px dashed #64748b"></span>${word('time passes', 'business-event')}</div></div>
+        <div class="lg"><span style="width:20px;border-top:2px solid var(--mute)"></span>${word('caused', 'business-event')}</div><div class="lg"><span style="width:20px;border-top:2px dashed var(--faint)"></span>${word('time passes', 'business-event')}</div></div>
       <div style="position:absolute;left:28px;top:678px;width:1384px;display:flex;align-items:center;gap:16px">
         <div class="lg"><span class="md said" style="position:static;margin:0;cursor:default"></span>${word('mood the customer stated', 'mood')}</div><div class="lg"><span class="md" style="position:static;margin:0;cursor:default"></span>${word('mood inferred by a rule', 'mood')}</div>
         <div class="lg"><span class="lgi"><span class="sh k-undone"></span></span>${word('an earlier step is undone', 'compensation')}</div><div class="lg"><span class="lgi"><span class="sh k-run_failed"></span></span>${word('a workflow fails', 'run-status')}</div><div class="lg"><span class="lgi"><span class="sh k-stalled"></span></span>${word('stalled: needs someone', 'stalled')}</div>
@@ -644,7 +656,7 @@ scenes.run = () => {
     const c = I(), run = R(), W = S.workflows[run.wf], banded = !!(W.bands && W.bands.length);
     const stage = J().stages.find(s => s.id === run.stage);
     let h = `<div style="position:absolute;left:28px;top:16px;width:1384px;display:flex;align-items:center;gap:14px">
-      <button class="crumb" style="border-color:rgba(255,255,255,.16)" data-up="1">Back to ${esc(c.name)}</button>
+      <button class="crumb" style="border-color:color-mix(in srgb, var(--text) 16%, transparent)" data-up="1">Back to ${esc(c.name)}</button>
       <div class="hd" style="font-size:22px;font-weight:600;white-space:nowrap">${esc(run.name)}</div>
       <div class="sub" style="font-size:14px;flex:1 1 auto">serving the stage &ldquo;<span id="runstage">${esc(stage ? stage.name : '')}</span>&rdquo; of the ${esc(J().name)} journey</div><div class="chip" id="runchip"></div></div>`;
     const dim = band => (banded ? ` data-band="${band}"` : '');
@@ -679,7 +691,7 @@ scenes.run = () => {
       <div class="pn" style="flex:0 0 560px"><div class="pt" style="color:var(--mute)">The story so far</div><div id="script" style="display:flex;flex-direction:column;gap:2px"></div></div>
       <div class="pn" style="flex:1 1 auto;min-width:0"><div class="pt" style="color:var(--mute)">Evidence for this step</div><div id="evidence" style="display:flex;flex-direction:column;gap:7px;overflow:auto"></div></div>
       <div class="pn" style="flex:0 0 250px"><div class="pt" style="color:var(--mute)">Reading the diagram</div>
-        ${swatch('border:1.5px solid var(--run)', 'working now', 'step-status')}${swatch('border:1.5px dashed var(--wait)', 'waiting', 'step-status')}${swatch('border:1.5px solid var(--ok)', 'done', 'step-status')}${swatch('border:1.5px solid var(--bad);background:#3b1d24', 'failed', 'step-status')}${swatch('border:1.5px dotted var(--mute)', 'undone afterwards', 'compensation')}
+        ${swatch('border:1.5px solid var(--run)', 'working now', 'step-status')}${swatch('border:1.5px dashed var(--wait)', 'waiting', 'step-status')}${swatch('border:1.5px solid var(--ok)', 'done', 'step-status')}${swatch('border:1.5px solid var(--bad);background:color-mix(in srgb, var(--bad) 16%, var(--card))', 'failed', 'step-status')}${swatch('border:1.5px dotted var(--mute)', 'undone afterwards', 'compensation')}
         <div class="lg" style="font-size:12px"><span style="width:18px;border-top:2px dashed var(--wait)"></span>${word('path taken on a missed deadline', 'missed-deadline')}</div>
         <div class="sub" style="margin-top:auto">A dotted word opens its entry in the glossary.</div></div></div>`;
 };
@@ -717,7 +729,7 @@ apply.story = el => {
         const started = ib >= +bar.dataset.b0, ended = ib >= +bar.dataset.b1, status = bar.dataset.status;
         bar.className = 'rb' + (started ? '' : ' off') + (ended ? ' r-' + tok(status) : ' r-running');
         const label = el.querySelector(`[data-runlabel="${bar.dataset.run}"]`);
-        label.innerHTML = `<b style="color:#fff">${esc(c.runs[+bar.dataset.run].name)}</b> &middot; ${ended ? esc(runWord(status)) : 'under way'} &middot; <span style="color:#a5b4fc;font-weight:600">Look inside &rsaquo;</span>`;
+        label.innerHTML = `<b style="color:var(--text)">${esc(c.runs[+bar.dataset.run].name)}</b> &middot; ${ended ? esc(runWord(status)) : 'under way'} &middot; <span style="color:var(--accent-text);font-weight:600">Look inside &rsaquo;</span>`;
     });
     const finished = ib === n - 1, over = finished && c.ending.kind !== 'stalled';
     c.goals.forEach((g, k) => {
@@ -1117,9 +1129,20 @@ addEventListener('hashchange', () => {
 // ?options=<url> gives the builder's options: hand layouts, bands, how a subject is named.
 const query = new URLSearchParams(location.search);
 let OPTIONS = {};
-const options_ready = query.get('options')
+/** Put a brand on the view: a DESIGN.md text, a brand.json object, or a brand already read (awa-brand.js). data_only: logos only as data: URLs */
+function setBrand(source, { data_only = false, network = true } = {}) {
+    const B = window.AWA_brand; if (!B || !source) return null;
+    const brand = typeof source === 'object' && source.colors && source.colors.top ? source : B.read_brand(source, { data_only });
+    if (brand.invalid) { for (const w of brand.warnings) console.warn(`Brand: ${w}`); return null; }
+    return B.apply(brand, { header: $('brandmark'), network });
+}
+window.AWA_set_brand = setBrand; // for a page that embeds the view
+// ?brand=<url> (a DESIGN.md or a brand.json), else the options' "brand", puts a company's colours, fonts and logo on the view
+const options_ready = (query.get('options')
     ? fetch_record(query.get('options')).then(o => { OPTIONS = o || {}; }).catch(error => { console.warn(`Cannot load the options ${query.get('options')}: ${error.message}`); })
-    : Promise.resolve();
+    : Promise.resolve())
+    .then(() => window.AWA_brand && window.AWA_brand.from_page({ options: OPTIONS, options_url: query.get('options') ? new URL(query.get('options'), location.href).href : undefined }))
+    .then(brand => { if (brand) setBrand(brand); }, error => console.warn(`Brand: ${error.message}`));
 options_ready.then(() => {
     if (query.get('live')) {
         const url = query.get('live').replace(/\/$/, '') + '/api/v1/journeys/portfolio';

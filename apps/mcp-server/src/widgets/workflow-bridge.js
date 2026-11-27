@@ -90,11 +90,14 @@
         pane.innerHTML = out;
     }
 
+    // A company's brand, given inline with the tool call: its colours, fonts and logo (a data: URL); nothing is fetched
+    function brand(awa) { try { if (awa && awa.brand && window.AWA_set_brand) window.AWA_set_brand(awa.brand, { data_only: true, network: false }); } catch (error) { console.warn('The brand could not be applied: ' + error.message); } }
     function update(result) {
         if (!result) return;
         if (result.isError) { var c = (result.content || []).find(function (x) { return x && typeof x.text === 'string'; }); fail(c ? c.text : 'The tool failed.'); return; }
         var awa = (result._meta && result._meta.awa) || (result.structuredContent && result.structuredContent.awa);
         if (!awa || (awa.view !== 'workflow' && awa.view !== 'run') || !awa.workflow) return;
+        brand(awa);
         try {
             var journal = awa.view === 'run' && Array.isArray(awa.journal) ? awa.journal : [];
             window.AWAReplay.load(awa.workflow, journal, awa.view === 'run' ? 'Simulated' : undefined);

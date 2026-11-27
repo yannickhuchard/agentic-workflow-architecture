@@ -74,6 +74,11 @@ const { require_workflow, require_journey } = await import('../src/awa.js');
 const exported = (await simulate_journeys([await require_workflow(purchase)], [await require_journey(purchase_journey, [await require_workflow(purchase)])],
     [{ type: 'quote.requested', data: { customer_id: 'c-9', name: 'Zoe' } }], { outputs, start_time: Date.parse('2026-03-02T09:00:00Z') })).portfolio;
 
+// A company's brand, inline as the server takes it: the fictional Valoria Life, its logo as a data: URL
+const brands = path.join(REPOSITORY_ROOT, 'tools/visualization/brands');
+const valoria_logo = 'data:image/svg+xml;base64,' + fs.readFileSync(path.join(brands, 'valoria-life.svg')).toString('base64');
+const valoria_design = fs.readFileSync(path.join(brands, 'valoria-life.DESIGN.md'), 'utf8').replace(/^logo: .*$/m, `logo: "${valoria_logo}"`).replace(/^logo_dark: .*\n/m, '');
+const valoria_json = { ...JSON.parse(fs.readFileSync(path.join(brands, 'valoria-life.brand.json'), 'utf8')), logo: valoria_logo, logo_dark: undefined };
 const CALLS = {
     validate_ok: ['validate_document', { document: settlement }],
     validate_bad: ['validate_document', { document: { name: 'Broken', activities: [{ name: 'A' }], edges: [] } }],
@@ -87,6 +92,9 @@ const CALLS = {
     journeys_from_documents: ['show_journeys', journey_args],
     journeys_from_portfolio: ['show_journeys', { portfolio: exported }],
     dashboard_example: ['show_dashboard', { use_claims_example: true }],
+    dashboard_branded: ['show_dashboard', { use_claims_example: true, brand: valoria_design }],
+    journeys_branded: ['load_claims_example', { brand: JSON.parse(JSON.stringify(valoria_json)) }],
+    run_branded: ['simulate_workflow', { workflow: settlement, simulated_outputs: settlement_outputs, let_waits_time_out: true, brand: JSON.parse(JSON.stringify(valoria_json)) }],
     dashboard_simulated: ['show_dashboard', { ...journey_args, then_wait: 'P10D' }],
     dashboard_hostile: ['show_dashboard', { journeys: [hostile(purchase_journey)], workflows: [hostile(purchase)], start_time: '2026-03-02T09:00:00Z', then_wait: 'P10D',
         events: [{ type: 'quote.requested', data: { customer_id: `c-1 ${HOSTILE}`, name: `Eve ${HOSTILE}` } }] }],
@@ -319,6 +327,21 @@ if (args.includes('--serve-only')) {
             const box = await app.evaluate(() => ({ scroll: document.documentElement.scrollWidth, inner: innerWidth }));
             check(await frame.locator('.node').count() > 10 && box.scroll <= box.inner + 1, `run: at 390 px wide the layout stacks without horizontal overflow (${box.scroll} in ${box.inner})`);
             await shot(page, 'run-narrow-light');
+            await conformance(page); await page.close();
+        }
+        // --- a company's brand, given inline: colours, name and logo, and nothing fetched
+        for (const [widget, key] of [['dashboard', 'dashboard_branded'], ['journeys', 'journeys_branded'], ['run', 'run_branded']]) {
+            const { page, frame, app } = await open(widget, { theme: 'dark', max: 900 });
+            await deliver(page, R[key]); await settle(page);
+            const look = await app.evaluate(() => {
+                const img = document.querySelector('#brandmark img');
+                return { bg: getComputedStyle(document.body).backgroundColor, accent: getComputedStyle(document.documentElement).getPropertyValue('--accent').trim(), name: (document.querySelector('#brandmark .awa-brand-n') || {}).textContent,
+                    logo: img ? img.src.startsWith('data:image/svg+xml') && img.complete && img.naturalWidth > 0 : false, links: document.querySelectorAll('link[href]').length };
+            });
+            check(look.bg === 'rgb(246, 247, 251)' && look.accent === '#0e7c66' && look.name === 'Valoria Life' && look.logo && look.links === 0,
+                `${widget}: a brand given with the tool call (${key === 'dashboard_branded' ? 'DESIGN.md' : 'brand.json'}) colours the widget and shows the name and the data: logo, and loads no font (${JSON.stringify(look)})`);
+            await frame.locator('body').waitFor();
+            await shot(page, `${widget}-branded`);
             await conformance(page); await page.close();
         }
         // --- dashboard

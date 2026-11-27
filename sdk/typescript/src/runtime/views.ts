@@ -26,11 +26,14 @@ export function measures_page(record: MeasureInput, options: { source?: string }
     const dir = view_directory();
     const page = fs.readFileSync(path.join(dir, 'dashboard.html'), 'utf-8');
     const measures = fs.readFileSync(path.join(dir, 'awa-kpis.js'), 'utf-8');
+    // The brand module: a page written to a file can still be given ?brand=<url> when it is served
+    const brand_file = path.join(dir, 'awa-brand.js'), brand = fs.existsSync(brand_file) ? fs.readFileSync(brand_file, 'utf-8') : '';
     const data = JSON.stringify(record).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
     const source = JSON.stringify(options.source || 'a record written into this page').replace(/</g, '\\u003c');
     const a = '<script src="awa-kpis.js"></script>', b = '<script src="dashboard-sample.js"></script>';
     if (!page.includes(a) || !page.includes(b)) throw new Error('dashboard.html is not the page this SDK was built with');
     return page
+        .replace('<script src="awa-brand.js"></script>', () => (brand ? `<script>${inline(brand)}</script>` : ''))
         .replace(a, () => `<script>${inline(measures)}</script>`)
         .replace(b, () => `<script>window.AWA_PORTFOLIO = ${data}; window.AWA_SOURCE = ${source};</script>`);
 }
