@@ -103,7 +103,7 @@ The run view draws names at 11 px or more on the 1440 × 900 stage: it scales a 
 |---|---|---|
 | Journeys | Each journey with its stages and outcomes, how many customers go on to the next, and each customer's path and mood across them | Selecting a journey, or a customer's cell |
 | One journey | Every customer in it on calendar time, with live counts per stage | Selecting a lane |
-| One customer's journey | Mood, touchpoints, the journey's stages, the workflows behind them, the technology used and the documents exchanged, against the same moments | Selecting a workflow bar |
+| One customer's journey | Mood, touchpoints, the journey's stages, the workflows behind them, the technology used and the documents exchanged, against the same moments. On a long journey, a stage too narrow for its name shows a short form, with the full name on hover and focus and as its accessible name; where the labels of the time between moments would cover one another, the longest gaps keep theirs and every gap stays drawn | Selecting a workflow bar |
 | One run | The workflow replayed step by step, with the journal evidence for each step, under the stage the journey instance records for the run. A workflow in bands shows a chip per band, numbered and marked done, now or next; the graph shows the band of the step being read, large enough to read, and slides to the next band when the step moves there. A chip shows another band | |
 
 The switch at the top right moves sideways to another journey; on one customer's journey it keeps the customer. The arrows beside a customer's name move to the next customer in the same journey.

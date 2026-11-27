@@ -129,9 +129,18 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent-text
 .ring.sm { width: 30px; height: 30px; margin: -15px 0 0 -15px; transition: left .6s linear, top .4s ease; }
 
 /* One journey: the living blueprint */
-.band { position: absolute; top: 58px; height: 596px; border-radius: var(--radius-lg); padding: 4px 12px; font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; transition: opacity .4s ease; }
+.band { position: absolute; top: 58px; height: 596px; border-radius: var(--radius-lg); transition: opacity .4s ease; }
 .band.b0 { background: color-mix(in srgb, var(--text) 3%, transparent); } .band.b1 { background: color-mix(in srgb, var(--text) 6%, transparent); }
 .band.off { opacity: .28; }
+/* A stage's name, at the top of its band. A band too narrow for it shows a short form; the full name is its accessible name, and shows on hover and focus */
+.bhd { position: absolute; top: 58px; height: 26px; padding: 4px 12px; font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; transition: opacity .4s ease; }
+.bhd.short { padding: 4px 4px 4px 6px; }
+.bhd.off { opacity: .28; }
+.bhd .bfull { display: none; }
+.bhd.short .bhn { outline: none; cursor: default; }
+.bhd.short:hover, .bhd.short:focus-within { overflow: visible; z-index: 6; opacity: 1; }
+.bhd.short:hover .bfull, .bhd.short:focus-within .bfull { display: block; position: absolute; left: 0; top: 0; padding: 3px 8px; border-radius: 6px; background: var(--raised); border: 1px solid var(--stroke); box-shadow: 0 4px 14px rgba(0,0,0,.25); }
+.bhd.short:focus-within .bfull { outline: 2px solid var(--focus); outline-offset: 1px; }
 .col { position: absolute; top: 58px; width: 34px; height: 596px; margin-left: -17px; border-radius: 10px; background: color-mix(in srgb, var(--accent) 10%, transparent); pointer-events: none; transition: left .5s cubic-bezier(.4,0,.2,1); }
 .ll { position: absolute; left: 28px; width: 150px; }
 .pt { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text); }
@@ -182,7 +191,9 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent-text
 #L2 .gap.off { opacity: .4; }
 #L2 .rb.off { opacity: .35; transform: none; pointer-events: auto; }
 #L2 .rbl.off { opacity: .45; pointer-events: auto; }
-#L2 .band.off { opacity: .55; }
+#L2 .band.off, #L2 .bhd.off { opacity: .55; }
+/* Gap labels that would cover one another: the longest gaps keep theirs, the others are dropped. The gap itself stays drawn */
+.gap.drop { display: none; }
 .ms { stroke: var(--text); stroke-width: 2; stroke-linecap: round; transition: opacity .3s ease; }
 .ms.said { stroke-width: 3.5; } .ms.guess { stroke-dasharray: 5 5; } .ms.off { opacity: .25; }
 .md { position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; border: 2px solid var(--text); background: var(--bg); padding: 0; cursor: pointer; z-index: 3; transition: opacity .3s ease; }
@@ -546,7 +557,8 @@ scenes.story = () => {
         let first = -1, last = -1; beats.forEach((b, i) => { if (b.stage === k) { if (first < 0) first = i; last = i; } });
         if (first < 0) return;
         const x0 = first === 0 ? xs[0] - 30 : (xs[first - 1] + xs[first]) / 2 + 2, x1 = last === n - 1 ? xs[n - 1] + 30 : (xs[last] + xs[last + 1]) / 2 - 2;
-        h += `<div class="band b${k % 2} off" data-b="${first}" style="left:${r(x0)}px;width:${r(x1 - x0)}px">${esc(sg.name)}</div>`;
+        h += `<div class="band b${k % 2} off" data-b="${first}" style="left:${r(x0)}px;width:${r(x1 - x0)}px"></div>`
+            + `<div class="bhd off" data-b="${first}" data-stage="${esc(sg.name)}" style="left:${r(x0)}px;width:${r(x1 - x0)}px"><span class="bhn">${esc(sg.name)}</span></div>`;
     });
     h += `<div class="col"></div>`;
     // Lane labels and rails. The journey itself is the line of visibility: customer above, work below.
@@ -722,6 +734,46 @@ apply.journey = el => {
     const ring = el.querySelector('.ring'); ring.style.left = r(ax(T)) + 'px'; ring.style.top = laneTop(m.c) + laneMid() + 'px';
 };
 
+// Text is fitted to its room in the fonts on screen: when a font arrives, the blueprint is fitted again
+let fontsLoaded = 0;
+if (document.fonts) document.fonts.addEventListener('loadingdone', () => { fontsLoaded++; if (rendered && st.level === 'story') render(); });
+/** The short forms of a stage's name, longest first: whole words then an ellipsis, then the first word cut, never under three letters */
+function shortNames(name) {
+    const words = name.split(/\s+/), out = [];
+    for (let k = words.length - 1; k >= 1; k--) out.push(words.slice(0, k).join(' ').replace(/[\s,;:–—-]+$/, '') + '\u2026');
+    for (let m = words[0].length - 1; m >= 3; m--) out.push(words[0].slice(0, m) + '\u2026');
+    return out;
+}
+/**
+ * Fits the blueprint's text to its room, once per scene and font: a stage header too narrow for its name takes the longest
+ * short form that fits, keeping the full name as its accessible name, on hover and on focus; gap labels that would cover one
+ * another are dropped, the longest gaps keeping theirs.
+ */
+function fitStory(el) {
+    const mark = el.querySelector('.col'), stamp = `${fontsLoaded}|${getComputedStyle(document.body).fontFamily}`;
+    if (!mark || mark.dataset.fit === stamp) return;
+    mark.dataset.fit = stamp;
+    for (const hd of el.querySelectorAll('.bhd')) {
+        const name = hd.dataset.stage;
+        hd.classList.remove('short'); hd.removeAttribute('title');
+        hd.innerHTML = `<span class="bhn">${esc(name)}</span>`;
+        if (hd.scrollWidth <= hd.clientWidth) continue;
+        hd.classList.add('short');
+        const label = hd.firstElementChild;
+        label.setAttribute('role', 'heading'); label.setAttribute('aria-level', '3'); label.setAttribute('aria-label', name); label.tabIndex = 0;
+        hd.title = name;
+        const fits = shortNames(name).find(t => { label.textContent = t; return hd.scrollWidth <= hd.clientWidth; });
+        label.textContent = fits || '';
+        hd.insertAdjacentHTML('beforeend', `<span class="bfull" aria-hidden="true">${esc(name)}</span>`);
+    }
+    const beats = I().beats, labels = [...el.querySelectorAll('.gap')];
+    labels.forEach(g => g.classList.remove('drop'));
+    const room = labels.map(g => { const b = +g.dataset.b, w = g.offsetWidth, x = parseFloat(g.style.left); return { g, x0: x - w / 2 - 3, x1: x + w / 2 + 3, long: beats[b].t - beats[b - 1].t, b }; });
+    const kept = [];
+    for (const l of [...room].sort((a, c) => c.long - a.long || a.b - c.b)) {
+        if (kept.some(k => l.x0 < k.x1 && k.x0 < l.x1)) l.g.classList.add('drop'); else kept.push(l);
+    }
+}
 apply.story = el => {
     const j = J(), c = I(), beats = c.beats, n = beats.length, ib = pos(), cur = beats[ib], xs = xsOf(c), y = beatY(j, cur);
     el.querySelectorAll('[data-b]').forEach(x => x.classList.toggle('off', +x.dataset.b > ib));
@@ -738,6 +790,7 @@ apply.story = el => {
         chip.innerHTML = `<span>${esc(g.name)}</span><b>${reached ? 'reached' : over ? 'not reached' : 'open'}</b>`;
     });
     el.querySelector('#endchip').classList.toggle('hide', !finished);
+    fitStory(el);
     const chip = el.querySelector('#moodchip');
     chip.innerHTML = cur.mood === null ? '' : `<span>Mood</span><b>${mood(cur.mood)}</b>`; chip.style.display = cur.mood === null ? 'none' : '';
     const ring = el.querySelector('.ring'); ring.style.left = xs[ib] + 'px'; ring.style.top = y + 'px';

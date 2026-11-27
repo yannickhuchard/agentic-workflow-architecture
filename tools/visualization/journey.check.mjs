@@ -87,6 +87,42 @@ const run_layout = page => page.evaluate(() => {
 });
 const to_end = async page => { await page.evaluate(() => { const s = document.getElementById('scrub'); s.value = s.max; s.dispatchEvent(new Event('input')); }); await settle(page); };
 
+/**
+ * The blueprint's text on screen: no two gap labels on top of each other, and no stage header whose text is cut or shortened
+ * without its full name as an accessible name (and focusable, so that the name also shows on focus). Returns the problems and counts.
+ */
+const blueprint_text = page => page.evaluate(() => {
+    const scene = document.getElementById('L2').firstElementChild, problems = [];
+    const gaps = [...scene.querySelectorAll('.gap')].filter(g => g.getClientRects().length).map(g => ({ text: g.textContent, r: g.getBoundingClientRect() }));
+    for (let i = 0; i < gaps.length; i++) for (let k = i + 1; k < gaps.length; k++) {
+        const a = gaps[i].r, b = gaps[k].r;
+        if (a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom) problems.push(`gap labels "${gaps[i].text}" and "${gaps[k].text}" overlap`);
+    }
+    const heads = [...scene.querySelectorAll('.band, .bhd')].filter(e => e.textContent.trim());
+    let short = 0;
+    for (const hd of heads) {
+        const label = hd.querySelector('.bhn') || hd, name = hd.dataset.stage || label.textContent, shown = label.textContent;
+        const named = label.getAttribute('aria-label') === name && label.tabIndex === 0 && hd.title === name;
+        if (shown !== name) short++;
+        if (hd.scrollWidth > hd.clientWidth + 0.5 && !named) problems.push(`the header "${name}" is cut and has no accessible full name`);
+        if (shown !== name && !named) problems.push(`the header "${name}" shows "${shown}" without its full name as accessible name, title and focus`);
+    }
+    return { problems, gaps: gaps.length, dropped: scene.querySelectorAll('.gap').length - gaps.length, heads: heads.length, short };
+});
+/** blueprint_text on every customer's blueprint of the story the page shows (the sample's, or one built here from the same record), at its end */
+const every_blueprint = async (page, what, story) => {
+    const all = story ? story.journeys.flatMap((j, jk) => j.instances.map((c, i) => [jk, i, `${j.name}, ${c.name}`]))
+        : await page.evaluate(() => window.AWA_STORY.journeys.flatMap((j, jk) => j.instances.map((c, i) => [jk, i, `${j.name}, ${c.name}`])));
+    const problems = []; let gaps = 0, dropped = 0, short = 0;
+    for (const [j, i, name] of all) {
+        await page.evaluate(([j, i]) => { location.hash = `#story/${j}/${i}/0/999`; }, [j, i]); await settle(page);
+        const t = await blueprint_text(page);
+        problems.push(...t.problems.map(p => `${name}: ${p}`)); gaps += t.gaps; dropped += t.dropped; short += t.short;
+    }
+    check(!problems.length, `${what}: on ${all.length} blueprints no two gap labels overlap and every stage header shows its name or a short form with its full name (${gaps} gap labels shown, ${dropped} dropped, ${short} short headers) ${problems.join('; ')}`);
+    return { gaps, dropped, short };
+};
+
 // 1. The sample, at every height and sideways
 {
     const page = await open(page_url);
@@ -164,6 +200,9 @@ const to_end = async page => { await page.evaluate(() => { const s = document.ge
     check(await page.locator('.layer.on').getAttribute('id') === 'L0', 'Escape goes up to the atlas');
     const hash = await page.evaluate(() => location.hash);
     check(/^#atlas\//.test(hash), 'the address carries the place');
+    // Every customer's blueprint of the sample has room for its text: nothing is shortened or dropped
+    const sample = await every_blueprint(page, 'the claims sample');
+    check(sample.dropped === 0 && sample.short === 0, `the claims sample keeps every gap label and every full stage name (${sample.dropped} dropped, ${sample.short} short)`);
     check(page.errors.length === 0, `no page errors on the sample ${page.errors.join('; ')}`);
     await page.close();
 }
@@ -300,6 +339,7 @@ awa('export', '-o', record);
             && (await page.textContent('#glist .gloss-g >> nth=0')) === 'This journey', '#glossary/<term> opens an entry of the journey\'s own glossary, listed first under "This journey"');
         await page.click('[data-gfilter="journey"]'); await page.waitForTimeout(200);
         check(await page.locator('#glist .ge').count() === options.glossary.length && await page.getAttribute('#g-metering-point a.ge-r', 'href').then(h => /^https:\/\//.test(h)), `the options give ${options.glossary.length} terms of the journey, with https links`);
+        await every_blueprint(page, 'the electricity onboarding', story);
         check(page.errors.length === 0, `no page errors with options ${page.errors.join('; ')}`);
         await page.close();
         // Option text is data: markup stays text, and only an https address becomes a link
@@ -432,7 +472,17 @@ awa('export', '-o', record);
         await settle(page);
         const journey = record.journeys[0], entry = journey.instances.find(e => e.instance.subject_key === 'ENR-26001');
         const story = build_story(record, JSON.parse(fs.readFileSync(path.join(savings, 'views/story-options.json'), 'utf-8')));
-        const lea = story.journeys[0].instances.findIndex(c => c.name === 'Léa Muller');
+        const lea = story.journeys[0].instances.findIndex(c => c.name === 'Léa Muller'), beats = story.journeys[0].instances[lea].beats;
+        await page.evaluate(i => { location.hash = `#story/0/${i}/0/999`; }, lea); await settle(page);
+        const t = await blueprint_text(page);
+        check(!t.problems.length && t.short > 0 && t.dropped > 0, `Léa's blueprint: no two gap labels overlap (${t.gaps} shown, ${t.dropped} dropped) and the ${t.short} stage headers too narrow for their names show a short form with the full name as accessible name ${t.problems.join('; ')}`);
+        // The longest gap keeps its label: labels are kept from the longest gap down
+        const labels = await page.evaluate(() => [...document.querySelectorAll('#L2 .gap')].map(g => ({ b: +g.dataset.b, shown: g.getClientRects().length > 0 })));
+        const long = l => beats[l.b].t - beats[l.b - 1].t, longest = Math.max(...labels.map(long));
+        check(labels.length > 0 && labels.find(l => long(l) === longest).shown, `the longest gap keeps its label (${labels.filter(l => l.shown).length} of ${labels.length} shown)`);
+        // A short header shows its full name on focus
+        const focused = await page.evaluate(() => { const label = document.querySelector('#L2 .bhd.short .bhn'); label.focus(); const full = label.parentElement.querySelector('.bfull'); return { name: label.getAttribute('aria-label'), shown: getComputedStyle(full).display !== 'none' && full.textContent }; });
+        check(focused.shown && focused.shown === focused.name, `a short stage header shows its full name on focus ("${focused.shown}")`);
         // The run view names the stage the journey instance records for the run, at every moment of the run
         const stage_name = id => journey.definition.stages.find(s => s.id === id).name;
         const runs = story.journeys[0].instances[lea].runs.map(r => ({ run_id: r.run_id, name: r.name, steps: r.steps.length }));
