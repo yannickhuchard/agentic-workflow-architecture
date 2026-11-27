@@ -1,0 +1,4 @@
+{
+  "Assess refund": { "output": { "amount": 120, "reason": "The receipt matches the order and the item is returned unused." } },
+  "Pay refund": { "output": { "paid": true, "payment_id": "PAY-1001" } }
+}

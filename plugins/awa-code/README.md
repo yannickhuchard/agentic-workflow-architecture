@@ -13,7 +13,7 @@ Validate, show and simulate [Agentic Workflow Architecture](../../README.md) wor
 | `server/start.mjs` | all | Starts the AWA MCP server ([`apps/mcp-server`](../../apps/mcp-server)) over stdio from a clone of this repository |
 | `assets/` | Claude Code, Cursor, the MCP Bundle | Icons |
 
-The MCP server has seven tools: `validate_document`, `show_workflow`, `simulate_workflow`, `show_journeys`, `simulate_journey`, `load_claims_example` and `show_dashboard`. Everything is a simulation: no tool, command, model or production system is called, and nothing is stored.
+The MCP server has eight tools: `validate_document`, `show_workflow`, `simulate_workflow`, `show_journeys`, `simulate_journey`, `load_claims_example`, `show_dashboard` and `make_dossier`. Everything is a simulation: no tool, command, model or production system is called, and nothing is stored.
 
 **Install it:** follow [Connect AWA to your AI assistant](../../docs/guides/connect-ai-assistants.md). In Claude Code, from a built clone: `/plugin marketplace add ./`, then `/plugin install awa@agentic-workflow-architecture`.
 
@@ -31,7 +31,7 @@ When the server is hosted, `npm run hosted:set -- https://<host>/mcp` in `apps/m
 
 ## Keep the copies equal
 
-The AWA skill and the Cursor rule exist in two places each. Edit [`skills/agentic-workflow-architecture/SKILL.md`](../../skills/agentic-workflow-architecture/SKILL.md) and copy it to `skills/agentic-workflow-architecture/` here and to `.agent/skills/agentic-workflow-architecture/`; edit `rules/awa-documents.mdc` here and copy it to `.cursor/rules/`. `npm test` in `apps/mcp-server` fails while they differ.
+The AWA skill and the Cursor rule exist in more than one place. Edit the folder [`skills/agentic-workflow-architecture`](../../skills/agentic-workflow-architecture) (its `SKILL.md`, `references/`, `assets/` and `scripts/`) and copy the whole folder to `skills/agentic-workflow-architecture/` here and to `.agent/skills/agentic-workflow-architecture/` (from the repository root: `for d in plugins/awa-code/skills .agent/skills; do rm -rf $d/agentic-workflow-architecture && cp -r skills/agentic-workflow-architecture $d/; done`); edit `rules/awa-documents.mdc` here and copy it to `.cursor/rules/`. `npm test` in `apps/mcp-server` fails while they differ.
 
 ## Check it
 

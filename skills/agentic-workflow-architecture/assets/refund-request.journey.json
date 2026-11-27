@@ -1,0 +1,30 @@
+{
+  "id": "c3c7ee72-a1bd-4788-975e-a2dcb4976b96",
+  "name": "Refund",
+  "version": "1.0.0",
+  "awa_version": "1.1",
+  "description": "From a customer's request for a refund to the money back on their account.",
+  "subject": { "name": "customer", "key": "customer_id" },
+  "stages": [
+    { "id": "receipt", "name": "Receipt", "description": "The customer sends the receipt.", "workflows": ["74829770-13de-4882-9720-2bf9e2348bd6"], "complete_when": "receipt_id exists", "max_duration": "P7D", "owner": "Customer service" },
+    { "id": "refund", "name": "Refund", "description": "The refund is assessed and paid.", "workflows": ["74829770-13de-4882-9720-2bf9e2348bd6"], "complete_when": "paid == true", "max_duration": "P10D", "owner": "Refunds team", "transitions": [] }
+  ],
+  "triggers": [ { "event": "refund.requested", "starts_journey": true, "start_workflow": "74829770-13de-4882-9720-2bf9e2348bd6" } ],
+  "goals": [ { "id": "refunded", "name": "Refund paid", "expression": "paid == true" } ],
+  "exits": [ { "event": "refund.withdrawn", "outcome": "abandoned", "reason": "The customer withdrew the request" } ],
+  "artefacts": [
+    { "id": "receipt", "name": "Receipt", "kind": "receipt", "description": "Proof of the purchase." },
+    { "id": "refund-notice", "name": "Refund notice", "kind": "notice", "description": "Tells the customer how much was refunded." }
+  ],
+  "touchpoints": [
+    { "id": "asks-for-refund", "name": "Asks for a refund", "direction": "inbound", "channel": "web", "technology": "Customer portal", "on": { "event": "refund.requested" } },
+    { "id": "sends-receipt", "name": "Sends the receipt", "direction": "inbound", "channel": "web", "technology": "Customer portal", "on": { "event": "receipt.uploaded" }, "exchanges": [ { "artefact": "receipt", "reference": "receipt_id" } ] },
+    { "id": "refund-notified", "name": "Is told the refund is paid", "direction": "outbound", "channel": "email", "technology": "Email gateway", "on": { "activity": "Pay refund" }, "exchanges": [ { "artefact": "refund-notice", "reference": "payment_id" } ] }
+  ],
+  "sentiment": {
+    "rules": [
+      { "on": "waited", "longer_than": "P3D", "change": -1, "reason": "waited more than three days for an answer" },
+      { "on": "goal_reached", "goal": "refunded", "change": 1, "reason": "has the money back" }
+    ]
+  }
+}

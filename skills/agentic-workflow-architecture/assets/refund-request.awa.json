@@ -1,0 +1,80 @@
+{
+  "id": "74829770-13de-4882-9720-2bf9e2348bd6",
+  "name": "Refund Request",
+  "version": "1.0.0",
+  "awa_version": "1.1",
+  "description": "Waits for the customer's receipt, has an AI agent assess the refund under an outcome contract, pays small refunds at once and sends the others to a refund officer.",
+  "roles": [
+    { "id": "cf02cde3-1f26-43d9-bcac-223211d052ca", "name": "Refund assessor", "actor_type": "ai_agent", "ai_model_config": { "model_id": "tier:balanced", "temperature": 0.2 } },
+    { "id": "94e2b6cc-9390-4c03-8d5a-b3c0be0d54f4", "name": "Refund officer", "actor_type": "human" },
+    { "id": "a54cc693-5a0e-49d4-a498-36a11189ec75", "name": "Payments", "actor_type": "application" }
+  ],
+  "events": [
+    { "id": "972cbed5-9fc4-4578-abb9-4d9d93c6909d", "name": "Refund requested", "event_type": "start", "event_definition": { "name": "refund.requested" } },
+    { "id": "a7aaec01-586d-43fb-92c1-eaf48b41d397", "name": "Receipt uploaded", "event_type": "message", "description": "Wait for the receipt of this customer, for seven days at most.",
+      "event_definition": { "name": "receipt.uploaded", "correlation_key": "customer_id", "timeout": "P7D", "timeout_edge_id": "40416bc5-33ec-49b3-9093-331128aa9ef5" } },
+    { "id": "df4109bf-9d82-461f-ac31-e6f648428557", "name": "Refund paid", "event_type": "end" },
+    { "id": "ba294d52-e5d2-4528-b440-a17cb830f1e5", "name": "Closed without receipt", "event_type": "end" }
+  ],
+  "activities": [
+    {
+      "id": "3d430317-f8ba-4e02-a0ae-853a0332d9a7",
+      "name": "Assess refund",
+      "role_id": "cf02cde3-1f26-43d9-bcac-223211d052ca",
+      "actor_type": "ai_agent",
+      "description": "Read the request and the receipt, and decide how much to refund.",
+      "procedure": "1. Check that the receipt matches the order. 2. Refund the price of the items the customer returns. 3. Give the amount and one sentence of reason.",
+      "outcome_contract": {
+        "output_schema": {
+          "type": "object",
+          "required": ["amount", "reason"],
+          "properties": { "amount": { "type": "number", "minimum": 0 }, "reason": { "type": "string", "minLength": 1 } }
+        },
+        "postconditions": [ { "id": "74831420-13b2-4eb9-b875-b47980513b33", "name": "Within the refund limit", "expression": "amount <= 5000" } ],
+        "budgets": { "max_attempts": 3, "max_duration": "PT2M", "max_tool_calls": 4 },
+        "on_violation": "escalate_human"
+      }
+    },
+    {
+      "id": "3a684e82-966b-45ba-a20e-9b57579e9d9e",
+      "name": "Review refund",
+      "role_id": "94e2b6cc-9390-4c03-8d5a-b3c0be0d54f4",
+      "actor_type": "human",
+      "description": "A refund officer approves or changes the amount the agent proposed."
+    },
+    {
+      "id": "ba606e19-3e5b-4b85-9424-56d13580dc1e",
+      "name": "Pay refund",
+      "role_id": "a54cc693-5a0e-49d4-a498-36a11189ec75",
+      "actor_type": "application",
+      "description": "Pay the refund to the customer's original means of payment.",
+      "retry": { "max_attempts": 3, "initial_delay": "PT5S", "backoff_multiplier": 2 }
+    }
+  ],
+  "decision_nodes": [
+    {
+      "id": "c99cc58f-52ad-49cd-9a6c-22d145a5d1a2",
+      "name": "Route refund",
+      "decision_table": {
+        "hit_policy": "first",
+        "inputs": [ { "name": "amount", "type": "number" } ],
+        "outputs": [ { "name": "route", "type": "string" } ],
+        "rules": [
+          { "id": "304d6ece-a446-4386-b42a-0037825712cf", "description": "Small refunds are paid at once", "input_entries": ["<= 200"], "output_entries": ["auto"], "output_edge_id": "8037d304-1c9c-4731-819f-8caf20630a79" },
+          { "id": "b24d243a-217c-46a2-af57-6a95c7216335", "description": "Larger refunds are reviewed", "input_entries": ["> 200"], "output_entries": ["review"], "output_edge_id": "f046927f-b034-45cf-a4cd-82b236cc2df5" }
+        ]
+      },
+      "default_output_edge_id": "f046927f-b034-45cf-a4cd-82b236cc2df5"
+    }
+  ],
+  "edges": [
+    { "id": "2b7c78ed-df53-49da-aeaa-bded16fde320", "source_id": "972cbed5-9fc4-4578-abb9-4d9d93c6909d", "target_id": "a7aaec01-586d-43fb-92c1-eaf48b41d397" },
+    { "id": "e491e1ad-ca2b-4cd5-a579-5e554f40acc5", "source_id": "a7aaec01-586d-43fb-92c1-eaf48b41d397", "target_id": "3d430317-f8ba-4e02-a0ae-853a0332d9a7" },
+    { "id": "40416bc5-33ec-49b3-9093-331128aa9ef5", "source_id": "a7aaec01-586d-43fb-92c1-eaf48b41d397", "target_id": "ba294d52-e5d2-4528-b440-a17cb830f1e5", "label": "No receipt in 7 days" },
+    { "id": "5c9fd684-e4b4-4b76-bf3e-3e8216f89842", "source_id": "3d430317-f8ba-4e02-a0ae-853a0332d9a7", "target_id": "c99cc58f-52ad-49cd-9a6c-22d145a5d1a2" },
+    { "id": "8037d304-1c9c-4731-819f-8caf20630a79", "source_id": "c99cc58f-52ad-49cd-9a6c-22d145a5d1a2", "target_id": "ba606e19-3e5b-4b85-9424-56d13580dc1e", "label": "Paid at once" },
+    { "id": "f046927f-b034-45cf-a4cd-82b236cc2df5", "source_id": "c99cc58f-52ad-49cd-9a6c-22d145a5d1a2", "target_id": "3a684e82-966b-45ba-a20e-9b57579e9d9e", "label": "Reviewed" },
+    { "id": "1f15395b-f0d8-4a6c-acb5-b26f66c544fd", "source_id": "3a684e82-966b-45ba-a20e-9b57579e9d9e", "target_id": "ba606e19-3e5b-4b85-9424-56d13580dc1e" },
+    { "id": "f909e07d-a85d-47a5-b508-03a4ca24a2a9", "source_id": "ba606e19-3e5b-4b85-9424-56d13580dc1e", "target_id": "df4109bf-9d82-461f-ac31-e6f648428557" }
+  ]
+}
