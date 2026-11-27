@@ -2,7 +2,8 @@
 //
 //   cd sdk/typescript && npm install && npm run build
 //   node examples/electricity-onboarding/demo/live.mjs [--port 4600] [--speed 1] [--scenario solar-prosumer|all|<name>] [--adapters-port 4545]
-//        [--then all --then-speed 8]   then the other scenarios, faster, so that the journey view and the measures fill
+//        [--then all --then-speed 8 --then-pause 10]   then the other scenarios, faster, so that the journey view and
+//        the measures fill; --then-pause waits that many seconds between the main scenario and the others
 //
 // It starts the reference adapters (adapters/mock-server.mjs), an AWA host in this process (AwaRuntime) with
 // both workflows and the journey registered, scripted AI agents whose answers are realistic and whose work takes
@@ -11,11 +12,15 @@
 // contracts, completed switches. A whole prosumer onboarding takes about 70 seconds at --speed 1.
 //
 // Standard output is one JSON object per line:
-//   {"t": <ms since start>, "kind": "action", "text": ..., "run_id": ..., "instance_id": ...}   something done to the host
-//   {"t": ..., "kind": "event", "text": ..., "run_id": ..., "instance_id": ...}                 something the host recorded
+//   {"t": <ms since start>, "kind": "action", "actor": ..., "text": ..., "run_id": ..., "instance_id": ...}   something done to the host
+//   {"t": ..., "kind": "event", "actor": ..., "text": ..., "event": <record type>, "run_id": ..., "instance_id": ...}   something the host recorded
 //   {"t": ..., "kind": "ready", "urls": {...}}     first line: where the views are
 //   {"t": ..., "kind": "phase", "text": ...}      with --then: the other scenarios begin (their actions carry "main": false)
 //   {"t": ..., "kind": "done", "run_id": ..., "instance_id": ..., "urls": {...}}   last line: the views of the main scenario's run
+// "text" is a sentence a viewer reads. "actor" says who acted: customer, system, agent (an AI agent), person,
+// guardrail, refused (a person or a call refused) or journey. An event line also carries "event", the type of the
+// record it tells ("activity.completed", "journey.stage_entered"), "workflow" (the run's workflow), and where it
+// applies "child_run_id" (subworkflow.started and .completed) or "stage" (journey.stage_entered).
 // The server keeps serving after the last line, until the process receives SIGINT or SIGTERM.
 //
 // Besides the SDK's routes, this script serves, for every run the host starts, child runs included:
@@ -42,33 +47,111 @@ const STEP_PAUSE_MS = 6000;
 /** Every string of a value, with `from` replaced by `to` */
 const replace_all = (value, from, to) => JSON.parse(JSON.stringify(value).split(from).join(to));
 
-/** What a journal event says, in a line a viewer can read; undefined for the events not worth a line */
-function describe(event) {
+// ------------------------------------------------------------------ what a viewer reads
+
+const words = value => String(value).replace(/_/g, ' ');
+const PLAN = { fixed_12: '12-month fixed', fixed_24: '24-month fixed', variable: 'variable', time_of_use: 'time-of-use', ev: 'electric vehicle', prosumer: 'prosumer' };
+/** What each tool of the example does, as the rest of a sentence that begins with the step's name */
+const TOOL = {
+    register_customer: () => 'creates the customer in the CRM',
+    send_message: a => `sends the customer ${a.channel === 'post' ? 'a letter' : a.channel === 'sms' ? 'a text message' : 'an e-mail'} through the notification service`,
+    extract_document: a => `reads the ${words(a.document_type || 'document')} through the extraction service`,
+    check_credit: () => 'asks the credit bureau to check credit and identity',
+    lookup_metering_point: () => 'reads the metering point from the registry',
+    estimate_annual_cost: a => `prices the ${PLAN[a.plan] || words(a.plan)} plan from the tariff catalogue`,
+    generate_contract: () => 'draws up the supply contract for e-signature',
+    create_billing_account: () => 'opens the billing account and the direct debit',
+    collect_deposit: a => `collects a deposit of ${a.amount_eur} EUR by direct debit`,
+    request_switch: () => 'asks the metering-point registry to switch the supply',
+    activate_customer: () => 'marks the customer active in the CRM',
+    cancel_billing_account: () => 'closes the billing account and cancels the mandate',
+    refund_deposit: () => 'refunds the deposit',
+    notify_grid_operator: () => 'notifies the grid operator of a small installation',
+    register_export: () => 'registers the export meter and the export tariff with the meter-data system',
+};
+/** What the run waits for, by business event */
+const AWAITED = { 'documents.uploaded': 'the documents', 'plan.confirmed': "the customer's choice of plan", 'contract.signed': 'the signed contract', 'switch.completed': 'the registry to confirm the switch' };
+const FOUND = { ignore_instructions: 'Hidden instructions', pii: 'Personal data', phone: 'A phone number', email: 'An e-mail address' };
+const WHERE = { tool_result: node => `in what a tool returned to ${node}`, input: node => `in what ${node} was given`, output: node => `in what ${node} wrote`, tool_call: node => `in a tool call of ${node}` };
+const list = values => (values.length > 3 ? `${values.slice(0, 3).join(', ')} and ${values.length - 3} more` : values.join(', '));
+const value_words = v => (Array.isArray(v) ? list(v.map(x => PLAN[x] || words(x))) : v === true ? 'yes' : PLAN[v] || words(v));
+
+/**
+ * The sentence a viewer reads for a journal event, and who acted: { actor, text }, a list of them, or undefined for
+ * the records not worth a line. `about` answers what the record alone does not say: the actor type of a step, a person's name,
+ * the arguments of a tool call, the workflow of a run.
+ */
+export function describe(event, about) {
     const d = event.data || {}, node = event.node_name;
+    const first = id => (about.person(id) || id).split(/[ ,]/)[0];
     switch (event.type) {
-        case 'run.started': return `Run started: ${d.workflow_name}${d.parent ? ' (child run)' : ''}`;
-        case 'activity.completed': return `${node} completed${d.principal ? ` by ${d.principal.id}` : ''}${d.approvals ? ` (approved by ${d.approvals.map(a => a.id).join(' and ')})` : ''}`;
-        case 'decision.evaluated': {
-            const outputs = Object.entries(d.outputs || {}).map(([k, v]) => `${k} = ${Array.isArray(v) ? v.join(', ') : v}`).join('; ');
-            return `Decision "${node}" by ${d.method}: ${d.model?.option ? `${d.model.option} (confidence ${d.model.confidence})` : outputs || 'default route'}`;
+        case 'run.started': return d.parent ? undefined : { actor: 'system', text: `The ${d.workflow_name} workflow starts.` };
+        case 'activity.completed': {
+            // A person may complete a step an agent began, when its outcome contract hands it over
+            if (d.actor_type === 'human' || d.principal?.kind === 'person') return { actor: 'person', text: `${first(d.principal?.id)} completes ${node}${d.approvals ? `, approved by ${d.approvals.map(a => first(a.id)).join(' and ')}` : ''}.` };
+            return d.actor_type === 'ai_agent' ? { actor: 'agent', text: `The AI agent completes ${node}.` } : undefined;
         }
-        case 'tool.completed': return `${node}: ${d.tool} -> ${d.link} (${d.status})`;
-        case 'tool.failed': return `${node}: ${d.tool} refused or failed (${d.error?.code})`;
-        case 'guardrail.triggered': return `Guardrail "${d.name}" ${d.action === 'block' ? 'blocked' : d.action === 'redact' ? 'redacted' : d.action} ${d.categories?.join(', ')} at ${d.stage} of ${node}`;
-        case 'contract.checked': return d.passed ? undefined : `${node}: outcome contract not met (${d.violations.map(v => v.name).join('; ')})`;
-        case 'contract.escalated': return `${node}: handed to a person`;
-        case 'authorization.decided': return d.decision === 'deny' ? `Refused: ${d.principal.id} may not ${d.action.replace('_', ' ')} "${node}" (${d.reason})` : d.approval ? `${d.principal.id} approves "${node}" (${d.approval.given} of ${d.approval.required})` : undefined;
-        case 'token.waiting': return d.reason === 'human_task' ? `${node} waits for a person` : undefined;
-        case 'event.waiting': return `Waits for ${d.name}`;
-        case 'event.timed_out': return `No ${d.name} before the deadline`;
-        case 'event.published': return `Publishes ${d.name}`;
-        case 'subworkflow.started': return `${node}: starts the child run "${d.workflow_name}"`;
-        case 'subworkflow.completed': return `${node}: the child run completed`;
-        case 'sla.warning': return `Service level warning: ${d.name}`;
-        case 'sla.breached': return `Service level breached: ${d.name}`;
-        case 'activity.compensated': return `Compensation: ${node} undoes ${d.compensates_activity_name}`;
-        case 'run.completed': return 'Run completed';
-        case 'run.failed': return `Run failed${d.compensation ? `, ${d.compensation.succeeded} of ${d.compensation.attempted} compensations done` : ''}`;
+        case 'decision.evaluated': {
+            if (d.method === 'model') return { actor: 'agent', text: `A model decides ${node}: ${value_words(d.outputs?.option ?? d.model?.option)}, ${Math.round((d.outputs?.confidence ?? d.model?.confidence ?? 0) * 100)}% sure.` };
+            const outputs = Object.entries(d.outputs || {}).filter(([, v]) => v !== false && v !== 0 && v !== null).map(([k, v]) => `${words(k)} ${value_words(v)}`);
+            return { actor: 'system', text: `The ${node} table decides: ${outputs.join('; ') || 'the default route'}.` };
+        }
+        case 'tool.completed': {
+            const call = about.call(d.call_id), phrase = TOOL[d.tool];
+            return { actor: about.actor(event), text: phrase ? `${node} ${phrase(call?.arguments || {})}.` : `${node} calls ${words(d.tool)}.` };
+        }
+        // A call a guardrail blocked is told by the guardrail's own line
+        case 'tool.failed': return d.error?.code === 'GUARDRAIL_BLOCKED' ? undefined : { actor: 'system', text: `${node}: the call to ${words(d.tool)} fails (${d.error?.code}).` };
+        case 'guardrail.triggered': {
+            const what = FOUND[d.categories?.[0]] || `${words(d.categories?.[0] || d.check)}`.replace(/^./, c => c.toUpperCase());
+            const thing = d.stage === 'tool_result' && about.call(d.call_id)?.arguments?.document_type ? `the ${words(about.call(d.call_id).arguments.document_type)}` : 'it';
+            const effect = d.action === 'redact' ? `${thing === 'it' ? 'it' : thing} is removed before anyone reads it` : d.stage === 'tool_result' ? `${thing === 'it' ? 'the result' : thing} is withheld from the agent` : d.stage === 'output' ? 'the result is blocked' : 'the agent does not see it';
+            const found = { actor: 'guardrail', text: `${what} found ${WHERE[d.stage] ? WHERE[d.stage](node) : `at ${words(d.stage)} of ${node}`}: ${effect}.` };
+            // What a tool returned is checked before the agent reads it: the call is told first, then what the guardrail found in its answer
+            const call = d.stage === 'tool_result' && about.call(d.call_id);
+            return call && TOOL[call.tool] ? [{ actor: about.actor(event), text: `${node} ${TOOL[call.tool](call.arguments || {})}.` }, found] : found;
+        }
+        case 'contract.checked': {
+            if (d.passed) return undefined;
+            const names = d.violations.map(v => `“${v.name}”`);
+            return { actor: 'agent', text: `${node} does not meet its outcome contract: ${names.join(' and ')} ${names.length === 1 ? 'fails' : 'fail'}.` };
+        }
+        case 'contract.escalated': return { actor: 'person', text: `${node} goes to a person, as its outcome contract says.` };
+        case 'authorization.decided': {
+            if (d.decision === 'deny') {
+                const prior = /performed "([^"]+)"/.exec(d.message || '')?.[1];
+                const why = d.reason === 'separation_of_duties' ? `${prior ? `${first(d.principal.id)} did ${prior} in this run, and ` : ''}separation of duties forbids it`
+                    : d.reason === 'four_eyes' ? 'the second approval must come from another person (four eyes)'
+                    : d.reason === 'no_rule' ? `no rule of the policy lets ${d.resource?.role_name ? `anyone but a ${d.resource.role_name.toLowerCase()}` : 'them'} do it`
+                    : d.reason === 'rule' ? 'a rule of the policy denies it' : words(d.reason);
+                return { actor: 'refused', text: `${first(d.principal.id)} is refused ${node}: ${why}.` };
+            }
+            return d.approval ? { actor: 'person', text: `${first(d.principal.id)} approves ${node} (${d.approval.given} of ${d.approval.required}).` } : undefined;
+        }
+        case 'token.waiting': return d.reason === 'human_task' ? { actor: 'person', text: `${node} waits for a person.` } : undefined;
+        case 'event.waiting': return { actor: 'system', text: `The run waits for ${AWAITED[d.name] || `“${d.name}”`}.` };
+        case 'event.timed_out': return { actor: 'system', text: `No sign of ${AWAITED[d.name] || `“${d.name}”`} before the deadline: the run takes the path planned for that.` };
+        case 'event.published': return { actor: 'system', text: `The run announces “${d.name}”.` };
+        case 'subworkflow.started': return { actor: 'system', text: `${node} starts the child run ${d.workflow_name}.` };
+        case 'subworkflow.completed': return { actor: 'system', text: `The child run is complete: ${node} goes on.` };
+        case 'sla.warning': return { actor: 'system', text: `Service level warning: ${d.name}.` };
+        case 'sla.breached': return { actor: 'system', text: `Service level breached: ${d.name}.` };
+        case 'activity.compensated': return { actor: 'system', text: `Compensation: ${node} undoes ${d.compensates_activity_name}.` };
+        case 'run.completed': return { actor: 'system', text: `The ${about.workflow(event.run_id)} run is complete.` };
+        case 'run.failed': return { actor: 'system', text: `The ${about.workflow(event.run_id)} run fails${d.compensation ? `; ${d.compensation.succeeded} of ${d.compensation.attempted} completed steps are undone` : ''}.` };
+        default: return undefined;
+    }
+}
+
+/** The sentence for a record of a journey */
+function describe_journey(e) {
+    const d = e.data || {};
+    switch (e.type) {
+        case 'journey.stage_entered': return `The journey enters the stage “${d.stage_name}”.`;
+        case 'journey.goal_reached': return `Goal “${d.goal_name}” reached.`;
+        case 'journey.completed': return 'The journey is complete.';
+        case 'journey.abandoned': return `The journey ends: ${d.reason}.`;
+        case 'journey.stalled': return `The journey is stalled${d.stage_name ? ` in “${d.stage_name}”` : ''}: ${d.reason || 'it has been there longer than it is given'}.`;
         default: return undefined;
     }
 }
@@ -77,7 +160,7 @@ function describe(event) {
  * Start the demonstration. `sdk` is the SDK module (the built package, or its sources in a test). Resolves once
  * the servers listen; `done` resolves after the last scenario, with the URLs of the main scenario's run.
  */
-export async function start_demo({ sdk, port = 4600, adapters_port = 4545, speed = 1, scenario = MAIN_SCENARIO, then, then_speed, out = line => process.stdout.write(`${JSON.stringify(line)}\n`) }) {
+export async function start_demo({ sdk, port = 4600, adapters_port = 4545, speed = 1, scenario = MAIN_SCENARIO, then, then_speed, then_pause = 0, out = line => process.stdout.write(`${JSON.stringify(line)}\n`) }) {
     const started = Date.now();
     const emit = line => out({ t: Date.now() - started, ...line });
     const sleep = ms => new Promise(resolve => setTimeout(resolve, ms / speed));
@@ -122,26 +205,47 @@ export async function start_demo({ sdk, port = 4600, adapters_port = 4545, speed
     // --- Which run is which: workflows, roots, journeys ------------------------------------------
     const run_workflow = new Map(), run_root = new Map();
     const instance_of = run_id => runtime.list_journey_instances().find(i => i.runs.some(r => r.run_id === (run_root.get(run_id) || run_id)))?.id;
+    const people = new Map((example.deployment.authorization.principals || []).map(p => [p.id, p.name]));
+    const calls = new Map();
+    const workflow_name = run_id => runtime.get_workflow(run_workflow.get(run_id))?.name;
+    const about = {
+        person: id => people.get(id),
+        call: id => calls.get(id),
+        workflow: workflow_name,
+        // Who did a step: the actor type its workflow gives it
+        actor: event => {
+            const type = runtime.get_workflow(run_workflow.get(event.run_id))?.activities.find(a => a.id === event.node_id)?.actor_type;
+            return type === 'ai_agent' ? 'agent' : type === 'human' ? 'person' : 'system';
+        },
+    };
     journal.listeners.add(event => {
         if (event.type === 'run.started') {
             run_workflow.set(event.run_id, event.workflow_id);
             if (event.data?.parent) run_root.set(event.run_id, event.data.parent.root_run_id || event.data.parent.run_id);
         }
-        const text = describe(event);
-        if (text) emit({ kind: 'event', text, run_id: event.run_id, instance_id: instance_of(event.run_id) });
+        if (event.type === 'tool.invoked') calls.set(event.data.call_id, event.data);
+        const told = describe(event, about);
+        for (const line of told ? [told].flat() : []) {
+            const extra = event.type.startsWith('subworkflow.') ? { child_run_id: event.data.run_id } : {};
+            emit({ kind: 'event', ...line, event: event.type, workflow: workflow_name(event.run_id), run_id: event.run_id, instance_id: instance_of(event.run_id), ...extra });
+        }
+        journey_lines();
     });
     // What the journeys recorded since last asked: stages, goals, endings
     const seen = new Map();
-    const journey_lines = () => {
+    function journey_lines() {
         for (const instance of runtime.list_journey_instances()) {
             const from = seen.get(instance.id) || 0;
-            for (const e of instance.events.slice(from)) {
-                const text = { 'journey.stage_entered': `Journey: stage "${e.data.stage_name}"`, 'journey.goal_reached': `Journey: goal "${e.data.goal_name}" reached`, 'journey.completed': 'Journey completed', 'journey.abandoned': `Journey abandoned: ${e.data.reason}`, 'journey.stalled': `Journey stalled: ${e.data.reason || `longer than allowed in stage "${e.data.stage_name}"`}` }[e.type];
-                if (text) emit({ kind: 'event', text, run_id: e.run_id, instance_id: instance.id });
-            }
             seen.set(instance.id, instance.events.length);
+            for (const e of instance.events.slice(from)) {
+                const text = describe_journey(e);
+                if (text) emit({ kind: 'event', actor: 'journey', text, event: e.type, ...(e.type === 'journey.stage_entered' ? { stage: e.data.stage_name } : {}), run_id: e.run_id, instance_id: instance.id });
+            }
         }
-    };
+    }
+    // Who does what a scenario's step does: the customer sends what the journey says the customer sends
+    const from_subject = new Set(example.journey.touchpoints.filter(t => t.on?.event && t.direction === 'inbound' && t.party === 'subject').map(t => t.on.event));
+    const actor_of_action = entry => (entry.complete ? 'person' : entry.publish ? (from_subject.has(entry.publish) ? 'customer' : 'system') : 'system');
 
     // --- The HTTP server: the SDK's routes and views, and the run routes a journey's runs need ------------
     sdk.set_journey_runtime(runtime);
@@ -206,21 +310,23 @@ export async function start_demo({ sdk, port = 4600, adapters_port = 4545, speed
             const instance = await play(sdk, runtime, journal, example, s, {
                 advance: ms => { offset += ms; },
                 pause: async () => { journey_lines(); await sleep(STEP_PAUSE_MS); },
-                log: entry => { journey_lines(); emit({ kind: 'action', text: entry.text, run_id: entry.run_id || instance_of_application(entry.application_id), instance_id: entry.instance_id }); },
+                log: entry => { journey_lines(); emit({ kind: 'action', actor: actor_of_action(entry), text: `${entry.text}.`, run_id: entry.run_id || instance_of_application(entry.application_id), instance_id: entry.instance_id }); },
                 today,
             });
             journey_lines();
             if (s.name === MAIN_SCENARIO || !main) main = instance;
         }
         if (afterwards.length && !stopped) {
+            // A moment between the main scenario and the others, in real seconds whatever the speed
+            if (then_pause > 0) await new Promise(resolve => setTimeout(resolve, then_pause * 1000));
             speed = then_speed || speed;
-            emit({ kind: 'phase', text: `${afterwards.length} more customers, at ${speed} times the speed` });
+            emit({ kind: 'phase', text: `${afterwards.length} more customers, at ${speed} times the speed.` });
             for (const s of afterwards) {
                 if (stopped) break;
                 await play(sdk, runtime, journal, example, s, {
                     advance: ms => { offset += ms; },
                     pause: async () => { journey_lines(); await sleep(STEP_PAUSE_MS); },
-                    log: entry => { journey_lines(); emit({ kind: 'action', main: false, text: entry.text, run_id: entry.run_id || instance_of_application(entry.application_id), instance_id: entry.instance_id }); },
+                    log: entry => { journey_lines(); emit({ kind: 'action', main: false, actor: actor_of_action(entry), text: `${entry.text}.`, run_id: entry.run_id || instance_of_application(entry.application_id), instance_id: entry.instance_id }); },
                     today,
                 });
                 journey_lines();
@@ -253,7 +359,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     const demo = await start_demo({
         sdk, port: Number(option('port', 4600)), adapters_port: Number(option('adapters-port', 4545)),
         speed: Number(option('speed', 1)), scenario: option('scenario', MAIN_SCENARIO),
-        then: option('then'), then_speed: Number(option('then-speed', 0)) || undefined,
+        then: option('then'), then_speed: Number(option('then-speed', 0)) || undefined, then_pause: Number(option('then-pause', 0)) || 0,
     });
     let stopping = false;
     const shutdown = async () => {

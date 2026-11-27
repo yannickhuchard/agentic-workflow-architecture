@@ -11,6 +11,8 @@
   dashboard.html                 the bundled sample
   dashboard.html?data=<url>      a portfolio exported with "awa journey export"
   dashboard.html?live=<server>   a running host, read every few seconds
+  &options=<url>                 the journey view's options (journey-story-builder.js): this page uses subject_name,
+                                 to name the customers, and passes the options on to the journey view
   window.AWA_dashboard_show(portfolio, source, link, { from, to })   for a page that embeds this one
 -->
 <style>
@@ -238,6 +240,8 @@ let source = '', link = '';          // where it came from, and how the journey 
 const open = new Set();              // rows opened
 const st = { journey: '', period: 'all' };
 let fixed = null;                    // a period given by an embedding page: { from, to }
+const query = new URLSearchParams(location.search);
+let OPTIONS = {};                    // the journey view's options, given by ?options=<url>
 
 /* ---- words and numbers ---- */
 const dur = ms => ms == null ? null : ms < 1000 ? `${Math.round(ms)} ms` : ms < 90e3 ? `${Math.round(ms / 1e3)} s` : ms < 90 * 60e3 ? `${Math.round(ms / 60e3)} min` : ms < 48 * 3600e3 ? `${(ms / 3600e3).toFixed(1)} h` : `${(ms / DAY).toFixed(ms < 20 * DAY ? 1 : 0)} days`;
@@ -552,7 +556,13 @@ function message(text) { $('msg').textContent = text; $('msg').hidden = false; $
 function show(data, from, how, options) {
     if (!K) return message('awa-kpis.js is missing: run "npm run build:measures" in sdk/typescript.');
     if (!data || typeof data !== 'object' || !(Array.isArray(data.journeys) || Array.isArray(data.runs))) return message(`${from || 'This'} is not a record of journeys: it has no "journeys". Export one with "awa journey export".`);
-    P = data; source = from || ''; link = how || '';
+    P = data; source = from || ''; link = how ? how + (query.get('options') ? `&options=${encodeURIComponent(query.get('options'))}` : '') : '';
+    // A customer named by the paths the journey view's options give, where the record names nobody
+    if (Array.isArray(OPTIONS.subject_name)) for (const j of P.journeys || []) for (const row of j.instances) {
+        if (row.subject_name) continue;
+        const name = OPTIONS.subject_name.map(p => String(p).split('.').reduce((v, k) => (v == null ? undefined : v[k]), row.instance.data)).filter(v => v != null && v !== '').join(' ');
+        if (name) row.subject_name = name;
+    }
     // Whoever embeds the page may fix the period, so that the page shows what was asked for and nothing else
     const instant = text => (typeof text === 'string' && !Number.isNaN(Date.parse(text)) ? text : undefined);
     fixed = options && (instant(options.from) || instant(options.to)) ? { from: instant(options.from), to: instant(options.to) } : null;
@@ -597,8 +607,8 @@ document.addEventListener('pointermove', e => {
     tip.style.left = `${Math.max(8, x)}px`; tip.style.top = `${Math.max(8, e.clientY - tip.offsetHeight - 10)}px`;
 });
 
-const query = new URLSearchParams(location.search);
 const get = async url => { const r = await fetch(url, { headers: { accept: 'application/json' } }); if (!r.ok) throw new Error(`${url} answered ${r.status}`); return r.json(); };
+(query.get('options') ? get(query.get('options')).then(o => { OPTIONS = o || {}; }, error => console.warn(`Cannot load the options: ${error.message}`)) : Promise.resolve()).then(() => {
 if (query.get('live')) {
     const host = query.get('live').replace(/\/$/, ''), url = `${host}/api/v1/journeys/portfolio`;
     let last = '';
@@ -611,6 +621,7 @@ if (query.get('live')) {
     get(query.get('data')).then(d => show(d, query.get('data'), `?data=${encodeURIComponent(query.get('data'))}`)).catch(error => message(`Cannot load ${query.get('data')}: ${error.message}`));
 } else if (window.AWA_PORTFOLIO) show(window.AWA_PORTFOLIO, window.AWA_SOURCE || 'sample: six customers, three journeys', '');
 else if (!window.AWA_EMBEDDED) message('No record loaded. Use "Open a record", or add ?data=<url> or ?live=<server>.');
+});
 })();
 </script>
 </body>

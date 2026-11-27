@@ -241,7 +241,7 @@ export async function play(sdk, runtime, journal, example, scenario, { advance =
 
     const applies = `${scenario.application.applicant.first_name} ${scenario.application.applicant.last_name} applies on the web form`;
     await pause({ say: applies, kind: 'apply' });
-    log({ kind: 'action', text: applies, application_id, instance_id: instance()?.id });
+    log({ kind: 'action', text: applies, application_id, instance_id: instance()?.id, publish: 'onboarding.requested' });
     await publish('onboarding.requested', scenario.application, '/customer-portal/apply');
 
     for (const step of scenario.steps) {
@@ -249,7 +249,7 @@ export async function play(sdk, runtime, journal, example, scenario, { advance =
         advance(duration_ms(step.after));
         const task = step.complete ? [...journal.tasks.values()].find(t => t.node_name === step.complete && t.task.startsWith(`${application_id}:`)) : undefined;
         if (step.complete && !task) throw new Error(`${scenario.name}: nobody is waiting at "${step.complete}"`);
-        log({ kind: 'action', text: step.say || step.publish || step.complete || 'time passes', application_id, run_id: task?.run_id, instance_id: instance()?.id });
+        log({ kind: 'action', text: step.say || step.publish || step.complete || 'time passes', application_id, run_id: task?.run_id, instance_id: instance()?.id, ...(step.publish ? { publish: step.publish } : {}), ...(step.complete ? { complete: step.complete, by: step.by } : {}) });
         if (step.publish) {
             await publish(step.publish, fill(step.data || {}, { today: today(), application: scenario.application }), step.source || '/customer-portal');
         } else if (step.tick) {

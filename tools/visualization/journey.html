@@ -91,6 +91,12 @@ button:focus-visible, input:focus-visible { outline: 2px solid #a5b4fc; outline-
 
 /* All journeys of one kind, on calendar time */
 .card { position: absolute; top: 20px; height: 104px; padding: 14px 18px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; }
+/* A journey of many stages has narrow cards: the name, the time given, and the four counts two by two */
+.card.narrow { padding: 9px 8px 8px 10px; gap: 4px; }
+.card.narrow .kv { display: grid; grid-template-columns: 1fr 1fr; gap: 1px 4px; }
+.card.narrow .kv div { white-space: nowrap; font-size: 11px; line-height: 17px; color: var(--mute); }
+.card.narrow .kv b { font-family: 'Space Grotesk', Inter, sans-serif; font-size: 15px; font-weight: 600; color: var(--text); margin-right: 4px; }
+.card.narrow .kv .warn b { color: var(--wait); }
 .tick { position: absolute; top: 142px; height: 548px; border-left: 1px solid rgba(255,255,255,.06); padding-left: 6px; font-size: 12px; color: var(--mute); pointer-events: none; }
 .lane { position: absolute; left: 16px; width: 1408px; height: 76px; border-radius: 12px; border: 1px solid transparent; background: transparent; cursor: pointer; text-align: left; padding: 9px 12px; display: flex; flex-direction: column; gap: 3px; transition: background-color .3s, border-color .3s; }
 .lane:hover { background: rgba(255,255,255,.045); }
@@ -227,6 +233,20 @@ button:focus-visible, input:focus-visible { outline: 2px solid #a5b4fc; outline-
 .ev { display: flex; gap: 12px; font-size: 13px; line-height: 17px; }
 .evl { flex: none; width: 128px; color: var(--mute); }
 .evt2 { color: #e2e8f0; overflow-wrap: anywhere; }
+/* A long workflow in bands: one band at a time, the others a click away */
+.bchip { height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--line); background: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--soft); white-space: nowrap; transition: background-color .3s, border-color .3s, color .3s; }
+.bchip:hover { background: rgba(255,255,255,.05); }
+.bchip.on { color: #fff; font-weight: 600; background: rgba(129,140,248,.18); border-color: rgba(129,140,248,.45); }
+.bchip .bn { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
+.bchip .bs { font-size: 11px; font-weight: 500; }
+.b-done .bn, .b-done .bs { color: var(--ok); } .b-now .bn, .b-now .bs { color: #a5b4fc; } .b-next .bn, .b-next .bs { color: #64748b; }
+.gclip { position: absolute; left: 0; width: 1440px; overflow: hidden; }
+.gband { position: absolute; left: 0; top: 0; transform-origin: 0 0; transition: transform .8s cubic-bezier(.4,0,.2,1); }
+.gband [data-band] { transition: filter .5s ease; }
+.gband .dimb { filter: opacity(.14); }
+.bnote { position: absolute; font-size: 11px; line-height: 14px; color: var(--mute); white-space: nowrap; pointer-events: none; }
+/* A record that grows is shown again without replaying what was already on screen */
+.instant, .instant * { transition: none !important; }
 .rawd { font-size: 12px; position: relative; } .rawd summary { cursor: pointer; color: var(--soft); } .rawd pre { margin: 6px 0 0; padding: 8px 10px; border-radius: 8px; background: rgba(255,255,255,.04); border: 1px solid var(--line); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; line-height: 15px; color: #e2e8f0; }
 .rawc { position: absolute; right: 0; top: -2px; height: 22px; padding: 0 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); color: var(--soft); cursor: pointer; font-size: 11px; } .rawd:not([open]) .rawc { display: none; }
 
@@ -314,14 +334,24 @@ const mood = v => v === null || v === undefined ? '' : `<span class="${moodCls(v
 /** Whether the mood a journey ended on was stated by the customer or inferred by a rule */
 const basisOf = inst => { let basis = ''; for (const b of inst.beats) for (const w of b.mood_why || []) basis = w.basis === 'measured' ? 'said' : 'inferred'; return basis; };
 const KIND = k => k.charAt(0).toUpperCase() + k.slice(1);
+/** A run's status in words: a host records "waiting_human" where a reader says "waiting for a person" */
+const RUN_WORD = { completed: 'completed', failed: 'failed', cancelled: 'withdrawn', running: 'under way', waiting_human: 'waiting for a person', waiting_event: 'waiting for an event', waiting: 'waiting' };
+const runWord = status => RUN_WORD[status] || String(status || '').replace(/_/g, ' ');
 
 // ---------------------------------------------------------------- geometry
 const CX = k => 264 + k * 392;                       // atlas columns
-const PY = i => 236 + i * 72;                        // atlas rows
-const laneTop = i => 178 + i * 84;                   // calendar lanes
+// Atlas rows: 72 pixels apart, closer when more customers must fit above the caption
+const rowGap = () => Math.min(72, Math.floor(464 / Math.max(1, S.customers.length)));
+const PY = i => 236 + i * rowGap();
+// Calendar lanes: 84 pixels apart, closer when more customers must fit above the caption
+const laneGap = () => Math.min(84, Math.floor(520 / Math.max(1, J().instances.length)));
+const laneTop = i => 178 + i * laneGap();
+const laneMid = () => (laneGap() < 80 ? 32 : 34);
 const LY = { world: 180, journey: 240, work: 300 };  // blueprint lanes
-const techY = k => 366 + k * 16;
-const kindY = (j, k) => 366 + j.technologies.length * 16 + 28 + k * 16;
+// Technology and exchange rows: 16 pixels apart, closer when there are many, so that the last stays above the legend
+const rowH = () => Math.min(16, Math.floor(246 / Math.max(1, J().technologies.length + J().kinds.length - 1)));
+const techY = k => 366 + k * rowH();
+const kindY = (j, k) => 366 + j.technologies.length * rowH() + 28 + k * rowH();
 const moodY = v => 100 - v * 14;
 function xsOf(inst) {
     const w = b => 1 + (b.gap ? 1.5 : 0), beats = inst.beats;
@@ -342,7 +372,7 @@ const built = {};
 
 scenes.atlas = () => {
     let h = `<div style="position:absolute;left:28px;top:20px;width:216px;display:flex;flex-direction:column;gap:8px">
-      <div class="hd" style="font-size:22px;line-height:26px;font-weight:600">${S.journeys.length} journeys, ${S.customers.length} customers</div>
+      <div class="hd" style="font-size:22px;line-height:26px;font-weight:600">${S.journeys.length} journey${S.journeys.length === 1 ? '' : 's'}, ${S.customers.length} customer${S.customers.length === 1 ? '' : 's'}</div>
       <div class="sub" style="font-size:13px;line-height:18px">Select a journey to see everyone in it, or a cell to follow one customer through it. The line in each cell is that customer&rsquo;s mood: &ldquo;said&rdquo; where they told us, &ldquo;inferred&rdquo; where a rule assumed it.</div></div>`;
     S.journeys.forEach((j, k) => {
         const o = j.outcome;
@@ -354,13 +384,14 @@ scenes.atlas = () => {
             ${o.goals.map(g => `<div class="ct"><b>${g.reached}/${j.instances.length}</b><span>${esc(g.name.toLowerCase())}</span></div>`).join('')}</div></button>`;
     });
     for (const t of S.transitions) if (t.to === t.from + 1) h += `<div class="hand" style="left:${CX(t.from) + 360}px">${t.count}<br><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15"/><path d="M14 7l5 5-5 5"/></svg><br>go on</div>`;
+    const gap = rowGap(), tight = gap < 72, cellH = Math.min(58, gap - 6);
     S.customers.forEach((c, i) => {
-        h += `<div class="prow" data-p="${i}" style="top:${PY(i) - 4}px"></div>
-          <div class="pname" style="top:${PY(i) + 4}px"><span style="font-size:15px;font-weight:600">${esc(c.name)}</span><span class="sub clamp2">${esc(c.persona)}</span></div>`;
+        h += `<div class="prow" data-p="${i}" style="top:${PY(i) - 4}px${tight ? `;height:${cellH + 8}px` : ''}"></div>
+          <div class="pname" style="top:${PY(i) + (tight ? Math.max(2, (cellH - 20) / 2 - (c.persona ? 8 : 0)) : 4)}px"><span style="font-size:15px;font-weight:600">${esc(c.name)}</span>${c.persona ? `<span class="sub ${tight ? 'one' : 'clamp2'}">${esc(c.persona)}</span>` : ''}</div>`;
         for (const life of c.life) {
             const inst = S.journeys[life.j].instances[life.i], sc = S.journeys[life.j].scale || { min: -2, max: 2 }, n = inst.beats.length;
             const pts = inst.beats.map((b, k) => `${r(4 + k / Math.max(n - 1, 1) * 142)},${r(20 - (b.mood ?? 0) / sc.max * 15)}`).join(' ');
-            h += `<button class="pcell" style="left:${CX(life.j)}px;top:${PY(i)}px" data-open-s="${life.j},${life.i}" aria-label="Follow ${esc(c.name)} through ${esc(S.journeys[life.j].name)}">
+            h += `<button class="pcell" style="left:${CX(life.j)}px;top:${PY(i)}px${tight ? `;height:${cellH}px` : ''}" data-open-s="${life.j},${life.i}" aria-label="Follow ${esc(c.name)} through ${esc(S.journeys[life.j].name)}">
               <svg class="spark" viewBox="0 0 150 40" aria-hidden="true"><line x1="0" y1="20" x2="150" y2="20" stroke="#334155" stroke-dasharray="3 4"/><polyline points="${pts}" fill="none" stroke="#e2e8f0" stroke-width="2" stroke-linejoin="round"/></svg>
               <span style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="e-${tok(inst.ending.kind)}" style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(inst.ending.label)}</span><span style="font-size:12px">${mood(inst.mood_end)}${basisOf(inst) ? ` <span style="color:var(--mute)">&middot; ${basisOf(inst)}</span>` : ''}</span></span></button>`;
         }
@@ -375,21 +406,26 @@ scenes.journey = () => {
       <div class="hd" style="font-size:22px;line-height:26px;font-weight:600">${esc(j.name)}</div>
       <div class="sub" style="font-size:13px;line-height:18px">Calendar time, ${day(j.t0)} to ${day(j.t1)}. One lane per customer. Select a lane to follow that customer.</div>
       <div id="asof" style="font-size:13px;font-weight:600;color:#a5b4fc"></div></div>`;
+    const narrow = w < 200;
     j.stages.forEach((s, k) => {
-        h += `<div class="card" style="left:${264 + k * (w + 24)}px;width:${w}px"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px"><span class="hd" style="font-size:17px;font-weight:600">${esc(s.name)}</span><span class="sub">${s.max ? 'given ' + esc(s.max) : ''}</span></div>
+        h += narrow
+            ? `<div class="card narrow" style="left:${264 + k * (w + 24)}px;width:${w}px"><div style="display:flex;flex-direction:column;gap:1px;min-width:0"><span class="hd" style="font-size:15px;line-height:18px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(s.name)}">${esc(s.name)}</span><span class="sub" style="font-size:11px;line-height:14px">${s.max ? 'given ' + esc(s.max) : '&nbsp;'}</span></div>
+          <div class="kv" data-card="${k}"></div></div>`
+            : `<div class="card" style="left:${264 + k * (w + 24)}px;width:${w}px"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px"><span class="hd" style="font-size:17px;font-weight:600">${esc(s.name)}</span><span class="sub">${s.max ? 'given ' + esc(s.max) : ''}</span></div>
           <div class="kv" data-card="${k}"></div></div>`;
     });
     const span = j.t1 - j.t0, step = Math.max(1, Math.ceil(span / DAY / 10)) * DAY;
     for (let t = Math.floor(j.t0 / DAY) * DAY + DAY; t < j.t1; t += step) h += `<div class="tick" style="left:${r(ax(t))}px">${day(t)}</div>`;
     const MARK = { event: 1, timeout: 1, goal: 1, stalled: 1, completed: 1, abandoned: 1, run_failed: 1, model_decision: 1, human_done: 1 };
+    const tight = laneGap() < 80, mid = laneMid();
     j.instances.forEach((c, i) => {
         const top = laneTop(i), stalledBeat = c.beats.find(b => b.kind === 'stalled');
-        h += `<button class="lane" data-lane="${i}" style="top:${top}px" aria-label="Follow the journey of ${esc(c.name)}"><span style="font-size:15px;font-weight:600">${esc(c.name)}</span><span class="ls">${esc(c.summary)}</span></button>`;
-        c.stages.forEach(sg => { h += `<div class="seg st${sg.stage % 3}" data-from="${sg.from}" data-to="${sg.to === null ? j.t1 : sg.to}" data-open="${sg.to === null ? 1 : 0}" data-stall="${stalledBeat ? stalledBeat.t : ''}" data-name="${esc(j.stages[sg.stage].name)}" style="left:${r(ax(sg.from))}px;top:${top + 22}px;width:0"></div>`; });
-        c.beats.forEach(b => { if (MARK[b.kind]) h += `<div class="mk off" data-t="${b.t}" style="left:${r(ax(b.t))}px;top:${top + 34}px"><span class="sh k-${tok(b.kind)}"></span></div>`; });
+        h += `<button class="lane" data-lane="${i}" style="top:${top}px${tight ? `;height:${laneGap() - 4}px;padding-top:7px` : ''}" aria-label="Follow the journey of ${esc(c.name)}"><span style="font-size:15px;font-weight:600">${esc(c.name)}</span><span class="ls"${tight ? ' style="-webkit-line-clamp:1"' : ''}>${esc(c.summary)}</span></button>`;
+        c.stages.forEach(sg => { h += `<div class="seg st${sg.stage % 3}" data-from="${sg.from}" data-to="${sg.to === null ? j.t1 : sg.to}" data-open="${sg.to === null ? 1 : 0}" data-stall="${stalledBeat ? stalledBeat.t : ''}" data-name="${esc(j.stages[sg.stage].name)}" style="left:${r(ax(sg.from))}px;top:${top + mid - 12}px;width:0"></div>`; });
+        c.beats.forEach(b => { if (MARK[b.kind]) h += `<div class="mk off" data-t="${b.t}" style="left:${r(ax(b.t))}px;top:${top + mid}px"><span class="sh k-${tok(b.kind)}"></span></div>`; });
         const kind = c.ending.kind, endT = kind === 'stalled' && stalledBeat ? stalledBeat.t : c.end, x = ax(endT), missed = c.goals.some(g => !g.reached);
         const txt = esc(c.ending.label) + (kind === 'completed' ? (missed ? ', a goal missed' : ', every goal reached') : '') + (c.mood_end === null ? '' : ' &middot; ' + mood(c.mood_end));
-        h += `<div class="endl e-${tok(kind)}${x > 1000 ? ' rt' : ''} off" data-t="${kind === 'active' ? Infinity : endT}" style="left:${r(x)}px;top:${top + 52}px">${txt}</div>`;
+        h += `<div class="endl e-${tok(kind)}${x > 1000 ? ' rt' : ''} off" data-t="${kind === 'active' ? Infinity : endT}" style="left:${r(x)}px;top:${top + mid + (tight ? 13 : 18)}px">${txt}</div>`;
     });
     return h + `<div class="ph"><span class="phl"></span></div><div class="ring sm"></div>`;
 };
@@ -476,30 +512,60 @@ scenes.story = () => {
     return h;
 };
 
+/** Where the graph of a banded workflow is moved and scaled to, so that band k fills the graph's area */
+const GRAPH = { top: 104, height: 308 };
+function bandView(W, k) {
+    // Room above a band for the edges that come into it and their notes, and below it for those that leave
+    const b = W.bands[Math.max(0, Math.min(k, W.bands.length - 1))], padX = 28, top = b.y0 - 38, bottom = b.y1 + 24;
+    const s = Math.min(1.3, 1408 / (b.x1 - b.x0 + 2 * padX), GRAPH.height / (bottom - top));
+    const tx = (1440 - (b.x1 - b.x0) * s) / 2 - b.x0 * s, ty = (GRAPH.height - (bottom - top) * s) / 2 - top * s;
+    return `translate(${tx.toFixed(1)}px, ${ty.toFixed(1)}px) scale(${s.toFixed(3)})`;
+}
+/** The band of the step being read: the band of its node, else of the last step that had one; or the band a reader chose */
+function bandOf(run, W, ic) {
+    if (st.bandPin && st.bandPin.key === run.run_id && st.bandPin.ic === ic) return st.bandPin.k;
+    for (let k = ic; k >= 0; k--) { const n = run.steps[k].n; if (n >= 0) return W.nodes[n].band || 0; }
+    return 0;
+}
+let runShown = { key: '', band: -1 };                       // the band last shown, so that a rebuilt scene starts from it
+
 scenes.run = () => {
-    const c = I(), run = R(), W = S.workflows[run.wf], gx = r((1440 - W.width) / 2), gy = 84 + r((316 - W.height) / 2);
+    const c = I(), run = R(), W = S.workflows[run.wf], banded = !!(W.bands && W.bands.length);
+    const gx = banded ? 0 : r((1440 - W.width) / 2), gy = banded ? 0 : 84 + r((316 - W.height) / 2);
     const stage = J().stages.find(s => s.id === run.stage);
     let h = `<div style="position:absolute;left:28px;top:16px;width:1384px;display:flex;align-items:center;gap:14px">
       <button class="crumb" style="border-color:rgba(255,255,255,.16)" data-up="1">Back to ${esc(c.name)}</button>
       <div class="hd" style="font-size:22px;font-weight:600;white-space:nowrap">${esc(run.name)}</div>
-      <div class="sub" style="font-size:14px;flex:1 1 auto">serving the stage &ldquo;${esc(stage ? stage.name : '')}&rdquo; of the ${esc(J().name)} journey</div><div class="chip" id="runchip"></div></div>`;
-    // A workflow wider or taller than the stage is shown smaller, never cut off
-    const fit = Math.min(1, 1384 / W.width, 330 / W.height);
-    h += `<div style="position:absolute;left:0;top:0;width:1440px;height:420px;transform:scale(${fit.toFixed(3)});transform-origin:720px 242px">`;
+      <div class="sub" style="font-size:14px;flex:1 1 auto">serving the stage &ldquo;<span id="runstage">${esc(stage ? stage.name : '')}</span>&rdquo; of the ${esc(J().name)} journey</div><div class="chip" id="runchip"></div></div>`;
+    const dim = band => (banded ? ` data-band="${band}"` : '');
+    if (banded) {
+        h += `<div style="position:absolute;left:28px;top:62px;width:1384px;display:flex;align-items:center;gap:8px">
+          <span class="pt" style="color:var(--mute);margin-right:6px">Bands</span>
+          ${W.bands.map((b, k) => `<button class="bchip" data-bandchip="${k}" title="Show this band of the workflow"><span class="bn">${k + 1}</span>${esc(b.label)}<span class="bs"></span></button>`).join('')}
+          <span style="flex:1 1 auto"></span><span class="sub">the band of the step being read is shown; the others are one click away</span></div>`;
+        const from = runShown.key === run.run_id && runShown.band >= 0 ? runShown.band : bandOf(run, W, pos());
+        h += `<div class="gclip" style="top:${GRAPH.top}px;height:${GRAPH.height}px"><div class="gband" style="width:${W.width}px;height:${W.height}px;transform:${bandView(W, from)}">`;
+    } else {
+        // A workflow wider or taller than the stage is shown smaller, never cut off
+        const fit = Math.min(1, 1384 / W.width, 330 / W.height);
+        h += `<div style="position:absolute;left:0;top:0;width:1440px;height:420px;transform:scale(${fit.toFixed(3)});transform-origin:720px 242px">`;
+    }
     W.edges.forEach((e, ei) => {
+        const ba = W.nodes[e.a].band, bb = W.nodes[e.b].band, band = ba === bb ? ba : 'x';
         e.segs.forEach((sg, si) => {
             const hz = sg.dir === 'r' || sg.dir === 'l';
-            h += `<div class="eg ${tok(e.kind)}${hz ? '' : ' vv'}" style="left:${gx + sg.x - (hz ? 0 : 1)}px;top:${gy + sg.y - (hz ? 1 : 0)}px;width:${hz ? sg.len : 2}px;height:${hz ? 2 : sg.len}px"><div class="ef ${tok(sg.dir)} ${tok(e.kind)}" data-e="${ei}" data-si="${si}"></div></div>`;
+            h += `<div class="eg ${tok(e.kind)}${hz ? '' : ' vv'}"${dim(band)} style="left:${gx + sg.x - (hz ? 0 : 1)}px;top:${gy + sg.y - (hz ? 1 : 0)}px;width:${hz ? sg.len : 2}px;height:${hz ? 2 : sg.len}px"><div class="ef ${tok(sg.dir)} ${tok(e.kind)}" data-e="${ei}" data-si="${si}"></div></div>`;
         });
-        if (e.tip) h += `<div class="tip ${tok(e.tip.dir)} ${tok(e.kind)}" data-e="${ei}" style="left:${gx + e.tip.x - 6}px;top:${gy + e.tip.y - 6}px"></div>`;
+        if (e.tip) h += `<div class="tip ${tok(e.tip.dir)} ${tok(e.kind)}" data-e="${ei}"${dim(bb)} style="left:${gx + e.tip.x - 6}px;top:${gy + e.tip.y - 6}px"></div>`;
     });
     W.nodes.forEach((n, i) => {
         const box = `left:${gx + n.x}px;top:${gy + n.y}px;width:${n.w}px;height:${n.h}px`;
-        if (n.kind === 'activity') h += `<div class="nd act" data-n="${i}" data-base="nd act" style="${box}"><span class="tg">${esc(n.tag)}</span><span class="nm">${esc(n.name)}</span></div>`;
-        else if (n.kind === 'event') h += `<div class="nd evt m-${tok(n.mode)}" data-n="${i}" data-base="nd evt m-${tok(n.mode)}" style="${box}"><span class="ev-in"></span></div><div class="nl" style="left:${gx + n.x + n.w / 2}px;top:${gy + n.y + n.h + 5}px"><span>${esc(n.name)}</span></div>`;
-        else h += `<div class="nd dec" data-n="${i}" data-base="nd dec" style="${box}"></div><div class="nl dl" style="left:${gx + n.x + n.w - 10}px;top:${gy + n.y - 14}px"><span>${esc(n.name)}</span></div>`;
+        if (n.kind === 'activity') h += `<div class="nd act" data-n="${i}" data-base="nd act"${dim(n.band)} style="${box}"><span class="tg">${esc(n.tag)}</span><span class="nm">${esc(n.name)}</span></div>`;
+        else if (n.kind === 'event') h += `<div class="nd evt m-${tok(n.mode)}" data-n="${i}" data-base="nd evt m-${tok(n.mode)}"${dim(n.band)} style="${box}"><span class="ev-in"></span></div><div class="nl"${dim(n.band)} style="left:${gx + n.x + n.w / 2}px;top:${gy + n.y + n.h + 5}px"><span>${esc(n.name)}</span></div>`;
+        else h += `<div class="nd dec" data-n="${i}" data-base="nd dec"${dim(n.band)} style="${box}"></div><div class="nl dl"${dim(n.band)} style="left:${gx + n.x + n.w - 10}px;top:${gy + n.y - 14}px"><span>${esc(n.name)}</span></div>`;
     });
-    h += `</div>`;
+    if (banded) for (const note of W.notes || []) h += `<div class="bnote"${dim(note.band)} style="left:${note.x}px;top:${note.y}px${note.align === 'right' ? ';transform:translateX(-100%)' : ''}">${esc(note.text)}</div>`;
+    h += banded ? `</div></div>` : `</div>`;
     const swatch = (css, t) => `<div class="lg" style="font-size:12px"><span style="width:18px;height:12px;border-radius:3px;${css}"></span>${t}</div>`;
     return h + `<div style="position:absolute;left:28px;top:424px;width:1384px;display:flex;gap:16px">
       <div class="pn" style="flex:0 0 560px"><div class="pt" style="color:var(--mute)">The story so far</div><div id="script" style="display:flex;flex-direction:column;gap:2px"></div></div>
@@ -518,7 +584,9 @@ apply.journey = el => {
     const ax = t => 264 + (Math.min(Math.max(t, j.t0), j.t1) - j.t0) / Math.max(j.t1 - j.t0, 1) * 1104;
     el.querySelectorAll('[data-card]').forEach(card => {
         const n = m.counts[+card.dataset.card];
-        card.innerHTML = `<div class="ct"><b>${n.here}</b><span>here now</span></div><div class="ct"><b>${n.done}</b><span>moved on</span></div><div class="ct${n.stalled ? ' warn' : ''}"><b>${n.stalled}</b><span>stalled</span></div><div class="ct"><b>${n.left}</b><span>left</span></div>`;
+        card.innerHTML = card.parentElement.classList.contains('narrow')
+            ? `<div><b>${n.here}</b>here</div><div><b>${n.done}</b>moved on</div><div class="${n.stalled ? 'warn' : ''}"><b>${n.stalled}</b>stalled</div><div><b>${n.left}</b>left</div>`
+            : `<div class="ct"><b>${n.here}</b><span>here now</span></div><div class="ct"><b>${n.done}</b><span>moved on</span></div><div class="ct${n.stalled ? ' warn' : ''}"><b>${n.stalled}</b><span>stalled</span></div><div class="ct"><b>${n.left}</b><span>left</span></div>`;
     });
     el.querySelectorAll('.lane').forEach(lane => lane.classList.toggle('hot', +lane.dataset.lane === m.c));
     el.querySelectorAll('.seg').forEach(seg => {
@@ -530,18 +598,17 @@ apply.journey = el => {
     el.querySelectorAll('[data-t]').forEach(x => x.classList.toggle('off', +x.dataset.t > T));
     el.querySelector('#asof').textContent = pos() === j.all.length - 1 ? `Counts as of ${day(T)}, the end of the record` : `Counts as of ${day(T)}: move the slider to the end for the final picture`;
     const ph = el.querySelector('.ph'); ph.style.left = r(ax(T)) + 'px'; ph.firstChild.textContent = day(T);
-    const ring = el.querySelector('.ring'); ring.style.left = r(ax(T)) + 'px'; ring.style.top = laneTop(m.c) + 34 + 'px';
+    const ring = el.querySelector('.ring'); ring.style.left = r(ax(T)) + 'px'; ring.style.top = laneTop(m.c) + laneMid() + 'px';
 };
 
 apply.story = el => {
     const j = J(), c = I(), beats = c.beats, n = beats.length, ib = pos(), cur = beats[ib], xs = xsOf(c), y = beatY(j, cur);
     el.querySelectorAll('[data-b]').forEach(x => x.classList.toggle('off', +x.dataset.b > ib));
-    const WORD = { completed: 'completed', failed: 'failed', cancelled: 'withdrawn' };
     el.querySelectorAll('.rb[data-b0]').forEach(bar => {
         const started = ib >= +bar.dataset.b0, ended = ib >= +bar.dataset.b1, status = bar.dataset.status;
         bar.className = 'rb' + (started ? '' : ' off') + (ended ? ' r-' + tok(status) : ' r-running');
         const label = el.querySelector(`[data-runlabel="${bar.dataset.run}"]`);
-        label.innerHTML = `<b style="color:#fff">${esc(c.runs[+bar.dataset.run].name)}</b> &middot; ${ended ? WORD[status] || esc(status) : 'under way'} &middot; <span style="color:#a5b4fc;font-weight:600">Look inside &rsaquo;</span>`;
+        label.innerHTML = `<b style="color:#fff">${esc(c.runs[+bar.dataset.run].name)}</b> &middot; ${ended ? esc(runWord(status)) : 'under way'} &middot; <span style="color:#a5b4fc;font-weight:600">Look inside &rsaquo;</span>`;
     });
     const finished = ib === n - 1, over = finished && c.ending.kind !== 'stalled';
     c.goals.forEach((g, k) => {
@@ -590,9 +657,24 @@ apply.run = el => {
         + (step.raw ? `<details class="rawd"><summary>The record as written</summary><button type="button" class="rawc" data-copy>Copy</button><pre class="mono">${esc(JSON.stringify({ run_id: run.run_id, ...step.raw }, null, 2))}</pre></details>` : '');
     const copy = el.querySelector('[data-copy]');
     if (copy) copy.onclick = () => { const text = el.querySelector('.rawd pre').textContent; (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(() => { copy.textContent = 'Copied'; }, () => { const r = document.createRange(); r.selectNodeContents(el.querySelector('.rawd pre')); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); copy.textContent = 'Selected'; }); };
+    if (W.bands && W.bands.length) {
+        const k = bandOf(run, W, ic), now = (() => { for (let x = ic; x >= 0; x--) if (steps[x].n >= 0) return W.nodes[steps[x].n].band || 0; return 0; })();
+        const all_done = ic === steps.length - 1 && run.status === 'completed';
+        el.querySelector('.gband').style.transform = bandView(W, k);
+        el.querySelectorAll('.gband [data-band]').forEach(x => x.classList.toggle('dimb', x.dataset.band !== 'x' && +x.dataset.band !== k));
+        el.querySelectorAll('[data-bandchip]').forEach(chip => {
+            const b = +chip.dataset.bandchip, state = all_done || b < now ? 'done' : b === now ? 'now' : 'next';
+            chip.className = `bchip b-${state}${b === k ? ' on' : ''}`;
+            chip.querySelector('.bs').textContent = state;
+        });
+        runShown = { key: run.run_id, band: k };
+    }
+    // The stage the journey was in at the step being read: a run that serves several stages moves through them
+    const seg = [...I().stages].reverse().find(x => x.from <= step.t), stage_now = seg ? J().stages[seg.stage] : J().stages.find(x => x.id === run.stage);
+    if (stage_now) el.querySelector('#runstage').textContent = stage_now.name;
     const over = ic === steps.length - 1, chip = el.querySelector('#runchip');
-    chip.className = 'chip' + (over ? (run.status === 'completed' ? ' ok' : run.status === 'failed' ? ' e-stalled' : ' e-abandoned') : '');
-    chip.textContent = over ? ({ completed: 'completed', failed: 'failed', cancelled: 'withdrawn' }[run.status] || run.status) : 'being replayed';
+    chip.className = 'chip' + (over ? (run.status === 'completed' ? ' ok' : run.status === 'failed' ? ' e-stalled' : /^waiting/.test(run.status) ? ' miss' : run.status === 'cancelled' ? ' e-abandoned' : '') : '');
+    chip.textContent = over ? runWord(run.status) : 'being replayed';
 };
 
 // ---------------------------------------------------------------- caption, facts, chrome
@@ -615,7 +697,7 @@ function told() {
     return { when: b.when, cap: b.cap, facts };
 }
 const PLAY = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4l13 8-13 8z"/></svg>', PAUSE = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14"/><path d="M16 5v14"/></svg>';
-let lastCap = '';
+let lastCap = '', written = '';
 function chrome() {
     const L = LEVELS.indexOf(st.level), t = told(), n = count(), p = pos();
     const crumbs = [`<button class="crumb${L === 0 ? ' on' : ''}" data-level="atlas">Journeys</button>`];
@@ -634,12 +716,15 @@ function chrome() {
     $('scrub').max = n - 1; $('scrub').value = p; $('count').textContent = `${p + 1} / ${n}`;
     $('b-play').innerHTML = st.playing ? PAUSE : PLAY; $('b-play').setAttribute('aria-label', st.playing ? 'Pause the telling' : 'Tell the story');
     $('b-pace').textContent = st.fast ? '2x' : '1x';
-    location.replace('#' + [st.level, st.j, st.i, st.r, p].join('/'));
+    written = '#' + [st.level, st.j, st.i, st.r, p].join('/');
+    if (location.hash !== written) location.replace(written);
 }
 
 // ---------------------------------------------------------------- rendering
 const sceneKey = level => level === 'atlas' ? 'a' : level === 'journey' ? 'j' + st.j : level === 'story' ? `s${st.j}.${st.i}` : `r${st.j}.${st.i}.${st.r}`;
+let rendered = false;                                          // whether a record or the sample is on screen yet
 function render(swap) {
+    rendered = true;
     const L = LEVELS.indexOf(st.level);
     LEVELS.forEach((level, k) => {
         const layer = $('L' + k), scene = layer.firstElementChild;
@@ -648,11 +733,18 @@ function render(swap) {
         layer.style.transform = k === L ? 'scale(1)' : k < L ? 'scale(1.3)' : 'scale(.84)';
         if (k !== L) return;
         const key = sceneKey(level);
-        if (built[level] === key) { apply[level](scene); return; }
+        if (built[level] === key) { apply[level](scene); scene.dataset.key = key; scene.dataset.pos = pos(); return; }
         const fresh = () => {
+            const again = scene.dataset.key === key ? +scene.dataset.pos : -1;
             scene.innerHTML = scenes[level](); built[level] = key;
+            // The same scene, built again because the record grew: what was on screen comes back at once, and only what is new moves
+            if (again >= 0) {
+                const now = st[KEY[level]]; st[KEY[level]] = Math.min(again, count() - 1);
+                scene.classList.add('instant'); apply[level](scene); st[KEY[level]] = now;
+                void scene.offsetWidth; scene.classList.remove('instant');
+            }
             void scene.offsetWidth;                                        // let the hidden state paint, so that what follows animates
-            requestAnimationFrame(() => { scene.classList.remove('swap-l', 'swap-r'); apply[level](scene); });
+            requestAnimationFrame(() => { scene.classList.remove('swap-l', 'swap-r'); apply[level](scene); scene.dataset.key = key; scene.dataset.pos = pos(); });
         };
         if (swap && built[level]) { scene.classList.add(swap > 0 ? 'swap-l' : 'swap-r'); setTimeout(() => { scene.classList.remove('swap-l'); scene.classList.remove('swap-r'); scene.classList.add(swap > 0 ? 'swap-r' : 'swap-l'); fresh(); }, 200); }
         else fresh();
@@ -683,7 +775,7 @@ function goLevel(level) {
         const t = I().beats[Math.min(st.ib, I().beats.length - 1)].t; let ia = 0;
         J().all.forEach((m, k) => { if (m.t <= t) ia = k; });
         if (st.ib >= I().beats.length - 1) ia = 1e9;                // a reader at the end of a story returns to the end of the record
-        Object.assign(patch, { ia, ox: 700, oy: laneTop(st.i) + 34 });
+        Object.assign(patch, { ia, ox: 700, oy: laneTop(st.i) + laneMid() });
     }
     if (level === 'atlas') Object.assign(patch, { ip: from >= 2 ? I().c : st.ip, ox: CX(st.j) + 180, oy: from >= 2 ? PY(I().c) + 30 : 100 });
     set(patch);
@@ -710,7 +802,7 @@ document.addEventListener('click', e => {
     else if ((x = hit('[data-j]'))) switchJourney(+x.dataset.j);
     else if ((x = hit('[data-open-j]'))) openJourney(+x.dataset.openJ, { ox: CX(+x.dataset.openJ) + 180, oy: 106 });
     else if ((x = hit('[data-open-s]'))) { const [j, i] = x.dataset.openS.split(',').map(Number); openStory(j, i, undefined, { ox: CX(j) + 180, oy: PY(S.journeys[j].instances[i].c) + 30 }); }
-    else if ((x = hit('[data-lane]'))) { const i = +x.dataset.lane, T = J().all[pos()].t; let ib = 0; J().instances[i].beats.forEach((b, k) => { if (b.t <= T) ib = k; }); openStory(st.j, i, ib, { ox: 700, oy: laneTop(i) + 34 }); }
+    else if ((x = hit('[data-lane]'))) { const i = +x.dataset.lane, T = J().all[pos()].t; let ib = 0; J().instances[i].beats.forEach((b, k) => { if (b.t <= T) ib = k; }); openStory(st.j, i, ib, { ox: 700, oy: laneTop(i) + laneMid() }); }
     else if ((x = hit('[data-list]'))) { const v = x.dataset.list; set(v === 'toggle' ? { list: !st.list } : { listAll: v === 'all' }); }
     else if ((x = hit('[data-person]'))) switchPerson(+x.dataset.person);
     else if ((x = hit('[data-run]'))) openRun(+x.dataset.run);
@@ -718,6 +810,7 @@ document.addEventListener('click', e => {
     else if ((x = hit('[data-step]'))) jump(+x.dataset.step);
     else if ((x = hit('#L3 [data-n]'))) { const n = +x.dataset.n, steps = R().steps; let at = steps.findIndex(s => s.n === n); steps.forEach((s, k) => { if (s.n === n && k <= pos()) at = k; }); if (at >= 0) jump(at); }
     else if ((x = hit('[data-up]'))) goLevel('story');
+    else if ((x = hit('[data-bandchip]'))) set({ bandPin: { key: R().run_id, ic: pos(), k: +x.dataset.bandchip } });
 });
 $('b-start').onclick = () => jump(0);
 $('b-prev').onclick = () => move(-1);
@@ -746,7 +839,7 @@ let shown = false;
 function show(data, source, keep, trusted) {
     const prebuilt = data && data.journeys && data.journeys[0] && data.journeys[0].instances[0] && data.journeys[0].instances[0].beats;
     if (prebuilt && !trusted) { message('This file is a prepared story, not a record. Open the record itself: the file written by awa journey export.'); return; }
-    const story = prebuilt ? data : window.AWA_build_story(data);
+    const story = prebuilt ? data : window.AWA_build_story(data, OPTIONS);
     if (!story.journeys.length) { message('This record holds no journey yet.'); return; }
     // Following a live record: a reader at the latest moment stays at the latest moment
     const following = keep && S && shown && st.level !== 'atlas' && pos() === count() - 1;
@@ -788,22 +881,37 @@ const place = () => {
     const [level, j, i, rr, p] = [parts[0], ...parts.slice(1).map(Number)];
     if (S.journeys[j] && S.journeys[j].instances[i || 0]) Object.assign(st, { level, j, i: i || 0, r: rr || 0, [KEY[level]]: p || 0 });
 };
-// ?data=<url> shows that record. ?live=<server> follows a host: its journeys as they progress.
+// A link followed while the page is open moves to the place it names, as a reader's click would
+addEventListener('hashchange', () => {
+    if (!S || !rendered || location.hash === written) return;
+    const before = st.level;
+    place(); st.playing = false;
+    if (st.level === 'run' && !I().runs.length) st.level = 'story';
+    render(LEVELS.indexOf(st.level) === LEVELS.indexOf(before) ? 0 : undefined);
+});
+// ?data=<url> shows that record. ?live=<server> follows a host: its journeys as they progress (every ?poll=<ms>, 3000 by default).
+// ?options=<url> gives the builder's options: hand layouts, bands, how a subject is named.
 const query = new URLSearchParams(location.search);
-if (query.get('live')) {
-    const url = query.get('live').replace(/\/$/, '') + '/api/v1/journeys/portfolio';
-    let last = '';
-    const poll = async () => {
-        try {
-            const text = JSON.stringify(await fetch_record(url));
-            if (text !== last) { const first = !last; last = text; show(JSON.parse(text), `live \u00b7 ${new Date().toLocaleTimeString()}`, !first); }
-        } catch (error) { if (!last) message(`Cannot reach ${url}: ${error.message}`); else $('source').textContent = 'live \u00b7 connection lost'; }
-    };
-    poll(); setInterval(poll, 3000);
-} else if (query.get('data')) {
-    fetch_record(query.get('data')).then(data => { show(data, query.get('data')); }).catch(error => message(`Cannot load ${query.get('data')}: ${error.message}`));
-} else if (S) { place(); $('source').textContent = 'sample: six customers, three journeys'; render(); }
-else message('No record loaded. Use "Open a record", drop a file here, or run node examples/claims-journey/make-story.mjs for the sample.');
+let OPTIONS = {};
+const options_ready = query.get('options')
+    ? fetch_record(query.get('options')).then(o => { OPTIONS = o || {}; }).catch(error => { console.warn(`Cannot load the options ${query.get('options')}: ${error.message}`); })
+    : Promise.resolve();
+options_ready.then(() => {
+    if (query.get('live')) {
+        const url = query.get('live').replace(/\/$/, '') + '/api/v1/journeys/portfolio';
+        let last = '';
+        const poll = async () => {
+            try {
+                const text = JSON.stringify(await fetch_record(url));
+                if (text !== last) { const first = !last; last = text; show(JSON.parse(text), `live · ${new Date().toLocaleTimeString()}`, !first); }
+            } catch (error) { console.error(error); if (!last) message(`Cannot reach ${url}: ${error.message}`); else $('source').textContent = 'live · connection lost'; }
+        };
+        poll(); setInterval(poll, Math.max(500, Number(query.get('poll')) || 3000));
+    } else if (query.get('data')) {
+        fetch_record(query.get('data')).then(data => { show(data, query.get('data')); }).catch(error => message(`Cannot load ${query.get('data')}: ${error.message}`));
+    } else if (S) { place(); $('source').textContent = 'sample: six customers, three journeys'; render(); }
+    else message('No record loaded. Use "Open a record", drop a file here, or run node examples/claims-journey/make-story.mjs for the sample.');
+});
 })();
 </script>
 </body>
