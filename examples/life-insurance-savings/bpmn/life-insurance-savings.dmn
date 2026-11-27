@@ -1,0 +1,668 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dmn:definitions xmlns:dmn="https://www.omg.org/spec/DMN/20191111/MODEL/" xmlns:awa="https://awa.io/schema/interchange/1.1" id="Definitions_d0fb8198-0fde-5fd9-8d79-2b3c558ca363" name="Identity, AML and Tax Residence Checks" namespace="https://awa.io/workflows/d0fb8198-0fde-5fd9-8d79-2b3c558ca363">
+  <dmn:decision id="_ad61d1cd-b838-5150-b862-0cb76f516565" name="Customer due diligence">
+    <dmn:description>The level of due diligence and who decides it, from the identity check, the screening and the self-certification.</dmn:description>
+    <dmn:decisionTable id="DecisionTable_ad61d1cd-b838-5150-b862-0cb76f516565" hitPolicy="FIRST">
+      <dmn:input id="Input_ad61d1cd-b838-5150-b862-0cb76f516565_1" label="Identity verified">
+        <dmn:inputExpression id="InputExpression_ad61d1cd-b838-5150-b862-0cb76f516565_1" typeRef="boolean">
+          <dmn:text>identity_verified</dmn:text>
+        </dmn:inputExpression>
+      </dmn:input>
+      <dmn:input id="Input_ad61d1cd-b838-5150-b862-0cb76f516565_2" label="Screening">
+        <dmn:inputExpression id="InputExpression_ad61d1cd-b838-5150-b862-0cb76f516565_2" typeRef="string">
+          <dmn:text>screening_result</dmn:text>
+        </dmn:inputExpression>
+      </dmn:input>
+      <dmn:input id="Input_ad61d1cd-b838-5150-b862-0cb76f516565_3" label="Self-certification valid">
+        <dmn:inputExpression id="InputExpression_ad61d1cd-b838-5150-b862-0cb76f516565_3" typeRef="boolean">
+          <dmn:text>self_certification_valid</dmn:text>
+        </dmn:inputExpression>
+      </dmn:input>
+      <dmn:input id="Input_ad61d1cd-b838-5150-b862-0cb76f516565_4" label="US person">
+        <dmn:inputExpression id="InputExpression_ad61d1cd-b838-5150-b862-0cb76f516565_4" typeRef="boolean">
+          <dmn:text>us_person</dmn:text>
+        </dmn:inputExpression>
+      </dmn:input>
+      <dmn:output id="Output_ad61d1cd-b838-5150-b862-0cb76f516565_1" name="cdd_level" typeRef="string" />
+      <dmn:output id="Output_ad61d1cd-b838-5150-b862-0cb76f516565_2" name="fatca_status" typeRef="string" />
+      <dmn:rule id="Rule_ad61d1cd-b838-5150-b862-0cb76f516565_1">
+        <dmn:description>Identity not verified: refused</dmn:description>
+        <dmn:extensionElements>
+          <awa:properties>{"output_edge_id":"d6829d81-e75a-5a58-bea1-c28fb4e84f98"}</awa:properties>
+        </dmn:extensionElements>
+        <dmn:inputEntry id="Rule_ad61d1cd-b838-5150-b862-0cb76f516565_1_in_1">
+          <dmn:text>false</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_ad61d1cd-b838-5150-b862-0cb76f516565_1_in_2">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_ad61d1cd-b838-5150-b862-0cb76f516565_1_in_3">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_ad61d1cd-b838-5150-b862-0cb76f516565_1_in_4">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_ad61d1cd-b838-5150-b862-0cb76f516565_1_out_1">
+          <dmn:text>"refused"</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_ad61d1cd-b838-5150-b862-0cb76f516565_1_out_2">
+          <dmn:text>"not_assessed"</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_ad61d1cd-b838-5150-b862-0cb76f516565_2">
+        <dmn:description>A politically exposed person or a possible sanctions match: enhanced due diligence by compliance</dmn:description>
+        <dmn:extensionElements>
+          <awa:properties>{"output_edge_id":"95a52f58-cddf-55f7-805d-c8a71a93ca2d"}</awa:properties>
+        </dmn:extensionElements>
+        <dmn:inputEntry id="Rule_ad61d1cd-b838-5150-b862-0cb76f516565_2_in_1">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_ad61d1cd-b838-5150-b862-0cb76f516565_2_in_2">
+          <dmn:text>"pep", "possible_sanctions_match"</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_ad61d1cd-b838-5150-b862-0cb76f516565_2_in_3">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_ad61d1cd-b838-5150-b862-0cb76f516565_2_in_4">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_ad61d1cd-b838-5150-b862-0cb76f516565_2_out_1">
+          <dmn:text>"enhanced"</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_ad61d1cd-b838-5150-b862-0cb76f516565_2_out_2">
+          <dmn:text>"pending"</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_ad61d1cd-b838-5150-b862-0cb76f516565_3">
+        <dmn:description>A self-certification that does not hold: compliance</dmn:description>
+        <dmn:extensionElements>
+          <awa:properties>{"output_edge_id":"95a52f58-cddf-55f7-805d-c8a71a93ca2d"}</awa:properties>
+        </dmn:extensionElements>
+        <dmn:inputEntry id="Rule_ad61d1cd-b838-5150-b862-0cb76f516565_3_in_1">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_ad61d1cd-b838-5150-b862-0cb76f516565_3_in_2">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_ad61d1cd-b838-5150-b862-0cb76f516565_3_in_3">
+          <dmn:text>false</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_ad61d1cd-b838-5150-b862-0cb76f516565_3_in_4">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_ad61d1cd-b838-5150-b862-0cb76f516565_3_out_1">
+          <dmn:text>"standard"</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_ad61d1cd-b838-5150-b862-0cb76f516565_3_out_2">
+          <dmn:text>"pending"</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_ad61d1cd-b838-5150-b862-0cb76f516565_4">
+        <dmn:description>A US person: reportable under FATCA</dmn:description>
+        <dmn:extensionElements>
+          <awa:properties>{"output_edge_id":"7c753667-c0a2-5710-b23f-36380a6e553c"}</awa:properties>
+        </dmn:extensionElements>
+        <dmn:inputEntry id="Rule_ad61d1cd-b838-5150-b862-0cb76f516565_4_in_1">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_ad61d1cd-b838-5150-b862-0cb76f516565_4_in_2">
+          <dmn:text>"clear"</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_ad61d1cd-b838-5150-b862-0cb76f516565_4_in_3">
+          <dmn:text>true</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_ad61d1cd-b838-5150-b862-0cb76f516565_4_in_4">
+          <dmn:text>true</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_ad61d1cd-b838-5150-b862-0cb76f516565_4_out_1">
+          <dmn:text>"standard"</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_ad61d1cd-b838-5150-b862-0cb76f516565_4_out_2">
+          <dmn:text>"us_reportable"</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_ad61d1cd-b838-5150-b862-0cb76f516565_5">
+        <dmn:description>Clear</dmn:description>
+        <dmn:extensionElements>
+          <awa:properties>{"output_edge_id":"7c753667-c0a2-5710-b23f-36380a6e553c"}</awa:properties>
+        </dmn:extensionElements>
+        <dmn:inputEntry id="Rule_ad61d1cd-b838-5150-b862-0cb76f516565_5_in_1">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_ad61d1cd-b838-5150-b862-0cb76f516565_5_in_2">
+          <dmn:text>"clear"</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_ad61d1cd-b838-5150-b862-0cb76f516565_5_in_3">
+          <dmn:text>true</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_ad61d1cd-b838-5150-b862-0cb76f516565_5_in_4">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_ad61d1cd-b838-5150-b862-0cb76f516565_5_out_1">
+          <dmn:text>"standard"</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_ad61d1cd-b838-5150-b862-0cb76f516565_5_out_2">
+          <dmn:text>"not_us"</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+    </dmn:decisionTable>
+  </dmn:decision>
+  <dmn:decision id="_d906cec7-1cbf-506d-9418-a79a7d289a01" name="Risk profile">
+    <dmn:description>The risk profile, and the highest summary risk indicator (SRI, 1 to 7, from the key information documents) a choice may reach, from the suitability answers. THE BANDS ARE EXAMPLES each insurer sets in its own advice policy.</dmn:description>
+    <dmn:decisionTable id="DecisionTable_d906cec7-1cbf-506d-9418-a79a7d289a01" hitPolicy="FIRST">
+      <dmn:input id="Input_d906cec7-1cbf-506d-9418-a79a7d289a01_1" label="Capacity for loss">
+        <dmn:inputExpression id="InputExpression_d906cec7-1cbf-506d-9418-a79a7d289a01_1" typeRef="string">
+          <dmn:text>capacity_for_loss</dmn:text>
+        </dmn:inputExpression>
+      </dmn:input>
+      <dmn:input id="Input_d906cec7-1cbf-506d-9418-a79a7d289a01_2" label="Horizon (years)">
+        <dmn:inputExpression id="InputExpression_d906cec7-1cbf-506d-9418-a79a7d289a01_2" typeRef="number">
+          <dmn:text>horizon_years</dmn:text>
+        </dmn:inputExpression>
+      </dmn:input>
+      <dmn:input id="Input_d906cec7-1cbf-506d-9418-a79a7d289a01_3" label="Risk tolerance (1 to 5)">
+        <dmn:inputExpression id="InputExpression_d906cec7-1cbf-506d-9418-a79a7d289a01_3" typeRef="number">
+          <dmn:text>risk_tolerance</dmn:text>
+        </dmn:inputExpression>
+      </dmn:input>
+      <dmn:input id="Input_d906cec7-1cbf-506d-9418-a79a7d289a01_4" label="Knowledge and experience">
+        <dmn:inputExpression id="InputExpression_d906cec7-1cbf-506d-9418-a79a7d289a01_4" typeRef="string">
+          <dmn:text>knowledge_level</dmn:text>
+        </dmn:inputExpression>
+      </dmn:input>
+      <dmn:output id="Output_d906cec7-1cbf-506d-9418-a79a7d289a01_1" name="risk_profile" typeRef="string" />
+      <dmn:output id="Output_d906cec7-1cbf-506d-9418-a79a7d289a01_2" name="max_sri" typeRef="number" />
+      <dmn:rule id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_1">
+        <dmn:description>No loss can be borne</dmn:description>
+        <dmn:inputEntry id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_1_in_1">
+          <dmn:text>"none"</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_1_in_2">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_1_in_3">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_1_in_4">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_1_out_1">
+          <dmn:text>"cautious"</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_1_out_2">
+          <dmn:text>2</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_2">
+        <dmn:description>A horizon under five years</dmn:description>
+        <dmn:inputEntry id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_2_in_1">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_2_in_2">
+          <dmn:text>&lt; 5</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_2_in_3">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_2_in_4">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_2_out_1">
+          <dmn:text>"cautious"</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_2_out_2">
+          <dmn:text>2</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_3">
+        <dmn:description>A low risk tolerance, or a limited capacity for loss</dmn:description>
+        <dmn:inputEntry id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_3_in_1">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_3_in_2">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_3_in_3">
+          <dmn:text>&lt;= 2</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_3_in_4">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_3_out_1">
+          <dmn:text>"moderate"</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_3_out_2">
+          <dmn:text>3</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_4">
+        <dmn:description>A limited capacity for loss</dmn:description>
+        <dmn:inputEntry id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_4_in_1">
+          <dmn:text>"limited"</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_4_in_2">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_4_in_3">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_4_in_4">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_4_out_1">
+          <dmn:text>"moderate"</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_4_out_2">
+          <dmn:text>3</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_5">
+        <dmn:description>High tolerance, long horizon, informed investor</dmn:description>
+        <dmn:inputEntry id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_5_in_1">
+          <dmn:text>"moderate", "substantial"</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_5_in_2">
+          <dmn:text>&gt;= 15</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_5_in_3">
+          <dmn:text>&gt;= 4</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_5_in_4">
+          <dmn:text>"informed", "advanced"</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_5_out_1">
+          <dmn:text>"dynamic"</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_5_out_2">
+          <dmn:text>5</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_6">
+        <dmn:description>Everyone else</dmn:description>
+        <dmn:inputEntry id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_6_in_1">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_6_in_2">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_6_in_3">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_6_in_4">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_6_out_1">
+          <dmn:text>"balanced"</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_d906cec7-1cbf-506d-9418-a79a7d289a01_6_out_2">
+          <dmn:text>4</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+    </dmn:decisionTable>
+  </dmn:decision>
+  <dmn:decision id="_9417c5db-ad9d-5883-adac-42142c0747e0" name="Suitability of the choice">
+    <dmn:description>Whether the chosen allocation fits the risk profile: its weighted summary risk indicator against the profile's maximum, and the key information documents delivered.</dmn:description>
+    <dmn:decisionTable id="DecisionTable_9417c5db-ad9d-5883-adac-42142c0747e0" hitPolicy="FIRST">
+      <dmn:input id="Input_9417c5db-ad9d-5883-adac-42142c0747e0_1" label="Key information documents delivered">
+        <dmn:inputExpression id="InputExpression_9417c5db-ad9d-5883-adac-42142c0747e0_1" typeRef="boolean">
+          <dmn:text>kids_delivered</dmn:text>
+        </dmn:inputExpression>
+      </dmn:input>
+      <dmn:input id="Input_9417c5db-ad9d-5883-adac-42142c0747e0_2" label="Excess over the profile&#39;s SRI">
+        <dmn:inputExpression id="InputExpression_9417c5db-ad9d-5883-adac-42142c0747e0_2" typeRef="number">
+          <dmn:text>sri_excess</dmn:text>
+        </dmn:inputExpression>
+      </dmn:input>
+      <dmn:output id="Output_9417c5db-ad9d-5883-adac-42142c0747e0_1" name="suitability" typeRef="string" />
+      <dmn:output id="Output_9417c5db-ad9d-5883-adac-42142c0747e0_2" name="allocation_confirmed" typeRef="boolean" />
+      <dmn:rule id="Rule_9417c5db-ad9d-5883-adac-42142c0747e0_1">
+        <dmn:description>A key information document was not delivered: the choice cannot be accepted yet</dmn:description>
+        <dmn:extensionElements>
+          <awa:properties>{"output_edge_id":"1328a473-5944-5000-bf77-0939d7663f53"}</awa:properties>
+        </dmn:extensionElements>
+        <dmn:inputEntry id="Rule_9417c5db-ad9d-5883-adac-42142c0747e0_1_in_1">
+          <dmn:text>false</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_9417c5db-ad9d-5883-adac-42142c0747e0_1_in_2">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_9417c5db-ad9d-5883-adac-42142c0747e0_1_out_1">
+          <dmn:text>"kid_missing"</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_9417c5db-ad9d-5883-adac-42142c0747e0_1_out_2">
+          <dmn:text>false</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_9417c5db-ad9d-5883-adac-42142c0747e0_2">
+        <dmn:description>Within the profile</dmn:description>
+        <dmn:extensionElements>
+          <awa:properties>{"output_edge_id":"5944609d-317b-53d4-966c-63a519320e69"}</awa:properties>
+        </dmn:extensionElements>
+        <dmn:inputEntry id="Rule_9417c5db-ad9d-5883-adac-42142c0747e0_2_in_1">
+          <dmn:text>true</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_9417c5db-ad9d-5883-adac-42142c0747e0_2_in_2">
+          <dmn:text>&lt;= 0</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_9417c5db-ad9d-5883-adac-42142c0747e0_2_out_1">
+          <dmn:text>"suitable"</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_9417c5db-ad9d-5883-adac-42142c0747e0_2_out_2">
+          <dmn:text>true</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_9417c5db-ad9d-5883-adac-42142c0747e0_3">
+        <dmn:description>Above the profile</dmn:description>
+        <dmn:extensionElements>
+          <awa:properties>{"output_edge_id":"1328a473-5944-5000-bf77-0939d7663f53"}</awa:properties>
+        </dmn:extensionElements>
+        <dmn:inputEntry id="Rule_9417c5db-ad9d-5883-adac-42142c0747e0_3_in_1">
+          <dmn:text>true</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_9417c5db-ad9d-5883-adac-42142c0747e0_3_in_2">
+          <dmn:text>&gt; 0</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_9417c5db-ad9d-5883-adac-42142c0747e0_3_out_1">
+          <dmn:text>"above_profile"</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_9417c5db-ad9d-5883-adac-42142c0747e0_3_out_2">
+          <dmn:text>false</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+    </dmn:decisionTable>
+  </dmn:decision>
+  <dmn:decision id="_f3fc651a-b99b-5549-9e92-eb9c3f5bdc05" name="After the contribution">
+    <dmn:description>What follows a contribution: a statement at the end of a quarter, the close of the savings year after December, otherwise the next payroll.</dmn:description>
+    <dmn:decisionTable id="DecisionTable_f3fc651a-b99b-5549-9e92-eb9c3f5bdc05" hitPolicy="FIRST">
+      <dmn:input id="Input_f3fc651a-b99b-5549-9e92-eb9c3f5bdc05_1" label="Payroll period">
+        <dmn:inputExpression id="InputExpression_f3fc651a-b99b-5549-9e92-eb9c3f5bdc05_1" typeRef="string">
+          <dmn:text>period</dmn:text>
+        </dmn:inputExpression>
+      </dmn:input>
+      <dmn:output id="Output_f3fc651a-b99b-5549-9e92-eb9c3f5bdc05_1" name="statement_due" typeRef="string" />
+      <dmn:rule id="Rule_f3fc651a-b99b-5549-9e92-eb9c3f5bdc05_1">
+        <dmn:description>December: the year closes</dmn:description>
+        <dmn:extensionElements>
+          <awa:properties>{"output_edge_id":"645043db-92e7-5190-b885-d6170475df76"}</awa:properties>
+        </dmn:extensionElements>
+        <dmn:inputEntry id="Rule_f3fc651a-b99b-5549-9e92-eb9c3f5bdc05_1_in_1">
+          <dmn:text>ends with(?, "-12")</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_f3fc651a-b99b-5549-9e92-eb9c3f5bdc05_1_out_1">
+          <dmn:text>"annual"</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_f3fc651a-b99b-5549-9e92-eb9c3f5bdc05_2">
+        <dmn:description>End of a quarter</dmn:description>
+        <dmn:extensionElements>
+          <awa:properties>{"output_edge_id":"b1ffdf6b-7db6-5344-8d0a-33d5e874f2cd"}</awa:properties>
+        </dmn:extensionElements>
+        <dmn:inputEntry id="Rule_f3fc651a-b99b-5549-9e92-eb9c3f5bdc05_2_in_1">
+          <dmn:text>matches(?, "-(03|06|09)$")</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_f3fc651a-b99b-5549-9e92-eb9c3f5bdc05_2_out_1">
+          <dmn:text>"quarterly"</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+    </dmn:decisionTable>
+  </dmn:decision>
+  <dmn:decision id="_000d06d3-7110-5a01-9040-b730a43f7d4b" name="Change within the rules">
+    <dmn:description>A switch must stay within the profile; a top-up is invested in the current allocation, and the plan takes at most 10,000 EUR of top-ups a year (an example of a plan rule).</dmn:description>
+    <dmn:decisionTable id="DecisionTable_000d06d3-7110-5a01-9040-b730a43f7d4b" hitPolicy="FIRST">
+      <dmn:input id="Input_000d06d3-7110-5a01-9040-b730a43f7d4b_1" label="Request">
+        <dmn:inputExpression id="InputExpression_000d06d3-7110-5a01-9040-b730a43f7d4b_1" typeRef="string">
+          <dmn:text>request_type</dmn:text>
+        </dmn:inputExpression>
+      </dmn:input>
+      <dmn:input id="Input_000d06d3-7110-5a01-9040-b730a43f7d4b_2" label="Excess over the profile&#39;s SRI">
+        <dmn:inputExpression id="InputExpression_000d06d3-7110-5a01-9040-b730a43f7d4b_2" typeRef="number">
+          <dmn:text>sri_excess</dmn:text>
+        </dmn:inputExpression>
+      </dmn:input>
+      <dmn:input id="Input_000d06d3-7110-5a01-9040-b730a43f7d4b_3" label="Top-up (EUR)">
+        <dmn:inputExpression id="InputExpression_000d06d3-7110-5a01-9040-b730a43f7d4b_3" typeRef="number">
+          <dmn:text>top_up_eur</dmn:text>
+        </dmn:inputExpression>
+      </dmn:input>
+      <dmn:output id="Output_000d06d3-7110-5a01-9040-b730a43f7d4b_1" name="change_decision" typeRef="string" />
+      <dmn:rule id="Rule_000d06d3-7110-5a01-9040-b730a43f7d4b_1">
+        <dmn:description>Above the profile</dmn:description>
+        <dmn:extensionElements>
+          <awa:properties>{"output_edge_id":"cdc7185e-b624-562b-95a0-01edc85695fc"}</awa:properties>
+        </dmn:extensionElements>
+        <dmn:inputEntry id="Rule_000d06d3-7110-5a01-9040-b730a43f7d4b_1_in_1">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_000d06d3-7110-5a01-9040-b730a43f7d4b_1_in_2">
+          <dmn:text>&gt; 0</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_000d06d3-7110-5a01-9040-b730a43f7d4b_1_in_3">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_000d06d3-7110-5a01-9040-b730a43f7d4b_1_out_1">
+          <dmn:text>"above_profile"</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_000d06d3-7110-5a01-9040-b730a43f7d4b_2">
+        <dmn:description>A switch within the profile</dmn:description>
+        <dmn:extensionElements>
+          <awa:properties>{"output_edge_id":"517d4b37-1b66-524c-aed5-abbe9dd66357"}</awa:properties>
+        </dmn:extensionElements>
+        <dmn:inputEntry id="Rule_000d06d3-7110-5a01-9040-b730a43f7d4b_2_in_1">
+          <dmn:text>"switch"</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_000d06d3-7110-5a01-9040-b730a43f7d4b_2_in_2">
+          <dmn:text>&lt;= 0</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_000d06d3-7110-5a01-9040-b730a43f7d4b_2_in_3">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_000d06d3-7110-5a01-9040-b730a43f7d4b_2_out_1">
+          <dmn:text>"switch"</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_000d06d3-7110-5a01-9040-b730a43f7d4b_3">
+        <dmn:description>A top-up within the plan's yearly limit</dmn:description>
+        <dmn:extensionElements>
+          <awa:properties>{"output_edge_id":"5aeb5464-2975-5553-ae4c-288e8fb29816"}</awa:properties>
+        </dmn:extensionElements>
+        <dmn:inputEntry id="Rule_000d06d3-7110-5a01-9040-b730a43f7d4b_3_in_1">
+          <dmn:text>"top_up"</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_000d06d3-7110-5a01-9040-b730a43f7d4b_3_in_2">
+          <dmn:text>&lt;= 0</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_000d06d3-7110-5a01-9040-b730a43f7d4b_3_in_3">
+          <dmn:text>(0..10000]</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_000d06d3-7110-5a01-9040-b730a43f7d4b_3_out_1">
+          <dmn:text>"top_up"</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+    </dmn:decisionTable>
+  </dmn:decision>
+  <dmn:decision id="_616c2901-c046-5d10-89f8-4497eb7db24c" name="Tax residence route">
+    <dmn:description>A resident of Luxembourg goes straight to the deduction rules. A cross-border worker goes to a tax adviser first.</dmn:description>
+    <dmn:decisionTable id="DecisionTable_616c2901-c046-5d10-89f8-4497eb7db24c" hitPolicy="FIRST">
+      <dmn:input id="Input_616c2901-c046-5d10-89f8-4497eb7db24c_1" label="Country of tax residence">
+        <dmn:inputExpression id="InputExpression_616c2901-c046-5d10-89f8-4497eb7db24c_1" typeRef="string">
+          <dmn:text>tax_residence</dmn:text>
+        </dmn:inputExpression>
+      </dmn:input>
+      <dmn:output id="Output_616c2901-c046-5d10-89f8-4497eb7db24c_1" name="tax_route" typeRef="string" />
+      <dmn:rule id="Rule_616c2901-c046-5d10-89f8-4497eb7db24c_1">
+        <dmn:description>Resident of Luxembourg</dmn:description>
+        <dmn:extensionElements>
+          <awa:properties>{"output_edge_id":"a3ad2f2d-70f5-5fac-a43e-6cbaff4adff9"}</awa:properties>
+        </dmn:extensionElements>
+        <dmn:inputEntry id="Rule_616c2901-c046-5d10-89f8-4497eb7db24c_1_in_1">
+          <dmn:text>"LU"</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_616c2901-c046-5d10-89f8-4497eb7db24c_1_out_1">
+          <dmn:text>"resident"</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_616c2901-c046-5d10-89f8-4497eb7db24c_2">
+        <dmn:description>Cross-border worker from France, Belgium or Germany</dmn:description>
+        <dmn:extensionElements>
+          <awa:properties>{"output_edge_id":"40fb8121-ef90-54e2-bd35-a57fae75bc5c"}</awa:properties>
+        </dmn:extensionElements>
+        <dmn:inputEntry id="Rule_616c2901-c046-5d10-89f8-4497eb7db24c_2_in_1">
+          <dmn:text>"FR", "BE", "DE"</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_616c2901-c046-5d10-89f8-4497eb7db24c_2_out_1">
+          <dmn:text>"cross_border"</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+    </dmn:decisionTable>
+  </dmn:decision>
+  <dmn:decision id="_e1ff76ec-d75b-5648-8bff-5de3dff3de27" name="Deduction rules">
+    <dmn:description>The articles of the Luxembourg income tax law (LIR) under which premiums are deductible as special expenses, with their ceilings, AS DATA: a tax change is a new rule here, not a change of code. FACTS.md gives the source of each figure and marks those a tax adviser must confirm. This is not tax advice.</dmn:description>
+    <dmn:decisionTable id="DecisionTable_e1ff76ec-d75b-5648-8bff-5de3dff3de27" hitPolicy="COLLECT">
+      <dmn:input id="Input_e1ff76ec-d75b-5648-8bff-5de3dff3de27_1" label="Contract">
+        <dmn:inputExpression id="InputExpression_e1ff76ec-d75b-5648-8bff-5de3dff3de27_1" typeRef="string">
+          <dmn:text>contract_type</dmn:text>
+        </dmn:inputExpression>
+      </dmn:input>
+      <dmn:input id="Input_e1ff76ec-d75b-5648-8bff-5de3dff3de27_2" label="Tax year">
+        <dmn:inputExpression id="InputExpression_e1ff76ec-d75b-5648-8bff-5de3dff3de27_2" typeRef="number">
+          <dmn:text>tax_year</dmn:text>
+        </dmn:inputExpression>
+      </dmn:input>
+      <dmn:output id="Output_e1ff76ec-d75b-5648-8bff-5de3dff3de27_1" name="article" typeRef="string" />
+      <dmn:output id="Output_e1ff76ec-d75b-5648-8bff-5de3dff3de27_2" name="annual_ceiling_eur" typeRef="number" />
+      <dmn:output id="Output_e1ff76ec-d75b-5648-8bff-5de3dff3de27_3" name="ceiling_basis" typeRef="string" />
+      <dmn:output id="Output_e1ff76ec-d75b-5648-8bff-5de3dff3de27_4" name="figure_confirmed" typeRef="boolean" />
+      <dmn:rule id="Rule_e1ff76ec-d75b-5648-8bff-5de3dff3de27_1">
+        <dmn:description>Pension savings contract (prévoyance-vieillesse), Art. 111bis LIR, from tax year 2026</dmn:description>
+        <dmn:inputEntry id="Rule_e1ff76ec-d75b-5648-8bff-5de3dff3de27_1_in_1">
+          <dmn:text>"pension_savings"</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_e1ff76ec-d75b-5648-8bff-5de3dff3de27_1_in_2">
+          <dmn:text>&gt;= 2026</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_e1ff76ec-d75b-5648-8bff-5de3dff3de27_1_out_1">
+          <dmn:text>"111bis"</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_e1ff76ec-d75b-5648-8bff-5de3dff3de27_1_out_2">
+          <dmn:text>4500</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_e1ff76ec-d75b-5648-8bff-5de3dff3de27_1_out_3">
+          <dmn:text>"per_taxpayer"</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_e1ff76ec-d75b-5648-8bff-5de3dff3de27_1_out_4">
+          <dmn:text>true</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_e1ff76ec-d75b-5648-8bff-5de3dff3de27_2">
+        <dmn:description>Pension savings contract, Art. 111bis LIR, up to tax year 2025</dmn:description>
+        <dmn:inputEntry id="Rule_e1ff76ec-d75b-5648-8bff-5de3dff3de27_2_in_1">
+          <dmn:text>"pension_savings"</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_e1ff76ec-d75b-5648-8bff-5de3dff3de27_2_in_2">
+          <dmn:text>&lt; 2026</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_e1ff76ec-d75b-5648-8bff-5de3dff3de27_2_out_1">
+          <dmn:text>"111bis"</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_e1ff76ec-d75b-5648-8bff-5de3dff3de27_2_out_2">
+          <dmn:text>3200</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_e1ff76ec-d75b-5648-8bff-5de3dff3de27_2_out_3">
+          <dmn:text>"per_taxpayer"</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_e1ff76ec-d75b-5648-8bff-5de3dff3de27_2_out_4">
+          <dmn:text>true</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_e1ff76ec-d75b-5648-8bff-5de3dff3de27_3">
+        <dmn:description>Life insurance premiums, Art. 111 LIR, shared with other insurance premiums</dmn:description>
+        <dmn:inputEntry id="Rule_e1ff76ec-d75b-5648-8bff-5de3dff3de27_3_in_1">
+          <dmn:text>"life_insurance"</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_e1ff76ec-d75b-5648-8bff-5de3dff3de27_3_in_2">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_e1ff76ec-d75b-5648-8bff-5de3dff3de27_3_out_1">
+          <dmn:text>"111"</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_e1ff76ec-d75b-5648-8bff-5de3dff3de27_3_out_2">
+          <dmn:text>672</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_e1ff76ec-d75b-5648-8bff-5de3dff3de27_3_out_3">
+          <dmn:text>"per_household_member"</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_e1ff76ec-d75b-5648-8bff-5de3dff3de27_3_out_4">
+          <dmn:text>true</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_e1ff76ec-d75b-5648-8bff-5de3dff3de27_4">
+        <dmn:description>Personal contributions to an employer's supplementary pension scheme, Art. 110 LIR</dmn:description>
+        <dmn:inputEntry id="Rule_e1ff76ec-d75b-5648-8bff-5de3dff3de27_4_in_1">
+          <dmn:text>"employer_scheme_personal"</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_e1ff76ec-d75b-5648-8bff-5de3dff3de27_4_in_2">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_e1ff76ec-d75b-5648-8bff-5de3dff3de27_4_out_1">
+          <dmn:text>"110"</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_e1ff76ec-d75b-5648-8bff-5de3dff3de27_4_out_2">
+          <dmn:text>1200</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_e1ff76ec-d75b-5648-8bff-5de3dff3de27_4_out_3">
+          <dmn:text>"per_taxpayer"</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_e1ff76ec-d75b-5648-8bff-5de3dff3de27_4_out_4">
+          <dmn:text>true</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+    </dmn:decisionTable>
+  </dmn:decision>
+  <dmn:decision id="_fc57fcda-b79c-5dbf-ab80-df512694d99a" name="Top-up worth proposing">
+    <dmn:description>A top-up is proposed when the year's premiums will stay below the ceiling.</dmn:description>
+    <dmn:decisionTable id="DecisionTable_fc57fcda-b79c-5dbf-ab80-df512694d99a" hitPolicy="FIRST">
+      <dmn:input id="Input_fc57fcda-b79c-5dbf-ab80-df512694d99a_1" label="Shortfall to the ceiling (EUR)">
+        <dmn:inputExpression id="InputExpression_fc57fcda-b79c-5dbf-ab80-df512694d99a_1" typeRef="number">
+          <dmn:text>shortfall_eur</dmn:text>
+        </dmn:inputExpression>
+      </dmn:input>
+      <dmn:output id="Output_fc57fcda-b79c-5dbf-ab80-df512694d99a_1" name="top_up_proposed" typeRef="boolean" />
+      <dmn:rule id="Rule_fc57fcda-b79c-5dbf-ab80-df512694d99a_1">
+        <dmn:description>Below the ceiling</dmn:description>
+        <dmn:extensionElements>
+          <awa:properties>{"output_edge_id":"c9bfdc4b-8c66-504c-981f-b8e221c883a3"}</awa:properties>
+        </dmn:extensionElements>
+        <dmn:inputEntry id="Rule_fc57fcda-b79c-5dbf-ab80-df512694d99a_1_in_1">
+          <dmn:text>&gt; 0</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_fc57fcda-b79c-5dbf-ab80-df512694d99a_1_out_1">
+          <dmn:text>true</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+    </dmn:decisionTable>
+  </dmn:decision>
+  <dmn:decision id="_654065b2-d667-52f1-b372-ac1bbd20ca63" name="Adviser needed">
+    <dmn:description>Recommendations that change the plan's risk or its beneficiaries are confirmed by a licensed adviser before the employee sees them.</dmn:description>
+    <dmn:decisionTable id="DecisionTable_654065b2-d667-52f1-b372-ac1bbd20ca63" hitPolicy="FIRST">
+      <dmn:input id="Input_654065b2-d667-52f1-b372-ac1bbd20ca63_1" label="Changes the plan">
+        <dmn:inputExpression id="InputExpression_654065b2-d667-52f1-b372-ac1bbd20ca63_1" typeRef="boolean">
+          <dmn:text>requires_adviser</dmn:text>
+        </dmn:inputExpression>
+      </dmn:input>
+      <dmn:output id="Output_654065b2-d667-52f1-b372-ac1bbd20ca63_1" name="adviser_review" typeRef="boolean" />
+      <dmn:rule id="Rule_654065b2-d667-52f1-b372-ac1bbd20ca63_1">
+        <dmn:description>Changes the plan</dmn:description>
+        <dmn:extensionElements>
+          <awa:properties>{"output_edge_id":"3e429930-5a95-5510-aa43-ac5c5ab9cbd9"}</awa:properties>
+        </dmn:extensionElements>
+        <dmn:inputEntry id="Rule_654065b2-d667-52f1-b372-ac1bbd20ca63_1_in_1">
+          <dmn:text>true</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_654065b2-d667-52f1-b372-ac1bbd20ca63_1_out_1">
+          <dmn:text>true</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+    </dmn:decisionTable>
+  </dmn:decision>
+</dmn:definitions>

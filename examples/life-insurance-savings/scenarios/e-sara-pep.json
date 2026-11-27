@@ -1,0 +1,56 @@
+{
+  "name": "sara-pep",
+  "title": "Sara is a politically exposed person: compliance resolves the alert, and two approvers accept her",
+  "summary": "Sara Nilsen, 45, sat on the supervisory board of a state-owned enterprise until 2025: the screening finds her on the list of politically exposed persons. The due diligence becomes enhanced and goes to Inès, compliance officer, who confirms the match and establishes the source of her wealth. Having resolved the alert, Inès is refused the approval (separation of duties). Jonas approves; his second approval is refused (four eyes); Claire, head of compliance, gives the second. Sara names her two children as beneficiaries, half each, and saves 375 EUR a month for the year.",
+  "starts": "2026-01-13T07:30:00Z",
+  "invitation": {
+    "enrolment_id": "ENR-26005",
+    "plan_id": "KES-PENSION-111BIS",
+    "contract_type": "pension_savings",
+    "employer": {"name": "Kestrel Engineering S.à r.l.", "employer_id": "KES-0001"},
+    "employee": {"employee_number": "K-0102", "first_name": "Sara", "last_name": "Nilsen", "date_of_birth": "1980-03-02", "age": 45, "email": "sara.nilsen@kestrel.example", "nationality": "NO", "language": "en"},
+    "tax_residence": "LU",
+    "retirement_age": 65,
+    "household_members": 3
+  },
+  "world": {
+    "screening": {"result": "pep", "matches": [{"list": "pep", "category": "member of the supervisory board of a state-owned enterprise", "until": "2025-06-30", "match_score": 0.97}]}
+  },
+  "actors": {
+    "Review beneficiary clause": {"output": {"note": "Named clause: two children, each identified by first name and date of birth, 50% each."}}
+  },
+  "steps": [
+    {"at": "2026-01-13T08:10:00Z", "say": "Sara opens the invitation in the HR portal", "publish": "invitation.opened", "source": "/hr-portal", "data": {"invitation_opened": true}},
+    {"at": "2026-01-13T20:00:00Z", "say": "Sara answers the questionnaire", "publish": "questionnaire.submitted", "source": "/hr-portal/questionnaire", "data": {"knowledge_level": "informed", "capacity_for_loss": "moderate", "risk_tolerance": 2, "sustainability_preference": "esg_preferred", "horizon_years": 20, "monthly_contribution_eur": 375}},
+    {"at": "2026-01-14T07:30:00Z", "say": "Sara chooses the model portfolio and reads its key information documents", "publish": "investments.chosen", "source": "/hr-portal/investments", "data": {"choice": "model_portfolio", "kids_acknowledged": true, "allocation": [{"fund_id": "VL-BOND-EUR", "percent": 30}, {"fund_id": "VL-BOND-GREEN", "percent": 40}, {"fund_id": "VL-MIX-BAL", "percent": 30}]}},
+    {"at": "2026-01-14T19:00:00Z", "say": "Sara submits the subscription form", "publish": "subscription.submitted", "source": "/hr-portal/subscription", "data": {"documents": [{"type": "identity_card", "file_id": "F-26005-ID"}, {"type": "proof_of_address", "file_id": "F-26005-ADDR"}], "self_certification": {"tax_residences": [{"country": "LU", "tin": "1980030245678"}], "us_person": false}, "beneficiary_clause": {"type": "named", "beneficiaries": [{"relation": "child", "first_name": "Elin", "date_of_birth": "2010-05-14", "share": 50}, {"relation": "child", "first_name": "Jon", "date_of_birth": "2013-02-02", "share": 50}]}, "monthly_contribution_eur": 375, "payroll_mandate_signed": true}},
+    {"at": "2026-01-15T14:00:00Z", "say": "Inès, compliance officer, confirms Sara is politically exposed and establishes the source of her wealth", "complete": "Resolve compliance alert", "by": "ines", "output": {"pep_confirmed": true, "relationship_refused": false, "source_of_wealth": "Salary and the sale of a family home in 2024, documented", "risk_rating": "medium", "note": "Former member of the supervisory board of a state-owned enterprise until June 2025; contributions come from her salary at Kestrel."}},
+    {"at": "2026-01-15T14:20:00Z", "say": "Inès tries to approve the relationship too, and is refused: whoever resolved the alert may not approve it", "complete": "Approve PEP relationship", "by": "ines", "output": {"approved": true}, "refused": "separation_of_duties"},
+    {"at": "2026-01-16T09:00:00Z", "say": "Jonas, compliance officer, approves the relationship", "complete": "Approve PEP relationship", "by": "jonas", "output": {"approved": true, "note": "Source of wealth documented; payroll contributions only."}},
+    {"at": "2026-01-16T09:05:00Z", "say": "Jonas tries to give the second approval as well, and is refused: four eyes", "complete": "Approve PEP relationship", "by": "jonas", "output": {"approved": true}, "refused": "four_eyes"},
+    {"at": "2026-01-16T11:30:00Z", "say": "Claire, head of compliance, gives the second approval", "complete": "Approve PEP relationship", "by": "claire", "output": {"approved": true, "note": "Approved for senior management."}},
+    {"at": "2026-01-19T16:20:00Z", "say": "The e-signature service reports Sara's signed contract", "publish": "contract.signed", "source": "/e-signature", "data": {"contract_signed": true, "envelope_id": "ENV-26005"}},
+    {"at": "2026-01-27T06:00:00Z", "monthly": 12, "say": "Kestrel's payroll pays Sara's contribution for {{period}}", "publish": "payroll.contribution_paid", "source": "/kestrel-payroll", "data": {"period": "{{period}}", "amount_eur": 375}},
+    {"at": "2026-02-27T05:00:00Z", "say": "The policy administration closes the 30 days to cancel", "publish": "cooling_off.ended", "source": "/policy-administration/calendar", "data": {"cooling_off_closed": true}},
+    {"at": "2026-11-02T07:00:00Z", "say": "The insurer's calendar opens the year-end review of tax year 2026", "publish": "tax_year.review_due", "source": "/policy-administration/calendar", "data": {"tax_year": 2026, "months_remaining": 2, "tax_review_due": true}},
+    {"at": "2027-01-15T06:00:00Z", "say": "The January certificate run of the policy administration", "publish": "tax_certificates.due", "source": "/policy-administration/calendar", "data": {"tax_year": 2026}},
+    {"at": "2027-01-26T07:00:00Z", "say": "The anniversary of Sara's policy opens the annual review", "publish": "annual_review.due", "source": "/policy-administration/calendar", "data": {"review_year": 2027}},
+    {"at": "2027-01-28T19:00:00Z", "say": "Sara answers the review: she claimed the deduction", "publish": "annual_review.answered", "source": "/hr-portal/review", "data": {"deduction_claimed": true, "life_events": [], "satisfaction": 4}},
+    {"at": "2027-01-31T10:00:00Z", "say": "Sara reads the recommendation and keeps the plan as it is", "publish": "recommendations.answered", "source": "/hr-portal/review", "data": {"recommendations_accepted": false}}
+  ],
+  "expect": {
+    "runs": {"Plan Invitation and Advice": ["completed"], "Savings Plan Subscription": ["completed"], "Identity, AML and Tax Residence Checks": ["completed"], "Payroll Contributions": ["completed"], "Self-Service Change": [], "Year-End Tax": ["completed"], "Annual Review": ["completed"]},
+    "journey_status": "completed",
+    "journey_stage": "annual-review",
+    "goals": ["policy-issued", "first-deduction-claimed"],
+    "data": {"premiums_paid_eur": 4500, "deductible_eur": 4500, "cdd_level": "enhanced", "risk_profile": "moderate"},
+    "records": [
+      {"type": "decision.evaluated", "node_name": "Customer due diligence", "data": {"outputs": {"cdd_level": "enhanced"}}},
+      {"type": "activity.completed", "node_name": "Resolve compliance alert", "data": {"principal": {"id": "ines"}}},
+      {"type": "authorization.decided", "node_name": "Approve PEP relationship", "data": {"decision": "deny", "reason": "separation_of_duties", "principal": {"id": "ines"}}},
+      {"type": "authorization.decided", "node_name": "Approve PEP relationship", "data": {"decision": "deny", "reason": "four_eyes", "principal": {"id": "jonas"}}},
+      {"type": "activity.completed", "node_name": "Approve PEP relationship", "data": {"approvals": [{"id": "jonas", "kind": "person"}, {"id": "claire", "kind": "person"}]}},
+      {"type": "activity.completed", "node_name": "Record due diligence"}
+    ]
+  }
+}

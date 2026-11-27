@@ -1,0 +1,330 @@
+{
+  "about": "What the scripted actors of this example do, by activity name: the tools they call, the time they take and what they return. A scenario overrides an entry, or one attempt of it, under its own `actors`. Read by scenarios/play.mjs (TypeScript) and sdk/python/tests/test_life_insurance_savings.py (Python), which fill the {{path}} placeholders from the activity's input, the results of the calls and the scenario. `takes` is the business time the work takes; `delay_ms` is how long the live demonstration lets it take.",
+  "activities": {
+    "Register enrolment": {
+      "takes": "PT15S", "delay_ms": 600,
+      "calls": [{ "tool": "register_enrolment", "as": "enrolment", "arguments": { "enrolment_id": "{{enrolment_id}}", "plan_id": "{{plan_id}}", "employee": "{{employee}}", "employer": "{{employer}}", "tax_residence": "{{tax_residence}}" } }],
+      "output": { "prospect_id": "{{enrolment.prospect_id}}", "invitation_open_until": "{{enrolment.invitation_open_until}}" },
+      "writes": {
+        "employee_profile": {
+          "first_name": "{{employee.first_name}}", "preferred_language": "{{employee.language}}", "age": "{{employee.age}}",
+          "retirement_age": "{{retirement_age}}", "tax_residence": "{{tax_residence}}"
+        }
+      }
+    },
+    "Send invitation": {
+      "takes": "PT20S", "delay_ms": 600,
+      "calls": [{ "tool": "send_notification", "as": "sent", "arguments": { "enrolment_id": "{{enrolment_id}}", "channel": "portal_and_email", "template": "plan_invitation", "subject": "Your workplace pension savings plan with Valoria Life",
+        "body": "{{employer.name}} now offers you a pension savings plan with Valoria Life, paid from your salary. Open the HR portal to find out how it works, what it costs and how much tax it can save you." } }],
+      "output": { "invitation_id": "{{sent.message_id}}" }
+    },
+    "Send invitation reminder": {
+      "takes": "PT1M", "delay_ms": 1500,
+      "calls": [{ "tool": "send_notification", "as": "sent", "arguments": { "enrolment_id": "{{enrolment_id}}", "channel": "email", "template": "invitation_reminder", "subject": "Your pension savings plan invitation is still open" } }],
+      "output": {
+        "message": "Dear {{_contexts.employee_profile.first_name}}, your invitation to the Kestrel pension savings plan is still open until {{invitation_open_until}}. It takes ten minutes in the HR portal to see how the plan works and what it would mean for your tax.",
+        "deadline_stated": true, "reminder_id": "{{sent.message_id}}"
+      },
+      "agent": { "tier": "fast", "input_tokens": 480, "output_tokens": 90, "confidence": 0.93,
+        "plan": ["Name the plan and the employer", "State until when the invitation is open", "Keep it short"],
+        "rationale": "A reminder is read on a phone: one sentence for what is waiting, one for until when." }
+    },
+    "Send last reminder": {
+      "takes": "PT20S", "delay_ms": 600,
+      "calls": [{ "tool": "send_notification", "as": "sent", "arguments": { "enrolment_id": "{{enrolment_id}}", "channel": "portal", "template": "employer_last_reminder", "subject": "A last reminder from Kestrel HR" } }],
+      "output": { "last_reminder_id": "{{sent.message_id}}" }
+    },
+    "Close invitation": {
+      "takes": "PT10S", "delay_ms": 500,
+      "output": { "lapsed_reason": "The employee did not continue within the time the plan gives.", "closed": true }
+    },
+    "Explain the plan": {
+      "takes": "PT6M", "delay_ms": 2600,
+      "calls": [{ "tool": "get_plan_rules", "as": "plan", "arguments": { "plan_id": "{{plan_id}}" } }],
+      "output": {
+        "explanation": "{{plan.product}} is a pension savings contract written under {{plan.tax_article}}: you pay from your salary each month, and the premiums are deductible from your taxable income up to {{plan.deduction_ceiling_eur}} EUR a year from tax year {{plan.ceiling_from_tax_year}}, whatever your age. The contract runs for at least {{plan.minimum_duration_years}} years, and the savings are paid out from age {{plan.payout_from_age}} and no later than {{plan.payout_until_age}}. Your money is invested in unit-linked funds held by the custodian bank, apart from Valoria Life's own assets: their value goes down as well as up, the return is not guaranteed, and you bear the investment risk. Fees: no entry fee, {{plan.management_fee_pct_per_year}}% a year. After signing you have {{plan.right_to_cancel_days}} days to cancel and get every premium back.",
+        "topics_covered": ["contract", "duration", "payout_age", "tax_ceiling", "fees", "investment_risk", "right_to_cancel"],
+        "uncovered_count": 0, "risk_warning_given": true, "tax_ceiling_eur": "{{plan.deduction_ceiling_eur}}",
+        "handover_requested": false, "confidence": 0.9, "advice_given": true, "advice_channel": "ai_adviser"
+      },
+      "agent": { "tier": "reasoning", "input_tokens": 5200, "output_tokens": 720, "confidence": 0.9,
+        "plan": ["Read the plan's terms", "Explain the contract, its duration and the payout ages", "State the deduction ceiling for the tax year", "State the fees and the investment risk", "State the right to cancel", "Offer a licensed adviser"],
+        "rationale": "Every topic the plan requires is covered in plain words; the investment risk and the right to cancel are stated before anything else is asked of the employee." }
+    },
+    "Book video call": {
+      "takes": "PT20S", "delay_ms": 700,
+      "calls": [{ "tool": "book_video_call", "as": "booking", "arguments": { "enrolment_id": "{{enrolment_id}}", "topic": "Pension savings plan: questions before subscribing", "preferred_slot": "{{preferred_slot}}", "language": "{{employee.language}}" } }],
+      "output": { "appointment_id": "{{booking.appointment_id}}", "appointment_slot": "{{booking.slot}}" }
+    },
+    "Send questionnaire": {
+      "takes": "PT15S", "delay_ms": 600,
+      "calls": [{ "tool": "open_questionnaire", "as": "questionnaire", "arguments": { "enrolment_id": "{{enrolment_id}}", "questionnaire": "idd_suitability_v3", "language": "{{employee.language}}" } }],
+      "output": { "questionnaire_id": "{{questionnaire.questionnaire_id}}" }
+    },
+    "Assess demands and needs": {
+      "takes": "PT3M", "delay_ms": 2400,
+      "output": {
+        "demands_and_needs": "{{_contexts.employee_profile.first_name}} wants to save {{monthly_contribution_eur}} EUR a month for retirement at {{retirement_age}}, over about {{horizon_years}} years, with the tax deduction of the plan. Knowledge and experience: {{knowledge_level}}. Capacity for loss: {{capacity_for_loss}}. Risk tolerance: {{risk_tolerance}} on a scale of 1 to 5. Sustainability preference: {{sustainability_preference}}.",
+        "sections_unanswered": 0, "contradictions": [], "confidence": 0.88,
+        "notes": "Every section answered; the horizon, the capacity for loss and the risk tolerance agree with each other."
+      },
+      "agent": { "tier": "reasoning", "input_tokens": 3900, "output_tokens": 410, "confidence": 0.88,
+        "plan": ["Read every answer", "Write the demands and needs", "Check each section of the suitability assessment is answered", "Look for answers that contradict each other"],
+        "rationale": "The answers are complete and consistent, so the profile can be set from them." }
+    },
+    "Record suitability profile": {
+      "takes": "PT10S", "delay_ms": 600,
+      "calls": [{ "tool": "record_suitability_profile", "as": "profile", "arguments": { "enrolment_id": "{{enrolment_id}}", "risk_profile": "{{risk_profile}}", "max_sri": "{{max_sri}}", "demands_and_needs": "{{demands_and_needs}}", "sustainability_preference": "{{sustainability_preference}}" } }],
+      "output": { "profile_reference": "{{profile.profile_reference}}" }
+    },
+    "Propose investments": {
+      "takes": "PT2M", "delay_ms": 2400,
+      "calls": [{ "tool": "list_funds", "as": "funds", "arguments": { "plan_id": "{{plan_id}}", "max_sri": "{{max_sri}}", "sustainability": "{{sustainability_preference}}" } }],
+      "output": {
+        "proposed_allocation": { "$find": "funds.model_portfolios", "where": { "model_portfolio": "{{risk_profile}}" }, "get": "allocation" },
+        "model_portfolio": "{{risk_profile}}",
+        "allocation_total": 100, "max_fund_sri": "{{max_sri}}",
+        "kids": { "$map": "funds.funds", "to": { "fund_id": "{{item.fund_id}}", "kid_id": "{{item.kid_id}}" } },
+        "missing_kid_count": 0,
+        "explanation": "The {{risk_profile}} model portfolio fits your profile: its summary risk indicator stays within {{max_sri}} on the scale of 1 to 7. You may choose your own funds instead; each one's key information document is attached."
+      },
+      "agent": { "tier": "balanced", "input_tokens": 3100, "output_tokens": 380, "confidence": 0.9,
+        "plan": ["List the plan's funds and model portfolios", "Pick the model portfolio of the profile", "List the funds within the profile", "Attach every key information document"],
+        "rationale": "The model portfolio of the profile is the simplest suitable choice; the alternatives are shown with their risk indicators." }
+    },
+    "Check choice against profile": {
+      "takes": "PT5S", "delay_ms": 600,
+      "calls": [{ "tool": "check_allocation", "as": "check", "arguments": { "allocation": "{{allocation}}", "max_sri": "{{max_sri}}", "enrolment_id": "{{enrolment_id}}" } }],
+      "output": { "portfolio_sri": "{{check.portfolio_sri}}", "sri_excess": "{{check.sri_excess}}", "kids_delivered": "{{check.kids_delivered}}" }
+    },
+    "Warn about the risk": {
+      "takes": "PT1M", "delay_ms": 2000,
+      "calls": [{ "tool": "send_notification", "as": "sent", "arguments": { "enrolment_id": "{{enrolment_id}}", "channel": "portal", "template": "risk_warning", "subject": "Your choice is riskier than your profile" } }],
+      "output": {
+        "warning": "The funds you chose have a summary risk indicator of {{portfolio_sri}} on the scale of 1 to 7, above the {{max_sri}} your {{risk_profile}} profile allows. Their value could fall further than you told us you can bear. You can adjust your choice, or keep it after talking to a licensed adviser and confirming you accept the risk.",
+        "portfolio_sri_stated": true, "profile_stated": true, "options_given": true, "warning_id": "{{sent.message_id}}"
+      },
+      "agent": { "tier": "balanced", "input_tokens": 1300, "output_tokens": 210, "confidence": 0.92,
+        "plan": ["State the choice's risk indicator", "State the profile's limit", "Say what that means in plain words", "Give the two options"],
+        "rationale": "The employee must understand the gap and the choice left to them, without being pushed either way." }
+    },
+    "Review beneficiary clause": {
+      "takes": "PT1M", "delay_ms": 1600,
+      "output": { "clause_type": "{{beneficiary_clause.type}}", "shares_total": 100, "unidentified_count": 0, "beneficiary_clause_valid": true,
+        "note": "The standard clause: the spouse or registered partner, failing whom the children, failing whom the heirs." },
+      "agent": { "tier": "balanced", "input_tokens": 900, "output_tokens": 120, "confidence": 0.95,
+        "plan": ["Read the clause", "Check each beneficiary is identified", "Check the shares add up to 100%"],
+        "rationale": "The standard clause names beneficiaries by their relation to the employee, which identifies them." }
+    },
+    "Prepare contract for signature": {
+      "takes": "PT20S", "delay_ms": 700,
+      "calls": [{ "tool": "request_signature", "as": "envelope", "arguments": { "enrolment_id": "{{enrolment_id}}", "documents": ["policy_contract", "beneficiary_clause", "payroll_deduction_mandate"], "signer_email": "{{employee.email}}" } }],
+      "output": { "envelope_id": "{{envelope.envelope_id}}" }
+    },
+    "Issue policy": {
+      "takes": "PT20S", "delay_ms": 800,
+      "calls": [{ "tool": "issue_policy", "as": "policy", "arguments": { "enrolment_id": "{{enrolment_id}}", "plan_id": "{{plan_id}}", "monthly_contribution_eur": "{{monthly_contribution_eur}}", "allocation": "{{allocation}}", "beneficiary_clause": "{{beneficiary_clause}}" } }],
+      "output": { "policy_id": "{{policy.policy_id}}", "custody_account": "{{policy.custody_account}}", "issued_on": "{{policy.issued_on}}" }
+    },
+    "Set up payroll deduction": {
+      "takes": "PT10S", "delay_ms": 700,
+      "calls": [{ "tool": "create_payroll_deduction", "as": "deduction", "arguments": { "employee_number": "{{employee.employee_number}}", "policy_id": "{{policy_id}}", "monthly_amount_eur": "{{monthly_contribution_eur}}" } }],
+      "output": { "deduction_id": "{{deduction.deduction_id}}", "deduction_status": "{{deduction.status}}" }
+    },
+    "Invest first premium": {
+      "takes": "PT30S", "delay_ms": 900,
+      "calls": [
+        { "tool": "record_premium", "as": "premium", "arguments": { "policy_id": "{{policy_id}}", "period": "{{period}}", "amount_eur": "{{amount_eur}}", "paid_before_eur": 0 } },
+        { "tool": "place_order", "as": "order", "arguments": { "policy_id": "{{policy_id}}", "amount_eur": "{{amount_eur}}", "allocation": "{{allocation}}", "period": "{{period}}" } }
+      ],
+      "output": { "policy_id": "{{policy_id}}", "premiums_paid_eur": "{{premium.paid_to_date_eur}}", "tax_year": "{{premium.tax_year}}", "first_premium_order": "{{order.order_id}}", "policy_issued": true }
+    },
+    "Send policy documents": {
+      "takes": "PT20S", "delay_ms": 700,
+      "calls": [{ "tool": "send_notification", "as": "sent", "arguments": { "enrolment_id": "{{enrolment_id}}", "channel": "portal_and_email", "template": "policy_documents", "subject": "Your policy {{policy_id}}: documents and your right to cancel",
+        "body": "Your policy {{policy_id}} is issued. You have 30 days to cancel it and receive every premium back in full." } }],
+      "output": { "policy_documents_id": "{{sent.message_id}}" }
+    },
+    "Confirm policy in force": {
+      "takes": "PT10S", "delay_ms": 500,
+      "output": { "policy_in_force": true, "in_force_on": "{{today}}" }
+    },
+    "Close subscription": {
+      "takes": "PT10S", "delay_ms": 500,
+      "output": { "lapsed_reason": "The employee did not complete the subscription within the time given.", "closed": true }
+    },
+    "Record refusal": {
+      "takes": "PT10S", "delay_ms": 500,
+      "output": { "refusal_reason": "The customer due diligence does not allow the business relationship." }
+    },
+    "Cancel policy": {
+      "takes": "PT10S", "delay_ms": 700,
+      "calls": [{ "tool": "cancel_policy", "as": "cancelled", "arguments": { "policy_id": "{{policy_id}}", "reason": "Cancelled by the employee within the 30-day period" } }],
+      "output": { "policy_status": "{{cancelled.status}}" }
+    },
+    "Stop payroll deduction": {
+      "takes": "PT10S", "delay_ms": 700,
+      "calls": [{ "tool": "stop_payroll_deduction", "as": "stopped", "arguments": { "deduction_id": "{{deduction_id}}", "reason": "The policy was cancelled within the 30-day period" } }],
+      "output": { "deduction_status": "{{stopped.status}}" }
+    },
+    "Redeem units and refund premium": {
+      "takes": "PT20S", "delay_ms": 900,
+      "calls": [
+        { "tool": "redeem_units", "as": "redemption", "arguments": { "policy_id": "{{policy_id}}", "reason": "Cancelled within the 30-day period" } },
+        { "tool": "refund_premium", "as": "refund", "arguments": { "policy_id": "{{policy_id}}", "amount_eur": "{{premiums_paid_eur}}", "reason": "Cancelled within the 30-day period: every premium refunded in full" } }
+      ],
+      "output": { "redemption_id": "{{redemption.redemption_id}}", "refund_id": "{{refund.refund_id}}", "refunded_eur": "{{refund.amount_eur}}" }
+    },
+    "Verify identity documents": {
+      "takes": "PT3M", "delay_ms": 2400,
+      "calls": [{ "tool": "extract_document", "each": "documents", "as": "extractions", "arguments": { "file_id": "{{item.file_id}}", "document_type": "{{item.type}}", "enrolment_id": "{{enrolment_id}}" } }],
+      "output": { "identity_verified": true, "unreadable_count": 0, "document_expiry": "{{extractions.0.fields.expires_on}}", "confidence": 0.93,
+        "notes": "Identity document in date; the name and the date of birth agree with the enrolment; the proof of address is recent." },
+      "agent": { "tier": "reasoning", "input_tokens": 4800, "output_tokens": 420, "confidence": 0.93,
+        "plan": ["Extract each document", "Compare the name and the date of birth with the enrolment", "Check the identity document's expiry date", "Check the proof of address is recent"],
+        "rationale": "Both documents are legible and agree with the enrolment." }
+    },
+    "Screen PEP and sanctions": {
+      "takes": "PT8S", "delay_ms": 900,
+      "calls": [{ "tool": "screen_person", "as": "screening", "arguments": { "enrolment_id": "{{enrolment_id}}", "first_name": "{{employee.first_name}}", "last_name": "{{employee.last_name}}", "date_of_birth": "{{employee.date_of_birth}}", "nationality": "{{employee.nationality}}" } }],
+      "output": { "screening_result": "{{screening.result}}", "screening_reference": "{{screening.screening_reference}}" }
+    },
+    "Validate tax self-certification": {
+      "takes": "PT5S", "delay_ms": 700,
+      "calls": [{ "tool": "validate_self_certification", "as": "selfcert", "arguments": { "enrolment_id": "{{enrolment_id}}", "self_certification": "{{self_certification}}" } }],
+      "output": { "self_certification_valid": "{{selfcert.self_certification_valid}}", "us_person": "{{selfcert.us_person}}", "crs_reportable": "{{selfcert.crs_reportable}}", "tax_residences": "{{selfcert.tax_residences}}" }
+    },
+    "Record due diligence": {
+      "takes": "PT10S", "delay_ms": 700,
+      "calls": [{ "tool": "record_due_diligence", "as": "file", "arguments": { "enrolment_id": "{{enrolment_id}}", "cdd_level": "{{cdd_level}}", "outcome": "accepted", "screening_reference": "{{screening_reference}}", "crs_reportable": "{{crs_reportable}}", "fatca_status": "{{fatca_status}}" } }],
+      "output": { "kyc_status": "passed", "kyc_file_id": "{{file.kyc_file_id}}" }
+    },
+    "Record refusal of relationship": {
+      "takes": "PT10S", "delay_ms": 700,
+      "calls": [{ "tool": "record_due_diligence", "as": "file", "arguments": { "enrolment_id": "{{enrolment_id}}", "cdd_level": "{{cdd_level}}", "outcome": "refused", "screening_reference": "{{screening_reference}}" } }],
+      "output": { "kyc_status": "refused", "kyc_file_id": "{{file.kyc_file_id}}" }
+    },
+    "Invest contribution": {
+      "takes": "PT30S", "delay_ms": 500,
+      "calls": [
+        { "tool": "record_premium", "as": "premium", "arguments": { "policy_id": "{{policy_id}}", "period": "{{period}}", "amount_eur": "{{amount_eur}}", "paid_before_eur": "{{premiums_paid_eur}}" } },
+        { "tool": "place_order", "as": "order", "arguments": { "policy_id": "{{policy_id}}", "amount_eur": "{{amount_eur}}", "period": "{{period}}" } }
+      ],
+      "output": { "premiums_paid_eur": "{{premium.paid_to_date_eur}}", "last_order": "{{order.order_id}}" }
+    },
+    "Report missing contribution": {
+      "takes": "PT10S", "delay_ms": 500,
+      "output": { "missing_contribution_reported": true }
+    },
+    "Send quarterly statement": {
+      "takes": "PT20S", "delay_ms": 600,
+      "calls": [
+        { "tool": "get_position", "as": "position", "arguments": { "policy_id": "{{policy_id}}", "premiums_eur": "{{premiums_paid_eur}}" } },
+        { "tool": "send_notification", "as": "sent", "arguments": { "enrolment_id": "{{enrolment_id}}", "channel": "portal_and_email", "template": "quarterly_statement", "subject": "Your statement for {{period}}" } }
+      ],
+      "output": { "statement_id": "{{sent.message_id}}", "value_eur": "{{position.value_eur}}" }
+    },
+    "Send annual statement": {
+      "takes": "PT20S", "delay_ms": 600,
+      "calls": [
+        { "tool": "get_position", "as": "position", "arguments": { "policy_id": "{{policy_id}}", "premiums_eur": "{{premiums_paid_eur}}" } },
+        { "tool": "send_notification", "as": "sent", "arguments": { "enrolment_id": "{{enrolment_id}}", "channel": "portal_and_email", "template": "annual_statement", "subject": "Your annual statement" } }
+      ],
+      "output": { "statement_id": "{{sent.message_id}}", "value_eur": "{{position.value_eur}}", "savings_year_closed": true }
+    },
+    "Check change against profile": {
+      "takes": "PT5S", "delay_ms": 600,
+      "calls": [{ "tool": "check_allocation", "as": "check", "arguments": { "allocation": "{{new_allocation|allocation}}", "max_sri": "{{max_sri}}", "enrolment_id": "{{enrolment_id}}" } }],
+      "output": { "portfolio_sri": "{{check.portfolio_sri}}", "sri_excess": "{{check.sri_excess}}" }
+    },
+    "Switch funds": {
+      "takes": "PT20S", "delay_ms": 800,
+      "calls": [{ "tool": "switch_funds", "as": "switch", "arguments": { "policy_id": "{{policy_id}}", "allocation": "{{new_allocation}}" } }],
+      "output": { "allocation": "{{new_allocation}}", "change_status": "made", "switch_id": "{{switch.switch_id}}" }
+    },
+    "Schedule top-up": {
+      "takes": "PT10S", "delay_ms": 700,
+      "calls": [{ "tool": "schedule_one_off_deduction", "as": "one_off", "arguments": { "employee_number": "{{employee.employee_number}}", "policy_id": "{{policy_id}}", "amount_eur": "{{top_up_eur}}" } }],
+      "output": { "change_status": "scheduled", "one_off_id": "{{one_off.one_off_id}}" }
+    },
+    "Decline the change": {
+      "takes": "PT10S", "delay_ms": 700,
+      "calls": [{ "tool": "send_notification", "as": "sent", "arguments": { "enrolment_id": "{{enrolment_id}}", "channel": "portal", "template": "change_declined", "subject": "Your change could not be made",
+        "body": "The allocation you asked for has a summary risk indicator of {{portfolio_sri}}, above the {{max_sri}} your profile allows. A licensed adviser can go through it with you." } }],
+      "output": { "decline_reason": "The new allocation's risk indicator of {{portfolio_sri}} is above the profile's maximum of {{max_sri}}.", "change_status": "declined" }
+    },
+    "Project the year": {
+      "takes": "PT5S", "delay_ms": 700,
+      "calls": [{ "tool": "compute_deductions", "as": "projection", "arguments": { "tax_year": "{{tax_year}}", "articles": "{{article}}", "ceilings_eur": "{{annual_ceiling_eur}}", "bases": "{{ceiling_basis}}",
+        "premiums_eur": "{{premiums_paid_eur}}", "monthly_contribution_eur": "{{monthly_contribution_eur}}", "months_remaining": "{{months_remaining}}", "household_members": "{{household_members}}" } }],
+      "output": { "projected_premiums_eur": "{{projection.projected_premiums_eur}}", "projected_deductible_eur": "{{projection.projected_deductible_eur}}",
+        "shortfall_eur": "{{projection.shortfall_eur}}", "ceiling_eur": "{{projection.ceiling_eur}}" }
+    },
+    "Write top-up proposal": {
+      "takes": "PT1M", "delay_ms": 2000,
+      "calls": [{ "tool": "send_notification", "as": "sent", "arguments": { "enrolment_id": "{{enrolment_id}}", "channel": "portal_and_email", "template": "top_up_proposal", "subject": "Reach your {{tax_year}} deduction ceiling before 31 December" } }],
+      "output": {
+        "proposal": "By the end of {{tax_year}} you will have paid {{projected_premiums_eur}} EUR into your plan. The ceiling of the deduction for a pension savings contract is {{ceiling_eur}} EUR a year. A one-off top-up of {{shortfall_eur}} EUR, requested in the HR portal before 31 December and collected with your December salary, would reach it. Whether and how much you can deduct depends on your own tax situation; the value of the funds can fall as well as rise.",
+        "proposed_top_up_eur": "{{shortfall_eur}}", "ceiling_stated": true, "deadline_stated": true, "tax_caveat_given": true, "proposal_id": "{{sent.message_id}}"
+      },
+      "agent": { "tier": "balanced", "input_tokens": 1500, "output_tokens": 260, "confidence": 0.9,
+        "plan": ["State the year's premiums and the ceiling", "Give the top-up that reaches it", "Say how and by when", "Say the deduction depends on the employee's situation"],
+        "rationale": "The shortfall is a fact from the computation; the proposal states it, the deadline and the limits of what the insurer can say about the employee's tax." }
+    },
+    "Compute deductible amounts": {
+      "takes": "PT5S", "delay_ms": 700,
+      "calls": [{ "tool": "compute_deductions", "as": "computation", "arguments": { "tax_year": "{{tax_year}}", "articles": "{{article}}", "ceilings_eur": "{{annual_ceiling_eur}}", "bases": "{{ceiling_basis}}",
+        "premiums_eur": "{{premiums_paid_eur}}", "household_members": "{{household_members}}" } }],
+      "output": { "deductible_eur": "{{computation.deductible_eur}}", "deduction_article": "{{computation.article}}", "ceiling_eur": "{{computation.ceiling_eur}}" }
+    },
+    "Issue tax certificate": {
+      "takes": "PT20S", "delay_ms": 900,
+      "calls": [
+        { "tool": "issue_tax_certificate", "as": "certificate", "arguments": { "policy_id": "{{policy_id}}", "tax_year": "{{tax_year}}", "article": "{{deduction_article}}", "premiums_eur": "{{premiums_paid_eur}}", "deductible_eur": "{{deductible_eur}}", "employee": "{{employee.first_name}} {{employee.last_name}}" } },
+        { "tool": "send_notification", "as": "sent", "arguments": { "enrolment_id": "{{enrolment_id}}", "channel": "portal_and_email", "template": "tax_certificate", "subject": "Your {{tax_year}} tax certificate is in the HR portal" } }
+      ],
+      "output": { "certificate_id": "{{certificate.certificate_id}}", "certificate_url": "{{certificate.document_url}}", "tax_certificate_issued": true }
+    },
+    "Invite to annual review": {
+      "takes": "PT15S", "delay_ms": 600,
+      "calls": [{ "tool": "send_notification", "as": "sent", "arguments": { "enrolment_id": "{{enrolment_id}}", "channel": "portal_and_email", "template": "annual_review", "subject": "Your plan's annual review: three questions" } }],
+      "output": { "review_invitation_id": "{{sent.message_id}}" },
+      "writes": {
+        "employee_profile": {
+          "first_name": "{{employee.first_name}}", "preferred_language": "{{employee.language}}", "age": "{{employee.age}}", "retirement_age": "{{retirement_age}}",
+          "tax_residence": "{{tax_residence}}", "risk_profile": "{{risk_profile}}", "max_sri": "{{max_sri}}", "horizon_years": "{{horizon_years}}",
+          "sustainability_preference": "{{sustainability_preference}}", "monthly_contribution_eur": "{{monthly_contribution_eur}}"
+        }
+      }
+    },
+    "Read the plan's position": {
+      "takes": "PT10S", "delay_ms": 700,
+      "calls": [{ "tool": "get_position", "as": "position", "arguments": { "policy_id": "{{policy_id}}", "premiums_eur": "{{premiums_paid_eur}}", "target_allocation": "{{allocation}}" } }],
+      "output": { "value_eur": "{{position.value_eur}}", "performance_pct": "{{position.performance_pct}}", "drift_pp": "{{position.drift_pp}}" }
+    },
+    "Recommend changes": {
+      "takes": "PT3M", "delay_ms": 2600,
+      "output": {
+        "recommendations": [{ "type": "no_change", "reason": "The allocation is within five points of its target and retirement is more than ten years away." }],
+        "recommendation_text": "Dear {{_contexts.employee_profile.first_name}}, your plan is on track: its allocation is close to the target you chose and your retirement is still far off, so we recommend no change this year. The value of your funds can fall as well as rise.",
+        "requires_adviser": false
+      },
+      "agent": { "tier": "reasoning", "input_tokens": 4600, "output_tokens": 380, "confidence": 0.9,
+        "plan": ["Read the position and the drift", "Read the answers and the profile", "Check the years to retirement", "Check for life events", "Recommend, with a reason each"],
+        "rationale": "Nothing in the position or the answers calls for a change." }
+    },
+    "Publish recommendations": {
+      "takes": "PT15S", "delay_ms": 600,
+      "calls": [{ "tool": "send_notification", "as": "sent", "arguments": { "enrolment_id": "{{enrolment_id}}", "channel": "portal", "template": "review_recommendations", "subject": "Your annual review: our recommendations", "body": "{{recommendation_text}}" } }],
+      "output": { "recommendations_id": "{{sent.message_id}}" }
+    },
+    "Apply accepted changes": {
+      "takes": "PT10S", "delay_ms": 600,
+      "output": { "changes_applied": [] }
+    },
+    "Record the review": {
+      "takes": "PT10S", "delay_ms": 500,
+      "output": { "review_completed": true }
+    }
+  }
+}

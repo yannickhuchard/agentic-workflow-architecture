@@ -1,0 +1,13 @@
+[
+  {"type": "invitation.opened", "data": {"invitation_opened": true}},
+  {"type": "questionnaire.submitted", "data": {"knowledge_level": "informed", "capacity_for_loss": "moderate", "horizon_years": 31, "risk_tolerance": 3, "sustainability_preference": "esg_preferred", "monthly_contribution_eur": 375}},
+  {"type": "investments.chosen", "data": {"choice": "model_portfolio", "kids_acknowledged": true, "allocation": [{"fund_id": "VL-BOND-GREEN", "percent": 30}, {"fund_id": "VL-MIX-BAL", "percent": 30}, {"fund_id": "VL-EQ-WORLD-ESG", "percent": 40}]}},
+  {"type": "subscription.submitted", "data": {"documents": [{"type": "identity_card", "file_id": "F-26001-ID"}, {"type": "proof_of_address", "file_id": "F-26001-ADDR"}], "self_certification": {"tax_residences": [{"country": "LU", "tin": "1991041812345"}], "us_person": false}, "beneficiary_clause": {"type": "standard"}, "monthly_contribution_eur": 375, "payroll_mandate_signed": true}},
+  {"type": "contract.signed", "data": {"contract_signed": true}},
+  {"type": "payroll.contribution_paid", "data": {"period": "2026-12", "amount_eur": 375}},
+  {"type": "cooling_off.ended", "data": {}},
+  {"type": "savings_year.closed", "data": {"tax_year": 2026, "premiums_paid_eur": 4500, "savings_year_closed": true}},
+  {"type": "tax_certificates.due", "data": {"tax_year": 2026}},
+  {"type": "annual_review.answered", "data": {"deduction_claimed": true, "life_events": [], "satisfaction": 5}},
+  {"type": "recommendations.answered", "data": {"recommendations_accepted": true}}
+]
