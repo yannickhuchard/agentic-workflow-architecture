@@ -189,11 +189,12 @@ button:focus-visible, input:focus-visible { outline: 2px solid #a5b4fc; outline-
 
 /* One run */
 .nd { position: absolute; transition: border-color .25s ease .35s, box-shadow .25s ease .35s, background-color .25s ease .35s, opacity .25s ease .35s; }
-.nd.act { border: 1.5px solid #475569; border-radius: 8px; background: var(--card); padding: 7px 9px; display: flex; flex-direction: column; gap: 3px; }
+.nd.act { border: 1.5px solid #475569; border-radius: 8px; background: var(--card); padding: 8px 10px; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
 .nd.evt { border: 2px solid #64748b; border-radius: 50%; background: var(--bg); }
 .nd.dec { clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); background: #475569; }
 .tg { font-size: 10px; line-height: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--mute); }
-.nm { font-size: 12px; line-height: 14px; font-weight: 600; }
+/* Three lines of a name fit in the box (the builder widens the boxes of a workflow until they do); a fourth is cut, and the box's title gives the whole name */
+.nm { align-self: stretch; font-size: 12px; line-height: 13px; font-weight: 600; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .ev-in { position: absolute; display: none; }
 .m-end { border-width: 5px; }
 .m-timer .ev-in { display: block; left: 50%; top: 50%; width: 2px; height: 11px; margin: -11px 0 0 -1px; background: var(--soft); }
@@ -223,7 +224,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid #a5b4fc; outline-
 .tip.r { border-left-color: #475569; } .tip.l { border-right-color: #475569; } .tip.d { border-top-color: #475569; } .tip.u { border-bottom-color: #475569; }
 .tip.r.on { border-left-color: var(--ok); } .tip.l.on { border-right-color: var(--ok); } .tip.d.on { border-top-color: var(--ok); } .tip.u.on { border-bottom-color: var(--ok); }
 .tip.timeout.r.on { border-left-color: var(--wait); } .tip.timeout.d.on { border-top-color: var(--wait); } .tip.timeout.u.on { border-bottom-color: var(--wait); }
-.pn { height: 258px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; overflow: hidden; }
+.pn { height: 250px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; overflow: hidden; }
 .tr { display: flex; gap: 10px; align-items: baseline; width: 100%; min-width: 0; padding: 6px 8px; border-radius: 8px; border: 1px solid transparent; background: none; cursor: pointer; text-align: left; font-size: 13px; line-height: 17px; color: var(--mute); }
 .tr:hover { background: rgba(255,255,255,.05); }
 .tr.cur { color: #fff; background: rgba(129,140,248,.14); border-color: rgba(129,140,248,.45); }
@@ -242,6 +243,14 @@ button:focus-visible, input:focus-visible { outline: 2px solid #a5b4fc; outline-
 .b-done .bn, .b-done .bs { color: var(--ok); } .b-now .bn, .b-now .bs { color: #a5b4fc; } .b-next .bn, .b-next .bs { color: #64748b; }
 .gclip { position: absolute; left: 0; width: 1440px; overflow: hidden; }
 .gband { position: absolute; left: 0; top: 0; transform-origin: 0 0; transition: transform .8s cubic-bezier(.4,0,.2,1); }
+.gband.panning { transition: transform .12s linear; }
+/* A graph wider than the stage at the smallest legible scale: the part around the step being read is shown, and the rest is a scroll or a click away */
+.gmore { position: absolute; top: 0; width: 56px; height: 100%; display: flex; align-items: center; pointer-events: none; z-index: 2; }
+.gmore.l { left: 0; justify-content: flex-start; padding-left: 8px; background: linear-gradient(90deg, var(--bg) 20%, rgba(11,15,25,0)); }
+.gmore.r { right: 0; justify-content: flex-end; padding-right: 8px; background: linear-gradient(270deg, var(--bg) 20%, rgba(11,15,25,0)); }
+.gmore[hidden] { display: none; }
+.gmore button { pointer-events: auto; width: 30px; height: 30px; border-radius: 50%; border: 1px solid rgba(255,255,255,.2); background: var(--card); color: var(--soft); cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; }
+.gmore button:hover { background: #2a3a52; color: #fff; }
 .gband [data-band] { transition: filter .5s ease; }
 .gband .dimb { filter: opacity(.14); }
 .bnote { position: absolute; font-size: 11px; line-height: 14px; color: var(--mute); white-space: nowrap; pointer-events: none; }
@@ -512,14 +521,31 @@ scenes.story = () => {
     return h;
 };
 
-/** Where the graph of a banded workflow is moved and scaled to, so that band k fills the graph's area */
-const GRAPH = { top: 104, height: 308 };
-function bandView(W, k) {
-    // Room above a band for the edges that come into it and their notes, and below it for those that leave
-    const b = W.bands[Math.max(0, Math.min(k, W.bands.length - 1))], padX = 28, top = b.y0 - 38, bottom = b.y1 + 24;
-    const s = Math.min(1.3, 1408 / (b.x1 - b.x0 + 2 * padX), GRAPH.height / (bottom - top));
-    const tx = (1440 - (b.x1 - b.x0) * s) / 2 - b.x0 * s, ty = (GRAPH.height - (bottom - top) * s) / 2 - top * s;
-    return `translate(${tx.toFixed(1)}px, ${ty.toFixed(1)}px) scale(${s.toFixed(3)})`;
+/** The graph's area on the run view: below the band chips for a workflow in bands, else from the title down */
+const GRAPH = { top: 104, height: 320 }, GRAPH_FLAT = { top: 64, height: 360 };
+/** A node's name is 12 px: never shown smaller than 11 px. A graph that would need less is shown at this scale, in part */
+const MIN_SCALE = 11 / 12;
+/**
+ * Where the graph is moved and scaled to, so that band k (or the whole of a workflow without bands) fills the graph's area.
+ * Too wide or too tall at the smallest legible scale, it shows the part around the node `focus` (the step being read),
+ * moved further by `pan` ({ dx, dy } in screen pixels) when a reader scrolls. Returns the transform and how much more there is on each side.
+ */
+function graphView(W, k, focus, pan) {
+    const banded = !!(W.bands && W.bands.length), area = banded ? GRAPH : GRAPH_FLAT, band = banded ? Math.max(0, Math.min(k, W.bands.length - 1)) : 0;
+    // Room beside the graph for the names of the events at either end; above a band for the edges that come into it and their notes, and below it for those that leave
+    const b = banded ? W.bands[band] : { x0: 0, x1: W.width, y0: 0, y1: W.height };
+    const left = b.x0 - 28, right = b.x1 + 28, top = banded ? b.y0 - 38 : b.y0, bottom = banded ? b.y1 + 24 : b.y1;
+    const s = Math.max(MIN_SCALE, Math.min(banded ? 1.3 : 1, 1408 / (right - left), area.height / (bottom - top)));
+    const fit = (room, lo, hi, at, d) => {
+        if ((hi - lo) * s <= room + 0.5) return { t: (room - (hi - lo) * s) / 2 - lo * s, before: false, after: false };
+        const most = -lo * s, least = room - hi * s;                  // the translations that put one end or the other at the edge
+        const t = Math.max(least, Math.min(most, room / 2 - at * s + (d || 0)));
+        return { t, before: t < most - 1, after: t > least + 1 };
+    };
+    const at = focus && focus.band === band ? focus : { x: (left + right) / 2, y: (top + bottom) / 2 };
+    const x = fit(1440, left, right, at.x, pan && pan.dx), y = fit(area.height, top, bottom, at.y, pan && pan.dy);
+    return { transform: `translate(${x.t.toFixed(1)}px, ${y.t.toFixed(1)}px) scale(${s.toFixed(4)})`, scale: s, left: x.before, right: x.after, up: y.before, down: y.after,
+        dx: x.t - (1440 / 2 - at.x * s), dy: y.t - (area.height / 2 - at.y * s) };
 }
 /** The band of the step being read: the band of its node, else of the last step that had one; or the band a reader chose */
 function bandOf(run, W, ic) {
@@ -528,10 +554,16 @@ function bandOf(run, W, ic) {
     return 0;
 }
 let runShown = { key: '', band: -1 };                       // the band last shown, so that a rebuilt scene starts from it
+/** The centre of the node of the step being read, or of the last step that had a node, with its band */
+function focusOf(run, W, ic) {
+    for (let k = Math.min(ic, run.steps.length - 1); k >= 0; k--) { const n = W.nodes[run.steps[k].n]; if (n) return { x: n.x + n.w / 2, y: n.y + n.h / 2, band: n.band || 0 }; }
+    return null;
+}
+/** How far a reader has scrolled the graph, kept while the same step of the same band is read */
+const panOf = (run, k, ic) => (st.pan && st.pan.key === `${run.run_id}|${k}|${ic}` ? st.pan : null);
 
 scenes.run = () => {
     const c = I(), run = R(), W = S.workflows[run.wf], banded = !!(W.bands && W.bands.length);
-    const gx = banded ? 0 : r((1440 - W.width) / 2), gy = banded ? 0 : 84 + r((316 - W.height) / 2);
     const stage = J().stages.find(s => s.id === run.stage);
     let h = `<div style="position:absolute;left:28px;top:16px;width:1384px;display:flex;align-items:center;gap:14px">
       <button class="crumb" style="border-color:rgba(255,255,255,.16)" data-up="1">Back to ${esc(c.name)}</button>
@@ -543,31 +575,29 @@ scenes.run = () => {
           <span class="pt" style="color:var(--mute);margin-right:6px">Bands</span>
           ${W.bands.map((b, k) => `<button class="bchip" data-bandchip="${k}" title="Show this band of the workflow"><span class="bn">${k + 1}</span>${esc(b.label)}<span class="bs"></span></button>`).join('')}
           <span style="flex:1 1 auto"></span><span class="sub">the band of the step being read is shown; the others are one click away</span></div>`;
-        const from = runShown.key === run.run_id && runShown.band >= 0 ? runShown.band : bandOf(run, W, pos());
-        h += `<div class="gclip" style="top:${GRAPH.top}px;height:${GRAPH.height}px"><div class="gband" style="width:${W.width}px;height:${W.height}px;transform:${bandView(W, from)}">`;
-    } else {
-        // A workflow wider or taller than the stage is shown smaller, never cut off
-        const fit = Math.min(1, 1384 / W.width, 330 / W.height);
-        h += `<div style="position:absolute;left:0;top:0;width:1440px;height:420px;transform:scale(${fit.toFixed(3)});transform-origin:720px 242px">`;
     }
+    // The graph fills its area, at a scale where every name reads; a graph too large for that is shown around the step being read
+    const from = banded && runShown.key === run.run_id && runShown.band >= 0 ? runShown.band : bandOf(run, W, pos()), area = banded ? GRAPH : GRAPH_FLAT;
+    h += `<div class="gclip" style="top:${area.top}px;height:${area.height}px"><div class="gband" style="width:${W.width}px;height:${W.height}px;transform:${graphView(W, from, focusOf(run, W, pos())).transform}">`;
     W.edges.forEach((e, ei) => {
         const ba = W.nodes[e.a].band, bb = W.nodes[e.b].band, band = ba === bb ? ba : 'x';
         e.segs.forEach((sg, si) => {
             const hz = sg.dir === 'r' || sg.dir === 'l';
-            h += `<div class="eg ${tok(e.kind)}${hz ? '' : ' vv'}"${dim(band)} style="left:${gx + sg.x - (hz ? 0 : 1)}px;top:${gy + sg.y - (hz ? 1 : 0)}px;width:${hz ? sg.len : 2}px;height:${hz ? 2 : sg.len}px"><div class="ef ${tok(sg.dir)} ${tok(e.kind)}" data-e="${ei}" data-si="${si}"></div></div>`;
+            h += `<div class="eg ${tok(e.kind)}${hz ? '' : ' vv'}"${dim(band)} style="left:${sg.x - (hz ? 0 : 1)}px;top:${sg.y - (hz ? 1 : 0)}px;width:${hz ? sg.len : 2}px;height:${hz ? 2 : sg.len}px"><div class="ef ${tok(sg.dir)} ${tok(e.kind)}" data-e="${ei}" data-si="${si}"></div></div>`;
         });
-        if (e.tip) h += `<div class="tip ${tok(e.tip.dir)} ${tok(e.kind)}" data-e="${ei}"${dim(bb)} style="left:${gx + e.tip.x - 6}px;top:${gy + e.tip.y - 6}px"></div>`;
+        if (e.tip) h += `<div class="tip ${tok(e.tip.dir)} ${tok(e.kind)}" data-e="${ei}"${dim(bb)} style="left:${e.tip.x - 6}px;top:${e.tip.y - 6}px"></div>`;
     });
     W.nodes.forEach((n, i) => {
-        const box = `left:${gx + n.x}px;top:${gy + n.y}px;width:${n.w}px;height:${n.h}px`;
-        if (n.kind === 'activity') h += `<div class="nd act" data-n="${i}" data-base="nd act"${dim(n.band)} style="${box}"><span class="tg">${esc(n.tag)}</span><span class="nm">${esc(n.name)}</span></div>`;
-        else if (n.kind === 'event') h += `<div class="nd evt m-${tok(n.mode)}" data-n="${i}" data-base="nd evt m-${tok(n.mode)}"${dim(n.band)} style="${box}"><span class="ev-in"></span></div><div class="nl"${dim(n.band)} style="left:${gx + n.x + n.w / 2}px;top:${gy + n.y + n.h + 5}px"><span>${esc(n.name)}</span></div>`;
-        else h += `<div class="nd dec" data-n="${i}" data-base="nd dec"${dim(n.band)} style="${box}"></div><div class="nl dl"${dim(n.band)} style="left:${gx + n.x + n.w - 10}px;top:${gy + n.y - 14}px"><span>${esc(n.name)}</span></div>`;
+        const box = `left:${n.x}px;top:${n.y}px;width:${n.w}px;height:${n.h}px`;
+        if (n.kind === 'activity') h += `<div class="nd act" data-n="${i}" data-base="nd act"${dim(n.band)} style="${box}" title="${esc(n.name)}"><span class="tg">${esc(n.tag)}</span><span class="nm">${esc(n.name)}</span></div>`;
+        else if (n.kind === 'event') h += `<div class="nd evt m-${tok(n.mode)}" data-n="${i}" data-base="nd evt m-${tok(n.mode)}"${dim(n.band)} style="${box}"><span class="ev-in"></span></div><div class="nl"${dim(n.band)} style="left:${n.x + n.w / 2}px;top:${n.y + n.h + 5}px"><span>${esc(n.name)}</span></div>`;
+        else h += `<div class="nd dec" data-n="${i}" data-base="nd dec"${dim(n.band)} style="${box}"></div><div class="nl dl"${dim(n.band)} style="left:${n.x + n.w - 10}px;top:${n.y - 14}px"><span>${esc(n.name)}</span></div>`;
     });
     if (banded) for (const note of W.notes || []) h += `<div class="bnote"${dim(note.band)} style="left:${note.x}px;top:${note.y}px${note.align === 'right' ? ';transform:translateX(-100%)' : ''}">${esc(note.text)}</div>`;
-    h += banded ? `</div></div>` : `</div>`;
+    h += `</div><div class="gmore l" hidden><button type="button" data-pan="-1" aria-label="Show more of the graph to the left"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button></div>`
+        + `<div class="gmore r" hidden><button type="button" data-pan="1" aria-label="Show more of the graph to the right"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button></div></div>`;
     const swatch = (css, t) => `<div class="lg" style="font-size:12px"><span style="width:18px;height:12px;border-radius:3px;${css}"></span>${t}</div>`;
-    return h + `<div style="position:absolute;left:28px;top:424px;width:1384px;display:flex;gap:16px">
+    return h + `<div style="position:absolute;left:28px;top:432px;width:1384px;display:flex;gap:16px">
       <div class="pn" style="flex:0 0 560px"><div class="pt" style="color:var(--mute)">The story so far</div><div id="script" style="display:flex;flex-direction:column;gap:2px"></div></div>
       <div class="pn" style="flex:1 1 auto;min-width:0"><div class="pt" style="color:var(--mute)">Evidence for this step</div><div id="evidence" style="display:flex;flex-direction:column;gap:7px;overflow:auto"></div></div>
       <div class="pn" style="flex:0 0 250px"><div class="pt" style="color:var(--mute)">Reading the diagram</div>
@@ -657,10 +687,14 @@ apply.run = el => {
         + (step.raw ? `<details class="rawd"><summary>The record as written</summary><button type="button" class="rawc" data-copy>Copy</button><pre class="mono">${esc(JSON.stringify({ run_id: run.run_id, ...step.raw }, null, 2))}</pre></details>` : '');
     const copy = el.querySelector('[data-copy]');
     if (copy) copy.onclick = () => { const text = el.querySelector('.rawd pre').textContent; (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(() => { copy.textContent = 'Copied'; }, () => { const r = document.createRange(); r.selectNodeContents(el.querySelector('.rawd pre')); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); copy.textContent = 'Selected'; }); };
-    if (W.bands && W.bands.length) {
-        const k = bandOf(run, W, ic), now = (() => { for (let x = ic; x >= 0; x--) if (steps[x].n >= 0) return W.nodes[steps[x].n].band || 0; return 0; })();
+    const banded = !!(W.bands && W.bands.length), k = banded ? bandOf(run, W, ic) : 0;
+    const view = graphView(W, k, focusOf(run, W, ic), panOf(run, k, ic)), graph = el.querySelector('.gband');
+    graph.classList.toggle('panning', !!(panOf(run, k, ic) || {}).quick);
+    graph.style.transform = view.transform; graph.dataset.scale = view.scale;
+    el.querySelector('.gmore.l').hidden = !view.left; el.querySelector('.gmore.r').hidden = !view.right;
+    if (banded) {
+        const now = (() => { for (let x = ic; x >= 0; x--) if (steps[x].n >= 0) return W.nodes[steps[x].n].band || 0; return 0; })();
         const all_done = ic === steps.length - 1 && run.status === 'completed';
-        el.querySelector('.gband').style.transform = bandView(W, k);
         el.querySelectorAll('.gband [data-band]').forEach(x => x.classList.toggle('dimb', x.dataset.band !== 'x' && +x.dataset.band !== k));
         el.querySelectorAll('[data-bandchip]').forEach(chip => {
             const b = +chip.dataset.bandchip, state = all_done || b < now ? 'done' : b === now ? 'now' : 'next';
@@ -811,7 +845,24 @@ document.addEventListener('click', e => {
     else if ((x = hit('#L3 [data-n]'))) { const n = +x.dataset.n, steps = R().steps; let at = steps.findIndex(s => s.n === n); steps.forEach((s, k) => { if (s.n === n && k <= pos()) at = k; }); if (at >= 0) jump(at); }
     else if ((x = hit('[data-up]'))) goLevel('story');
     else if ((x = hit('[data-bandchip]'))) set({ bandPin: { key: R().run_id, ic: pos(), k: +x.dataset.bandchip } });
+    else if ((x = hit('[data-pan]'))) panGraph(+x.dataset.pan * 0.6 * 1440, false);
 });
+/** Scroll the graph of the run view sideways by `px` screen pixels (positive: show more to the right); it stays where it is moved until the step changes */
+function panGraph(px, quick) {
+    if (st.level !== 'run') return;
+    const run = R(), W = S.workflows[run.wf], ic = pos(), k = W.bands && W.bands.length ? bandOf(run, W, ic) : 0;
+    const view = graphView(W, k, focusOf(run, W, ic), panOf(run, k, ic));
+    if (!(px > 0 ? view.right : view.left)) return;
+    st.pan = { key: `${run.run_id}|${k}|${ic}`, dx: view.dx - px, dy: view.dy, quick: !!quick };
+    st.pan.dx = graphView(W, k, focusOf(run, W, ic), st.pan).dx;          // kept within the graph, so that scrolling back starts at once
+    render();
+}
+$('L3').addEventListener('wheel', e => {
+    if (!e.target.closest('.gclip')) return;
+    const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.shiftKey ? e.deltaY : 0;
+    if (!d) return;
+    e.preventDefault(); panGraph(d, true);
+}, { passive: false });
 $('b-start').onclick = () => jump(0);
 $('b-prev').onclick = () => move(-1);
 $('b-next').onclick = () => move(1);

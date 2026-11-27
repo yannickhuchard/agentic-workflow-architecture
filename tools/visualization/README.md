@@ -89,7 +89,11 @@ To see your own journeys:
 
 In a layout with bands, an edge to a node in another band leaves by the clear lane beside its source's column, runs along the gap next to the target's band, and comes into the target; a band beyond the next one is reached round the left edge of the bands. An edge back to an earlier column of the same row goes over a track above the row. A small note says where an edge comes from or goes to, "from band 1", "to band 3, Generate contract". Layouts without bands are routed as before.
 
-`journey.check.mjs` checks the view in a browser (needs Playwright), the options included.
+Every activity box of a workflow has the same size: 140 × 72, which holds a tag and a name of three lines at 12 px. When a name of the workflow needs a fourth line, the builder widens every activity box of that workflow together, to 164, then 188, by 24 at a time up to 260, until each name fits in three lines. The builder measures names without a browser, since it also runs in Node (the checks, the MCP server): a table of character widths at 12 px semibold, the wider of Inter and Arial for each character, plus 5 %, so that a name it measures at three lines never wraps to a fourth on screen. A name longer still is cut after three lines with an ellipsis, and the box's tooltip gives it whole.
+
+The run view draws names at 11 px or more on the 1440 × 900 stage: it scales a band, or a workflow without bands, to fill the graph's area, at 11/12 of its size at the least. A graph wider than that shows the part around the step being read, follows the steps as they move, and offers an arrow at each edge where there is more to see; a horizontal scroll (or Shift and the wheel) moves it too. The next step brings the step being read back to the centre.
+
+`journey.check.mjs` checks the view in a browser (needs Playwright), the options included. In the run views it opens (every workflow of the sample, each band of the electricity example and its child workflow) it checks that every name stays inside its box, that no node lies on another, and that names are drawn at 11 px or more.
 
 | Height | Shows | Go down by | 
 |---|---|---|

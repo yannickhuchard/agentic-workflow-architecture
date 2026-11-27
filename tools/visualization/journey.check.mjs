@@ -14,7 +14,7 @@ import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
-const { build_story } = require('./journey-story-builder.js');
+const { build_story, name_lines } = require('./journey-story-builder.js');
 
 const here = path.dirname(fileURLToPath(import.meta.url)), root = path.resolve(here, '../..');
 const page_url = 'file://' + path.join(here, 'journey.html');
@@ -29,6 +29,29 @@ const open = async url => {
     return page;
 };
 const settle = page => page.waitForTimeout(900);
+/**
+ * The run view on screen: every activity's name inside its box and not cut (three lines fit; the builder widens the boxes of
+ * a workflow until each name does), no two nodes on top of each other, and names never drawn smaller than 11 px.
+ */
+const run_layout = page => page.evaluate(() => {
+    const scene = document.querySelector('#L3 .scene'), problems = [];
+    const graph = scene.querySelector('.gband'), scale = Number(graph.dataset.scale);
+    const acts = [...scene.querySelectorAll('.nd.act')], sizes = new Set(acts.map(n => `${parseFloat(n.style.width)} × ${parseFloat(n.style.height)}`));
+    for (const box of acts) {
+        const name = box.querySelector('.nm'), b = box.getBoundingClientRect(), t = name.getBoundingClientRect();
+        if (name.scrollHeight > name.clientHeight + 1 || name.scrollWidth > name.clientWidth + 1) problems.push(`"${name.textContent}" is cut`);
+        if (t.bottom > b.bottom - 1 || t.right > b.right - 1) problems.push(`"${name.textContent}" leaves its box`);
+    }
+    if (sizes.size > 1) problems.push(`activity boxes of ${sizes.size} sizes: ${[...sizes].join(', ')}`);
+    const nodes = [...scene.querySelectorAll('.nd')].map(n => ({ name: n.title || n.dataset.n, x: parseFloat(n.style.left), y: parseFloat(n.style.top), w: parseFloat(n.style.width), h: parseFloat(n.style.height) }));
+    for (let i = 0; i < nodes.length; i++) for (let k = i + 1; k < nodes.length; k++) {
+        const a = nodes[i], c = nodes[k];
+        if (a.x < c.x + c.w && c.x < a.x + a.w && a.y < c.y + c.h && c.y < a.y + a.h) problems.push(`${a.name} overlaps ${c.name}`);
+    }
+    const px = 12 * scale * (document.getElementById('fit').getBoundingClientRect().width / 1440);
+    if (px < 11 - 1e-6) problems.push(`names drawn at ${px.toFixed(2)} px`);
+    return { problems, size: [...sizes][0], px: Math.round(px * 100) / 100 };
+});
 const to_end = async page => { await page.evaluate(() => { const s = document.getElementById('scrub'); s.value = s.max; s.dispatchEvent(new Event('input')); }); await settle(page); };
 
 // 1. The sample, at every height and sideways
@@ -54,6 +77,13 @@ const to_end = async page => { await page.evaluate(() => { const s = document.ge
     await to_end(page);
     await page.click('.rbl[data-run="0"]'); await settle(page);
     check(await page.locator('.nd').count() > 5 && (await page.textContent('#evidence')).includes('Journal record'), 'a run shows its graph and evidence');
+    // Every workflow of the sample, in the run view: one size of box, every name inside its box, nothing on top of anything
+    const runs = await page.evaluate(() => { const seen = {}; window.AWA_STORY.journeys.forEach((j, jk) => j.instances.forEach((c, i) => c.runs.forEach((run, r) => { if (!(run.wf in seen)) seen[run.wf] = [jk, i, r, run.name]; }))); return Object.values(seen); });
+    for (const [j, i, r, name] of runs) {
+        await page.evaluate(([j, i, r]) => { location.hash = `#run/${j}/${i}/${r}/0`; }, [j, i, r]); await settle(page);
+        const { problems, size, px } = await run_layout(page);
+        check(!problems.length && size === '140 × 72', `${name}: activity boxes ${size}, every name inside its box, no node on another, names at ${px} px ${problems.join('; ')}`);
+    }
     await page.keyboard.press('Escape'); await page.keyboard.press('Escape'); await page.keyboard.press('Escape'); await settle(page);
     check(await page.locator('.layer.on').getAttribute('id') === 'L0', 'Escape goes up to the atlas');
     const hash = await page.evaluate(() => location.hash);
@@ -123,6 +153,13 @@ awa('export', '-o', record);
     const back = edge('Documents checked', 'Request documents'), target = W.nodes[back.b];
     check(back.segs.every(sg => sg.y <= target.y) && back.tip.dir === 'd' && back.segs.some(sg => sg.dir === 'l' && sg.y < target.y),
         'an edge back to an earlier column of the same row goes over a track above the row');
+    // A name that needs a fourth line at 140 widens every activity box of its workflow together, until each name fits in three
+    const long = 'Refer the application to the commercial team for a decision on an unusual installation';
+    const renamed = build_story(JSON.parse(JSON.stringify(record).split('Refer to commercial team').join(long)), options);
+    const widths = new Set(renamed.workflows.find(w => w.name === 'Grid Export Registration').nodes.filter(n => n.kind === 'activity').map(n => n.w));
+    const other = new Set(renamed.workflows.find(w => w.name === 'Electricity Customer Onboarding').nodes.filter(n => n.kind === 'activity').map(n => n.w));
+    check(widths.size === 1 && [...widths][0] > 140 && name_lines(long, [...widths][0] - 23) <= 3 && [...other].join() === '140',
+        `a name too long for three lines widens every box of its workflow, and only of its workflow (${[...widths]} and ${[...other]})`);
     const plain = build_story(record, { layouts: options.layouts }).workflows.find(w => w.name === 'Electricity Customer Onboarding');
     check(!plain.bands && plain.edges.length === W.edges.length, 'without bands, the same layout has no bands');
     // The claims sample is laid out as it was: the builder rebuilds the committed story exactly
@@ -155,13 +192,30 @@ awa('export', '-o', record);
         check(await dimmed(1) && !(await dimmed(0)), 'the other bands are dimmed');
         // The widest band, twelve columns, is shown at nearly its own size: its names stay legible in a video
         const scale = await page.evaluate(() => Number(/scale\(([\d.]+)\)/.exec(document.querySelector('#L3 .gband').style.transform)[1]));
-        check(scale >= 0.9, `a band is shown large enough to read (scale ${scale})`);
+        check(scale >= 11 / 12 - 1e-4, `a band is shown large enough to read: names at 11 px or more (scale ${scale})`);
+        for (const k of [0, 1, 2]) {
+            await page.click(`[data-bandchip="${k}"]`); await settle(page);
+            const { problems, size, px } = await run_layout(page);
+            check(!problems.length, `Electricity Customer Onboarding, band ${k + 1}: activity boxes ${size}, every name inside its box, no node on another, names at ${px} px ${problems.join('; ')}`);
+        }
+        // The first band is wider than the stage at a legible scale: the part around the step being read is shown, and the rest is a click away
+        await page.click('[data-bandchip="0"]'); await settle(page);
+        const shift = () => page.evaluate(() => Number(/translate\(([-\d.]+)px/.exec(document.querySelector('#L3 .gband').style.transform)[1]));
+        const before_pan = await shift();
+        check(await page.locator('#L3 .gmore.r:not([hidden])').count() + await page.locator('#L3 .gmore.l:not([hidden])').count() >= 1, 'a band too wide to show whole at a legible scale offers to show more beside it');
+        const side = await page.locator('#L3 .gmore.r:not([hidden])').count() ? 'r' : 'l';
+        await page.click(`#L3 .gmore.${side} button`); await settle(page);
+        check(await shift() !== before_pan, `the arrow beside the graph shows more of it (${before_pan} -> ${await shift()})`);
         await page.click('[data-bandchip="1"]'); await settle(page);
         check((await page.getAttribute('[data-bandchip="1"]', 'class')).includes(' on') && await dimmed(0) && !(await dimmed(1)), 'a band chip focuses its band');
         await to_end(page);
         check((await page.getAttribute('[data-bandchip="2"]', 'class')).includes(' on') && (await page.textContent('[data-bandchip="0"]')).includes('done'), 'at the end of the run, the last band is in focus and the others are done');
         await page.evaluate(i => { location.hash = `#run/0/${i}/1/0`; }, tomas); await settle(page);
         check((await page.textContent('#crumbs')).includes('Grid Export Registration') && await page.locator('[data-bandchip]').count() === 1, 'the child run has its own band');
+        {
+            const { problems, size, px } = await run_layout(page);
+            check(!problems.length, `Grid Export Registration: activity boxes ${size}, every name inside its box ("Grid operator approval, two engineers" included), no node on another, names at ${px} px ${problems.join('; ')}`);
+        }
         await page.evaluate(() => { location.hash = '#atlas/0/0/0/0'; }); await settle(page);
         check(await page.locator('.layer.on').getAttribute('id') === 'L0', 'and a link goes back up to the atlas');
         check(page.errors.length === 0, `no page errors with options ${page.errors.join('; ')}`);
