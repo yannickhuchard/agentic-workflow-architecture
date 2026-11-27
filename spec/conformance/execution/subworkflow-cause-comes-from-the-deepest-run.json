@@ -1,0 +1,133 @@
+{
+  "id": "subworkflow-cause-comes-from-the-deepest-run",
+  "level": "subworkflows",
+  "spec": "24.3",
+  "description": "The cause is the code of the first failure at the deepest level: a grandchild that fails permanently ends its parent's call activity and the root's, neither retried, and both name the grandchild's code.",
+  "workflow": {
+    "id": "c97f65b2-a12d-59f4-9ab0-1e06568420fa",
+    "name": "subworkflow-cause-comes-from-the-deepest-run",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "2ca3beef-19a4-5852-a8a3-5f1c8bb340b7",
+        "name": "Onboarding",
+        "role_id": "fd1bc74b-bd1d-5d83-9dbb-7fb7895c7b38",
+        "actor_type": "application",
+        "is_expandable": true,
+        "expansion_workflow_id": "bdb65a1d-87b0-5366-a97a-7bf72fad2fee",
+        "retry": {
+          "max_attempts": 3,
+          "initial_delay": "PT0S",
+          "jitter": false
+        }
+      }
+    ],
+    "edges": []
+  },
+  "actors": {
+    "Screen": {
+      "error": "a guardrail blocked the request",
+      "code": "GUARDRAIL_BLOCKED"
+    }
+  },
+  "workflows": [
+    {
+      "id": "bdb65a1d-87b0-5366-a97a-7bf72fad2fee",
+      "name": "Onboard customer",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "317c6c98-8666-553d-8150-b1bf01231c1b",
+          "name": "Screening",
+          "role_id": "fbfafcee-b15c-5db0-914d-81cea574f949",
+          "actor_type": "application",
+          "is_expandable": true,
+          "expansion_workflow_id": "69ca6d7e-f6a5-5884-a436-e8f80381fc15",
+          "retry": {
+            "max_attempts": 3,
+            "initial_delay": "PT0S",
+            "jitter": false
+          }
+        }
+      ],
+      "edges": []
+    },
+    {
+      "id": "69ca6d7e-f6a5-5884-a436-e8f80381fc15",
+      "name": "Screen sanctions",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "7826aa79-ab52-53fb-8b85-128fb7bf20c4",
+          "name": "Screen",
+          "role_id": "7bbaab62-7e33-519f-a85e-f42aad182ce9",
+          "actor_type": "application"
+        }
+      ],
+      "edges": []
+    }
+  ],
+  "expect": {
+    "status": "failed",
+    "visited": [
+      "Screen"
+    ],
+    "journal_contains": [
+      {
+        "type": "subworkflow.failed",
+        "node_name": "Onboarding",
+        "data": {
+          "error": {
+            "code": "SUBWORKFLOW_FAILED",
+            "cause": "GUARDRAIL_BLOCKED"
+          }
+        }
+      },
+      {
+        "type": "activity.failed",
+        "node_name": "Onboarding",
+        "data": {
+          "error": {
+            "code": "SUBWORKFLOW_FAILED",
+            "cause": "GUARDRAIL_BLOCKED"
+          },
+          "retryable": false
+        }
+      }
+    ],
+    "journal_count": {
+      "subworkflow.started": 1
+    },
+    "subworkflow_runs": [
+      {
+        "workflow_name": "Onboard customer",
+        "depth": 1,
+        "status": "failed",
+        "journal_contains": [
+          {
+            "type": "activity.failed",
+            "node_name": "Screening",
+            "data": {
+              "error": {
+                "code": "SUBWORKFLOW_FAILED",
+                "cause": "GUARDRAIL_BLOCKED"
+              },
+              "retryable": false
+            }
+          }
+        ],
+        "journal_excludes": [
+          "activity.retry_scheduled"
+        ]
+      },
+      {
+        "workflow_name": "Screen sanctions",
+        "depth": 2,
+        "status": "failed"
+      }
+    ]
+  }
+}

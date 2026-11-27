@@ -1,0 +1,91 @@
+{
+  "id": "subworkflow-cause-named-by-the-retry-policy-is-not-retried",
+  "level": "subworkflows",
+  "spec": "24.3",
+  "description": "A cause that the call activity's retry policy lists in non_retryable_errors ends the activity at once, as a cause the engine never retries does.",
+  "workflow": {
+    "id": "6066587f-7c5f-5a78-a51b-b041422af93a",
+    "name": "subworkflow-cause-named-by-the-retry-policy-is-not-retried",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "c62fa51b-ea4a-5bb5-ba9f-5637d3f6f2d5",
+        "name": "Assessment",
+        "role_id": "30793c49-d167-5774-928b-e45eaefe53b4",
+        "actor_type": "application",
+        "is_expandable": true,
+        "expansion_workflow_id": "dae156b8-9856-5ac7-afeb-7d88200b27e5",
+        "retry": {
+          "max_attempts": 3,
+          "non_retryable_errors": [
+            "CLAIM_REJECTED"
+          ],
+          "initial_delay": "PT0S",
+          "jitter": false
+        }
+      },
+      {
+        "id": "193b8597-a123-52e3-89dc-5b21cf17db75",
+        "name": "Pay",
+        "role_id": "30793c49-d167-5774-928b-e45eaefe53b4",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "a0941e75-dbd7-5696-a85d-830bd7cc3c4f",
+        "source_id": "c62fa51b-ea4a-5bb5-ba9f-5637d3f6f2d5",
+        "target_id": "193b8597-a123-52e3-89dc-5b21cf17db75"
+      }
+    ]
+  },
+  "actors": {
+    "Assess": {
+      "error": "the claim is outside the policy",
+      "code": "CLAIM_REJECTED"
+    }
+  },
+  "workflows": [
+    {
+      "id": "dae156b8-9856-5ac7-afeb-7d88200b27e5",
+      "name": "Assess claim",
+      "version": "1.0.0",
+      "awa_version": "1.1",
+      "activities": [
+        {
+          "id": "b9e56f3a-b446-541f-a39a-cf968478b1eb",
+          "name": "Assess",
+          "role_id": "c7013737-bdce-5076-9405-d300e9163de5",
+          "actor_type": "application"
+        }
+      ],
+      "edges": []
+    }
+  ],
+  "expect": {
+    "status": "failed",
+    "visited": [
+      "Assess"
+    ],
+    "journal_contains": [
+      {
+        "type": "activity.failed",
+        "node_name": "Assessment",
+        "data": {
+          "error": {
+            "code": "SUBWORKFLOW_FAILED",
+            "cause": "CLAIM_REJECTED"
+          },
+          "retryable": false
+        }
+      }
+    ],
+    "journal_excludes": [
+      "activity.retry_scheduled"
+    ],
+    "journal_count": {
+      "subworkflow.started": 1
+    }
+  }
+}

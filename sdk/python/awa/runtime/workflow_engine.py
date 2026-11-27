@@ -89,6 +89,9 @@ class EngineStatus(str, Enum):
 NEVER_RETRIED = {"SUBWORKFLOW_NOT_FOUND", "SUBWORKFLOW_DEPTH_EXCEEDED", "VERIFICATION_FAILED", "CONTRACT_VIOLATION", "NO_ROUTE", "SLA_BREACH",
                  "CONTEXT_MISSING", "CONTEXT_ACCESS_DENIED", "CONTEXT_INVALID", "CONTEXT_NOT_FOUND", "AGENT_UNSUPPORTED", "PERMISSION_DENIED",
                  "FORBIDDEN"}
+# Codes that end an activity at once whatever its retry policy (10.1): the same failure would follow on every
+# attempt. A child run that failed with one of them is not started again (24.3)
+PERMANENT_ERRORS = frozenset(NEVER_RETRIED | {"GUARDRAIL_BLOCKED", "GUARDRAIL_ERROR"})
 # Access modes of a context binding that let an activity read, and write (specification 22.2, 22.3)
 CAN_READ = {"read", "read_write", "subscribe"}
 CAN_WRITE = {"write", "read_write", "publish"}
@@ -112,6 +115,12 @@ class ActivityError(Exception):
 def _error_info(error: BaseException) -> tuple[str, str | None]:
     code = getattr(error, "code", None)
     return str(error) or type(error).__name__, code if isinstance(code, str) else None
+
+
+def _error_cause(error: BaseException) -> str | None:
+    """The code a failed child run gives as the cause of a call activity's failure (24.3)"""
+    cause = getattr(error, "cause_code", None)
+    return cause if isinstance(cause, str) else None
 
 
 def _takes_context(actor: Any) -> bool:
@@ -1144,12 +1153,16 @@ class WorkflowEngine:
             except Exception as error:
                 errors += 1
                 message, code = _error_info(error)
+                cause = _error_cause(error)
+                # A child run that failed for a permanent cause would fail the same way again (24.3)
+                permanent_cause = bool(cause) and (cause in PERMANENT_ERRORS or cause in (retry.non_retryable_errors or []))
                 retryable = (errors <= retry.max_retries
                              and attempt < hard_cap
                              and code not in NEVER_RETRIED
-                             and not (code and code in (retry.non_retryable_errors or [])))
+                             and not (code and code in (retry.non_retryable_errors or []))
+                             and not permanent_cause)
                 record("activity.failed", {
-                    "error": {"message": message, "code": code}, "retryable": retryable,
+                    "error": {"message": message, "code": code, **({"cause": cause} if cause else {})}, "retryable": retryable,
                     "duration_ms": int(self._now() - attempt_start),
                 })
 
@@ -1460,13 +1473,16 @@ class WorkflowEngine:
         data: dict[str, Any] = {"_error": message}
         if code:
             data["_error_code"] = code
+        cause = _error_cause(error)
+        if cause:
+            data["_error_cause"] = cause
         if isinstance(error, ActivityError) and error.details:
             data.update(error.details)
         token.merge_data(data)
         # A rejected result that echoed what the actor was given must not leave contexts in the token's data
         for key in (*_HANDED, "_context_writes"):
             token.context_data.pop(key, None)
-        self._record("token.failed", {"error": {"message": message, "code": code}},
+        self._record("token.failed", {"error": {"message": message, "code": code, **({"cause": cause} if cause else {})}},
                      token=token, node_id=str(token.activity_id))
 
     # ------------------------------------------------------------------

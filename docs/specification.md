@@ -571,7 +571,7 @@ An engine MUST NOT alter or remove an event once written.
 | `token.waiting`, `token.resumed` | execution | A token pauses for, or returns from, an external party | `reason`, `waited_ms` |
 | `activity.started` | execution | An attempt begins | `actor_type`, `input`, `feedback` |
 | `activity.completed` | execution | An attempt's output is accepted | `output`, `duration_ms`, `attempts`, `usage` |
-| `activity.failed` | execution | An attempt raised, or its output was rejected | `error.message`, `error.code`, `retryable` |
+| `activity.failed` | execution | An attempt raised, or its output was rejected | `error.message`, `error.code`, `error.cause` when a child run failed (24.3), `retryable` |
 | `activity.retry_scheduled` | execution | A further attempt will follow an error | `delay_ms`, `next_attempt` |
 | `activity.dead_lettered` | execution | Retries are exhausted | `error`, `attempts` |
 | `decision.evaluated` | execution | A decision node is evaluated | `method` (`table`, `engine`, `model`, `default`, `none`), `inputs`, `matched_rules`, `outputs`, `edge_id`, `used_default`, `conflict`; for an external engine `engine` (name, rule set, option, fired rules, explanation); for a model decision `model` (16.4) |
@@ -627,6 +627,22 @@ An activity MAY declare a `retry` policy. An engine MAY also be configured with 
 When an attempt raises an error the engine retries if attempts remain and the error is retryable. The delay before attempt *n* + 1 is `min(initial_delay × backoff_multiplier^(n−1), max_delay)`.
 
 An error MAY carry a `code`. An error is not retryable if its code is in `non_retryable_errors`, which defaults to `VALIDATION_ERROR`, `AUTHENTICATION_ERROR`, `PERMISSION_DENIED` and `NOT_FOUND`. An engine MUST NOT decide retryability by matching text in the error message.
+
+Some failures repeat identically on every attempt, whatever the retry policy says. An engine MUST NOT retry an error whose code is one of these **permanent codes**:
+
+| Code | Why the same failure follows on every attempt | Section |
+|---|---|---|
+| `VERIFICATION_FAILED`, `CONTRACT_VIOLATION` | The outcome was judged; a new attempt is governed by verification and the contract, not by `retry` | 7.4, 11.5 |
+| `NO_ROUTE` | No edge leaves the node for this data | 5.4 |
+| `SLA_BREACH` | The time promised has passed | 23.3 |
+| `CONTEXT_MISSING`, `CONTEXT_ACCESS_DENIED`, `CONTEXT_INVALID`, `CONTEXT_NOT_FOUND` | The activity's bindings or the context's value are wrong | 22.2, 22.3 |
+| `PERMISSION_DENIED` | The deployment lets nothing reach this host or run this program | 17.4, 28.2 |
+| `AGENT_UNSUPPORTED` | The agent offers no interface this engine speaks | 28.2 |
+| `FORBIDDEN` | The policy refuses this principal this action | 30.5 |
+| `GUARDRAIL_BLOCKED`, `GUARDRAIL_ERROR` | A guardrail stopped the value, or could not check it and failed closed | 31.5 |
+| `SUBWORKFLOW_NOT_FOUND`, `SUBWORKFLOW_DEPTH_EXCEEDED` | The called workflow is not registered, or the call is too deep | 24.1 |
+
+A child run that failed for a permanent code, or for a code the call activity's `non_retryable_errors` lists, ends its call activity at once (24.3).
 
 Retry applies to errors. A rejected output is governed by the verification policy (7.4), not by `retry`.
 
@@ -1635,6 +1651,28 @@ Each attempt of a call activity (11.3) starts a new child run, except an attempt
 - **Record in the parent.** Between the attempt's `activity.started` and the event that ends it, the parent records `subworkflow.started` (24.7).
 - **Contexts.** The parent's contexts (section 22) are not shared with the child, and the contexts the call activity is given are not passed on: the child has the contexts its own workflow declares.
 - **Deployment.** The child runs under the parent's deployment: the same actors, model providers, tools and their permissions, payload mode (9.4), journal store, business event sink, knowledge base, clock and simulation setting, and the same workflows to call. Each run keeps its own journal, numbered from 1.
+- **Authorization.** Under a policy (section 30), starting a child run is part of performing the call activity: the call activity is decided as `perform_activity`, and the child run is not decided as `start_run`. Every activity of the child is then decided as in any run, and the child's `run.started` names the principal who started the run of depth 0 (30.4). AEP 0003 records this decision.
+
+*Figure 24-1 (informative). What the policy decides when a run calls a workflow.*
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Ana as Ana (starts the claim)
+    participant P as Parent run "Claim"
+    participant Pol as Policy (30)
+    participant C as Child run "Approval"
+    Ana->>P: start the run
+    P->>Pol: start_run, principal ana
+    Pol-->>P: allow
+    P->>Pol: perform_activity "Approve" (the call activity)
+    Pol-->>P: allow
+    P->>C: start the child run (no start_run decision)
+    Note over C: run.started names principal ana, the starter of the root
+    C->>Pol: perform_activity, complete_task, approve for each of its activities
+    Pol-->>C: allow or deny, with separation of duties over parent and child
+    C-->>P: the child's outcome
+```
 
 ### 24.3 Completion and failure
 
@@ -1644,7 +1682,26 @@ A child run is run until it reaches an outcome (5.7) or waits (24.4).
 
 **Completed.** The parent records `subworkflow.completed`. The attempt's result is `{"output": <the outcome>}`, and from there it is any actor's result: the outcome contract is checked, then verification (11.3); an accepted result is merged into the token's data (5.2), and recorded under `activities.<id>.output`. A call activity is never re-executed with feedback after a rejected outcome (7.4, 11.3), whatever its `actor_type`: a workflow takes no feedback. With `on_violation: "escalate_human"`, a rejected outcome is handed to a person as 11.5 says.
 
-**Failed.** When the child run fails, the parent records `subworkflow.failed` and the attempt fails with error code `SUBWORKFLOW_FAILED`, whose message names the called workflow and gives the message of the child's first failure. `SUBWORKFLOW_FAILED` is retried under the activity's retry policy (10.1) like any error that is not excluded; each retry is a new attempt, which starts a **new child run** with a new run id. The failed child stays on record. A child's compensation (13.6) is its own: it compensates what it completed before it records `run.failed`, and the parent compensates the call activity, if the activity names a handler, as any other.
+**Failed.** When the child run fails, the parent records `subworkflow.failed` and the attempt fails with error code `SUBWORKFLOW_FAILED`, whose message names the called workflow and gives the message of the child's first failure.
+
+The **cause** of the failure is the code of the child's first failure. When that failure is itself a `SUBWORKFLOW_FAILED`, the cause is the cause it carries, so that the cause is always the code of the first failure at the deepest level. The engine records the cause as `error.cause` in `subworkflow.failed` (when it differs from `error.code`), in the call activity's `activity.failed`, and in `token.failed` when the token fails.
+
+- When the cause is a permanent code (10.1), or a code that the call activity's `non_retryable_errors` lists, the same failure would follow on every attempt: the attempt is not retryable (`retryable: false`), the activity fails at once, and no other child run is started.
+- Otherwise `SUBWORKFLOW_FAILED` is retried under the activity's retry policy (10.1) like any error that is not excluded. Each retry is a new attempt, which starts a **new child run** with a new run id.
+
+The failed child stays on record. A child's compensation (13.6) is its own: it compensates what it completed before it records `run.failed`, and the parent compensates the call activity, if the activity names a handler, as any other. AEP 0004 records this rule and the strategy for its evolution.
+
+*Figure 24-2 (informative). Whether a failed child run is started again.*
+
+```mermaid
+flowchart TD
+    F["Child run fails"] --> R["Parent records subworkflow.failed<br/>with error.code and error.cause"]
+    R --> Q{"Is the cause a permanent code (10.1),<br/>or listed in the call activity's<br/>non_retryable_errors?"}
+    Q -- "Yes" --> N["activity.failed, retryable false<br/>The call activity fails at once<br/>No new child run"]
+    Q -- "No" --> A{"Do attempts remain<br/>under the retry policy?"}
+    A -- "Yes" --> S["activity.failed, retryable true<br/>activity.retry_scheduled<br/>The next attempt starts a new child run"]
+    A -- "No" --> E["activity.failed, retryable false<br/>The call activity fails"]
+```
 
 A parent's totals (`run.completed`, `run.failed`: tokens, cost, steps) count its own work only. A child's are in its own journal.
 
@@ -2665,6 +2722,34 @@ A deployment's guardrails are given to the engine with its configuration (the re
 | `tool_call` | The arguments of a call | Between steps 1 and 2 of 17.3: after an unknown tool and the call budget are refused, before the arguments are validated, permissions applied and `tool.invoked` recorded |
 | `tool_result` | The result of a call that returned | Between steps 5 and 6 of 17.3: after the binding ran, before `tool.completed` is recorded and the result given to the actor |
 
+*Figure 31-1 (informative). Where the four stages check a value during one attempt of an AI agent's activity.*
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant E as Engine
+    participant G as Guardrails
+    participant A as AI agent
+    participant T as Tool
+    E->>G: input: what the agent is about to be given
+    G-->>E: warn, redact, block or escalate
+    E->>A: the input, as the guardrails left it
+    A->>E: asks for a tool call
+    E->>G: tool_call: the arguments
+    G-->>E: warn, redact or block
+    E->>T: the call (17.3)
+    T-->>E: the result, such as a web page, an e-mail or a document
+    E->>G: tool_result: what the tool returned
+    G-->>E: warn, redact or block
+    E->>A: the result, as the guardrails left it
+    A->>E: the agent's result
+    E->>G: output: the agent's result
+    G-->>E: warn, redact, retry with feedback, block or escalate
+    E->>E: outcome contract (11.3), then verification (7)
+```
+
+The stage `tool_result` checks what an agent reads from the world before the agent reads it. Text inside a web page, an e-mail or a document can carry instructions written for the agent (an indirect prompt injection), and the stage `input` checks only the input the activity starts with. AEP 0002 records this decision.
+
 Because an output guardrail runs first, the contract and verification see the output as the guardrails left it, and an output a guardrail blocked is never judged. The checks `json_schema`, `allowed_values` and `topic` at stage `output` apply to the outcome (11.1); the other checks apply to the whole value of the table.
 
 A guardrail of stage `input` or `output` does not apply to an activity performed by a person who answers an escalation (31.5), nor to a human decision given when a token resumes (5.6). The terms of an outcome contract still bind those (11.5).
@@ -3174,3 +3259,4 @@ Runners: `sdk/typescript/tests/conformance.test.ts`, `sdk/python/tests/test_conf
 - Interchange with BPMN 2.0 and DMN 1.x, import and export without loss through the `awa:` extension namespace (`spec/xsd/awa-interchange.xsd`), with what is not imported refused and named; export to CNCF Serverless Workflow 1.0 with the list of what does not map; conformance level `interchange` (section 27).
 - Runs keep the version of their workflow they started on while newer versions are registered, in a runtime directory and in a shared store alike (migration 2 of the store keeps every version); a run at rest moves to another version only by an explicit migration plan, checked whole and refused with named reasons, applied as one change and recorded as `run.migrated`; two versions are compared position by position; conformance level `versioning` (section 25).
 - Guardrails on what goes into and comes out of AI agents and tools: declared on the deployment, the workflow, a role, an activity or a tool, at stages `input`, `output` (before the contract and verification), `tool_call` and `tool_result`; deterministic checks for personal data, deny-lists, prompt injection markers, size, JSON Schema, allowed values and topics, and model or external classifiers; actions block, redact, retry with feedback, escalate and warn; the record `guardrail.triggered`, with positions and categories and never the text found; integrity error `invalid_guardrail`; conformance level `guardrails` (section 31).
+- A child run that failed for a permanent cause ends its call activity at once: the cause, the code of the first failure at the deepest level, is recorded as `error.cause`, and the permanent codes are listed in one table (10.1, 24.3, AEP 0004).
