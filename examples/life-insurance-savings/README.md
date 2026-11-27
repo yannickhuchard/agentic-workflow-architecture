@@ -257,10 +257,43 @@ node examples/life-insurance-savings/demo/live.mjs --scenario all --speed 4
 | `--then all` | none | After the chosen scenario, plays every other one, so that the journey view and the measures fill with employees |
 | `--then-speed <x>` | the value of `--speed` | The speed of the scenarios that `--then` adds |
 | `--then-pause <s>` | 0 | Seconds to wait between the chosen scenario and those `--then` adds |
+| `--then-calendar one` | `after` | Plays the scenarios that `--then` adds on one calendar from their own first days, as `make-runs.mjs` does, instead of one after the other: once the chosen scenario has ended, the business clock goes back to the plan's opening, so that every employee joins the same year and the record ends on 31 January 2027 |
 
-The demonstration starts the reference adapters, an AWA host in the process with the seven workflows and the journey, scripted agents whose work takes one to three seconds, tools that really call the adapters over HTTP, and the SDK's HTTP server. The business clock starts on the scenario's first day and jumps where the timeline says days or months pass; a month's payroll goes by faster than the other steps.
+The demonstration starts the reference adapters, an AWA host in the process with the seven workflows and the journey, scripted agents whose work takes one to three seconds, tools that really call the adapters over HTTP, and the SDK's HTTP server. The business clock starts on the scenario's first day and jumps where the timeline says days or months pass; a month's payroll goes by faster than the other steps. An agent's work also moves the business clock by the time its script says it takes, as in `make-runs.mjs`, so that the live record's durations are those of the committed one.
 
 Each line of standard output is a JSON object: `{"t", "kind": "action" | "event", "actor", "text", "run_id", "instance_id"}`, with `actor` one of `customer` (the employee), `system`, `agent`, `person`, `guardrail`, `refused` and `journey`, and `text` a sentence a viewer reads: "Hugo, licensed adviser, advises Léa by video call.", "Issue tax certificate issues the 2026 tax certificate." The first line, of kind `ready`, gives the views; the last, of kind `done`, gives the views of the main scenario's first run. The script also serves every run's workflow and journal, as JSON and as Server-Sent Events, for `tools/visualization/replay.html`, like the electricity onboarding's demonstration.
+
+## The demonstration video
+
+`demo/video.json` is the plan of a video of this example in AWA's studio frame ([tools/video](../../tools/video/README.md)): Léa's year live under the Valoria Life brand, seven colleagues on the same calendar, the glossary, the Recommendations tab and the dossier.
+
+```bash
+node tools/video/record.mjs \
+  --demo "node examples/life-insurance-savings/demo/live.mjs --port 4640 --adapters-port 4580 --speed 1.6 --then all --then-speed 16 --then-pause 3 --then-calendar one" \
+  --api http://localhost:4640 --script examples/life-insurance-savings/demo/video.json --out awa-life-insurance-savings.mp4
+```
+
+The recording takes about four minutes (3 min 54 s):
+
+| At | Chapter | The stage shows |
+|---|---|---|
+| 0:00 | Title card | What the viewer is about to see |
+| 0:06 | Invitation | The journey view under the Valoria Life brand: the atlas, then Léa's blueprint as she opens the invitation in the HR portal |
+| 0:15 | Advice, Profile | The run Plan Invitation and Advice, band by band, every name inside its box: the AI adviser hands her to Hugo by video call; the Risk profile table |
+| 0:22 | Investments, Subscription | The subscription run (funds with their key information documents, the suitability check), then the due diligence child run |
+| 0:38 | Cooling-off, Saving | Léa's blueprint: the e-signature, the policy issued, the payroll month by month, a switch to the climate fund |
+| 0:54 | Glossary | A dotted word of the legend opens the glossary; a search for "111bis" finds the journey's term Art. 111bis LIR |
+| 1:06 | Year-end tax, Annual review | The Year-End Tax run: the Deduction rules table (Art. 111bis, 4,500 EUR) and the certificate; then the annual review and both goals |
+| 1:32 | Seven colleagues | Sixteen times faster on the same calendar; Tom's fund above his profile, Sara's separation of duties then four eyes, Eva's guaranteed return blocked, each at its step |
+| 2:24 | Atlas | Every ending: six completed, Marc cancelled, Nina never answered |
+| 2:31 | Recommendations | The impact and effort map settling; "Propose a top-up before 31 December" opened; the replay-measured hand-over, before and after (T) |
+| 2:53 | Export dossier | The export dialog, then Export: the HTML edition made in the browser |
+| 3:03 | Dossier, HTML | That edition: the cover's lines drawing, the counts, the summary |
+| 3:11 | Dossier, PDF | The committed professional edition, pages turning: cover, summary, the journey at a glance and Tom's own words (moving in to read), analysis, recommendations |
+| 3:34 | Léa's client edition | Her client edition under the Valoria brand, her own words |
+| 3:45 | Closing card | What to replace to take the example into production |
+
+The journey view, the recommendations and the HTML edition follow the live host; the pages that turn are those of the PDFs in [`dossier/`](dossier), made from the example's own record of the same eight members.
 
 ## Its dossier and its recommendations
 

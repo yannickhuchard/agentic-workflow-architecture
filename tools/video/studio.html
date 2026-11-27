@@ -9,7 +9,8 @@
 
     Header   the example's name, its chapters (the current one highlighted), "live" and the elapsed time
     Stage    the real journey view (tools/visualization/journey.html) at 1:1, 1440 x 900, and for the
-             measures the real measures page (dashboard.html) in the same place
+             measures the real measures page (dashboard.html) in the same place; or a document: the pages
+             of a PDF as a book whose pages turn, or an HTML page (the dossier the journey view made)
     Rail     Now: who the video follows and where they are; the record, as it is written; four measures,
              computed from the live record by awa-kpis.js, the code the measures page uses
     Caption  the step number and one sentence
@@ -42,6 +43,27 @@
   #stage { position: absolute; left: 24px; top: 80px; width: 1440px; height: 900px; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); background: var(--bg); }
   #stage iframe { position: absolute; inset: 0; width: 1440px; height: 900px; border: 0; background: var(--bg); opacity: 0; pointer-events: none; transition: opacity .6s ease; }
   #stage iframe.on { opacity: 1; pointer-events: auto; z-index: 1; }
+
+  /* A document on the stage: two pages of a PDF side by side, the right one turning over to the next spread */
+  #doc { position: absolute; inset: 0; opacity: 0; pointer-events: none; transition: opacity .6s ease; background: radial-gradient(1100px 700px at 50% 45%, #1a2236 0%, var(--bg) 75%); overflow: hidden; }
+  #doc.on { opacity: 1; z-index: 1; }
+  #doc-label { position: absolute; left: 140px; right: 140px; top: 16px; height: 24px; display: flex; align-items: center; gap: 14px; font-size: 14px; color: var(--mute); white-space: nowrap; transition: opacity .4s; }
+  #doc-label b { color: var(--soft); font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+  #doc-label span:last-child { margin-left: auto; }
+  #lens { position: absolute; inset: 0; transform-origin: 0 0; transition: transform 1.3s cubic-bezier(.45,0,.2,1); }
+  #book { position: absolute; left: 140px; top: 56px; width: 1160px; height: 820px; perspective: 2600px; }
+  .pg { position: absolute; top: 0; width: 580px; height: 820px; background: #fff center / cover no-repeat; box-shadow: 0 14px 40px rgba(0,0,0,.45); }
+  .pg.l { left: 0; } .pg.r { left: 580px; }
+  .pg.l::after { content: ''; position: absolute; inset: 0 0 0 auto; width: 36px; background: linear-gradient(to left, rgba(0,0,0,.22), transparent); }
+  .pg.r::after { content: ''; position: absolute; inset: 0 auto 0 0; width: 36px; background: linear-gradient(to right, rgba(0,0,0,.22), transparent); }
+  .pg.blank { background: transparent; box-shadow: none; } .pg.blank::after { display: none; }
+  .leaf { position: absolute; left: 580px; top: 0; width: 580px; height: 820px; transform-style: preserve-3d; transform-origin: 0 50%; transition: transform 1.1s cubic-bezier(.45,.05,.3,1); z-index: 3; }
+  .leaf.over { transform: rotateY(-180deg); }
+  .leaf .pg { left: 0; backface-visibility: hidden; }
+  .leaf .pg.back { transform: rotateY(180deg); }
+  #book.in { animation: bookin .7s ease both; }
+  @keyframes bookin { from { opacity: 0; transform: translateY(18px) scale(.985); } }
+  #doc-html { z-index: auto; }
 
   #caption { position: absolute; left: 24px; top: 996px; width: 1440px; height: 64px; display: flex; align-items: center; gap: 20px; }
   #step { font-size: 16px; color: var(--acc2); white-space: nowrap; }
@@ -94,7 +116,8 @@
   <div id="chapters"></div>
   <span class="live"><i></i>live</span><span id="clock" class="mono">00:00</span>
 </header>
-<div id="stage"><iframe id="journey" title="Journey view"></iframe><iframe id="measures-page" title="Measures"></iframe></div>
+<div id="stage"><iframe id="journey" title="Journey view"></iframe><iframe id="measures-page" title="Measures"></iframe><iframe id="doc-html" title="Document"></iframe>
+  <div id="doc"><div id="lens"><div id="doc-label"><b id="doc-title"></b><span id="doc-pages" class="mono"></span></div><div id="book"></div></div></div></div>
 <div id="caption"><span id="step" class="mono"></span><span id="say"></span></div>
 <aside id="rail">
   <div id="now"><span class="lab">Now</span><span id="who" class="hd"></span><span id="what"></span><div id="chips"></div></div>
@@ -113,7 +136,8 @@ const esc = v => String(v ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '
 const K = window.AWA_MEASURES;
 const ACTOR = { customer: 'Customer', system: 'System', agent: 'AI agent', person: 'Person', guardrail: 'Guardrail', refused: 'Refused', journey: 'Journey' };
 const MAX_RECORD = 16;
-let started = Date.now(), chapters = [], chapter = -1, portfolio = null, focus = null, subjects = {}, naming = [], options = {};
+const book = {};
+let started = Date.now(), chapters = [], chapter = -1, portfolio = null, focus = null, subjects = {}, naming = [], options = {}, noun = ['customer', 'customers'];
 const mmss = ms => { const s = Math.max(0, Math.floor(ms / 1000)); return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; };
 setInterval(() => { $('clock').textContent = mmss(Date.now() - started); }, 250);
 
@@ -168,8 +192,9 @@ function render_now() {
         const all = rows().map(x => x.row.instance), n = all.length;
         const count = f => all.filter(f).length;
         const stuck = all.filter(i => i.status === 'active' && i.stalled);
-        const words = ['No customers', 'One customer', 'Two customers', 'Three customers', 'Four customers', 'Five customers', 'Six customers', 'Seven customers', 'Eight customers', 'Nine customers', 'Ten customers'];
-        $('who').textContent = words[n] || `${n} customers`;
+        // What a customer is called, as the dossier says it (options.dossier.subject)
+        const words = ['No', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten'];
+        $('who').textContent = `${words[n] || n} ${n === 1 ? noun[0] : noun[1]}`;
         const j = portfolio.journeys?.[0];
         const where = stuck.length && j ? `one stuck in ${(j.definition.stages.find(s => s.id === stuck[0].stage_id) || {}).name || stuck[0].stage_id}` : '';
         $('what').textContent = [j?.definition.name, stuck.length > 1 ? `${stuck.length} stuck` : where].filter(Boolean).join(' · ');
@@ -202,6 +227,8 @@ window.studio = {
         $('title').textContent = title || '';
         options = given || {};
         chapters = list || []; subjects = described || {}; naming = options.subject_name || [];
+        const said = options.dossier && options.dossier.subject;
+        if (Array.isArray(said) && said.length === 2 && said.every(w => typeof w === 'string')) noun = said;
         $('chapters').innerHTML = chapters.map((c, k) => `<span class="pill" data-k="${k}">${esc(c)}</span>`).join('');
         started = Date.now();
     },
@@ -252,18 +279,77 @@ window.studio = {
         }
         return null;
     },
-    /** The position of the first step of a kind ("guardrail", "refused", "human_wait") in a run, as the journey view counts steps */
-    step_of(instance_id, run_id, kind) {
+    /** The position of a step in a run, as the journey view counts steps: the first of a kind ("guardrail", "refused",
+     *  "human_wait"), or the n-th ({ kind, n }), or the first whose caption has a text ({ text }) */
+    step_of(instance_id, run_id, which) {
         const where = this.place_of(instance_id, run_id);
         if (!where || !window.AWA_build_story) return -1;
         const run = window.AWA_build_story(portfolio, options).journeys[where.j]?.instances[where.i]?.runs[where.r];
-        return run ? run.steps.findIndex(s => s.kind === kind) : -1;
+        if (!run) return -1;
+        const want = typeof which === 'string' ? { kind: which, n: 1 } : which;
+        const found = run.steps.map((s, k) => ({ s, k })).filter(({ s }) => (!want.kind || s.kind === want.kind) && (!want.text || String(s.cap || '').includes(want.text)));
+        return found[(want.n || 1) - 1]?.k ?? -1;
     },
-    /** Shows a page on the stage: "journey" or "measures", loading it the first time */
+    /** Shows a page on the stage: "journey" or "measures", loading it the first time, or "document" or "html" */
     show(which, url) {
-        const frame = which === 'measures' ? $('measures-page') : $('journey');
-        if (url && frame.dataset.url !== url) { frame.src = url; frame.dataset.url = url; }
-        for (const f of document.querySelectorAll('#stage iframe')) f.classList.toggle('on', f === frame);
+        const frame = { measures: $('measures-page'), document: $('doc'), html: $('doc-html') }[which] || $('journey');
+        if (url && frame.tagName === 'IFRAME' && frame.dataset.url !== url) { frame.src = url; frame.dataset.url = url; }
+        for (const f of document.querySelectorAll('#stage > iframe, #doc')) f.classList.toggle('on', f === frame);
+    },
+    /** An HTML page on the stage: { src } or { srcdoc }, and `offset`: the page seen from that many pixels down, at its own size */
+    html(page) {
+        const frame = $('doc-html'), offset = Math.max(0, page.offset || 0);
+        frame.dataset.url = '';
+        frame.style.top = `${-offset}px`; frame.style.height = `${900 + offset}px`;
+        if (page.srcdoc) { frame.removeAttribute('src'); frame.srcdoc = page.srcdoc; } else { frame.removeAttribute('srcdoc'); frame.src = page.src; }
+        this.show('html');
+    },
+    /** The HTML page seen at its offset becomes a page scrolled by that much, so that it scrolls in the stage from there */
+    html_settle() {
+        const frame = $('doc-html'), offset = -parseFloat(frame.style.top || '0');
+        if (!offset) return;
+        frame.style.top = '0px'; frame.style.height = '900px';
+        try { frame.contentWindow.scrollTo(0, frame.contentWindow.scrollY + offset); } catch { /* another origin: it stays at the top */ }
+    },
+    /** A document as a book: the images of its pages, its title; the first spread comes with spread() */
+    book({ pages, count, title }) {
+        if (book.title === title) return;
+        Object.assign(book, { pages, count, title, at: null });
+        // Loaded ahead, so that a page never appears half drawn
+        book.images = pages.map(src => { const im = new Image(); im.src = src; return im; });
+        $('doc-title').textContent = title;
+        $('doc-pages').textContent = '';
+        $('book').innerHTML = '';
+        $('lens').style.transform = '';
+    },
+    pages_ready() { return (book.images || []).every(im => im.complete && im.naturalWidth > 0); },
+    /** Opens the book at two pages, [left, right] (numbers from 1; 0 for no page), turning the right page over when it moves forward */
+    spread([left, right]) {
+        const bk = $('book'), url = n => (n >= 1 && n <= book.count ? book.pages[n - 1] : null);
+        const page = (n, side) => { const d = document.createElement('div'); d.className = `pg ${side}${url(n) ? '' : ' blank'}`; if (url(n)) d.style.backgroundImage = `url("${url(n)}")`; return d; };
+        const shown = [left, right].filter(n => url(n));
+        $('doc-pages').textContent = shown.length ? `${shown.length > 1 ? 'pages' : 'page'} ${shown.join(' and ')} of ${book.count}` : '';
+        const before = book.at;
+        book.at = [left, right];
+        if (!before) { bk.innerHTML = ''; bk.append(page(left, 'l'), page(right, 'r')); bk.classList.remove('in'); void bk.offsetWidth; bk.classList.add('in'); return; }
+        // The new right page waits underneath; the old right page turns over and shows the new left page on its back
+        const oldL = bk.querySelector(':scope > .pg.l'), oldR = bk.querySelector(':scope > .pg.r');
+        const leaf = document.createElement('div'); leaf.className = 'leaf';
+        const front = oldR.cloneNode(true); front.classList.remove('r'); const back = page(left, 'back'); back.classList.remove('l');
+        leaf.append(front, back);
+        oldR.replaceWith(page(right, 'r'));
+        bk.append(leaf);
+        void leaf.offsetWidth;
+        leaf.classList.add('over');
+        setTimeout(() => { const l = page(left, 'l'); oldL.replaceWith(l); leaf.remove(); }, 1150);
+    },
+    /** Moves in to read a page: { side: "left" | "right", x, y (0 to 1 on the page), scale }, or null to see the whole spread */
+    zoom(z) {
+        const lens = $('lens');
+        if (!z) { lens.style.transform = ''; $('doc-label').style.opacity = ''; return; }
+        const fx = 140 + (z.side === 'right' ? 580 : 0) + (z.x ?? .5) * 580, fy = 56 + (z.y ?? .3) * 820, s = z.scale || 1.6;
+        lens.style.transform = `translate(${720 - s * fx}px, ${450 - s * fy}px) scale(${s})`;
+        $('doc-label').style.opacity = '0';
     },
     card(card) {
         $('card-tag').textContent = card.tag || ''; $('card-title').textContent = card.title || ''; $('card-text').textContent = card.text || '';

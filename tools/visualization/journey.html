@@ -33,6 +33,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent-text
 
 #top { position: absolute; left: 0; top: 0; width: 1440px; height: 56px; padding: 0 24px; display: flex; align-items: center; gap: 12px; background: var(--panel); border-bottom: 1px solid var(--line); z-index: 5; }
 .crumb { height: 32px; padding: 0 12px; border-radius: var(--radius); border: 1px solid transparent; background: none; cursor: pointer; font-size: 14px; color: var(--soft); white-space: nowrap; }
+#crumbs .crumb, #crumbs .sep { flex: none; }
+#crumbs .crumb.on { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .crumb:hover { background: color-mix(in srgb, var(--text) 7%, transparent); }
 .crumb.on { color: var(--text); font-weight: 600; background: color-mix(in srgb, var(--accent) 18%, transparent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
 .sep { color: var(--faint); }
@@ -478,6 +480,8 @@ a.ge-r { text-decoration: underline; text-underline-offset: 2px; }
 .cf .cfh { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
 .cf .cfh h2 { white-space: nowrap; margin: 0; font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--mute); }
 .cf .cfh span { font-size: 12.5px; color: var(--mute); }
+.cf .cfh .tog { flex: none; }
+.cf .cfh .tog span { font-size: inherit; color: inherit; }
 .cf .rlane { margin: 10px 0 2px; font-size: 13.5px; color: var(--soft); }
 .cf .rlane b { color: var(--text); font-weight: 600; }
 .cf .sect { margin-top: 14px; font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--mute); }
@@ -554,7 +558,7 @@ a.ge-r { text-decoration: underline; text-underline-offset: 2px; }
   <div id="top">
     <div class="hd" id="brandmark" style="flex:none;font-size:18px;font-weight:700;letter-spacing:.06em">AWA</div>
     <div style="width:1px;height:22px;background:color-mix(in srgb, var(--text) 16%, transparent)"></div>
-    <nav id="crumbs" aria-label="Where you are" style="display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden"></nav>
+    <nav id="crumbs" aria-label="Where you are" style="display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;flex:none"></nav>
     <nav id="levels" class="seg-ctl" aria-label="Heights and recommendations" style="flex:none"></nav>
     <div style="flex:1"></div>
     <button class="crumb gbtn" id="b-gloss" type="button" aria-expanded="false" aria-controls="gloss" title="What the words of this view mean (?)">Glossary <span class="kbd" aria-hidden="true">?</span></button>
@@ -678,8 +682,11 @@ const TAG_TERM = { 'AI agent': 'ai-agent', Person: 'person', System: 'system', R
 // ---------------------------------------------------------------- geometry
 const CX = k => 264 + k * 392;                       // atlas columns
 // Atlas rows: 72 pixels apart, closer when more customers must fit above the caption
-const rowGap = () => Math.min(72, Math.floor(464 / Math.max(1, S.customers.length)));
-const PY = i => 236 + i * rowGap();
+// A journey with many stages or several goals has a taller card: the rows start lower, and stay above the caption
+const tallCard = () => S.journeys.some(j => j.stages.length > 7 || j.outcome.goals.length > 1);
+const atlasTop = () => (tallCard() ? 272 : 236);
+const rowGap = () => Math.min(72, Math.floor((464 - (atlasTop() - 236)) / Math.max(1, S.customers.length)));
+const PY = i => atlasTop() + i * rowGap();
 // Calendar lanes: 84 pixels apart, closer when more customers must fit above the caption
 const laneGap = () => Math.min(84, Math.floor(520 / Math.max(1, J().instances.length)));
 const laneTop = i => 178 + i * laneGap();
@@ -713,10 +720,10 @@ scenes.atlas = () => {
       <div class="sub" style="font-size:13px;line-height:18px">Select a journey to see everyone in it, or a cell to follow one customer through it. The line in each cell is that customer&rsquo;s mood: &ldquo;said&rdquo; where they told us, &ldquo;inferred&rdquo; where a rule assumed it.</div></div>`;
     S.journeys.forEach((j, k) => {
         const o = j.outcome;
-        h += `<button class="jcard" style="left:${CX(k)}px" data-open-j="${k}" aria-label="See everyone in the ${esc(j.name)} journey">
-          <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px"><span class="hd" style="font-size:19px;font-weight:600">${esc(j.name)}</span><span style="font-size:12px">${o.mood === null ? '' : 'ends ' + mood(o.mood)}</span></div>
-          <div class="sub clamp2" style="flex:none;height:30px">${esc(j.description)}</div>
-          <div class="stg">${j.stages.map(s => `<span>${esc(s.name)}</span>`).join('')}</div>
+        h += `<button class="jcard" style="left:${CX(k)}px;height:${atlasTop() - 40}px" data-open-j="${k}" aria-label="See everyone in the ${esc(j.name)} journey">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px"><span class="hd" style="font-size:19px;font-weight:600;min-width:0">${esc(j.name)}</span><span style="font-size:12px;flex:none;max-width:88px;text-align:right">${o.mood === null ? '' : 'ends ' + mood(o.mood)}</span></div>
+          <div class="sub ${tallCard() ? 'one' : 'clamp2'}" style="flex:none;height:${tallCard() ? 15 : 30}px">${esc(j.description)}</div>
+          <div class="stg">${(j.stages.length > 7 ? j.stages.slice(0, 5) : j.stages).map(s => `<span>${esc(s.name)}</span>`).join('')}${j.stages.length > 7 ? `<span title="${esc(j.stages.slice(5).map(s => s.name).join(', '))}">+${j.stages.length - 5} more</span>` : ''}</div>
           <div class="kv"><div class="ct"><b>${o.completed}</b><span>completed</span></div><div class="ct${o.stalled ? ' warn' : ''}"><b>${o.stalled}</b><span>stalled</span></div><div class="ct"><b>${o.left}</b><span>left</span></div>
             ${o.goals.map(g => `<div class="ct"><b>${g.reached}/${j.instances.length}</b><span>${esc(g.name.toLowerCase())}</span></div>`).join('')}</div></button>`;
     });
@@ -963,7 +970,7 @@ apply.journey = el => {
 
 // Text is fitted to its room in the fonts on screen: when a font arrives, the blueprint is fitted again
 let fontsLoaded = 0;
-if (document.fonts) document.fonts.addEventListener('loadingdone', () => { fontsLoaded++; if (rendered && st.level === 'story') render(); });
+if (document.fonts) document.fonts.addEventListener('loadingdone', () => { fontsLoaded++; if (rendered && st.level === 'story') render(); else if (rendered) chrome(); });
 /** The short forms of a stage's name, longest first: whole words then an ellipsis, then the first word cut, never under three letters */
 function shortNames(name) {
     const words = name.split(/\s+/), out = [];
@@ -1100,6 +1107,25 @@ function told() {
 }
 const PLAY = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4l13 8-13 8z"/></svg>', PAUSE = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14"/><path d="M16 5v14"/></svg>';
 let lastCap = '', written = '';
+/** When the bar is short of room, the crumbs between the first and the current one give way (the levels still say
+ *  where you are), then where the record comes from; the current crumb is shortened last */
+function fitCrumbs() {
+    const nav = $('crumbs'), top = $('top'), all = [...nav.querySelectorAll('.crumb')], last = all[all.length - 1];
+    if (!last) return;
+    $('source').hidden = false; last.style.maxWidth = '';
+    // How far the bar's last button runs past its edge; the record's source shrinks first on its own, so the bar is
+    // short when even with the source nearly gone it would not fit
+    const past = () => { const end = $('b-export').getBoundingClientRect().right, edge = top.getBoundingClientRect().right - parseFloat(getComputedStyle(top).paddingRight); return Math.ceil(end - edge); };
+    const over = () => past() + Math.max(0, $('source').offsetWidth - 40);
+    for (const c of all.slice(1, -1)) {
+        if (over() <= 0) break;
+        c.hidden = true;
+        if (c.previousElementSibling && c.previousElementSibling.classList.contains('sep')) c.previousElementSibling.hidden = true;
+    }
+    if (over() > 0) $('source').hidden = true;
+    const still = past();
+    if (still > 0) last.style.maxWidth = `${Math.max(48, last.offsetWidth - still)}px`;
+}
 function chrome() {
     const nr = recList().length, here = lv => !st.recs && st.level === lv;
     $('levels').innerHTML = [['atlas', 'Journeys'], ['journey', 'One journey'], ['story', 'One customer'], ['run', 'One run']].map(([lv, name]) => `<button type="button" data-goto="${lv}" class="${here(lv) ? 'on' : ''}"${here(lv) ? ' aria-current="page"' : ''}${lv === 'run' && !I().runs.length ? ' disabled' : ''}>${name}</button>`).join('')
@@ -1118,8 +1144,10 @@ function chrome() {
     if (L >= 2) crumbs.push(`<span class="sep">/</span><button class="crumb${L === 2 ? ' on' : ''}" data-level="story">${esc(I().name)}</button>`);
     if (L >= 3) crumbs.push(`<span class="sep">/</span><button class="crumb on" data-level="run">${esc(R().name)}</button>`);
     $('crumbs').innerHTML = crumbs.join('');
+    fitCrumbs();
     // Sideways: the same view of another journey. On one customer's journey it keeps the customer.
     const sw = $('switch'); sw.style.visibility = L === 1 || L === 2 ? 'visible' : 'hidden';
+    sw.style.display = S.journeys.length > 1 ? '' : 'none';     // with one journey there is nothing to switch to
     sw.innerHTML = S.journeys.map((j, k) => { const has = L !== 2 || j.instances.some(x => x.c === I().c); return `<button data-j="${k}" class="${k === st.j ? 'on' : ''}" ${has ? '' : 'disabled'} aria-pressed="${k === st.j}">${esc(j.name)}</button>`; }).join('');
     $('when').textContent = t.when;
     const cap = $('cap');
@@ -1435,7 +1463,11 @@ function setBrand(source, { data_only = false, network = true } = {}) {
     const brand = typeof source === 'object' && source.colors && source.colors.top ? source : B.read_brand(source, { data_only });
     if (brand.invalid) { for (const w of brand.warnings) console.warn(`Brand: ${w}`); return null; }
     lastBrand = brand;
-    return B.apply(brand, { header: $('brandmark'), network });
+    const applied = B.apply(brand, { header: $('brandmark'), network });
+    // A logo changes the room the crumbs have once it has loaded
+    for (const im of $('brandmark').querySelectorAll('img')) im.addEventListener('load', () => { if (S && rendered) chrome(); }, { once: true });
+    if (S && rendered) chrome();
+    return applied;
 }
 window.AWA_set_brand = setBrand; // for a page that embeds the view
 // ?brand=<url> (a DESIGN.md or a brand.json), else the options' "brand", puts a company's colours, fonts and logo on the view

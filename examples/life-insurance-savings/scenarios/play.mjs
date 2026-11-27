@@ -298,13 +298,14 @@ export async function play(sdk, runtime, journal, example, scenario, { advance =
 
 /**
  * Play several scenarios on one host as one calendar: every step of every scenario in the order of its time.
- * `move_to(ms)` sets the host's clock to a time, never backwards. Returns the journey instances, in the order
- * of the scenarios.
+ * `move_to(ms)` sets the host's clock to a time, never backwards; `pause(step)` is called before each step (the
+ * live demonstration waits there). Returns the journey instances, in the order of the scenarios.
  */
-export async function play_together(sdk, runtime, journal, example, scenarios, { move_to = () => { }, log = () => { }, today = () => '' } = {}) {
+export async function play_together(sdk, runtime, journal, example, scenarios, { move_to = () => { }, pause = async () => { }, log = () => { }, today = () => '' } = {}) {
     const entries = scenarios.flatMap((scenario, s) => timeline(scenario).map(entry => ({ ...entry, s })))
         .sort((a, b) => a.time - b.time || a.s - b.s || a.order - b.order);
     for (const entry of entries) {
+        await pause(entry.step);
         move_to(entry.time);
         await perform(sdk, runtime, journal, example, entry, { log, today });
     }

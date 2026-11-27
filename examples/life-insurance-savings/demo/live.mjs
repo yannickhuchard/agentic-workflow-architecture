@@ -4,6 +4,9 @@
 //   node examples/life-insurance-savings/demo/live.mjs [--port 4620] [--speed 1] [--scenario lea-full-year|all|<name>] [--adapters-port 4560]
 //        [--then all --then-speed 8 --then-pause 10]   then the other scenarios, faster, so that the journey view and
 //        the measures fill; --then-pause waits that many seconds between the main scenario and the others
+//        [--then-calendar one]   plays those others on one calendar from their own first days, as make-runs.mjs does,
+//        instead of one after the other: the business clock goes back to the plan's opening once the main scenario
+//        has ended, so that every employee joins the same year
 //
 // It starts the reference adapters (adapters/mock-server.mjs), an AWA host in this process (AwaRuntime) with
 // the seven workflows and the journey registered, scripted AI agents whose answers are realistic and whose work
@@ -38,7 +41,7 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { load_example, scripted_actors, watching_journal, play, DEMO_SECRETS } from '../scenarios/play.mjs';
+import { load_example, scripted_actors, watching_journal, play, play_together, DEMO_SECRETS } from '../scenarios/play.mjs';
 import { start_adapters } from '../adapters/mock-server.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -180,7 +183,7 @@ function describe_journey(e) {
  * Start the demonstration. `sdk` is the SDK module (the built package, or its sources in a test). Resolves once
  * the servers listen; `done` resolves after the last scenario, with the URLs of the main scenario's run.
  */
-export async function start_demo({ sdk, port = 4620, adapters_port = 4560, speed = 1, scenario = MAIN_SCENARIO, then, then_speed, then_pause = 0, out = line => process.stdout.write(`${JSON.stringify(line)}\n`) }) {
+export async function start_demo({ sdk, port = 4620, adapters_port = 4560, speed = 1, scenario = MAIN_SCENARIO, then, then_speed, then_pause = 0, then_calendar = 'after', out = line => process.stdout.write(`${JSON.stringify(line)}\n`) }) {
     const started = Date.now();
     const emit = line => out({ t: Date.now() - started, ...line });
     const sleep = ms => new Promise(resolve => setTimeout(resolve, ms / speed));
@@ -204,7 +207,8 @@ export async function start_demo({ sdk, port = 4620, adapters_port = 4560, speed
     const runtime = new sdk.AwaRuntime({
         now,
         engine: {
-            actors: scripted_actors({ scripts: example.scripts, scenario_of: id => by_enrolment.get(id), wait: sleep, today }),
+            // An agent's work takes a second or two of real time, and on the business clock the time its script says, as in make-runs.mjs
+            actors: scripted_actors({ scripts: example.scripts, scenario_of: id => by_enrolment.get(id), wait: sleep, spend: ms => { offset += ms; }, today }),
             wait_for_human_tasks: true,
             journal,
             now,
@@ -340,12 +344,24 @@ export async function start_demo({ sdk, port = 4620, adapters_port = 4560, speed
             if (then_pause > 0) await new Promise(resolve => setTimeout(resolve, then_pause * 1000));
             speed = then_speed || speed;
             emit({ kind: 'phase', text: `${afterwards.length} more employees, at ${speed} times the speed.` });
-            for (const s of afterwards) {
+            const told = entry => { journey_lines(); emit({ kind: 'action', main: false, actor: actor_of_action(entry), text: `${entry.text}.`, run_id: entry.run_id || first_run_of(entry.enrolment_id), instance_id: entry.instance_id }); };
+            if (then_calendar === 'one') {
+                // One calendar from the plan's opening: the main scenario has ended, and nothing of it waits on the clock any more
+                offset = Math.min(...afterwards.map(s => Date.parse(s.starts))) - Date.now();
+                await play_together(sdk, runtime, journal, example, afterwards, {
+                    move_to: time => { offset = Math.max(offset, time - Date.now()); },
+                    pause: async step => { journey_lines(); if (!stopped) await pause_for(step); },
+                    log: told,
+                    today,
+                });
+                journey_lines();
+            }
+            for (const s of then_calendar === 'one' ? [] : afterwards) {
                 if (stopped) break;
                 await play(sdk, runtime, journal, example, s, {
                     advance: ms => { offset += ms; },
                     pause: async step => { journey_lines(); await pause_for(step); },
-                    log: entry => { journey_lines(); emit({ kind: 'action', main: false, actor: actor_of_action(entry), text: `${entry.text}.`, run_id: entry.run_id || first_run_of(entry.enrolment_id), instance_id: entry.instance_id }); },
+                    log: told,
                     today,
                 });
                 journey_lines();
@@ -379,6 +395,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
         sdk, port: Number(option('port', 4620)), adapters_port: Number(option('adapters-port', 4560)),
         speed: Number(option('speed', 1)), scenario: option('scenario', MAIN_SCENARIO),
         then: option('then'), then_speed: Number(option('then-speed', 0)) || undefined, then_pause: Number(option('then-pause', 0)) || 0,
+        then_calendar: option('then-calendar', 'after'),
     });
     let stopping = false;
     const shutdown = async () => {
