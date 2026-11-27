@@ -1,16 +1,20 @@
 // Checks the journey view in a real browser: the sample at every height, a
-// record opened from a file, and a host followed live while its journeys move.
+// record opened from a file, a host followed live while its journeys move, and the
+// builder's options (names, bands, routes) on the electricity onboarding example.
 //
 //   cd sdk/typescript && npm run build
 //   node tools/visualization/journey.check.mjs        (needs Playwright)
 
 import fs from 'fs';
+import http from 'http';
 import os from 'os';
 import path from 'path';
 import { spawn, execFileSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
-const { chromium } = createRequire(import.meta.url)('playwright');
+const require = createRequire(import.meta.url);
+const { chromium } = require('playwright');
+const { build_story } = require('./journey-story-builder.js');
 
 const here = path.dirname(fileURLToPath(import.meta.url)), root = path.resolve(here, '../..');
 const page_url = 'file://' + path.join(here, 'journey.html');
@@ -99,6 +103,70 @@ awa('export', '-o', record);
         check(page.errors.length === 0, `no page errors while following live ${page.errors.join('; ')}`);
         await page.close();
     } finally { server.kill(); }
+}
+
+// 3. The options: a subject named from its data, a long workflow in bands, the routes of a layout that wraps
+{
+    const electricity = path.join(root, 'examples/electricity-onboarding');
+    const record = JSON.parse(fs.readFileSync(path.join(electricity, 'journeys.json'), 'utf-8'));
+    const options = JSON.parse(fs.readFileSync(path.join(electricity, 'views/story-options.json'), 'utf-8'));
+    const story = build_story(record, options);
+    check(story.customers.some(c => c.name === 'Tomás Reyes') && story.journeys[0].instances.every(c => !/^APP-/.test(c.name)), 'subject_name names the customers from the data of their journey');
+    check(build_story(record).customers.every(c => /^APP-/.test(c.name)), 'without it, a customer is named by the key of the journey');
+    const W = story.workflows.find(w => w.name === 'Electricity Customer Onboarding');
+    check(W.bands?.length === 3 && W.nodes.every(n => n.band >= 0 && n.band < 3) && W.bands[0].label === 'Application and verification', 'bands: three bands, every node in one');
+    const edge = (from, to) => W.edges.find(e => W.nodes[e.a].name === from && W.nodes[e.b].name === to);
+    const down = edge('Applicant verified', 'Electricity source'), [b1, b2] = W.bands;
+    const along = down.segs.filter(sg => sg.dir === 'l' || sg.dir === 'r');
+    check(along.some(sg => sg.y > b1.y1 && sg.y < b2.y0) && down.tip.dir === 'd' && down.tip.y === W.nodes[down.b].y,
+        'an edge to a later band and an earlier column runs along the gap above the target\'s band and comes down into the target');
+    const back = edge('Documents checked', 'Request documents'), target = W.nodes[back.b];
+    check(back.segs.every(sg => sg.y <= target.y) && back.tip.dir === 'd' && back.segs.some(sg => sg.dir === 'l' && sg.y < target.y),
+        'an edge back to an earlier column of the same row goes over a track above the row');
+    const plain = build_story(record, { layouts: options.layouts }).workflows.find(w => w.name === 'Electricity Customer Onboarding');
+    check(!plain.bands && plain.edges.length === W.edges.length, 'without bands, the same layout has no bands');
+    // The claims sample is laid out as it was: the builder rebuilds the committed story exactly
+    const committed = fs.readFileSync(path.join(here, 'journey-story.js'), 'utf-8');
+    const out = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'awa-story-')), 'story.json');
+    execFileSync('node', [path.join(root, 'examples/claims-journey/make-story.mjs'), out], { stdio: 'ignore' });
+    const rebuilt = fs.readFileSync(path.join(here, 'journey-story.js'), 'utf-8');
+    if (rebuilt !== committed) fs.writeFileSync(path.join(here, 'journey-story.js'), committed);
+    check(rebuilt === committed, 'the claims sample, built again, is the committed story: its routes are unchanged');
+
+    // In the browser, from a record and the options served over HTTP
+    const server = http.createServer((req, res) => {
+        const file = path.join(root, decodeURIComponent(new URL(req.url, 'http://x').pathname));
+        if (!file.startsWith(root) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); res.end(); return; }
+        res.writeHead(200, { 'content-type': file.endsWith('.html') ? 'text/html; charset=utf-8' : file.endsWith('.js') ? 'text/javascript' : 'application/json' });
+        fs.createReadStream(file).pipe(res);
+    });
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    const base = `http://127.0.0.1:${server.address().port}`;
+    try {
+        const page = await open(`${base}/tools/visualization/journey.html?data=${encodeURIComponent(`${base}/examples/electricity-onboarding/journeys.json`)}&options=${encodeURIComponent(`${base}/examples/electricity-onboarding/views/story-options.json`)}`);
+        await settle(page);
+        check((await page.textContent('#L0')).includes('Tomás Reyes'), '?options= names the customers in the atlas');
+        // A link followed while the page is open moves the view, as a click would
+        const tomas = story.journeys[0].instances.findIndex(c => c.name === 'Tomás Reyes');
+        await page.evaluate(i => { location.hash = `#run/0/${i}/0/12`; }, tomas); await settle(page);
+        check(await page.evaluate(() => window.AWA_VIEW.level === 'run') && (await page.textContent('#crumbs')).includes('Electricity Customer Onboarding'), 'a link followed while the page is open goes to the run');
+        check(await page.locator('[data-bandchip]').count() === 3 && (await page.getAttribute('[data-bandchip="0"]', 'class')).includes(' on'), 'a run in bands shows its band chips, the band of the step being read in focus');
+        const dimmed = async k => page.evaluate(k => [...document.querySelectorAll('#L3 .nd[data-band]')].filter(n => n.dataset.band === String(k)).every(n => n.classList.contains('dimb')), k);
+        check(await dimmed(1) && !(await dimmed(0)), 'the other bands are dimmed');
+        // The widest band, twelve columns, is shown at nearly its own size: its names stay legible in a video
+        const scale = await page.evaluate(() => Number(/scale\(([\d.]+)\)/.exec(document.querySelector('#L3 .gband').style.transform)[1]));
+        check(scale >= 0.9, `a band is shown large enough to read (scale ${scale})`);
+        await page.click('[data-bandchip="1"]'); await settle(page);
+        check((await page.getAttribute('[data-bandchip="1"]', 'class')).includes(' on') && await dimmed(0) && !(await dimmed(1)), 'a band chip focuses its band');
+        await to_end(page);
+        check((await page.getAttribute('[data-bandchip="2"]', 'class')).includes(' on') && (await page.textContent('[data-bandchip="0"]')).includes('done'), 'at the end of the run, the last band is in focus and the others are done');
+        await page.evaluate(i => { location.hash = `#run/0/${i}/1/0`; }, tomas); await settle(page);
+        check((await page.textContent('#crumbs')).includes('Grid Export Registration') && await page.locator('[data-bandchip]').count() === 1, 'the child run has its own band');
+        await page.evaluate(() => { location.hash = '#atlas/0/0/0/0'; }); await settle(page);
+        check(await page.locator('.layer.on').getAttribute('id') === 'L0', 'and a link goes back up to the atlas');
+        check(page.errors.length === 0, `no page errors with options ${page.errors.join('; ')}`);
+        await page.close();
+    } finally { server.close(); }
 }
 
 await browser.close();

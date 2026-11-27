@@ -13,12 +13,23 @@
 
 /**
  * @param sample   { as_of, workflows, transitions, journeys: [{ definition, instances: [{ instance, runs, subject_name?, summary? }] }], customers? }
- * @param options  { layouts?: { [workflow name]: { [node name]: [column, row] } }, sentences?: { [event type]: (name, data) => [title, sentence] } }
+ * @param options  {
+ *   layouts?:      { [workflow name]: { [node name]: [column, row] } }   a hand layout, used when it places every node
+ *   bands?:        { [workflow name]: [{ row, label }] }                 the rows where each band of a hand layout starts
+ *   subject_name?: [path, ...]                                           paths in a journey instance's data whose values, joined by a space, name its subject
+ *   sentences?:    { [event type]: (name, data) => [title, sentence] }
+ * }
  */
 function build_story(sample, options) {
     options = options || {};
+    /** The subject's name from the instance's data, by the paths options.subject_name gives ("applicant.first_name") */
+    const named = data => {
+        if (!Array.isArray(options.subject_name) || !data) return undefined;
+        const parts = options.subject_name.map(p => String(p).split('.').reduce((v, k) => (v === null || v === undefined ? undefined : v[k]), data)).filter(v => v !== undefined && v !== null && v !== '');
+        return parts.length ? parts.join(' ') : undefined;
+    };
     // The subjects: given, or found in the records
-    const people = sample.customers || [...new Map(sample.journeys.flatMap(j => j.instances).map(e => [e.instance.subject_key, { id: e.instance.subject_key, name: e.subject_name || e.instance.data.name || e.instance.subject_key, persona: '' }])).values()];
+    const people = sample.customers || [...new Map(sample.journeys.flatMap(j => j.instances).map(e => [e.instance.subject_key, { id: e.instance.subject_key, name: e.subject_name || named(e.instance.data) || e.instance.data.name || e.instance.subject_key, persona: '' }])).values()];
     const MIN = 60000, HOUR = 60 * MIN, DAY = 24 * HOUR;
     const ms = iso => Date.parse(iso);
     const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
@@ -73,6 +84,7 @@ function build_story(sample, options) {
 
     const SIZE = { activity: [112, 56], event: [40, 40], decision: [64, 64] };
     const GAP_X = 32, ROW = 96, TRACK = 30;
+    const BANDS = options.bands || {};
 
     function layout(workflow) {
         const nodes = [
@@ -80,24 +92,70 @@ function build_story(sample, options) {
             ...workflow.events.map(e => ({ id: e.id, name: e.name, kind: 'event', sub: e.event_type, mode: e.event_definition?.mode === 'publish' ? 'publish' : e.event_type === 'message' || e.event_type === 'signal' ? 'wait' : e.event_type, timeout_edge: e.event_definition?.timeout_edge_id })),
             ...workflow.decision_nodes.map(d => ({ id: d.id, name: d.name, kind: 'decision' })),
         ];
-        const grid = GRID[workflow.name] && nodes.every(n => GRID[workflow.name][n.name]) ? GRID[workflow.name] : auto_grid(workflow, nodes);
+        const hand = GRID[workflow.name] && nodes.every(n => GRID[workflow.name][n.name]);
+        const grid = hand ? GRID[workflow.name] : auto_grid(workflow, nodes);
+        // A long workflow may wrap into bands, each a row of columns of its own, read one at a time
+        const band_def = Array.isArray(BANDS[workflow.name]) && BANDS[workflow.name].length ? [...BANDS[workflow.name]].sort((a, b) => a.row - b.row) : null;
+        const band_at = r => { let k = 0; if (band_def) band_def.forEach((b, i) => { if (r >= b.row) k = i; }); return k; };
         const cols = Math.max(...nodes.map(n => grid[n.name][0])) + 1, rows = Math.max(...nodes.map(n => grid[n.name][1])) + 1;
-        const col_w = Array.from({ length: cols }, (_, c) => Math.max(...nodes.filter(n => grid[n.name][0] === c).map(n => SIZE[n.kind][0])));
-        const col_x = []; let x = 0; for (const w of col_w) { col_x.push(x); x += w + GAP_X; }
-        const width = x - GAP_X, top = TRACK, height = top + (rows - 1) * ROW + 64 + TRACK;
+        const top = TRACK, height = top + (rows - 1) * ROW + 64 + TRACK, row_top = r => top + r * ROW;
+        const columns = band => {
+            const mine = nodes.filter(n => band === undefined || band_at(grid[n.name][1]) === band);
+            const last = Math.max(...mine.map(n => grid[n.name][0]));
+            // A column with nothing in it (in a band) keeps the width of the narrowest node, so that the band keeps its shape
+            const col_w = Array.from({ length: band === undefined ? cols : last + 1 }, (_, c) => Math.max(...mine.filter(n => grid[n.name][0] === c).map(n => SIZE[n.kind][0]), band === undefined ? -Infinity : SIZE.event[0]));
+            const col_x = []; let x = 0;
+            col_w.forEach((w, c) => {
+                // In a band, two narrow columns side by side (events, decisions) leave room for their names
+                if (band !== undefined && c > 0) x += Math.max(0, 108 - (col_w[c - 1] / 2 + GAP_X + w / 2));
+                col_x.push(x); x += w + GAP_X;
+            });
+            return { col_w, col_x, width: x - GAP_X };
+        };
+        const geometry = band_def ? band_def.map((_, k) => columns(k)) : [columns()];
+        const width = Math.max(...geometry.map(g => g.width));
         for (const n of nodes) {
-            const [c, r] = grid[n.name], [w, h] = SIZE[n.kind];
-            n.w = w; n.h = h; n.x = col_x[c] + (col_w[c] - w) / 2; n.y = top + r * ROW + (64 - h) / 2; n.c = c; n.r = r;
+            const [c, r] = grid[n.name], [w, h] = SIZE[n.kind], k = band_def ? band_at(r) : 0, { col_w, col_x } = geometry[k];
+            n.w = w; n.h = h; n.x = col_x[c] + (col_w[c] - w) / 2; n.y = row_top(r) + (64 - h) / 2; n.c = c; n.r = r; n.band = k;
             n.cx = n.x + w / 2; n.cy = n.y + h / 2;
+            n.gap_right = col_x[c] + col_w[c] + GAP_X / 2;                // the clear lane between this column and the next, in its band
         }
         const by_id = Object.fromEntries(nodes.map(n => [n.id, n]));
         const timeout_edges = new Set(nodes.map(n => n.timeout_edge).filter(Boolean));
+        // Each band: its rows and its extent
+        const bands = band_def ? band_def.map((b, k) => {
+            const mine = nodes.filter(n => n.band === k);
+            const r0 = Math.min(...mine.map(n => n.r)), r1 = Math.max(...mine.map(n => n.r));
+            return { label: b.label || `Band ${k + 1}`, row: b.row, r0, r1, x0: 0, x1: geometry[k].width, y0: row_top(r0), y1: row_top(r1) + 64 };
+        }) : null;
+        const notes = [];
 
         // An edge is a chain of horizontal and vertical runs from the source's border to the target's
         const route = (a, b, timeout) => {
             const pts = [];
+            if (bands && a.band !== b.band) {
+                // To another band: down (or up) the lane beside the source's column, along the gap next to the target's band,
+                // and into the target. A band further than the next one is reached round the left edge of the bands.
+                // Above the names that events and decisions carry over them, below the names under them
+                const into = b.band > a.band ? bands[b.band].y0 - 22 : bands[b.band].y1 + 10;
+                const near = b.band === a.band + 1;
+                pts.push([a.x + a.w, a.cy], [a.gap_right, a.cy]);
+                if (near) pts.push([a.gap_right, into]);
+                else {
+                    const out = b.band > a.band ? bands[a.band].y1 + 22 : bands[a.band].y0 - 22, lane = -22;
+                    pts.push([a.gap_right, out], [lane, out], [lane, into]);
+                }
+                pts.push([b.cx, into], [b.cx, b.band > a.band ? b.y : b.y + b.h]);
+                if (b.band > a.band) notes.push({ band: a.band, x: a.gap_right - 6, y: bands[a.band].y1 + 6, text: `to band ${b.band + 1}, ${b.name}`, align: 'right' });
+                notes.push({ band: b.band, x: b.cx + 8, y: b.band > a.band ? into - 16 : into + 4, text: `from band ${a.band + 1}` });
+            }
+            // Back to an earlier column of the same row, in a banded layout: over a track above the row
+            else if (bands && a.r === b.r && b.c < a.c) {
+                const y = row_top(a.r) - 14;
+                pts.push([a.cx, a.y], [a.cx, y], [b.cx, y], [b.cx, b.y]);
+            }
             // A missed deadline leaves an event downwards, so that it never runs through the ordinary path
-            if (timeout && b.r > a.r && b.c > a.c) pts.push([a.cx, a.y + a.h], [a.cx, b.cy], [b.x, b.cy]);
+            else if (timeout && b.r > a.r && b.c > a.c) pts.push([a.cx, a.y + a.h], [a.cx, b.cy], [b.x, b.cy]);
             else if (a.r === b.r && b.c > a.c) pts.push([a.x + a.w, a.cy], [b.x, b.cy]);
             else if (a.c === b.c) pts.push([a.cx, a.r < b.r ? a.y + a.h : a.y], [b.cx, a.r < b.r ? b.y : b.y + b.h]);
             else if (b.c - a.c > 2 && a.r !== b.r) {
@@ -129,7 +187,10 @@ function build_story(sample, options) {
             const from = by_id[a.id], to = by_id[a.compensation.activity_id];
             edges.push({ id: `comp:${a.id}`, a: nodes.indexOf(from), b: nodes.indexOf(to), segs: route(from, to), tip: null, kind: 'undo' });
         }
-        return { id: workflow.id, name: workflow.name, width, height, nodes, edges, by_id };
+        // Several edges from one band to the same node of another say so once
+        const said = new Set();
+        const kept_notes = notes.filter(n => { const k = `${n.band}|${n.text}`; if (said.has(k)) return false; said.add(k); return true; });
+        return { id: workflow.id, name: workflow.name, width, height, nodes, edges, by_id, bands, notes: kept_notes };
     }
     const layouts = sample.workflows.map(layout);
     const layout_of = id => layouts.find(l => l.id === id);
@@ -151,7 +212,7 @@ function build_story(sample, options) {
         const lay = layout_of(run.workflow_id);
         const when = t => `Day ${Math.floor((t - day0) / DAY) + 1} · ${clock(t)}`;
         const steps = [], state = lay.nodes.map(() => STATE.idle), lit = lay.edges.map(() => 0);
-        const pending_edges = [], tool_calls = {}, notes = {};          // notes: detail gathered for a node until its next step
+        const pending_edges = [], tool_calls = {}, notes = {}, guarded = new Set();   // notes: detail gathered for a node until its next step
         const ix = id => lay.nodes.findIndex(n => n.id === id);
         const push = (e, kind, cap, extra = {}) => {
             const n = e.node_id ? ix(e.node_id) : -1;
@@ -185,7 +246,22 @@ function build_story(sample, options) {
                     });
                     break;
                 case 'tool.invoked': tool_calls[d.call_id] = d; break;
+                case 'guardrail.triggered': {
+                    // A guardrail is told as a step of its own; the call it stopped is not told again
+                    const found = (d.categories || []).map(c => c.replace(/_/g, ' ')).join(', ') || d.check;
+                    const where = d.stage === 'tool_result' ? `what the tool ${d.tool} returned to “${name}”` : d.stage === 'output' ? `what “${name}” wrote` : d.stage === 'input' ? `what “${name}” was given` : `“${name}”`;
+                    push(e, 'guardrail', `A guardrail ${d.action === 'block' ? 'withholds' : d.action === 'redact' ? 'redacts' : 'flags'} ${where}: it found ${found}.`, {
+                        det: [['Guardrail', d.name], ['Check', d.check], ['Found', found], ['At', (d.stage || '').replace(/_/g, ' ')], ['Action', d.action]],
+                    });
+                    if (d.call_id) guarded.add(d.call_id);
+                    break;
+                }
+                case 'authorization.decided':
+                    if (d.decision === 'deny') push(e, 'refused', `The policy refuses “${name}” to ${d.principal.id}: ${String(d.reason).replace(/_/g, ' ')}.`, { det: [['Who', `${d.principal.id} (${d.principal.kind})`], ['Action', String(d.action).replace(/_/g, ' ')], ...(d.rule ? [['Rule', d.rule]] : []), ...(d.message ? [['Why', d.message]] : [])] });
+                    else if (d.approval) note(e, 'Approval', `${d.principal.id} approves, ${d.approval.given} of ${d.approval.required}.`);
+                    break;
                 case 'tool.completed': case 'tool.failed': {
+                    if (e.type === 'tool.failed' && guarded.has(d.call_id)) break;
                     const call = tool_calls[d.call_id] || d, b = call.binding || {};
                     const what = b.kind === 'http' ? `${b.method} ${call.link}` : b.kind === 'jsonrpc' ? `JSON-RPC ${call.link}` : call.link;
                     const ok = e.type === 'tool.completed';
@@ -259,7 +335,7 @@ function build_story(sample, options) {
 
     function tell(entry, definition) {
         const { instance, runs } = entry;
-        const name = entry.subject_name || (people.find(p => p.id === instance.subject_key) || {}).name || instance.subject_key;
+        const name = entry.subject_name || named(instance.data) || (people.find(p => p.id === instance.subject_key) || {}).name || instance.subject_key;
         // An event the subject does not send comes from the organisation's own systems
         const from_subject = new Set(definition.touchpoints.filter(t => t.on.event && t.direction === 'inbound' && t.party === 'subject').map(t => t.on.event));
         const day0 = Math.floor(ms(instance.started_at) / DAY) * DAY, start = ms(instance.started_at);
@@ -285,7 +361,7 @@ function build_story(sample, options) {
                     const system = definition.touchpoints.length > 0 && !from_subject.has(d.name);
                     const [title, cap] = inner ? [`Announced: ${d.name}`, `The workflow announces “${d.name}” to other systems.`] : (EVENT_SENTENCE[d.name]?.(name, d.data || {}) || [d.name, system ? `“${d.name}” is received.` : `${name}: ${d.name}.`]);
                     // The event that began the journey is told first, although the record creates the journey a moment before it
-                    add(i === first_event ? -1 : order, t, inner ? 'work' : system ? 'tech' : 'world', inner ? 'announced' : system ? 'signal' : 'event', title, cap, { outside: !inner, src: i, event_id: d.event_id });
+                    add(i === first_event ? -1 : order, t, inner ? 'work' : system ? 'tech' : 'world', inner ? 'announced' : system ? 'signal' : 'event', title, cap, { outside: !inner, src: i, event_id: d.event_id, ...(!inner && !EVENT_SENTENCE[d.name] ? { plain: true } : {}) });
                     break;
                 }
                 case 'journey.stage_entered': add(order, t, 'journey', 'stage_in', d.stage_name, `The journey enters the stage “${d.stage_name}”.`); break;
@@ -326,18 +402,24 @@ function build_story(sample, options) {
 
         // Touchpoints: who was in contact, over what, and what changed hands (spec 19.8)
         for (const contact of contacts) {
-            const d = contact.d, tp = { name: d.name, party: d.party, direction: d.direction, channel: d.channel, technology: d.technology || '', artefacts: d.artefacts || [], link: d.link };
+            const d = contact.d;
+            // A reference names one thing: a number or a text. A list or a record in its place is left out
+            const named_one = ref => typeof ref === 'number' || (typeof ref === 'string' && !ref.includes('[object Object]'));
+            const artefacts = (d.artefacts || []).map(a => (a.reference === undefined || named_one(a.reference) ? a : (({ reference, ...rest }) => rest)(a)));
+            const tp = { name: d.name, party: d.party, direction: d.direction, channel: d.channel, technology: d.technology || '', artefacts, link: d.link };
             const things = tp.artefacts.map(a => `${a.name.toLowerCase()}${a.reference ? ` ${a.reference}` : ''}`).join(', ');
             let beat = d.event_id ? beats.find(b => b.event_id === d.event_id)
                 : d.party === 'subject' ? beats.find(b => b.run === contact.r && b.t === contact.t && b.step !== undefined && !b.tp) : undefined;
             if (!beat) {
                 const partner = d.party !== 'subject';
                 add(contact.i * 1000 + 0.5, contact.t, partner ? 'tech' : 'world', partner ? 'partner' : 'told', d.name,
-                    partner ? `The ${d.party} is called over ${tp.technology}${things ? `: ${things}` : ''}.` : `${name}: ${d.name.toLowerCase()}.`, { run: contact.r, opens: contact.r });
+                    partner ? `The ${d.party} is called over ${tp.technology}${things ? `: ${things}` : ''}.` : `${name} ${d.name.charAt(0).toLowerCase()}${d.name.slice(1)}.`, { run: contact.r, opens: contact.r });
                 beat = beats.at(-1);
             }
             beat.tp = tp; beat.src = Math.max(beat.src ?? 0, contact.i);
             if (d.party === 'subject') beat.title = d.name;
+            // An event told by no sentence of its own is told by its touchpoint: "Tomás Reyes uploads the documents."
+            if (beat.plain && d.direction === 'inbound') beat.cap = `${d.party === 'subject' ? name : `The ${d.party}`} ${d.name.charAt(0).toLowerCase()}${d.name.slice(1)}.`;
         }
 
         beats.sort((a, b) => a.order < 0 ? -1 : b.order < 0 ? 1 : a.t - b.t || a.order - b.order);
@@ -352,7 +434,7 @@ function build_story(sample, options) {
         }
         let mood = instance.events[0]?.data?.sentiment ?? definition.sentiment?.initial ?? null;
         const mood_start = mood;
-        for (const b of beats) { if (b.mood_set !== undefined) mood = b.mood_set; b.mood = mood; delete b.mood_set; delete b.src; delete b.event_id; }
+        for (const b of beats) { if (b.mood_set !== undefined) mood = b.mood_set; b.mood = mood; delete b.mood_set; delete b.src; delete b.event_id; delete b.plain; }
         let stage = -1;
         beats.forEach((b, i) => {
             if (b.kind === 'stage_in') stage = definition.stages.findIndex(s => s.name === b.title);
@@ -422,8 +504,10 @@ function build_story(sample, options) {
         transitions: (sample.transitions || []).map(t => ({ from: kept.findIndex(j => j.id === t.from), to: kept.findIndex(j => j.id === t.to), count: t.count })).filter(t => t.from >= 0 && t.to >= 0),
         workflows: layouts.map(l => ({
             name: l.name, width: l.width, height: l.height,
-            nodes: l.nodes.map(n => ({ name: n.name, kind: n.kind, x: Math.round(n.x), y: Math.round(n.y), w: n.w, h: n.h, tag: n.kind === 'activity' ? (n.handler ? 'Undo step' : ACTOR_LABEL[n.actor]) : n.kind === 'decision' ? 'Decision' : { start: 'Start', end: 'End', timer: 'Timer', wait: 'Waits for event', publish: 'Announces event' }[n.mode] || 'Event', mode: n.mode || n.actor || 'decision' })),
+            nodes: l.nodes.map(n => ({ name: n.name, kind: n.kind, x: Math.round(n.x), y: Math.round(n.y), w: n.w, h: n.h, tag: n.kind === 'activity' ? (n.handler ? 'Undo step' : ACTOR_LABEL[n.actor]) : n.kind === 'decision' ? 'Decision' : { start: 'Start', end: 'End', timer: 'Timer', wait: 'Waits for event', publish: 'Announces event' }[n.mode] || 'Event', mode: n.mode || n.actor || 'decision', ...(l.bands ? { band: n.band } : {}) })),
             edges: l.edges.map(e => ({ a: e.a, b: e.b, kind: e.kind, segs: e.segs, tip: e.tip })),
+            // A banded layout: each band's label and extent, and where an edge leaves for, or arrives from, another band
+            ...(l.bands ? { bands: l.bands.map(b => ({ label: b.label, x0: b.x0, x1: b.x1, y0: b.y0, y1: b.y1 })), notes: l.notes.map(n => ({ band: n.band, x: Math.round(n.x), y: Math.round(n.y), text: n.text, ...(n.align ? { align: n.align } : {}) })) } : {}),
         })),
         journeys: kept,
     };

@@ -22,7 +22,8 @@ Eight scenarios run it to their end with scripted agents and the reference adapt
 | `bpmn/electricity-onboarding.{bpmn,dmn}` | Both workflows in BPMN 2.0, and their decision tables in DMN (specification section 27) |
 | `simulation.json`, `simulation-events.json` | What each activity returns, and the events that arrive, for a run in simulation |
 | `demo/live.mjs` | A live demonstration, paced for a viewer |
-| `demo/video.json` | The texts of the demonstration video, in English and in French, for `tools/video/record.mjs` |
+| `demo/video.json` | The plan of the demonstration video for `tools/video/record.mjs`: its cards, chapters, captions and scenes, in English |
+| `views/story-options.json` | The journey view's options for this example: how a customer is named, the hand layouts of both workflows, and the three bands of the onboarding workflow |
 | `build-definitions.py` | Writes the three definitions, so that identifiers stay stable |
 
 ## The process
@@ -179,10 +180,11 @@ node examples/electricity-onboarding/demo/live.mjs --scenario all --speed 2
 | `--adapters-port <n>` | 4545 | The port of the reference adapters; the tools are pointed at it |
 | `--then all` | none | After the chosen scenario, plays every other scenario, so that the journey view and the measures fill with customers |
 | `--then-speed <x>` | the value of `--speed` | The speed of the scenarios that `--then` adds |
+| `--then-pause <s>` | 0 | Seconds to wait, whatever the speed, between the chosen scenario and those `--then` adds |
 
 The demonstration starts the reference adapters, an AWA host in the process (an `AwaRuntime` with both workflows and the journey), scripted AI agents whose work takes one to three seconds, tools that really call the adapters over HTTP, and the SDK's HTTP server (`createServer` with `set_journey_runtime`). Then it plays the timeline: the application, the documents, the people completing their tasks under their own names, the signed contract, the completed switch. The business clock jumps where the scenario says hours or days pass.
 
-Each line of standard output is a JSON object: `{"t": <ms since start>, "kind": "action" | "event", "text": ..., "run_id": ..., "instance_id": ...}`. An `action` is something done to the host (an event published, a task completed); an `event` is something the host recorded (an activity completed, a tool called, a decision, a guardrail, a refusal, a journey stage). The first line, of kind `ready`, gives the views; the last, of kind `done`, gives the views of the main scenario's run:
+Each line of standard output is a JSON object: `{"t": <ms since start>, "kind": "action" | "event", "actor": ..., "text": ..., "run_id": ..., "instance_id": ...}`. An `action` is something done to the host (an event published, a task completed); an `event` is something the host recorded (an activity completed, a tool called, a decision, a guardrail, a refusal, a journey stage). `text` is a sentence a viewer reads, "Verify installation documents reads the commissioning report through the extraction service."; `actor` says who acted: `customer`, `system`, `agent` (an AI agent), `person`, `guardrail`, `refused` or `journey`. An `event` line also carries `event`, the type of the record it tells, and `workflow`; `subworkflow.started` and `subworkflow.completed` carry `child_run_id`, and `journey.stage_entered` carries `stage`. The first line, of kind `ready`, gives the views; the last, of kind `done`, gives the views of the main scenario's run:
 
 - `http://localhost:4600/views/journey.html?live=http://localhost:4600`: the journeys as they move;
 - `http://localhost:4600/views/dashboard.html?live=http://localhost:4600`: their measures;
@@ -194,11 +196,16 @@ Each action is written before the host performs it, so that a reader meets the a
 
 ## Record a video of it
 
-[`tools/video`](../../tools/video/README.md) records the live demonstration as a video, with the console, the run followed live, the journeys and the measures side by side, and a caption for each step. `demo/video.json` holds the texts of the video in English and in French.
+[`tools/video`](../../tools/video/README.md) records the live demonstration as a video of about two and a half minutes, in English. The frame shows the real journey view and measures page following the host, the record as it is written, four measures computed from it, and a caption for each step. Tomás Reyes, whose home has solar panels, applies; his journey is followed as a living blueprint; the run behind it is shown one band at a time; the child run that registers his export to the grid shows a guardrail withholding a report that carries hidden instructions, the agent handing the file to Hana, Hana refused the approval by the separation of duties and Gabriel approving; his journey reaches its goal. Then seven more customers, eight times faster, and the measures page, opened on the customer who is stuck, a journey opened into its stages and a number opened to the customers behind it.
 
 ```bash
-node tools/video/record.mjs --demo "node examples/electricity-onboarding/demo/live.mjs --port 4610 --speed 1 --then all --then-speed 8" --api http://localhost:4610 --script examples/electricity-onboarding/demo/video.json --lang en --out awa-electricity-onboarding-en.mp4
+cd sdk/typescript && npm install && npm run build && cd ../..
+node tools/video/record.mjs \
+  --demo "node examples/electricity-onboarding/demo/live.mjs --port 4610 --speed 1 --then all --then-speed 8 --then-pause 14" \
+  --api http://localhost:4610 --script examples/electricity-onboarding/demo/video.json --out awa-electricity-onboarding.mp4
 ```
+
+`demo/video.json` is the plan of the video: the cards, the chapters, the captions, and the scenes, each waiting for a line of the demonstration and moving the journey view through its own links. The views get `?options=views/story-options.json`, which names the customers from their application, lays out both workflows by hand, and wraps the 43 steps of the onboarding workflow into three bands, so that each band can be read at full size in the run view.
 
 ## Adapt it
 

@@ -347,8 +347,18 @@ describe('The live demonstration (demo/live.mjs)', () => {
             expect(lines[0]).toMatchObject({ kind: 'ready' });
             expect(lines.at(-1)).toMatchObject({ kind: 'done', run_id: result.run_id, instance_id: result.instance_id });
             expect(lines.every(l => typeof l.t === 'number' && ['ready', 'action', 'event', 'done'].includes(l.kind))).toBe(true);
-            expect(lines.filter(l => l.kind === 'action').map(l => l.text)).toContain('Gabriel, grid engineer, approves an export of 6.0 kW');
-            expect(lines.some(l => l.kind === 'event' && /^Refused: hana/.test(l.text))).toBe(true);
+            // Every line is a sentence a viewer reads, with who acted
+            const told = lines.filter(l => l.kind === 'action' || l.kind === 'event');
+            expect(told.every(l => ['customer', 'system', 'agent', 'person', 'guardrail', 'refused', 'journey'].includes(l.actor) && /[.]$/.test(l.text) && !/https?:|->/.test(l.text))).toBe(true);
+            expect(told.find(l => l.text === 'Gabriel, grid engineer, approves an export of 6.0 kW.')).toMatchObject({ kind: 'action', actor: 'person' });
+            expect(told.find(l => l.text === 'Tomás confirms the prosumer plan in the portal.')).toMatchObject({ actor: 'customer' });
+            expect(told.some(l => l.event === 'authorization.decided' && l.actor === 'refused' && /^Hana is refused Grid operator approval: Hana did Verify installation documents/.test(l.text))).toBe(true);
+            expect(told.some(l => l.event === 'guardrail.triggered' && l.actor === 'guardrail' && /the commissioning report is withheld from the agent/.test(l.text))).toBe(true);
+            // The agent's call is told before what the guardrail found in its answer
+            const guarded = told.findIndex(l => l.event === 'guardrail.triggered' && l.actor === 'guardrail');
+            expect(told[guarded - 1]).toMatchObject({ actor: 'agent', text: 'Verify installation documents reads the commissioning report through the extraction service.' });
+            expect(told.find(l => l.event === 'subworkflow.started')).toMatchObject({ child_run_id: result.child_run_id, run_id: result.run_id, instance_id: result.instance_id });
+            expect(told.filter(l => l.event === 'journey.stage_entered').map(l => l.stage)).toEqual(['Application', 'Verification', 'Energy choices', 'Grid export', 'Contract', 'Switch', 'Active']);
             expect(result.urls.replay).toContain(`/views/replay.html?run=${encodeURIComponent(`${demo.base}/api/v1/workflows/runs/${result.run_id}`)}`);
 
             // The journal of the run as Server-Sent Events, replayed from the start

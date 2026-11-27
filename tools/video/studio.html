@@ -5,121 +5,273 @@
 <meta name="viewport" content="width=1920, initial-scale=1.0">
 <title>AWA Studio</title>
 <!--
-  AWA Studio: one 1920 x 1080 screen that shows a live AWA execution from four
-  sides at once, for recording a demonstration video (tools/video/record.mjs).
+  AWA Studio: one 1920 x 1080 frame for recording a live AWA execution as a video (tools/video/record.mjs).
 
-    Console   what the operator does and what the engine records, line by line
-    Run       tools/visualization/replay.html following one run live (Server-Sent Events)
-    Journeys  tools/visualization/journey.html following the host (?live=)
-    Measures  tools/visualization/dashboard.html following the host (?live=)
+    Header   the example's name, its chapters (the current one highlighted), "live" and the elapsed time
+    Stage    the real journey view (tools/visualization/journey.html) at 1:1, 1440 x 900, and for the
+             measures the real measures page (dashboard.html) in the same place
+    Rail     Now: who the video follows and where they are; the record, as it is written; four measures,
+             computed from the live record by awa-kpis.js, the code the measures page uses
+    Caption  the step number and one sentence
 
-  The recorder drives the page through window.studio. Each view is rendered at a
-  larger size and scaled down, so that it shows its whole layout and stays legible.
+  The recorder drives the page through window.studio. The page follows the host itself (GET
+  /api/v1/journeys/portfolio) for the Now card and the measures. Design: the AWA Journey Storyboard, round 4.
 -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
 <style>
-  :root { --bg: #070a12; --panel: #0f1523; --line: rgba(255,255,255,.09); --text: #f3f4f6; --muted: #9ca3af;
-          --action: #fbbf24; --person: #34d399; --agent: #a78bfa; --event: #93c5fd; --fail: #f87171; }
+  :root { --bg: #0b0f19; --panel: #111827; --card: #1e293b; --line: rgba(255,255,255,.08); --text: #f8fafc; --soft: #cbd5e1; --mute: #9ca3af; --faint: #64748b;
+          --acc: #818cf8; --acc2: #a5b4fc; --ok: #10b981; --wait: #fbbf24; --bad: #ff4d4f; --agent: #a855f7; --sky: #38bdf8; }
   * { box-sizing: border-box; }
-  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: var(--bg); color: var(--text);
-               font: 15px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  header { height: 96px; display: flex; align-items: center; gap: 24px; padding: 0 28px; border-bottom: 1px solid var(--line);
-           background: linear-gradient(90deg, #111a2e, #0b1020); }
-  .brand { font-weight: 800; font-size: 22px; letter-spacing: .04em; white-space: nowrap; }
-  .brand small { display: block; font-weight: 600; font-size: 12px; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
-  #caption { flex: 1; font-size: 26px; font-weight: 650; line-height: 1.25; min-width: 0; transition: opacity .3s; }
-  #caption .step { color: var(--action); margin-right: 10px; }
-  #clock { font: 600 18px ui-monospace, Menlo, Consolas, monospace; color: var(--muted); white-space: nowrap; }
-  main { position: absolute; top: 96px; left: 0; right: 0; bottom: 0; display: grid; gap: 10px; padding: 10px;
-         grid-template-columns: 470px 1fr 1fr; grid-template-rows: 520px 1fr; }
-  section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-  section h2 { margin: 0; padding: 8px 14px; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted);
-               border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; }
-  section h2 span:last-child { text-transform: none; letter-spacing: 0; }
-  #console { grid-column: 1; grid-row: 1 / span 2; }
-  #run { grid-column: 2 / span 2; grid-row: 1; }
-  #journeys { grid-column: 2; grid-row: 2; }
-  #measures { grid-column: 3; grid-row: 2; }
-  .viewport { position: relative; flex: 1; overflow: hidden; }
-  .viewport iframe { position: absolute; top: 0; left: 0; border: 0; transform-origin: 0 0; background: #0b0f19; }
-  .placeholder { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 16px; }
-  #lines { flex: 1; overflow: hidden; padding: 10px 12px; font: 13px/1.45 ui-monospace, Menlo, Consolas, monospace; display: flex; flex-direction: column; justify-content: flex-end; }
-  .ln { padding: 3px 0 3px 10px; border-left: 3px solid transparent; animation: in .35s ease-out; white-space: pre-wrap; word-break: break-word; }
-  .ln .t { color: #6b7280; margin-right: 8px; }
-  .ln.action { border-left-color: var(--action); color: #fde68a; }
-  .ln.person { border-left-color: var(--person); color: #a7f3d0; }
-  .ln.agent { border-left-color: var(--agent); color: #ddd6fe; }
-  .ln.event { color: #cbd5e1; }
-  .ln.event .ty { color: var(--event); }
-  .ln.fail { border-left-color: var(--fail); color: #fecaca; }
-  @keyframes in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-  #card { position: absolute; inset: 0; background: rgba(7,10,18,.96); display: flex; flex-direction: column; justify-content: center;
-          align-items: center; text-align: center; gap: 18px; z-index: 10; transition: opacity .6s; }
-  #card h1 { margin: 0; font-size: 54px; font-weight: 800; max-width: 1500px; line-height: 1.15; }
-  #card p { margin: 0; font-size: 26px; color: var(--muted); max-width: 1400px; }
-  #card .tag { font-size: 16px; letter-spacing: .12em; text-transform: uppercase; color: var(--action); font-weight: 700; }
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: var(--bg); color: var(--text); font-family: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif; }
+  .hd { font-family: 'Space Grotesk', Inter, sans-serif; }
+  .mono { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
+
+  header { position: absolute; left: 0; top: 0; width: 1920px; height: 64px; padding: 0 24px; display: flex; align-items: center; gap: 18px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  .brand { font-weight: 700; font-size: 22px; letter-spacing: .02em; }
+  .divider { width: 1px; height: 24px; background: rgba(255,255,255,.14); }
+  #title { font-size: 14px; color: var(--soft); white-space: nowrap; }
+  #chapters { flex: 1 1 auto; display: flex; gap: 4px; justify-content: center; }
+  .pill { height: 30px; padding: 0 12px; border-radius: 8px; display: inline-flex; align-items: center; font-size: 13px; color: var(--faint); border: 1px solid transparent; white-space: nowrap; transition: color .4s, background-color .4s, border-color .4s; }
+  .pill.past { color: var(--soft); }
+  .pill.on { color: #fff; font-weight: 600; background: rgba(129,140,248,.18); border-color: rgba(129,140,248,.45); }
+  .live { display: inline-flex; align-items: center; gap: 8px; height: 28px; padding: 0 12px; border-radius: 999px; border: 1px solid rgba(16,185,129,.5); color: #6ee7b7; font-size: 13px; font-weight: 600; }
+  .live i { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); animation: beat 2s ease-in-out infinite; }
+  @keyframes beat { 50% { opacity: .35; } }
+  #clock { font-size: 15px; color: var(--mute); }
+
+  #stage { position: absolute; left: 24px; top: 80px; width: 1440px; height: 900px; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); background: var(--bg); }
+  #stage iframe { position: absolute; inset: 0; width: 1440px; height: 900px; border: 0; background: var(--bg); opacity: 0; pointer-events: none; transition: opacity .6s ease; }
+  #stage iframe.on { opacity: 1; pointer-events: auto; z-index: 1; }
+
+  #caption { position: absolute; left: 24px; top: 996px; width: 1440px; height: 64px; display: flex; align-items: center; gap: 20px; }
+  #step { font-size: 16px; color: var(--acc2); white-space: nowrap; }
+  #say { font-size: 24px; font-weight: 600; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  #caption.in #say, #caption.in #step { animation: up .45s ease both; }
+  @keyframes up { from { opacity: 0; transform: translateY(8px); } }
+
+  #rail { position: absolute; left: 1488px; top: 80px; width: 408px; height: 984px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); display: flex; flex-direction: column; overflow: hidden; }
+  .lab { font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--mute); }
+  #now { padding: 14px 16px 12px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+  #who { font-size: 22px; font-weight: 600; }
+  #what { font-size: 13px; color: var(--soft); }
+  #chips { display: flex; flex-wrap: wrap; gap: 6px; min-height: 22px; }
+  .chip { font-size: 12px; padding: 3px 9px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+  .t-acc { color: var(--acc2); } .t-ok { color: #34d399; } .t-wait { color: var(--wait); } .t-bad { color: #ff8a8c; } .t-soft { color: var(--soft); } .t-agent { color: #c084fc; }
+  #record { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: flex-end; gap: 2px; padding: 0 8px 12px; min-height: 0; overflow: hidden;
+            -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 56px); mask-image: linear-gradient(to bottom, transparent 0, #000 56px); }
+  .mo { flex: none; display: grid; grid-template-columns: 52px 1fr; gap: 10px; padding: 9px 10px; border-radius: 8px; border: 1px solid transparent; animation: in .4s ease-out; transition: background-color .4s, border-color .4s; }
+  .mo.last { background: rgba(129,140,248,.12); border-color: rgba(129,140,248,.45); }
+  .mo .t { font-size: 12px; color: var(--mute); padding-top: 2px; }
+  .mo .w { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .mo .a { align-self: flex-start; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+  .mo .x { font-size: 13px; line-height: 1.4; color: var(--soft); }
+  .mo.last .x { color: #fff; }
+  @keyframes in { from { opacity: 0; transform: translateY(10px); } }
+  .a-customer { color: var(--soft); } .a-system { color: var(--sky); } .a-agent { color: var(--agent); } .a-person { color: var(--wait); }
+  .a-guardrail, .a-refused { color: var(--bad); } .a-journey { color: var(--ok); }
+  #measures { padding: 12px 16px 16px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+  #tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .tile { padding: 10px 12px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .tile .l { font-size: 11px; color: var(--mute); }
+  .tile .v { font-size: 22px; font-weight: 600; white-space: nowrap; transition: color .4s; }
+  .tile .v.nov { color: var(--mute); font-size: 18px; line-height: 29px; font-weight: 500; }
+  .tile .s { font-size: 11px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* Title and closing cards */
+  #card { position: absolute; inset: 0; z-index: 10; background: radial-gradient(1200px 600px at 50% 40%, #151c33 0%, var(--bg) 70%); display: flex; flex-direction: column; justify-content: center; padding: 0 240px; gap: 22px; transition: opacity .7s ease; }
   #card.hidden { opacity: 0; pointer-events: none; }
+  #card .brand { font-size: 28px; color: var(--acc2); }
+  #card-tag { font-size: 15px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--wait); }
+  #card-title { margin: 0; font-size: 64px; line-height: 1.08; font-weight: 700; max-width: 1400px; }
+  #card-text { margin: 0; font-size: 26px; line-height: 1.45; color: var(--soft); max-width: 1300px; }
+  #card-points { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
+  #card-points span { font-size: 17px; padding: 10px 16px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); color: var(--soft); }
 </style>
 </head>
 <body>
 <header>
-  <div class="brand">AWA<small id="subtitle">Agentic Workflow Architecture</small></div>
-  <div id="caption"></div>
-  <div id="clock">00:00</div>
+  <span class="brand hd">AWA</span><span class="divider"></span><span id="title"></span>
+  <div id="chapters"></div>
+  <span class="live"><i></i>live</span><span id="clock" class="mono">00:00</span>
 </header>
-<main>
-  <section id="console"><h2><span id="console-title">Execution</span><span id="console-note"></span></h2><div id="lines"></div></section>
-  <section id="run"><h2><span id="run-title">Run</span><span id="run-note"></span></h2><div class="viewport"><div class="placeholder" id="run-placeholder"></div></div></section>
-  <section id="journeys"><h2><span id="journeys-title">Journeys</span><span id="journeys-note"></span></h2><div class="viewport"><div class="placeholder" id="journeys-placeholder"></div></div></section>
-  <section id="measures"><h2><span id="measures-title">Measures</span><span id="measures-note"></span></h2><div class="viewport"><div class="placeholder" id="measures-placeholder"></div></div></section>
-</main>
-<div id="card"><div class="tag" id="card-tag"></div><h1 id="card-title"></h1><p id="card-text"></p></div>
+<div id="stage"><iframe id="journey" title="Journey view"></iframe><iframe id="measures-page" title="Measures"></iframe></div>
+<div id="caption"><span id="step" class="mono"></span><span id="say"></span></div>
+<aside id="rail">
+  <div id="now"><span class="lab">Now</span><span id="who" class="hd"></span><span id="what"></span><div id="chips"></div></div>
+  <div style="padding:12px 16px 4px"><span class="lab">The record, as it is written</span></div>
+  <div id="record"></div>
+  <div id="measures"><span class="lab">Measures, live</span><div id="tiles"></div></div>
+</aside>
+<div id="card"><span class="brand hd">AWA</span><span id="card-tag"></span><h1 id="card-title" class="hd"></h1><p id="card-text"></p><div id="card-points"></div></div>
+<script src="../visualization/awa-kpis.js"></script>
+<script src="../visualization/journey-story-builder.js"></script>
 <script>
 (() => {
-  const $ = id => document.getElementById(id);
-  const started = Date.now();
-  setInterval(() => {
-    const s = Math.floor((Date.now() - started) / 1000);
-    $('clock').textContent = `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
-  }, 250);
-  const MAX_LINES = 40;
-  window.studio = {
-    /** Labels of the four panes and of the header */
-    labels(labels) {
-      for (const [key, value] of Object.entries(labels || {})) if ($(key)) $(key).textContent = value;
+'use strict';
+const $ = id => document.getElementById(id);
+const esc = v => String(v ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const K = window.AWA_MEASURES;
+const ACTOR = { customer: 'Customer', system: 'System', agent: 'AI agent', person: 'Person', guardrail: 'Guardrail', refused: 'Refused', journey: 'Journey' };
+const MAX_RECORD = 16;
+let started = Date.now(), chapters = [], chapter = -1, portfolio = null, focus = null, subjects = {}, naming = [], options = {};
+const mmss = ms => { const s = Math.max(0, Math.floor(ms / 1000)); return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; };
+setInterval(() => { $('clock').textContent = mmss(Date.now() - started); }, 250);
+
+/** A subject's name, by the paths the journey view's options give (options.subject_name) */
+const path = (data, p) => String(p).split('.').reduce((v, k) => (v == null ? undefined : v[k]), data);
+const name_of = row => row.subject_name || (naming.length ? naming.map(p => path(row.instance.data, p)).filter(Boolean).join(' ') : '') || row.instance.subject_key;
+const rows = () => (portfolio?.journeys || []).flatMap(j => j.instances.map(row => ({ j, row })));
+
+// Mood, in a word and a number, as the journey view says it
+const moodWord = v => v >= 1.5 ? 'delighted' : v >= 0.5 ? 'pleased' : v > -0.5 ? 'neutral' : v > -1.5 ? 'unhappy' : 'upset';
+const moodTone = v => v >= 0.5 ? 'ok' : v > -0.5 ? 'soft' : 'wait';
+const signed = v => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(Math.round(v * 10) / 10);
+
+/** Where a run stands, from its journal: waiting for a person, for an event, working, or ended. `from` says who sends an awaited event. */
+function run_state(run, from) {
+    const people = new Set(), events = new Set();
+    let ended = null;
+    for (const e of run.events) {
+        if (e.type === 'token.waiting' && e.data?.reason === 'human_task') people.add(e.node_id);
+        else if (e.type === 'activity.completed' || e.type === 'activity.failed') people.delete(e.node_id);
+        else if (e.type === 'event.waiting') events.add(e.data.name);
+        else if (e.type === 'event.received' || e.type === 'event.timed_out') events.delete(e.data.name);
+        else if (/^run\.(completed|failed|cancelled)$/.test(e.type)) ended = e.type.slice(4);
+    }
+    if (ended) return { text: ended, tone: ended === 'completed' ? 'ok' : ended === 'failed' ? 'bad' : 'soft' };
+    if (people.size) return { text: 'waiting for a person', tone: 'wait' };
+    if (events.size) return { text: `waiting for ${from([...events][0])}`, tone: 'wait' };
+    return { text: 'working', tone: 'agent' };
+}
+
+function render_now() {
+    if (!portfolio) return;
+    const found = focus && rows().find(x => x.row.instance.id === focus);
+    if (found) {
+        const { j, row } = found, i = row.instance, stage = j.definition.stages.find(s => s.id === i.stage_id);
+        const chips = [];
+        if (stage) chips.push([stage.name, i.status === 'completed' ? 'ok' : 'acc']);
+        if (i.status === 'completed') chips.push([(j.definition.goals || []).every(g => (i.goals_reached || []).includes(g.id)) ? 'goal reached' : 'completed', 'ok']);
+        else if (i.status === 'abandoned') chips.push(['left', 'soft']);
+        else if (i.stalled) chips.push(['stalled: needs someone', 'wait']);
+        // The run that is doing the work now: the deepest one still under way
+        const live = [...row.runs].reverse().find(r => !r.events.some(e => /^run\.(completed|failed|cancelled)$/.test(e.type)));
+        // Who sends what the run awaits: the customer, or the party the journey's touchpoint names
+        const from = name => { const tp = (j.definition.touchpoints || []).find(t => t.on && t.on.event === name && t.direction === 'inbound'); return !tp ? `“${name}”` : tp.party === 'subject' ? name_of(row).split(' ')[0] : `the ${tp.party}`; };
+        if (i.status === 'active' && live) { const s = run_state(live, from); chips.push([`${live.events.some(e => e.type === 'run.started' && e.data?.parent) ? 'child run' : 'run'}: ${s.text}`, s.tone]); }
+        if (typeof i.sentiment === 'number') chips.push([`mood ${moodWord(i.sentiment)} (${signed(i.sentiment)})`, moodTone(i.sentiment)]);
+        $('who').textContent = name_of(row);
+        $('what').textContent = subjects[i.subject_key] || j.definition.name;
+        $('chips').innerHTML = chips.map(([t, tone]) => `<span class="chip t-${tone}">${esc(t)}</span>`).join('');
+    } else {
+        // Everyone at once: how the journeys stand
+        const all = rows().map(x => x.row.instance), n = all.length;
+        const count = f => all.filter(f).length;
+        const stuck = all.filter(i => i.status === 'active' && i.stalled);
+        const words = ['No customers', 'One customer', 'Two customers', 'Three customers', 'Four customers', 'Five customers', 'Six customers', 'Seven customers', 'Eight customers', 'Nine customers', 'Ten customers'];
+        $('who').textContent = words[n] || `${n} customers`;
+        const j = portfolio.journeys?.[0];
+        const where = stuck.length && j ? `one stuck in ${(j.definition.stages.find(s => s.id === stuck[0].stage_id) || {}).name || stuck[0].stage_id}` : '';
+        $('what').textContent = [j?.definition.name, stuck.length > 1 ? `${stuck.length} stuck` : where].filter(Boolean).join(' · ');
+        const done = count(i => i.status === 'completed'), left = count(i => i.status === 'abandoned'), under = count(i => i.status === 'active' && !i.stalled);
+        $('chips').innerHTML = [[done, 'reached the end', 'ok'], [stuck.length, 'stuck', 'wait'], [left, 'left', 'soft'], [under, 'in progress', 'acc']].filter(c => c[0]).map(([k, t, tone]) => `<span class="chip t-${tone}">${k} ${t}</span>`).join('');
+    }
+}
+
+/** The four tiles: the measures page's rules, by the code it uses (awa-kpis.js) */
+function render_tiles() {
+    if (!portfolio || !K) return;
+    const R = K.compute_measures(portfolio), t = R.totals, FEW = 10;
+    const pct = v => `${Math.round(v * 100)}%`;
+    const started_n = t['journey.started']?.value ?? 0, active = t['journey.active']?.value ?? 0;
+    const goal = t['journey.goal_attainment'], auto = t['workflow.automation_rate'], cost = t['journey.cost_per_journey'], ran = t['workflow.cost'];
+    const ended = rows().filter(x => x.row.instance.status !== 'active').length;
+    const money = v => `${R.currency || ''} ${v >= 100 ? v.toFixed(0) : v >= 1 ? v.toFixed(2) : Number(v.toPrecision(2))}`.trim();
+    const tiles = [
+        ['Journeys started', String(started_n), `${active} in progress`],
+        ['Reached the goal', goal && goal.value !== null ? (goal.n < FEW ? `${Math.round(goal.value * goal.n)} of ${goal.n}` : pct(goal.value)) : null, goal && goal.value !== null ? (goal.n < FEW ? 'too few to call a rate' : `${Math.round(goal.value * goal.n)} of ${goal.n} journeys`) : 'no journey yet'],
+        ['Done without a person', auto && auto.value !== null ? pct(auto.value) : null, auto && auto.value !== null ? `${Math.round(auto.value * auto.n)} of ${auto.n} steps` : 'no step completed'],
+        ['Cost per journey', cost && cost.value !== null ? money(cost.value) : null, ended ? `${ended} ended ${ended === 1 ? 'journey' : 'journeys'}` : ran && ran.value !== null ? `${money(ran.value)} over ${ran.n} ended ${ran.n === 1 ? 'run' : 'runs'}` : 'no journey has ended'],
+    ];
+    $('tiles').innerHTML = tiles.map(([l, v, s]) => `<div class="tile"><span class="l">${esc(l)}</span><span class="v hd${v === null ? ' nov' : ''}">${esc(v === null ? 'no value' : v)}</span><span class="s">${esc(s)}</span></div>`).join('');
+}
+
+window.studio = {
+    /** The example's name, its chapters, and how its subjects are named and described */
+    init({ title, chapters: list, subjects: described, options: given }) {
+        $('title').textContent = title || '';
+        options = given || {};
+        chapters = list || []; subjects = described || {}; naming = options.subject_name || [];
+        $('chapters').innerHTML = chapters.map((c, k) => `<span class="pill" data-k="${k}">${esc(c)}</span>`).join('');
+        started = Date.now();
     },
-    caption(text, step) {
-      const el = $('caption');
-      el.style.opacity = 0;
-      setTimeout(() => { el.innerHTML = ''; if (step) { const s = document.createElement('span'); s.className = 'step'; s.textContent = step; el.append(s); }
-        el.append(document.createTextNode(text)); el.style.opacity = 1; }, 250);
+    /** Highlights a chapter. Chapters only move forward. */
+    chapter(name) {
+        const k = chapters.indexOf(name);
+        if (k < 0 || k <= chapter) return;
+        chapter = k;
+        document.querySelectorAll('.pill').forEach(p => { const i = +p.dataset.k; p.className = 'pill' + (i === k ? ' on' : i < k ? ' past' : ''); });
     },
-    line(kind, text, time) {
-      const div = document.createElement('div');
-      div.className = 'ln ' + (kind || 'event');
-      if (time) { const t = document.createElement('span'); t.className = 't'; t.textContent = time; div.append(t); }
-      const m = kind === 'event' ? /^(\S+)(.*)$/s.exec(text) : null;
-      if (m) { const ty = document.createElement('span'); ty.className = 'ty'; ty.textContent = m[1]; div.append(ty, document.createTextNode(m[2])); }
-      else div.append(document.createTextNode(text));
-      $('lines').append(div);
-      while ($('lines').children.length > MAX_LINES) $('lines').firstChild.remove();
+    caption(step, text) {
+        const box = $('caption');
+        $('step').textContent = step ? `Step ${step}` : ''; $('say').textContent = text || '';
+        box.classList.remove('in'); void box.offsetWidth; box.classList.add('in');
     },
-    /** Shows a page in a pane, rendered at `width` CSS pixels wide and scaled to fit */
-    view(pane, url, width, note) {
-      const viewport = document.querySelector(`#${pane} .viewport`);
-      const box = viewport.getBoundingClientRect();
-      const scale = box.width / width, height = box.height / scale;
-      let frame = viewport.querySelector('iframe');
-      if (!frame) { frame = document.createElement('iframe'); viewport.append(frame); }
-      frame.style.width = width + 'px'; frame.style.height = height + 'px'; frame.style.transform = `scale(${scale})`;
-      frame.src = url;
-      $(pane + '-placeholder').hidden = true;
-      if (note !== undefined) $(pane + '-note').textContent = note;
+    /** A line of the record: { actor, text } */
+    record(line) {
+        const div = document.createElement('div');
+        div.className = 'mo last';
+        div.innerHTML = `<span class="t mono">${mmss(Date.now() - started)}</span><div class="w"><span class="a a-${esc(line.actor)}">${esc(ACTOR[line.actor] || line.actor)}</span><span class="x">${esc(line.text)}</span></div>`;
+        const box = $('record');
+        box.querySelectorAll('.mo.last').forEach(x => x.classList.remove('last'));
+        box.append(div);
+        while (box.children.length > MAX_RECORD) box.firstChild.remove();
     },
-    note(pane, text) { $(pane + '-note').textContent = text; },
-    placeholder(pane, text) { $(pane + '-placeholder').textContent = text; },
-    card(tag, title, text) { $('card-tag').textContent = tag || ''; $('card-title').textContent = title || ''; $('card-text').textContent = text || ''; $('card').classList.remove('hidden'); },
+    /** Whom the Now card follows: a journey instance's id, or null for everyone */
+    focus(instance_id) { focus = instance_id || null; render_now(); },
+    /** Follows the host: the portfolio, every second */
+    follow(api) {
+        const poll = async () => {
+            try {
+                const r = await fetch(`${api}/api/v1/journeys/portfolio`, { headers: { accept: 'application/json' } });
+                if (r.ok) { portfolio = await r.json(); render_now(); render_tiles(); }
+            } catch { /* the host is starting or has stopped */ }
+        };
+        poll(); setInterval(poll, 1000);
+    },
+    /** Where an instance and a run are in the journey view's places: { j, i, r } */
+    place_of(instance_id, run_id) {
+        // As the builder counts them: a journey with no instance told is left out of the view's places
+        const journeys = (portfolio?.journeys || []).map(journey => journey.instances.filter(row => row.instance.events.length)).filter(told => told.length);
+        for (let j = 0; j < journeys.length; j++) {
+            const told = journeys[j];
+            const i = told.findIndex(row => row.instance.id === instance_id);
+            if (i < 0) continue;
+            const r = run_id ? told[i].runs.findIndex(run => run.run_id === run_id) : 0;
+            return r < 0 ? null : { j, i, r };
+        }
+        return null;
+    },
+    /** The position of the first step of a kind ("guardrail", "refused", "human_wait") in a run, as the journey view counts steps */
+    step_of(instance_id, run_id, kind) {
+        const where = this.place_of(instance_id, run_id);
+        if (!where || !window.AWA_build_story) return -1;
+        const run = window.AWA_build_story(portfolio, options).journeys[where.j]?.instances[where.i]?.runs[where.r];
+        return run ? run.steps.findIndex(s => s.kind === kind) : -1;
+    },
+    /** Shows a page on the stage: "journey" or "measures", loading it the first time */
+    show(which, url) {
+        const frame = which === 'measures' ? $('measures-page') : $('journey');
+        if (url && frame.dataset.url !== url) { frame.src = url; frame.dataset.url = url; }
+        for (const f of document.querySelectorAll('#stage iframe')) f.classList.toggle('on', f === frame);
+    },
+    card(card) {
+        $('card-tag').textContent = card.tag || ''; $('card-title').textContent = card.title || ''; $('card-text').textContent = card.text || '';
+        $('card-points').innerHTML = (card.points || []).map(p => `<span>${esc(p)}</span>`).join('');
+        $('card').classList.remove('hidden');
+    },
     hideCard() { $('card').classList.add('hidden'); },
-  };
+};
 })();
 </script>
 </body>

@@ -46,6 +46,7 @@ The picture at any position is computed from the journal events up to that posit
 | "Open a record" | The file written by `awa journey export` |
 | `dashboard.html?data=<url>` | The same, from an address |
 | `dashboard.html?live=http://localhost:3000` | A running AWA server, read every few seconds |
+| `&options=<url>`, with `?data=` or `?live=` | The journey view's options (below): the page names customers by `subject_name`, and passes the options on to the journey view |
 | `window.AWA_dashboard_show(record, source)` | For a page that embeds this one. It may set `window.AWA_open_journey = (journey, instance, record) => …` to say how a customer's journey is opened when no journey view sits beside the page |
 | `awa measures --html measures.html` | One file with the record inside it: nothing to install, nothing fetched, to send to someone or attach to a report |
 | `http://localhost:3000/views/dashboard.html?live=http://localhost:3000` | The page as `awa serve` serves it: the SDK package carries the measures page and the journey view |
@@ -72,16 +73,30 @@ To see your own journeys:
 |---|---|
 | "Open a record", or drop a file on the page | The file written by `awa journey export`, or by `GET /api/v1/journeys/portfolio` |
 | `journey.html?data=<url>` | The same, from an address |
-| `journey.html?live=http://localhost:3000` | Follows an AWA server: the view updates as journeys progress, and a reader at the latest moment stays there |
+| `journey.html?live=http://localhost:3000` | Follows an AWA server: the view updates as journeys progress, and a reader at the latest moment stays there. `&poll=<ms>` reads it that often (3000 by default, 500 at least) |
+| `&options=<url>`, with `?data=` or `?live=` | The builder's options for this record, as JSON (below) |
 
-`journey-story-builder.js` turns a record into what the view plays. It works on any record; an example may pass it hand-made workflow layouts and sentences for its own events, as `examples/claims-journey/make-story.mjs` does. `journey.check.mjs` checks the view in a browser (needs Playwright).
+`journey-story-builder.js` turns a record into what the view plays. It works on any record; an example may pass it options, as `examples/claims-journey/make-story.mjs` does and as `?options=` does for a record the view loads:
+
+| Option | Meaning |
+|---|---|
+| `layouts` | By workflow name, `{ "<node name>": [column, row] }`: a layout made by hand. It replaces the rule when it places every node of the workflow |
+| `bands` | By workflow name, `[{ "row": 0, "label": "…" }, …]`: the rows where each band of a long workflow starts. Each band is a row of columns of its own, and the run view shows one band at a time |
+| `subject_name` | Paths in a journey instance's data whose values, joined by a space, name its customer: `["applicant.first_name", "applicant.last_name"]`. The record's `subject_name` comes first; without either, the customer is named by the journey's key |
+| `sentences` | By event type, `(name, data) => [title, sentence]`: how a business event is told. A function, so only for a page or a script that calls the builder |
+
+`examples/electricity-onboarding/views/story-options.json` is a complete example: names, a 43-node layout in three bands, and a layout of its child workflow. The measures page takes the same `?options=` to name customers, and passes it on to the journey view it links to.
+
+In a layout with bands, an edge to a node in another band leaves by the clear lane beside its source's column, runs along the gap next to the target's band, and comes into the target; a band beyond the next one is reached round the left edge of the bands. An edge back to an earlier column of the same row goes over a track above the row. A small note says where an edge comes from or goes to, "from band 1", "to band 3, Generate contract". Layouts without bands are routed as before.
+
+`journey.check.mjs` checks the view in a browser (needs Playwright), the options included.
 
 | Height | Shows | Go down by | 
 |---|---|---|
 | Journeys | Each journey with its stages and outcomes, how many customers go on to the next, and each customer's path and mood across them | Selecting a journey, or a customer's cell |
 | One journey | Every customer in it on calendar time, with live counts per stage | Selecting a lane |
 | One customer's journey | Mood, touchpoints, the journey's stages, the workflows behind them, the technology used and the documents exchanged, against the same moments | Selecting a workflow bar |
-| One run | The workflow replayed step by step, with the journal evidence for each step | |
+| One run | The workflow replayed step by step, with the journal evidence for each step. A workflow in bands shows a chip per band, numbered and marked done, now or next; the graph shows the band of the step being read, large enough to read, and slides to the next band when the step moves there. A chip shows another band | |
 
 The switch at the top right moves sideways to another journey; on one customer's journey it keeps the customer. The arrows beside a customer's name move to the next customer in the same journey.
 
@@ -90,7 +105,7 @@ The switch at the top right moves sideways to another journey; on one customer's
 | Play, or the buttons beside it | Tell the story, step, or return to the start |
 | ← → | Step back or forward |
 | Esc | Go up one height |
-| The address | Carries the place: copy it to share exactly what you are looking at |
+| The address | Carries the place, `#level/journey/customer/run/position` (`#story/0/2/0/999` is the third customer's latest moment): copy it to share exactly what you are looking at. A page that embeds the view, or a link, may change it while the page is open, and the view goes there |
 
 On one customer's journey nothing is hidden: selecting a mark reads that moment and dims what comes after. "Read as a list" gives the same story as a dated list, by default only the customer's side.
 

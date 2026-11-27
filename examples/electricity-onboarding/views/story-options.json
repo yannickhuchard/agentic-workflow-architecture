@@ -55,6 +55,19 @@
       "Activate customer": [7, 7],
       "Customer activated": [8, 7],
       "Customer active": [9, 7]
+    },
+    "Grid Export Registration": {
+      "Export registration requested": [0, 1],
+      "Verify installation documents": [1, 1],
+      "Classify installation": [2, 1],
+      "Send simplified notification": [3, 0],
+      "Grid operator approval": [3, 1],
+      "Grid operator approval, two engineers": [3, 2],
+      "Register export meter and tariff": [4, 0],
+      "Record export refusal": [4, 1],
+      "Refer to commercial team": [4, 2],
+      "Export registered": [5, 0],
+      "Export not registered": [5, 2]
     }
   }
 }
