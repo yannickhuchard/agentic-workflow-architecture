@@ -100,5 +100,18 @@
         "effect": { "method": "pilot", "text": "Not measurable by replay: the path is new. Run it as a pilot and measure the customers who leave at Application." } }
     ],
     "replays": "../recommendations/replays.json"
+  },
+  "dossier": {
+    "subject": ["household", "households"],
+    "lead": "{Count} households, from the web form to an active electricity supply: their own stories, the work of agents, people and systems behind them, what the record shows, and what to change.",
+    "say": {
+      "plan-recommended": "I had a recommendation: the {plan} plan, about {estimated_annual_cost_eur} euros a year",
+      "welcomed": "the welcome e-mail came: supplied from {supply_start_date}, on the plan I had chosen"
+    },
+    "facts": [
+      { "label": "Where", "value": "{supply_address.city}" },
+      { "label": "Plan", "value": "{plan}, {source_offered}" },
+      { "label": "Use", "value": "{annual_consumption_kwh} kWh a year" }
+    ]
   }
 }

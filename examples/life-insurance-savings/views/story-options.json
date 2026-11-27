@@ -181,5 +181,20 @@
         "effect": { "method": "pilot", "text": "Not knowable from the record: run it as a pilot and measure the members who leave at the invitation." } }
     ],
     "replays": "../recommendations/replays.json"
+  },
+  "dossier": {
+    "subject": ["member", "members"],
+    "promise": false,
+    "lead": "{Count} colleagues of Kestrel Engineering, from the invitation to their tax certificate: their own stories, the work of agents, people and systems behind them, what the record shows, and what to change.",
+    "say": {
+      "funds-proposed": "I received an investment proposal for a {risk_profile} profile",
+      "tax-certificate": "I received my tax certificate: {deductible_eur} euros deductible under Art. {deduction_article}",
+      "decides-recommendations": "I gave my answer to the recommendations"
+    },
+    "facts": [
+      { "label": "Employer", "value": "{employer.name}" },
+      { "label": "Saving", "value": "{monthly_contribution_eur} euros a month" },
+      { "label": "Profile", "value": "{risk_profile}" }
+    ]
   }
 }
