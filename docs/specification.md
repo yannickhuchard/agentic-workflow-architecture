@@ -852,6 +852,8 @@ When a run fails, before recording `run.failed`, the engine MUST compensate ever
 - Handlers execute one at a time, in reverse order of the completion of the activities they undo.
 - A handler receives the output of the activity it undoes and a description of the failure. It receives an idempotency key (10.4) so that it can be made safe to repeat.
 - A handler that raises is recorded as `activity.compensation_failed`; the remaining handlers still execute.
+- A handler calls the tools it declares as an activity's attempt does (17.3), as attempt 1. Its calls are not decided under an authorization policy (30.4), but the guardrails of stages `tool_call` and `tool_result` (31.3) apply to them as to any activity's calls, from the deployment, the workflow, the handler's role, the handler and the tool, and each that acts is recorded as `guardrail.triggered`. The stages `input` and `output` do not apply to a handler.
+- The connections its calls open (17.7, 17.8) are closed when compensation ends, whether the handlers succeeded or not.
 
 `run.failed` carries `compensation.attempted` and `compensation.succeeded`. A run in which these differ needs human attention: some effects were not undone.
 
@@ -2751,6 +2753,8 @@ sequenceDiagram
 The stage `tool_result` checks what an agent reads from the world before the agent reads it. Text inside a web page, an e-mail or a document can carry instructions written for the agent (an indirect prompt injection), and the stage `input` checks only the input the activity starts with. AEP 0002 records this decision.
 
 Because an output guardrail runs first, the contract and verification see the output as the guardrails left it, and an output a guardrail blocked is never judged. The checks `json_schema`, `allowed_values` and `topic` at stage `output` apply to the outcome (11.1); the other checks apply to the whole value of the table.
+
+The stages `tool_call` and `tool_result` also apply to the calls of a compensation handler (13.6), which is exempt from authorization decisions (30.4) but not from guardrails.
 
 A guardrail of stage `input` or `output` does not apply to an activity performed by a person who answers an escalation (31.5), nor to a human decision given when a token resumes (5.6). The terms of an outcome contract still bind those (11.5).
 

@@ -69,7 +69,8 @@ flowchart TD
     SC -. no confirmation: the run fails .-> COMP[Compensation:<br/>refund deposit, cancel account and mandate]
 
     subgraph GX [Grid export registration]
-        G1[Verify installation documents<br/>AI agent] --> G2{Classify installation<br/>technology and kW}
+        G1[Verify installation documents<br/>AI agent] -- installation valid --> G2{Classify installation<br/>technology and kW}
+        G1 -- installation not valid --> G8[Record export refusal]
         G2 -- small --> G3[Send simplified notification]
         G2 -- medium --> G4[Grid operator approval<br/>grid engineer]
         G2 -- above the four-eyes threshold --> G5[Grid operator approval<br/>two engineers]
@@ -77,6 +78,8 @@ flowchart TD
         G3 --> G7[Register export meter and tariff]
         G4 --> G7
         G5 --> G7
+        G4 -- not approved --> G8
+        G5 -- not approved --> G8
     end
     V -.-> G1
 ```
@@ -89,7 +92,7 @@ The journey that follows the household has seven stages: **Application**, **Veri
 |---|---|
 | Business events, correlated waits with deadlines (18) | `documents.uploaded` (7 days, a reminder, 7 more days), `plan.confirmed`, `contract.signed`, `switch.completed`, all correlated on `application_id` |
 | Published events that move the journey (18.2, 19.5) | `onboarding.verified`, `plan.chosen`, `grid_export.completed`, `customer.activated`, `onboarding.declined`, `onboarding.abandoned` |
-| An AI agent under an outcome contract, with escalation to a person (11) | Verify documents and Verify installation documents: every required document checked, every one legible, confidence of at least 0.75, budgets; otherwise a person decides |
+| An AI agent under an outcome contract, with escalation to a person (11) | Verify documents and Verify installation documents: every required document checked, every one legible, confidence of at least 0.75, budgets; otherwise a person decides. An installation found not valid, by the agent or the person, goes to Record export refusal and is neither classified nor registered |
 | Guardrails (31) | `prompt_injection` at stage `tool_result` on the documents the verifiers read; `personal_data` redaction of the verifiers' notes; no IBAN or phone number in the welcome message; and, in the deployment, `prompt_injection` on every agent's input and IBAN redaction on every agent's output |
 | Parallel split and synchronising join (13.1, 13.2) | Credit and identity check beside the metering point lookup, joined at Checks complete |
 | Decision tables (5.5) | Required documents and Plan eligibility (hit policy `collect`), Eligibility, Electricity source, Classify installation (`first`) |

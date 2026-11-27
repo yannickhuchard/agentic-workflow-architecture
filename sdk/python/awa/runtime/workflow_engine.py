@@ -2179,6 +2179,13 @@ class WorkflowEngine:
         a compensation handler is compensated, most recently completed first.
         A handler that fails does not stop the others.
         """
+        # The run's sessions were closed when it settled: what the handlers open is closed here, whatever happens (13.6)
+        try:
+            return self._compensate_all()
+        finally:
+            self._tool_sessions.close()
+
+    def _compensate_all(self) -> dict[str, int]:
         attempted = succeeded = 0
         failure = next((t for t in self._tokens.values() if t.status == TokenStatus.FAILED), None)
 
@@ -2209,7 +2216,8 @@ class WorkflowEngine:
                 }, workflow_id=str(self.workflow.id))
                 scratch.id = done["token_id"]
                 # A handler calls the tools it declares through the same runner as any activity, so its calls are
-                # checked and journalled (17.3). It undoes work already allowed and is not decided under a policy (30.4).
+                # checked and journalled (17.3). It undoes work already allowed and is not decided under a policy (30.4),
+                # but its calls are held to the guardrails (31.3).
                 def record(type: str, data: dict[str, Any], level: str = "execution", _handler_id: str = handler_id,
                            _token_id: str = done["token_id"]) -> JournalEvent:
                     return self._record(type, data, token_id=_token_id, node_id=_handler_id, attempt=1, level=level)
@@ -2219,7 +2227,8 @@ class WorkflowEngine:
                     context.tools = ToolRunner(
                         handler.tools, self._tool_options, record, self._journal.payload,
                         max_calls=budgets.max_tool_calls if budgets and budgets.max_tool_calls is not None else 16,
-                        simulate=bool(self.simulate), now=self._now)
+                        simulate=bool(self.simulate), now=self._now,
+                        guard=None if self._guardrails.empty else self._tool_guard(scratch, handler, 1))
                 result = self._call_actor(actor, handler, scratch, context)
                 succeeded += 1
                 self._record("activity.compensated", {**about, "output": self._journal.payload(public_payload(result))},

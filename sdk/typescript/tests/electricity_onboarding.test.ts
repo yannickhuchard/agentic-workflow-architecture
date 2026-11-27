@@ -29,9 +29,10 @@ const load = async () => ({
 });
 
 /** One host for one scenario, its tools handed to the reference adapters in this process */
-async function host() {
+async function host(extra: any[] = []) {
     const { play, adapters } = await load();
     const example = play.load_example();
+    example.scenarios.push(...extra);
     let clock = Date.parse('2026-11-02T09:00:00.000Z');
     const spend = (ms: number) => { clock += ms; };
     const today = () => new Date(clock).toISOString().slice(0, 10);
@@ -137,6 +138,45 @@ describe('The electricity onboarding example: scenarios', () => {
     });
 });
 
+describe('The electricity onboarding example: an installation that is not valid', () => {
+    // Small wind, but the verifier finds the installation not valid while every document is legible and it is sure
+    const small_wind = SCENARIOS.find(s => s.name === 'small-wind');
+    const invalid = {
+        ...structuredClone(small_wind), name: 'small-wind-invalid',
+        application: { ...structuredClone(small_wind.application), application_id: 'APP-24903' },
+        actors: {
+            ...structuredClone(small_wind.actors),
+            'Verify installation documents': { output: { installation_valid: false, serials_match: true, confidence: 0.95,
+                notes: 'The compliance certificate is for a turbine model that is not certified for export at this connection.' } },
+        },
+        expect: {
+            run_status: 'completed', journey_status: 'completed',
+            records: [
+                { type: 'subworkflow.completed', node_name: 'Register grid export', data: { output: { export_status: 'not_approved' } } },
+                { type: 'activity.completed', node_name: 'Record export refusal' },
+            ],
+            absent: [
+                { type: 'decision.evaluated', node_name: 'Classify installation' },
+                { type: 'activity.started', node_name: 'Send simplified notification' },
+                { type: 'activity.started', node_name: 'Register export meter and tariff' },
+                { type: 'contract.escalated', node_name: 'Verify installation documents' },
+            ],
+        },
+    };
+
+    it('is refused without being classified or registered, and without a person', async () => {
+        const { play, example, runtime, journal, onboarding, grid, spend, today } = await host([invalid]);
+        const instance = await play.play(sdk, runtime, journal, example, invalid, { advance: spend, today });
+        const bundle = await runtime.export_journey(instance.id);
+        expect(play.check_expectations(invalid, instance, bundle.runs, onboarding.id)).toEqual([]);
+        const child = instance.runs.find(r => r.parent_run_id)!;
+        expect(child).toMatchObject({ workflow_id: grid.id, status: 'completed' });
+        // From the verifier, the token takes the default edge to the refusal, and ends at "Export not registered"
+        const moves = bundle.runs.find(r => r.run_id === child.run_id)!.events.filter(e => e.type === 'token.moved').map(e => [e.node_name, (e.data as any).reason]);
+        expect(moves).toEqual([['Verify installation documents', 'unconditional'], ['Record export refusal', 'default'], ['Export not registered', 'unconditional']]);
+    });
+});
+
 describe('The electricity onboarding example: what make-runs.mjs committed', () => {
     it('the evidence report is what this SDK makes of journeys.json', async () => {
         const input = await read_evidence_input([file('journeys.json')]);
@@ -205,6 +245,93 @@ describe('A compensation handler calls the tools it declares (13.6, 17.3)', () =
         expect(events.find(e => e.type === 'tool.completed')).toMatchObject({ attempt: 1, data: { tool: 'cancel', link: 'function:cancel' } });
         expect(events.find(e => e.type === 'activity.compensated')!.data).toMatchObject({ output: { cancelled: true } });
         expect(events.at(-1)!.data).toMatchObject({ compensation: { attempted: 1, succeeded: 1 } });
+    });
+
+    const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+    /** Book, then fail, so that "Cancel booking" compensates; its tool is bound as given */
+    const book_and_fail = (extra: { guardrails?: unknown[]; binding?: unknown; tool_guardrails?: unknown[] } = {}) => sdk.parse_document({
+        id: id(1), name: 'Book and fail', version: '1.0.0', awa_version: '1.1',
+        ...(extra.guardrails ? { guardrails: extra.guardrails } : {}),
+        roles: [{ id: id(2), name: 'System', actor_type: 'application' }],
+        activities: [
+            { id: id(3), name: 'Book', role_id: id(2), actor_type: 'application', compensation: { activity_id: id(5) } },
+            { id: id(4), name: 'Fail', role_id: id(2), actor_type: 'application' },
+            { id: id(5), name: 'Cancel booking', role_id: id(2), actor_type: 'application',
+                tools: [{ name: 'cancel', description: 'Cancel a booking', parameters: { type: 'object', required: ['booking'], properties: { booking: { type: 'string' } } },
+                    binding: extra.binding || { kind: 'function', name: 'cancel' }, ...(extra.tool_guardrails ? { guardrails: extra.tool_guardrails } : {}) }] },
+        ],
+        edges: [{ id: id(6), source_id: id(3), target_id: id(4) }],
+    });
+    const booking_actor = (booking: string, after?: (call: any) => void) => ({
+        execute: async (activity: any, inputs: any, context: any) => {
+            if (activity.name === 'Book') return { booking };
+            if (activity.name === 'Fail') throw Object.assign(new Error('Nothing more can be done'), { code: 'VALIDATION_ERROR' });
+            const call = await context.tools.call('cancel', { booking: inputs.booking });
+            after?.(call);
+            return { cancelled: call.ok, result: call.result };
+        },
+    });
+
+    it('under the guardrails of the deployment, the workflow and the tool, at tool_call and tool_result (31.3)', async () => {
+        const cancelled: unknown[] = [];
+        const workflow = book_and_fail({
+            guardrails: [{ id: id(10), name: 'No internal bookings', stages: ['tool_call'], check: { kind: 'deny_list', terms: ['INTERNAL'], whole_words: false }, action: 'block', actor_types: ['application'] }],
+            tool_guardrails: [{ id: id(11), name: 'No email in results', stages: ['tool_result'], check: { kind: 'personal_data', categories: ['email'] }, action: 'redact', replacement: '[email]' }],
+        });
+        const handlers = { cancel: (args: any) => { cancelled.push(args); return { note: 'Cancelled, receipt sent to ada@example.com' }; } };
+        const run = async (booking: string) => {
+            const engine = new sdk.WorkflowEngine(workflow, { actors: { application: booking_actor(booking) }, tools: { handlers }, execution_logger: { log_execution: async () => { } } });
+            await engine.start({});
+            await engine.run();
+            return engine.getEvents();
+        };
+
+        // The call goes out, and what comes back is redacted by the tool's own guardrail
+        let events = await run('B-1');
+        expect(cancelled).toEqual([{ booking: 'B-1' }]);
+        let triggered = events.filter(e => e.type === 'guardrail.triggered');
+        expect(triggered.map(e => e.data)).toMatchObject([{ guardrail_id: id(11), source: 'tool', stage: 'tool_result', action: 'redact', tool: 'cancel' }]);
+        expect(triggered[0]).toMatchObject({ node_name: 'Cancel booking', attempt: 1 });
+        expect(events.find(e => e.type === 'activity.compensated')!.data).toMatchObject({ output: { cancelled: true, result: { note: 'Cancelled, receipt sent to [email]' } } });
+
+        // The workflow's guardrail refuses the call: the tool is not called
+        events = await run('INTERNAL-7');
+        expect(cancelled).toHaveLength(1);
+        triggered = events.filter(e => e.type === 'guardrail.triggered');
+        expect(triggered.map(e => e.data)).toMatchObject([{ guardrail_id: id(10), source: 'workflow', stage: 'tool_call', action: 'block', tool: 'cancel' }]);
+        expect(events.filter(e => e.node_name === 'Cancel booking').map(e => e.type)).toEqual(['guardrail.triggered', 'tool.failed', 'activity.compensated']);
+        expect(events.find(e => e.type === 'tool.failed')!.data).toMatchObject({ error: { code: 'GUARDRAIL_BLOCKED' } });
+
+        // A deployment's guardrail applies the same way
+        const engine = new sdk.WorkflowEngine(book_and_fail(), {
+            actors: { application: booking_actor('B-2') }, tools: { handlers }, execution_logger: { log_execution: async () => { } },
+            guardrails: [{ id: id(12), stages: ['tool_call'], check: { kind: 'deny_list', terms: ['B-2'] }, action: 'block', actor_types: ['application'] }],
+        });
+        await engine.start({});
+        await engine.run();
+        expect(cancelled).toHaveLength(1);
+        expect((await engine.getEvents()).filter(e => e.type === 'guardrail.triggered').map(e => e.data)).toMatchObject([{ source: 'deployment', stage: 'tool_call', action: 'block' }]);
+    });
+
+    it('and the sessions its calls open are closed after compensation, whether the handler succeeds or fails', async () => {
+        for (const fails of [false, true]) {
+            let opened = 0, closed = 0;
+            const executors = {
+                mcp: async (_binding: unknown, _args: unknown, context: any) => {
+                    await context.sessions.get('fake-server', async () => { opened++; return { close: async () => { closed++; } }; });
+                    return { result: { ok: true } };
+                },
+            };
+            const actor = booking_actor('B-1', () => { if (fails) throw new Error('The booking system is down'); });
+            const engine = new sdk.WorkflowEngine(book_and_fail({ binding: { kind: 'mcp', server: 'bookings', tool: 'cancel' } }),
+                { actors: { application: actor }, tools: { executors }, execution_logger: { log_execution: async () => { } } });
+            await engine.start({});
+            await engine.run();
+            expect(engine.getStatus()).toBe('failed');
+            const events = await engine.getEvents();
+            expect(events.some(e => e.type === (fails ? 'activity.compensation_failed' : 'activity.compensated'))).toBe(true);
+            expect({ fails, opened, closed }).toEqual({ fails, opened: 1, closed: 1 });
+        }
     });
 });
 
