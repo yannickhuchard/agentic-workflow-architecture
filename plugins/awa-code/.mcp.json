@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "awa": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/server/start.mjs"],
+      "env": { "AWA_REPOSITORY": "${user_config.repository}" }
+    }
+  }
+}

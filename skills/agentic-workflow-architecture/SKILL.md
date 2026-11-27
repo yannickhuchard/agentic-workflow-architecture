@@ -12,6 +12,17 @@ AWA is a next-generation business process specification designed for AI-native w
 
 This skill can be installed in various AI-powered development environments:
 
+### As a plugin, with the AWA MCP server
+
+The AWA plugin carries this skill together with the AWA MCP server (validate, show and simulate workflows and journeys) and four commands. It installs in Claude Code, Cursor, Mistral Vibe and Gemini CLI; ChatGPT, Claude Desktop, claude.ai and Le Chat connect to the same server. The steps for each assistant are in [`docs/guides/connect-ai-assistants.md`](https://github.com/yannickhuchard/agentic-workflow-architecture/blob/main/docs/guides/connect-ai-assistants.md). In Claude Code, from a built clone of this repository:
+
+```text
+/plugin marketplace add ./
+/plugin install awa@agentic-workflow-architecture
+```
+
+The sections below install the skill on its own.
+
 ### Claude Code (Web Interface)
 
 1. **Enable Skills Feature:**
