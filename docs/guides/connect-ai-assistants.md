@@ -118,7 +118,7 @@ An MCP Bundle is a single `.mcpb` file holding the server and everything it need
    ```
 
    It writes `apps/mcp-server/dist/awa-workflows-0.1.0.mcpb` (about 30 MB) and prints `the server starts over stdio and lists 7 tools`.
-2. Double-click the file, or drag it into the Claude Desktop window, or open **Settings**, **Extensions**, **Advanced settings**, **Install Extension** and choose it.
+2. Double-click the file, or drag it into the Claude Desktop window, or open **Settings**, **Extensions**, **Advanced settings**, **Install Extension** and choose it. (In newer versions, Extensions is under **Settings**, **Desktop app**, **Manage**.)
 3. Review the details and select **Install**.
 4. In a conversation, select the **+** button below the message box, then **Connectors**: **AWA Workflows & Journeys** is listed with its 7 tools.
 5. Ask: "Load the AWA claims example and show its dashboard."
