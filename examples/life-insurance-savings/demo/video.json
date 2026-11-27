@@ -1,0 +1,122 @@
+{
+  "title": "Workplace pension savings",
+  "options": "examples/life-insurance-savings/views/story-options.json",
+  "chapters": ["Invitation", "Advice", "Profile", "Investments", "Subscription", "Cooling-off", "Saving", "Year-end tax", "Annual review", "Seven colleagues", "Recommendations", "Dossier"],
+  "stage_chapters": {
+    "Discovery and advice": "Advice",
+    "Needs and profile": "Profile",
+    "Cooling-off and issue": "Cooling-off"
+  },
+  "subjects": {
+    "ENR-26001": "Kestrel Engineering · 375 EUR a month · balanced profile",
+    "ENR-26002": "Chooses a fund above his profile, and adjusts",
+    "ENR-26003": "Lives in France: reportable, a tax adviser at year end",
+    "ENR-26004": "Cancels within the 30 days: refunded in full",
+    "ENR-26005": "A politically exposed person: enhanced due diligence",
+    "ENR-26006": "Never opens the invitation",
+    "ENR-26007": "Tops up 900 EUR in December",
+    "ENR-26008": "Retires at 63, married this year"
+  },
+  "intro": {
+    "seconds": 6,
+    "tag": "AWA reference example · Valoria Life",
+    "title": "Workplace pension savings, end to end",
+    "text": "Léa Muller saves for her pension with Valoria Life, a fictional Luxembourg insurer, through her employer: the invitation, the advice, the due diligence, a year of payroll and the Art. 111bis tax deduction, live. Then seven colleagues, what the record recommends, and the dossier made from it.",
+    "points": ["One year of one member, live", "The controls, on seven colleagues", "Recommendations from the record", "The dossier, in HTML and PDF"]
+  },
+  "outro": {
+    "tag": "examples/life-insurance-savings",
+    "title": "Off the shelf, under your own brand",
+    "text": "Seven workflows and one journey; agents under outcome contracts, people under a policy, every step in the record. Replace the reference adapters with your systems, put your brand in a DESIGN.md, and the views, the recommendations and the dossier follow.",
+    "points": ["Eight scenarios, tested in both SDKs", "The adapters to replace: INTEGRATION.md", "The brand: valoria-life.DESIGN.md"]
+  },
+  "caption_actions": true,
+  "caption_skip": [{ "kind": "action", "text": "payroll pays" }],
+  "phase_record": ["customer", "person", "refused", "guardrail", "journey"],
+  "moments": [
+    { "on": { "event": "decision.evaluated", "text": "Risk profile", "customer": "main" }, "caption": "The questionnaire goes to the AI adviser, and the Risk profile table decides: balanced, risk indicator 4 at most." },
+    { "on": { "event": "decision.evaluated", "text": "Suitability of the choice", "customer": "main" }, "caption": "The choice is checked against her profile: suitable, confirmed." },
+    { "on": { "event": "decision.evaluated", "text": "Customer due diligence", "customer": "main" }, "caption": "Identity documents read, screened against the PEP and sanctions lists, tax residence certified: standard due diligence." },
+    { "on": { "event": "journey.goal_reached", "text": "Policy issued", "customer": "main" }, "caption": "The first premium is invested: goal “Policy issued”. Thirty days to cancel begin." },
+    { "on": { "event": "decision.evaluated", "text": "Deduction rules", "customer": "main" }, "caption": "The Deduction rules table applies Art. 111bis LIR: up to 4,500 EUR a year per taxpayer from 2026." },
+    { "on": { "event": "tool.completed", "text": "issues the 2026 tax certificate", "customer": "main" }, "caption": "Twelve premiums of 375 EUR: in January, Léa's 2026 tax certificate goes out." },
+    { "on": { "event": "journey.goal_reached", "text": "deduction claimed", "customer": "main" }, "caption": "She claimed the deduction in her tax return: goal “First year's deduction claimed”." }
+  ],
+  "scenes": [
+    { "name": "Atlas", "on": "start", "chapter": "Invitation", "show": "journey", "place": "atlas/0/0/0/0",
+      "caption": "The journey view, under the Valoria Life brand: Kestrel HR opens the plan to Léa Muller." },
+    { "name": "Léa's blueprint, live", "on": { "kind": "action", "text": "opens the invitation", "customer": "main" }, "wait": 1.5, "place": "story/{j}/{i}/0/999", "hold": 4.5 },
+    { "name": "The advice run, bands", "on": { "event": "token.waiting", "text": "Advise in video call", "customer": "main" }, "wait": 1, "place": "run/{j}/{i}/{run}/999",
+      "caption": "The run behind the moment, band by band, every name inside its box: the AI adviser hands Léa to a licensed adviser." },
+    { "name": "The subscription run", "on": { "event": "event.waiting", "text": "choice of funds", "customer": "main" }, "wait": 0.5, "place": "run/{j}/{i}/{lrun}/999",
+      "caption": "The subscription: the AI adviser proposes the plan's funds with their key information documents." },
+    { "name": "Due diligence, a child run", "on": { "event": "subworkflow.started", "customer": "main" }, "wait": 1, "place": "run/{j}/{i}/{child}/999",
+      "caption": "Due diligence is a child run: the identity documents, the screening beside the tax self-certification.", "hold": 3.5 },
+    { "name": "Back to the blueprint", "on": { "event": "subworkflow.completed", "customer": "main" }, "wait": 1.5, "place": "story/{j}/{i}/0/999",
+      "caption": "Back to Léa's journey: the beneficiary clause is reviewed, and the contract goes out for e-signature." },
+    { "name": "The glossary", "on": { "event": "run.completed", "workflow": "Self-Service Change", "customer": "main" }, "wait": 2,
+      "steps": [
+        { "click": ".layer.on .lg .gw[data-term=\"touchpoint\"]", "caption": "A dotted word in the legend opens the glossary at its entry: AWA's terms, with the specification's section." },
+        { "wait": 3.5, "type": "111bis", "into": "#gq", "caption": "The journey brings its own terms: a search finds Art. 111bis LIR, the deduction this plan is built on." },
+        { "wait": 5.5, "click": "#gloss-close" }
+      ] },
+    { "name": "The year-end tax run", "on": { "event": "run.started", "workflow": "Year-End Tax", "customer": "main" }, "wait": 1.5, "place": "run/{j}/{i}/{lrun}/999" },
+    { "name": "The blueprint, to the end", "on": { "event": "journey.stage_entered", "stage": "Annual review", "customer": "main" }, "wait": 1, "place": "story/{j}/{i}/0/999" },
+    { "name": "Seven colleagues", "on": "phase", "chapter": "Seven colleagues", "focus": "everyone", "place": "journey/0/0/0/999",
+      "caption": "Seven colleagues on the same calendar, sixteen times faster: their journeys fill the year." },
+    { "name": "Tom: above his profile", "on": { "event": "decision.evaluated", "text": "above profile" }, "wait": 1, "place": "run/{j}/{i}/{lrun}/{step~Above the profile}",
+      "caption": "Tom puts everything in a fund of risk 6, above the 4 his profile allows: the AI adviser warns him, and he adjusts." },
+    { "name": "Sara: separation of duties, four eyes", "on": { "event": "authorization.decided", "actor": "refused", "text": "separation of duties" }, "wait": 1, "place": "run/{j}/{i}/{lrun}/{step:refused}",
+      "caption": "Sara is a politically exposed person. Inès resolved her alert, so the policy refuses her the approval: separation of duties.",
+      "steps": [
+        { "wait": 5.5, "place": "run/{j}/{i}/{lrun}/{step:refused:2}", "caption": "Jonas approves once; his second approval is refused, it must come from another person: four eyes." },
+        { "wait": 6, "place": "journey/0/0/0/999", "caption": "The year goes on for everyone: the payroll, the quarterly statements, Paul’s top-up, the tax certificates." }
+      ] },
+    { "name": "Eva: a guaranteed return, blocked", "on": { "event": "guardrail.triggered", "text": "guaranteed return" }, "wait": 1, "place": "run/{j}/{i}/{lrun}/{step:guardrail}",
+      "caption": "Eva's annual review: the AI adviser promises a guaranteed return on unit-linked funds. A guardrail blocks it; the agent writes it again." },
+    { "name": "The atlas, every ending", "on": "done", "wait": 4, "place": "atlas/0/0/0/0",
+      "caption": "Eight members: six reached both goals, Marc cancelled within the 30 days, Nina never opened the invitation.", "hold": 2.5 },
+    { "name": "Recommendations", "chapter": "Recommendations",
+      "steps": [
+        { "click": "#b-recs", "caption": "The Recommendations tab, computed from the same record: each change on a map of impact and effort." },
+        { "wait": 4.5, "click": ".rcard[data-rid=\"top-up-before-year-end\"]", "caption": "One opened: why it fired, the customers behind it, the expected effect and how it is known." },
+        { "wait": 6, "click": "#rp-close" },
+        { "wait": 0.8, "click": ".rcard[data-rid=\"handover-first-failure\"]", "caption": "Another is measured by replay: hand “Verify identity documents” to a person at the first failure." },
+        { "wait": 3.5, "key": "t", "caption": "Before and after, replayed on Ana's run with the AI recorded: one failed attempt fewer, the same person deciding, sooner." },
+        { "wait": 7 }
+      ] },
+    { "name": "Export the dossier", "chapter": "Dossier",
+      "steps": [
+        { "wait": 0.6, "click": "#b-export", "caption": "Export dossier: the audience, the scope, the sections, the brand and the formats, checked for accessibility first." },
+        { "wait": 4.5, "click": "#xd-go", "caption": "The HTML edition is made here, in the browser, and waits for a person's approval; PDF and DOCX come from the command line." },
+        { "wait": 4.5 }
+      ] },
+    { "name": "The HTML edition", "html": { "page": "made", "offset": 385 },
+      "caption": "The HTML edition just made, from the live record: each member a line as long as their days, the counts beside them.",
+      "steps": [
+        { "wait": 4, "scroll": "#summary", "caption": "Read in five minutes: the summary, every figure with its count." },
+        { "wait": 3.5 }
+      ] },
+    { "name": "The professional edition, printed",
+      "document": { "pdf": "examples/life-insurance-savings/dossier/workplace-pension-savings.professional.pdf", "title": "dossier/workplace-pension-savings.professional.pdf · the edition the example keeps, from its record" },
+      "spread": [0, 1], "caption": "The dossier the example keeps, printed: fourteen A4 pages under the Valoria Life brand.",
+      "steps": [
+        { "wait": 3.5, "spread": [2, 3], "caption": "Three ways in, one record underneath; the summary: six of eight reached the end, the waiting was long." },
+        { "wait": 4, "spread": [4, 5], "caption": "The journey at a glance, and Tom's year told in his own voice from the record alone." },
+        { "wait": 1.6, "zoom": { "side": "right", "x": 0.7, "y": 0.36, "scale": 1.9 }, "caption": "Every sentence cites the journal records it rests on; no feeling the record does not state." },
+        { "wait": 5, "zoom": null },
+        { "wait": 1, "spread": [10, 11], "caption": "The analysis: where the days go; cost, quality, mood and trust." },
+        { "wait": 3.5, "spread": [12, 13], "caption": "What to change, in order: the recommendations with their owners, and the EU AI Act appendix." },
+        { "wait": 4 }
+      ] },
+    { "name": "Léa's client edition",
+      "document": { "pdf": "examples/life-insurance-savings/dossier/lea-muller.client.pdf", "title": "dossier/lea-muller.client.pdf · Léa Muller's client edition" },
+      "spread": [0, 1], "caption": "Léa's own client edition: her journey only, no other member named, no internal cost.",
+      "steps": [
+        { "wait": 3.5, "spread": [2, 3], "caption": "Her year in her own words, with the record behind every sentence." },
+        { "wait": 1.6, "zoom": { "side": "right", "x": 0.7, "y": 0.34, "scale": 1.9 } },
+        { "wait": 5.5 }
+      ] },
+    { "name": "Close", "card": "outro", "hold": 5.5 }
+  ]
+}
