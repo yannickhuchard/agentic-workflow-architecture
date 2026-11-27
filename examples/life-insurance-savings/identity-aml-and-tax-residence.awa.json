@@ -121,7 +121,7 @@
         },
         {
           "id": "16a5fa6d-ba6e-52dc-9a39-b427d7870b2d",
-          "name": "Personal data in what the agent writes",
+          "name": "E-mail addresses, phone numbers and bank accounts in what the agent writes",
           "stages": [
             "output"
           ],
@@ -133,9 +133,6 @@
               "iban"
             ]
           },
-          "fields": [
-            "notes"
-          ],
           "action": "redact"
         }
       ],

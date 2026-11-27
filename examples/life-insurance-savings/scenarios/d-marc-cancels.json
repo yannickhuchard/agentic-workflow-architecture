@@ -1,0 +1,45 @@
+{
+  "name": "marc-cancels",
+  "title": "Marc cancels within 30 days and every premium is refunded",
+  "summary": "Marc Schiltz, 29, subscribes with 200 EUR a month. The January payroll pays his first premium, the policy is issued and the units are bought. Eleven days after receiving his policy documents he cancels in the HR portal, within the 30 days the law gives him. The cancellation is the journey's exit: the host withdraws the subscription run, and compensation undoes what it did in reverse order: the units are sold and the 200 EUR refunded in full, the payroll deduction is stopped, and the policy is cancelled from its start.",
+  "starts": "2026-01-13T08:00:00Z",
+  "invitation": {
+    "enrolment_id": "ENR-26004",
+    "plan_id": "KES-PENSION-111BIS",
+    "contract_type": "pension_savings",
+    "employer": {"name": "Kestrel Engineering S.à r.l.", "employer_id": "KES-0001"},
+    "employee": {"employee_number": "K-0688", "first_name": "Marc", "last_name": "Schiltz", "date_of_birth": "1996-07-29", "age": 29, "email": "marc.schiltz@kestrel.example", "nationality": "LU", "language": "en"},
+    "tax_residence": "LU",
+    "retirement_age": 65,
+    "household_members": 1
+  },
+  "actors": {
+  },
+  "steps": [
+    {"at": "2026-01-13T09:10:00Z", "say": "Marc opens the invitation in the HR portal", "publish": "invitation.opened", "source": "/hr-portal", "data": {"invitation_opened": true}},
+    {"at": "2026-01-13T12:30:00Z", "say": "Marc answers the questionnaire", "publish": "questionnaire.submitted", "source": "/hr-portal/questionnaire", "data": {"knowledge_level": "informed", "capacity_for_loss": "moderate", "risk_tolerance": 3, "sustainability_preference": "esg_preferred", "horizon_years": 36, "monthly_contribution_eur": 200}},
+    {"at": "2026-01-14T08:05:00Z", "say": "Marc chooses the model portfolio and reads its key information documents", "publish": "investments.chosen", "source": "/hr-portal/investments", "data": {"choice": "model_portfolio", "kids_acknowledged": true, "allocation": [{"fund_id": "VL-BOND-GREEN", "percent": 30}, {"fund_id": "VL-MIX-BAL", "percent": 30}, {"fund_id": "VL-EQ-WORLD-ESG", "percent": 40}]}},
+    {"at": "2026-01-15T08:15:00Z", "say": "Marc submits the subscription form", "publish": "subscription.submitted", "source": "/hr-portal/subscription", "data": {"documents": [{"type": "identity_card", "file_id": "F-26004-ID"}, {"type": "proof_of_address", "file_id": "F-26004-ADDR"}], "self_certification": {"tax_residences": [{"country": "LU", "tin": "1996072934567"}], "us_person": false}, "beneficiary_clause": {"type": "standard"}, "monthly_contribution_eur": 200, "payroll_mandate_signed": true}},
+    {"at": "2026-01-20T17:45:00Z", "say": "The e-signature service reports Marc's signed contract", "publish": "contract.signed", "source": "/e-signature", "data": {"contract_signed": true, "envelope_id": "ENV-26004"}},
+    {"at": "2026-01-27T06:00:00Z", "say": "Kestrel's payroll pays Marc's first contribution", "publish": "payroll.contribution_paid", "source": "/kestrel-payroll", "data": {"period": "2026-01", "amount_eur": 200}},
+    {"at": "2026-02-07T10:15:00Z", "say": "Marc cancels his policy in the HR portal, within the 30 days", "publish": "policy.cancellation_requested", "source": "/hr-portal", "data": {"cancellation_reason": "I would rather keep the money available for now."}}
+  ],
+  "expect": {
+    "runs": {"Plan Invitation and Advice": ["completed"], "Savings Plan Subscription": ["cancelled"], "Identity, AML and Tax Residence Checks": ["completed"], "Payroll Contributions": []},
+    "journey_status": "abandoned",
+    "journey_stage": "cooling-off",
+    "goals": ["policy-issued"],
+    "records": [
+      {"type": "activity.completed", "node_name": "Invest first premium"},
+      {"type": "activity.compensated", "node_name": "Redeem units and refund premium"},
+      {"type": "activity.compensated", "node_name": "Stop payroll deduction"},
+      {"type": "activity.compensated", "node_name": "Cancel policy"},
+      {"type": "tool.completed", "node_name": "Redeem units and refund premium", "data": {"tool": "refund_premium", "result": {"amount_eur": 200}}},
+      {"type": "run.cancelled", "data": {"compensation": {"attempted": 3, "succeeded": 3}}}
+    ],
+    "journey_records": [
+      {"type": "journey.abandoned", "data": {"reason": "Cancelled within the 30-day period"}},
+      {"type": "journey.touchpoint", "data": {"touchpoint_id": "cancels"}}
+    ]
+  }
+}

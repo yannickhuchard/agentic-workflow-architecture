@@ -229,9 +229,9 @@ INJECTION_IN_DOCUMENTS = lambda u, name: {
     "id": u(f"guardrail:{name}:injection"), "name": "Instructions inside uploaded documents", "stages": ["tool_result"],
     "check": {"kind": "prompt_injection"}, "action": "block", "tools": ["extract_document"],
 }
-PERSONAL_DATA_IN = lambda u, name, fields: {
-    "id": u(f"guardrail:{name}:personal-data"), "name": "Personal data in what the agent writes", "stages": ["output"],
-    "check": {"kind": "personal_data", "categories": ["email", "phone", "iban"]}, "fields": fields, "action": "redact",
+PERSONAL_DATA_IN = lambda u, name: {
+    "id": u(f"guardrail:{name}:personal-data"), "name": "E-mail addresses, phone numbers and bank accounts in what the agent writes", "stages": ["output"],
+    "check": {"kind": "personal_data", "categories": ["email", "phone", "iban"]}, "action": "redact",
 }
 
 
@@ -339,7 +339,7 @@ advice = {
             "Turn the answers into the demands-and-needs statement and the suitability assessment of the Insurance Distribution Directive, and flag answers that contradict each other.",
             procedure="Read the answers. Write the demands and needs in plain words. Check every section is answered: knowledge and experience, financial situation including the capacity for loss, objectives including the horizon and risk tolerance, sustainability preferences. List answers that contradict each other, such as a short horizon with a high risk tolerance. Say how sure you are.",
             context_bindings=read_profile,
-            guardrails=[PERSONAL_DATA_IN(u, "demands", ["demands_and_needs", "notes"])],
+            guardrails=[PERSONAL_DATA_IN(u, "demands")],
             outcome_contract={
                 "output_schema": obj(["demands_and_needs", "sections_unanswered", "contradictions", "confidence", "notes"],
                                      demands_and_needs={"type": "string", "minLength": 80}, sections_unanswered=I0,
@@ -429,7 +429,7 @@ kyc = {
             "Check the identity document and the proof of address: legible, in date, and matching the employee's name, date of birth and address.",
             procedure="Extract each uploaded document with the document tool. Compare the name and date of birth with the enrolment. Check the identity document is in date. Count the documents you could not read. Say how sure you are.",
             tools=[TOOLS["extract_document"]],
-            guardrails=[INJECTION_IN_DOCUMENTS(u, "identity"), PERSONAL_DATA_IN(u, "identity", ["notes"])],
+            guardrails=[INJECTION_IN_DOCUMENTS(u, "identity"), PERSONAL_DATA_IN(u, "identity")],
             outcome_contract={
                 "output_schema": obj(["identity_verified", "unreadable_count", "confidence", "notes"], identity_verified=B, unreadable_count=I0,
                                      document_expiry=S, confidence=CONF, notes={"type": "string", "minLength": 10}),
@@ -984,7 +984,7 @@ review = {
             "Recommend what to change, with a reason for each: rebalance when the allocation has drifted, reduce the risk as retirement approaches, review the beneficiary clause after a life event, or no change.",
             procedure="Read the position, the answers and the profile. Recommend a rebalance when a fund has drifted more than five points from its target. Recommend reducing the risk when retirement is ten years away or less. Recommend reviewing the beneficiary clause after a marriage, a partnership, a birth, a divorce or a death. Say when a licensed adviser must confirm. Never promise or imply a guaranteed return on unit-linked funds; their value can fall.",
             context_bindings=[{"context_id": PROFILE_R, "access_mode": "read"}],
-            guardrails=[PERSONAL_DATA_IN(u, "recommendations", ["recommendation_text"])],
+            guardrails=[PERSONAL_DATA_IN(u, "recommendations")],
             outcome_contract={
                 "output_schema": obj(["recommendations", "recommendation_text", "requires_adviser"],
                                      recommendations={"type": "array", "minItems": 1, "items": obj(["type", "reason"], type={"type": "string", "enum": RECOMMENDATIONS}, reason={"type": "string", "minLength": 10})},
@@ -1047,6 +1047,12 @@ journey = {
     "id": uj("journey"), "name": "Workplace Pension Savings", "version": "1.0.0", "awa_version": "1.1",
     "description": "An employee's way through the pension savings plan Valoria Life runs for Kestrel Engineering: the invitation in the HR portal, advice, the questionnaire and the risk profile, the choice of funds, the subscription with its due diligence, the 30 days to cancel, a year of payroll contributions and self-service, the year-end tax certificate, and the annual review.",
     "subject": {"name": "employee", "key": "enrolment_id"},
+    # What the journey keeps of what its runs established: what later workflows and the views need, not every step's working data
+    "collect": ["enrolment_id", "plan_id", "contract_type", "employer", "employee", "tax_residence", "retirement_age", "household_members",
+                "advice_given", "advice_channel", "risk_profile", "max_sri", "horizon_years", "sustainability_preference", "monthly_contribution_eur",
+                "allocation", "portfolio_sri", "allocation_confirmed", "beneficiary_clause", "kyc_status", "cdd_level", "crs_reportable", "fatca_status",
+                "policy_id", "policy_issued", "deduction_id", "premiums_paid_eur", "tax_year", "policy_in_force", "in_force_on",
+                "deductible_eur", "deduction_article", "certificate_id", "tax_certificate_issued", "recommendations_accepted", "review_completed"],
     "stages": [
         {"id": "invitation", "name": "Invitation", "description": "The employer opens the plan; the employee is invited in the HR portal and by e-mail, and reminded.",
          "workflows": [ADVICE_ID], "complete_when": "invitation_opened == true", "max_duration": "P30D", "owner": "Kestrel HR"},

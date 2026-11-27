@@ -1,0 +1,50 @@
+{
+  "name": "paul-top-up",
+  "title": "Paul tops up in December to reach the ceiling",
+  "summary": "Paul Hansen, 31, has a dynamic profile and saves 300 EUR a month. In November the year-end review projects 3,600 EUR of premiums for 2026, 900 EUR below the 4,500 EUR ceiling of Art. 111bis LIR; the AI adviser proposes a top-up of 900 EUR, collected with the December salary. Paul asks for it in self-service; the top-up is checked against his profile and the plan's yearly limit, and scheduled with the payroll. His December contribution is 1,200 EUR, and his certificate states 4,500 EUR deductible.",
+  "starts": "2026-01-14T08:45:00Z",
+  "invitation": {
+    "enrolment_id": "ENR-26007",
+    "plan_id": "KES-PENSION-111BIS",
+    "contract_type": "pension_savings",
+    "employer": {"name": "Kestrel Engineering S.à r.l.", "employer_id": "KES-0001"},
+    "employee": {"employee_number": "K-0850", "first_name": "Paul", "last_name": "Hansen", "date_of_birth": "1994-08-21", "age": 31, "email": "paul.hansen@kestrel.example", "nationality": "LU", "language": "en"},
+    "tax_residence": "LU",
+    "retirement_age": 65,
+    "household_members": 1
+  },
+  "actors": {
+  },
+  "steps": [
+    {"at": "2026-01-14T12:00:00Z", "say": "Paul opens the invitation in the HR portal", "publish": "invitation.opened", "source": "/hr-portal", "data": {"invitation_opened": true}},
+    {"at": "2026-01-14T21:30:00Z", "say": "Paul answers the questionnaire", "publish": "questionnaire.submitted", "source": "/hr-portal/questionnaire", "data": {"knowledge_level": "advanced", "capacity_for_loss": "substantial", "risk_tolerance": 4, "sustainability_preference": "climate_focus", "horizon_years": 34, "monthly_contribution_eur": 300}},
+    {"at": "2026-01-15T07:40:00Z", "say": "Paul chooses the model portfolio and reads its key information documents", "publish": "investments.chosen", "source": "/hr-portal/investments", "data": {"choice": "model_portfolio", "kids_acknowledged": true, "allocation": [{"fund_id": "VL-EQ-WORLD-ESG", "percent": 50}, {"fund_id": "VL-EQ-CLIMATE", "percent": 30}, {"fund_id": "VL-EQ-EUROPE", "percent": 20}]}},
+    {"at": "2026-01-15T20:10:00Z", "say": "Paul submits the subscription form", "publish": "subscription.submitted", "source": "/hr-portal/subscription", "data": {"documents": [{"type": "identity_card", "file_id": "F-26007-ID"}, {"type": "proof_of_address", "file_id": "F-26007-ADDR"}], "self_certification": {"tax_residences": [{"country": "LU", "tin": "1994082156789"}], "us_person": false}, "beneficiary_clause": {"type": "standard"}, "monthly_contribution_eur": 300, "payroll_mandate_signed": true}},
+    {"at": "2026-01-16T09:30:00Z", "say": "The e-signature service reports Paul's signed contract", "publish": "contract.signed", "source": "/e-signature", "data": {"contract_signed": true, "envelope_id": "ENV-26007"}},
+    {"at": "2026-01-27T06:00:00Z", "monthly": 11, "say": "Kestrel's payroll pays Paul's contribution for {{period}}", "publish": "payroll.contribution_paid", "source": "/kestrel-payroll", "data": {"period": "{{period}}", "amount_eur": 300}},
+    {"at": "2026-02-26T12:00:00Z", "say": "Thirty days pass without a cancellation", "tick": true},
+    {"at": "2026-11-02T07:00:00Z", "say": "The insurer's calendar opens the year-end review of tax year 2026", "publish": "tax_year.review_due", "source": "/policy-administration/calendar", "data": {"tax_year": 2026, "months_remaining": 2, "tax_review_due": true}},
+    {"at": "2027-01-15T06:00:00Z", "say": "The January certificate run of the policy administration", "publish": "tax_certificates.due", "source": "/policy-administration/calendar", "data": {"tax_year": 2026}},
+    {"at": "2027-01-26T07:00:00Z", "say": "The anniversary of Paul's policy opens the annual review", "publish": "annual_review.due", "source": "/policy-administration/calendar", "data": {"review_year": 2027}},
+    {"at": "2026-11-20T19:45:00Z", "say": "Paul asks in self-service for a top-up of 900 EUR with his December salary", "publish": "self_service.requested", "source": "/hr-portal/self-service", "data": {"request_type": "top_up", "top_up_eur": 900}},
+    {"at": "2026-12-27T06:00:00Z", "say": "Kestrel's payroll pays Paul's December contribution with the top-up: 1,200 EUR", "publish": "payroll.contribution_paid", "source": "/kestrel-payroll", "data": {"period": "2026-12", "amount_eur": 1200, "top_up_eur": 900}},
+    {"at": "2027-01-28T19:00:00Z", "say": "Paul answers the review: he claimed the deduction", "publish": "annual_review.answered", "source": "/hr-portal/review", "data": {"deduction_claimed": true, "life_events": [], "satisfaction": 5}},
+    {"at": "2027-01-31T10:00:00Z", "say": "Paul reads the recommendation and keeps the plan as it is", "publish": "recommendations.answered", "source": "/hr-portal/review", "data": {"recommendations_accepted": false}}
+  ],
+  "expect": {
+    "runs": {"Plan Invitation and Advice": ["completed"], "Savings Plan Subscription": ["completed"], "Identity, AML and Tax Residence Checks": ["completed"], "Payroll Contributions": ["completed"], "Self-Service Change": ["completed"], "Year-End Tax": ["completed"], "Annual Review": ["completed"]},
+    "journey_status": "completed",
+    "journey_stage": "annual-review",
+    "goals": ["policy-issued", "first-deduction-claimed"],
+    "data": {"premiums_paid_eur": 4500, "deductible_eur": 4500, "risk_profile": "dynamic"},
+    "records": [
+      {"type": "activity.completed", "node_name": "Project the year", "data": {"output": {"shortfall_eur": 900, "projected_premiums_eur": 3600}}},
+      {"type": "activity.completed", "node_name": "Write top-up proposal", "data": {"output": {"output": {"proposed_top_up_eur": 900}}}},
+      {"type": "decision.evaluated", "node_name": "Change within the rules", "data": {"outputs": {"change_decision": "top_up"}}},
+      {"type": "tool.completed", "node_name": "Schedule top-up", "data": {"tool": "schedule_one_off_deduction"}}
+    ],
+    "journey_records": [
+      {"type": "journey.touchpoint", "data": {"touchpoint_id": "top-up-proposed"}}
+    ]
+  }
+}

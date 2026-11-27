@@ -743,7 +743,7 @@
       "guardrails": [
         {
           "id": "67c8f788-8fd1-5e65-aaf7-1b0b0b92c6a7",
-          "name": "Personal data in what the agent writes",
+          "name": "E-mail addresses, phone numbers and bank accounts in what the agent writes",
           "stages": [
             "output"
           ],
@@ -755,10 +755,6 @@
               "iban"
             ]
           },
-          "fields": [
-            "demands_and_needs",
-            "notes"
-          ],
           "action": "redact"
         }
       ],
