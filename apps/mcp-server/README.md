@@ -6,7 +6,7 @@ An MCP server for [Agentic Workflow Architecture](../../README.md) documents, wi
 - **Simulation only.** No tool binding, command, HTTP call, model or production system is ever called. See [What simulation means here](#what-simulation-means-here).
 - **Self-contained widgets.** The views are the ones in [`tools/visualization`](../../tools/visualization), bundled into single HTML resources that make no network request.
 
-The plugin package for the ChatGPT plugin directory is in [`plugins/awa`](../../plugins/awa). What is ready and what remains for a submission is in [SUBMISSION.md](SUBMISSION.md).
+The plugin package for the ChatGPT plugin directory is in [`plugins/awa`](../../plugins/awa); the plugin for Claude Code, Cursor, Mistral Vibe and Gemini CLI is in [`plugins/awa-code`](../../plugins/awa-code). **[Connect AWA to your AI assistant](../../docs/guides/connect-ai-assistants.md)** gives the steps for every assistant. What is ready and what remains for each package is in [SUBMISSION.md](SUBMISSION.md).
 
 ## Tools
 
@@ -46,13 +46,15 @@ npm run start:stdio      # stdio, for clients that start the server themselves
 
 ### Connect a client
 
+The full steps for each assistant, with what you should see and what to do when it fails, are in **[Connect AWA to your AI assistant](../../docs/guides/connect-ai-assistants.md)**. In short:
+
 **MCP Inspector** (no account): `npx @modelcontextprotocol/inspector@latest`, choose Streamable HTTP, enter `http://127.0.0.1:8787/mcp`. If the Inspector's page sends an `Origin` header, allow it: `AWA_MCP_ALLOWED_ORIGINS=http://localhost:6274 npm start`.
 
-**Claude Desktop, Claude Code and other clients that start a local server**: use stdio. [`clients/stdio.json`](clients/stdio.json) is the entry to add to the client's MCP configuration, with the absolute path of this folder filled in. For Claude Code:
+**Claude Code**: install the plugin from this repository's marketplace (`/plugin marketplace add <clone>`, then `/plugin install awa@agentic-workflow-architecture`). It brings the server, the AWA skill and four commands.
 
-```bash
-claude mcp add awa -- node /absolute/path/to/apps/mcp-server/src/start.js --stdio
-```
+**Claude Desktop**: `npm run bundle:mcpb` builds `dist/awa-workflows-<version>.mcpb`, an MCP Bundle that Claude Desktop installs with a double-click (manifest in [`mcpb/manifest.json`](mcpb/manifest.json)).
+
+**Other clients that start a local server** (Cursor, Mistral Vibe, Gemini CLI, Codex): use stdio. [`clients/stdio.json`](clients/stdio.json) is the entry to add to the client's MCP configuration, with the absolute path of the clone filled in; [`clients/mistral-vibe.toml`](clients/mistral-vibe.toml) is the same for Mistral Vibe. `../../plugins/awa-code/server/start.mjs` starts the server too, and says what to build when something is missing.
 
 **Clients that connect to a local address**: [`clients/local-development.json`](clients/local-development.json) (`http://127.0.0.1:8787/mcp`).
 
@@ -64,7 +66,9 @@ AWA_MCP_PUBLIC_URL=https://<your-subdomain>.ngrok.app/mcp npm start
 
 In ChatGPT open Plugins, select the plus button, then "Add custom MCP server", paste the same address, and choose no authentication. Refresh the connection after you change the server.
 
-**claude.ai and other hosted clients** also need the public HTTPS address: add it as a custom connector.
+**claude.ai, Le Chat and other hosted clients** also need the public HTTPS address: add it as a custom connector. [`clients/remote-connector.json`](clients/remote-connector.json) has the name, description and settings to paste.
+
+**When the server is hosted**, `npm run hosted:set -- https://<host>/mcp` writes its address into every package.
 
 The embedded views appear in clients that support MCP Apps. In other clients the tools answer in text and structured content.
 
@@ -178,6 +182,12 @@ npm run plugin:check
 
 checks `plugins/awa` against the submission rules and lists the placeholders.
 
+```bash
+npm run clients:schemas
+```
+
+downloads the JSON Schemas that Claude Code, Cursor and MCP Bundles publish and checks the client manifests against them (`npm test` checks the same manifests offline and starts the server from each configuration, in `tests/clients.test.js`).
+
 CI does not run these yet. A job would be: build the SDK, `npm ci` here, `npm test`, then `npx playwright install chromium` and `npm run verify` with `--playwright-module` pointing at Playwright.
 
 ## Layout
@@ -191,6 +201,7 @@ CI does not run these yet. A job would be: build the SDK, `npm ci` here, `npm te
 | `src/widgets.js`, `src/widgets/` | The widget bundler, the bridge and what is added to each view |
 | `src/http.js`, `src/start.js` | HTTP and stdio entry points |
 | `src/example.js` | The bundled claims example |
-| `scripts/` | Widget verification, plugin check and packaging |
+| `scripts/` | Widget verification, plugin check and packaging, the MCP Bundle build (`build-mcpb.mjs`), the Add to Cursor links (`cursor-link.mjs`), the switch to the hosted address (`set-hosted-address.mjs`), the client schema check |
+| `mcpb/` | The MCP Bundle manifest for Claude Desktop |
 | `legal/` | Privacy notice, terms, support page |
-| `clients/` | Configuration snippets for MCP clients |
+| `clients/` | Configuration snippets for MCP clients: stdio, local HTTP, Mistral Vibe, remote connector |

@@ -1,8 +1,8 @@
 # Submission checklist: AWA Workflows & Journeys
 
-State on 22 November 2026, plugin and server version 0.1.0.
+State on 22 November 2026, plugin and server version 0.1.0. Client packages for Claude, Mistral, Cursor and Gemini CLI added on 27 November 2026: see [Client packages](#client-packages).
 
-**Not submitted. Not hosted. Not connected to ChatGPT or Claude by its author.** The server, the widgets, the plugin package and the review material are written and pass the checks listed under [What was verified](#what-was-verified). The steps under [What only the publisher can do](#what-only-the-publisher-can-do) remain.
+**Not submitted. Not hosted. Not connected to ChatGPT, claude.ai, Claude Desktop, Le Chat or Cursor by its author** (Claude Code and Mistral Vibe started it from their plugin configurations; see [Client packages](#client-packages)). The server, the widgets, the plugin package and the review material are written and pass the checks listed under [What was verified](#what-was-verified). The steps under [What only the publisher can do](#what-only-the-publisher-can-do) remain.
 
 The model follows the two plugins already published by the same developer (SEDA: MCP server with MCP Apps widgets; AIR: plugin package and submission records). Differences are listed at the end.
 
@@ -16,13 +16,14 @@ The model follows the two plugins already published by the same developer (SEDA:
 | MCP configuration | `plugins/awa/mcp.json` | Format done. **The address is a placeholder** |
 | Icons | `plugins/awa/assets/awa.svg`, `awa-dark.svg` | Done: square SVG, 64 by 64 view box. Drawn for this package; replace them if AWA has a mark of its own |
 | Marketplaces for local installation | `plugins/marketplace.json`, `.agents/plugins/marketplace.json` | Done |
+| Packages for the other assistants | `plugins/awa-code`, `.claude-plugin/`, `.cursor-plugin/`, `.cursor/`, `mcpb/`, `clients/` | Done for local use: see [Client packages](#client-packages) |
 | Privacy notice, terms, support page | `apps/mcp-server/legal/` | Drafted. Passages marked *to confirm* need the publisher |
 | Packaging | `npm run plugin:package -- https://<host>/mcp --demo https://<recording>` | Done: writes `dist/plugins/awa/` with the real address and refuses a placeholder |
 | Container file | `apps/mcp-server/Dockerfile` | Written, **not built** (see below) |
 
 ## 2. What runs today, in development mode
 
-Build the SDK, install, start: see [README.md](README.md#run-it).
+Build the SDK, install, start: see [README.md](README.md#run-it). The steps for every assistant are in [Connect AWA to your AI assistant](../../docs/guides/connect-ai-assistants.md).
 
 - **Any MCP client over stdio** (Claude Desktop, Claude Code, IDE agents): `node apps/mcp-server/src/start.js --stdio`. Snippet: `clients/stdio.json`.
 - **Any MCP client on this machine over HTTP**: `http://127.0.0.1:8787/mcp`. Snippet: `clients/local-development.json`.
@@ -77,6 +78,43 @@ They are in `plugins/awa/plugin.json` under `extensions.com.openai.review.test_c
 | − | Another user's or an earlier conversation's simulations | none: nothing is stored |
 
 `show_journeys` has no review case of its own (five are allowed); it is covered by the tests and the widget verification.
+
+## Client packages
+
+State on 27 November 2026. Every package starts the same server. Today the local ones start it from a built clone of this repository; the cloud ones reach it through a tunnel. `npm run hosted:set -- https://<host>/mcp` writes the hosted address into every package in one step (`scripts/set-hosted-address.mjs`). The user guide is [`docs/guides/connect-ai-assistants.md`](../../docs/guides/connect-ai-assistants.md).
+
+| Assistant | Package | Today | After hosting | State |
+|---|---|---|---|---|
+| Claude Code | `plugins/awa-code/.claude-plugin/plugin.json`, `.mcp.json`; marketplace `.claude-plugin/marketplace.json` (`agentic-workflow-architecture`, plugin `awa`) | `/plugin marketplace add <clone>`, `/plugin install awa@agentic-workflow-architecture`; stdio through `server/start.mjs` | `hosted:set` turns the server into an `http` entry and drops the folder option: install from GitHub with no clone | Validated with `claude plugin validate --strict`; installed and connected in Claude Code (below) |
+| Claude Desktop | MCP Bundle: `mcpb/manifest.json` (manifest 0.3), `npm run bundle:mcpb` | Double-click `dist/awa-workflows-0.1.0.mcpb`; or `clients/stdio.json` in the configuration file | Add the hosted address as a connector, or keep the bundle. A bundle could be attached to a GitHub release so that users need no clone | Bundle built, validated by the MCPB command line, unpacked and started; not opened in Claude Desktop |
+| claude.ai | Custom connector, `clients/remote-connector.json` | Tunnel address | Hosted address | Not run |
+| ChatGPT | `plugins/awa` (unchanged), developer mode | Tunnel address in "Add custom MCP server" | Hosted address; then the directory submission in sections 3 and 4 | Not run |
+| Codex, ChatGPT desktop app | `.agents/plugins/marketplace.json` with `plugins/awa`; or `codex mcp add` | Tunnel address written locally in `plugins/awa/mcp.json`, or stdio | `hosted:set` writes the address into `plugins/awa/mcp.json` | Not run |
+| Le Chat | Custom MCP connector, `clients/remote-connector.json` | Tunnel address; admin rights | Hosted address | Not run |
+| Mistral Vibe | `clients/mistral-vibe.toml` (`vibe mcp add`), or `plugins/awa-code` linked into `~/.vibe/plugins` (Vibe reads Claude Code plugins) | stdio from the clone | As Claude Code | Configuration written by `vibe mcp add`; plugin read by Vibe's own reader and its server started by Vibe's MCP client (below) |
+| Cursor | `.cursor/mcp.json` and `.cursor/rules/awa-documents.mdc`; Add to Cursor link; plugin `plugins/awa-code/.cursor-plugin/plugin.json` with `mcp.json`, `rules/`, `skills/`; marketplace `.cursor-plugin/marketplace.json` | Open the clone, or the link (clone in the home folder), or link the plugin into `~/.cursor/plugins/local` | `hosted:set` turns the plugin's server into a `url`; then submit at cursor.com/marketplace/publish | Manifests valid against Cursor's published schemas; configurations started outside Cursor; not opened in Cursor |
+| Gemini CLI | `plugins/awa-code/gemini-extension.json`, `GEMINI.md` | `gemini extensions link plugins/awa-code` | `hosted:set` turns the server into `httpUrl` | Configuration started outside Gemini CLI; not opened in Gemini CLI |
+
+### Verified on 27 November 2026 (Linux, Node 22)
+
+| Check | Result |
+|---|---|
+| `npm test` (`tests/clients.test.js` added) | 41 passed, 0 failed. The server starts from six configurations (Claude Code plugin, Cursor project, Cursor plugin, Gemini CLI extension, `clients/stdio.json`, `clients/mistral-vibe.toml`) and lists the 7 tools each time; a copy of the plugin away from the clone finds it through the configured folder, and without one stops with a message on standard error and nothing on standard output; the Add to Cursor links decode to the configuration; `hosted:set` rewrites the eight files, refuses http, placeholders and addresses without `/mcp`, and changes nothing the second time |
+| `claude plugin validate --strict plugins/awa-code` and `claude plugin validate --strict .` (Claude Code 2.1.332) | Validation passed; no plugin directory warning |
+| Claude Code, with a separate configuration folder: `claude plugin marketplace add <clone>`, `claude plugin install awa@agentic-workflow-architecture`, `claude mcp list` | `plugin:awa:awa: node <clone>/plugins/awa-code/server/start.mjs - √ Connected`. From a copy of the marketplace outside the clone: failed to connect without the folder option, connected with `--config repository=<clone>` and with `claude plugin configure --values-stdin` |
+| `npm run clients:schemas` | Valid: Claude Code plugin manifest and marketplace (schemastore.org), Cursor plugin manifest and marketplace (cursor/plugins), MCP Bundle manifest 0.3 (modelcontextprotocol/mcpb). Not checked: `plugins/awa` against agent-plugins.org, which could not be reached |
+| `npm run bundle:mcpb` | The staged bundle starts over stdio, lists 7 tools and simulates the example ("Simulated run of Motor Claim Settlement: completed after 12 steps"); `mcpb validate`: "Manifest schema validation passes"; `dist/awa-workflows-0.1.0.mcpb`, 29.5 MB; unpacked into an empty folder, it does the same; `mcpb info`: not signed. A first build without the generated Prisma client listed its tools but failed every call that loads the SDK; the build now copies the client and checks a call |
+| Mistral Vibe 3.1.5 | `vibe mcp add awa --transport stdio --command node --arg <clone>/plugins/awa-code/server/start.mjs` writes the table in `clients/mistral-vibe.toml`. Vibe's reader of Claude Code plugins, on `plugins/awa-code` linked into `~/.vibe/plugins`: plugin `awa`, 5 skills, the `awa` server; Vibe's MCP client started that server and listed 7 tools |
+
+### Not verified
+
+- **No assistant's interface was used.** Claude Desktop, claude.ai, ChatGPT, Codex, Le Chat, Cursor and Gemini CLI were not available. Their menu labels come from their documentation; Cursor's and Mistral's pages could not be opened from the build environment and were followed through search summaries, as the guide's Sources say.
+- **Cursor**: whether a plugin's variable (`${AWA_REPOSITORY}`) is substituted in an MCP server's arguments, as it is in its environment in Cursor's own plugins, and whether the web form of the install link (`cursor.com/en/install-mcp`) opens Cursor as the `cursor://` link does.
+- **Claude Code from GitHub**: installing from `yannickhuchard/agentic-workflow-architecture` works only once this is on the main branch; the copy outside the clone was tested from a local folder instead.
+- **Gemini CLI**: `gemini extensions link` and the `settings` prompt were not run.
+- **Codex**: `codex mcp add` and `codex plugin marketplace add` were not run.
+- **The views in Claude and Cursor**: whether they display the MCP Apps widgets was not checked.
+- **The MCP Bundle on macOS and Windows**: it was built and started on Linux only. It holds no native module: the Prisma client that the SDK imports is included as generated JavaScript, without the query engines, which are built for one platform and which the server never uses (it opens no database).
 
 ## What was verified
 

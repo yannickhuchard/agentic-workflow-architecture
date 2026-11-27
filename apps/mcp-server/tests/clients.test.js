@@ -46,8 +46,14 @@ async function start(entry, variables, extra_env = {}) {
     const transport = new StdioClientTransport({ command, args, env: { ...process.env, AWA_REPOSITORY: '', ...env, ...extra_env }, cwd: entry.cwd ? fill(entry.cwd, variables) : os.tmpdir(), stderr: 'pipe' });
     const client = new Client({ name: 'awa-client-check', version: '1.0.0' });
     await client.connect(transport);
-    try { return (await client.listTools()).tools.map(t => t.name).sort(); }
-    finally { await client.close(); }
+    try {
+        const tools = (await client.listTools()).tools.map(t => t.name).sort();
+        // One call that goes through the SDK, so that a server which lists its tools but cannot load the SDK fails here
+        const example = await client.callTool({ name: 'load_claims_example', arguments: { document: 'claims-settlement.workflow' } });
+        const checked = await client.callTool({ name: 'validate_document', arguments: { document: example.structuredContent.document.content } });
+        assert.match(checked.content[0].text, /^The workflow "Motor Claim Settlement" is valid/);
+        return tools;
+    } finally { await client.close(); }
 }
 
 test('the Claude Code plugin and marketplace name files that exist', () => {

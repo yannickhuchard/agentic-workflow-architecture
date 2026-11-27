@@ -31,15 +31,24 @@ function copy(from, to, keep = () => true) {
     fs.cpSync(source, target, { recursive: true, filter: file => keep(path.basename(file), fs.statSync(file).isDirectory()) });
 }
 
-/** Starts the staged server as Claude Desktop would and returns its tool names. */
-export async function staged_tools(stage = STAGE) {
+/**
+ * Starts a bundle folder's server as Claude Desktop would, lists its tools, and simulates the bundled example
+ * workflow, which loads the SDK. Returns the tool names and the first line of the simulation's answer.
+ */
+export async function check_bundle(stage = STAGE) {
     const manifest = JSON.parse(fs.readFileSync(path.join(stage, 'manifest.json'), 'utf8'));
     const args = manifest.server.mcp_config.args.map(a => a.replaceAll('${__dirname}', stage));
     const transport = new StdioClientTransport({ command: process.execPath, args, cwd: os.tmpdir(), stderr: 'pipe' });
     const client = new Client({ name: 'awa-mcpb-check', version: '1.0.0' });
     await client.connect(transport);
-    try { return (await client.listTools()).tools.map(t => t.name); }
-    finally { await client.close(); }
+    try {
+        const tools = (await client.listTools()).tools.map(t => t.name);
+        const document = async name => (await client.callTool({ name: 'load_claims_example', arguments: { document: name } })).structuredContent.document.content;
+        const run = await client.callTool({ name: 'simulate_workflow', arguments: { workflow: await document('claims-settlement.workflow'), simulated_outputs: await document('claims-settlement.simulated-outputs') } });
+        const answer = run.content.map(c => c.text || '').join(' ');
+        if (run.isError || !/^Simulated run of .* completed/.test(answer)) throw new Error(`The bundled server could not simulate the example: ${answer.slice(0, 400)}`);
+        return { tools, simulated: answer.split('. Path')[0] };
+    } finally { await client.close(); }
 }
 
 async function main() {
@@ -70,9 +79,14 @@ async function main() {
     run(npm, ['install', '--omit=dev', '--omit=peer', '--legacy-peer-deps', '--ignore-scripts', '--no-audit', '--no-fund', '--loglevel=error'], server);
     fs.rmSync(path.join(server, 'package-lock.json'), { force: true });
     if (fs.lstatSync(path.join(server, 'node_modules/agentic-workflow-architecture')).isSymbolicLink()) throw new Error('The SDK was linked, not copied, into the bundle');
+    // The SDK imports PrismaClient, which exists once the client is generated. The server never opens a
+    // database, so the generated JavaScript is enough: the query engines, built for one platform, stay out.
+    const generated = path.join(REPOSITORY_ROOT, 'sdk/typescript/node_modules/.prisma/client');
+    if (!fs.existsSync(path.join(generated, 'index.js'))) throw new Error('Generate the Prisma client of the SDK first: cd sdk/typescript && npx prisma generate');
+    fs.cpSync(generated, path.join(server, 'node_modules/.prisma/client'), { recursive: true, filter: file => !/\.(node|so|dylib|dll)$|query_engine|schema-engine/.test(path.basename(file)) });
 
-    const tools = await staged_tools();
-    console.log(`staged ${path.relative(PACKAGE_ROOT, STAGE)}: the server starts over stdio and lists ${tools.length} tools (${tools.join(', ')})`);
+    const { tools, simulated } = await check_bundle();
+    console.log(`staged ${path.relative(PACKAGE_ROOT, STAGE)}: the server starts over stdio, lists ${tools.length} tools (${tools.join(', ')}) and simulates the example: ${simulated}`);
     const declared = manifest.tools.map(t => t.name).sort();
     if (JSON.stringify(declared) !== JSON.stringify([...tools].sort())) throw new Error(`manifest.json lists ${declared.join(', ')}; the server has ${tools.join(', ')}`);
     if (!pack) return;

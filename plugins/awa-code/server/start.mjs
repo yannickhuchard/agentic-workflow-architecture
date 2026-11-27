@@ -46,6 +46,7 @@ if (!repository) {
 
 const missing = [];
 if (!fs.existsSync(path.join(repository, 'sdk/typescript/dist/index.mjs'))) missing.push(`cd "${path.join(repository, 'sdk/typescript')}" && npm ci && npm run build`);
+else if (!fs.existsSync(path.join(repository, 'sdk/typescript/node_modules/.prisma/client/index.js'))) missing.push(`cd "${path.join(repository, 'sdk/typescript')}" && npx prisma generate`);
 if (!fs.existsSync(path.join(repository, 'apps/mcp-server/node_modules/@modelcontextprotocol/sdk/package.json'))) missing.push(`cd "${path.join(repository, 'apps/mcp-server')}" && npm ci`);
 if (missing.length) {
     say(`the repository at ${repository} is not built yet. Run:`);

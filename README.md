@@ -193,19 +193,43 @@ awa replay workflow.awa.json run.jsonl --candidate changed.awa.json --ai recorde
 
 ---
 
-## In ChatGPT and other assistants
+## In ChatGPT, Claude, Mistral, Cursor and other assistants
 
-[`apps/mcp-server`](apps/mcp-server) is an MCP server with embedded views (MCP Apps), packaged as a ChatGPT plugin in [`plugins/awa`](plugins/awa). In a conversation, it validates workflow and journey documents, draws a workflow as a graph with the data that moves through it, simulates and replays a run, plays business events through customer journeys, and opens the measures dashboard. The server works entirely in simulation: every tool, command, model and production system that a document names is simulated, and each call starts from a clean state.
+[`apps/mcp-server`](apps/mcp-server) is an MCP server with embedded views (MCP Apps). In a conversation, it validates workflow and journey documents, draws a workflow as a graph with the data that moves through it, simulates and replays a run, plays business events through customer journeys, and opens the measures dashboard. The server works entirely in simulation: every tool, command, model and production system that a document names is simulated, and each call starts from a clean state.
+
+It comes packaged for each assistant:
+
+| Assistant | Package |
+|---|---|
+| Claude Code | Plugin [`plugins/awa-code`](plugins/awa-code) in this repository's marketplace: the server, the [AWA skill](skills/agentic-workflow-architecture/SKILL.md) and the `/awa:validate`, `/awa:show`, `/awa:simulate` and `/awa:example` commands |
+| Claude Desktop | MCP Bundle built with `npm run bundle:mcpb`, or the configuration file |
+| claude.ai, ChatGPT, Le Chat | Custom connector to the server's address (today through a tunnel) |
+| Codex, ChatGPT desktop app | [`plugins/awa`](plugins/awa), the package for the ChatGPT plugin directory, in the local marketplace |
+| Cursor | [`.cursor/mcp.json`](.cursor/mcp.json) and rules in this repository, an install link, and the plugin |
+| Mistral Vibe, Gemini CLI | The same plugin folder, [`plugins/awa-code`](plugins/awa-code) |
+
+**[Connect AWA to your AI assistant](docs/guides/connect-ai-assistants.md)** gives the steps for each one. In short: clone, build, then add the plugin.
 
 ```bash
-cd sdk/typescript && npm install && npm run build
+cd sdk/typescript && npm ci && npm run build
 ```
 
 ```bash
-cd apps/mcp-server && npm install && npm start
+cd apps/mcp-server && npm ci
 ```
 
-The server runs in ChatGPT developer mode and in any MCP client, over `http://127.0.0.1:8787/mcp` or standard input and output. [`apps/mcp-server/SUBMISSION.md`](apps/mcp-server/SUBMISSION.md) lists the steps for publication in the store: hosting, domain verification, the demo recording and the submission.
+In Claude Code, from the clone:
+
+```text
+/plugin marketplace add ./
+/plugin install awa@agentic-workflow-architecture
+```
+
+Or straight from GitHub (Claude Code then asks for your clone's folder): `/plugin install awa --marketplace yannickhuchard/agentic-workflow-architecture`.
+
+In Cursor, with the clone in your home folder: [![Add the AWA MCP server to Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en/install-mcp?name=awa&config=eyJjb21tYW5kIjoibm9kZSIsImFyZ3MiOlsiJHt1c2VySG9tZX0vYWdlbnRpYy13b3JrZmxvdy1hcmNoaXRlY3R1cmUvcGx1Z2lucy9hd2EtY29kZS9zZXJ2ZXIvc3RhcnQubWpzIl19)
+
+The server is not hosted yet: assistants that run in the cloud reach it through a tunnel to your computer, and one command switches every package to the hosted address when there is one. [`apps/mcp-server/SUBMISSION.md`](apps/mcp-server/SUBMISSION.md) lists the state of each package and the steps for publication: hosting, domain verification, the demo recording and the submissions.
 
 ---
 
@@ -277,6 +301,7 @@ graph TD
 | `sdk/javascript` | The 2D and 3D diagram library behind `tools/visualization/index.html` |
 | `tools/visualization` | The run replay, the journey view and the measures page |
 | `apps/mcp-server`, `plugins/awa` | The MCP server with embedded views, and its packaging as a ChatGPT plugin |
+| `plugins/awa-code`, `.claude-plugin`, `.cursor-plugin`, `.cursor` | The AWA plugin for Claude Code, Cursor, Mistral Vibe and Gemini CLI, and the marketplaces that list it |
 | `apps/kanban-web` | A Kanban board (Next.js) for the tasks of people |
 | `examples/` | Examples, starting with `claims-settlement` and `claims-journey`; `electricity-onboarding` is a reference process a utility can plug into its own systems |
 | `docs/ux` | The research behind the journey view and the measures page |
@@ -306,6 +331,7 @@ cd agentic-workflow-architecture/apps/kanban-web && npm install && npm run dev
 - **[EU AI Act guide](docs/compliance/eu-ai-act.md)** maps the obligations of the AI Act, the NIST AI RMF and ISO/IEC 42001 to the records and the evidence report, with a worked example.
 - **Guides** cover [getting started](docs/getting-started.html), [developers](docs/developer-guide.html), [the data model](docs/data-model-guide.html), [process owners](docs/abpm-guide.html) and [architects](docs/architect-guide.html).
 - **[Skill](skills/agentic-workflow-architecture/SKILL.md)** teaches AWA to AI coding assistants.
+- **[Connect AWA to your AI assistant](docs/guides/connect-ai-assistants.md)** installs the AWA plugin and MCP server in Claude, ChatGPT, Mistral, Cursor and Gemini CLI.
 - **[Examples](examples/)** start with [claims-settlement](examples/claims-settlement/) for one workflow and [claims-journey](examples/claims-journey/) for journeys. [electricity-onboarding](examples/electricity-onboarding/) is a reference example to take off the shelf: a supplier's onboarding of a household, with a sub-workflow for home generation, documented integration points, reference adapters, eight scenarios and a live demonstration.
 - **[Releasing](RELEASING.md)** describes how a version is published.
 - **[Release notes](release_notes.md)** list every change.
