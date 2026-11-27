@@ -1,0 +1,55 @@
+{
+  "name": "chp-four-eyes",
+  "title": "A 7.5 kW heat-and-power unit is above the four-eyes threshold: two grid engineers approve",
+  "summary": "Rowan Aldridge runs a farmhouse with a 7.5 kWe heat-and-power unit. A rotating machine above 5 kW is above the four-eyes threshold, so the deployment's four-eyes rule asks two different grid engineers to approve. Rowan never confirms a plan in the portal; after 14 days Marco, in customer care, calls and records the prosumer plan. Gabriel approves, may not approve a second time, and Hana's approval completes the count.",
+  "application": {
+    "application_id": "APP-24004",
+    "applicant": { "first_name": "Rowan", "last_name": "Aldridge", "date_of_birth": "1968-11-15" },
+    "contact": { "email": "rowan.aldridge@example.org", "phone": "+49 152 0433 2804" },
+    "supply_address": { "line1": "Old Mill Farm", "postcode": "63320", "city": "Fenby" },
+    "metering_point_id": "MP-63320-000058",
+    "consumption_basis": "estimate", "annual_consumption_kwh": 6800,
+    "electricity_source": "low_carbon_mix", "plan_preference": "prosumer",
+    "has_generation": true, "generation_technology": "heat_and_power", "generation_capacity_kw": 7.5,
+    "installation": { "installer": "Fenby Combined Heat", "serial_number": "CHP-SN-11092", "commissioned_on": "2024-03-11" },
+    "ev_charger": false, "heat_pump": false
+  },
+  "world": {
+    "credit": { "credit_band": "A", "score": 826, "outstanding_debt_eur": 0, "identity_result": "verified" },
+    "metering_point": { "meter_type": "standard", "smart_meter": false, "current_supplier": "Northgrid Energy", "connection_capacity_kva": 34.6, "region": "north-east", "grid_operator": "Northvale Grid", "phases": 3 },
+    "documents": { "F-24004-COMP": { "fields": { "serial_number": "CHP-SN-11092", "rated_capacity_kw": 7.5, "machine": "synchronous generator" } } }
+  },
+  "actors": {
+    "Recommend plan": { "output": { "reasons": "Rowan asked for the prosumer plan, which the heat-and-power unit makes him eligible for; at 6,800 kWh a year the export payments make it cheaper than the fixed plans." } },
+    "Write welcome pack": { "output": { "message": "Welcome, Rowan! Your supply at Old Mill Farm starts on {{supply_start_date}} on our prosumer plan, with our low-carbon mix. What your heat-and-power unit exports, up to {{approved_export_kw}} kW, is paid at {{export_tariff_eur_per_kwh}} EUR per kWh. Your first bill follows a month later, paid by direct debit." } }
+  },
+  "steps": [
+    { "after": "PT6H", "say": "Rowan uploads his documents and the four installation documents", "publish": "documents.uploaded", "source": "/customer-portal/documents",
+      "data": {
+        "documents": [{ "type": "proof_of_identity", "file_id": "F-24004-ID" }, { "type": "proof_of_address", "file_id": "F-24004-ADDR" }, { "type": "direct_debit_mandate", "file_id": "F-24004-MAND" }],
+        "installation_documents": [{ "type": "installer_certificate", "file_id": "F-24004-INST" }, { "type": "compliance_certificate", "file_id": "F-24004-COMP" }, { "type": "commissioning_report", "file_id": "F-24004-COMM" }, { "type": "installation_ownership", "file_id": "F-24004-OWN" }],
+        "mandate_reference": "MND-24004" } },
+    { "after": "P14DT1H", "say": "Fourteen days pass without a plan confirmed in the portal", "tick": true },
+    { "after": "PT3H", "say": "Marco, customer care, calls Rowan and records the prosumer plan", "complete": "Confirm plan by phone", "by": "marco", "output": { "plan": "prosumer" } },
+    { "after": "PT2H", "say": "Gabriel, grid engineer, gives the first approval", "complete": "Grid operator approval, two engineers", "by": "gabriel",
+      "output": { "approved": true, "approved_export_kw": 7.5, "note": "Protection settings checked against the commissioning report." } },
+    { "after": "PT20M", "say": "Gabriel tries to approve a second time, and is refused by the four-eyes rule", "complete": "Grid operator approval, two engineers", "by": "gabriel",
+      "output": { "approved": true }, "refused": "four_eyes" },
+    { "after": "PT1H", "say": "Hana, grid engineer, gives the second approval", "complete": "Grid operator approval, two engineers", "by": "hana",
+      "output": { "approved": true, "approved_export_kw": 7.5, "note": "Agree. The fault level stays within the feeder's limit." } },
+    { "after": "P1D", "say": "The e-signature service reports the signed contract", "publish": "contract.signed", "source": "/e-signature", "data": { "contract_signed": true, "signature_id": "ESIG-24004" } },
+    { "after": "P15D", "say": "The registry confirms the switch: the supply starts today", "publish": "switch.completed", "source": "/metering-point-registry", "data": { "switch_completed": true, "supply_start_date": "{{today}}" } }
+  ],
+  "expect": {
+    "run_status": "completed", "journey_status": "completed", "journey_stage": "active", "goals": ["active-customer"],
+    "records": [
+      { "type": "event.timed_out", "node_name": "Plan confirmed" },
+      { "type": "activity.completed", "node_name": "Confirm plan by phone", "data": { "principal": { "id": "marco" } } },
+      { "type": "decision.evaluated", "node_name": "Classify installation", "data": { "outputs": { "export_route": "operator_approval_four_eyes" } } },
+      { "type": "authorization.decided", "node_name": "Grid operator approval, two engineers", "data": { "action": "approve", "decision": "allow", "approval": { "given": 1, "required": 2 } } },
+      { "type": "authorization.decided", "node_name": "Grid operator approval, two engineers", "data": { "action": "approve", "decision": "deny", "reason": "four_eyes", "principal": { "id": "gabriel" } } },
+      { "type": "authorization.decided", "node_name": "Grid operator approval, two engineers", "data": { "action": "approve", "decision": "allow", "approval": { "given": 2, "required": 2 } } },
+      { "type": "activity.completed", "node_name": "Grid operator approval, two engineers", "data": { "approvals": [{ "id": "gabriel" }, { "id": "hana" }] } }
+    ]
+  }
+}

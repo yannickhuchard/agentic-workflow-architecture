@@ -576,13 +576,21 @@ export class WorkflowEngine {
             try {
                 const actor = this.createActor(handler);
                 if (!actor) throw new Error(`No actor for compensation handler "${handler.name}"`);
+                // A handler calls the tools it declares through the same runner as any activity, so its calls are checked and journalled (17.3).
+                // It undoes work already allowed and is not decided under a policy (30.4).
+                const record = (event: Parameters<NonNullable<ActorContext['record']>>[0]) => this.record({ ...event, ...ref, attempt: 1 });
+                const context: ActorContext = { record, payload: value => this.journal.payload(value) };
+                if ((handler.tools || []).length > 0) {
+                    context.tools = new ToolRunner(handler.tools!, { ...(this.options.tools || {}), sessions: this.toolSessions }, record, value => this.journal.payload(value),
+                        { max_calls: handler.outcome_contract?.budgets?.max_tool_calls ?? 16, simulate: this.simulate });
+                }
                 const result = await actor.execute(handler, {
                     ...done.output,
                     _compensating: { activity_id: activity.id, activity_name: activity.name, output: done.output },
                     _failure: { message: failure?.getData('_error'), code: failure?.getData('_error_code') },
                     _run_id: this.runId,
                     _idempotency_key: `${this.runId}:${done.token_id}:${handler.id}:compensation`,
-                });
+                }, context);
                 succeeded++;
                 this.record({
                     type: 'activity.compensated', ...ref,

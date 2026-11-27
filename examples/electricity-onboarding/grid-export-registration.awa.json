@@ -1,0 +1,547 @@
+{
+  "$schema": "https://awa.io/schema/awa.schema.json",
+  "id": "ebe78a2a-8a36-5aa5-a537-a6f739b0ea83",
+  "name": "Grid Export Registration",
+  "version": "1.0.0",
+  "awa_version": "1.1",
+  "description": "Registers a home's own generation for export to the grid: checks the installation documents, classifies the installation by technology and capacity, files a simplified notification or obtains the grid operator's approval, and registers the export meter and tariff.",
+  "roles": [
+    {
+      "id": "2753f34c-59df-5498-8432-fb54f8719dfe",
+      "name": "Installation verifier",
+      "actor_type": "ai_agent",
+      "description": "Checks installers' certificates, compliance certificates and commissioning reports, and that the serial numbers agree.",
+      "capabilities": [
+        "document extraction",
+        "electrical certificates"
+      ],
+      "ai_model_config": {
+        "model_id": "tier:reasoning",
+        "temperature": 0.2
+      }
+    },
+    {
+      "id": "ae4589d5-75e5-532f-a61d-1bbe15a6c8ca",
+      "name": "Grid connection service",
+      "actor_type": "application",
+      "description": "Files notifications with the grid operator and records the outcome."
+    },
+    {
+      "id": "15cb571d-d8fd-5d35-85e4-14431632055a",
+      "name": "Grid engineer",
+      "actor_type": "human",
+      "description": "Approves the export of a medium installation for the grid operator."
+    },
+    {
+      "id": "45a945c8-72a7-5a39-9064-8a4f16a4c78a",
+      "name": "Meter-data system",
+      "actor_type": "application",
+      "description": "Holds metering points, export meters and their tariffs."
+    }
+  ],
+  "events": [
+    {
+      "id": "199cb027-8feb-5898-933e-16a9652b2358",
+      "name": "Export registration requested",
+      "event_type": "start",
+      "description": "The onboarding of a home with its own generation asks for its export to be registered."
+    },
+    {
+      "id": "64a88e19-9d34-5441-9351-ce72e338a883",
+      "name": "Export registered",
+      "event_type": "end"
+    },
+    {
+      "id": "6236b9cc-f35d-5802-9c66-c63c2b5984d4",
+      "name": "Export not registered",
+      "event_type": "end"
+    }
+  ],
+  "activities": [
+    {
+      "id": "e85ae5c0-61e2-59cb-9d7a-776df3813e0f",
+      "name": "Verify installation documents",
+      "role_id": "2753f34c-59df-5498-8432-fb54f8719dfe",
+      "actor_type": "ai_agent",
+      "description": "Check the installer's certificate, the generator or inverter compliance certificate, the commissioning report and the proof of ownership, and that the serial numbers on them agree.",
+      "procedure": "Extract each installation document with the document tool. Compare the inverter or generator serial number on the compliance certificate with the one on the commissioning report. Compare the capacity declared on the application with the rated capacity on the certificate. Note anything that does not agree. Say how sure you are.",
+      "tools": [
+        {
+          "name": "extract_document",
+          "description": "Read an uploaded document: its type, whether it is legible, the fields printed on it and its text.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "file_id",
+              "document_type"
+            ],
+            "properties": {
+              "file_id": {
+                "type": "string"
+              },
+              "document_type": {
+                "type": "string"
+              },
+              "application_id": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4545/documents/v1/extractions",
+            "headers": {
+              "x-api-key": "{{secret:DOCUMENTS_API_KEY}}"
+            }
+          }
+        }
+      ],
+      "guardrails": [
+        {
+          "id": "c69d1a81-16c2-5eea-868b-11ce7891e209",
+          "name": "Instructions inside uploaded documents",
+          "stages": [
+            "tool_result"
+          ],
+          "check": {
+            "kind": "prompt_injection"
+          },
+          "action": "block",
+          "tools": [
+            "extract_document"
+          ]
+        },
+        {
+          "id": "86be291d-e7ac-592e-951a-917ba282281c",
+          "name": "Personal data in the verifier's notes",
+          "stages": [
+            "output"
+          ],
+          "check": {
+            "kind": "personal_data",
+            "categories": [
+              "email",
+              "phone",
+              "iban"
+            ]
+          },
+          "fields": [
+            "notes"
+          ],
+          "action": "redact"
+        }
+      ],
+      "outcome_contract": {
+        "output_schema": {
+          "type": "object",
+          "required": [
+            "installation_valid",
+            "serials_match",
+            "rated_capacity_kw",
+            "unchecked_count",
+            "unreadable_count",
+            "confidence",
+            "notes"
+          ],
+          "properties": {
+            "installation_valid": {
+              "type": "boolean"
+            },
+            "serials_match": {
+              "type": "boolean"
+            },
+            "rated_capacity_kw": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "unchecked_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "unreadable_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "notes": {
+              "type": "string",
+              "minLength": 10
+            }
+          }
+        },
+        "postconditions": [
+          {
+            "name": "Every installation document is checked",
+            "expression": "unchecked_count == 0"
+          },
+          {
+            "name": "Every installation document is legible",
+            "expression": "unreadable_count == 0"
+          },
+          {
+            "name": "Serial numbers agree",
+            "expression": "serials_match == true"
+          },
+          {
+            "name": "Sure enough to act on",
+            "expression": "confidence >= 0.75"
+          }
+        ],
+        "budgets": {
+          "max_attempts": 2,
+          "max_duration": "PT5M",
+          "max_tokens": 30000,
+          "max_tool_calls": 8
+        },
+        "on_violation": "escalate_human"
+      }
+    },
+    {
+      "id": "53c873be-d456-5c2a-a459-1713160c788a",
+      "name": "Send simplified notification",
+      "role_id": "ae4589d5-75e5-532f-a61d-1bbe15a6c8ca",
+      "actor_type": "application",
+      "description": "File the simplified notification of a small installation with the grid operator.",
+      "tools": [
+        {
+          "name": "notify_grid_operator",
+          "description": "File a simplified notification of a small generating installation with the grid operator.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "metering_point_id",
+              "technology",
+              "capacity_kw"
+            ],
+            "properties": {
+              "metering_point_id": {
+                "type": "string"
+              },
+              "technology": {
+                "type": "string"
+              },
+              "capacity_kw": {
+                "type": "number"
+              },
+              "inverter_serial": {
+                "type": "string"
+              },
+              "commissioned_on": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4545/grid/v1/notifications",
+            "headers": {
+              "authorization": "Bearer {{secret:GRID_OPERATOR_TOKEN}}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "2864f139-34e9-5b44-9672-ef146b57c730",
+      "name": "Grid operator approval",
+      "role_id": "15cb571d-d8fd-5d35-85e4-14431632055a",
+      "actor_type": "human",
+      "description": "A grid engineer approves the export of a medium installation, and the capacity that may be exported.",
+      "outcome_contract": {
+        "output_schema": {
+          "type": "object",
+          "required": [
+            "approved"
+          ],
+          "properties": {
+            "approved": {
+              "type": "boolean"
+            },
+            "approved_export_kw": {
+              "type": "number",
+              "minimum": 0
+            },
+            "note": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "431de99e-a89b-5990-8bea-a67001d4a219",
+      "name": "Grid operator approval, two engineers",
+      "role_id": "15cb571d-d8fd-5d35-85e4-14431632055a",
+      "actor_type": "human",
+      "description": "Two grid engineers approve the export of an installation above the four-eyes threshold; the deployment's four-eyes rule makes the second approval necessary.",
+      "outcome_contract": {
+        "output_schema": {
+          "type": "object",
+          "required": [
+            "approved"
+          ],
+          "properties": {
+            "approved": {
+              "type": "boolean"
+            },
+            "approved_export_kw": {
+              "type": "number",
+              "minimum": 0
+            },
+            "note": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "df2c6915-6414-51a0-9121-055366c3d963",
+      "name": "Refer to commercial team",
+      "role_id": "ae4589d5-75e5-532f-a61d-1bbe15a6c8ca",
+      "actor_type": "application",
+      "description": "Open a case for the commercial team, who agree a large installation's export individually."
+    },
+    {
+      "id": "5129c05e-f0bb-5abd-b36f-56971f0693b8",
+      "name": "Record export refusal",
+      "role_id": "ae4589d5-75e5-532f-a61d-1bbe15a6c8ca",
+      "actor_type": "application",
+      "description": "Record that the grid operator did not approve the export."
+    },
+    {
+      "id": "527df5b8-a81f-5ac4-aadf-2f7520d9e957",
+      "name": "Register export meter and tariff",
+      "role_id": "45a945c8-72a7-5a39-9064-8a4f16a4c78a",
+      "actor_type": "application",
+      "description": "Register the export meter and the export tariff with the meter-data system.",
+      "tools": [
+        {
+          "name": "register_export",
+          "description": "Register the export meter and the export tariff with the meter-data system.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "metering_point_id",
+              "approved_export_kw",
+              "technology"
+            ],
+            "properties": {
+              "metering_point_id": {
+                "type": "string"
+              },
+              "approved_export_kw": {
+                "type": "number"
+              },
+              "technology": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "jsonrpc",
+            "endpoint": "http://localhost:4545/meter-data/rpc",
+            "method": "meterdata.register_export"
+          }
+        }
+      ],
+      "retry": {
+        "max_attempts": 3,
+        "initial_delay": "PT1S"
+      }
+    }
+  ],
+  "decision_nodes": [
+    {
+      "id": "09068ea1-5618-5f81-b4c5-d9082e024324",
+      "name": "Classify installation",
+      "description": "What the grid operator needs, from the technology and the capacity. THE THRESHOLDS ARE EXAMPLES: they differ by country and by grid operator, and each operator edits this table.",
+      "decision_table": {
+        "hit_policy": "first",
+        "inputs": [
+          {
+            "name": "technology",
+            "label": "Technology",
+            "type": "string"
+          },
+          {
+            "name": "capacity_kw",
+            "label": "Capacity (kW)",
+            "type": "number"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "installation_class",
+            "type": "string"
+          },
+          {
+            "name": "export_route",
+            "type": "string"
+          }
+        ],
+        "rules": [
+          {
+            "description": "Large: agreed individually by the commercial team",
+            "input_entries": [
+              "-",
+              "> 50"
+            ],
+            "output_entries": [
+              "large",
+              "commercial_referral"
+            ],
+            "output_edge_id": "a84804da-7d44-5119-9299-bc63cdfd0eb3"
+          },
+          {
+            "description": "Small inverter-connected installation: a notification is enough",
+            "input_entries": [
+              "\"solar\", \"wind\"",
+              "<= 3.68"
+            ],
+            "output_entries": [
+              "small",
+              "simplified_notification"
+            ],
+            "output_edge_id": "39e8e880-ac5c-5e85-adbd-54a047aa15ba"
+          },
+          {
+            "description": "Small rotating machine: a notification is enough",
+            "input_entries": [
+              "\"geothermal\", \"heat_and_power\", \"small_hydro\", \"other\"",
+              "<= 2"
+            ],
+            "output_entries": [
+              "small",
+              "simplified_notification"
+            ],
+            "output_edge_id": "39e8e880-ac5c-5e85-adbd-54a047aa15ba"
+          },
+          {
+            "description": "Rotating machine above the four-eyes threshold",
+            "input_entries": [
+              "\"geothermal\", \"heat_and_power\", \"small_hydro\", \"other\"",
+              "> 5"
+            ],
+            "output_entries": [
+              "medium",
+              "operator_approval_four_eyes"
+            ],
+            "output_edge_id": "b66b496d-2994-5a2c-a1d2-b21c213fe855"
+          },
+          {
+            "description": "Inverter-connected installation above the four-eyes threshold",
+            "input_entries": [
+              "\"solar\", \"wind\"",
+              "> 10"
+            ],
+            "output_entries": [
+              "medium",
+              "operator_approval_four_eyes"
+            ],
+            "output_edge_id": "b66b496d-2994-5a2c-a1d2-b21c213fe855"
+          },
+          {
+            "description": "Medium: the grid operator approves",
+            "input_entries": [
+              "-",
+              "> 0"
+            ],
+            "output_entries": [
+              "medium",
+              "operator_approval"
+            ],
+            "output_edge_id": "d1bfbbd1-a7aa-545d-b468-082d7a233ce3"
+          }
+        ]
+      },
+      "default_output_edge_id": "a84804da-7d44-5119-9299-bc63cdfd0eb3"
+    }
+  ],
+  "edges": [
+    {
+      "id": "ae4337ef-a975-5001-8ff6-15952f368299",
+      "source_id": "199cb027-8feb-5898-933e-16a9652b2358",
+      "target_id": "e85ae5c0-61e2-59cb-9d7a-776df3813e0f"
+    },
+    {
+      "id": "a0ea30fc-3924-5c11-b037-e04cea20c4fe",
+      "source_id": "e85ae5c0-61e2-59cb-9d7a-776df3813e0f",
+      "target_id": "09068ea1-5618-5f81-b4c5-d9082e024324"
+    },
+    {
+      "id": "39e8e880-ac5c-5e85-adbd-54a047aa15ba",
+      "source_id": "09068ea1-5618-5f81-b4c5-d9082e024324",
+      "target_id": "53c873be-d456-5c2a-a459-1713160c788a",
+      "label": "small"
+    },
+    {
+      "id": "d1bfbbd1-a7aa-545d-b468-082d7a233ce3",
+      "source_id": "09068ea1-5618-5f81-b4c5-d9082e024324",
+      "target_id": "2864f139-34e9-5b44-9672-ef146b57c730",
+      "label": "medium"
+    },
+    {
+      "id": "b66b496d-2994-5a2c-a1d2-b21c213fe855",
+      "source_id": "09068ea1-5618-5f81-b4c5-d9082e024324",
+      "target_id": "431de99e-a89b-5990-8bea-a67001d4a219",
+      "label": "medium, above the four-eyes threshold"
+    },
+    {
+      "id": "a84804da-7d44-5119-9299-bc63cdfd0eb3",
+      "source_id": "09068ea1-5618-5f81-b4c5-d9082e024324",
+      "target_id": "df2c6915-6414-51a0-9121-055366c3d963",
+      "label": "large"
+    },
+    {
+      "id": "27fb5b92-dcbe-5935-98be-5e3bfb760d84",
+      "source_id": "53c873be-d456-5c2a-a459-1713160c788a",
+      "target_id": "527df5b8-a81f-5ac4-aadf-2f7520d9e957"
+    },
+    {
+      "id": "9b48d22c-19b9-5bc3-a9be-8a7bb64a00de",
+      "source_id": "2864f139-34e9-5b44-9672-ef146b57c730",
+      "target_id": "527df5b8-a81f-5ac4-aadf-2f7520d9e957",
+      "condition": "approved == true"
+    },
+    {
+      "id": "f157f52a-20ba-562d-a163-324dbddee081",
+      "source_id": "2864f139-34e9-5b44-9672-ef146b57c730",
+      "target_id": "5129c05e-f0bb-5abd-b36f-56971f0693b8",
+      "is_default": true
+    },
+    {
+      "id": "959ca98e-1807-52f8-9743-9e0039429714",
+      "source_id": "431de99e-a89b-5990-8bea-a67001d4a219",
+      "target_id": "527df5b8-a81f-5ac4-aadf-2f7520d9e957",
+      "condition": "approved == true"
+    },
+    {
+      "id": "bf99707c-cb8a-53df-8093-848cdf512d46",
+      "source_id": "431de99e-a89b-5990-8bea-a67001d4a219",
+      "target_id": "5129c05e-f0bb-5abd-b36f-56971f0693b8",
+      "is_default": true
+    },
+    {
+      "id": "5b7789d4-8b3c-5920-83e9-3633e9e925c2",
+      "source_id": "527df5b8-a81f-5ac4-aadf-2f7520d9e957",
+      "target_id": "64a88e19-9d34-5441-9351-ce72e338a883"
+    },
+    {
+      "id": "dd80c927-efc1-51a3-ac4e-435e1def5322",
+      "source_id": "df2c6915-6414-51a0-9121-055366c3d963",
+      "target_id": "6236b9cc-f35d-5802-9c66-c63c2b5984d4"
+    },
+    {
+      "id": "93bafbc9-1ab2-547e-b740-97869ccbae2f",
+      "source_id": "5129c05e-f0bb-5abd-b36f-56971f0693b8",
+      "target_id": "6236b9cc-f35d-5802-9c66-c63c2b5984d4"
+    }
+  ]
+}

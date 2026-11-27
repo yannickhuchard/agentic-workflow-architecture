@@ -1,0 +1,6 @@
+[
+  { "type": "documents.uploaded", "data": { "application_id": "APP-24001", "documents": [{ "type": "proof_of_identity", "file_id": "F-24001-ID" }, { "type": "proof_of_address", "file_id": "F-24001-ADDR" }, { "type": "direct_debit_mandate", "file_id": "F-24001-MAND" }], "mandate_reference": "MND-24001" } },
+  { "type": "plan.confirmed", "data": { "application_id": "APP-24001", "plan": "fixed_12" } },
+  { "type": "contract.signed", "data": { "application_id": "APP-24001", "contract_signed": true } },
+  { "type": "switch.completed", "data": { "application_id": "APP-24001", "switch_completed": true, "supply_start_date": "2026-12-01" } }
+]
