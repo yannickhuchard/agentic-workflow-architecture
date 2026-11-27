@@ -2,6 +2,7 @@
 //
 //   cd sdk/typescript && npm install && npm run build
 //   node examples/electricity-onboarding/demo/live.mjs [--port 4600] [--speed 1] [--scenario solar-prosumer|all|<name>] [--adapters-port 4545]
+//        [--then all --then-speed 8]   then the other scenarios, faster, so that the journey view and the measures fill
 //
 // It starts the reference adapters (adapters/mock-server.mjs), an AWA host in this process (AwaRuntime) with
 // both workflows and the journey registered, scripted AI agents whose answers are realistic and whose work takes
@@ -13,6 +14,7 @@
 //   {"t": <ms since start>, "kind": "action", "text": ..., "run_id": ..., "instance_id": ...}   something done to the host
 //   {"t": ..., "kind": "event", "text": ..., "run_id": ..., "instance_id": ...}                 something the host recorded
 //   {"t": ..., "kind": "ready", "urls": {...}}     first line: where the views are
+//   {"t": ..., "kind": "phase", "text": ...}      with --then: the other scenarios begin (their actions carry "main": false)
 //   {"t": ..., "kind": "done", "run_id": ..., "instance_id": ..., "urls": {...}}   last line: the views of the main scenario's run
 // The server keeps serving after the last line, until the process receives SIGINT or SIGTERM.
 //
@@ -75,7 +77,7 @@ function describe(event) {
  * Start the demonstration. `sdk` is the SDK module (the built package, or its sources in a test). Resolves once
  * the servers listen; `done` resolves after the last scenario, with the URLs of the main scenario's run.
  */
-export async function start_demo({ sdk, port = 4600, adapters_port = 4545, speed = 1, scenario = MAIN_SCENARIO, out = line => process.stdout.write(`${JSON.stringify(line)}\n`) }) {
+export async function start_demo({ sdk, port = 4600, adapters_port = 4545, speed = 1, scenario = MAIN_SCENARIO, then, then_speed, out = line => process.stdout.write(`${JSON.stringify(line)}\n`) }) {
     const started = Date.now();
     const emit = line => out({ t: Date.now() - started, ...line });
     const sleep = ms => new Promise(resolve => setTimeout(resolve, ms / speed));
@@ -87,6 +89,8 @@ export async function start_demo({ sdk, port = 4600, adapters_port = 4545, speed
     if (adapters_at !== 'localhost:4545') example = replace_all(example, 'localhost:4545', adapters_at);
     const chosen = scenario === 'all' ? example.scenarios : example.scenarios.filter(s => s.name === scenario);
     if (!chosen.length) throw new Error(`No scenario "${scenario}". Scenarios: ${example.scenarios.map(s => s.name).join(', ')}, or all`);
+    // With --then all: the other scenarios after the chosen ones, at --then-speed, so that the views fill with customers
+    const afterwards = then === 'all' ? example.scenarios.filter(s => !chosen.includes(s)) : [];
 
     // --- The host: a business clock that moves with real time, and jumps when the timeline says days pass ---
     let offset = 0;
@@ -132,7 +136,7 @@ export async function start_demo({ sdk, port = 4600, adapters_port = 4545, speed
         for (const instance of runtime.list_journey_instances()) {
             const from = seen.get(instance.id) || 0;
             for (const e of instance.events.slice(from)) {
-                const text = { 'journey.stage_entered': `Journey: stage "${e.data.stage_name}"`, 'journey.goal_reached': `Journey: goal "${e.data.goal_name}" reached`, 'journey.completed': 'Journey completed', 'journey.abandoned': `Journey abandoned: ${e.data.reason}`, 'journey.stalled': `Journey stalled: ${e.data.reason}` }[e.type];
+                const text = { 'journey.stage_entered': `Journey: stage "${e.data.stage_name}"`, 'journey.goal_reached': `Journey: goal "${e.data.goal_name}" reached`, 'journey.completed': 'Journey completed', 'journey.abandoned': `Journey abandoned: ${e.data.reason}`, 'journey.stalled': `Journey stalled: ${e.data.reason || `longer than allowed in stage "${e.data.stage_name}"`}` }[e.type];
                 if (text) emit({ kind: 'event', text, run_id: e.run_id, instance_id: instance.id });
             }
             seen.set(instance.id, instance.events.length);
@@ -208,6 +212,20 @@ export async function start_demo({ sdk, port = 4600, adapters_port = 4545, speed
             journey_lines();
             if (s.name === MAIN_SCENARIO || !main) main = instance;
         }
+        if (afterwards.length && !stopped) {
+            speed = then_speed || speed;
+            emit({ kind: 'phase', text: `${afterwards.length} more customers, at ${speed} times the speed` });
+            for (const s of afterwards) {
+                if (stopped) break;
+                await play(sdk, runtime, journal, example, s, {
+                    advance: ms => { offset += ms; },
+                    pause: async () => { journey_lines(); await sleep(STEP_PAUSE_MS); },
+                    log: entry => { journey_lines(); emit({ kind: 'action', main: false, text: entry.text, run_id: entry.run_id || instance_of_application(entry.application_id), instance_id: entry.instance_id }); },
+                    today,
+                });
+                journey_lines();
+            }
+        }
         const run = main?.runs.find(r => !r.parent_run_id);
         const child = main?.runs.find(r => r.parent_run_id);
         const urls = { ...views, replay: run && replay(run.run_id), ...(child ? { replay_child_run: replay(child.run_id) } : {}) };
@@ -235,6 +253,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     const demo = await start_demo({
         sdk, port: Number(option('port', 4600)), adapters_port: Number(option('adapters-port', 4545)),
         speed: Number(option('speed', 1)), scenario: option('scenario', MAIN_SCENARIO),
+        then: option('then'), then_speed: Number(option('then-speed', 0)) || undefined,
     });
     let stopping = false;
     const shutdown = async () => {

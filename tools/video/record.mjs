@@ -62,6 +62,13 @@ async function wait_for(url, ms = 60000) {
     throw new Error(`${url} did not answer within ${ms} ms`);
 }
 
+/** How a console line is coloured when the script does not say: who acted, and what went wrong */
+const DEFAULT_KINDS = [
+    ['fail', '^Refused|blocked|refused or failed|not met|before the deadline|[Ss]talled|breached|^Run failed|abandoned'],
+    ['agent', 'completed by agent:|Decision .* by model'],
+    ['person', 'completed by [a-z]+( |$)|approves "'],
+];
+
 const mmss = ms => { const s = Math.max(0, Math.floor(ms / 1000)); return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; };
 
 async function main() {
@@ -106,7 +113,8 @@ async function main() {
 
     // The title card while the demonstration starts
     await page.evaluate(card => window.studio.card(card.tag, card.title, card.text), text.intro || { tag: 'AWA', title: 'A live AWA execution', text: '' });
-    const demo = spawn(o.demo, { shell: true, cwd: root, stdio: ['ignore', 'pipe', 'inherit'] });
+    // Its own process group, so that stopping it stops the demonstration and not only the shell around it
+    const demo = spawn(o.demo, { shell: true, cwd: root, stdio: ['ignore', 'pipe', 'inherit'], detached: true });
     const begun = Date.now();
     let done = false, main_run = null, step = 0;
     const pending = [];
@@ -135,23 +143,47 @@ async function main() {
     }, { api, labels: text.labels || {} });
 
     const start_of_steps = Date.now();
-    let finished_at = null;
+    let finished_at = null, phase = false, following_child = false;
+    const kind_of = s => {
+        if (s.kind === 'action' || s.kind === 'phase') return 'action';
+        for (const [kind, pattern] of script.kinds || DEFAULT_KINDS) if (new RegExp(pattern).test(s.text)) return kind;
+        return 'event';
+    };
+    const run_view = async (run_id, note) => {
+        const url = `../visualization/replay.html?run=${encodeURIComponent(`${api}/api/v1/workflows/runs/${run_id}`)}`;
+        await page.evaluate(({ url, note }) => window.studio.view('run', url, 1700, note), { url, note });
+    };
     while (true) {
         while (pending.length) {
             const s = pending.shift();
             if (s.kind === 'done') { finished_at = Date.now(); continue; }
+            if (s.kind === 'ready') continue;
             // The first run of the main scenario is the one the run pane follows
-            if (!main_run && s.run_id && (s.main !== false)) {
+            if (!main_run && s.run_id && s.main !== false && s.kind !== 'phase') {
                 main_run = s.run_id;
-                const url = `../visualization/replay.html?run=${encodeURIComponent(`${api}/api/v1/workflows/runs/${main_run}`)}`;
-                await page.evaluate(({ url, note }) => window.studio.view('run', url, 1700, note), { url, note: s.run_label || s.scenario || '' });
+                await run_view(main_run, text.labels?.run_note || '');
             }
-            const line = translate(s.text);
-            const kind = s.kind === 'action' ? (s.actor === 'person' ? 'person' : s.actor === 'agent' ? 'agent' : 'action') : s.kind === 'fail' ? 'fail' : 'event';
-            await page.evaluate(({ kind, line, time }) => window.studio.line(kind, line, time), { kind, line, time: mmss(s.t ?? (Date.now() - start_of_steps)) });
-            if (s.kind === 'action' || s.caption) {
+            // While the main run waits on a child run, the pane follows the child (specification section 24)
+            if (!phase && main_run && s.run_id && s.run_id !== main_run && !following_child && /\(child run\)/.test(s.text)) {
+                following_child = true;
+                await run_view(s.run_id, text.labels?.child_run_note || 'child run');
+            } else if (following_child && s.run_id === main_run && /the child run completed/.test(s.text)) {
+                following_child = false;
+                await run_view(main_run, text.labels?.run_note || '');
+            }
+            if (s.kind === 'phase') phase = true;
+            // After the main scenario, the pane follows each new customer's run as it starts
+            if (phase && s.run_id && s.kind === 'event' && /^Run started: /.test(s.text) && !/\(child run\)/.test(s.text)) {
+                await run_view(s.run_id, text.labels?.run_note_next || 'next customer');
+            }
+            // The adapters' address says nothing to a viewer: the path does
+            const line = translate(s.text).replace(/https?:\/\/(localhost|127\.0\.0\.1):\d+/g, '');
+            await page.evaluate(({ kind, line, time }) => window.studio.line(kind, line, time), { kind: kind_of(s), line, time: mmss(s.t ?? (Date.now() - start_of_steps)) });
+            // Captions: every action, the start of each phase, and the events the script names, in the main scenario
+            const named = !phase && s.kind === 'event' && (text.event_captions || []).find(([pattern]) => new RegExp(pattern).test(s.text));
+            if (s.kind === 'action' || s.kind === 'phase' || named) {
                 step++;
-                await page.evaluate(({ c, n }) => window.studio.caption(c, n), { c: translate(s.caption || s.text), n: String(step) });
+                await page.evaluate(({ c, n }) => window.studio.caption(c, n), { c: named ? named[1] : translate(s.text), n: String(step) });
             }
         }
         if (finished_at && Date.now() - finished_at > o.tail * 1000) break;
@@ -166,7 +198,7 @@ async function main() {
     clearInterval(nudge);
     await cdp.send('Page.stopScreencast').catch(() => { });
     await browser.close();
-    if (demo.exitCode === null) demo.kill('SIGINT');
+    if (demo.exitCode === null) { try { process.kill(-demo.pid, 'SIGINT'); } catch { /* already gone */ } }
     server.close();
 
     // Each frame lasts until the next one: ffmpeg's concat demuxer with durations, then a constant rate

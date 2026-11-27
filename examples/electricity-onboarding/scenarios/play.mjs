@@ -230,7 +230,8 @@ export function watching_journal(inner) {
 /**
  * Play one scenario on a host to its end. The application is published first, then each step in order.
  * `advance(ms)` moves the host's clock; `pause(step)` is called before each step (the live demonstration
- * waits there); `log(entry)` hears what is done. Returns the journey instance.
+ * waits there); `log(entry)` hears what is about to be done, before it is done, so that a viewer reads the action
+ * before its effects. Returns the journey instance.
  */
 export async function play(sdk, runtime, journal, example, scenario, { advance = () => { }, pause = async () => { }, log = () => { }, today = () => '' } = {}) {
     const application_id = scenario.application.application_id;
@@ -238,23 +239,23 @@ export async function play(sdk, runtime, journal, example, scenario, { advance =
     const publish = (type, data, source) => runtime.publish(sdk.business_event(type, { application_id, ...data }, { source }));
     const instance = () => runtime.list_journey_instances().find(i => i.subject_key === application_id);
 
-    await pause({ say: `${scenario.application.applicant.first_name} ${scenario.application.applicant.last_name} applies on the web form`, kind: 'apply' });
+    const applies = `${scenario.application.applicant.first_name} ${scenario.application.applicant.last_name} applies on the web form`;
+    await pause({ say: applies, kind: 'apply' });
+    log({ kind: 'action', text: applies, application_id, instance_id: instance()?.id });
     await publish('onboarding.requested', scenario.application, '/customer-portal/apply');
-    log({ kind: 'action', text: `${scenario.application.applicant.first_name} ${scenario.application.applicant.last_name} applies on the web form`, application_id, instance_id: instance()?.id });
 
     for (const step of scenario.steps) {
-        let run_id;
         await pause(step);
         advance(duration_ms(step.after));
+        const task = step.complete ? [...journal.tasks.values()].find(t => t.node_name === step.complete && t.task.startsWith(`${application_id}:`)) : undefined;
+        if (step.complete && !task) throw new Error(`${scenario.name}: nobody is waiting at "${step.complete}"`);
+        log({ kind: 'action', text: step.say || step.publish || step.complete || 'time passes', application_id, run_id: task?.run_id, instance_id: instance()?.id });
         if (step.publish) {
             await publish(step.publish, fill(step.data || {}, { today: today(), application: scenario.application }), step.source || '/customer-portal');
         } else if (step.tick) {
             await runtime.tick();
         } else if (step.complete) {
-            const task = [...journal.tasks.values()].find(t => t.node_name === step.complete && t.task.startsWith(`${application_id}:`));
-            if (!task) throw new Error(`${scenario.name}: nobody is waiting at "${step.complete}"`);
             const principal = sdk.principal_named(authorization, step.by);
-            run_id = task.run_id;
             try {
                 await runtime.resume(task.run_id, task.token_id, step.output || {}, principal);
                 if (step.refused) throw new Error(`${scenario.name}: ${step.by} was expected to be refused at "${step.complete}"`);
@@ -262,7 +263,6 @@ export async function play(sdk, runtime, journal, example, scenario, { advance =
                 if (!step.refused || error.code !== 'FORBIDDEN') throw error;
             }
         }
-        log({ kind: 'action', text: step.say || step.publish || step.complete || 'time passes', application_id, run_id, instance_id: instance()?.id });
     }
     return instance();
 }

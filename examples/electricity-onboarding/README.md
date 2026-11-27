@@ -22,6 +22,7 @@ Eight scenarios run it to their end with scripted agents and the reference adapt
 | `bpmn/electricity-onboarding.{bpmn,dmn}` | Both workflows in BPMN 2.0, and their decision tables in DMN (specification section 27) |
 | `simulation.json`, `simulation-events.json` | What each activity returns, and the events that arrive, for a run in simulation |
 | `demo/live.mjs` | A live demonstration, paced for a viewer |
+| `demo/video.json` | The texts of the demonstration video, in English and in French, for `tools/video/record.mjs` |
 | `build-definitions.py` | Writes the three definitions, so that identifiers stay stable |
 
 ## The process
@@ -173,6 +174,8 @@ node examples/electricity-onboarding/demo/live.mjs --scenario all --speed 2
 | `--speed <x>` | 1 | How much faster than the default pace the timeline plays |
 | `--scenario <name>` | `solar-prosumer` | One scenario by name, or `all`, one after the other |
 | `--adapters-port <n>` | 4545 | The port of the reference adapters; the tools are pointed at it |
+| `--then all` | none | After the chosen scenario, plays every other scenario, so that the journey view and the measures fill with customers |
+| `--then-speed <x>` | the value of `--speed` | The speed of the scenarios that `--then` adds |
 
 The demonstration starts the reference adapters, an AWA host in the process (an `AwaRuntime` with both workflows and the journey), scripted AI agents whose work takes one to three seconds, tools that really call the adapters over HTTP, and the SDK's HTTP server (`createServer` with `set_journey_runtime`). Then it plays the timeline: the application, the documents, the people completing their tasks under their own names, the signed contract, the completed switch. The business clock jumps where the scenario says hours or days pass.
 
@@ -183,6 +186,16 @@ Each line of standard output is a JSON object: `{"t": <ms since start>, "kind": 
 - `http://localhost:4600/views/replay.html?run=http://localhost:4600/api/v1/workflows/runs/<run id>`: one run, step by step, live. The script serves `GET /api/v1/workflows/runs/<run id>/workflow`, `/events` and `/events/stream` (Server-Sent Events) for every run the host starts, child runs included.
 
 It keeps serving after the timeline, and stops cleanly on Ctrl+C.
+
+Each action is written before the host performs it, so that a reader meets the action before its effects. With `--then all`, a line of kind `phase` marks the start of the other scenarios, and their actions carry `"main": false`.
+
+## Record a video of it
+
+[`tools/video`](../../tools/video/README.md) records the live demonstration as a video, with the console, the run followed live, the journeys and the measures side by side, and a caption for each step. `demo/video.json` holds the texts of the video in English and in French.
+
+```bash
+node tools/video/record.mjs --demo "node examples/electricity-onboarding/demo/live.mjs --port 4610 --speed 1 --then all --then-speed 8" --api http://localhost:4610 --script examples/electricity-onboarding/demo/video.json --lang en --out awa-electricity-onboarding-en.mp4
+```
 
 ## Adapt it
 
