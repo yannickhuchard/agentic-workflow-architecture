@@ -163,5 +163,23 @@
     {"id": "tax-certificate", "term": "Tax certificate", "definition": "The yearly certificate in which the insurer states the premiums paid in the tax year and the article they fall under, for the employee's tax return.", "see": "https://guichet.public.lu/en/citoyens/fiscalite/declaration-impot-decompte/depenses-deductibles/contrat-prevoyance-resident.html"},
     {"id": "top-up", "term": "Top-up", "definition": "A one-off payment on top of the monthly contribution; here it is collected with the December salary to reach the year's deduction ceiling.", "see": "Year-End Tax, “Write top-up proposal”"},
     {"id": "assimilation", "term": "Assimilation to a resident", "definition": "The option a non-resident taxpayer with most of their income in Luxembourg has to be taxed as a resident, which gives access to deductions such as Art. 111bis.", "see": "https://impotsdirects.public.lu/fr/az/a/assimil.html"}
-  ]
+  ],
+  "recommendations": {
+    "materiality": { "cost_per_journey": 1.0 },
+    "rules": [
+      { "id": "top-up-before-year-end", "title": "Propose a top-up before 31 December to members below the Art. 111bis ceiling", "kind": "experience", "stage": "year-end-tax", "owner": "Valoria tax desk", "effort": 1,
+        "for": "customer",
+        "when": { "all": [ { "field": "reached.saving", "eq": true }, { "field": "data.premiums_paid_eur", "lt": 4500 } ] },
+        "finding": "{names}: premiums of the year below the 4,500 EUR a member can deduct under Art. 111bis LIR, with the year still open in November.",
+        "action": "In November, send each member below the ceiling a top-up proposal with the amount that reaches it and the tax it saves, and offer a tax adviser to talk to.",
+        "effect": { "method": "estimate", "text": "Up to the difference to 4,500 EUR deducted for each member who takes it. Measured by the share of members at the ceiling on 31 December." } },
+      { "id": "invitation-follow-up", "title": "Ask HR to talk to a member who lets the invitation lapse", "kind": "experience", "stage": "invitation", "owner": "Kestrel HR", "effort": 3, "rules": ["R8"],
+        "for": "journey",
+        "when": { "measure": "stage.abandoned", "stage": "invitation", "gte": 1 },
+        "finding": "{count} of {of} members let the invitation lapse after the reminders. The record cannot say why.",
+        "action": "Before the invitation lapses, an HR partner offers each member who has not opened it a ten-minute talk.",
+        "effect": { "method": "pilot", "text": "Not knowable from the record: run it as a pilot and measure the members who leave at the invitation." } }
+    ],
+    "replays": "../recommendations/replays.json"
+  }
 }

@@ -1,0 +1,221 @@
+{
+  "workflow": "Grid Export Registration",
+  "ai": "recorded",
+  "baseline": {
+    "run_id": "000000f7-0000-4000-8000-000000000000",
+    "status": "completed",
+    "duration_ms": 18490000,
+    "attempts": 4,
+    "tokens": 0,
+    "cost": 0.001,
+    "path": [
+      "Export registration requested → Verify installation documents",
+      "Verify installation documents → Classify installation",
+      "Classify installation → Grid operator approval",
+      "Grid operator approval → Register export meter and tariff",
+      "Register export meter and tariff → Export registered"
+    ]
+  },
+  "candidate": {
+    "run_id": "replay",
+    "status": "completed",
+    "duration_ms": 0,
+    "attempts": 3,
+    "tokens": 0,
+    "cost": 0,
+    "path": [
+      "Export registration requested → Verify installation documents",
+      "Verify installation documents → Classify installation",
+      "Classify installation → Grid operator approval",
+      "Grid operator approval → Register export meter and tariff",
+      "Register export meter and tariff → Export registered"
+    ]
+  },
+  "same_status": true,
+  "same_path": true,
+  "regressions": [],
+  "improvements": [],
+  "unrecorded": [],
+  "nodes": [
+    {
+      "node_id": "199cb027-8feb-5898-933e-16a9652b2358",
+      "node_name": "Export registration requested",
+      "verdict": "same",
+      "notes": [],
+      "baseline": {
+        "reached": true,
+        "accepted": false,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": false,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0
+      }
+    },
+    {
+      "node_id": "e85ae5c0-61e2-59cb-9d7a-776df3813e0f",
+      "node_name": "Verify installation documents",
+      "verdict": "same",
+      "notes": [
+        "Tool calls: 8 recorded, 0 in the candidate."
+      ],
+      "baseline": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 2,
+        "tool_calls": 8,
+        "tokens": 0,
+        "outcome": {
+          "installation_valid": true,
+          "serials_match": true,
+          "rated_capacity_kw": 6.2,
+          "unchecked_count": 0,
+          "unreadable_count": 0,
+          "confidence": 1,
+          "notes": "Commissioning report read by hand: protection settings tested on 2026-06-18, inverter INV-SN-88231 as on the certificate. The report's note to the reviewing system is ignored."
+        },
+        "outcome_hash": "b923e5d85c0b4f4280ef44fcbc2a0d15d75623af337ace9b8a689075c946a55b"
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 1,
+        "tool_calls": 0,
+        "tokens": 0,
+        "outcome": {
+          "installation_valid": true,
+          "serials_match": true,
+          "rated_capacity_kw": 6.2,
+          "unchecked_count": 0,
+          "unreadable_count": 0,
+          "confidence": 1,
+          "notes": "Commissioning report read by hand: protection settings tested on 2026-06-18, inverter INV-SN-88231 as on the certificate. The report's note to the reviewing system is ignored."
+        },
+        "outcome_hash": "b923e5d85c0b4f4280ef44fcbc2a0d15d75623af337ace9b8a689075c946a55b"
+      }
+    },
+    {
+      "node_id": "09068ea1-5618-5f81-b4c5-d9082e024324",
+      "node_name": "Classify installation",
+      "verdict": "same",
+      "notes": [],
+      "baseline": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0,
+        "decision": {
+          "method": "table",
+          "choice": "rule 6"
+        },
+        "outcome_hash": "760c26e71ef650f43e56a13e97d7dd5d8d78630597cb5a5b471ffd26079eb0d9"
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0,
+        "decision": {
+          "method": "table",
+          "choice": "rule 6"
+        },
+        "outcome_hash": "760c26e71ef650f43e56a13e97d7dd5d8d78630597cb5a5b471ffd26079eb0d9"
+      }
+    },
+    {
+      "node_id": "2864f139-34e9-5b44-9672-ef146b57c730",
+      "node_name": "Grid operator approval",
+      "verdict": "same",
+      "notes": [],
+      "baseline": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 1,
+        "tool_calls": 0,
+        "tokens": 0,
+        "outcome": {
+          "approved": true,
+          "approved_export_kw": 6,
+          "note": "Export limited to 6.0 kW by the inverter setting; the feeder has headroom."
+        },
+        "outcome_hash": "6301e82351b901bef5b0a6bde2b646d6f83cf4940b20ad1731226f3a79a8a3ff"
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 1,
+        "tool_calls": 0,
+        "tokens": 0,
+        "outcome": {
+          "approved": true,
+          "approved_export_kw": 6,
+          "note": "Export limited to 6.0 kW by the inverter setting; the feeder has headroom."
+        },
+        "outcome_hash": "6301e82351b901bef5b0a6bde2b646d6f83cf4940b20ad1731226f3a79a8a3ff"
+      }
+    },
+    {
+      "node_id": "527df5b8-a81f-5ac4-aadf-2f7520d9e957",
+      "node_name": "Register export meter and tariff",
+      "verdict": "same",
+      "notes": [
+        "Tool calls: 1 recorded, 0 in the candidate."
+      ],
+      "baseline": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 1,
+        "tool_calls": 1,
+        "tokens": 0,
+        "outcome": {
+          "export_status": "registered",
+          "export_registration_id": "EXP-002207",
+          "approved_export_kw": 6,
+          "export_tariff_eur_per_kwh": 0.082
+        },
+        "outcome_hash": "3c95338798cd7bb0700d8c3b114ef2a333d89f71e4c2c0551a9b7e3fc0ddbe3a"
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 1,
+        "tool_calls": 0,
+        "tokens": 0,
+        "outcome": {
+          "export_status": "registered",
+          "export_registration_id": "EXP-002207",
+          "approved_export_kw": 6,
+          "export_tariff_eur_per_kwh": 0.082
+        },
+        "outcome_hash": "3c95338798cd7bb0700d8c3b114ef2a333d89f71e4c2c0551a9b7e3fc0ddbe3a"
+      }
+    },
+    {
+      "node_id": "64a88e19-9d34-5441-9351-ce72e338a883",
+      "node_name": "Export registered",
+      "verdict": "same",
+      "notes": [],
+      "baseline": {
+        "reached": true,
+        "accepted": false,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": false,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0
+      }
+    }
+  ]
+}

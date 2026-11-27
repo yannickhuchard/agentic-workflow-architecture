@@ -79,5 +79,26 @@
     {"id": "supplier-switch", "term": "Supplier switch", "definition": "The move of a home's supply from its current supplier to the new one, which the registry of metering points carries out and confirms.", "see": "Example", "aliases": ["switch", "Request supplier switch", "Switch completed"]},
     {"id": "direct-debit-mandate", "term": "Direct debit mandate", "definition": "The customer's signed permission for the supplier to collect each bill from their bank account.", "see": "Example", "aliases": ["mandate", "direct debit"]},
     {"id": "commissioning-report", "term": "Commissioning report", "definition": "The installer's report that a home installation, such as solar panels, was set up and tested, with its serial numbers and rated capacity.", "see": "https://github.com/yannickhuchard/agentic-workflow-architecture/blob/main/examples/electricity-onboarding/INTEGRATION.md", "aliases": ["installer certificate"]}
-  ]
+  ],
+  "recommendations": {
+    "materiality": { "cost_per_journey": 1.0 },
+    "wording": {
+      "silence-switch": { "action": "Add a touchpoint “Switch update”: a short message on day 7 of the switch, and at once when the registry is late. The letters agent writes it under the existing guardrail." },
+      "handover-first-failure": { "title": "Hand an unreadable document to a person at the first failure" },
+      "routing-allowed": { "action": "Offer a task only to the people the policy allows: credit referrals to credit officers, and grid approvals to an engineer who neither resolved the file nor approved it already." },
+      "wait-plan-confirmed": { "title": "Call before the plan offer lapses, on day 7", "action": "Bring the phone call forward: wait 7 days for “plan.confirmed” before Confirm plan by phone, not 14." },
+      "remind-earlier": { "action": "Send the reminder after 3 days, and let it say exactly which document is missing." },
+      "chase-switch-completed": { "title": "Chase the registry before the switch times out", "action": "Add a timer on the switch wait at day 14 that opens a task for the switching team to chase the registry, before the 21-day deadline." },
+      "cost-verify-documents": { "title": "Try a lighter model for clear document checks" }
+    },
+    "rules": [
+      { "id": "payment-plan", "title": "Offer a payment plan before declining", "kind": "experience", "stage": "application", "owner": "Credit team", "effort": 3, "rules": ["R8"],
+        "for": "customer",
+        "when": { "all": [ { "field": "status", "eq": "abandoned" }, { "field": "stage", "eq": "application" }, { "field": "data.outstanding_debt_eur", "gt": 1000 } ] },
+        "finding": "{names}: declined on an energy debt above the limit and told by post. The journey ends there, the only customer lost at Application.",
+        "action": "Above the debt limit, offer a payment plan with a credit officer before the decline letter.",
+        "effect": { "method": "pilot", "text": "Not measurable by replay: the path is new. Run it as a pilot and measure the customers who leave at Application." } }
+    ],
+    "replays": "../recommendations/replays.json"
+  }
 }

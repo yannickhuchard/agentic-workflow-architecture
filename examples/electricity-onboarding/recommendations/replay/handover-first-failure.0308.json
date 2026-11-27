@@ -1,0 +1,935 @@
+{
+  "workflow": "Electricity Customer Onboarding",
+  "ai": "recorded",
+  "baseline": {
+    "run_id": "00000308-0000-4000-8000-000000000000",
+    "status": "completed",
+    "duration_ms": 2023907000,
+    "attempts": 13,
+    "tokens": 4976,
+    "cost": 0.031400000000000004,
+    "path": [
+      "Application received → Register application",
+      "Register application → Required documents",
+      "Required documents → Request documents",
+      "Request documents → Documents uploaded",
+      "Documents uploaded → Send document reminder",
+      "Send document reminder → Documents uploaded after reminder",
+      "Documents uploaded after reminder → Verify documents",
+      "Verify documents → Documents checked",
+      "Documents checked → Check credit and identity",
+      "Documents checked → Look up metering point",
+      "Check credit and identity → Checks complete",
+      "Look up metering point → Checks complete",
+      "Checks complete → Eligibility",
+      "Eligibility → Applicant verified",
+      "Applicant verified → Electricity source",
+      "Electricity source → Plan eligibility",
+      "Plan eligibility → Recommend plan",
+      "Recommend plan → Plan confirmed",
+      "Plan confirmed → Plan chosen",
+      "Plan chosen → Generate contract",
+      "Generate contract → Contract signed",
+      "Contract signed → Set up account and direct debit",
+      "Set up account and direct debit → Request supplier switch",
+      "Request supplier switch → Switch completed",
+      "Switch completed → Write welcome pack",
+      "Write welcome pack → Activate customer",
+      "Activate customer → Customer activated",
+      "Customer activated → Customer active"
+    ]
+  },
+  "candidate": {
+    "run_id": "replay",
+    "status": "completed",
+    "duration_ms": 0,
+    "attempts": 12,
+    "tokens": 4976,
+    "cost": 0,
+    "path": [
+      "Application received → Register application",
+      "Register application → Required documents",
+      "Required documents → Request documents",
+      "Request documents → Documents uploaded",
+      "Documents uploaded → Send document reminder",
+      "Send document reminder → Documents uploaded after reminder",
+      "Documents uploaded after reminder → Verify documents",
+      "Verify documents → Documents checked",
+      "Documents checked → Check credit and identity",
+      "Documents checked → Look up metering point",
+      "Check credit and identity → Checks complete",
+      "Look up metering point → Checks complete",
+      "Checks complete → Eligibility",
+      "Eligibility → Applicant verified",
+      "Applicant verified → Electricity source",
+      "Electricity source → Plan eligibility",
+      "Plan eligibility → Recommend plan",
+      "Recommend plan → Plan confirmed",
+      "Plan confirmed → Plan chosen",
+      "Plan chosen → Generate contract",
+      "Generate contract → Contract signed",
+      "Contract signed → Set up account and direct debit",
+      "Set up account and direct debit → Request supplier switch",
+      "Request supplier switch → Switch completed",
+      "Switch completed → Write welcome pack",
+      "Write welcome pack → Activate customer",
+      "Activate customer → Customer activated",
+      "Customer activated → Customer active"
+    ]
+  },
+  "same_status": true,
+  "same_path": true,
+  "regressions": [],
+  "improvements": [],
+  "unrecorded": [],
+  "nodes": [
+    {
+      "node_id": "7d65a424-9443-5447-84e8-d4cb46a25499",
+      "node_name": "Application received",
+      "verdict": "same",
+      "notes": [],
+      "baseline": {
+        "reached": true,
+        "accepted": false,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": false,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0
+      }
+    },
+    {
+      "node_id": "420b5dbc-6151-58d5-bde8-f13a368ca541",
+      "node_name": "Register application",
+      "verdict": "same",
+      "notes": [
+        "Tool calls: 1 recorded, 0 in the candidate."
+      ],
+      "baseline": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 1,
+        "tool_calls": 1,
+        "tokens": 0,
+        "outcome": {
+          "customer_id": "C-24005"
+        },
+        "outcome_hash": "bcd51bdab0c63c1fda99887b837f38734d9e083f50490806af4870410b39c5cb"
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 1,
+        "tool_calls": 0,
+        "tokens": 0,
+        "outcome": {
+          "customer_id": "C-24005"
+        },
+        "outcome_hash": "bcd51bdab0c63c1fda99887b837f38734d9e083f50490806af4870410b39c5cb"
+      }
+    },
+    {
+      "node_id": "84ae3333-dcd3-523b-a95a-2e82d9efb112",
+      "node_name": "Required documents",
+      "verdict": "same",
+      "notes": [],
+      "baseline": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0,
+        "decision": {
+          "method": "table",
+          "choice": "rule 1, 2, 3"
+        },
+        "outcome_hash": "cfe3a4844d6b99b15ab9f0406b6d7bad9ab5d1d19dc9d4527b9aa736b00b47e7"
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0,
+        "decision": {
+          "method": "table",
+          "choice": "rule 1, 2, 3"
+        },
+        "outcome_hash": "cfe3a4844d6b99b15ab9f0406b6d7bad9ab5d1d19dc9d4527b9aa736b00b47e7"
+      }
+    },
+    {
+      "node_id": "07fdbc5f-1c2f-570a-aa08-2e3ebc0a8a29",
+      "node_name": "Request documents",
+      "verdict": "same",
+      "notes": [
+        "Tool calls: 1 recorded, 0 in the candidate."
+      ],
+      "baseline": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 1,
+        "tool_calls": 1,
+        "tokens": 0,
+        "outcome": {
+          "documents_requested": [
+            "proof_of_identity",
+            "proof_of_address",
+            "direct_debit_mandate"
+          ],
+          "request_message_id": "MSG-24005-3706"
+        },
+        "outcome_hash": "4f3c6e40a2d637ef1689aef805c2d4cecd023dfe91b605cb548e841e1be045e8"
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 1,
+        "tool_calls": 0,
+        "tokens": 0,
+        "outcome": {
+          "documents_requested": [
+            "proof_of_identity",
+            "proof_of_address",
+            "direct_debit_mandate"
+          ],
+          "request_message_id": "MSG-24005-3706"
+        },
+        "outcome_hash": "4f3c6e40a2d637ef1689aef805c2d4cecd023dfe91b605cb548e841e1be045e8"
+      }
+    },
+    {
+      "node_id": "a4869700-6441-5bff-9d46-f4f7452d74fd",
+      "node_name": "Documents uploaded",
+      "verdict": "same",
+      "notes": [],
+      "baseline": {
+        "reached": true,
+        "accepted": false,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": false,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0
+      }
+    },
+    {
+      "node_id": "f8164c60-e0d8-557f-8031-96a2b59681de",
+      "node_name": "Send document reminder",
+      "verdict": "same",
+      "notes": [
+        "Tool calls: 1 recorded, 0 in the candidate."
+      ],
+      "baseline": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 1,
+        "tool_calls": 1,
+        "tokens": 616,
+        "outcome": {
+          "message": "Dear Joaquim, we still need your documents to set up your electricity supply at Flat 3, 22 Harbour Street. Please upload them within 7 days; after that we will have to close your application.",
+          "deadline_stated": true,
+          "reminder_message_id": "MSG-24005-5639"
+        },
+        "outcome_hash": "53584ec48c49c28f2f5ca744474ce5f0999db4a0eb9aa048de2d2e4f3ed46a6c"
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 1,
+        "tool_calls": 0,
+        "tokens": 616,
+        "outcome": {
+          "message": "Dear Joaquim, we still need your documents to set up your electricity supply at Flat 3, 22 Harbour Street. Please upload them within 7 days; after that we will have to close your application.",
+          "deadline_stated": true,
+          "reminder_message_id": "MSG-24005-5639"
+        },
+        "outcome_hash": "53584ec48c49c28f2f5ca744474ce5f0999db4a0eb9aa048de2d2e4f3ed46a6c"
+      }
+    },
+    {
+      "node_id": "71f05bf6-9de0-50f7-adce-24fbd030b7ae",
+      "node_name": "Documents uploaded after reminder",
+      "verdict": "same",
+      "notes": [],
+      "baseline": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0
+      }
+    },
+    {
+      "node_id": "30aaed83-c84f-576e-9590-39eee3b7b905",
+      "node_name": "Verify documents",
+      "verdict": "same",
+      "notes": [
+        "Tool calls: 6 recorded, 0 in the candidate."
+      ],
+      "baseline": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 2,
+        "tool_calls": 6,
+        "tokens": 0,
+        "outcome": {
+          "documents": [
+            {
+              "type": "proof_of_identity",
+              "status": "valid"
+            },
+            {
+              "type": "proof_of_address",
+              "status": "valid"
+            },
+            {
+              "type": "direct_debit_mandate",
+              "status": "valid"
+            }
+          ],
+          "documents_valid": true,
+          "mandate_reference": "MND-24005",
+          "unchecked_count": 0,
+          "unreadable_count": 0,
+          "confidence": 1,
+          "notes": "Called the customer: the tenancy agreement was sent again by e-mail and matches the supply address."
+        },
+        "outcome_hash": "e2dc6f2aea92b14449956ed0623ed1fd7630ef0c46f67c6a20e709a01dc1a877"
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 1,
+        "tool_calls": 0,
+        "tokens": 0,
+        "outcome": {
+          "documents": [
+            {
+              "type": "proof_of_identity",
+              "status": "valid"
+            },
+            {
+              "type": "proof_of_address",
+              "status": "valid"
+            },
+            {
+              "type": "direct_debit_mandate",
+              "status": "valid"
+            }
+          ],
+          "documents_valid": true,
+          "mandate_reference": "MND-24005",
+          "unchecked_count": 0,
+          "unreadable_count": 0,
+          "confidence": 1,
+          "notes": "Called the customer: the tenancy agreement was sent again by e-mail and matches the supply address."
+        },
+        "outcome_hash": "e2dc6f2aea92b14449956ed0623ed1fd7630ef0c46f67c6a20e709a01dc1a877"
+      }
+    },
+    {
+      "node_id": "ad813dfd-06ad-5a80-a9c3-95eb240f9f6e",
+      "node_name": "Documents checked",
+      "verdict": "same",
+      "notes": [],
+      "baseline": {
+        "reached": true,
+        "accepted": false,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": false,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0
+      }
+    },
+    {
+      "node_id": "299bb62f-bcfb-5e98-bcbc-bd892193a176",
+      "node_name": "Check credit and identity",
+      "verdict": "same",
+      "notes": [
+        "Tool calls: 1 recorded, 0 in the candidate."
+      ],
+      "baseline": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 1,
+        "tool_calls": 1,
+        "tokens": 0,
+        "outcome": {
+          "credit_band": "B",
+          "credit_score": 731,
+          "outstanding_debt_eur": 0,
+          "identity_result": "verified",
+          "credit_reference": "CB-24005"
+        },
+        "outcome_hash": "bf36274ee82b4e81d32395ec552f0b6a53bdbee2a8de733a294dec7fabcea59e"
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 1,
+        "tool_calls": 0,
+        "tokens": 0,
+        "outcome": {
+          "credit_band": "B",
+          "credit_score": 731,
+          "outstanding_debt_eur": 0,
+          "identity_result": "verified",
+          "credit_reference": "CB-24005"
+        },
+        "outcome_hash": "bf36274ee82b4e81d32395ec552f0b6a53bdbee2a8de733a294dec7fabcea59e"
+      }
+    },
+    {
+      "node_id": "54629f33-31f7-5ae7-826b-818a684239a2",
+      "node_name": "Look up metering point",
+      "verdict": "same",
+      "notes": [
+        "Tool calls: 1 recorded, 0 in the candidate."
+      ],
+      "baseline": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 1,
+        "tool_calls": 1,
+        "tokens": 0,
+        "outcome": {
+          "meter_type": "standard",
+          "smart_meter": false,
+          "current_supplier": "Harbour Energy",
+          "connection_capacity_kva": 13.8,
+          "region": "south-east",
+          "grid_operator": "Southvale Grid"
+        },
+        "outcome_hash": "8f6bbb93e80a5d8a87a6b9d383ddccc6e1148d222a3034a0710833ad118320e1"
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 1,
+        "tool_calls": 0,
+        "tokens": 0,
+        "outcome": {
+          "meter_type": "standard",
+          "smart_meter": false,
+          "current_supplier": "Harbour Energy",
+          "connection_capacity_kva": 13.8,
+          "region": "south-east",
+          "grid_operator": "Southvale Grid"
+        },
+        "outcome_hash": "8f6bbb93e80a5d8a87a6b9d383ddccc6e1148d222a3034a0710833ad118320e1"
+      }
+    },
+    {
+      "node_id": "d39216a8-f8d6-59c2-992f-5a7acdb4f689",
+      "node_name": "Checks complete",
+      "verdict": "same",
+      "notes": [],
+      "baseline": {
+        "reached": true,
+        "accepted": false,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": false,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0
+      }
+    },
+    {
+      "node_id": "480e4f31-b458-5bf1-92c1-8c7678820b1c",
+      "node_name": "Eligibility",
+      "verdict": "same",
+      "notes": [],
+      "baseline": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0,
+        "decision": {
+          "method": "table",
+          "choice": "rule 5"
+        },
+        "outcome_hash": "65cdc1f5882a2623ec47557976b4a030a0751842f6165af1aa2fcf5ad28ef5ed"
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0,
+        "decision": {
+          "method": "table",
+          "choice": "rule 5"
+        },
+        "outcome_hash": "65cdc1f5882a2623ec47557976b4a030a0751842f6165af1aa2fcf5ad28ef5ed"
+      }
+    },
+    {
+      "node_id": "83a3cd5a-a6e3-562d-b723-104aeadfc928",
+      "node_name": "Applicant verified",
+      "verdict": "same",
+      "notes": [],
+      "baseline": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0
+      }
+    },
+    {
+      "node_id": "9580a223-1fd5-5b6a-9bb3-5a40a52dae9d",
+      "node_name": "Electricity source",
+      "verdict": "same",
+      "notes": [],
+      "baseline": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0,
+        "decision": {
+          "method": "table",
+          "choice": "rule 3"
+        },
+        "outcome_hash": "82d5572f6c6481a0116462adbf542c256c4036798c8f4448470fb65fd237fc3a"
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0,
+        "decision": {
+          "method": "table",
+          "choice": "rule 3"
+        },
+        "outcome_hash": "82d5572f6c6481a0116462adbf542c256c4036798c8f4448470fb65fd237fc3a"
+      }
+    },
+    {
+      "node_id": "34dd0365-c442-55d2-ad09-e6cf1cfd0773",
+      "node_name": "Plan eligibility",
+      "verdict": "same",
+      "notes": [],
+      "baseline": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0,
+        "decision": {
+          "method": "table",
+          "choice": "rule 1, 2, 3"
+        },
+        "outcome_hash": "4d9665072c7e310d9eec09914dfd45fdd97f580196f194e49f3c5882fdf7f5e6"
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0,
+        "decision": {
+          "method": "table",
+          "choice": "rule 1, 2, 3"
+        },
+        "outcome_hash": "4d9665072c7e310d9eec09914dfd45fdd97f580196f194e49f3c5882fdf7f5e6"
+      }
+    },
+    {
+      "node_id": "f985e877-656d-5ae5-b60f-891a9b961496",
+      "node_name": "Recommend plan",
+      "verdict": "same",
+      "notes": [
+        "Tool calls: 3 recorded, 0 in the candidate."
+      ],
+      "baseline": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 1,
+        "tool_calls": 3,
+        "tokens": 2630,
+        "outcome": {
+          "recommended_plan": "variable",
+          "estimated_annual_cost_eur": 883,
+          "alternatives": [
+            {
+              "plan": "fixed_12",
+              "estimated_annual_cost_eur": 892
+            },
+            {
+              "plan": "fixed_24",
+              "estimated_annual_cost_eur": 915
+            },
+            {
+              "plan": "variable",
+              "estimated_annual_cost_eur": 883
+            }
+          ],
+          "reasons": "Joaquim asked for the variable plan. Without a smart meter, time of use is not available; at 2,400 kWh a year the variable plan is the cheapest today.",
+          "follows_preference": true
+        },
+        "outcome_hash": "969e99db338a9c87830e293244d582d133e971af290eaec0148dcee3957b1305"
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 1,
+        "tool_calls": 0,
+        "tokens": 2630,
+        "outcome": {
+          "recommended_plan": "variable",
+          "estimated_annual_cost_eur": 883,
+          "alternatives": [
+            {
+              "plan": "fixed_12",
+              "estimated_annual_cost_eur": 892
+            },
+            {
+              "plan": "fixed_24",
+              "estimated_annual_cost_eur": 915
+            },
+            {
+              "plan": "variable",
+              "estimated_annual_cost_eur": 883
+            }
+          ],
+          "reasons": "Joaquim asked for the variable plan. Without a smart meter, time of use is not available; at 2,400 kWh a year the variable plan is the cheapest today.",
+          "follows_preference": true
+        },
+        "outcome_hash": "969e99db338a9c87830e293244d582d133e971af290eaec0148dcee3957b1305"
+      }
+    },
+    {
+      "node_id": "4f909882-f33b-5f3a-b204-f369f69cd8c5",
+      "node_name": "Plan confirmed",
+      "verdict": "same",
+      "notes": [],
+      "baseline": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0
+      }
+    },
+    {
+      "node_id": "3d9209b8-137a-5518-846f-01f72b359089",
+      "node_name": "Plan chosen",
+      "verdict": "same",
+      "notes": [],
+      "baseline": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0
+      }
+    },
+    {
+      "node_id": "c3c8e8ce-0919-5170-8e64-f6310f963aea",
+      "node_name": "Generate contract",
+      "verdict": "same",
+      "notes": [
+        "Tool calls: 1 recorded, 0 in the candidate."
+      ],
+      "baseline": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 1,
+        "tool_calls": 1,
+        "tokens": 0,
+        "outcome": {
+          "contract_id": "CT-24005",
+          "contract_url": "http://localhost:4545/contracts/v1/contracts/CT-24005.pdf",
+          "cooling_off_days": 14
+        },
+        "outcome_hash": "2c6c3c5262c89d13b314475bb7b8c5e9c34eeb005e08ab2e8772382fbbf82c5c"
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 1,
+        "tool_calls": 0,
+        "tokens": 0,
+        "outcome": {
+          "contract_id": "CT-24005",
+          "contract_url": "http://localhost:4545/contracts/v1/contracts/CT-24005.pdf",
+          "cooling_off_days": 14
+        },
+        "outcome_hash": "2c6c3c5262c89d13b314475bb7b8c5e9c34eeb005e08ab2e8772382fbbf82c5c"
+      }
+    },
+    {
+      "node_id": "8029a17c-5fae-5d7d-91f9-bbe33449f345",
+      "node_name": "Contract signed",
+      "verdict": "same",
+      "notes": [],
+      "baseline": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0
+      }
+    },
+    {
+      "node_id": "48becd74-8b0d-589e-b84f-5280fe9019d2",
+      "node_name": "Set up account and direct debit",
+      "verdict": "same",
+      "notes": [
+        "Tool calls: 1 recorded, 0 in the candidate."
+      ],
+      "baseline": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 1,
+        "tool_calls": 1,
+        "tokens": 0,
+        "outcome": {
+          "account_id": "ACC-24005",
+          "mandate_id": "MDT-24005"
+        },
+        "outcome_hash": "558265cc10d733b7ad26c224ebe6feeeff650d76ab38b575467af80623e36d7f"
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 1,
+        "tool_calls": 0,
+        "tokens": 0,
+        "outcome": {
+          "account_id": "ACC-24005",
+          "mandate_id": "MDT-24005"
+        },
+        "outcome_hash": "558265cc10d733b7ad26c224ebe6feeeff650d76ab38b575467af80623e36d7f"
+      }
+    },
+    {
+      "node_id": "7df7ca37-d53d-57d1-81ad-5d98b023699e",
+      "node_name": "Request supplier switch",
+      "verdict": "same",
+      "notes": [
+        "Tool calls: 1 recorded, 0 in the candidate."
+      ],
+      "baseline": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 1,
+        "tool_calls": 1,
+        "tokens": 0,
+        "outcome": {
+          "switch_id": "SW-24005",
+          "expected_switch_date": "2027-02-12"
+        },
+        "outcome_hash": "c3aa9855c9deb9394b210a35e84400ca7fa10db220ccbe69b093dca013c17663"
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 1,
+        "tool_calls": 0,
+        "tokens": 0,
+        "outcome": {
+          "switch_id": "SW-24005",
+          "expected_switch_date": "2027-02-12"
+        },
+        "outcome_hash": "c3aa9855c9deb9394b210a35e84400ca7fa10db220ccbe69b093dca013c17663"
+      }
+    },
+    {
+      "node_id": "721661b5-6756-569b-998b-bb7466a7a890",
+      "node_name": "Switch completed",
+      "verdict": "same",
+      "notes": [],
+      "baseline": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0
+      }
+    },
+    {
+      "node_id": "51ba2b3b-2919-5a35-ae39-790ce7bdfbb7",
+      "node_name": "Write welcome pack",
+      "verdict": "same",
+      "notes": [],
+      "baseline": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 1,
+        "tool_calls": 0,
+        "tokens": 1730,
+        "outcome": {
+          "message": "Welcome, Joaquim! Your supply at Flat 3, 22 Harbour Street starts on 2027-02-11 on our variable plan, with our low-carbon mix. Your first bill follows a month later, paid by direct debit. Thank you for sending your documents; we know the photo took a second try.",
+          "tone": "warm",
+          "facts": {
+            "plan": "variable",
+            "electricity_source": "low_carbon_mix",
+            "supply_start_date": "2027-02-11",
+            "export_tariff_eur_per_kwh": null
+          }
+        },
+        "outcome_hash": "1f90aa25c6287be50f7ccada116c437c8d60d7d3fcfe57dce3ed7d50a1a32ba3"
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 1,
+        "tool_calls": 0,
+        "tokens": 1730,
+        "outcome": {
+          "message": "Welcome, Joaquim! Your supply at Flat 3, 22 Harbour Street starts on 2027-02-11 on our variable plan, with our low-carbon mix. Your first bill follows a month later, paid by direct debit. Thank you for sending your documents; we know the photo took a second try.",
+          "tone": "warm",
+          "facts": {
+            "plan": "variable",
+            "electricity_source": "low_carbon_mix",
+            "supply_start_date": "2027-02-11",
+            "export_tariff_eur_per_kwh": null
+          }
+        },
+        "outcome_hash": "1f90aa25c6287be50f7ccada116c437c8d60d7d3fcfe57dce3ed7d50a1a32ba3"
+      }
+    },
+    {
+      "node_id": "f2a7a165-a6ce-52b2-b50b-2268aae16f56",
+      "node_name": "Activate customer",
+      "verdict": "same",
+      "notes": [
+        "Tool calls: 2 recorded, 0 in the candidate."
+      ],
+      "baseline": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 1,
+        "tool_calls": 2,
+        "tokens": 0,
+        "outcome": {
+          "customer_active": true,
+          "activated_at": "2027-02-11",
+          "welcome_message_id": "MSG-24005-3085"
+        },
+        "outcome_hash": "057067b08fbbb2f26ef6b25a945fc5265403fa5cd4b0db252e026a584036ae86"
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 1,
+        "tool_calls": 0,
+        "tokens": 0,
+        "outcome": {
+          "customer_active": true,
+          "activated_at": "2027-02-11",
+          "welcome_message_id": "MSG-24005-3085"
+        },
+        "outcome_hash": "057067b08fbbb2f26ef6b25a945fc5265403fa5cd4b0db252e026a584036ae86"
+      }
+    },
+    {
+      "node_id": "470b4299-1cfc-5aed-b695-c33a1992290e",
+      "node_name": "Customer activated",
+      "verdict": "same",
+      "notes": [],
+      "baseline": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0
+      }
+    },
+    {
+      "node_id": "39d5ee68-c241-5937-982d-e4a8c4f1d538",
+      "node_name": "Customer active",
+      "verdict": "same",
+      "notes": [],
+      "baseline": {
+        "reached": true,
+        "accepted": false,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": false,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0
+      }
+    }
+  ]
+}
