@@ -21,6 +21,9 @@ export * from './runtime/authorization';
 export { set_server_authorization, server_authorization, principal_of_user, request_principal } from './server/authorization';
 // Guardrails on what goes into and comes out of agents and tools (specification section 31)
 export * from './runtime/guardrails';
+// The HTTP server, for a program that hosts its own runtime (AwaRuntime) and serves it with the SDK's routes and views
+export { createServer, type ServerConfig } from './server';
+export { set_journey_runtime } from './server/routes/journeys';
 // A workflow offered to other agents over A2A (specification 28.8)
 export { a2a_routes, workflow_agent_card, message_input, run_output, type A2AServeOptions } from './server/a2a';
 

@@ -2208,7 +2208,19 @@ class WorkflowEngine:
                     "_idempotency_key": f"{self._run_id}:{done['token_id']}:{handler_id}:compensation",
                 }, workflow_id=str(self.workflow.id))
                 scratch.id = done["token_id"]
-                result = self._call_actor(actor, handler, scratch)
+                # A handler calls the tools it declares through the same runner as any activity, so its calls are
+                # checked and journalled (17.3). It undoes work already allowed and is not decided under a policy (30.4).
+                def record(type: str, data: dict[str, Any], level: str = "execution", _handler_id: str = handler_id,
+                           _token_id: str = done["token_id"]) -> JournalEvent:
+                    return self._record(type, data, token_id=_token_id, node_id=_handler_id, attempt=1, level=level)
+                context = ActorContext(record=record, payload=self._journal.payload)
+                if handler.tools:
+                    budgets = handler.outcome_contract.budgets if handler.outcome_contract else None
+                    context.tools = ToolRunner(
+                        handler.tools, self._tool_options, record, self._journal.payload,
+                        max_calls=budgets.max_tool_calls if budgets and budgets.max_tool_calls is not None else 16,
+                        simulate=bool(self.simulate), now=self._now)
+                result = self._call_actor(actor, handler, scratch, context)
                 succeeded += 1
                 self._record("activity.compensated", {**about, "output": self._journal.payload(public_payload(result))},
                              token_id=done["token_id"], node_id=handler_id)
