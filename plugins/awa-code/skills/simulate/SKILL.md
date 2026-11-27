@@ -3,6 +3,8 @@ name: simulate
 description: Simulate one run of an AWA workflow with the AWA MCP server and replay its path, decisions, waits and simulated tool calls. Use when the user asks to simulate, dry-run or replay an .awa.json workflow. Nothing is executed.
 argument-hint: "<workflow file> [simulated outputs file]"
 disable-model-invocation: true
+metadata:
+  internal: true
 ---
 
 # Simulate an AWA workflow

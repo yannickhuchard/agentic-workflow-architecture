@@ -3,6 +3,8 @@ name: show
 description: Show an AWA workflow as a graph with the AWA MCP server, with its actors, decisions, events and the data that moves between activities. Use when the user asks to show, draw, explain or review an .awa.json workflow.
 argument-hint: "<workflow file>"
 disable-model-invocation: true
+metadata:
+  internal: true
 ---
 
 # Show an AWA workflow

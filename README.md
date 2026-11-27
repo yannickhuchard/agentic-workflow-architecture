@@ -229,6 +229,18 @@ Or straight from GitHub (Claude Code then asks for your clone's folder): `/plugi
 
 In Cursor, with the clone in your home folder: [![Add the AWA MCP server to Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en/install-mcp?name=awa&config=eyJjb21tYW5kIjoibm9kZSIsImFyZ3MiOlsiJHt1c2VySG9tZX0vYWdlbnRpYy13b3JrZmxvdy1hcmNoaXRlY3R1cmUvcGx1Z2lucy9hd2EtY29kZS9zZXJ2ZXIvc3RhcnQubWpzIl19)
 
+### The AWA skill in any coding agent
+
+[![AWA on skills.sh](https://skills.sh/b/yannickhuchard/agentic-workflow-architecture)](https://skills.sh/yannickhuchard/agentic-workflow-architecture)
+
+The [AWA skill](skills/agentic-workflow-architecture/SKILL.md) teaches a coding agent to write, validate, run and show AWA workflows and journeys. It installs with the [skills](https://skills.sh) command in Claude Code, Codex, Cursor, OpenCode and the other agents that command supports, without the MCP server:
+
+```bash
+npx skills add yannickhuchard/agentic-workflow-architecture --skill agentic-workflow-architecture
+```
+
+Add `-g` to make it available in every project.
+
 The server is not hosted yet: assistants that run in the cloud reach it through a tunnel to your computer, and one command switches every package to the hosted address when there is one. [`apps/mcp-server/SUBMISSION.md`](apps/mcp-server/SUBMISSION.md) lists the state of each package and the steps for publication: hosting, domain verification, the demo recording and the submissions.
 
 ---

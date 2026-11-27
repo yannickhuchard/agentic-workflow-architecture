@@ -3,6 +3,8 @@ name: validate
 description: Validate an AWA workflow or journey document with the AWA MCP server and explain each problem in plain words. Use when the user asks to check, validate or lint an .awa.json workflow or a .journey.json journey.
 argument-hint: "<workflow or journey file> [workflow files a journey refers to]"
 disable-model-invocation: true
+metadata:
+  internal: true
 ---
 
 # Validate an AWA document

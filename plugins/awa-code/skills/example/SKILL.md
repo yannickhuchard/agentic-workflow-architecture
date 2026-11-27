@@ -2,6 +2,8 @@
 name: example
 description: Open the fictional claims example bundled with the AWA MCP server, its customer journeys and its measures dashboard. Use when the user wants to see what AWA does, or asks for a demonstration.
 disable-model-invocation: true
+metadata:
+  internal: true
 ---
 
 # Open the AWA claims example
