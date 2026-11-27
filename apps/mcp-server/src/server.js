@@ -11,7 +11,7 @@ import { RELEASE, brand_module } from './sdk.js';
 import { LIMITS } from './limits.js';
 import * as S from './schemas.js';
 import { WIDGETS, widget_html } from './widgets.js';
-import { DocumentError, validate_document, require_workflow, require_journey, require_portfolio, workflow_data_view, run_summary, build_story, story_summary, sentences } from './awa.js';
+import { DocumentError, validate_document, require_workflow, require_journey, require_portfolio, workflow_data_view, run_summary, build_story, story_summary, sentences, recommend } from './awa.js';
 import { simulate_workflow_run, simulate_journeys } from './simulation.js';
 import { EXAMPLE_DOCUMENTS, example_document, example_story, example_portfolio } from './example.js';
 import { measured_record, measure } from './measures.js';
@@ -73,7 +73,7 @@ function scripted(outputs) {
     return Object.fromEntries(Object.entries(outputs).map(([name, entry]) => [name, { ...step(entry), ...(entry.attempts ? { attempts: entry.attempts.map(step) } : {}) }]));
 }
 
-function journeys_result(story, played, extra = {}, branded) {
+function journeys_result(story, played, extra = {}, branded, portfolio) {
     const summary = story_summary(story);
     const customers = summary.journeys.reduce((n, j) => n + j.customers.length, 0);
     const empty = 'No journey has started: none of the events played is one that begins a journey (a trigger with starts_journey), or its data lacks the property that identifies the subject.';
@@ -81,7 +81,7 @@ function journeys_result(story, played, extra = {}, branded) {
         ? `Simulated: ${plural(summary.journeys.length, 'journey')}, ${plural(customers, 'journey record')}. ${summary.journeys.map(j => `${j.name}: ${j.customers.map(c => `${c.name} (${c.outcome || 'under way'})`).join(', ')}`).join('. ')}. Tools and models were simulated; nothing was executed.`
         : empty;
     return text_result(text, ...with_brand(branded, { simulated: true, ...summary, ...(played ? { events_played: played } : {}), ...extra },
-        { awa: { view: 'journeys', story, source: 'simulated', ...(summary.journeys.length ? {} : { empty }) } }));
+        { awa: { view: 'journeys', story, source: 'simulated', ...(summary.journeys.length && portfolio ? { recommendations: recommend(portfolio) } : {}), ...(summary.journeys.length ? {} : { empty }) } }));
 }
 
 /**
@@ -221,16 +221,16 @@ export async function createMcpServer({ widget_domain = process.env.AWA_MCP_WIDG
             const branded = brand_of(args.brand);
             if (args.portfolio) {
                 if (args.journeys || args.workflows || args.events) throw new DocumentError('Give either a portfolio, or journeys with workflows and events, not both.');
-                const story = build_story(require_portfolio(args.portfolio));
+                const portfolio = require_portfolio(args.portfolio), story = build_story(portfolio);
                 const summary = story_summary(story);
                 const customers = summary.journeys.reduce((n, j) => n + j.customers.length, 0);
                 const empty = 'This portfolio holds no journey record yet.';
                 return text_result(summary.journeys.length ? `From the portfolio given: ${plural(summary.journeys.length, 'journey')}, ${plural(customers, 'journey record')}. ${summary.journeys.map(j => `${j.name}: ${j.customers.map(c => `${c.name} (${c.outcome || 'under way'})`).join(', ')}`).join('. ')}.` : empty,
-                    ...with_brand(branded, { simulated: false, source: 'portfolio given by the caller', ...summary }, { awa: { view: 'journeys', story, source: 'portfolio', ...(summary.journeys.length ? {} : { empty }) } }));
+                    ...with_brand(branded, { simulated: false, source: 'portfolio given by the caller', ...summary }, { awa: { view: 'journeys', story, source: 'portfolio', ...(summary.journeys.length ? { recommendations: recommend(portfolio) } : { empty }) } }));
             }
             if (!args.journeys || !args.workflows) throw new DocumentError('Give a portfolio, or both journeys and workflows (with the events to play).');
             const { story, result } = await play(args);
-            return journeys_result(story, result.played, result.stopped ? { stopped: result.stopped } : {}, branded);
+            return journeys_result(story, result.played, result.stopped ? { stopped: result.stopped } : {}, branded, result.portfolio);
         }, { widget: 'journeys', invoking: 'Opening the journey view…', invoked: 'Journeys shown' });
 
     tool('simulate_journey', 'Simulate customer journeys',
@@ -250,7 +250,7 @@ export async function createMcpServer({ widget_domain = process.env.AWA_MCP_WIDG
                 ...(result.stopped ? { stopped: result.stopped } : {}),
                 ...(result.commands_not_called.length ? { commands_not_called: result.commands_not_called } : {}),
                 runs: result.portfolio.journeys.flatMap(j => j.instances.flatMap(i => i.instance.runs.map(r => ({ journey: String(j.definition.name).slice(0, 120), subject: String(i.instance.subject_key).slice(0, 80), workflow: String(r.workflow_name).slice(0, 120), status: String(r.status).slice(0, 40) })))).slice(0, 200),
-            }, branded);
+            }, branded, result.portfolio);
         }, { widget: 'journeys', invoking: 'Simulating the journeys…', invoked: 'Simulated journeys ready' });
 
     const example_names = Object.keys(EXAMPLE_DOCUMENTS);
@@ -264,7 +264,7 @@ export async function createMcpServer({ widget_domain = process.env.AWA_MCP_WIDG
             const document = args.document ? example_document(args.document) : undefined;
             return text_result(`The bundled claims example (fictional, produced by a scripted simulation): ${summary.journeys.map(j => `${j.name} with ${plural(j.customers.length, 'customer')}`).join(', ')}. Documents available with the document argument: ${example_names.join(', ')}.${args.document ? ` The document "${args.document}" is in the structured content.` : ''}`,
                 ...with_brand(branded, { example: 'claims-journey', simulated: true, fictional: true, ...summary, documents: example_names, ...(document ? { document: { name: args.document, content: document } } : {}) },
-                    { awa: { view: 'journeys', story, source: 'example: six customers, three journeys (fictional)' } }));
+                    { awa: { view: 'journeys', story, source: 'example: six customers, three journeys (fictional)', recommendations: recommend(example_portfolio()) } }));
         }, { widget: 'journeys', invoking: 'Loading the claims example…', invoked: 'Claims example shown' });
 
     tool('show_dashboard', 'Show the measures dashboard',

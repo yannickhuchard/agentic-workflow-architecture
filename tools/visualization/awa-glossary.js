@@ -133,6 +133,20 @@ const TERMS = [
         definition: 'The median time from the start of a journey to its end, over the journeys that completed.' },
     { id: 'right-first-time', group: 'measures', term: 'Right first time', see: '§21.4', aliases: ['first pass yield'],
         definition: 'The share of ended runs that completed with no failed step, no retry and no undo step.' },
+    { id: 'recommendation', group: 'measures', term: 'Recommendation', see: 'View', aliases: ['recommendations', 'rule', 'R1', 'R10'],
+        definition: 'A change to the journey or the work that a rule found in the record, shown with the numbers that fired it, the customers behind it, its owner and how its effect is known.' },
+    { id: 'impact', group: 'measures', term: 'Impact', see: 'View', aliases: ['severity', 'priority'],
+        definition: 'How much a recommendation matters: the share of customers it concerns times how much it costs them, 3 for a journey lost, 2 for a stage or a promise outlasted or a fall of mood, 1 for friction.' },
+    { id: 'effort', group: 'measures', term: 'Effort', see: 'View', aliases: ['quick fixes', 'do first'],
+        definition: 'What a recommendation takes: 1 for a change of options, policy or a contract budget, 2 for a workflow change such as a timer or a touchpoint, 3 for new work for people.' },
+    { id: 'counterfactual-replay', group: 'measures', term: 'Counterfactual replay', see: '§20', aliases: ['replay', 'before and after', 'with the change'],
+        definition: 'A recorded run run again with one thing changed, such as a contract or a rule, everything else held as recorded, and the two compared step by step.' },
+    { id: 'expected-effect', group: 'measures', term: 'Expected effect', see: 'View', aliases: ['estimate', 'pilot', 'measured'],
+        definition: 'What a recommendation should change, and how that is known: measured, by counterfactual replay, as an estimate from the record, or only by a pilot.' },
+    { id: 'domain-recommendation', group: 'measures', term: 'Domain recommendation', see: 'View', aliases: ['journey option'],
+        definition: 'A recommendation a journey’s options add, with a condition on its customers or its measures written as data.' },
+    { id: 'dossier', group: 'measures', term: 'Dossier', see: 'View', aliases: ['export', 'client edition', 'professional edition'],
+        definition: 'One document of a journey: the customers’ stories in their own words, the work behind them, the analysis and the recommendations, in HTML, PDF and DOCX.' },
 ];
 
 const glossary = { groups: GROUPS, terms: TERMS };

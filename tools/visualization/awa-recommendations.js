@@ -422,6 +422,20 @@ function actions(X, M, T, found, options) {
             effect: { method: 'estimate', text: `${plural(extra.length, 'failed attempt')} fewer, about ${Math.round(extraMs / 60000)} minutes of agent time (the recorded durations of the attempts not made). A counterfactual replay with ai: recorded can measure it: node tools/visualization/recommendation-replay.mjs.`,
                 before: { 'Attempts at the step': String(attempts), 'Agent time on the failed attempts': `${Math.round(failed.flat().reduce((a, e) => a + ((e.data || {}).duration_ms || 0), 0) / 60000)} min` },
                 after: { 'Attempts at the step': String(attempts - extra.length), 'Agent time on the failed attempts': `${Math.round((failed.flat().reduce((a, e) => a + ((e.data || {}).duration_ms || 0), 0) - extraMs) / 60000)} min` } },
+            detail: esc.flatMap(f => f.refs.map(rf => {
+                const c = customers[rf.customer], run = c.runs[rf.run];
+                const fails = run.events.filter(e => e.type === 'activity.failed' && e.node_id === f.activity);
+                const blocks = run.events.filter(e => e.type === 'guardrail.triggered' && e.node_id === f.activity && (e.data || {}).action === 'block');
+                const escE = run.events.find(e => e.seq === rf.seq);
+                const person = run.events.filter(e => e.type === 'activity.completed' && e.node_id === f.activity && e.data && e.data.principal && e.data.principal.kind === 'person').pop();
+                const unread = ((((escE || {}).data || {}).rejected_output || {}).documents || []).filter(d => d.status === 'unreadable').map(d => String(d.type).replace(/_/g, ' '));
+                const started = run.events.filter(e => e.type === 'activity.started' && e.node_id === f.activity);
+                const note = k => blocks.length ? (k === 0 ? 'report withheld' : 'withheld again') : unread.length ? (k === 0 ? `${unread.join(', ')} unreadable` : 'the same, again') : (k === 0 ? 'contract not met' : 'not met again');
+                return { customer: c.index, name: c.name, run: rf.run, run_short: run.short, workflow: run.workflow, step: f.subject, actor: X.actor.get(f.activity) || 'ai_agent',
+                    from_seq: started.length ? started[0].seq : null, to_seq: person ? person.seq : rf.seq, escalated_seq: rf.seq,
+                    attempts: fails.map((e, k) => ({ n: k + 1, time: (started[k] || e).time, ms: (e.data || {}).duration_ms || 0, seq: e.seq, note: note(k) })),
+                    person: person ? { who: person.data.principal.id, time: person.time, seq: person.seq } : null, escalated_at: escE ? escE.time : null };
+            })),
             replay: { kind: 'contract_budget', activities: acts, max_attempts: 1, runs: esc.flatMap(f => f.refs.map(rf => ({ customer: rf.customer, run: rf.run, run_id: customers[rf.customer].runs[rf.run].run_id, workflow_id: customers[rf.customer].runs[rf.run].workflow_id }))) } });
     }
     // R4 → send each task to someone allowed to decide it
@@ -589,6 +603,23 @@ function stageChecks(X, T, found) {
     return out;
 }
 
+/** The short line a card shows: the rule that started the recommendation and its numbers */
+function triggerOf(r, X) {
+    const f = id => r.findings.find(x => x.rule === id);
+    const n = (x, w) => `${x.count} of ${x.of} ${w}`;
+    switch (r.type) {
+        case 'silence': { const x = f('R10'); return `R10 · ${n(x, 'silent')} ${Math.round(x.threshold ? parseFloat(String(x.threshold).replace(/[^0-9.]/g, '')) : 7)} days or more`; }
+        case 'handover': { const k = r.findings.filter(x => x.rule === 'R2').reduce((a, x) => a + x.count, 0); return `R2 · ${plural(k, 'run')} handed to a person`; }
+        case 'routing': { const xs = r.findings.filter(x => x.rule === 'R4'); return `R4 · ${plural(xs.reduce((a, x) => a + x.count, 0), 'refusal')} at ${plural(xs.length, 'task')}`; }
+        case 'wait': { const x = f('R1'); return x ? `R1 · ${n(x, 'outlasted')} (${Math.round(x.share * 100)}%)` : `R11 · ${f('R11').subject} timed out`; }
+        case 'reminder': { const x = f('R5'); return `R5 · ${n(x, 'reminded')} (${fmtPct(x.count, x.of)})`; }
+        case 'chase': return `R11 · ${f('R11').subject} never came`;
+        case 'leave': { const x = f('R8'); return `R8 · ${n(x, 'left here')}`; }
+        case 'cost': { const x = f('R7'); return `R7 · ${fmtPct(x.count, x.of)} of tokens`; }
+        default: { const x = f('R8'); return x ? `R8 · ${n(x, 'left here')} · domain` : `domain · ${plural(r.customers.length, 'customer')}`; }
+    }
+}
+
 /**
  * Compute the recommendations of every journey in a record.
  * @returns {{ as_of, thresholds, rules, journeys: [{ index, name, customers, recommendations, findings, checks, problems }], recommendations }}
@@ -627,7 +658,10 @@ function compute(record, options = {}) {
                 rules, findings: r.findings.map(f => ({ rule: f.rule, name: f.name, kind: f.kind, subject: f.subject, stage: f.stage || null, count: f.count, of: f.of, share: f.share ?? null, threshold: f.threshold, text: f.text, customers: f.customers, refs: f.refs || [], ...(f.silences ? { silences: f.silences } : {}), ...(f.dips ? { dips: f.dips } : {}), ...(f.people ? { people: f.people } : {}), ...(f.levels ? { levels: f.levels } : {}), ...(f.median_days !== undefined ? { median_days: f.median_days, longest_days: f.longest_days } : {}) })),
                 customers: r.customers.map(i => {
                     const c = X.customers[i];
-                    const refs = r.findings.flatMap(f => (f.refs || []).filter(x => x.customer === i));
+                    // the link goes first to what the rule that started the recommendation points at
+                    const prim = (r.findings[0].refs || []).filter(x => x.customer === i);
+                    const refs = prim.some(x => (x.run !== null && x.run !== undefined && x.seq !== null && x.seq !== undefined) || (x.journey_seq !== null && x.journey_seq !== undefined))
+                        ? prim : r.findings.flatMap(f => (f.refs || []).filter(x => x.customer === i));
                     const withRun = refs.find(x => x.run !== null && x.run !== undefined && x.seq !== null && x.seq !== undefined) || refs.find(x => x.run !== null && x.run !== undefined);
                     const jseq = refs.find(x => x.journey_seq !== null && x.journey_seq !== undefined);
                     const sil = r.findings.flatMap(f => f.silences || []).find(s => s.customer === i);
@@ -638,6 +672,7 @@ function compute(record, options = {}) {
                 }),
                 severity: r.severity, impact, effort: r.effort, effort_text: EFFORT_TEXT[r.effort], priority: r.effort ? r2(impact / r.effort) : 0,
                 finding: typeof w.finding === 'string' ? w.finding : r.finding, action: typeof w.action === 'string' ? w.action : r.action, effect,
+                trigger: triggerOf(r, X), ...(r.detail ? { detail: r.detail } : {}),
                 ...(r.replay ? { replay: r.replay } : {}), status: 'new',
             };
         });

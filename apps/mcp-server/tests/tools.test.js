@@ -69,12 +69,12 @@ test('a widget domain is declared only when configured, and only as an https ori
     const client = new Client({ name: 't', version: '1' });
     await server.connect(a); await client.connect(b);
     t.after(() => client.close());
-    const meta = (await client.readResource({ uri: 'ui://awa/journeys-v2.html' })).contents[0]._meta;
+    const meta = (await client.readResource({ uri: 'ui://awa/journeys-v3.html' })).contents[0]._meta;
     assert.equal(meta.ui.domain, 'https://widgets.example.org'); assert.equal(meta['openai/widgetDomain'], 'https://widgets.example.org');
     assert.deepEqual(meta.ui.csp, { connectDomains: [], resourceDomains: [] });
     await assert.rejects(createMcpServer({ widget_domain: 'http://widgets.example.org' }), /https origin/);
     await assert.rejects(createMcpServer({ widget_domain: 'https://widgets.example.org/path' }), /https origin/);
-    const plain = (await (await connect(t)).readResource({ uri: 'ui://awa/journeys-v2.html' })).contents[0]._meta;
+    const plain = (await (await connect(t)).readResource({ uri: 'ui://awa/journeys-v3.html' })).contents[0]._meta;
     assert.equal('domain' in plain.ui, false); assert.equal('openai/widgetDomain' in plain, false);
 });
 

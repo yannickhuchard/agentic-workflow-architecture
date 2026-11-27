@@ -216,6 +216,20 @@ if (args.includes('--serve-only')) {
             const box = await app.evaluate(() => { const r = document.getElementById('fit').getBoundingClientRect(); return { w: r.width, h: r.height, iw: innerWidth, ih: innerHeight }; });
             check(box.w <= box.iw + 1 && box.h <= box.ih + 1, `journeys: in fullscreen the stage fits its frame (${Math.round(box.w)}x${Math.round(box.h)} in ${box.iw}x${box.ih})`);
             await shot(page, 'journeys-example-fullscreen');
+            // the Recommendations tab, from the recommendations the tool computed beside the story
+            const expected = createRequire(import.meta.url)(path.join(REPOSITORY_ROOT, 'tools/visualization/awa-recommendations.js')).compute(JSON.parse(fs.readFileSync(path.join(REPOSITORY_ROOT, 'examples/claims-journey/journeys.json'), 'utf8')), {});
+            await frame.locator('#b-recs').click(); await settle(page);
+            const shown_name = await app.evaluate(() => document.querySelector('#crumbs .crumb.on').textContent);
+            const first = expected.journeys.find(j => j.name === shown_name) || expected.journeys[0];
+            check(await frame.locator('.rcard').count() === first.recommendations.length && (await frame.locator('#b-recs').innerText()).includes(String(first.recommendations.length)),
+                `journeys: the Recommendations tab shows the ${first.recommendations.length} recommendations the tool computed for ${first.name}`);
+            if (first.recommendations.length) {
+                await frame.locator('.rcard').first().click(); await settle(page);
+                check(await frame.locator('#rpanel.open h2').innerText() === first.recommendations[0].title, 'journeys: a recommendation opens its panel');
+                await shot(page, 'journeys-example-recommendations');
+                await page.keyboard.press('Escape'); await settle(page);
+                check(!(await frame.locator('#rpanel.open').count()), 'journeys: Escape closes the panel');
+            }
             await conformance(page); await page.close();
         }
         // --- journeys: simulated, from documents, from a portfolio, empty, hostile, light theme, narrow

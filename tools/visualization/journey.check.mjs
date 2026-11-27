@@ -21,6 +21,7 @@ const here = path.dirname(fileURLToPath(import.meta.url)), root = path.resolve(h
 const page_url = 'file://' + path.join(here, 'journey.html');
 const cli = path.join(root, 'sdk/typescript/dist/cli/index.js'), example = path.join(root, 'examples/claims-journey');
 const failures = [];
+const location_is = (hash, want) => hash === want;
 const check = (ok, what) => { console.log(`${ok ? 'ok  ' : 'FAIL'}  ${what}`); if (!ok) failures.push(what); };
 const browser = await chromium.launch();
 const open = async url => {
@@ -498,6 +499,118 @@ awa('export', '-o', record);
         check(!wrong.length, `each of Léa's ${runs.length} runs names the stage its journey instance records, from its first step to its last ${wrong.join('; ')}`);
         check(page.errors.length === 0, `no page errors on Léa's journey ${page.errors.join('; ')}`);
         await page.close();
+    } finally { server.close(); }
+}
+
+// 6. The Recommendations tab: the count, the map by keyboard, the panel and the focus, filters, the empty state, links, before and after, motion, brands
+{
+    const R = createRequire(import.meta.url)('./awa-recommendations.js');
+    const server = http.createServer((req, res) => {
+        const file = path.join(root, decodeURIComponent(new URL(req.url, 'http://x').pathname));
+        if (!file.startsWith(root) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); res.end(); return; }
+        const type = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.md': 'text/markdown; charset=utf-8' }[path.extname(file)] || 'application/json';
+        res.writeHead(200, { 'content-type': type }); fs.createReadStream(file).pipe(res);
+    });
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    const base = `http://127.0.0.1:${server.address().port}`;
+    const at = name => `${base}/tools/visualization/journey.html?data=${encodeURIComponent(`${base}/examples/${name}/journeys.json`)}&options=${encodeURIComponent(`${base}/examples/${name}/views/story-options.json`)}`;
+    const load = name => {
+        const dir = path.join(root, 'examples', name), options = JSON.parse(fs.readFileSync(path.join(dir, 'views/story-options.json'), 'utf-8'));
+        if (options.recommendations && typeof options.recommendations.replays === 'string') options.recommendations.replays = JSON.parse(fs.readFileSync(path.join(dir, 'views', options.recommendations.replays), 'utf-8'));
+        return R.compute(JSON.parse(fs.readFileSync(path.join(dir, 'journeys.json'), 'utf-8')), options).journeys[0].recommendations;
+    };
+    const recs = load('electricity-onboarding');
+    const RTEXT = ['#LR .rh h1', '#LR .rh p', '#LR .rchip', '#LR .rcard .t', '#LR .rcard .m span', '#LR .badge', '#LR .map .q', '#LR .ax', '#LR .rtt h2', '#rpanel h2', '#rpanel p.find', '#rpanel .why div', '#rpanel .who li > span', '#rpanel h3', '#rpanel .effect p', '#rpanel .act p'];
+    const readable = async (page, where) => {
+        const all = await legibility(page, RTEXT), low = all.filter(x => x.ratio < 4.5);
+        check(all.length > 20 && !low.length, `${where}: every word of the tab reads at 4.5:1 or more (${all.length} checked, the lowest ${Math.min(...all.map(x => x.ratio))}:1) ${low.map(x => `${x.sel} "${x.text}" ${x.ratio}:1`).join('; ')}`);
+    };
+    try {
+        const page = await open(at('electricity-onboarding'));
+        await page.click('#b-recs'); await settle(page);
+        const n = await page.locator('#LR .rcard').count();
+        check(location_is(await page.evaluate(() => location.hash), '#recommendations') && n === recs.length && (await page.textContent('#b-recs')).includes(String(recs.length)),
+            `the tab opens from its button, next to the heights, with the count the engine gives (${n} of ${recs.length})`);
+        check(JSON.stringify(await page.$$eval('#LR .rcard .t', els => els.map(e => e.textContent.replace(/^\d+\. /, '')))) === JSON.stringify(recs.map(r => r.title)), 'the cards are the engine\'s recommendations, in its order');
+        await readable(page, 'AWA brand, the map');
+        // the map is a listbox: the arrows move between the marks by place, Home and End by rank, Enter opens one
+        await page.focus('#rlistbox .mark[tabindex="0"]');
+        const focusedRank = () => page.evaluate(() => { const m = document.activeElement.closest('.mark'); return m ? Number(m.querySelector('.no').textContent) : null; });
+        const first = await focusedRank();
+        await page.keyboard.press('ArrowRight'); const right = await focusedRank();
+        await page.keyboard.press('End'); const end = await focusedRank();
+        await page.keyboard.press('Home'); const home = await focusedRank();
+        check(first === 1 && right !== null && right !== 1 && end === recs.length && home === 1, `the map moves by keyboard: first ${first}, ArrowRight ${right}, End ${end}, Home ${home}`);
+        await page.keyboard.press('Enter'); await settle(page);
+        check(await page.locator('#rpanel.open').count() === 1 && await page.textContent('#rp-title') === recs[0].title && await page.evaluate(() => document.activeElement.id) === 'rp-close'
+            && /^#recommendations\/silence-switch/.test(await page.evaluate(() => location.hash)), 'Enter opens the panel, the focus goes to its close button, and the address names it');
+        await readable(page, 'AWA brand, the panel');
+        await page.keyboard.press('Escape'); await settle(page);
+        check(await page.locator('#rpanel.open').count() === 0 && await focusedRank() === 1 && await page.evaluate(() => location.hash) === '#recommendations', 'Escape closes the panel and gives the focus back to the mark');
+        await page.click('#LR .rcard[data-rid="routing-allowed"]'); await settle(page);
+        await page.keyboard.press('Escape'); await settle(page);
+        check(await page.evaluate(() => document.activeElement.dataset.rid) === 'routing-allowed', 'a card opens the panel, and Escape gives the focus back to the card');
+        // hover and focus: a mark and its card light up together
+        await page.hover('#rlistbox .mark[data-rid="remind-earlier"]');
+        check(await page.locator('#LR .rcard.hl[data-rid="remind-earlier"]').count() === 1 && await page.locator('#rtip.on').count() === 1, 'hovering a mark lights up its card and shows its tip');
+        // filters
+        await page.click('#LR [data-rstage="switch"]'); await settle(page);
+        const sw = recs.filter(r => r.stage === 'switch').length;
+        check(await page.locator('#LR .rcard').count() === sw && await page.locator('#rlistbox .mark:not([hidden])').count() === sw, `the stage filter keeps ${sw} recommendations for Switch, on the map and in the list`);
+        await page.click('#LR [data-rstage="all"]'); await page.click('#LR [data-rkind="cost"]'); await settle(page);
+        check(await page.locator('#LR .rcard').count() === recs.filter(r => r.kind === 'cost').length, 'the kind filter keeps the cost recommendations');
+        await page.click('#LR [data-rkind="cost"]'); await page.click('#LR [data-rstage="contract"]'); await settle(page);
+        check(await page.locator('#LR .empty-map h3').textContent() === 'No recommendation for Contract' && await page.locator('#LR .checks tbody tr').count() === 7, 'a stage with none shows the empty state, with the seven checks it passed');
+        await page.click('#LR [data-rall]'); await settle(page);
+        check(await page.locator('#LR .rcard').count() === recs.length, '"Show all stages" brings every recommendation back');
+        // links: the blueprint of a customer, and a run at its step
+        const story = build_story(JSON.parse(fs.readFileSync(path.join(root, 'examples/electricity-onboarding/journeys.json'), 'utf-8')), JSON.parse(fs.readFileSync(path.join(root, 'examples/electricity-onboarding/views/story-options.json'), 'utf-8')));
+        await page.evaluate(() => { location.hash = '#recommendations/silence-switch'; }); await settle(page);
+        const sofia = story.journeys[0].instances.findIndex(c => c.name === 'Sofia Lind');
+        await page.click('#rpanel [data-rgo="story"][data-key="APP-24008"]'); await settle(page);
+        check((await page.evaluate(() => location.hash)).startsWith(`#story/0/${sofia}/`) && await page.locator('#rpanel.open').count() === 0, 'Blueprint opens the customer\'s journey in the view');
+        await page.evaluate(() => { location.hash = '#recommendations/handover-first-failure'; }); await settle(page);
+        const joaquim = story.journeys[0].instances.findIndex(c => c.name === 'Joaquim Ferreira');
+        await page.click('#rpanel [data-rgo="run"][data-key="APP-24005"]'); await settle(page);
+        const hash = await page.evaluate(() => location.hash), [, , ci, ri, pos] = hash.slice(1).split('/').map(Number);
+        const step = story.journeys[0].instances[joaquim].runs[ri].steps[pos];
+        check(hash.startsWith(`#run/0/${joaquim}/0/`) && ci === joaquim && step && step.seq >= 58, `the run link opens the run at the step the rule points at (${hash}, journal record ${step && step.seq})`);
+        // before and after, for the recommendation measured by replay: T toggles, the boxes move
+        await page.evaluate(() => { location.hash = '#recommendations/handover-first-failure'; }); await settle(page);
+        await page.keyboard.press('t'); await settle(page);
+        const cf = await page.evaluate(() => ({ boxes: document.querySelectorAll('.cf .box').length, ghost: document.querySelectorAll('.cf .box.ghost').length, after: document.querySelector('.cf [data-rafter="1"]').getAttribute('aria-pressed'), report: !!document.querySelector('#rpanel .rep') }));
+        check(cf.boxes >= 6 && cf.ghost === 2 && cf.after === 'true' && cf.report, `T opens the run as recorded and with the change, with the replay report (${JSON.stringify(cf)})`);
+        await page.keyboard.press('t'); await page.waitForTimeout(500);
+        check(await page.evaluate(() => document.querySelectorAll('.cf .box.ghost').length) === 0 && await page.locator('.cf [data-rafter="0"][aria-pressed="true"]').count() === 1, 'T again shows the run as recorded');
+        await page.keyboard.press('Escape'); await page.keyboard.press('Escape'); await settle(page);
+        // accept and the dossier: kept per viewer, again after a reload
+        await page.click('#LR .rcard[data-rid="remind-earlier"]'); await settle(page);
+        await page.click('#rpanel [data-ract="accepted"]'); await page.click('#rpanel [data-ract="dossier"]');
+        await page.reload(); await page.waitForTimeout(1500);
+        check((await page.textContent('#LR .rcard[data-rid="remind-earlier"]')).includes('accepted') && (await page.textContent('#LR .rcard[data-rid="remind-earlier"]')).includes('in the dossier'), 'Accept and Add to the dossier are kept for this viewer, after a reload');
+        check(page.errors.length === 0, `no page errors in the tab ${page.errors.join('; ')}`);
+        await page.close();
+        // reduced motion: the marks are in place at once and the panel does not slide
+        const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' });
+        const still = await ctx.newPage(); await still.goto(at('electricity-onboarding') + '#recommendations'); await still.waitForTimeout(200);
+        const placed = await still.evaluate(() => window.AWA_recommendations && document.querySelectorAll('#rlistbox .mark').length > 0);
+        await still.waitForTimeout(1300);
+        const motion = await still.evaluate(() => { const p = document.getElementById('rpanel'); return { panel: getComputedStyle(p).transitionDuration, mark: getComputedStyle(document.querySelector('#rlistbox .mark svg')).transitionDuration }; });
+        check(placed && motion.panel.split(',').every(d => parseFloat(d) === 0) && motion.mark.split(',').every(d => parseFloat(d) === 0), `under prefers-reduced-motion nothing moves (${JSON.stringify(motion)})`);
+        await ctx.close();
+        // a light brand: the life insurance example under Valoria Life, from its options
+        const valoria = await open(at('life-insurance-savings') + '#recommendations/top-up-before-year-end'); await valoria.waitForTimeout(600);
+        check(await valoria.evaluate(() => document.documentElement.dataset.theme) === 'light' && await valoria.locator('#rpanel.open').count() === 1, 'the life insurance example opens a recommendation of its own options under its light brand');
+        await readable(valoria, 'Valoria Life brand, the panel');
+        await valoria.keyboard.press('Escape'); await settle(valoria);
+        await readable(valoria, 'Valoria Life brand, the map');
+        check(valoria.errors.length === 0, `no page errors under the light brand ${valoria.errors.join('; ')}`);
+        await valoria.close();
+        // the sample, with no options: the tab is computed from the sample's record
+        const sample = await open(page_url + '#recommendations');
+        const sampleRecs = R.compute(JSON.parse(fs.readFileSync(path.join(root, 'examples/claims-journey/journeys.json'), 'utf-8')), {}).journeys[0].recommendations;
+        check(await sample.locator('#LR .rcard').count() === sampleRecs.length, `the sample's first journey shows its ${sampleRecs.length} recommendations`);
+        await sample.close();
     } finally { server.close(); }
 }
 
