@@ -69,5 +69,15 @@
       "Export registered": [5, 0],
       "Export not registered": [5, 2]
     }
-  }
+  },
+  "glossary": [
+    {"id": "metering-point", "term": "Metering point", "definition": "The point where the grid measures the electricity a home takes and gives back; a supplier needs it to supply the home.", "see": "https://github.com/yannickhuchard/agentic-workflow-architecture/blob/main/examples/electricity-onboarding/INTEGRATION.md#lookup_metering_point", "aliases": ["metering point id", "meter", "Look up metering point"]},
+    {"id": "ean-code", "term": "EAN code", "definition": "In many European markets, the 18-digit number that names a metering point; this example calls it metering_point_id, and a utility maps it to the number its market uses.", "see": "Example", "aliases": ["EAN", "GSRN"]},
+    {"id": "prosumer", "term": "Prosumer", "definition": "A customer who also produces electricity at home, for example with solar panels, and sends what they do not use to the grid.", "see": "Example", "aliases": ["home generation", "producer"]},
+    {"id": "export-tariff", "term": "Export tariff", "definition": "The price per kWh the supplier pays a prosumer for the electricity the home sends to the grid.", "see": "Example", "aliases": ["feed-in tariff"]},
+    {"id": "grid-export-registration", "term": "Grid export registration", "definition": "The child workflow that checks the installation's documents, gets the grid operator's approval and registers the export meter and tariff.", "see": "Example", "aliases": ["Register grid export", "grid export"]},
+    {"id": "supplier-switch", "term": "Supplier switch", "definition": "The move of a home's supply from its current supplier to the new one, which the registry of metering points carries out and confirms.", "see": "Example", "aliases": ["switch", "Request supplier switch", "Switch completed"]},
+    {"id": "direct-debit-mandate", "term": "Direct debit mandate", "definition": "The customer's signed permission for the supplier to collect each bill from their bank account.", "see": "Example", "aliases": ["mandate", "direct debit"]},
+    {"id": "commissioning-report", "term": "Commissioning report", "definition": "The installer's report that a home installation, such as solar panels, was set up and tested, with its serial numbers and rated capacity.", "see": "https://github.com/yannickhuchard/agentic-workflow-architecture/blob/main/examples/electricity-onboarding/INTEGRATION.md", "aliases": ["installer certificate"]}
+  ]
 }

@@ -81,6 +81,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid #a5b4fc; outline-
 .ct b { font-family: 'Space Grotesk', Inter, sans-serif; font-size: 22px; line-height: 24px; font-weight: 600; }
 .ct span { font-size: 12px; color: var(--mute); }
 .ct.warn b { color: var(--wait); }
+.ct .gw { font-size: 12px; color: var(--mute); }
 .hand { position: absolute; top: 80px; width: 32px; text-align: center; font-size: 12px; color: var(--soft); pointer-events: none; }
 .prow { position: absolute; left: 16px; width: 1408px; height: 66px; border-radius: 12px; border: 1px solid transparent; transition: background-color .3s, border-color .3s; pointer-events: none; }
 .prow.hot { background: rgba(129,140,248,.09); border-color: rgba(129,140,248,.4); }
@@ -272,6 +273,40 @@ button:focus-visible, input:focus-visible { outline: 2px solid #a5b4fc; outline-
 #scrub { flex: 1 1 auto; min-width: 0; height: 44px; accent-color: var(--focus); cursor: pointer; }
 #none[hidden] { display: none; }
 #none { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 40px; text-align: center; font-size: 18px; line-height: 28px; color: var(--soft); }
+/* The glossary: a panel beside the view, and the words of the view that open it */
+.gbtn { display: inline-flex; align-items: center; gap: 8px; border-color: rgba(255,255,255,.16); }
+.gbtn[aria-expanded="true"] { color: #fff; font-weight: 600; background: rgba(129,140,248,.18); border-color: var(--focus); }
+.kbd { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 11px; line-height: 16px; padding: 0 5px; border-radius: 4px; border: 1px solid rgba(165,180,252,.5); color: #a5b4fc; }
+.gw { background: none; border: 0; padding: 0; margin: 0; cursor: help; text-decoration: underline dotted; text-decoration-color: var(--mute); text-decoration-thickness: 1px; text-underline-offset: 3px; text-align: inherit; }
+.gw:hover { color: #fff; text-decoration-color: currentColor; }
+.tg.gw { align-self: flex-start; }
+#gloss { position: absolute; right: 0; top: 0; width: 480px; height: 900px; z-index: 20; display: flex; flex-direction: column; background: var(--panel); border-left: 1px solid rgba(255,255,255,.14); box-shadow: -24px 0 48px rgba(0,0,0,.45); }
+#gloss[hidden] { display: none; }
+.gloss-h { flex: none; padding: 18px 20px 12px; display: flex; flex-direction: column; gap: 12px; border-bottom: 1px solid var(--line); }
+.gloss-t { display: flex; align-items: center; }
+.gloss-t h2 { margin: 0; font-family: 'Space Grotesk', Inter, system-ui, sans-serif; font-size: 22px; font-weight: 600; }
+.gloss-x { margin-left: auto; width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--line); background: none; color: var(--soft); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+.gloss-x:hover { background: rgba(255,255,255,.07); color: #fff; }
+.gloss-s { position: relative; }
+.gloss-s input { width: 100%; height: 38px; border-radius: 8px; border: 1px solid rgba(255,255,255,.18); background: var(--bg); color: var(--text); font: inherit; font-size: 14px; padding: 0 34px 0 12px; }
+.gloss-s input::placeholder { color: var(--mute); }
+.gloss-s .kbd { position: absolute; right: 10px; top: 10px; color: var(--mute); border-color: var(--line); pointer-events: none; }
+.gloss-c { display: flex; gap: 6px; flex-wrap: wrap; }
+.gloss-c button { font: inherit; font-size: 12px; height: 26px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--line); background: none; color: var(--soft); cursor: pointer; }
+.gloss-c button:hover { background: rgba(255,255,255,.05); }
+.gloss-c button[aria-pressed="true"] { border-color: var(--focus); color: #fff; background: rgba(129,140,248,.14); }
+#glist { flex: 1 1 auto; overflow-y: auto; padding: 4px 8px 12px; }
+.gloss-g { padding: 14px 12px 4px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--mute); }
+.ge { padding: 10px 12px; border-radius: 8px; border: 1px solid transparent; display: flex; flex-direction: column; gap: 3px; scroll-margin: 8px; }
+.ge.on { background: rgba(129,140,248,.12); border-color: rgba(129,140,248,.45); }
+.ge-h { display: flex; align-items: baseline; gap: 8px; }
+.ge-t { font-size: 14px; font-weight: 600; font-style: normal; }
+.ge-r { margin-left: auto; flex: none; font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 11px; color: #a5b4fc; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+a.ge-r { text-decoration: underline; text-underline-offset: 2px; }
+.ge-d { margin: 0; font-size: 13px; line-height: 1.45; color: var(--soft); }
+.gloss-none { padding: 24px 12px; font-size: 13px; color: var(--mute); }
+.gloss-f { flex: none; padding: 12px 20px; border-top: 1px solid var(--line); font-size: 12px; line-height: 1.5; color: var(--mute); }
+.gloss-f code { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
 </style>
 </head>
@@ -282,7 +317,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid #a5b4fc; outline-
     <div style="width:1px;height:22px;background:rgba(255,255,255,.16)"></div>
     <nav id="crumbs" aria-label="Where you are" style="display:flex;align-items:center;gap:6px"></nav>
     <div style="flex:1"></div>
-    <div id="source" style="font-size:12px;color:var(--mute);white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis"></div>
+    <button class="crumb gbtn" id="b-gloss" type="button" aria-expanded="false" aria-controls="gloss" title="What the words of this view mean (?)">Glossary <span class="kbd" aria-hidden="true">?</span></button>
+    <div id="source" style="font-size:12px;color:var(--mute);white-space:nowrap;max-width:260px;min-width:0;flex:0 1 auto;overflow:hidden;text-overflow:ellipsis"></div>
     <button class="crumb" id="b-open" style="border-color:rgba(255,255,255,.16)" title="Open a record: the file written by awa journey export, or by GET /api/v1/journeys/portfolio">Open a record</button>
     <input id="file" type="file" accept=".json,application/json" hidden>
     <div id="switch" class="seg-ctl" role="group" aria-label="Journey"></div>
@@ -308,7 +344,17 @@ button:focus-visible, input:focus-visible { outline: 2px solid #a5b4fc; outline-
     </div>
   </div>
   <div id="none" hidden></div>
+  <aside id="gloss" role="dialog" aria-modal="true" aria-labelledby="gloss-title" hidden>
+    <div class="gloss-h">
+      <div class="gloss-t"><h2 id="gloss-title">Glossary</h2><button class="gloss-x" id="gloss-close" type="button" aria-label="Close the glossary"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></button></div>
+      <div class="gloss-s"><input id="gq" type="search" autocomplete="off" spellcheck="false" aria-label="Search the glossary" aria-controls="glist"><span class="kbd" aria-hidden="true">/</span></div>
+      <div class="gloss-c" id="gchips" role="group" aria-label="Show the terms of"></div>
+    </div>
+    <div id="glist" aria-live="polite"></div>
+    <div class="gloss-f">AWA terms come with the view and cite the specification (docs/specification.md). Terms of this journey come from its options file (<code>glossary</code>).</div>
+  </aside>
 </div>
+<script src="awa-glossary.js"></script>
 <script src="journey-story-builder.js"></script>
 <script src="journey-story.js"></script>
 <script>
@@ -346,6 +392,38 @@ const KIND = k => k.charAt(0).toUpperCase() + k.slice(1);
 /** A run's status in words: a host records "waiting_human" where a reader says "waiting for a person" */
 const RUN_WORD = { completed: 'completed', failed: 'failed', cancelled: 'withdrawn', running: 'under way', waiting_human: 'waiting for a person', waiting_event: 'waiting for an event', waiting: 'waiting' };
 const runWord = status => RUN_WORD[status] || String(status || '').replace(/_/g, ' ');
+
+// ---------------------------------------------------------------- glossary
+// AWA's terms come with the view (awa-glossary.js); a journey adds its own through the options ("glossary").
+const GLOSSARY = window.AWA_GLOSSARY || { groups: [], terms: [] };
+const fold = t => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+const slug = t => fold(t).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60);
+/** The journey's own terms, from the options: data, never markup. A term or a definition that is not text is left out */
+function journeyTerms() {
+    const list = Array.isArray(OPTIONS.glossary) ? OPTIONS.glossary : [], seen = new Set(), out = [];
+    for (const g of list.slice(0, 200)) {
+        if (!g || typeof g.term !== 'string' || typeof g.definition !== 'string' || !g.term.trim() || !g.definition.trim()) continue;
+        let id = slug(typeof g.id === 'string' && g.id ? g.id : g.term) || 'term';
+        while (seen.has(id) || GLOSSARY.terms.some(t => t.id === id)) id += '-j';
+        seen.add(id);
+        out.push({ id, group: 'journey', term: g.term.trim().slice(0, 80), definition: g.definition.trim().slice(0, 500), see: typeof g.see === 'string' ? g.see.trim().slice(0, 300) : '',
+            aliases: Array.isArray(g.aliases) ? g.aliases.filter(a => typeof a === 'string').map(a => a.slice(0, 80)).slice(0, 20) : [] });
+    }
+    return out;
+}
+const allTerms = () => [...journeyTerms(), ...GLOSSARY.terms];
+/** The term a word of the view names: by id, by the term itself, or by one of its other names */
+function termOf(word) {
+    const w = fold(word), terms = allTerms();
+    return terms.find(t => t.id === word) || terms.find(t => fold(t.term) === w) || terms.find(t => (t.aliases || []).some(a => fold(a) === w));
+}
+/** A word of the view, dotted when the glossary explains it: selecting it opens its entry. `focusable` false keeps it out of the tab order */
+const word = (text, term, cls = '', focusable = true) => {
+    const t = termOf(term || text);
+    return t ? `<button type="button" class="gw ${cls}" data-term="${esc(t.id)}"${focusable ? '' : ' tabindex="-1"'} title="${esc(t.term)}: ${esc(t.definition)}">${esc(text)}</button>` : `<span class="${cls}">${esc(text)}</span>`;
+};
+/** The tag on an activity box, as a term of the glossary */
+const TAG_TERM = { 'AI agent': 'ai-agent', Person: 'person', System: 'system', Robot: 'robot', 'Undo step': 'compensation', Decision: 'decision' };
 
 // ---------------------------------------------------------------- geometry
 const CX = k => 264 + k * 392;                       // atlas columns
@@ -461,13 +539,13 @@ scenes.story = () => {
     h += `<div class="col"></div>`;
     // Lane labels and rails. The journey itself is the line of visibility: customer above, work below.
     const label = (y, title, sub) => `<div class="ll" style="top:${y - 16}px"><div class="pt">${title}</div><div class="sub">${sub}</div></div>`;
-    h += label(96, 'Mood', 'solid: said &middot; dashed: inferred') + label(LY.world, 'Customer', 'touchpoints') + label(LY.journey, 'Journey', 'line of visibility') + label(LY.work, 'Workflows', 'the work behind it');
+    h += label(96, word('Mood', 'mood'), 'solid: said &middot; dashed: inferred') + label(LY.world, 'Customer', word('touchpoints', 'touchpoint')) + label(LY.journey, word('Journey', 'journey'), word('line of visibility', 'line-of-visibility')) + label(LY.work, word('Workflows', 'workflow'), 'the work behind it');
     h += `<div class="rail" style="top:${moodY(0)}px;border-top:1px dashed rgba(255,255,255,.14)"></div><div class="rail" style="top:${LY.world}px;border-top:1px dashed rgba(255,255,255,.10)"></div>
       <div class="rail" style="top:${LY.journey - 1}px;border-top:2px solid #475569"></div><div class="rail" style="top:${LY.work}px;border-top:1px dashed rgba(255,255,255,.10)"></div>
       <div class="rowl" style="top:${moodY(2) - 8}px;left:150px;width:auto;color:#34d399">+2</div><div class="rowl" style="top:${moodY(-2) - 8}px;left:150px;width:auto;color:#ff8a8c">&minus;2</div>`;
-    h += `<div class="ll" style="top:${techY(0) - 26}px"><div class="pt">Technology</div></div>`;
+    h += `<div class="ll" style="top:${techY(0) - 26}px"><div class="pt">${word('Technology', 'technology')}</div></div>`;
     j.technologies.forEach((t, k) => { h += `<div class="rowl" style="top:${techY(k) - 8}px" title="${esc(t)}">${esc(t)}</div><div class="rail" style="top:${techY(k)}px;border-top:1px solid rgba(255,255,255,.05)"></div>`; });
-    h += `<div class="ll" style="top:${kindY(j, 0) - 26}px"><div class="pt">Exchanged</div></div>`;
+    h += `<div class="ll" style="top:${kindY(j, 0) - 26}px"><div class="pt">${word('Exchanged', 'artefact')}</div></div>`;
     j.kinds.forEach((t, k) => { h += `<div class="rowl" style="top:${kindY(j, k) - 8}px">${esc(KIND(t))}</div><div class="rail" style="top:${kindY(j, k)}px;border-top:1px solid rgba(255,255,255,.05)"></div>`; });
 
     // Mood: one line, revealed as the story is told. A filled dot was said by the customer; a hollow one was inferred.
@@ -511,12 +589,12 @@ scenes.story = () => {
     h += `<div class="listp" id="listp" hidden><div class="listh"><b style=\"flex:1 1 auto;white-space:nowrap\">What happened, in order</b><div class="seg-ctl"><button data-list="customer">The customer&rsquo;s side</button><button data-list="all">Everything</button></div><button class="crumb" data-list="toggle">Close</button></div><div class="listb" id="listb"></div></div>`;
     h += `<div class="ring"></div><div class="fl ct"></div>
       <div style="position:absolute;left:28px;top:654px;width:1384px;display:flex;align-items:center;gap:16px">
-        ${[['k-event', 'customer acts'], ['k-told', 'customer is told'], ['k-timeout', 'nothing arrives in time'], ['k-stage_in', 'stage begins'], ['k-goal', 'goal reached'], ['k-model_decision', 'a model decides'], ['k-human_wait', 'waits for a person'], ['k-partner', 'a partner system is called']].map(([k, t]) => `<div class="lg"><span class="lgi"><span class="sh ${k}"></span></span>${t}</div>`).join('')}
-        <div class="lg"><span class="lgi"><span class="doc" style="left:7px;top:8px"></span></span>received</div><div class="lg"><span class="lgi"><span class="doc out" style="left:7px;top:8px"></span></span>sent out</div>
-        <div class="lg"><span style="width:20px;border-top:2px solid #94a3b8"></span>caused</div><div class="lg"><span style="width:20px;border-top:2px dashed #64748b"></span>time passes</div></div>
+        ${[['k-event', 'customer acts', 'touchpoint'], ['k-told', 'customer is told', 'touchpoint'], ['k-timeout', 'nothing arrives in time', 'missed-deadline'], ['k-stage_in', 'stage begins', 'stage'], ['k-goal', 'goal reached', 'goal'], ['k-model_decision', 'a model decides', 'model-decision'], ['k-human_wait', 'waits for a person', 'person'], ['k-partner', 'a partner system is called', 'technology']].map(([k, t, term]) => `<div class="lg"><span class="lgi"><span class="sh ${k}"></span></span>${word(t, term)}</div>`).join('')}
+        <div class="lg"><span class="lgi"><span class="doc" style="left:7px;top:8px"></span></span>${word('received', 'artefact')}</div><div class="lg"><span class="lgi"><span class="doc out" style="left:7px;top:8px"></span></span>${word('sent out', 'artefact')}</div>
+        <div class="lg"><span style="width:20px;border-top:2px solid #94a3b8"></span>${word('caused', 'business-event')}</div><div class="lg"><span style="width:20px;border-top:2px dashed #64748b"></span>${word('time passes', 'business-event')}</div></div>
       <div style="position:absolute;left:28px;top:678px;width:1384px;display:flex;align-items:center;gap:16px">
-        <div class="lg"><span class="md said" style="position:static;margin:0;cursor:default"></span>mood the customer stated</div><div class="lg"><span class="md" style="position:static;margin:0;cursor:default"></span>mood inferred by a rule</div>
-        <div class="lg"><span class="lgi"><span class="sh k-undone"></span></span>an earlier step is undone</div><div class="lg"><span class="lgi"><span class="sh k-run_failed"></span></span>a workflow fails</div><div class="lg"><span class="lgi"><span class="sh k-stalled"></span></span>stalled: needs someone</div>
+        <div class="lg"><span class="md said" style="position:static;margin:0;cursor:default"></span>${word('mood the customer stated', 'mood')}</div><div class="lg"><span class="md" style="position:static;margin:0;cursor:default"></span>${word('mood inferred by a rule', 'mood')}</div>
+        <div class="lg"><span class="lgi"><span class="sh k-undone"></span></span>${word('an earlier step is undone', 'compensation')}</div><div class="lg"><span class="lgi"><span class="sh k-run_failed"></span></span>${word('a workflow fails', 'run-status')}</div><div class="lg"><span class="lgi"><span class="sh k-stalled"></span></span>${word('stalled: needs someone', 'stalled')}</div>
         <div class="lg" style="color:var(--mute)">Select any mark to read that moment. Nothing is hidden: later moments are dimmed.</div></div>`;
     return h;
 };
@@ -572,7 +650,7 @@ scenes.run = () => {
     const dim = band => (banded ? ` data-band="${band}"` : '');
     if (banded) {
         h += `<div style="position:absolute;left:28px;top:62px;width:1384px;display:flex;align-items:center;gap:8px">
-          <span class="pt" style="color:var(--mute);margin-right:6px">Bands</span>
+          ${word('Bands', 'band', 'pt', true).replace('class="gw pt"', 'class="gw pt" style="color:var(--mute);margin-right:6px"')}
           ${W.bands.map((b, k) => `<button class="bchip" data-bandchip="${k}" title="Show this band of the workflow"><span class="bn">${k + 1}</span>${esc(b.label)}<span class="bs"></span></button>`).join('')}
           <span style="flex:1 1 auto"></span><span class="sub">the band of the step being read is shown; the others are one click away</span></div>`;
     }
@@ -589,20 +667,21 @@ scenes.run = () => {
     });
     W.nodes.forEach((n, i) => {
         const box = `left:${n.x}px;top:${n.y}px;width:${n.w}px;height:${n.h}px`;
-        if (n.kind === 'activity') h += `<div class="nd act" data-n="${i}" data-base="nd act"${dim(n.band)} style="${box}" title="${esc(n.name)}"><span class="tg">${esc(n.tag)}</span><span class="nm">${esc(n.name)}</span></div>`;
+        if (n.kind === 'activity') h += `<div class="nd act" data-n="${i}" data-base="nd act"${dim(n.band)} style="${box}" title="${esc(n.name)}">${word(n.tag, TAG_TERM[n.tag], 'tg', false)}<span class="nm">${esc(n.name)}</span></div>`;
         else if (n.kind === 'event') h += `<div class="nd evt m-${tok(n.mode)}" data-n="${i}" data-base="nd evt m-${tok(n.mode)}"${dim(n.band)} style="${box}"><span class="ev-in"></span></div><div class="nl"${dim(n.band)} style="left:${n.x + n.w / 2}px;top:${n.y + n.h + 5}px"><span>${esc(n.name)}</span></div>`;
         else h += `<div class="nd dec" data-n="${i}" data-base="nd dec"${dim(n.band)} style="${box}"></div><div class="nl dl"${dim(n.band)} style="left:${n.x + n.w - 10}px;top:${n.y - 14}px"><span>${esc(n.name)}</span></div>`;
     });
     if (banded) for (const note of W.notes || []) h += `<div class="bnote"${dim(note.band)} style="left:${note.x}px;top:${note.y}px${note.align === 'right' ? ';transform:translateX(-100%)' : ''}">${esc(note.text)}</div>`;
     h += `</div><div class="gmore l" hidden><button type="button" data-pan="-1" aria-label="Show more of the graph to the left"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button></div>`
         + `<div class="gmore r" hidden><button type="button" data-pan="1" aria-label="Show more of the graph to the right"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button></div></div>`;
-    const swatch = (css, t) => `<div class="lg" style="font-size:12px"><span style="width:18px;height:12px;border-radius:3px;${css}"></span>${t}</div>`;
+    const swatch = (css, t, term) => `<div class="lg" style="font-size:12px"><span style="width:18px;height:12px;border-radius:3px;${css}"></span>${word(t, term)}</div>`;
     return h + `<div style="position:absolute;left:28px;top:432px;width:1384px;display:flex;gap:16px">
       <div class="pn" style="flex:0 0 560px"><div class="pt" style="color:var(--mute)">The story so far</div><div id="script" style="display:flex;flex-direction:column;gap:2px"></div></div>
       <div class="pn" style="flex:1 1 auto;min-width:0"><div class="pt" style="color:var(--mute)">Evidence for this step</div><div id="evidence" style="display:flex;flex-direction:column;gap:7px;overflow:auto"></div></div>
       <div class="pn" style="flex:0 0 250px"><div class="pt" style="color:var(--mute)">Reading the diagram</div>
-        ${swatch('border:1.5px solid var(--run)', 'working now')}${swatch('border:1.5px dashed var(--wait)', 'waiting')}${swatch('border:1.5px solid var(--ok)', 'done')}${swatch('border:1.5px solid var(--bad);background:#3b1d24', 'failed')}${swatch('border:1.5px dotted var(--mute)', 'undone afterwards')}
-        <div class="lg" style="font-size:12px"><span style="width:18px;border-top:2px dashed var(--wait)"></span>path taken on a missed deadline</div></div></div>`;
+        ${swatch('border:1.5px solid var(--run)', 'working now', 'step-status')}${swatch('border:1.5px dashed var(--wait)', 'waiting', 'step-status')}${swatch('border:1.5px solid var(--ok)', 'done', 'step-status')}${swatch('border:1.5px solid var(--bad);background:#3b1d24', 'failed', 'step-status')}${swatch('border:1.5px dotted var(--mute)', 'undone afterwards', 'compensation')}
+        <div class="lg" style="font-size:12px"><span style="width:18px;border-top:2px dashed var(--wait)"></span>${word('path taken on a missed deadline', 'missed-deadline')}</div>
+        <div class="sub" style="margin-top:auto">A dotted word opens its entry in the glossary.</div></div></div>`;
 };
 
 // ---------------------------------------------------------------- applying the state to a built scene
@@ -616,7 +695,7 @@ apply.journey = el => {
         const n = m.counts[+card.dataset.card];
         card.innerHTML = card.parentElement.classList.contains('narrow')
             ? `<div><b>${n.here}</b>here</div><div><b>${n.done}</b>moved on</div><div class="${n.stalled ? 'warn' : ''}"><b>${n.stalled}</b>stalled</div><div><b>${n.left}</b>left</div>`
-            : `<div class="ct"><b>${n.here}</b><span>here now</span></div><div class="ct"><b>${n.done}</b><span>moved on</span></div><div class="ct${n.stalled ? ' warn' : ''}"><b>${n.stalled}</b><span>stalled</span></div><div class="ct"><b>${n.left}</b><span>left</span></div>`;
+            : `<div class="ct"><b>${n.here}</b><span>here now</span></div><div class="ct"><b>${n.done}</b><span>moved on</span></div><div class="ct${n.stalled ? ' warn' : ''}"><b>${n.stalled}</b>${word('stalled', 'stalled')}</div><div class="ct"><b>${n.left}</b>${word('left', 'abandoned')}</div>`;
     });
     el.querySelectorAll('.lane').forEach(lane => lane.classList.toggle('hot', +lane.dataset.lane === m.c));
     el.querySelectorAll('.seg').forEach(seg => {
@@ -683,7 +762,7 @@ apply.run = el => {
     let h = '';
     for (let i = Math.max(0, Math.min(ic - 2, steps.length - 5)), k = 0; i < steps.length && k < 5; i++, k++) h += `<button class="tr${i === ic ? ' cur' : ''}" data-step="${i}"><span class="trw mono">${esc(steps[i].when)}</span><span class="${i === ic ? 'clamp2' : 'one'}">${esc(steps[i].cap)}</span></button>`;
     el.querySelector('#script').innerHTML = h;
-    el.querySelector('#evidence').innerHTML = [...step.det.slice(0, 6), ['Journal record', `event ${step.seq} of run ${run.run_id.slice(0, 8)}`]].map(d => `<div class="ev"><span class="evl">${esc(d[0])}</span><span class="evt2">${esc(d[1])}</span></div>`).join('')
+    el.querySelector('#evidence').innerHTML = [...step.det.slice(0, 6), ['Journal record', `event ${step.seq} of run ${run.run_id.slice(0, 8)}`]].map((d, k, all) => `<div class="ev">${k === all.length - 1 ? word(d[0], 'journal-record', 'evl') : `<span class="evl">${esc(d[0])}</span>`}<span class="evt2">${esc(d[1])}</span></div>`).join('')
         + (step.raw ? `<details class="rawd"><summary>The record as written</summary><button type="button" class="rawc" data-copy>Copy</button><pre class="mono">${esc(JSON.stringify({ run_id: run.run_id, ...step.raw }, null, 2))}</pre></details>` : '');
     const copy = el.querySelector('[data-copy]');
     if (copy) copy.onclick = () => { const text = el.querySelector('.rawd pre').textContent; (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(() => { copy.textContent = 'Copied'; }, () => { const r = document.createRange(); r.selectNodeContents(el.querySelector('.rawd pre')); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); copy.textContent = 'Selected'; }); };
@@ -708,7 +787,7 @@ apply.run = el => {
     if (stage_now) el.querySelector('#runstage').textContent = stage_now.name;
     const over = ic === steps.length - 1, chip = el.querySelector('#runchip');
     chip.className = 'chip' + (over ? (run.status === 'completed' ? ' ok' : run.status === 'failed' ? ' e-stalled' : /^waiting/.test(run.status) ? ' miss' : run.status === 'cancelled' ? ' e-abandoned' : '') : '');
-    chip.textContent = over ? runWord(run.status) : 'being replayed';
+    chip.innerHTML = over ? word(runWord(run.status), 'run-status') : 'being replayed';
 };
 
 // ---------------------------------------------------------------- caption, facts, chrome
@@ -750,7 +829,7 @@ function chrome() {
     $('scrub').max = n - 1; $('scrub').value = p; $('count').textContent = `${p + 1} / ${n}`;
     $('b-play').innerHTML = st.playing ? PAUSE : PLAY; $('b-play').setAttribute('aria-label', st.playing ? 'Pause the telling' : 'Tell the story');
     $('b-pace').textContent = st.fast ? '2x' : '1x';
-    written = '#' + [st.level, st.j, st.i, st.r, p].join('/');
+    written = '#' + [st.level, st.j, st.i, st.r, p].join('/') + (gloss.open ? '/glossary' + (gloss.term ? '/' + gloss.term : '') : '');
     if (location.hash !== written) location.replace(written);
 }
 
@@ -832,6 +911,8 @@ const jump = i => set({ [KEY[st.level]]: Math.max(0, Math.min(i, count() - 1)), 
 document.addEventListener('click', e => {
     const hit = sel => e.target.closest(sel);
     let x;
+    if ((x = hit('[data-term]'))) { e.stopPropagation(); openGlossary(x.dataset.term, { from: x }); return; }
+    if ((x = hit('#gloss'))) return;
     if ((x = hit('[data-level]'))) goLevel(x.dataset.level);
     else if ((x = hit('[data-j]'))) switchJourney(+x.dataset.j);
     else if ((x = hit('[data-open-j]'))) openJourney(+x.dataset.openJ, { ox: CX(+x.dataset.openJ) + 180, oy: 106 });
@@ -875,6 +956,7 @@ $('b-play').onclick = () => {
 };
 $('scrub').oninput = e => jump(+e.target.value);
 document.addEventListener('keydown', e => {
+    if (glossKey(e)) return;
     if (e.target.tagName === 'INPUT') return;
     if (e.key === 'ArrowRight') { move(1); e.preventDefault(); }
     else if (e.key === 'ArrowLeft') { move(-1); e.preventDefault(); }
@@ -882,6 +964,96 @@ document.addEventListener('keydown', e => {
 });
 let acc = 0;
 setInterval(() => { if (!st.playing) return; acc += 200 * (st.fast ? 2.4 : 1); if (acc >= 2200) { acc = 0; move(1, true); } }, 200);
+
+// ---------------------------------------------------------------- the glossary panel
+const gloss = { open: false, term: '', filter: 'all', query: '', opener: null };
+const panel = $('gloss'), gq = $('gq'), glist = $('glist');
+/** The text that refers to a term's source: a section of the specification, or for a journey's term a short text or an https link */
+function reference(t) {
+    const see = t.see || (t.group === 'journey' ? 'This journey' : '');
+    let url = null;
+    if (/^https:\/\//i.test(see)) { try { url = new URL(see); } catch { url = null; } }
+    if (url && url.protocol === 'https:') {
+        const a = document.createElement('a'); a.className = 'ge-r'; a.href = url.href; a.target = '_blank'; a.rel = 'noopener noreferrer';
+        a.textContent = url.hostname.replace(/^www\./, ''); a.title = url.href; return a;
+    }
+    const span = document.createElement('span'); span.className = 'ge-r'; span.textContent = see; if (/^§/.test(see)) span.title = `AWA specification, section ${see.slice(1)}`; return span;
+}
+function renderGlossary() {
+    const terms = allTerms(), mine = terms.filter(t => t.group === 'journey').length;
+    const groups = [{ id: 'all', label: 'All' }, ...GLOSSARY.groups.filter(g => g.id !== 'journey' || mine)];
+    if (!groups.some(g => g.id === gloss.filter)) gloss.filter = 'all';
+    const chips = $('gchips'); chips.textContent = '';
+    for (const g of groups) {
+        const b = document.createElement('button'); b.type = 'button'; b.dataset.gfilter = g.id; b.textContent = g.label;
+        b.setAttribute('aria-pressed', String(g.id === gloss.filter)); chips.appendChild(b);
+    }
+    gq.placeholder = `Search ${terms.length} terms`;
+    const q = fold(gloss.query);
+    const shown = terms.filter(t => (gloss.filter === 'all' || t.group === gloss.filter)
+        && (!q || [t.term, t.definition, t.see, ...(t.aliases || [])].some(x => fold(x).includes(q))));
+    glist.textContent = '';
+    for (const g of GLOSSARY.groups) {
+        const here = shown.filter(t => t.group === g.id);
+        if (!here.length) continue;
+        const head = document.createElement('div'); head.className = 'gloss-g'; head.textContent = g.label; glist.appendChild(head);
+        for (const t of here) {
+            const entry = document.createElement('div'); entry.className = 'ge' + (t.id === gloss.term ? ' on' : ''); entry.id = 'g-' + t.id; entry.dataset.entry = t.id;
+            const top = document.createElement('div'); top.className = 'ge-h';
+            const name = document.createElement('dfn'); name.className = 'ge-t'; name.textContent = t.term;
+            top.append(name, reference(t));
+            const text = document.createElement('p'); text.className = 'ge-d'; text.textContent = t.definition;
+            entry.append(top, text); glist.appendChild(entry);
+        }
+    }
+    if (!shown.length) { const none = document.createElement('div'); none.className = 'gloss-none'; none.textContent = `No term matches “${gloss.query}”.`; glist.appendChild(none); }
+}
+/** Open the glossary, at a term when one is named. quiet: from the address, which already says so */
+function openGlossary(term, { from, quiet } = {}) {
+    const t = term ? termOf(term) : null;
+    if (!gloss.open) gloss.opener = from || document.activeElement;
+    else if (from) gloss.opener = from;
+    gloss.open = true; gloss.term = t ? t.id : '';
+    if (t) { gloss.query = ''; gq.value = ''; if (gloss.filter !== 'all' && gloss.filter !== t.group) gloss.filter = 'all'; }
+    panel.hidden = false; $('b-gloss').setAttribute('aria-expanded', 'true');
+    renderGlossary();
+    const at = t && document.getElementById('g-' + t.id);
+    if (at) at.scrollIntoView({ block: 'nearest' }); else glist.scrollTop = 0;
+    if (!quiet || document.activeElement === document.body) gq.focus({ preventScroll: true });
+    if (!quiet && S && rendered) chrome();
+}
+function closeGlossary(quiet) {
+    if (!gloss.open) return;
+    gloss.open = false; gloss.term = ''; panel.hidden = true; $('b-gloss').setAttribute('aria-expanded', 'false');
+    const back = gloss.opener && gloss.opener.isConnected && !panel.contains(gloss.opener) ? gloss.opener : $('b-gloss');
+    gloss.opener = null;
+    back.focus({ preventScroll: true });
+    if (!quiet && S && rendered) chrome();
+}
+/** The glossary's keys: ? opens or closes it, / searches, Escape closes it, and Tab stays inside it while it is open */
+function glossKey(e) {
+    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) && e.target !== gq;
+    if (typing) return false;
+    if (e.key === '?' && e.target !== gq) { e.preventDefault(); gloss.open ? closeGlossary() : openGlossary('', { from: $('b-gloss') }); return true; }
+    if (e.key === '/' && e.target !== gq && !e.ctrlKey && !e.metaKey) { e.preventDefault(); if (!gloss.open) openGlossary('', { from: $('b-gloss') }); gq.focus(); gq.select(); return true; }
+    if (!gloss.open) return false;
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeGlossary(); return true; }
+    if (e.key === 'Tab') {
+        const stops = [...panel.querySelectorAll('button, input, a[href], [tabindex]:not([tabindex="-1"])')].filter(x => !x.disabled && x.offsetParent !== null);
+        if (!stops.length) return false;
+        const first = stops[0], last = stops[stops.length - 1];
+        if (!panel.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+        else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+        return true;
+    }
+    return e.target === gq;                                     // the arrows move the caret in the search, not the story
+}
+$('b-gloss').onclick = () => (gloss.open ? closeGlossary() : openGlossary('', { from: $('b-gloss') }));
+$('gloss-close').onclick = () => closeGlossary();
+gq.addEventListener('input', () => { gloss.query = gq.value; gloss.term = ''; renderGlossary(); if (S && rendered) chrome(); });
+$('gchips').addEventListener('click', e => { const b = e.target.closest('[data-gfilter]'); if (!b) return; gloss.filter = b.dataset.gfilter; renderGlossary(); glist.scrollTop = 0; });
+window.AWA_glossary = { open: openGlossary, close: closeGlossary, terms: allTerms };   // for tests and for a page that embeds the view
 
 // ---------------------------------------------------------------- where the record comes from
 const message = text => { $('none').textContent = text; $('none').hidden = !text; };
@@ -927,7 +1099,8 @@ addEventListener('drop', async e => {
 
 // A link carries the place: #level/journey/instance/run/position
 const place = () => {
-    const parts = location.hash.slice(1).split('/');
+    const all = location.hash.slice(1).split('/'), g = all.indexOf('glossary'), parts = g >= 0 ? all.slice(0, g) : all;
+    if (g >= 0) openGlossary(decodeURIComponent(all[g + 1] || ''), { quiet: true }); else if (gloss.open) closeGlossary(true);
     if (!S || !LEVELS.includes(parts[0])) return;
     const [level, j, i, rr, p] = [parts[0], ...parts.slice(1).map(Number)];
     if (S.journeys[j] && S.journeys[j].instances[i || 0]) Object.assign(st, { level, j, i: i || 0, r: rr || 0, [KEY[level]]: p || 0 });

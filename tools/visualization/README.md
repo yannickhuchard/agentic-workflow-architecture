@@ -84,6 +84,7 @@ To see your own journeys:
 | `bands` | By workflow name, `[{ "row": 0, "label": "…" }, …]`: the rows where each band of a long workflow starts. Each band is a row of columns of its own, and the run view shows one band at a time |
 | `subject_name` | Paths in a journey instance's data whose values, joined by a space, name its customer: `["applicant.first_name", "applicant.last_name"]`. The record's `subject_name` comes first; without either, the customer is named by the journey's key |
 | `sentences` | By event type, `(name, data) => [title, sentence]`: how a business event is told. A function, so only for a page or a script that calls the builder |
+| `glossary` | The journey's own words, shown in the glossary under "This journey": `[{ "id"?, "term", "definition", "see"?, "aliases"? }]`. `see` is an https address, shown as a link, or a short text such as "Example"; `aliases` are other words a search finds the term by. The view reads the options, not the builder |
 
 `examples/electricity-onboarding/views/story-options.json` is a complete example: names, a 43-node layout in three bands, and a layout of its child workflow. The measures page takes the same `?options=` to name customers, and passes it on to the journey view it links to.
 
@@ -110,6 +111,18 @@ The switch at the top right moves sideways to another journey; on one customer's
 | ← → | Step back or forward |
 | Esc | Go up one height |
 | The address | Carries the place, `#level/journey/customer/run/position` (`#story/0/2/0/999` is the third customer's latest moment): copy it to share exactly what you are looking at. A page that embeds the view, or a link, may change it while the page is open, and the view goes there |
+| Glossary, or ? | Opens the glossary beside the view; ? or Esc closes it, and the focus returns to where it was |
+| / | Goes to the glossary's search, opening it if it is closed |
+
+### Glossary
+
+The Glossary button in the top bar (or the ? key) opens a panel beside the view. It lists the words of the view and of AWA, each in one plain sentence with where it comes from: the section of the specification for AWA's terms (§19.2 for a stage), "View" for a word of the view itself, and for a journey's own terms the short text or the https link its options give. A search ("Search 53 terms") filters as you type, by the term, its other names and its sentence; chips show one group: This journey, Journeys, Work, Trust, Measures. While the panel is open, Tab stays inside it; Esc or the close button closes it.
+
+Words of the view are dotted, and selecting one opens its entry: the legend of the run view ("working now", "waiting", "done", "failed", "undone afterwards", "path taken on a missed deadline"), the legend and the row names of the blueprint, the actor tags on activity boxes (AI agent, Person, System, Robot, Undo step), the run's status, "stalled" and "left" on the stage cards, "Bands", and "Journal record" in the evidence.
+
+The address opens it too: `#glossary` or `#glossary/<term id>`, alone or after the place, as in `#run/1/1/1/3/glossary/four-eyes`. The view writes the panel into the address while it is open, so a copied address opens the same entry.
+
+AWA's terms are in `awa-glossary.js` (`window.AWA_GLOSSARY` in a page, `require()` in Node): 53 terms, each citing a section checked against `docs/specification.md`. A journey adds its own through the `glossary` option; `examples/electricity-onboarding/views/story-options.json` adds eight (metering point, EAN code, prosumer, export tariff, grid export registration, supplier switch, direct debit mandate, commissioning report). Option text is shown as text, never as markup, and `see` becomes a link only when it is an https address.
 
 On one customer's journey nothing is hidden: selecting a mark reads that moment and dims what comes after. "Read as a list" gives the same story as a dated list, by default only the customer's side.
 

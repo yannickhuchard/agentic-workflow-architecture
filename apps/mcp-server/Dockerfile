@@ -27,7 +27,7 @@ COPY --from=build /repo/sdk/typescript/node_modules sdk/typescript/node_modules
 COPY --from=build /repo/apps/mcp-server/node_modules apps/mcp-server/node_modules
 COPY apps/mcp-server/package.json apps/mcp-server/package.json
 COPY apps/mcp-server/src apps/mcp-server/src
-COPY tools/visualization/journey.html tools/visualization/replay.html tools/visualization/journey-story-builder.js tools/visualization/
+COPY tools/visualization/journey.html tools/visualization/replay.html tools/visualization/dashboard.html tools/visualization/journey-story-builder.js tools/visualization/awa-kpis.js tools/visualization/awa-glossary.js tools/visualization/
 COPY examples/claims-journey examples/claims-journey
 COPY examples/claims-settlement/claims-settlement.awa.json examples/claims-settlement/simulation.json examples/claims-settlement/
 USER node

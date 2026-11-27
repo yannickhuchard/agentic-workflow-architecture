@@ -84,6 +84,49 @@ const to_end = async page => { await page.evaluate(() => { const s = document.ge
         const { problems, size, px } = await run_layout(page);
         check(!problems.length && size === '140 × 72', `${name}: activity boxes ${size}, every name inside its box, no node on another, names at ${px} px ${problems.join('; ')}`);
     }
+    // The glossary: a button, a search, the words of the view, a link to an entry, Escape and the focus
+    {
+        const { terms } = createRequire(import.meta.url)('./awa-glossary.js');
+        check(await page.locator('#b-gloss').isVisible() && await page.locator('#gloss').isHidden(), 'the top bar has a Glossary button, the panel closed');
+        await page.click('#b-gloss'); await page.waitForTimeout(200);
+        check(await page.locator('#gloss').isVisible() && await page.evaluate(() => document.activeElement.id) === 'gq'
+            && await page.getAttribute('#gq', 'placeholder') === `Search ${terms.length} terms`, `the button opens the glossary, the search focused ("Search ${terms.length} terms")`);
+        check(await page.locator('#glist .ge').count() === terms.length && await page.evaluate(() => /#run\/.*\/glossary$/.test(location.hash)), 'it lists every term, and the address says the glossary is open');
+        await page.keyboard.type('four eyes'); await page.waitForTimeout(200);
+        check(await page.locator('#glist .ge').count() >= 1 && (await page.textContent('#glist .ge >> nth=0')).includes('Four eyes') && await page.textContent('#count') !== null, 'a search filters as you type');
+        await page.keyboard.press('ArrowLeft');
+        await page.fill('#gq', ''); await page.click('[data-gfilter="measures"]'); await page.waitForTimeout(200);
+        check(await page.locator('#glist .ge').count() === terms.filter(t => t.group === 'measures').length, 'a chip shows one group');
+        // Tab stays in the panel
+        await page.focus('#gloss-close'); await page.keyboard.press('Shift+Tab');
+        check(await page.evaluate(() => document.getElementById('gloss').contains(document.activeElement)), 'Tab stays inside the open panel');
+        await page.keyboard.press('Escape'); await page.waitForTimeout(200);
+        check(await page.locator('#gloss').isHidden() && await page.evaluate(() => document.activeElement.id) === 'b-gloss' && await page.evaluate(() => window.AWA_VIEW.level) === 'run',
+            'Escape closes the glossary, gives the focus back to the button, and stays on the run');
+        // A dotted word of the legend opens its entry
+        await page.click('#L3 .gw:text("undone afterwards")'); await page.waitForTimeout(300);
+        check(await page.locator('#gloss').isVisible() && await page.getAttribute('#glist .ge.on', 'id') === 'g-compensation' && await page.evaluate(() => location.hash.endsWith('/glossary/compensation')),
+            'a dotted word of the legend ("undone afterwards") opens its entry, and the address names it');
+        await page.click('#gloss-close'); await page.waitForTimeout(200);
+        const tag = page.locator('#L3 .nd.act .gw.tg').first();
+        await tag.click(); await page.waitForTimeout(300);
+        const tag_term = await page.getAttribute('#glist .ge.on', 'id');
+        check(['g-ai-agent', 'g-person', 'g-system', 'g-robot', 'g-compensation'].includes(tag_term) && await page.evaluate(() => window.AWA_VIEW.level) === 'run', `an actor tag opens its entry (${tag_term})`);
+        await page.keyboard.press('Escape'); await page.waitForTimeout(200);
+        // The keys: ? opens and closes it, / searches
+        await page.keyboard.press('?'); await page.waitForTimeout(200);
+        const opened = await page.locator('#gloss').isVisible();
+        await page.keyboard.press('Escape'); await page.keyboard.press('/'); await page.waitForTimeout(200);
+        check(opened && await page.evaluate(() => document.activeElement.id) === 'gq', 'the ? key opens the glossary and / goes to its search');
+        await page.keyboard.press('Escape'); await page.waitForTimeout(200);
+        // A link to an entry, with the place in the view
+        const here = await page.evaluate(() => location.hash);
+        await page.evaluate(h => { location.hash = h + '/glossary/four-eyes'; }, here); await settle(page);
+        check(await page.locator('#gloss').isVisible() && await page.getAttribute('#glist .ge.on', 'id') === 'g-four-eyes' && await page.evaluate(() => window.AWA_VIEW.level) === 'run',
+            'a link #level/…/glossary/<term> opens the view at its place with the entry shown');
+        await page.keyboard.press('Escape'); await settle(page);
+        check(await page.evaluate(() => location.hash) === here, 'closing it takes /glossary off the address, and the place stays');
+    }
     await page.keyboard.press('Escape'); await page.keyboard.press('Escape'); await page.keyboard.press('Escape'); await settle(page);
     check(await page.locator('.layer.on').getAttribute('id') === 'L0', 'Escape goes up to the atlas');
     const hash = await page.evaluate(() => location.hash);
@@ -218,8 +261,28 @@ awa('export', '-o', record);
         }
         await page.evaluate(() => { location.hash = '#atlas/0/0/0/0'; }); await settle(page);
         check(await page.locator('.layer.on').getAttribute('id') === 'L0', 'and a link goes back up to the atlas');
+        // The journey's own words, from the options
+        await page.evaluate(() => { location.hash = '#glossary/prosumer'; }); await settle(page);
+        check(await page.locator('[data-gfilter="journey"]').count() === 1 && await page.getAttribute('#glist .ge.on', 'id') === 'g-prosumer'
+            && (await page.textContent('#glist .gloss-g >> nth=0')) === 'This journey', '#glossary/<term> opens an entry of the journey\'s own glossary, listed first under "This journey"');
+        await page.click('[data-gfilter="journey"]'); await page.waitForTimeout(200);
+        check(await page.locator('#glist .ge').count() === options.glossary.length && await page.getAttribute('#g-metering-point a.ge-r', 'href').then(h => /^https:\/\//.test(h)), `the options give ${options.glossary.length} terms of the journey, with https links`);
         check(page.errors.length === 0, `no page errors with options ${page.errors.join('; ')}`);
         await page.close();
+        // Option text is data: markup stays text, and only an https address becomes a link
+        const evil = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+        evil.errors = []; evil.on('pageerror', e => evil.errors.push(e.message));
+        await evil.route('**/evil-options.json', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ glossary: [
+            { term: '<img src=x onerror="window.pwned=1">Meter', definition: '<b>bold</b> text' , see: 'javascript:window.pwned=2' },
+            { term: 'Tariff', definition: 'A price.', see: 'http://example.org/plain' },
+            { term: 42, definition: 'not a term' },
+        ] }) }));
+        await evil.goto(`${base}/tools/visualization/journey.html?data=${encodeURIComponent(`${base}/examples/electricity-onboarding/journeys.json`)}&options=${encodeURIComponent(`${base}/evil-options.json`)}#glossary`);
+        await evil.waitForTimeout(1500);
+        const shown = await evil.evaluate(() => ({ pwned: window.pwned, imgs: document.querySelectorAll('#glist img, #glist b').length, links: document.querySelectorAll('#glist a').length,
+            first: document.querySelector('#glist .ge .ge-t').textContent, mine: [...document.querySelectorAll('#glist .ge')].filter(e => !window.AWA_GLOSSARY.terms.some(t => 'g-' + t.id === e.id)).length }));
+        check(!shown.pwned && shown.imgs === 0 && shown.links === 0 && shown.first.startsWith('<img') && shown.mine === 2, `glossary options are text: no markup, no link that is not https, a term that is not text left out (${JSON.stringify(shown)})`);
+        await evil.close();
     } finally { server.close(); }
 }
 
