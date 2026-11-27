@@ -1404,8 +1404,9 @@ A journal records what a run did. **Counterfactual replay** asks what it would h
 | The run's input | AI agents, under the candidate configuration |
 | Results of activities performed by applications, robots and people, with what they wrote to contexts (22.3) | Model decisions (section 16) |
 | Results of tool calls, matched by tool and arguments | Verification and judges (section 7) |
-| Business events received, and timeouts | Contracts, guardrails (31.9), decision tables and routing |
+| Business events received, and timeouts, in the order they ended the recorded run's waits | Contracts, guardrails (31.9), decision tables and routing |
 | The passing of time: timers and backoff do not wait | |
+| A cancellation (5.8): a run cancelled while it waited is cancelled, with the same reason, once the recording has nothing more to end its wait | |
 
 With `ai: "recorded"`, the recorded outputs of AI agents, with what they wrote to contexts, and model decisions are replayed as well. Nothing calls a model, and the comparison isolates the effect of a changed contract, criterion, table or edge.
 
@@ -1433,7 +1434,7 @@ It names the first point at which the paths diverge. A run that was `completed` 
 
 ### 20.4 Conformance
 
-Level `replay` has its own cases, in `spec/conformance/replay/` (Appendix A). Replay of tool results, of business events and of timeouts is fixed by `sdk/typescript/tests/counterfactual.test.ts`.
+Level `replay` has its own cases, in `spec/conformance/replay/` (Appendix A). Replay of tool results, of business events and of timeouts, and of a cancellation, is fixed by `sdk/typescript/tests/counterfactual.test.ts`.
 
 ## 21. Measures
 

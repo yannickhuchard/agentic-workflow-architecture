@@ -89,10 +89,19 @@ def _summarise(workflow: Workflow, events: list[JournalEvent]) -> tuple[dict[str
             steps.append((names.get(source, source), names.get(target, target)))
             at(target)
             continue
-        if not event.get("node_id") or type.startswith("activity.compensat"):
+        if not event.get("node_id"):
             continue
         node = at(event["node_id"])
-        if type == "activity.started":
+        if type == "activity.compensated":
+            # A compensation handler is reached when the run undoes work (13.6): what it returned is its outcome
+            node["accepted"] = True
+            node["outcome"] = _outcome_of_output(data.get("output"))
+            node["outcome_hash"] = hash_payload(node["outcome"])
+            node.pop("error", None)
+        elif type == "activity.compensation_failed":
+            node["error"] = (data.get("error") or {}).get("message")
+            node["accepted"] = False
+        elif type == "activity.started":
             node["attempts"] += 1
         elif type == "activity.completed":
             node["accepted"] = True
@@ -126,10 +135,10 @@ def _summarise(workflow: Workflow, events: list[JournalEvent]) -> tuple[dict[str
         elif type in ("event.received", "timer.fired", "event.published"):
             node["accepted"] = True
 
-    ended = next((e for e in events if e["type"] in ("run.completed", "run.failed")), None)
+    ended = next((e for e in events if e["type"] in ("run.completed", "run.failed", "run.cancelled")), None)
     totals: dict[str, Any] = {
         "run_id": events[0]["run_id"] if events else "",
-        "status": ("completed" if ended["type"] == "run.completed" else "failed") if ended else "unfinished",
+        "status": ended["type"].removeprefix("run.") if ended else "unfinished",
         "duration_ms": ended["data"].get("duration_ms") if ended else None,
         "attempts": sum(1 for e in events if e["type"] == "activity.started"),
         "tokens": sum(node["tokens"] for node in nodes.values()),
@@ -297,8 +306,10 @@ def counterfactual_replay(workflow: Workflow, baseline: list[JournalEvent], cand
         elif type == "decision.evaluated" and event.get("node_id") and isinstance(data.get("model"), dict):
             decisions.setdefault(event["node_id"], []).append(
                 {"option": data["model"].get("option"), "confidence": data["model"].get("confidence")})
-    received = [e for e in recorded if e["type"] == "event.received"]
-    timeouts = sum(1 for e in recorded if e["type"] == "event.timed_out")
+    # How the recorded run's waits ended, in the order they ended: a business event received, or a wait that ran out
+    endings = [e for e in sorted(recorded, key=lambda e: e["seq"]) if e["type"] in ("event.received", "event.timed_out")]
+    # A run withdrawn while it waited (5.8) is withdrawn again where the recording has nothing more to give it
+    withdrawn = next((e for e in recorded if e["type"] == "run.cancelled"), None)
 
     def take(queue: list[Any]) -> Any:
         # The last recorded result repeats if the candidate needs it more often
@@ -362,16 +373,20 @@ def counterfactual_replay(workflow: Workflow, baseline: list[JournalEvent], cand
     run.run(copy.deepcopy((started["data"].get("input") if started else None) or {}))
     position = 0
     while run.status.value == "waiting_event":
-        # Give the candidate the events the recorded run received, in order, then its timeouts
+        # End the candidate's waits as the recorded run ended its own, in the same order
         progressed = False
-        while position < len(received) and not progressed:
-            data = received[position]["data"]
+        while position < len(endings) and not progressed:
+            ending = endings[position]
             position += 1
-            progressed = run.deliver_event(
-                business_event(data.get("name"), data.get("data") or {}, source=data.get("source"))) > 0
-        if not progressed and timeouts > 0:
-            timeouts -= 1
-            progressed = run.expire_events(float("inf")) > 0
+            if ending["type"] == "event.received":
+                data = ending["data"]
+                progressed = run.deliver_event(
+                    business_event(data.get("name"), data.get("data") or {}, source=data.get("source"))) > 0
+            else:
+                progressed = run.expire_events(float("inf")) > 0
+        if not progressed and withdrawn is not None:
+            run.cancel(str(withdrawn["data"].get("reason") or "cancelled"))
+            break
         if not progressed:
             note("a business event the candidate run waited for")
             break

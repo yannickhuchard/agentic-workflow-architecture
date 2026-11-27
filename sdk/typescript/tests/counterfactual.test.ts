@@ -164,6 +164,52 @@ describe('Counterfactual replay', () => {
         expect(report.same_path).toBe(true);
     });
 
+    it('ends the waits as the recorded run ended them, in the order it ended them', async () => {
+        // The first wait times out, a reminder goes, and the documents arrive at the second wait: the event must not end the first
+        const ask = activity('Ask'), chase = activity('Chase'), check = activity('Check');
+        const first = { id: uuidv4(), name: 'Uploaded', event_type: 'message', event_definition: { name: 'documents.uploaded', timeout: 'P2D' } } as Workflow['events'][number];
+        const again = { id: uuidv4(), name: 'Uploaded after reminder', event_type: 'message', event_definition: { name: 'documents.uploaded' } } as Workflow['events'][number];
+        const late = edge(first, chase);
+        (first.event_definition as { timeout_edge_id?: string }).timeout_edge_id = late.id;
+        const wf = workflow([ask, chase, check], [edge(ask, first), edge(first, check), late, edge(chase, again), edge(again, check)], { events: [first, again] });
+        const engine = new WorkflowEngine(wf, { ...scripted({ Check: { checked: true } }), ...quiet });
+        await engine.start();
+        expect(await engine.run()).toBe('waiting_event');
+        expect(await engine.expireEvents(Number.MAX_SAFE_INTEGER)).toBe(1);
+        expect(await engine.run()).toBe('waiting_event');
+        await engine.deliverEvent(business_event('documents.uploaded', { files: 3 }));
+        expect(await engine.run()).toBe('completed');
+
+        const { report, status } = await counterfactual_replay(wf, await engine.getEvents(), { ai: 'recorded' });
+        expect(status).toBe('completed');
+        expect(report.same_path, JSON.stringify(report.divergence)).toBe(true);
+        expect(report.nodes.every(n => n.verdict === 'same'), report.nodes.map(n => `${n.node_name} ${n.verdict}`).join(', ')).toBe(true);
+    });
+
+    it('withdraws the run where the recorded run was withdrawn, and compares what compensation undid', async () => {
+        const refund = activity('Refund', { tools: [ToolDefinitionSchema.parse({ name: 'refund', binding: { kind: 'function', name: 'refund' } })] });
+        const pay = activity('Pay', { compensation: { activity_id: refund.id } }), done = activity('Done');
+        const wait = { id: uuidv4(), name: 'Reply', event_type: 'message', event_definition: { name: 'customer.replied' } } as Workflow['events'][number];
+        const wf = workflow([pay, done, refund], [edge(pay, wait), edge(wait, done)], { events: [wait] });
+        const actor = {
+            execute: async (a: { name: string }, _i: unknown, context?: { tools?: { call: (n: string, a: Record<string, unknown>) => Promise<unknown> } }) => {
+                if (a.name === 'Refund') { await context!.tools!.call('refund', { amount: 150 }); return { refunded: true }; }
+                return { paid: 150 };
+            },
+        };
+        const engine = new WorkflowEngine(wf, { actors: { application: actor }, tools: { handlers: { refund: () => ({ ok: true }) } }, ...quiet });
+        await engine.start();
+        expect(await engine.run()).toBe('waiting_event');
+        expect(await engine.cancel('the customer withdrew')).toBe(true);
+
+        const { report, status, events } = await counterfactual_replay(wf, await engine.getEvents(), { ai: 'recorded' });
+        expect(status).toBe('cancelled');
+        expect(events.find(e => e.type === 'run.cancelled')?.data.reason).toBe('the customer withdrew');
+        expect(report.baseline.status).toBe('cancelled');
+        expect(report.same_status && report.same_path && report.regressions.length === 0 && report.unrecorded.length === 0, JSON.stringify([report.regressions, report.unrecorded])).toBe(true);
+        expect(report.nodes.find(n => n.node_name === 'Refund')).toMatchObject({ verdict: 'same', baseline: { accepted: true }, candidate: { accepted: true } });
+    });
+
     it('restores what recorded activities wrote to contexts, so an activity that reads them runs as recorded', async () => {
         const profile = { id: uuidv4(), name: 'customer_profile', type: 'data' as const, sync_pattern: 'shared_state' as const };
         const register = activity('Register', { context_bindings: [{ context_id: profile.id, access_mode: 'write' as const }] });

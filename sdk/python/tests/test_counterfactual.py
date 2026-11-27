@@ -175,6 +175,55 @@ def test_a_recorded_timeout_is_replayed_without_waiting():
     assert verdicts(replay.report)["Chase"] == "same"
 
 
+def test_the_waits_end_as_the_recorded_run_ended_them_in_the_same_order():
+    # The first wait times out, a reminder goes, and the documents arrive at the second wait: the event must not end the first
+    ask, chase, check = activity("Ask"), activity("Chase"), activity("Check")
+    first = {"id": uid(), "name": "Uploaded", "event_type": "message", "event_definition": {"name": "documents.uploaded", "timeout": "P2D"}}
+    again = {"id": uid(), "name": "Uploaded after reminder", "event_type": "message", "event_definition": {"name": "documents.uploaded"}}
+    late = edge(first, chase)
+    first["event_definition"]["timeout_edge_id"] = late["id"]
+    doc = document([ask, chase, check], [edge(ask, first), edge(first, check), late, edge(chase, again), edge(again, check)], events=[first, again])
+    baseline = record(doc, {"Check": [{"output": {"checked": True}}]})
+    assert baseline.status.value == "waiting_event" and baseline.expire_events(float("inf")) == 1
+    assert baseline.run()["status"] == "waiting_event"
+    baseline.deliver_event({"id": "e-1", "type": "documents.uploaded", "source": "/portal", "data": {"files": 3}})
+    assert baseline.run()["status"] == "completed"
+
+    replay = counterfactual_replay(Workflow.model_validate(doc), baseline.get_events(), ai="recorded")
+    assert replay.status == "completed"
+    assert replay.report["same_path"] is True, replay.report.get("divergence")
+    assert set(verdicts(replay.report).values()) == {"same"}, verdicts(replay.report)
+
+
+def test_a_run_withdrawn_while_it_waited_is_withdrawn_again_and_its_compensation_is_compared():
+    refund = activity("Refund", tools=[{"name": "refund", "description": "Refund", "parameters": {"type": "object"},
+                                         "binding": {"kind": "function", "name": "refund"}}])
+    pay, done = activity("Pay", compensation={"activity_id": refund["id"]}), activity("Done")
+    wait = {"id": uid(), "name": "Reply", "event_type": "message", "event_definition": {"name": "customer.replied"}}
+    doc = document([pay, done, refund], [edge(pay, wait), edge(wait, done)], events=[wait])
+
+    class Payer:
+        def execute(self, activity, token, context=None):
+            if activity.name == "Refund":
+                context.tools.call("refund", {"amount": 150})
+                return {"refunded": True}
+            return {"paid": 150}
+
+    engine = WorkflowEngine(Workflow.model_validate(doc), options={
+        "actors": {t: Payer() for t in ActorType}, "sleep": lambda ms: None, "tools": {"handlers": {"refund": lambda arguments: {"ok": True}}}})
+    assert engine.run({})["status"] == "waiting_event"
+    assert engine.cancel("the customer withdrew") is True
+
+    replay = counterfactual_replay(Workflow.model_validate(doc), engine.get_events(), ai="recorded")
+    assert replay.status == "cancelled"
+    assert next(e for e in replay.events if e["type"] == "run.cancelled")["data"]["reason"] == "the customer withdrew"
+    report = replay.report
+    assert report["baseline"]["status"] == "cancelled"
+    assert report["same_status"] and report["same_path"] and report["regressions"] == [] and report["unrecorded"] == []
+    node = next(n for n in report["nodes"] if n["node_name"] == "Refund")
+    assert node["verdict"] == "same" and node["baseline"]["accepted"] and node["candidate"]["accepted"]
+
+
 def test_a_wait_the_recording_cannot_end_is_reported_and_nothing_is_invented():
     doc = waiting_document()
     baseline = record(doc)  # recorded while still waiting: no event was received

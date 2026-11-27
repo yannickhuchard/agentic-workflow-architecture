@@ -123,9 +123,17 @@ function summarise(workflow: Workflow, events: JournalEvent[]): { nodes: Map<str
             at(d.to_node_id as string);
             continue;
         }
-        if (!event.node_id || event.type.startsWith('activity.compensat')) continue;
+        if (!event.node_id) continue;
         const node = at(event.node_id);
         switch (event.type) {
+            // A compensation handler is reached when the run undoes work (13.6): what it returned is its outcome
+            case 'activity.compensated':
+                node.accepted = true;
+                node.outcome = outcome_of_output(d.output);
+                node.outcome_hash = hash_payload(node.outcome);
+                node.error = undefined;
+                break;
+            case 'activity.compensation_failed': node.error = (d.error as { message?: string })?.message; node.accepted = false; break;
             case 'activity.started': node.attempts++; break;
             case 'activity.completed':
                 node.accepted = true;
@@ -154,12 +162,12 @@ function summarise(workflow: Workflow, events: JournalEvent[]): { nodes: Map<str
             case 'event.received': case 'timer.fired': case 'event.published': node.accepted = true; break;
         }
     }
-    const ended = events.find(e => e.type === 'run.completed' || e.type === 'run.failed');
+    const ended = events.find(e => e.type === 'run.completed' || e.type === 'run.failed' || e.type === 'run.cancelled');
     return {
         nodes,
         totals: {
             run_id: events[0]?.run_id || '',
-            status: ended ? (ended.type === 'run.completed' ? 'completed' : 'failed') : 'unfinished',
+            status: ended ? ({ 'run.completed': 'completed', 'run.failed': 'failed', 'run.cancelled': 'cancelled' } as Record<string, string>)[ended.type] : 'unfinished',
             duration_ms: ended?.data.duration_ms as number | undefined,
             attempts: events.filter(e => e.type === 'activity.started').length,
             tokens: [...nodes.values()].reduce((sum, n) => sum + n.tokens, 0),
@@ -291,8 +299,10 @@ export async function counterfactual_replay(
             decisions.set(event.node_id, [...(decisions.get(event.node_id) || []), { option: model.option, confidence: model.confidence }]);
         }
     }
-    const received = recorded.filter(e => e.type === 'event.received');
-    const timeouts = recorded.filter(e => e.type === 'event.timed_out').length;
+    // How the recorded run's waits ended, in the order they ended: a business event received, or a wait that ran out
+    const endings = [...recorded].sort((a, b) => a.seq - b.seq).filter(e => e.type === 'event.received' || e.type === 'event.timed_out');
+    // A run withdrawn while it waited (5.8) is withdrawn again where the recording has nothing more to give it
+    const withdrawn = recorded.find(e => e.type === 'run.cancelled');
 
     const recorded_actor: Actor = {
         execute: async (activity: Activity) => {
@@ -351,18 +361,20 @@ export async function counterfactual_replay(
 
     await engine.start((started?.data.input || {}) as Record<string, unknown>);
     let status = await engine.run();
-    let remaining_timeouts = timeouts;
     let next = 0;
     while (status === 'waiting_event') {
-        // Give the candidate the events the recorded run received, in order, then its timeouts
+        // End the candidate's waits as the recorded run ended its own, in the same order
         let progressed = false;
-        while (next < received.length && !progressed) {
-            const e = received[next++];
-            progressed = await engine.deliverEvent(business_event(e.data.name as string, (e.data.data || {}) as Record<string, unknown>, { source: e.data.source as string })) > 0;
+        while (next < endings.length && !progressed) {
+            const e = endings[next++];
+            progressed = e.type === 'event.received'
+                ? await engine.deliverEvent(business_event(e.data.name as string, (e.data.data || {}) as Record<string, unknown>, { source: e.data.source as string })) > 0
+                : await engine.expireEvents(Number.MAX_SAFE_INTEGER) > 0;
         }
-        if (!progressed && remaining_timeouts > 0) {
-            remaining_timeouts--;
-            progressed = await engine.expireEvents(Number.MAX_SAFE_INTEGER) > 0;
+        if (!progressed && withdrawn) {
+            await engine.cancel(String(withdrawn.data.reason ?? 'cancelled'));
+            status = engine.getStatus();
+            break;
         }
         if (!progressed) {
             unrecorded.push('a business event the candidate run waited for');
