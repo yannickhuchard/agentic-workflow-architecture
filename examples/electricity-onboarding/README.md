@@ -194,6 +194,12 @@ It keeps serving after the timeline, and stops cleanly on Ctrl+C.
 
 Each action is written before the host performs it, so that a reader meets the action before its effects. With `--then all`, a line of kind `phase` marks the start of the other scenarios, and their actions carry `"main": false`.
 
+## Its dossier and its recommendations
+
+[`dossier/`](dossier) holds the professional edition of this journey's dossier as [HTML](dossier/new-customer-onboarding.professional.html), [PDF](dossier/new-customer-onboarding.professional.pdf) and [DOCX](dossier/new-customer-onboarding.professional.docx): the eight households, Tomás Reyes and Sofia Lind telling their journey in their own words with the record beside them, the work behind it, the analysis, and the eight recommendations the rules find, each with its evidence and owner. `node tools/dossier/make-dossiers.mjs` writes it again ([tools/dossier](../../tools/dossier/README.md)).
+
+The journey view's Recommendations tab shows the same eight recommendations; the options in `views/story-options.json` add one of the journey's own (a payment plan before declining) and its words for the others. [`recommendations/`](recommendations) holds the counterfactual replays that measure one of them: setting the attempt budget of the document checks to one gives 2 attempts instead of 4 and 7 minutes of agent time instead of 14, with the same path and no regression (`node tools/visualization/recommendation-replay.mjs`).
+
 ## Record a video of it
 
 [`tools/video`](../../tools/video/README.md) records the live demonstration as a video of about two and a half minutes, in English. The frame shows the real journey view and measures page following the host, the record as it is written, four measures computed from it, and a caption for each step. Tomás Reyes, whose home has solar panels, applies; his journey is followed as a living blueprint; the run behind it is shown one band at a time; the child run that registers his export to the grid shows a guardrail withholding a report that carries hidden instructions, the agent handing the file to Hana, Hana refused the approval by the separation of duties and Gabriel approving; his journey reaches its goal. Then seven more customers, eight times faster, and the measures page, opened on the customer who is stuck, a journey opened into its stages and a number opened to the customers behind it.

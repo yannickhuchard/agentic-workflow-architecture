@@ -262,6 +262,12 @@ The demonstration starts the reference adapters, an AWA host in the process with
 
 Each line of standard output is a JSON object: `{"t", "kind": "action" | "event", "actor", "text", "run_id", "instance_id"}`, with `actor` one of `customer` (the employee), `system`, `agent`, `person`, `guardrail`, `refused` and `journey`, and `text` a sentence a viewer reads: "Hugo, licensed adviser, advises Léa by video call.", "Issue tax certificate issues the 2026 tax certificate." The first line, of kind `ready`, gives the views; the last, of kind `done`, gives the views of the main scenario's first run. The script also serves every run's workflow and journal, as JSON and as Server-Sent Events, for `tools/visualization/replay.html`, like the electricity onboarding's demonstration.
 
+## Its dossier and its recommendations
+
+[`dossier/`](dossier) holds two editions of this journey's dossier, as HTML, PDF and DOCX: Léa Muller's client edition under the Valoria Life brand ([HTML](dossier/lea-muller.client.html), [PDF](dossier/lea-muller.client.pdf), [DOCX](dossier/lea-muller.client.docx)), her own year in her own words with no other member named and no internal cost, and the professional edition of the whole journey ([HTML](dossier/workplace-pension-savings.professional.html), [PDF](dossier/workplace-pension-savings.professional.pdf), [DOCX](dossier/workplace-pension-savings.professional.docx)). `node tools/dossier/make-dossiers.mjs` writes them again ([tools/dossier](../../tools/dossier/README.md)).
+
+The journey view's Recommendations tab ranks what to change; `views/story-options.json` adds the journey's own recommendations: propose a top-up before 31 December to a member below the 4,500 EUR Art. 111bis ceiling, and ask HR to talk to a member who lets the invitation lapse. [`recommendations/`](recommendations) holds the replay of the one a replay can measure.
+
 ## Adapt it
 
 - **Tax rules.** Edit the decision table Deduction rules in `build-definitions.py` (a new rule per year or per contract type) and run it again. The tax computation service multiplies a ceiling "per household member" by `household_members`.

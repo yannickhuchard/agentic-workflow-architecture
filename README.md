@@ -185,6 +185,8 @@ awa journey export -o portfolio.json
 
 **Measures.** The exported file opens in the journey view and in the measures page [`tools/visualization/dashboard.html`](tools/visualization/dashboard.html). The page shows who is waiting and who owns the next step, what became of each journey and how each workflow's runs went, and every number opens the list of customers behind it. `awa measures` prints the same measures, and `GET /api/v1/measures?format=openmetrics` gives them to a metrics system. `awa serve` with `AWA_DATA_DIR` offers everything over HTTP, and `journey.html?live=http://localhost:3000` follows the journeys as they progress.
 
+**What to change, and a dossier to hand over.** The journey view's Recommendations tab ranks what to change, found in the record by twelve rules and the journey's own, each with its numbers, the customers behind it and how its effect is known; `awa dossier` writes the whole journey as one document, in HTML, PDF and DOCX, with customers' stories in their own voice ([`tools/dossier`](tools/dossier/README.md)).
+
 **What-if questions.** This command shows what a recorded run would have done under a different model or rule:
 
 ```bash
