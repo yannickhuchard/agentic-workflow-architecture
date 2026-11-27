@@ -109,7 +109,8 @@ async function main() {
     // Its own process group, so that stopping it stops the demonstration and not only the shell around it
     const demo = spawn(o.demo, { shell: true, cwd: root, stdio: ['ignore', 'pipe', 'inherit'], detached: true });
     const history = [];
-    let buffer = '', exited = false;
+    // Each line knows whether it came after the demonstration's phase line, whatever the reader is doing when a scene looks back
+    let buffer = '', exited = false, after_phase = false;
     demo.stdout.setEncoding('utf-8');
     demo.stdout.on('data', chunk => {
         buffer += chunk;
@@ -118,7 +119,10 @@ async function main() {
             const raw = buffer.slice(0, nl).trim();
             buffer = buffer.slice(nl + 1);
             if (!raw.startsWith('{')) continue;
-            try { history.push(JSON.parse(raw)); } catch { /* not a step */ }
+            let line;
+            try { line = JSON.parse(raw); } catch { continue; /* not a step */ }
+            if (line.kind === 'phase') after_phase = true;
+            history.push(Object.assign(line, { after_phase }));
         }
     });
     demo.on('exit', () => { exited = true; });
@@ -133,7 +137,7 @@ async function main() {
     const matches = (on, line) => {
         if (on === 'start') return false;
         if (typeof on === 'string') return line.kind === on;
-        return Object.entries(on).every(([key, want]) => key === 'customer' ? (want === 'main' ? line.instance_id === state.main && !state.phase : true)
+        return Object.entries(on).every(([key, want]) => key === 'customer' ? (want === 'main' ? line.instance_id === state.main && !line.after_phase : true)
             : line[key] !== undefined && new RegExp(want).test(String(line[key])));
     };
     let read = 0, taking = null;
@@ -149,7 +153,7 @@ async function main() {
             if (!state.main_run && line.event === 'run.started' && line.instance_id === state.main) state.main_run = line.run_id;
             if (!state.phase || kept_in_phase.has(line.actor)) await studio('record', { actor: line.actor || (line.kind === 'action' ? 'customer' : 'system'), text: line.text });
             if (state.focus === 'lines' && line.instance_id) await studio('focus', line.instance_id);
-            const main = line.instance_id === state.main && !state.phase;
+            const main = line.instance_id === state.main && !line.after_phase;
             if (main && line.event === 'journey.stage_entered' && line.stage) await studio('chapter', line.stage);
             // A moment the script names: its caption and chapter, once
             const moment = (script.moments || []).find((m, k) => !fired.has(k) && matches(m.on, line));

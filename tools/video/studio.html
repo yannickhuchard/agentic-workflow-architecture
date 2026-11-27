@@ -241,9 +241,10 @@ window.studio = {
     },
     /** Where an instance and a run are in the journey view's places: { j, i, r } */
     place_of(instance_id, run_id) {
-        const journeys = portfolio?.journeys || [];
+        // As the builder counts them: a journey with no instance told is left out of the view's places
+        const journeys = (portfolio?.journeys || []).map(journey => journey.instances.filter(row => row.instance.events.length)).filter(told => told.length);
         for (let j = 0; j < journeys.length; j++) {
-            const told = journeys[j].instances.filter(row => row.instance.events.length);
+            const told = journeys[j];
             const i = told.findIndex(row => row.instance.id === instance_id);
             if (i < 0) continue;
             const r = run_id ? told[i].runs.findIndex(run => run.run_id === run_id) : 0;
