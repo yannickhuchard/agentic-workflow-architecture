@@ -1,0 +1,603 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dmn:definitions xmlns:dmn="https://www.omg.org/spec/DMN/20191111/MODEL/" xmlns:awa="https://awa.io/schema/interchange/1.1" id="Definitions_b02e4023-9168-55eb-8970-11839ddcb006" name="Electricity Customer Onboarding" namespace="https://awa.io/workflows/b02e4023-9168-55eb-8970-11839ddcb006">
+  <dmn:decision id="_84ae3333-dcd3-523b-a95a-2e82d9efb112" name="Required documents">
+    <dmn:description>The documents an application needs: three for every household, four more for a home with its own generation.</dmn:description>
+    <dmn:decisionTable id="DecisionTable_84ae3333-dcd3-523b-a95a-2e82d9efb112" hitPolicy="COLLECT">
+      <dmn:input id="Input_84ae3333-dcd3-523b-a95a-2e82d9efb112_1" label="Home generation">
+        <dmn:inputExpression id="InputExpression_84ae3333-dcd3-523b-a95a-2e82d9efb112_1" typeRef="boolean">
+          <dmn:text>has_generation</dmn:text>
+        </dmn:inputExpression>
+      </dmn:input>
+      <dmn:output id="Output_84ae3333-dcd3-523b-a95a-2e82d9efb112_1" name="required_documents" typeRef="string" />
+      <dmn:rule id="Rule_84ae3333-dcd3-523b-a95a-2e82d9efb112_1">
+        <dmn:description>Proof of identity</dmn:description>
+        <dmn:inputEntry id="Rule_84ae3333-dcd3-523b-a95a-2e82d9efb112_1_in_1">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_84ae3333-dcd3-523b-a95a-2e82d9efb112_1_out_1">
+          <dmn:text>"proof_of_identity"</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_84ae3333-dcd3-523b-a95a-2e82d9efb112_2">
+        <dmn:description>Proof of address or occupancy</dmn:description>
+        <dmn:inputEntry id="Rule_84ae3333-dcd3-523b-a95a-2e82d9efb112_2_in_1">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_84ae3333-dcd3-523b-a95a-2e82d9efb112_2_out_1">
+          <dmn:text>"proof_of_address"</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_84ae3333-dcd3-523b-a95a-2e82d9efb112_3">
+        <dmn:description>Direct debit mandate</dmn:description>
+        <dmn:inputEntry id="Rule_84ae3333-dcd3-523b-a95a-2e82d9efb112_3_in_1">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_84ae3333-dcd3-523b-a95a-2e82d9efb112_3_out_1">
+          <dmn:text>"direct_debit_mandate"</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_84ae3333-dcd3-523b-a95a-2e82d9efb112_4">
+        <dmn:description>Installer's certificate</dmn:description>
+        <dmn:inputEntry id="Rule_84ae3333-dcd3-523b-a95a-2e82d9efb112_4_in_1">
+          <dmn:text>true</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_84ae3333-dcd3-523b-a95a-2e82d9efb112_4_out_1">
+          <dmn:text>"installer_certificate"</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_84ae3333-dcd3-523b-a95a-2e82d9efb112_5">
+        <dmn:description>Inverter or generator compliance certificate</dmn:description>
+        <dmn:inputEntry id="Rule_84ae3333-dcd3-523b-a95a-2e82d9efb112_5_in_1">
+          <dmn:text>true</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_84ae3333-dcd3-523b-a95a-2e82d9efb112_5_out_1">
+          <dmn:text>"compliance_certificate"</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_84ae3333-dcd3-523b-a95a-2e82d9efb112_6">
+        <dmn:description>Commissioning report</dmn:description>
+        <dmn:inputEntry id="Rule_84ae3333-dcd3-523b-a95a-2e82d9efb112_6_in_1">
+          <dmn:text>true</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_84ae3333-dcd3-523b-a95a-2e82d9efb112_6_out_1">
+          <dmn:text>"commissioning_report"</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_84ae3333-dcd3-523b-a95a-2e82d9efb112_7">
+        <dmn:description>Proof of ownership or authorisation of the installation</dmn:description>
+        <dmn:inputEntry id="Rule_84ae3333-dcd3-523b-a95a-2e82d9efb112_7_in_1">
+          <dmn:text>true</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_84ae3333-dcd3-523b-a95a-2e82d9efb112_7_out_1">
+          <dmn:text>"installation_ownership"</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+    </dmn:decisionTable>
+  </dmn:decision>
+  <dmn:decision id="_480e4f31-b458-5bf1-92c1-8c7678820b1c" name="Eligibility">
+    <dmn:description>Whether the supplier takes the household on, from the credit band, outstanding energy debt and the identity check. The limits are examples each supplier sets.</dmn:description>
+    <dmn:decisionTable id="DecisionTable_480e4f31-b458-5bf1-92c1-8c7678820b1c" hitPolicy="FIRST">
+      <dmn:input id="Input_480e4f31-b458-5bf1-92c1-8c7678820b1c_1" label="Identity">
+        <dmn:inputExpression id="InputExpression_480e4f31-b458-5bf1-92c1-8c7678820b1c_1" typeRef="string">
+          <dmn:text>identity_result</dmn:text>
+        </dmn:inputExpression>
+      </dmn:input>
+      <dmn:input id="Input_480e4f31-b458-5bf1-92c1-8c7678820b1c_2" label="Outstanding energy debt (EUR)">
+        <dmn:inputExpression id="InputExpression_480e4f31-b458-5bf1-92c1-8c7678820b1c_2" typeRef="number">
+          <dmn:text>outstanding_debt_eur</dmn:text>
+        </dmn:inputExpression>
+      </dmn:input>
+      <dmn:input id="Input_480e4f31-b458-5bf1-92c1-8c7678820b1c_3" label="Credit band">
+        <dmn:inputExpression id="InputExpression_480e4f31-b458-5bf1-92c1-8c7678820b1c_3" typeRef="string">
+          <dmn:text>credit_band</dmn:text>
+        </dmn:inputExpression>
+      </dmn:input>
+      <dmn:output id="Output_480e4f31-b458-5bf1-92c1-8c7678820b1c_1" name="eligibility" typeRef="string" />
+      <dmn:output id="Output_480e4f31-b458-5bf1-92c1-8c7678820b1c_2" name="deposit_required" typeRef="boolean" />
+      <dmn:output id="Output_480e4f31-b458-5bf1-92c1-8c7678820b1c_3" name="deposit_eur" typeRef="number" />
+      <dmn:rule id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_1">
+        <dmn:description>The identity does not match the person</dmn:description>
+        <dmn:extensionElements>
+          <awa:properties>{"output_edge_id":"47500549-6495-5a29-9ace-724c41b821ca"}</awa:properties>
+        </dmn:extensionElements>
+        <dmn:inputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_1_in_1">
+          <dmn:text>"mismatch"</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_1_in_2">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_1_in_3">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_1_out_1">
+          <dmn:text>"decline"</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_1_out_2">
+          <dmn:text>false</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_1_out_3">
+          <dmn:text>0</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_2">
+        <dmn:description>Energy debt above the limit</dmn:description>
+        <dmn:extensionElements>
+          <awa:properties>{"output_edge_id":"47500549-6495-5a29-9ace-724c41b821ca"}</awa:properties>
+        </dmn:extensionElements>
+        <dmn:inputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_2_in_1">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_2_in_2">
+          <dmn:text>&gt; 1000</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_2_in_3">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_2_out_1">
+          <dmn:text>"decline"</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_2_out_2">
+          <dmn:text>false</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_2_out_3">
+          <dmn:text>0</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_3">
+        <dmn:description>Lowest credit band</dmn:description>
+        <dmn:extensionElements>
+          <awa:properties>{"output_edge_id":"47500549-6495-5a29-9ace-724c41b821ca"}</awa:properties>
+        </dmn:extensionElements>
+        <dmn:inputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_3_in_1">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_3_in_2">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_3_in_3">
+          <dmn:text>"E"</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_3_out_1">
+          <dmn:text>"decline"</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_3_out_2">
+          <dmn:text>false</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_3_out_3">
+          <dmn:text>0</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_4">
+        <dmn:description>Identity not confirmed: a person decides</dmn:description>
+        <dmn:extensionElements>
+          <awa:properties>{"output_edge_id":"a0a810cb-a1ff-599a-b81f-354840682dac"}</awa:properties>
+        </dmn:extensionElements>
+        <dmn:inputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_4_in_1">
+          <dmn:text>not("verified")</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_4_in_2">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_4_in_3">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_4_out_1">
+          <dmn:text>"refer"</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_4_out_2">
+          <dmn:text>false</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_4_out_3">
+          <dmn:text>0</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_5">
+        <dmn:description>Good credit, no energy debt</dmn:description>
+        <dmn:extensionElements>
+          <awa:properties>{"output_edge_id":"ed54d4a1-fb97-5abf-8427-2d6234cfa87d"}</awa:properties>
+        </dmn:extensionElements>
+        <dmn:inputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_5_in_1">
+          <dmn:text>"verified"</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_5_in_2">
+          <dmn:text>&lt;= 0</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_5_in_3">
+          <dmn:text>"A", "B"</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_5_out_1">
+          <dmn:text>"accept"</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_5_out_2">
+          <dmn:text>false</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_5_out_3">
+          <dmn:text>0</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_6">
+        <dmn:description>Fair credit or a small debt: accepted with a deposit</dmn:description>
+        <dmn:extensionElements>
+          <awa:properties>{"output_edge_id":"ed54d4a1-fb97-5abf-8427-2d6234cfa87d"}</awa:properties>
+        </dmn:extensionElements>
+        <dmn:inputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_6_in_1">
+          <dmn:text>"verified"</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_6_in_2">
+          <dmn:text>&lt;= 250</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_6_in_3">
+          <dmn:text>"A", "B", "C"</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_6_out_1">
+          <dmn:text>"accept_with_deposit"</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_6_out_2">
+          <dmn:text>true</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_6_out_3">
+          <dmn:text>150</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_7">
+        <dmn:description>Weak credit or a debt to look at: a person decides</dmn:description>
+        <dmn:extensionElements>
+          <awa:properties>{"output_edge_id":"a0a810cb-a1ff-599a-b81f-354840682dac"}</awa:properties>
+        </dmn:extensionElements>
+        <dmn:inputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_7_in_1">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_7_in_2">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_7_in_3">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_7_out_1">
+          <dmn:text>"refer"</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_7_out_2">
+          <dmn:text>false</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_480e4f31-b458-5bf1-92c1-8c7678820b1c_7_out_3">
+          <dmn:text>0</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+    </dmn:decisionTable>
+  </dmn:decision>
+  <dmn:decision id="_9580a223-1fd5-5b6a-9bb3-5a40a52dae9d" name="Electricity source">
+    <dmn:description>Whether the source the customer chose is offered in their region. When it is not, an energy advisor model proposes the closest source that is.</dmn:description>
+    <dmn:decisionTable id="DecisionTable_9580a223-1fd5-5b6a-9bb3-5a40a52dae9d" hitPolicy="FIRST">
+      <dmn:input id="Input_9580a223-1fd5-5b6a-9bb3-5a40a52dae9d_1" label="Chosen source">
+        <dmn:inputExpression id="InputExpression_9580a223-1fd5-5b6a-9bb3-5a40a52dae9d_1" typeRef="string">
+          <dmn:text>electricity_source</dmn:text>
+        </dmn:inputExpression>
+      </dmn:input>
+      <dmn:input id="Input_9580a223-1fd5-5b6a-9bb3-5a40a52dae9d_2" label="Region">
+        <dmn:inputExpression id="InputExpression_9580a223-1fd5-5b6a-9bb3-5a40a52dae9d_2" typeRef="string">
+          <dmn:text>region</dmn:text>
+        </dmn:inputExpression>
+      </dmn:input>
+      <dmn:output id="Output_9580a223-1fd5-5b6a-9bb3-5a40a52dae9d_1" name="source_offered" typeRef="string" />
+      <dmn:rule id="Rule_9580a223-1fd5-5b6a-9bb3-5a40a52dae9d_1">
+        <dmn:description>100% renewable, backed by guarantees of origin: everywhere</dmn:description>
+        <dmn:extensionElements>
+          <awa:properties>{"output_edge_id":"04b8c062-7f43-5e34-b863-7ba5852e6351"}</awa:properties>
+        </dmn:extensionElements>
+        <dmn:inputEntry id="Rule_9580a223-1fd5-5b6a-9bb3-5a40a52dae9d_1_in_1">
+          <dmn:text>"renewable_100"</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_9580a223-1fd5-5b6a-9bb3-5a40a52dae9d_1_in_2">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_9580a223-1fd5-5b6a-9bb3-5a40a52dae9d_1_out_1">
+          <dmn:text>"renewable_100"</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_9580a223-1fd5-5b6a-9bb3-5a40a52dae9d_2">
+        <dmn:description>Local community energy: where a community scheme supplies the region</dmn:description>
+        <dmn:extensionElements>
+          <awa:properties>{"output_edge_id":"04b8c062-7f43-5e34-b863-7ba5852e6351"}</awa:properties>
+        </dmn:extensionElements>
+        <dmn:inputEntry id="Rule_9580a223-1fd5-5b6a-9bb3-5a40a52dae9d_2_in_1">
+          <dmn:text>"local_community"</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_9580a223-1fd5-5b6a-9bb3-5a40a52dae9d_2_in_2">
+          <dmn:text>"north-west", "south-west"</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_9580a223-1fd5-5b6a-9bb3-5a40a52dae9d_2_out_1">
+          <dmn:text>"local_community"</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_9580a223-1fd5-5b6a-9bb3-5a40a52dae9d_3">
+        <dmn:description>Low-carbon mix: everywhere</dmn:description>
+        <dmn:extensionElements>
+          <awa:properties>{"output_edge_id":"04b8c062-7f43-5e34-b863-7ba5852e6351"}</awa:properties>
+        </dmn:extensionElements>
+        <dmn:inputEntry id="Rule_9580a223-1fd5-5b6a-9bb3-5a40a52dae9d_3_in_1">
+          <dmn:text>"low_carbon_mix"</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_9580a223-1fd5-5b6a-9bb3-5a40a52dae9d_3_in_2">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_9580a223-1fd5-5b6a-9bb3-5a40a52dae9d_3_out_1">
+          <dmn:text>"low_carbon_mix"</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_9580a223-1fd5-5b6a-9bb3-5a40a52dae9d_4">
+        <dmn:description>Standard mix: everywhere</dmn:description>
+        <dmn:extensionElements>
+          <awa:properties>{"output_edge_id":"04b8c062-7f43-5e34-b863-7ba5852e6351"}</awa:properties>
+        </dmn:extensionElements>
+        <dmn:inputEntry id="Rule_9580a223-1fd5-5b6a-9bb3-5a40a52dae9d_4_in_1">
+          <dmn:text>"standard_mix"</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_9580a223-1fd5-5b6a-9bb3-5a40a52dae9d_4_in_2">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_9580a223-1fd5-5b6a-9bb3-5a40a52dae9d_4_out_1">
+          <dmn:text>"standard_mix"</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+    </dmn:decisionTable>
+  </dmn:decision>
+  <dmn:decision id="_34dd0365-c442-55d2-ad09-e6cf1cfd0773" name="Plan eligibility">
+    <dmn:description>The plans the household may choose: time-of-use needs a smart meter, the electric vehicle plan a declared charger, the prosumer plan home generation to register for export, the 24-month plan no deposit.</dmn:description>
+    <dmn:decisionTable id="DecisionTable_34dd0365-c442-55d2-ad09-e6cf1cfd0773" hitPolicy="COLLECT">
+      <dmn:input id="Input_34dd0365-c442-55d2-ad09-e6cf1cfd0773_1" label="Smart meter">
+        <dmn:inputExpression id="InputExpression_34dd0365-c442-55d2-ad09-e6cf1cfd0773_1" typeRef="boolean">
+          <dmn:text>smart_meter</dmn:text>
+        </dmn:inputExpression>
+      </dmn:input>
+      <dmn:input id="Input_34dd0365-c442-55d2-ad09-e6cf1cfd0773_2" label="EV charger">
+        <dmn:inputExpression id="InputExpression_34dd0365-c442-55d2-ad09-e6cf1cfd0773_2" typeRef="boolean">
+          <dmn:text>ev_charger</dmn:text>
+        </dmn:inputExpression>
+      </dmn:input>
+      <dmn:input id="Input_34dd0365-c442-55d2-ad09-e6cf1cfd0773_3" label="Home generation">
+        <dmn:inputExpression id="InputExpression_34dd0365-c442-55d2-ad09-e6cf1cfd0773_3" typeRef="boolean">
+          <dmn:text>has_generation</dmn:text>
+        </dmn:inputExpression>
+      </dmn:input>
+      <dmn:input id="Input_34dd0365-c442-55d2-ad09-e6cf1cfd0773_4" label="Eligibility">
+        <dmn:inputExpression id="InputExpression_34dd0365-c442-55d2-ad09-e6cf1cfd0773_4" typeRef="string">
+          <dmn:text>eligibility</dmn:text>
+        </dmn:inputExpression>
+      </dmn:input>
+      <dmn:output id="Output_34dd0365-c442-55d2-ad09-e6cf1cfd0773_1" name="eligible_plans" typeRef="string" />
+      <dmn:rule id="Rule_34dd0365-c442-55d2-ad09-e6cf1cfd0773_1">
+        <dmn:description>Fixed price for 12 months</dmn:description>
+        <dmn:inputEntry id="Rule_34dd0365-c442-55d2-ad09-e6cf1cfd0773_1_in_1">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_34dd0365-c442-55d2-ad09-e6cf1cfd0773_1_in_2">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_34dd0365-c442-55d2-ad09-e6cf1cfd0773_1_in_3">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_34dd0365-c442-55d2-ad09-e6cf1cfd0773_1_in_4">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_34dd0365-c442-55d2-ad09-e6cf1cfd0773_1_out_1">
+          <dmn:text>"fixed_12"</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_34dd0365-c442-55d2-ad09-e6cf1cfd0773_2">
+        <dmn:description>Fixed price for 24 months, without a deposit</dmn:description>
+        <dmn:inputEntry id="Rule_34dd0365-c442-55d2-ad09-e6cf1cfd0773_2_in_1">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_34dd0365-c442-55d2-ad09-e6cf1cfd0773_2_in_2">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_34dd0365-c442-55d2-ad09-e6cf1cfd0773_2_in_3">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_34dd0365-c442-55d2-ad09-e6cf1cfd0773_2_in_4">
+          <dmn:text>not("accept_with_deposit")</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_34dd0365-c442-55d2-ad09-e6cf1cfd0773_2_out_1">
+          <dmn:text>"fixed_24"</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_34dd0365-c442-55d2-ad09-e6cf1cfd0773_3">
+        <dmn:description>Variable price</dmn:description>
+        <dmn:inputEntry id="Rule_34dd0365-c442-55d2-ad09-e6cf1cfd0773_3_in_1">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_34dd0365-c442-55d2-ad09-e6cf1cfd0773_3_in_2">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_34dd0365-c442-55d2-ad09-e6cf1cfd0773_3_in_3">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_34dd0365-c442-55d2-ad09-e6cf1cfd0773_3_in_4">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_34dd0365-c442-55d2-ad09-e6cf1cfd0773_3_out_1">
+          <dmn:text>"variable"</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_34dd0365-c442-55d2-ad09-e6cf1cfd0773_4">
+        <dmn:description>Time of use: needs a smart meter</dmn:description>
+        <dmn:inputEntry id="Rule_34dd0365-c442-55d2-ad09-e6cf1cfd0773_4_in_1">
+          <dmn:text>true</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_34dd0365-c442-55d2-ad09-e6cf1cfd0773_4_in_2">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_34dd0365-c442-55d2-ad09-e6cf1cfd0773_4_in_3">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_34dd0365-c442-55d2-ad09-e6cf1cfd0773_4_in_4">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_34dd0365-c442-55d2-ad09-e6cf1cfd0773_4_out_1">
+          <dmn:text>"time_of_use"</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_34dd0365-c442-55d2-ad09-e6cf1cfd0773_5">
+        <dmn:description>Electric vehicle: needs a declared charger</dmn:description>
+        <dmn:inputEntry id="Rule_34dd0365-c442-55d2-ad09-e6cf1cfd0773_5_in_1">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_34dd0365-c442-55d2-ad09-e6cf1cfd0773_5_in_2">
+          <dmn:text>true</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_34dd0365-c442-55d2-ad09-e6cf1cfd0773_5_in_3">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_34dd0365-c442-55d2-ad09-e6cf1cfd0773_5_in_4">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_34dd0365-c442-55d2-ad09-e6cf1cfd0773_5_out_1">
+          <dmn:text>"ev"</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_34dd0365-c442-55d2-ad09-e6cf1cfd0773_6">
+        <dmn:description>Prosumer: needs home generation registered for export</dmn:description>
+        <dmn:inputEntry id="Rule_34dd0365-c442-55d2-ad09-e6cf1cfd0773_6_in_1">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_34dd0365-c442-55d2-ad09-e6cf1cfd0773_6_in_2">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_34dd0365-c442-55d2-ad09-e6cf1cfd0773_6_in_3">
+          <dmn:text>true</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_34dd0365-c442-55d2-ad09-e6cf1cfd0773_6_in_4">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_34dd0365-c442-55d2-ad09-e6cf1cfd0773_6_out_1">
+          <dmn:text>"prosumer"</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+    </dmn:decisionTable>
+  </dmn:decision>
+  <dmn:decision id="_09068ea1-5618-5f81-b4c5-d9082e024324" name="Classify installation">
+    <dmn:description>What the grid operator needs, from the technology and the capacity. THE THRESHOLDS ARE EXAMPLES: they differ by country and by grid operator, and each operator edits this table.</dmn:description>
+    <dmn:decisionTable id="DecisionTable_09068ea1-5618-5f81-b4c5-d9082e024324" hitPolicy="FIRST">
+      <dmn:input id="Input_09068ea1-5618-5f81-b4c5-d9082e024324_1" label="Technology">
+        <dmn:inputExpression id="InputExpression_09068ea1-5618-5f81-b4c5-d9082e024324_1" typeRef="string">
+          <dmn:text>technology</dmn:text>
+        </dmn:inputExpression>
+      </dmn:input>
+      <dmn:input id="Input_09068ea1-5618-5f81-b4c5-d9082e024324_2" label="Capacity (kW)">
+        <dmn:inputExpression id="InputExpression_09068ea1-5618-5f81-b4c5-d9082e024324_2" typeRef="number">
+          <dmn:text>capacity_kw</dmn:text>
+        </dmn:inputExpression>
+      </dmn:input>
+      <dmn:output id="Output_09068ea1-5618-5f81-b4c5-d9082e024324_1" name="installation_class" typeRef="string" />
+      <dmn:output id="Output_09068ea1-5618-5f81-b4c5-d9082e024324_2" name="export_route" typeRef="string" />
+      <dmn:rule id="Rule_09068ea1-5618-5f81-b4c5-d9082e024324_1">
+        <dmn:description>Large: agreed individually by the commercial team</dmn:description>
+        <dmn:extensionElements>
+          <awa:properties>{"output_edge_id":"a84804da-7d44-5119-9299-bc63cdfd0eb3"}</awa:properties>
+        </dmn:extensionElements>
+        <dmn:inputEntry id="Rule_09068ea1-5618-5f81-b4c5-d9082e024324_1_in_1">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_09068ea1-5618-5f81-b4c5-d9082e024324_1_in_2">
+          <dmn:text>&gt; 50</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_09068ea1-5618-5f81-b4c5-d9082e024324_1_out_1">
+          <dmn:text>"large"</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_09068ea1-5618-5f81-b4c5-d9082e024324_1_out_2">
+          <dmn:text>"commercial_referral"</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_09068ea1-5618-5f81-b4c5-d9082e024324_2">
+        <dmn:description>Small inverter-connected installation: a notification is enough</dmn:description>
+        <dmn:extensionElements>
+          <awa:properties>{"output_edge_id":"39e8e880-ac5c-5e85-adbd-54a047aa15ba"}</awa:properties>
+        </dmn:extensionElements>
+        <dmn:inputEntry id="Rule_09068ea1-5618-5f81-b4c5-d9082e024324_2_in_1">
+          <dmn:text>"solar", "wind"</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_09068ea1-5618-5f81-b4c5-d9082e024324_2_in_2">
+          <dmn:text>&lt;= 3.68</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_09068ea1-5618-5f81-b4c5-d9082e024324_2_out_1">
+          <dmn:text>"small"</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_09068ea1-5618-5f81-b4c5-d9082e024324_2_out_2">
+          <dmn:text>"simplified_notification"</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_09068ea1-5618-5f81-b4c5-d9082e024324_3">
+        <dmn:description>Small rotating machine: a notification is enough</dmn:description>
+        <dmn:extensionElements>
+          <awa:properties>{"output_edge_id":"39e8e880-ac5c-5e85-adbd-54a047aa15ba"}</awa:properties>
+        </dmn:extensionElements>
+        <dmn:inputEntry id="Rule_09068ea1-5618-5f81-b4c5-d9082e024324_3_in_1">
+          <dmn:text>"geothermal", "heat_and_power", "small_hydro", "other"</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_09068ea1-5618-5f81-b4c5-d9082e024324_3_in_2">
+          <dmn:text>&lt;= 2</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_09068ea1-5618-5f81-b4c5-d9082e024324_3_out_1">
+          <dmn:text>"small"</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_09068ea1-5618-5f81-b4c5-d9082e024324_3_out_2">
+          <dmn:text>"simplified_notification"</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_09068ea1-5618-5f81-b4c5-d9082e024324_4">
+        <dmn:description>Rotating machine above the four-eyes threshold</dmn:description>
+        <dmn:extensionElements>
+          <awa:properties>{"output_edge_id":"b66b496d-2994-5a2c-a1d2-b21c213fe855"}</awa:properties>
+        </dmn:extensionElements>
+        <dmn:inputEntry id="Rule_09068ea1-5618-5f81-b4c5-d9082e024324_4_in_1">
+          <dmn:text>"geothermal", "heat_and_power", "small_hydro", "other"</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_09068ea1-5618-5f81-b4c5-d9082e024324_4_in_2">
+          <dmn:text>&gt; 5</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_09068ea1-5618-5f81-b4c5-d9082e024324_4_out_1">
+          <dmn:text>"medium"</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_09068ea1-5618-5f81-b4c5-d9082e024324_4_out_2">
+          <dmn:text>"operator_approval_four_eyes"</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_09068ea1-5618-5f81-b4c5-d9082e024324_5">
+        <dmn:description>Inverter-connected installation above the four-eyes threshold</dmn:description>
+        <dmn:extensionElements>
+          <awa:properties>{"output_edge_id":"b66b496d-2994-5a2c-a1d2-b21c213fe855"}</awa:properties>
+        </dmn:extensionElements>
+        <dmn:inputEntry id="Rule_09068ea1-5618-5f81-b4c5-d9082e024324_5_in_1">
+          <dmn:text>"solar", "wind"</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_09068ea1-5618-5f81-b4c5-d9082e024324_5_in_2">
+          <dmn:text>&gt; 10</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_09068ea1-5618-5f81-b4c5-d9082e024324_5_out_1">
+          <dmn:text>"medium"</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_09068ea1-5618-5f81-b4c5-d9082e024324_5_out_2">
+          <dmn:text>"operator_approval_four_eyes"</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+      <dmn:rule id="Rule_09068ea1-5618-5f81-b4c5-d9082e024324_6">
+        <dmn:description>Medium: the grid operator approves</dmn:description>
+        <dmn:extensionElements>
+          <awa:properties>{"output_edge_id":"d1bfbbd1-a7aa-545d-b468-082d7a233ce3"}</awa:properties>
+        </dmn:extensionElements>
+        <dmn:inputEntry id="Rule_09068ea1-5618-5f81-b4c5-d9082e024324_6_in_1">
+          <dmn:text>-</dmn:text>
+        </dmn:inputEntry>
+        <dmn:inputEntry id="Rule_09068ea1-5618-5f81-b4c5-d9082e024324_6_in_2">
+          <dmn:text>&gt; 0</dmn:text>
+        </dmn:inputEntry>
+        <dmn:outputEntry id="Rule_09068ea1-5618-5f81-b4c5-d9082e024324_6_out_1">
+          <dmn:text>"medium"</dmn:text>
+        </dmn:outputEntry>
+        <dmn:outputEntry id="Rule_09068ea1-5618-5f81-b4c5-d9082e024324_6_out_2">
+          <dmn:text>"operator_approval"</dmn:text>
+        </dmn:outputEntry>
+      </dmn:rule>
+    </dmn:decisionTable>
+  </dmn:decision>
+</dmn:definitions>

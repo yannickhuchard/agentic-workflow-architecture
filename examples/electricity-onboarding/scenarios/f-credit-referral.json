@@ -1,0 +1,43 @@
+{
+  "name": "credit-referral",
+  "title": "A weak credit band is referred to the credit officer, who approves with a deposit",
+  "summary": "Priya Raman's credit band is D with no energy debt: the eligibility table refers the application to a person. Marco, in customer care, may not decide it (no rule lets him); Olivia, the credit officer, approves with a deposit of 200 EUR, which is collected by direct debit before the switch.",
+  "application": {
+    "application_id": "APP-24006",
+    "applicant": { "first_name": "Priya", "last_name": "Raman", "date_of_birth": "1999-02-18" },
+    "contact": { "email": "priya.raman@example.org", "phone": "+49 176 4410 2206" },
+    "supply_address": { "line1": "5 Station Road", "postcode": "22740", "city": "Brookfield" },
+    "metering_point_id": "MP-22740-001876",
+    "consumption_basis": "estimate", "annual_consumption_kwh": 2900,
+    "electricity_source": "standard_mix", "plan_preference": "fixed_12",
+    "has_generation": false, "ev_charger": false, "heat_pump": false
+  },
+  "world": {
+    "credit": { "credit_band": "D", "score": 571, "outstanding_debt_eur": 0, "identity_result": "verified" },
+    "metering_point": { "meter_type": "smart", "smart_meter": true, "current_supplier": "Midland Power", "connection_capacity_kva": 13.8, "region": "midlands", "grid_operator": "Central Grid", "phases": 1 }
+  },
+  "actors": {
+    "Recommend plan": { "output": { "reasons": "Priya asked for a fixed price for a year; with a deposit held, the 12-month fixed plan keeps her bills predictable while she builds a payment history." } },
+    "Write welcome pack": { "output": { "message": "Welcome, Priya! Your supply at 5 Station Road starts on {{supply_start_date}} on our 12-month fixed plan, with our standard mix. Your deposit of 200 EUR is held on your account and returned after twelve months of payments on time. Your first bill follows a month later, paid by direct debit." } }
+  },
+  "steps": [
+    { "after": "PT4H", "say": "Priya uploads her documents", "publish": "documents.uploaded", "source": "/customer-portal/documents",
+      "data": { "documents": [{ "type": "proof_of_identity", "file_id": "F-24006-ID" }, { "type": "proof_of_address", "file_id": "F-24006-ADDR" }, { "type": "direct_debit_mandate", "file_id": "F-24006-MAND" }], "mandate_reference": "MND-24006" } },
+    { "after": "PT2H", "say": "Marco, customer care, tries to decide the referral, and is refused: only credit officers decide", "complete": "Credit referral", "by": "marco",
+      "output": { "approved": true, "reason": "Customer sounds reliable." }, "refused": "no_rule" },
+    { "after": "PT1H", "say": "Olivia, credit officer, approves with a deposit of 200 EUR", "complete": "Credit referral", "by": "olivia",
+      "output": { "approved": true, "deposit_required": true, "deposit_eur": 200, "reason": "A thin credit file, not a bad one: no debt and a stable income. A deposit covers the risk." } },
+    { "after": "PT22H", "say": "Priya confirms the 12-month fixed plan in the portal", "publish": "plan.confirmed", "source": "/customer-portal", "data": { "plan": "fixed_12" } },
+    { "after": "PT5H", "say": "The e-signature service reports the signed contract", "publish": "contract.signed", "source": "/e-signature", "data": { "contract_signed": true, "signature_id": "ESIG-24006" } },
+    { "after": "P14D", "say": "The registry confirms the switch: the supply starts today", "publish": "switch.completed", "source": "/metering-point-registry", "data": { "switch_completed": true, "supply_start_date": "{{today}}" } }
+  ],
+  "expect": {
+    "run_status": "completed", "journey_status": "completed", "journey_stage": "active", "goals": ["active-customer"],
+    "records": [
+      { "type": "decision.evaluated", "node_name": "Eligibility", "data": { "outputs": { "eligibility": "refer" } } },
+      { "type": "authorization.decided", "node_name": "Credit referral", "data": { "decision": "deny", "reason": "no_rule", "principal": { "id": "marco" } } },
+      { "type": "activity.completed", "node_name": "Credit referral", "data": { "principal": { "id": "olivia" } } },
+      { "type": "activity.completed", "node_name": "Collect deposit" }
+    ]
+  }
+}

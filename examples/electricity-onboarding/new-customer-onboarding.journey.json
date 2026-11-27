@@ -1,0 +1,475 @@
+{
+  "id": "2e389a76-4ebb-5a2b-b758-81a6f57216cf",
+  "name": "New Customer Onboarding",
+  "version": "1.0.0",
+  "awa_version": "1.1",
+  "description": "A household's way from the application form to an active electricity supply: documents, checks, the choice of source and plan, the registration of its own generation for export, the contract, the switch and the welcome.",
+  "subject": {
+    "name": "household",
+    "key": "application_id"
+  },
+  "stages": [
+    {
+      "id": "application",
+      "name": "Application",
+      "description": "The household applies and uploads its documents.",
+      "workflows": [
+        "b02e4023-9168-55eb-8970-11839ddcb006"
+      ],
+      "complete_when": "documents exists",
+      "max_duration": "P14D",
+      "owner": "Customer care"
+    },
+    {
+      "id": "verification",
+      "name": "Verification",
+      "description": "Documents, credit and identity, and the metering point are checked; eligibility is decided.",
+      "complete_when": "eligibility exists",
+      "max_duration": "P5D",
+      "owner": "Credit team"
+    },
+    {
+      "id": "energy-choices",
+      "name": "Energy choices",
+      "description": "The electricity source and the plan are settled with the household.",
+      "complete_when": "plan exists",
+      "max_duration": "P14D",
+      "owner": "Customer care",
+      "transitions": [
+        {
+          "to": "grid-export",
+          "condition": "has_generation == true"
+        },
+        {
+          "to": "contract",
+          "is_default": true
+        }
+      ]
+    },
+    {
+      "id": "grid-export",
+      "name": "Grid export",
+      "description": "Only for homes with their own generation: the installation is checked and registered for export.",
+      "workflows": [
+        "ebe78a2a-8a36-5aa5-a537-a6f739b0ea83"
+      ],
+      "complete_when": "export_status exists",
+      "max_duration": "P10D",
+      "owner": "Grid connections team",
+      "transitions": [
+        {
+          "to": "contract",
+          "is_default": true
+        }
+      ]
+    },
+    {
+      "id": "contract",
+      "name": "Contract",
+      "description": "The contract is generated and signed.",
+      "complete_when": "contract_signed == true",
+      "max_duration": "P14D",
+      "owner": "Customer care"
+    },
+    {
+      "id": "switch",
+      "name": "Switch",
+      "description": "Billing and the direct debit are set up and the supply is switched.",
+      "complete_when": "switch_completed == true",
+      "max_duration": "P21D",
+      "owner": "Switching team"
+    },
+    {
+      "id": "active",
+      "name": "Active",
+      "description": "The customer is welcomed and supplied.",
+      "complete_when": "customer_active == true",
+      "transitions": []
+    }
+  ],
+  "triggers": [
+    {
+      "event": "onboarding.requested",
+      "starts_journey": true,
+      "start_workflow": "b02e4023-9168-55eb-8970-11839ddcb006"
+    }
+  ],
+  "goals": [
+    {
+      "id": "active-customer",
+      "name": "Active customer",
+      "expression": "customer_active == true"
+    }
+  ],
+  "exits": [
+    {
+      "event": "onboarding.abandoned",
+      "outcome": "abandoned",
+      "reason": "The household did not complete the application"
+    },
+    {
+      "event": "onboarding.declined",
+      "outcome": "abandoned",
+      "reason": "Declined on eligibility"
+    }
+  ],
+  "artefacts": [
+    {
+      "id": "application-form",
+      "name": "Application form",
+      "kind": "form",
+      "description": "Who, where, how much electricity, which source and plan, what generation and devices."
+    },
+    {
+      "id": "document-request",
+      "name": "Document request",
+      "kind": "notice",
+      "description": "The list of documents the application needs."
+    },
+    {
+      "id": "identity-and-address",
+      "name": "Identity and address documents",
+      "kind": "evidence",
+      "description": "Proof of identity and proof of address or occupancy."
+    },
+    {
+      "id": "mandate",
+      "name": "Direct debit mandate",
+      "kind": "attestation",
+      "description": "The account holder's authorisation to collect by direct debit."
+    },
+    {
+      "id": "installation-certificates",
+      "name": "Installation certificates",
+      "kind": "certificate",
+      "description": "Installer's certificate, compliance certificate, commissioning report, proof of ownership."
+    },
+    {
+      "id": "reminder",
+      "name": "Reminder",
+      "kind": "notice",
+      "description": "What is still missing, and by when."
+    },
+    {
+      "id": "decline-letter",
+      "name": "Decline letter",
+      "kind": "notice",
+      "description": "Why the application was declined and what the household can do."
+    },
+    {
+      "id": "plan-quote",
+      "name": "Plan recommendation",
+      "kind": "quote",
+      "description": "The recommended plan and its estimated annual cost."
+    },
+    {
+      "id": "grid-notification",
+      "name": "Grid operator notification",
+      "kind": "notice",
+      "description": "The simplified notification of a small installation."
+    },
+    {
+      "id": "contract",
+      "name": "Supply contract",
+      "kind": "contract",
+      "description": "The plan, the source, the export tariff and the 14-day cooling-off period."
+    },
+    {
+      "id": "switch-request",
+      "name": "Switch request",
+      "kind": "order",
+      "description": "The instruction to the registry to move the supply."
+    },
+    {
+      "id": "welcome-pack",
+      "name": "Welcome pack",
+      "kind": "notice",
+      "description": "The plan, the source, the start date and the export tariff, in the customer's words."
+    }
+  ],
+  "touchpoints": [
+    {
+      "id": "applies",
+      "name": "Applies on the web form",
+      "party": "subject",
+      "direction": "inbound",
+      "channel": "web",
+      "technology": "Customer portal",
+      "on": {
+        "event": "onboarding.requested"
+      },
+      "exchanges": [
+        {
+          "artefact": "application-form"
+        }
+      ]
+    },
+    {
+      "id": "documents-requested",
+      "name": "Is asked for documents",
+      "party": "subject",
+      "direction": "outbound",
+      "channel": "email",
+      "technology": "Notification service",
+      "on": {
+        "activity": "Request documents"
+      },
+      "exchanges": [
+        {
+          "artefact": "document-request"
+        }
+      ]
+    },
+    {
+      "id": "documents-uploaded",
+      "name": "Uploads the documents",
+      "party": "subject",
+      "direction": "inbound",
+      "channel": "web",
+      "technology": "Customer portal (document upload)",
+      "on": {
+        "event": "documents.uploaded"
+      },
+      "exchanges": [
+        {
+          "artefact": "identity-and-address",
+          "reference": "documents"
+        },
+        {
+          "artefact": "mandate",
+          "reference": "documents"
+        },
+        {
+          "artefact": "installation-certificates",
+          "reference": "documents"
+        }
+      ]
+    },
+    {
+      "id": "reminded",
+      "name": "Is reminded of missing documents",
+      "party": "subject",
+      "direction": "outbound",
+      "channel": "email",
+      "technology": "Notification service",
+      "on": {
+        "activity": "Send document reminder"
+      },
+      "exchanges": [
+        {
+          "artefact": "reminder"
+        }
+      ]
+    },
+    {
+      "id": "declined",
+      "name": "Receives the decline letter",
+      "party": "subject",
+      "direction": "outbound",
+      "channel": "post",
+      "technology": "Notification service (print and post)",
+      "on": {
+        "activity": "Write decline letter"
+      },
+      "exchanges": [
+        {
+          "artefact": "decline-letter"
+        }
+      ]
+    },
+    {
+      "id": "plan-recommended",
+      "name": "Receives a plan recommendation",
+      "party": "subject",
+      "direction": "outbound",
+      "channel": "email",
+      "technology": "Customer portal",
+      "on": {
+        "activity": "Recommend plan"
+      },
+      "exchanges": [
+        {
+          "artefact": "plan-quote",
+          "reference": "recommended_plan"
+        }
+      ]
+    },
+    {
+      "id": "plan-confirmed",
+      "name": "Confirms the plan",
+      "party": "subject",
+      "direction": "inbound",
+      "channel": "web",
+      "technology": "Customer portal",
+      "on": {
+        "event": "plan.confirmed"
+      },
+      "exchanges": [
+        {
+          "artefact": "plan-quote",
+          "reference": "plan"
+        }
+      ]
+    },
+    {
+      "id": "plan-by-phone",
+      "name": "Chooses a plan on the phone",
+      "party": "subject",
+      "direction": "outbound",
+      "channel": "phone",
+      "technology": "Contact centre telephony",
+      "on": {
+        "activity": "Confirm plan by phone"
+      },
+      "exchanges": []
+    },
+    {
+      "id": "grid-notified",
+      "name": "Is notified of a small installation",
+      "party": "grid operator",
+      "direction": "outbound",
+      "channel": "api",
+      "technology": "Grid operator portal (HTTP)",
+      "on": {
+        "tool": "notify_grid_operator"
+      },
+      "exchanges": [
+        {
+          "artefact": "grid-notification",
+          "reference": "notification_id"
+        }
+      ]
+    },
+    {
+      "id": "contract-sent",
+      "name": "Receives the contract to sign",
+      "party": "subject",
+      "direction": "outbound",
+      "channel": "email",
+      "technology": "Contract service and e-signature",
+      "on": {
+        "tool": "generate_contract"
+      },
+      "exchanges": [
+        {
+          "artefact": "contract",
+          "reference": "contract_id"
+        }
+      ]
+    },
+    {
+      "id": "contract-signed",
+      "name": "Signs the contract",
+      "party": "subject",
+      "direction": "inbound",
+      "channel": "web",
+      "technology": "E-signature service",
+      "on": {
+        "event": "contract.signed"
+      },
+      "exchanges": [
+        {
+          "artefact": "contract",
+          "reference": "contract_id"
+        }
+      ]
+    },
+    {
+      "id": "switch-requested",
+      "name": "Is asked to switch the supply",
+      "party": "metering-point registry",
+      "direction": "outbound",
+      "channel": "api",
+      "technology": "Metering-point registry (HTTP)",
+      "on": {
+        "tool": "request_switch"
+      },
+      "exchanges": [
+        {
+          "artefact": "switch-request",
+          "reference": "switch_id"
+        }
+      ]
+    },
+    {
+      "id": "switch-confirmed",
+      "name": "Confirms the switch",
+      "party": "metering-point registry",
+      "direction": "inbound",
+      "channel": "api",
+      "technology": "Metering-point registry (HTTP)",
+      "on": {
+        "event": "switch.completed"
+      },
+      "exchanges": [
+        {
+          "artefact": "switch-request",
+          "reference": "switch_id"
+        }
+      ]
+    },
+    {
+      "id": "welcomed",
+      "name": "Receives the welcome e-mail",
+      "party": "subject",
+      "direction": "outbound",
+      "channel": "email",
+      "technology": "Notification service",
+      "on": {
+        "activity": "Activate customer"
+      },
+      "exchanges": [
+        {
+          "artefact": "welcome-pack"
+        }
+      ]
+    }
+  ],
+  "sentiment": {
+    "min": -2,
+    "max": 2,
+    "initial": 0,
+    "rules": [
+      {
+        "on": "touchpoint",
+        "touchpoint": "reminded",
+        "change": -0.5,
+        "reason": "had to be chased for documents"
+      },
+      {
+        "on": "touchpoint",
+        "touchpoint": "plan-by-phone",
+        "change": 0.5,
+        "reason": "a person called to settle the plan"
+      },
+      {
+        "on": "waited",
+        "longer_than": "P15D",
+        "change": -0.5,
+        "reason": "waited more than fifteen days to hear back"
+      },
+      {
+        "on": "touchpoint",
+        "touchpoint": "declined",
+        "change": -1,
+        "reason": "was declined"
+      },
+      {
+        "on": "goal_reached",
+        "goal": "active-customer",
+        "change": 1,
+        "reason": "is supplied and welcomed"
+      },
+      {
+        "on": "run_failed",
+        "change": -1,
+        "reason": "the onboarding failed"
+      },
+      {
+        "on": "stalled",
+        "change": -0.5,
+        "reason": "nothing has moved for too long"
+      }
+    ]
+  }
+}
