@@ -186,6 +186,32 @@ describe('Counterfactual replay', () => {
         expect(report.nodes.every(n => n.verdict === 'same'), report.nodes.map(n => `${n.node_name} ${n.verdict}`).join(', ')).toBe(true);
     });
 
+    it('expires only the wait the recorded run timed out, when parallel branches wait with different deadlines', async () => {
+        // Branch A times out after one day; branch B receives its event later, before its own ten-day deadline
+        const ask = activity('Ask'), lateA = activity('Late A'), gotA = activity('Got A'), lateB = activity('Late B'), gotB = activity('Got B');
+        const a = { id: uuidv4(), name: 'Reply A', event_type: 'message', event_definition: { name: 'a.replied', timeout: 'P1D' } } as Workflow['events'][number];
+        const b = { id: uuidv4(), name: 'Reply B', event_type: 'message', event_definition: { name: 'b.replied', timeout: 'P10D' } } as Workflow['events'][number];
+        const timeoutA = edge(a, lateA), timeoutB = edge(b, lateB);
+        (a.event_definition as { timeout_edge_id?: string }).timeout_edge_id = timeoutA.id;
+        (b.event_definition as { timeout_edge_id?: string }).timeout_edge_id = timeoutB.id;
+        const wf = workflow([ask, lateA, gotA, lateB, gotB], [edge(ask, a), edge(ask, b), timeoutA, edge(a, gotA), timeoutB, edge(b, gotB)], { events: [a, b] });
+        const engine = new WorkflowEngine(wf, { ...scripted({}), ...quiet });
+        await engine.start();
+        expect(await engine.run()).toBe('waiting_event');
+        expect(await engine.expireEvents(Date.now() + 2 * 86400000)).toBe(1);
+        expect(await engine.run()).toBe('waiting_event');
+        await engine.deliverEvent(business_event('b.replied', { ok: true }));
+        expect(await engine.run()).toBe('completed');
+        const recorded = await engine.getEvents();
+        expect(recorded.filter(e => e.type === 'activity.completed').map(e => e.node_name).sort()).toEqual(['Ask', 'Got B', 'Late A']);
+
+        const { report, status, events } = await counterfactual_replay(wf, recorded, { ai: 'recorded' });
+        expect(status).toBe('completed');
+        expect(events.filter(e => e.type === 'event.timed_out').length).toBe(1);
+        expect(report.same_path, JSON.stringify(report.divergence)).toBe(true);
+        expect(report.nodes.every(n => n.verdict === 'same'), report.nodes.map(n => `${n.node_name} ${n.verdict}`).join(', ')).toBe(true);
+    });
+
     it('withdraws the run where the recorded run was withdrawn, and compares what compensation undid', async () => {
         const refund = activity('Refund', { tools: [ToolDefinitionSchema.parse({ name: 'refund', binding: { kind: 'function', name: 'refund' } })] });
         const pay = activity('Pay', { compensation: { activity_id: refund.id } }), done = activity('Done');

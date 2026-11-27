@@ -369,7 +369,8 @@ export async function counterfactual_replay(
             const e = endings[next++];
             progressed = e.type === 'event.received'
                 ? await engine.deliverEvent(business_event(e.data.name as string, (e.data.data || {}) as Record<string, unknown>, { source: e.data.source as string })) > 0
-                : await engine.expireEvents(Number.MAX_SAFE_INTEGER) > 0;
+                // Only the wait the recorded run timed out: a parallel wait still running keeps waiting for its own ending
+                : await engine.expireEvents(Number.MAX_SAFE_INTEGER, e.node_id ? { node_id: e.node_id } : {}) > 0;
         }
         if (!progressed && withdrawn) {
             await engine.cancel(String(withdrawn.data.reason ?? 'cancelled'));

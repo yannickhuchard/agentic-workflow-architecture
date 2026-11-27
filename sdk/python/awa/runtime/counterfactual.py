@@ -383,7 +383,8 @@ def counterfactual_replay(workflow: Workflow, baseline: list[JournalEvent], cand
                 progressed = run.deliver_event(
                     business_event(data.get("name"), data.get("data") or {}, source=data.get("source"))) > 0
             else:
-                progressed = run.expire_events(float("inf")) > 0
+                # Only the wait the recorded run timed out: a parallel wait still running keeps waiting for its own ending
+                progressed = run.expire_events(float("inf"), node_id=ending.get("node_id")) > 0
         if not progressed and withdrawn is not None:
             run.cancel(str(withdrawn["data"].get("reason") or "cancelled"))
             break

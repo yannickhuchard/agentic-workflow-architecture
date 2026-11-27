@@ -195,6 +195,32 @@ def test_the_waits_end_as_the_recorded_run_ended_them_in_the_same_order():
     assert set(verdicts(replay.report).values()) == {"same"}, verdicts(replay.report)
 
 
+def test_only_the_wait_the_recorded_run_timed_out_expires_when_parallel_branches_wait_with_different_deadlines():
+    # Branch A times out after one day; branch B receives its event later, before its own ten-day deadline
+    ask, late_a, got_a, late_b, got_b = activity("Ask"), activity("Late A"), activity("Got A"), activity("Late B"), activity("Got B")
+    a = {"id": uid(), "name": "Reply A", "event_type": "message", "event_definition": {"name": "a.replied", "timeout": "P1D"}}
+    b = {"id": uid(), "name": "Reply B", "event_type": "message", "event_definition": {"name": "b.replied", "timeout": "P10D"}}
+    timeout_a, timeout_b = edge(a, late_a), edge(b, late_b)
+    a["event_definition"]["timeout_edge_id"] = timeout_a["id"]
+    b["event_definition"]["timeout_edge_id"] = timeout_b["id"]
+    doc = document([ask, late_a, got_a, late_b, got_b],
+                   [edge(ask, a), edge(ask, b), timeout_a, edge(a, got_a), timeout_b, edge(b, got_b)], events=[a, b])
+    baseline = record(doc, {})
+    assert baseline.status.value == "waiting_event"
+    assert baseline.expire_events(time.time() * 1000 + 2 * 86400000) == 1
+    assert baseline.run()["status"] == "waiting_event"
+    baseline.deliver_event({"id": "e-1", "type": "b.replied", "source": "/portal", "data": {"ok": True}})
+    assert baseline.run()["status"] == "completed"
+    done = sorted(e["node_name"] for e in baseline.get_events() if e["type"] == "activity.completed")
+    assert done == ["Ask", "Got B", "Late A"]
+
+    replay = counterfactual_replay(Workflow.model_validate(doc), baseline.get_events(), ai="recorded")
+    assert replay.status == "completed"
+    assert sum(1 for e in replay.events if e["type"] == "event.timed_out") == 1
+    assert replay.report["same_path"] is True, replay.report.get("divergence")
+    assert set(verdicts(replay.report).values()) == {"same"}, verdicts(replay.report)
+
+
 def test_a_run_withdrawn_while_it_waited_is_withdrawn_again_and_its_compensation_is_compared():
     refund = activity("Refund", tools=[{"name": "refund", "description": "Refund", "parameters": {"type": "object"},
                                          "binding": {"kind": "function", "name": "refund"}}])

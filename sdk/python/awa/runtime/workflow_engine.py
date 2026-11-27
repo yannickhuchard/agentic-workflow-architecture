@@ -2115,18 +2115,22 @@ class WorkflowEngine:
             due.append(children)
         return min(due) if due else None
 
-    def expire_events(self, now: float | None = None) -> int:
+    def expire_events(self, now: float | None = None, node_id: str | None = None) -> int:
         """
         Time out the event waits whose deadline has passed (specification 18.3).
         The token takes the event's timeout edge; an event without one fails the
         token. `now` is in milliseconds since the epoch and defaults to the
-        current time. Returns how many tokens timed out. Call run() afterwards.
+        current time. `node_id` limits it to the wait at that node, as when a
+        replay ends one recorded wait (20.1). Returns how many tokens timed out.
+        Call run() afterwards.
         """
         now = self._now() if now is None else now
         expired = 0
         for token in list(self._tokens.values()):
             awaited = self._awaiting(token)
             if not awaited or not awaited.get("due_at") or _parse_time(awaited["due_at"]) > now:
+                continue
+            if node_id and str(awaited.get("node_id")) != str(node_id):
                 continue
 
             node_id = awaited["node_id"]
