@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "awa": {
+      "command": "node",
+      "args": ["${workspaceFolder}/plugins/awa-code/server/start.mjs"]
+    }
+  }
+}

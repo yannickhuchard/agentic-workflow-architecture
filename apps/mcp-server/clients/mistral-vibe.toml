@@ -1,0 +1,9 @@
+# Mistral Vibe: add this table to ~/.vibe/config.toml (or to .vibe/config.toml in a trusted project),
+# with the absolute path of your clone, or run the equivalent command:
+#   vibe mcp add awa --transport stdio --command node --arg /absolute/path/to/agentic-workflow-architecture/plugins/awa-code/server/start.mjs
+
+[[mcp_servers]]
+name = "awa"
+transport = "stdio"
+command = "node"
+args = ["/absolute/path/to/agentic-workflow-architecture/plugins/awa-code/server/start.mjs"]

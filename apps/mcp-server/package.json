@@ -14,7 +14,10 @@
     "verify": "node scripts/verify-widgets.mjs",
     "preview": "node scripts/verify-widgets.mjs --serve-only",
     "plugin:check": "node scripts/check-plugin.mjs",
-    "plugin:package": "node scripts/package-plugin.mjs"
+    "plugin:package": "node scripts/package-plugin.mjs",
+    "bundle:mcpb": "node scripts/build-mcpb.mjs",
+    "clients:schemas": "node scripts/check-client-schemas.mjs",
+    "hosted:set": "node scripts/set-hosted-address.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/ext-apps": "^2.0.4",

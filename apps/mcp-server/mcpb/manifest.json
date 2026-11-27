@@ -1,0 +1,48 @@
+{
+  "$schema": "https://raw.githubusercontent.com/modelcontextprotocol/mcpb/main/schemas/mcpb-manifest-v0.3.schema.json",
+  "manifest_version": "0.3",
+  "name": "awa-workflows",
+  "display_name": "AWA Workflows & Journeys",
+  "version": "0.1.0",
+  "description": "Validate, view and simulate Agentic Workflow Architecture (AWA) workflows and customer journeys. Simulation only: no tool, model or production system is called.",
+  "long_description": "Work with documents of the open standard Agentic Workflow Architecture (AWA). Validate a workflow or journey and read its problems in plain words. See a workflow as a graph with its actors, decisions, events and the data that moves between activities. Simulate a run and replay it step by step. Play business events through customer journeys. Open a dashboard of measures. A fictional insurance example is included. Everything runs on your computer and is a simulation: no tool binding, command, HTTP call, model or production system is ever called. Documents are passed inline in the conversation; nothing is stored between calls.",
+  "author": {
+    "name": "Yannick Huchard",
+    "url": "https://github.com/yannickhuchard"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yannickhuchard/agentic-workflow-architecture"
+  },
+  "homepage": "https://github.com/yannickhuchard/agentic-workflow-architecture",
+  "documentation": "https://github.com/yannickhuchard/agentic-workflow-architecture/blob/main/docs/guides/connect-ai-assistants.md",
+  "support": "https://github.com/yannickhuchard/agentic-workflow-architecture/blob/main/apps/mcp-server/legal/SUPPORT.md",
+  "icon": "icon.png",
+  "server": {
+    "type": "node",
+    "entry_point": "server/apps/mcp-server/src/start.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/server/apps/mcp-server/src/start.js", "--stdio"],
+      "env": {}
+    }
+  },
+  "tools": [
+    { "name": "validate_document", "description": "Check a workflow or journey document and return each problem in plain words" },
+    { "name": "show_workflow", "description": "Show a workflow as a graph with its actors, decisions, events and the data that moves" },
+    { "name": "simulate_workflow", "description": "Run a workflow once in simulation and replay its path, decisions, waits and failures" },
+    { "name": "show_journeys", "description": "Show customer journeys from a portfolio, or from journeys and workflows with events to play" },
+    { "name": "simulate_journey", "description": "Play business events through customer journeys in simulation" },
+    { "name": "load_claims_example", "description": "Open the bundled fictional claims example and hand out its documents" },
+    { "name": "show_dashboard", "description": "The measures of journeys and workflows: who is stuck, who is to act, outcomes, rework, waiting, cost" }
+  ],
+  "keywords": ["awa", "workflow", "customer-journey", "simulation", "process", "mcp"],
+  "license": "Apache-2.0",
+  "privacy_policies": [
+    "https://github.com/yannickhuchard/agentic-workflow-architecture/blob/main/apps/mcp-server/legal/PRIVACY.md"
+  ],
+  "compatibility": {
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": { "node": ">=20.0.0" }
+  }
+}

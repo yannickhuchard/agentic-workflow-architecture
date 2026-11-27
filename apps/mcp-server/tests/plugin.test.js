@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { check_plugin, PLUGIN_DIR } from '../scripts/plugin-rules.mjs';
+import { check_plugin, is_placeholder, PLUGIN_DIR } from '../scripts/plugin-rules.mjs';
 import { REPOSITORY_ROOT, RELEASE } from '../src/sdk.js';
 import { connect } from './helpers.js';
 
@@ -12,10 +12,14 @@ const openai = plugin.extensions['com.openai'];
 test('the plugin package meets the submission rules; only the known placeholders remain', async () => {
     const { errors, placeholders } = await check_plugin();
     assert.deepEqual(errors, []);
-    assert.equal(placeholders.length, 2, placeholders.join(' | '));
-    assert.ok(placeholders.some(p => /server address is a placeholder/.test(p)) && placeholders.some(p => /demo_recording_url/.test(p)));
+    // npm run hosted:set writes the hosted address into mcp.json; until then it is a placeholder too
+    const address_placeholder = is_placeholder(JSON.parse(fs.readFileSync(path.join(PLUGIN_DIR, 'mcp.json'), 'utf8')).mcpServers.awa.url);
+    const expected = address_placeholder ? 2 : 1;
+    assert.equal(placeholders.length, expected, placeholders.join(' | '));
+    assert.equal(placeholders.some(p => /server address is a placeholder/.test(p)), address_placeholder);
+    assert.ok(placeholders.some(p => /demo_recording_url/.test(p)));
     const strict = await check_plugin(PLUGIN_DIR, { for_submission: true });
-    assert.equal(strict.errors.length, 2, 'placeholders stop a submission build');
+    assert.equal(strict.errors.length, expected, 'placeholders stop a submission build');
 });
 
 test('listing pages exist in the repository at the paths the listing points to', () => {

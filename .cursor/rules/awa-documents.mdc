@@ -1,0 +1,39 @@
+---
+description: Rules for writing and checking AWA (Agentic Workflow Architecture) workflow and journey documents
+globs: **/*.awa.json,**/*.journey.json
+alwaysApply: false
+---
+
+# AWA workflow and journey documents
+
+These files follow the Agentic Workflow Architecture specification 1.1. The normative text is `docs/specification.md` in the AWA repository; the JSON Schemas are in `spec/json-schema`. The skill `agentic-workflow-architecture` has the full guide.
+
+## Before you finish an edit
+
+- Check the document with the `validate_document` tool of the `awa` MCP server: pass the JSON content as `document` (and, for a journey, the workflows it refers to as `workflows`). Fix every problem it reports.
+- To see the result, call `show_workflow`; to try a run, call `simulate_workflow` with the `simulation.json` beside the workflow as `simulated_outputs`. Both only simulate: nothing is executed.
+
+## Structure
+
+- Every `id` is a UUID. `inputs` and `outputs` are arrays.
+- A workflow has `id`, `name`, `version` (semantic version) and `awa_version` `"1.1"`, with `roles`, `activities`, `edges`, and optionally `events`, `decision_nodes`, `contexts`.
+- Each activity names its `role_id` and an `actor_type` that matches its role: `human`, `ai_agent`, `robot` or `application`.
+- Edges join nodes with `source_id` and `target_id`.
+
+## Rules that make a run fail on purpose
+
+1. Give every choice a way out: when all outgoing edges of a node have conditions, add one with `"is_default": true`, otherwise the token fails with `NO_ROUTE`.
+2. Several edges without conditions from one node are a parallel split, not alternatives. Bring parallel branches together with `"join": "all"` on the activity where they meet.
+3. Conditions use one language: `path op literal` with `== != > >= < <=`, combined with `&&`, `||`, `!` and parentheses, plus `path exists` and `typeof path == type`. Dotted paths are allowed. An invalid condition is refused when the workflow loads.
+4. A failed token fails the run.
+5. Verification fails closed: an output not verified as `pass` is refused. A `schema_only` criterion needs an `expression`.
+6. Decision tables are strict: with hit policy `unique` or `any`, overlapping rules that disagree fail with `DECISION_CONFLICT`. Each rule has exactly one entry per input column. Use `first` when order should decide.
+7. Simulated activities return no business data: a workflow whose routing reads data needs a `simulation.json` that says what each activity returns, by name.
+
+## Good practice
+
+- Give AI agent activities an `outcome_contract` (output schema, postconditions, budgets, `on_violation`), and a verification policy where judgement is needed.
+- Name models by capability tier (`tier:reasoning`, `tier:balanced`, `tier:fast`) in `ai_model_config`, not by vendor.
+- Give a decision decided by a model a `default_output_edge_id` that leads to a person.
+- A message event that waits for a business event needs a `timeout` and a `timeout_edge_id` in its `config`, so that a missing event takes a planned path.
+- Ship a `simulation.json` with an example so that it runs with `awa run --simulate --outputs simulation.json`.
