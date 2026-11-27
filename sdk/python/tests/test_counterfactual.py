@@ -256,6 +256,37 @@ def test_recorded_model_decisions_are_replayed_without_a_model_and_live_ones_dec
 # What a replay refuses, and what it leaves alone
 # ---------------------------------------------------------------------------
 
+def test_what_recorded_activities_wrote_to_contexts_is_restored_for_the_activities_that_read_them():
+    profile = {"id": uid(), "name": "customer_profile", "type": "data", "sync_pattern": "shared_state"}
+    register = activity("Register", context_bindings=[{"context_id": profile["id"], "access_mode": "write"}])
+    verify = activity("Verify", "ai_agent", context_bindings=[{"context_id": profile["id"], "access_mode": "read"}])
+    doc = document([register, verify], [edge(register, verify)], contexts=[profile])
+    given = []
+
+    class Writer:
+        def execute(self, activity, token, context=None):
+            if activity.name == "Register":
+                return {"customer_id": "C-1", "_context_writes": {"customer_profile": {"name": "Lena", "segment": "household"}}}
+            given.append(json.loads(json.dumps(token.context_data.get("_contexts"))))
+            return {"output": {"documents_valid": True}, "usage": {"input_tokens": 1, "output_tokens": 1}}
+
+    engine = WorkflowEngine(Workflow.model_validate(doc), options={"actors": {t: Writer() for t in ActorType}, "sleep": lambda ms: None})
+    assert engine.run({})["status"] == "completed"
+    events = engine.get_events()
+    assert next(e for e in events if e["type"] == "context.written")["data"]["written"] == {"name": "Lena", "segment": "household"}
+
+    recorded = counterfactual_replay(Workflow.model_validate(doc), events, ai="recorded")
+    assert recorded.status == "completed", recorded.report["regressions"]
+    assert recorded.report["same_path"] and recorded.report["regressions"] == [] and set(verdicts(recorded.report).values()) == {"same"}
+    read = next(e for e in recorded.events if e["type"] == "context.read")
+    assert read["data"]["contexts"][0]["present"] is True
+
+    # With live AI, the agent that runs again is given the context the recorded application wrote
+    live = counterfactual_replay(Workflow.model_validate(doc), events, engine={"actors": {"ai_agent": Writer()}})
+    assert live.status == "completed"
+    assert given[-1] == {"customer_profile": {"name": "Lena", "segment": "household"}}
+
+
 def test_a_journal_without_outputs_is_refused():
     doc = document([activity("A")], [])
     for mode in ("hash", "none"):

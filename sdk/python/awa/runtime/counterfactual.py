@@ -271,10 +271,19 @@ def counterfactual_replay(workflow: Workflow, baseline: list[JournalEvent], cand
     tool_results: dict[str, list[dict[str, Any]]] = {}
     invoked: dict[str, JournalEvent] = {}
     decisions: dict[str, list[dict[str, Any]]] = {}
-    for event in recorded:
+    # A result is held with what the activity wrote to contexts (22.3): the writes journalled before it completed are given back with it
+    writes: dict[str, dict[str, Any]] = {}
+    for event in sorted(recorded, key=lambda e: e["seq"]):
         data, type = event["data"], event["type"]
-        if type in ("activity.completed", "activity.compensated") and event.get("node_id"):
-            outputs.setdefault(event["node_id"], []).append(data.get("output") or {})
+        at = f"{event.get('token_id')}|{event.get('node_id')}"
+        if type == "context.written" and event.get("node_id") and "written" in data:
+            writes.setdefault(at, {})[data.get("context_name")] = data["written"]
+        elif type in ("activity.completed", "activity.compensated") and event.get("node_id"):
+            written = writes.pop(at, None)
+            written = written if type == "activity.completed" else None
+            output = data.get("output") or {}
+            outputs.setdefault(event["node_id"], []).append(
+                {**output, "_context_writes": written} if written and isinstance(output, dict) else output)
         elif type == "tool.invoked":
             invoked[data.get("call_id")] = event
         elif type in ("tool.completed", "tool.failed"):

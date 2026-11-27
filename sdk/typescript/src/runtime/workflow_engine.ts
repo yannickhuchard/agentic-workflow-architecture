@@ -1199,7 +1199,9 @@ export class WorkflowEngine {
                 } else {
                     next = this.contextManager.write(context.id, value, this.now());
                 }
-                written.push({ context_id: context.id, context_name: context.name, sync_pattern: context.sync_pattern, access_mode: binding.access_mode, value_hash: hash_payload(next) });
+                // What was written is journalled as a payload (22.3, 9.4), so that a replay can write it again (20.1)
+                const payload = this.journal.payload(value);
+                written.push({ context_id: context.id, context_name: context.name, sync_pattern: context.sync_pattern, access_mode: binding.access_mode, value_hash: hash_payload(next), ...(payload !== undefined ? { written: payload } : {}) });
             }
         } catch (error) {
             this.contextManager.replace(before, before_times);              // all of an activity's writes, or none

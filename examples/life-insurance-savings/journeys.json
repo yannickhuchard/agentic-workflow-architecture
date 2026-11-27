@@ -10783,7 +10783,14 @@
           "context_name": "employee_profile",
           "sync_pattern": "shared_state",
           "access_mode": "write",
-          "value_hash": "9efcdde873344d2ec4284c8cc565718ea81518c0f018e892c69258c585fd8500"
+          "value_hash": "9efcdde873344d2ec4284c8cc565718ea81518c0f018e892c69258c585fd8500",
+          "written": {
+           "first_name": "Léa",
+           "preferred_language": "en",
+           "age": 34,
+           "retirement_age": 65,
+           "tax_residence": "LU"
+          }
          }
         },
         {
@@ -27222,7 +27229,19 @@
           "context_name": "employee_profile",
           "sync_pattern": "shared_state",
           "access_mode": "write",
-          "value_hash": "79de6577f058bf4cd21a72a76ade155c0272f2114ee8016c8d52449582e5618e"
+          "value_hash": "79de6577f058bf4cd21a72a76ade155c0272f2114ee8016c8d52449582e5618e",
+          "written": {
+           "first_name": "Léa",
+           "preferred_language": "en",
+           "age": 34,
+           "retirement_age": 65,
+           "tax_residence": "LU",
+           "risk_profile": "balanced",
+           "max_sri": 4,
+           "horizon_years": 31,
+           "sustainability_preference": "esg_preferred",
+           "monthly_contribution_eur": 375
+          }
          }
         },
         {
@@ -32298,7 +32317,14 @@
           "context_name": "employee_profile",
           "sync_pattern": "shared_state",
           "access_mode": "write",
-          "value_hash": "a26ed15869e22d8655e6c40a68b355072eaa7a5e7f2208884972e3ee8b4006d4"
+          "value_hash": "a26ed15869e22d8655e6c40a68b355072eaa7a5e7f2208884972e3ee8b4006d4",
+          "written": {
+           "first_name": "Tom",
+           "preferred_language": "en",
+           "age": 41,
+           "retirement_age": 65,
+           "tax_residence": "LU"
+          }
          }
         },
         {
@@ -49183,7 +49209,19 @@
           "context_name": "employee_profile",
           "sync_pattern": "shared_state",
           "access_mode": "write",
-          "value_hash": "76fe2d27fcbd9c00984b92ffeb4678ee56499e11b100e1be16eda04f39d077d3"
+          "value_hash": "76fe2d27fcbd9c00984b92ffeb4678ee56499e11b100e1be16eda04f39d077d3",
+          "written": {
+           "first_name": "Tom",
+           "preferred_language": "en",
+           "age": 41,
+           "retirement_age": 65,
+           "tax_residence": "LU",
+           "risk_profile": "balanced",
+           "max_sri": 4,
+           "horizon_years": 24,
+           "sustainability_preference": "esg_preferred",
+           "monthly_contribution_eur": 250
+          }
          }
         },
         {
@@ -53504,7 +53542,14 @@
           "context_name": "employee_profile",
           "sync_pattern": "shared_state",
           "access_mode": "write",
-          "value_hash": "63c0314a012eeb72b9d120a0bbaf4530f2dd4cfad7fbf794539987458f98cc48"
+          "value_hash": "63c0314a012eeb72b9d120a0bbaf4530f2dd4cfad7fbf794539987458f98cc48",
+          "written": {
+           "first_name": "Ana",
+           "preferred_language": "en",
+           "age": 38,
+           "retirement_age": 65,
+           "tax_residence": "FR"
+          }
          }
         },
         {
@@ -69540,7 +69585,19 @@
           "context_name": "employee_profile",
           "sync_pattern": "shared_state",
           "access_mode": "write",
-          "value_hash": "7f27c76468322b465360982a5a365a419c6b1f3bfc01e240145b133f5f8e4be0"
+          "value_hash": "7f27c76468322b465360982a5a365a419c6b1f3bfc01e240145b133f5f8e4be0",
+          "written": {
+           "first_name": "Ana",
+           "preferred_language": "en",
+           "age": 38,
+           "retirement_age": 65,
+           "tax_residence": "FR",
+           "risk_profile": "balanced",
+           "max_sri": 4,
+           "horizon_years": 27,
+           "sustainability_preference": "esg_preferred",
+           "monthly_contribution_eur": 375
+          }
          }
         },
         {
@@ -73854,7 +73911,14 @@
           "context_name": "employee_profile",
           "sync_pattern": "shared_state",
           "access_mode": "write",
-          "value_hash": "6b8ba1784c2d557090a03cae40a4b5e8fec5ed6c93f1ba3aab4804d177c5296f"
+          "value_hash": "6b8ba1784c2d557090a03cae40a4b5e8fec5ed6c93f1ba3aab4804d177c5296f",
+          "written": {
+           "first_name": "Sara",
+           "preferred_language": "en",
+           "age": 45,
+           "retirement_age": 65,
+           "tax_residence": "LU"
+          }
          }
         },
         {
@@ -90180,7 +90244,19 @@
           "context_name": "employee_profile",
           "sync_pattern": "shared_state",
           "access_mode": "write",
-          "value_hash": "f0c7d249ab5a2158104910ab34c25a046198e8775ae0c85cd6763d9ac1070fa6"
+          "value_hash": "f0c7d249ab5a2158104910ab34c25a046198e8775ae0c85cd6763d9ac1070fa6",
+          "written": {
+           "first_name": "Sara",
+           "preferred_language": "en",
+           "age": 45,
+           "retirement_age": 65,
+           "tax_residence": "LU",
+           "risk_profile": "moderate",
+           "max_sri": 3,
+           "horizon_years": 20,
+           "sustainability_preference": "esg_preferred",
+           "monthly_contribution_eur": 375
+          }
          }
         },
         {
@@ -92964,7 +93040,14 @@
           "context_name": "employee_profile",
           "sync_pattern": "shared_state",
           "access_mode": "write",
-          "value_hash": "3ad6f89fdcfb6fcc072f83ce697e2bcc8e2f656792e4aa238c6e27ad03c21b36"
+          "value_hash": "3ad6f89fdcfb6fcc072f83ce697e2bcc8e2f656792e4aa238c6e27ad03c21b36",
+          "written": {
+           "first_name": "Marc",
+           "preferred_language": "en",
+           "age": 29,
+           "retirement_age": 65,
+           "tax_residence": "LU"
+          }
          }
         },
         {
@@ -100196,7 +100279,14 @@
           "context_name": "employee_profile",
           "sync_pattern": "shared_state",
           "access_mode": "write",
-          "value_hash": "5cec19a044fb0ee7802050799a3ae4ca386a7b2906fe4bc7e9ffcdea3e55c0e2"
+          "value_hash": "5cec19a044fb0ee7802050799a3ae4ca386a7b2906fe4bc7e9ffcdea3e55c0e2",
+          "written": {
+           "first_name": "Nina",
+           "preferred_language": "en",
+           "age": 27,
+           "retirement_age": 65,
+           "tax_residence": "LU"
+          }
          }
         },
         {
@@ -104314,7 +104404,14 @@
           "context_name": "employee_profile",
           "sync_pattern": "shared_state",
           "access_mode": "write",
-          "value_hash": "1ff0d18595ff17453c69e4fd151635b642c0b3bef0d846a37de3cb592cded614"
+          "value_hash": "1ff0d18595ff17453c69e4fd151635b642c0b3bef0d846a37de3cb592cded614",
+          "written": {
+           "first_name": "Paul",
+           "preferred_language": "en",
+           "age": 31,
+           "retirement_age": 65,
+           "tax_residence": "LU"
+          }
          }
         },
         {
@@ -120515,7 +120612,19 @@
           "context_name": "employee_profile",
           "sync_pattern": "shared_state",
           "access_mode": "write",
-          "value_hash": "0542fa0f1da2ce0b18171dc4bb752d8119a2312d431f8a5390b67dcb4c49122d"
+          "value_hash": "0542fa0f1da2ce0b18171dc4bb752d8119a2312d431f8a5390b67dcb4c49122d",
+          "written": {
+           "first_name": "Paul",
+           "preferred_language": "en",
+           "age": 31,
+           "retirement_age": 65,
+           "tax_residence": "LU",
+           "risk_profile": "dynamic",
+           "max_sri": 5,
+           "horizon_years": 34,
+           "sustainability_preference": "climate_focus",
+           "monthly_contribution_eur": 300
+          }
          }
         },
         {
@@ -124832,7 +124941,14 @@
           "context_name": "employee_profile",
           "sync_pattern": "shared_state",
           "access_mode": "write",
-          "value_hash": "2dc0cce752fb6b0973e6a00cccc9fc334db218cc0c2be0d78f235c1629aa6e92"
+          "value_hash": "2dc0cce752fb6b0973e6a00cccc9fc334db218cc0c2be0d78f235c1629aa6e92",
+          "written": {
+           "first_name": "Eva",
+           "preferred_language": "en",
+           "age": 56,
+           "retirement_age": 63,
+           "tax_residence": "LU"
+          }
          }
         },
         {
@@ -139835,7 +139951,19 @@
           "context_name": "employee_profile",
           "sync_pattern": "shared_state",
           "access_mode": "write",
-          "value_hash": "064494d39a6bacc9e85fbdb980696e2c8b0d8874f4a092fec2240e04597cb7bc"
+          "value_hash": "064494d39a6bacc9e85fbdb980696e2c8b0d8874f4a092fec2240e04597cb7bc",
+          "written": {
+           "first_name": "Eva",
+           "preferred_language": "en",
+           "age": 56,
+           "retirement_age": 63,
+           "tax_residence": "LU",
+           "risk_profile": "balanced",
+           "max_sri": 4,
+           "horizon_years": 7,
+           "sustainability_preference": "esg_preferred",
+           "monthly_contribution_eur": 375
+          }
          }
         },
         {

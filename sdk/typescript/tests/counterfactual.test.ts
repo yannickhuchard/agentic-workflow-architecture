@@ -164,6 +164,36 @@ describe('Counterfactual replay', () => {
         expect(report.same_path).toBe(true);
     });
 
+    it('restores what recorded activities wrote to contexts, so an activity that reads them runs as recorded', async () => {
+        const profile = { id: uuidv4(), name: 'customer_profile', type: 'data' as const, sync_pattern: 'shared_state' as const };
+        const register = activity('Register', { context_bindings: [{ context_id: profile.id, access_mode: 'write' as const }] });
+        const verify = activity('Verify', { actor_type: 'ai_agent', context_bindings: [{ context_id: profile.id, access_mode: 'read' as const }] });
+        const wf = workflow([register, verify], [edge(register, verify)], { contexts: [profile] as Workflow['contexts'] });
+        const given: unknown[] = [];
+        const actor = {
+            execute: async (a: { name: string }, inputs: Record<string, unknown>) => {
+                if (a.name === 'Register') return { customer_id: 'C-1', _context_writes: { customer_profile: { name: 'Lena', segment: 'household' } } };
+                given.push(inputs._contexts);
+                return { output: { documents_valid: true }, usage: { input_tokens: 1, output_tokens: 1 } };
+            },
+        };
+        const engine = new WorkflowEngine(wf, { actors: { application: actor, ai_agent: actor }, ...quiet });
+        await engine.start({});
+        expect(await engine.run()).toBe('completed');
+        const events = await engine.getEvents();
+        expect(events.find(e => e.type === 'context.written')?.data.written).toEqual({ name: 'Lena', segment: 'household' });
+
+        const recorded = await counterfactual_replay(wf, events, { ai: 'recorded' });
+        expect(recorded.status, recorded.report.regressions.join('; ')).toBe('completed');
+        expect(recorded.report.same_path && recorded.report.regressions.length === 0 && recorded.report.nodes.every(n => n.verdict === 'same')).toBe(true);
+        expect(recorded.events.find(e => e.type === 'context.read')?.data.contexts).toMatchObject([{ context_name: 'customer_profile', present: true }]);
+
+        // With live AI, the agent that runs again is given the context the recorded application wrote
+        const live = await counterfactual_replay(wf, events, { ai: 'live', engine: { ...quiet, actors: { ai_agent: actor } } });
+        expect(live.status).toBe('completed');
+        expect(given.at(-1)).toEqual({ customer_profile: { name: 'Lena', segment: 'household' } });
+    });
+
     it('refuses a journal that does not hold the outputs', async () => {
         const a = activity('A');
         const engine = new WorkflowEngine(workflow([a], []), { ...scripted({ A: { secret: 1 } }), ...quiet, journal_payloads: 'hash' });

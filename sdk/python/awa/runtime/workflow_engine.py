@@ -1590,10 +1590,13 @@ class WorkflowEngine:
                     after = whole
                 else:
                     after = self._context_manager.write(context.id, value, now)
+                # What was written is journalled as a payload (22.3, 9.4), so that a replay can write it again (20.1)
+                kept = self._journal.payload_mode != "none"
                 written.append({
                     "context_id": str(context.id), "context_name": context.name,
                     "sync_pattern": context.sync_pattern.value, "access_mode": binding.access_mode.value,
                     "value_hash": hash_payload(after),
+                    **({"written": self._journal.payload(copy.deepcopy(value))} if kept else {}),
                 })
         except Exception as error:
             self._context_manager.replace(before, before_times)  # all of an activity's writes, or none

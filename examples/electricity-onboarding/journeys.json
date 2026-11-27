@@ -5131,7 +5131,21 @@
           "context_name": "customer_profile",
           "sync_pattern": "shared_state",
           "access_mode": "write",
-          "value_hash": "a75000a9f84b2ab590030315f6d5f0acbb03753780ae86e3ba42118f21740a8f"
+          "value_hash": "a75000a9f84b2ab590030315f6d5f0acbb03753780ae86e3ba42118f21740a8f",
+          "written": {
+           "first_name": "Lena",
+           "last_name": "Marsh",
+           "supply_postcode": "40217",
+           "supply_city": "Riverton",
+           "annual_consumption_kwh": 3200,
+           "consumption_basis": "estimate",
+           "electricity_source": "renewable_100",
+           "plan_preference": "fixed_12",
+           "has_generation": false,
+           "ev_charger": false,
+           "heat_pump": false,
+           "preferred_channel": "email"
+          }
          }
         },
         {
@@ -10651,7 +10665,23 @@
           "context_name": "customer_profile",
           "sync_pattern": "shared_state",
           "access_mode": "write",
-          "value_hash": "21c34772a6fa2b4a9f67f1840841ca2f9a731a5997c09bb38cac11458ce155c9"
+          "value_hash": "21c34772a6fa2b4a9f67f1840841ca2f9a731a5997c09bb38cac11458ce155c9",
+          "written": {
+           "first_name": "Tomás",
+           "last_name": "Reyes",
+           "supply_postcode": "41893",
+           "supply_city": "Ashford",
+           "annual_consumption_kwh": 4100,
+           "consumption_basis": "smart_meter",
+           "electricity_source": "local_community",
+           "plan_preference": "prosumer",
+           "has_generation": true,
+           "generation_technology": "solar",
+           "generation_capacity_kw": 6.2,
+           "ev_charger": true,
+           "heat_pump": false,
+           "preferred_channel": "email"
+          }
          }
         },
         {
@@ -19131,7 +19161,23 @@
           "context_name": "customer_profile",
           "sync_pattern": "shared_state",
           "access_mode": "write",
-          "value_hash": "dd2125de55a29fa5d1c31a34aba83363ad3fa3b163d4a416dcbef38b9420dd2b"
+          "value_hash": "dd2125de55a29fa5d1c31a34aba83363ad3fa3b163d4a416dcbef38b9420dd2b",
+          "written": {
+           "first_name": "Ines",
+           "last_name": "Kowal",
+           "supply_postcode": "52011",
+           "supply_city": "Eastmere",
+           "annual_consumption_kwh": 2700,
+           "consumption_basis": "smart_meter",
+           "electricity_source": "local_community",
+           "plan_preference": "time_of_use",
+           "has_generation": true,
+           "generation_technology": "wind",
+           "generation_capacity_kw": 2.5,
+           "ev_charger": false,
+           "heat_pump": true,
+           "preferred_channel": "email"
+          }
          }
         },
         {
@@ -26602,7 +26648,23 @@
           "context_name": "customer_profile",
           "sync_pattern": "shared_state",
           "access_mode": "write",
-          "value_hash": "4a9c8025c3c82c2c10aac176f6271e8f838447488f0293ba40925274d9b1dc49"
+          "value_hash": "4a9c8025c3c82c2c10aac176f6271e8f838447488f0293ba40925274d9b1dc49",
+          "written": {
+           "first_name": "Rowan",
+           "last_name": "Aldridge",
+           "supply_postcode": "63320",
+           "supply_city": "Fenby",
+           "annual_consumption_kwh": 6800,
+           "consumption_basis": "estimate",
+           "electricity_source": "low_carbon_mix",
+           "plan_preference": "prosumer",
+           "has_generation": true,
+           "generation_technology": "heat_and_power",
+           "generation_capacity_kw": 7.5,
+           "ev_charger": false,
+           "heat_pump": false,
+           "preferred_channel": "email"
+          }
          }
         },
         {
@@ -34490,7 +34552,21 @@
           "context_name": "customer_profile",
           "sync_pattern": "shared_state",
           "access_mode": "write",
-          "value_hash": "9711b4247f57f7e47a1b496d3912812f14ce9fb5bbceb9c002dd9ddd5acaf6ec"
+          "value_hash": "9711b4247f57f7e47a1b496d3912812f14ce9fb5bbceb9c002dd9ddd5acaf6ec",
+          "written": {
+           "first_name": "Joaquim",
+           "last_name": "Ferreira",
+           "supply_postcode": "30115",
+           "supply_city": "Portwell",
+           "annual_consumption_kwh": 2400,
+           "consumption_basis": "estimate",
+           "electricity_source": "low_carbon_mix",
+           "plan_preference": "variable",
+           "has_generation": false,
+           "ev_charger": false,
+           "heat_pump": false,
+           "preferred_channel": "email"
+          }
          }
         },
         {
@@ -40632,7 +40708,21 @@
           "context_name": "customer_profile",
           "sync_pattern": "shared_state",
           "access_mode": "write",
-          "value_hash": "f117a3ec76149a1a288b613f8ba6c5991d830a32a0965aebe86bba6d34ad82ee"
+          "value_hash": "f117a3ec76149a1a288b613f8ba6c5991d830a32a0965aebe86bba6d34ad82ee",
+          "written": {
+           "first_name": "Priya",
+           "last_name": "Raman",
+           "supply_postcode": "22740",
+           "supply_city": "Brookfield",
+           "annual_consumption_kwh": 2900,
+           "consumption_basis": "estimate",
+           "electricity_source": "standard_mix",
+           "plan_preference": "fixed_12",
+           "has_generation": false,
+           "ev_charger": false,
+           "heat_pump": false,
+           "preferred_channel": "email"
+          }
          }
         },
         {
@@ -46060,7 +46150,21 @@
           "context_name": "customer_profile",
           "sync_pattern": "shared_state",
           "access_mode": "write",
-          "value_hash": "d62511a2173dda13fe5e0e5645e52915fe9096b81e8c550ea145da3696259503"
+          "value_hash": "d62511a2173dda13fe5e0e5645e52915fe9096b81e8c550ea145da3696259503",
+          "written": {
+           "first_name": "Daniel",
+           "last_name": "Brooks",
+           "supply_postcode": "22745",
+           "supply_city": "Brookfield",
+           "annual_consumption_kwh": 3500,
+           "consumption_basis": "estimate",
+           "electricity_source": "standard_mix",
+           "plan_preference": "variable",
+           "has_generation": false,
+           "ev_charger": false,
+           "heat_pump": false,
+           "preferred_channel": "email"
+          }
          }
         },
         {
@@ -48798,7 +48902,21 @@
           "context_name": "customer_profile",
           "sync_pattern": "shared_state",
           "access_mode": "write",
-          "value_hash": "963973d6425b8dc4aed44c2f6dbb6cf9061689757a2f141923b7d3ce541ce2bb"
+          "value_hash": "963973d6425b8dc4aed44c2f6dbb6cf9061689757a2f141923b7d3ce541ce2bb",
+          "written": {
+           "first_name": "Sofia",
+           "last_name": "Lind",
+           "supply_postcode": "18250",
+           "supply_city": "Saltmarsh",
+           "annual_consumption_kwh": 1900,
+           "consumption_basis": "smart_meter",
+           "electricity_source": "renewable_100",
+           "plan_preference": "fixed_12",
+           "has_generation": false,
+           "ev_charger": false,
+           "heat_pump": false,
+           "preferred_channel": "email"
+          }
          }
         },
         {

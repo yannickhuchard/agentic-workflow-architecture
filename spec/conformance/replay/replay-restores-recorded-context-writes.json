@@ -1,0 +1,102 @@
+{
+  "id": "replay-restores-recorded-context-writes",
+  "level": "replay",
+  "spec": "20.1",
+  "description": "What a recorded activity wrote to a context is journalled with its result and written again in the replay, so an activity that requires the context runs as recorded: same status, same path, every node the same.",
+  "workflow": {
+    "id": "83edf2c7-be25-5894-a2e5-107c7b00c276",
+    "name": "replay-restores-recorded-context-writes",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "ae9f511a-19e8-5967-a1dc-aed60ece3ad4",
+        "name": "Collect",
+        "role_id": "77f684e8-990a-56c3-9426-058dbfb36ca5",
+        "actor_type": "application",
+        "context_bindings": [
+          {
+            "context_id": "6aad8c2f-48d5-595a-b339-e86e583012b1",
+            "access_mode": "write"
+          }
+        ]
+      },
+      {
+        "id": "e291843b-fe39-54c7-8737-354920e4a3db",
+        "name": "Assess",
+        "role_id": "77f684e8-990a-56c3-9426-058dbfb36ca5",
+        "actor_type": "ai_agent",
+        "context_bindings": [
+          {
+            "context_id": "6aad8c2f-48d5-595a-b339-e86e583012b1",
+            "access_mode": "read"
+          }
+        ]
+      },
+      {
+        "id": "460bbd8d-a32e-5cc7-9d3e-398067f7a821",
+        "name": "Approve",
+        "role_id": "77f684e8-990a-56c3-9426-058dbfb36ca5",
+        "actor_type": "application"
+      }
+    ],
+    "edges": [
+      {
+        "id": "4aa6fa9b-02c4-5d46-b6aa-1ebea91ae8b1",
+        "source_id": "ae9f511a-19e8-5967-a1dc-aed60ece3ad4",
+        "target_id": "e291843b-fe39-54c7-8737-354920e4a3db"
+      },
+      {
+        "id": "692682b3-d28b-5994-8193-2d13ce8ced92",
+        "source_id": "e291843b-fe39-54c7-8737-354920e4a3db",
+        "target_id": "460bbd8d-a32e-5cc7-9d3e-398067f7a821"
+      }
+    ],
+    "contexts": [
+      {
+        "id": "6aad8c2f-48d5-595a-b339-e86e583012b1",
+        "name": "Profile",
+        "type": "data",
+        "sync_pattern": "shared_state"
+      }
+    ]
+  },
+  "input": {
+    "claim": 1
+  },
+  "actors": {
+    "Collect": {
+      "output": {
+        "documents": 3
+      },
+      "contexts": {
+        "Profile": {
+          "segment": "household"
+        }
+      }
+    },
+    "Assess": {
+      "output": {
+        "score": 7
+      }
+    },
+    "Approve": {
+      "output": {
+        "approved": true
+      }
+    }
+  },
+  "ai": "recorded",
+  "expect": {
+    "baseline_status": "completed",
+    "candidate_status": "completed",
+    "same_path": true,
+    "regressions": 0,
+    "verdicts": {
+      "Collect": "same",
+      "Assess": "same",
+      "Approve": "same"
+    },
+    "unrecorded": 0
+  }
+}

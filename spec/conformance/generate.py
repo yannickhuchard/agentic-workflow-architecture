@@ -966,6 +966,17 @@ def replay_cases() -> list[dict]:
          expect={"baseline_status": "completed", "candidate_status": "completed", "same_path": True, "regressions": 0,
                  "verdicts": {"Collect": "same", "Assess": "same", "Approve": "same"}, "unrecorded": 0})
 
+    b = Case("replay-restores-recorded-context-writes", "replay", "20.1", "")
+    profile = {"id": b.u("context-Profile"), "name": "Profile", "type": "data", "sync_pattern": "shared_state"}
+    b.contexts = [profile]
+    b.act("Collect", context_bindings=[{"context_id": profile["id"], "access_mode": "write"}])
+    b.act("Assess", "ai_agent", context_bindings=[{"context_id": profile["id"], "access_mode": "read"}]).act("Approve")
+    b.edge("Collect", "Assess").edge("Assess", "Approve")
+    b.actors = {**world, "Collect": {"output": {"documents": 3}, "contexts": {"Profile": {"segment": "household"}}}}
+    emit(b.id, "20.1", "What a recorded activity wrote to a context is journalled with its result and written again in the replay, so an activity that requires the context runs as recorded: same status, same path, every node the same.", b,
+         expect={"baseline_status": "completed", "candidate_status": "completed", "same_path": True, "regressions": 0,
+                 "verdicts": {"Collect": "same", "Assess": "same", "Approve": "same"}, "unrecorded": 0})
+
     b = flow("replay-tightened-contract-regresses"); b.actors = world
     cand = flow(b.id); cand.activities[1]["outcome_contract"] = {"postconditions": [{"name": "High confidence", "expression": "score >= 9"}], "on_violation": "fail"}
     emit(b.id, "20.3", "A contract tightened in the candidate is tested against the recorded AI output, with no model at all. The node that no longer passes is a regression, and so is the run.", b,

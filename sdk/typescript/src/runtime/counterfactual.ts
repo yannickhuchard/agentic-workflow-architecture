@@ -256,10 +256,19 @@ export async function counterfactual_replay(
     const unrecorded: string[] = [];
 
     // --- the recorded world ----------------------------------------------
+    // A result is held with what the activity wrote to contexts (22.3): the writes journalled before it completed are given back with it
     const outputs = new Map<string, Record<string, unknown>[]>();
-    for (const event of recorded) {
+    const writes = new Map<string, Record<string, unknown>>();
+    for (const event of [...recorded].sort((a, b) => a.seq - b.seq)) {
+        const at = `${event.token_id}|${event.node_id}`;
+        if (event.type === 'context.written' && event.node_id && event.data.written !== undefined) {
+            writes.set(at, { ...(writes.get(at) || {}), [event.data.context_name as string]: event.data.written });
+        }
         if ((event.type === 'activity.completed' || event.type === 'activity.compensated') && event.node_id) {
-            outputs.set(event.node_id, [...(outputs.get(event.node_id) || []), (event.data.output || {}) as Record<string, unknown>]);
+            const written = event.type === 'activity.completed' ? writes.get(at) : undefined;
+            writes.delete(at);
+            const output = (event.data.output || {}) as Record<string, unknown>;
+            outputs.set(event.node_id, [...(outputs.get(event.node_id) || []), written && typeof output === 'object' && !Array.isArray(output) ? { ...output, _context_writes: written } : output]);
         }
     }
     const tool_results = new Map<string, { ok: boolean; status?: unknown; result?: unknown; error?: string }[]>();
