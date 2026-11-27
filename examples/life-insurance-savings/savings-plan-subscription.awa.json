@@ -218,11 +218,11 @@
       "id": "2534910f-c442-5d68-a4a0-0a4ad090c7d0",
       "name": "Cooling-off period",
       "event_type": "message",
-      "description": "The 30 days in which the employee may cancel. A cancellation is the journey's exit policy.cancellation_requested: the host withdraws this run and compensation undoes the issue, the investment and the deduction. At the deadline, or when the policy administration closes the period, the policy is in force.",
+      "description": "The 30 days in which the employee may cancel. A cancellation is the journey's exit policy.cancellation_requested: the host withdraws this run and compensation undoes the issue, the investment and the deduction. The policy administration closes the period once the 30 days have passed; if it has not after 35 days, the run moves on all the same.",
       "event_definition": {
         "name": "cooling_off.ended",
         "correlation_key": "enrolment_id",
-        "timeout": "P30D",
+        "timeout": "P35D",
         "timeout_edge_id": "3a67da7d-7765-53e7-8682-516d003c4e7d"
       }
     },
@@ -1400,13 +1400,13 @@
       "id": "f2ba0a20-993f-50bb-9688-9e73151cb04d",
       "source_id": "2534910f-c442-5d68-a4a0-0a4ad090c7d0",
       "target_id": "7c9cf587-2e49-5ce5-a4c4-5bb4e68c860a",
-      "label": "period closed"
+      "label": "30 days without a cancellation"
     },
     {
       "id": "3a67da7d-7765-53e7-8682-516d003c4e7d",
       "source_id": "2534910f-c442-5d68-a4a0-0a4ad090c7d0",
       "target_id": "7c9cf587-2e49-5ce5-a4c4-5bb4e68c860a",
-      "label": "30 days without a cancellation"
+      "label": "no word after 35 days"
     },
     {
       "id": "b5493b17-3329-576f-ae28-8f18c44517ae",

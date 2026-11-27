@@ -449,7 +449,7 @@ The host takes these in (specification 18), from a webhook, a queue or the HTTP 
 | `subscription.submitted` | HR portal | `documents` (`[{type, file_id}]`), `self_certification` (`tax_residences: [{country, tin}]`, `us_person`), `beneficiary_clause`, `monthly_contribution_eur`, `payroll_mandate_signed` | 14 days |
 | `contract.signed` | E-signature service | `contract_signed: true`, `envelope_id` | 14 days |
 | `payroll.contribution_paid` | Kestrel payroll, each month | `period` (YYYY-MM), `amount_eur` (a top-up included) | the first premium (45 days, then the run fails and compensation undoes the issue), then each month's contribution (40 days, then HR is told) |
-| `cooling_off.ended` | Policy administration, optional | none | the policy is in force; at 30 days it is in force anyway |
+| `cooling_off.ended` | Policy administration, once the 30 days have passed | none | the policy is in force; without it, after 35 days all the same |
 | `policy.cancellation_requested` | HR portal, within the 30 days | `cancellation_reason` | the journey's exit: the host withdraws the runs, and compensation refunds and cancels |
 | `self_service.requested` | HR portal (self-service) | `request_type` (`switch` with `new_allocation`, or `top_up` with `top_up_eur`) | starts a Self-Service Change |
 | `tax_year.review_due` | The insurer's calendar, in November | `tax_year`, `months_remaining`, `tax_review_due: true` | starts Year-End Tax |

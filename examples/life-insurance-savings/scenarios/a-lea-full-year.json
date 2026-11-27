@@ -40,7 +40,7 @@
     { "at": "2026-01-19T09:15:00Z", "say": "The e-signature service reports Léa's signed contract", "publish": "contract.signed", "source": "/e-signature", "data": { "contract_signed": true, "envelope_id": "ENV-26001" } },
     { "at": "2026-01-27T06:00:00Z", "monthly": 12, "say": "Kestrel's payroll pays Léa's contribution for {{period}}", "publish": "payroll.contribution_paid", "source": "/kestrel-payroll",
       "data": { "period": "{{period}}", "amount_eur": 375 } },
-    { "at": "2026-02-26T12:00:00Z", "say": "Thirty days pass without a cancellation", "tick": true },
+    {"at": "2026-02-27T05:00:00Z", "say": "The policy administration closes the 30 days to cancel", "publish": "cooling_off.ended", "source": "/policy-administration/calendar", "data": {"cooling_off_closed": true}},
     { "at": "2026-05-12T18:30:00Z", "say": "Léa moves a fifth of her savings to the climate fund in self-service", "publish": "self_service.requested", "source": "/hr-portal/self-service",
       "data": { "request_type": "switch",
         "new_allocation": [{ "fund_id": "VL-BOND-GREEN", "percent": 30 }, { "fund_id": "VL-MIX-BAL", "percent": 20 }, { "fund_id": "VL-EQ-WORLD-ESG", "percent": 30 }, { "fund_id": "VL-EQ-CLIMATE", "percent": 20 }] } },

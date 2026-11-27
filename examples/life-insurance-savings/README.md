@@ -24,6 +24,7 @@ Eight scenarios run it to their end with scripted agents and the reference adapt
 | `scenarios/actors.json` | What each scripted actor does: the tools it calls, the time it takes, what it returns |
 | `scenarios/play.mjs` | Plays a scenario on a host, or every scenario on one calendar; used by `make-runs.mjs`, the demonstration and the TypeScript tests (the Python tests read the same files) |
 | `make-runs.mjs` | Plays every scenario and writes `runs/`, `journeys.json`, `evidence/` and `bpmn/`, the same bytes every time |
+| `simulation.json`, `simulation-events.json` | What each activity returns, and the events that arrive, for a run in simulation |
 | `runs/*.journal.jsonl` | The journal of every run, child runs included: 43 runs |
 | `journeys.json` | Every journey with its runs, in the form `awa journey export` writes |
 | `evidence/evidence-report.{json,md,html}` | The evidence report of all of it (specification section 32) |
@@ -142,7 +143,7 @@ The workflows are joined by business events, never by calling one another, excep
 | Feature | Where |
 |---|---|
 | A journey over seven workflows (19) | Nine stages with owners and maximum durations, triggers that start workflows on events, goals, four exits, 30 touchpoints, 21 artefacts, mood rules with a measured satisfaction |
-| Business events, correlated waits with deadlines (18) | `invitation.opened` (7 days, a reminder, 7 more, a last reminder, 14 more), `questionnaire.submitted`, `investments.chosen`, `contract.signed`, the monthly `payroll.contribution_paid`, the 30-day `cooling_off.ended`, `savings_year.closed` from one workflow to another |
+| Business events, correlated waits with deadlines (18) | `invitation.opened` (7 days, a reminder, 7 more, a last reminder, 14 more), `questionnaire.submitted`, `investments.chosen`, `contract.signed`, the monthly `payroll.contribution_paid`, `cooling_off.ended` after the 30 days (35 at most), `savings_year.closed` from one workflow to another |
 | AI agents under outcome contracts, with escalation to a person (11) | Explain the plan (every topic covered, the risk stated, confidence of at least 0.8, else a licensed adviser); Assess demands and needs; Verify identity documents (else a compliance officer); Review beneficiary clause (shares add up to 100%, else the back-office); Warn about the risk; Write top-up proposal (the ceiling, the deadline and the tax caveat stated) |
 | Guardrails (31) | `prompt_injection` at stage `tool_result` on the identity documents the agent reads (Ana); `personal_data` redaction of what the agents write (Eva); in the deployment, `prompt_injection` on every agent's input, IBAN redaction on every agent's output, and a `deny_list` with `retry_with_feedback` that blocks any promise of a guaranteed return on unit-linked funds (Eva) |
 | Sub-workflow (24) | Run identity and AML checks: a call activity with `subworkflow` input and output mapping; its compliance tasks are completed through the parent |
@@ -188,6 +189,20 @@ The contract runs at least ten years and pays out from age 60 to 75. A cross-bor
 ## AI and the EU AI Act
 
 Under the EU AI Act, AI systems intended for the risk assessment and pricing of natural persons in life and health insurance are high-risk (Annex III, point 5(c)). This example uses no AI for pricing or underwriting: the plan is a pure savings product, with no death cover to underwrite, and its price is the plan's fixed fees. The agents explain, draft, read documents and recommend; the risk profile is a decision table, and every compliance decision (identity, screening alerts, a politically exposed person, a choice above the profile) is taken by a named person under the deployment's policy. See [docs/compliance/eu-ai-act.md](../../docs/compliance/eu-ai-act.md) for how AWA's records serve the Act's obligations.
+
+## Run it in simulation
+
+Nothing is called in simulation: each activity returns what `simulation.json` says, and the waits take the business events of `simulation-events.json`. Through a runtime directory, one event at a time, with the journey commands:
+
+```bash
+cd examples/life-insurance-savings
+awa journey add *.awa.json workplace-pension-savings.journey.json
+awa journey publish savings.invited --simulate --outputs simulation.json -d '{"enrolment_id": "ENR-26001", "plan_id": "KES-PENSION-111BIS", "tax_residence": "LU"}'
+awa journey publish invitation.opened --simulate --outputs simulation.json -d '{"enrolment_id": "ENR-26001", "invitation_opened": true}'
+awa journey show ENR-26001
+```
+
+`awa run savings-plan-subscription.awa.json --simulate --outputs simulation.json --workflows identity-aml-and-tax-residence.awa.json` runs one subscription until its first wait. The repository's tests run every workflow of the example in simulation to its end, delivering the events of `simulation-events.json`.
 
 ## Run it with the adapters
 

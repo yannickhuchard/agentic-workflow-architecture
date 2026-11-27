@@ -135,8 +135,8 @@ describe('The life insurance savings example: scenarios', () => {
         const of = (type: string, node?: string) => events.filter(e => e.type === type && (!node || e.node_name === node));
 
         // Due diligence runs as a child run of the subscription, linked both ways
-        const child = instance.runs.find(r => r.parent_run_id);
-        if (instance.runs.some(r => r.workflow_name === 'Savings Plan Subscription')) {
+        const child = instance.runs.find((r: any) => r.parent_run_id);
+        if (instance.runs.some((r: any) => r.workflow_name === 'Savings Plan Subscription')) {
             expect(child).toMatchObject({ workflow_name: 'Identity, AML and Tax Residence Checks', status: 'completed' });
             expect(bundle.runs.find(r => r.run_id === child!.run_id)!.events[0].data).toMatchObject({ depth: 1, parent: { run_id: child!.parent_run_id } });
             expect(of('subworkflow.started', 'Run identity and AML checks')).toHaveLength(1);
@@ -151,7 +151,7 @@ describe('The life insurance savings example: scenarios', () => {
         // What each story says, by name
         if (scenario.name === 'lea-full-year') {
             expect(of('activity.completed', 'Invest contribution').map(e => (e.data as any).output.premiums_paid_eur)).toEqual([750, 1125, 1500, 1875, 2250, 2625, 3000, 3375, 3750, 4125, 4500]);
-            expect(instance.events.filter(e => e.type === 'journey.stage_entered').map(e => (e.data as any).stage_name)).toEqual([
+            expect(instance.events.filter((e: any) => e.type === 'journey.stage_entered').map((e: any) => e.data.stage_name)).toEqual([
                 'Invitation', 'Discovery and advice', 'Needs and profile', 'Investments', 'Subscription', 'Cooling-off and issue', 'Saving', 'Year-end tax', 'Annual review']);
         }
         if (scenario.name === 'marc-cancels') {
@@ -261,11 +261,11 @@ describe('The live demonstration (demo/live.mjs)', () => {
             expect(told.some(l => l.event === 'tool.completed' && /issues the 2026 tax certificate/.test(l.text))).toBe(true);
             expect(result.urls.replay).toContain(`/views/replay.html?run=${encodeURIComponent(`${demo.base}/api/v1/workflows/runs/${result.run_id}`)}`);
             // A run, and its journal, over the script's routes
-            const workflow = await (await fetch(`${demo.base}/api/v1/workflows/runs/${result.run_id}/workflow`)).json();
+            const workflow = await (await fetch(`${demo.base}/api/v1/workflows/runs/${result.run_id}/workflow`)).json() as any;
             expect(workflow.name).toBe('Plan Invitation and Advice');
-            const events = await (await fetch(`${demo.base}/api/v1/workflows/runs/${result.run_id}/events`)).json();
+            const events = await (await fetch(`${demo.base}/api/v1/workflows/runs/${result.run_id}/events`)).json() as any;
             expect(events.at(-1).type).toBe('run.completed');
-            const portfolio = await (await fetch(`${demo.base}/api/v1/journeys/portfolio`)).json();
+            const portfolio = await (await fetch(`${demo.base}/api/v1/journeys/portfolio`)).json() as any;
             expect(portfolio.journeys[0].instances[0].instance.status).toBe('completed');
         } finally {
             await demo.stop();

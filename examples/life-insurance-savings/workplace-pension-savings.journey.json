@@ -847,6 +847,12 @@
       },
       {
         "on": "touchpoint",
+        "touchpoint": "cancels",
+        "change": -0.5,
+        "reason": "cancelled the plan"
+      },
+      {
+        "on": "touchpoint",
         "touchpoint": "tax-certificate",
         "change": 0.5,
         "reason": "has the certificate for the tax return"
