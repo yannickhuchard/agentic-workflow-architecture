@@ -588,6 +588,14 @@ awa('export', '-o', record);
         await page.click('#rpanel [data-ract="accepted"]'); await page.click('#rpanel [data-ract="dossier"]');
         await page.reload(); await page.waitForTimeout(1500);
         check((await page.textContent('#LR .rcard[data-rid="remind-earlier"]')).includes('accepted') && (await page.textContent('#LR .rcard[data-rid="remind-earlier"]')).includes('in the dossier'), 'Accept and Add to the dossier are kept for this viewer, after a reload');
+        // the export dialog: it makes the HTML edition here, and gives the command for the PDF and the DOCX
+        await page.click('#b-export'); await page.waitForTimeout(400);
+        check(await page.locator('#xdlg [role="dialog"]').count() === 1 && await page.evaluate(() => document.activeElement.id) === 'xd-x', 'Export dossier opens the dialog, the focus inside it');
+        await page.click('#xd-go'); await page.waitForTimeout(600);
+        const made = await page.evaluate(() => ({ html: (window.AWA_last_dossier || '').slice(0, 15), link: !!document.querySelector('#xd-link[href^="blob:"]'), cmd: document.querySelector('#xd-res code').textContent }));
+        check(made.html === '<!doctype html>' && made.link && /awa dossier --file .* --format pdf,docx/.test(made.cmd), 'the dialog makes the HTML edition as a link, and shows the command for the PDF and the DOCX');
+        await page.keyboard.press('Escape'); await page.waitForTimeout(200);
+        check(await page.locator('#xdlg').isHidden() && await page.evaluate(() => document.activeElement.id) === 'b-export', 'Escape closes the dialog and gives the focus back to its button');
         check(page.errors.length === 0, `no page errors in the tab ${page.errors.join('; ')}`);
         await page.close();
         // reduced motion: the marks are in place at once and the panel does not slide

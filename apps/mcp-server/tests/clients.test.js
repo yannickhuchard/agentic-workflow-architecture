@@ -124,7 +124,7 @@ test('the Gemini CLI extension and the MCP Bundle manifest describe this server'
 
 test('each stdio configuration starts the server and lists every tool', async () => {
     const tools = await server_tools();
-    assert.equal(tools.length, 7);
+    assert.equal(tools.length, 8);
     const plugin = { CLAUDE_PLUGIN_ROOT: PLUGIN, 'user_config.repository': '' };
     const entries = [
         ['Claude Code plugin (.mcp.json), loaded in place', json('plugins/awa-code/.mcp.json').mcpServers.awa, plugin],

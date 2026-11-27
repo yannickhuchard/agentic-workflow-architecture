@@ -64,7 +64,7 @@ nav.rail a{display:grid;grid-template-columns:30px 1fr;gap:6px;padding:7px 8px;b
 nav.rail a span:first-child{font:600 13px/1.3 var(--display);color:var(--mute)}
 nav.rail a:hover{background:var(--accent-tint);color:var(--text)}
 nav.rail a[aria-current="true"]{background:var(--accent-tint);color:var(--text);font-weight:600}
-nav.rail a[aria-current="true"] span:first-child{color:var(--accent-text)}
+nav.rail a[aria-current="true"] span:first-child{color:var(--text)}
 .progress{margin-top:20px;height:3px;border-radius:2px;background:var(--line);overflow:hidden}
 .progress i{display:block;height:100%;width:100%;background:var(--accent);transform-origin:0 50%;transform:scaleX(var(--p,0))}
 .reading{margin-top:24px;font-size:13px;color:var(--mute);line-height:1.5}
@@ -303,14 +303,14 @@ ${chart('Who does what', bars(done.map(r => ({ label: r.actor, v: r.count, text:
         const alt = `Impact against effort: ${R.map(r => `${r.rank}, ${r.kind}, impact ${r.impact}, effort ${r.effort}`).join('; ')}.`;
         const list = R.map(r => `<li><span class="no" aria-hidden="true">${r.rank}</span><div><h3><span class="vh">${r.rank}. </span>${esc(r.title)}</h3><p>${esc(r.finding)}</p><p><b style="font-weight:600;color:var(--text)">Action.</b> ${esc(r.action)}</p><p class="meta">${esc(r.kind)} · ${esc(r.stage)} · ${esc(r.owner || '')} · impact ${r.impact}, effort ${r.effort} · ${esc(METHOD[r.method] || r.method)}: ${esc(r.effect)}</p></div></li>`).join('');
         chapters.push({ id: 'recs', n: client ? '03' : '06', name: client ? 'For next time' : 'Recommendations', html: `<section class="ch" id="recs" aria-labelledby="rc-h"><p class="kicker">${client ? '03 For next time' : '06 Recommendations'}</p><h2 id="rc-h">${client ? 'What we recommend, and why' : 'What to change, in order'}</h2><p class="lead">${esc(R.length ? `${R.length} recommendation${R.length === 1 ? '' : 's'}, computed from the record by twelve rules and the journey’s options; each with its evidence, its owner and how its effect is known.` : 'No recommendation: every rule was checked and none fired.')}</p>
-<div class="recbook"><div><svg class="mini-map" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="${esc(alt)}">${s}</svg><p style="font-size:13.5px;color:var(--mute)">Mark size: customers concerned. Shape: the kind. Impact = customers concerned ÷ ${m.meta.customers} × severity; effort 1 to 3.</p></div><ol class="rlist">${list}</ol></div>${m.recommendations.empty.length && !client ? `<p style="color:var(--mute)">${esc(`No recommendation for ${m.recommendations.empty.join(', ')}: every check passed.`)}</p>` : ''}</section>` });
+<div class="recbook"><div><svg class="mini-map" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="${esc(alt)}">${s}</svg><p style="font-size:13.5px;color:var(--mute)">Mark size: customers concerned. Shape: the kind.${client ? '' : ` Impact = customers concerned ÷ ${m.meta.customers} × severity; effort 1 to 3.`}</p></div><ol class="rlist">${list}</ol></div>${m.recommendations.empty.length && !client ? `<p style="color:var(--mute)">${esc(`No recommendation for ${m.recommendations.empty.join(', ')}: every check passed.`)}</p>` : ''}</section>` });
     }
 
     // appendix
     {
         const C = m.compliance;
         const ev = C && !client ? chart('The EU AI Act and the record', '', 'The mapping is informative: it says a record is relevant to an obligation, never that the obligation is met.', [['Provision', 'What it asks for', 'Report part', 'In this record'], C.rows.map(r => [r.provision, r.asks, r.parts.join(', '), r.holds])]).replace('hidden role="region"', 'role="region"').replace('aria-expanded="false"', 'aria-expanded="true"').replace('>Show the table<', '>Hide the table<') : '';
-        const gl = m.glossary.map(t => `<div><dt>${esc(t.term)}</dt><dd>${esc(t.definition)} <span style="color:var(--mute)">${esc(t.see || '')}</span></dd></div>`).join('');
+        const gl = m.glossary.map(t => `<div><dt>${esc(t.term)}</dt><dd>${esc(t.definition)} <span style="color:var(--mute)">${esc(/^https?:/.test(t.see || '') ? t.see.replace(/^https?:\/\/(www\.)?/, '').split('/')[0] : t.see || '')}</span></dd></div>`).join('');
         chapters.push({ id: 'appendix', n: client ? '04' : '07', name: 'Appendix', html: `<section class="ch" id="appendix" aria-labelledby="ap-h"><p class="kicker">${client ? '04 Your record and these words' : '07 Appendix'}</p><h2 id="ap-h">${client ? 'How this dossier was made' : C ? 'The EU AI Act and the record' : 'Words, method and sources'}</h2>${C ? `<p class="notice"><b>Evidence, not a certification.</b> ${esc(client ? 'The organisation keeps an evidence report of the whole system; a client edition shows only your own journey.' : C.notice)}</p>` : ''}${ev}
 <h3 style="margin-top:44px">Glossary</h3><dl class="gloss">${gl}</dl>
 <h3 style="margin-top:44px">Method</h3>${m.method.map(t => `<p style="color:var(--soft);max-width:72ch">${esc(t)}</p>`).join('')}
@@ -318,6 +318,10 @@ ${chart('Who does what', bars(done.map(r => ({ label: r.actor, v: r.count, text:
     }
 
     const brandMark = T.logo ? `<img src="${esc(T.logo)}" alt="">` : `<span class="logo" aria-hidden="true">${esc(T.name[0])}</span>`;
+    if (Array.isArray(opts.sections)) {
+        const keep = id => id === 'cover' || (/^voice-/.test(id) ? opts.sections.includes('voices') : id === 'appendix' ? opts.sections.includes('appendix') || opts.sections.includes('glossary') : opts.sections.includes(id));
+        for (let i = chapters.length - 1; i >= 0; i--) if (!keep(chapters[i].id)) chapters.splice(i, 1);
+    }
     const rail = chapters.map(c => `<li><a href="#${c.id}"><span>${c.n}</span><span>${esc(c.name)}</span></a></li>`).join('');
     const script = `(() => {'use strict';
 const root = document.documentElement, mq = matchMedia('(prefers-reduced-motion: reduce)');

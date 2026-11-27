@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { registerAppResource, registerAppTool, RESOURCE_MIME_TYPE } from '@modelcontextprotocol/ext-apps/server';
-import { RELEASE, brand_module } from './sdk.js';
+import { RELEASE, brand_module, dossier_modules } from './sdk.js';
 import { LIMITS } from './limits.js';
 import * as S from './schemas.js';
 import { WIDGETS, widget_html } from './widgets.js';
@@ -299,6 +299,39 @@ export async function createMcpServer({ widget_domain = process.env.AWA_MCP_WIDG
                 : 'There is nothing to measure yet: no journey has started in what was given.';
             return text_result(sentence, ...with_brand(branded, { simulated, source, ...summary }, { awa: { view: 'dashboard', record, source, ...(args.from || args.to ? { period: { ...(args.from ? { from: args.from } : {}), ...(args.to ? { to: args.to } : {}) } } : {}) } }));
         }, { widget: 'dashboard', invoking: 'Computing the measures…', invoked: 'Measures shown' });
+
+    tool('make_dossier', 'Make the dossier of a journey',
+        'Make the dossier of a journey record as one self-contained HTML document: the customers\' stories in their own voice (every sentence citing the journal records it rests on), the journey at a glance, the work behind it, the analysis and the recommendations ranked by impact over effort, with the evidence report\'s mapping when one is given. A professional edition has every customer, the internal cost and the agents\' internals; a client edition keeps one customer\'s own story and leaves out the rest. Give a portfolio export, or use_claims_example. The document is returned as an HTML resource; nothing is stored or fetched. PDF and DOCX come from the command line: awa dossier --format pdf,docx.',
+        {
+            portfolio: S.portfolio.optional().describe('A portfolio export (the JSON written by "awa journey export").'),
+            use_claims_example: z.boolean().optional().describe('Make the dossier of the bundled fictional claims example.'),
+            options: z.record(z.string(), z.unknown()).optional().describe('The journey view\'s options: subject_name, glossary, recommendations (thresholds, wording, rules), dossier (subject, lead, say, facts, personas). Paths to other files are not read.'),
+            edition: z.enum(['professional', 'client']).optional().describe('professional (default) or client.'),
+            customer: z.string().max(200).optional().describe('With edition client: the customer, by subject key or name.'),
+            evidence: z.record(z.string(), z.unknown()).optional().describe('An evidence report (awa evidence --json), for the appendix.'),
+            brand: S.brand.optional(),
+        },
+        async args => {
+            const branded = brand_of(args.brand);
+            if (!!args.portfolio === !!args.use_claims_example) throw new DocumentError('Give a portfolio, or use_claims_example.');
+            const portfolio = args.portfolio ? require_portfolio(args.portfolio) : require_portfolio(example_portfolio());
+            if (!portfolio.journeys.some(j => j.instances.length)) throw new DocumentError('This portfolio holds no journey record yet: there is nothing to tell.');
+            const options = { ...(args.options || {}) };
+            if (options.recommendations && typeof options.recommendations === 'object' && typeof options.recommendations.replays === 'string') options.recommendations = { ...options.recommendations, replays: {} };
+            delete options.brand;
+            const { model: D, html: HTML } = dossier_modules();
+            let model;
+            try { model = D.build(portfolio, options, { edition: args.edition || 'professional', customer: args.customer, evidence: args.evidence, source: args.portfolio ? 'a portfolio given in the conversation' : 'the bundled claims example (fictional)' }); }
+            catch (error) { throw new DocumentError(`The dossier could not be made: ${error.message}`); }
+            const theme = D.theme(branded ? brand_module().read_brand(args.brand, { data_only: true }) : null);
+            const html = HTML.render(model, { theme });
+            const text = `${model.meta.title} (${model.edition} edition): ${model.personas.map(p => p.name).join(' and ')} told in their own voice (${model.stats.sentences} sentences, ${model.stats.references} journal references), ${model.recommendations.list.length} recommendation${model.recommendations.list.length === 1 ? '' : 's'}. The HTML document is attached. A person should approve it before it is issued.`;
+            return {
+                content: [{ type: 'text', text }, { type: 'resource', resource: { uri: `awa://dossier/${encodeURIComponent(model.meta.journey)}.${model.edition}.html`, mimeType: 'text/html', text: html } }],
+                structuredContent: { title: model.meta.title, edition: model.edition, personas: model.personas.map(p => p.name), sentences: model.stats.sentences, references: model.stats.references,
+                    recommendations: model.recommendations.list.map(r => ({ rank: r.rank, title: r.title, method: r.method })), bytes: Buffer.byteLength(html), ...(branded ? { brand: { name: branded.name, warnings: branded.warnings } } : {}) },
+            };
+        }, { invoking: 'Making the dossier…', invoked: 'Dossier made' });
 
     // The SDK serialises only the standard fields of a tool. ChatGPT also reads a
     // top-level securitySchemes, so the list is published from our own definitions.

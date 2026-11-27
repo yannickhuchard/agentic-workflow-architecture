@@ -515,6 +515,7 @@ function build(record, options = {}, settings = {}) {
     const term = id => (glossaryLib && glossaryLib.terms ? glossaryLib.terms.find(t => t.id === id) : null);
     const glossary = [...((options.glossary || []).filter(t => t && typeof t.term === 'string' && typeof t.definition === 'string').map(t => ({ term: t.term, definition: t.definition, see: typeof t.see === 'string' ? t.see : 'This journey' }))),
         ...['journey', 'stage', 'touchpoint', 'mood', 'run', 'outcome-contract', 'guardrail', 'separation-of-duties', 'four-eyes', 'service-level', 'compensation', 'counterfactual-replay', 'recommendation', 'impact', 'effort', 'right-first-time']
+            .filter(id => !client || ['journey', 'stage', 'touchpoint', 'mood', 'service-level', 'recommendation'].includes(id))
             .map(term).filter(Boolean).map(t => ({ term: t.term, definition: t.definition, see: t.see }))];
     const model = {
         version: 1, edition, lang: 'en',
@@ -567,7 +568,7 @@ function build(record, options = {}, settings = {}) {
             list: (client ? recsAll.filter(r => r.customers.some(x => x.key === client.key)) : recsAll).map(r => ({
                 rank: r.rank, id: r.id, title: r.title, kind: r.kind, stage: r.stage_name, owner: r.owner, rules: r.rules, trigger: r.trigger, impact: r.impact, effort: r.effort, priority: r.priority,
                 customers: client ? 1 : r.customers.length, who: client ? [client.first] : r.customers.map(x => x.first), finding: client ? clientText(r, client) : r.finding, action: r.action,
-                method: r.effect.method, effect: r.effect.text, before: r.effect.before || null, after: r.effect.after || null, origin: r.origin,
+                method: r.effect.method, effect: client ? 'We will measure its effect after the change, and tell you what we learn.' : r.effect.text, before: client ? null : r.effect.before || null, after: client ? null : r.effect.after || null, origin: r.origin,
             })),
             total: recsAll.length, rules: recResult ? recResult.rules.map(x => ({ id: x.id, name: x.name, threshold: x.threshold })) : [],
             thresholds: recResult ? recResult.thresholds : null,
@@ -592,7 +593,7 @@ function build(record, options = {}, settings = {}) {
     model.contents = contentsOf(model);
     return model;
 }
-const clientText = (r, client) => `The record of your journey is one of the reasons for this: ${r.trigger ? r.trigger.replace(/ · domain$/, '').replace(/^R\d+ · /, '') : r.rules.join(', ')}.`;
+const clientText = (r, client) => { const me = r.customers.find(x => x.key === client.key) || {}; return `This recommendation rests partly on your own journey${me.silent_days ? `: ${Math.round(me.silent_days)} days without a word from us in ${r.stage_name}` : ''}.`; };
 function complianceOf(ev, edition) {
     const S = Object.fromEntries((ev.parts || []).map(p => [p.id, p.summary || {}]));
     const line = id => {

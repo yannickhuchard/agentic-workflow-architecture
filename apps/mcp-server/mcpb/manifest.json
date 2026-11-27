@@ -34,7 +34,8 @@
     { "name": "show_journeys", "description": "Show customer journeys from a portfolio, or from journeys and workflows with events to play" },
     { "name": "simulate_journey", "description": "Play business events through customer journeys in simulation" },
     { "name": "load_claims_example", "description": "Open the bundled fictional claims example and hand out its documents" },
-    { "name": "show_dashboard", "description": "The measures of journeys and workflows: who is stuck, who is to act, outcomes, rework, waiting, cost" }
+    { "name": "show_dashboard", "description": "The measures of journeys and workflows: who is stuck, who is to act, outcomes, rework, waiting, cost" },
+    { "name": "make_dossier", "description": "The dossier of a journey as one HTML document: customers' stories in their own voice, analysis, recommendations" }
   ],
   "keywords": ["awa", "workflow", "customer-journey", "simulation", "process", "mcp"],
   "license": "Apache-2.0",

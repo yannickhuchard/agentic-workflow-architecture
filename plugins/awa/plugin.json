@@ -50,9 +50,9 @@
           "positive": [
             {
               "description": "Open the bundled example in the journey view, then its measures dashboard",
-              "prompt": "Load the AWA claims example, then show its measures dashboard. Who is stuck, and who should act?",
-              "tools_triggered": "load_claims_example, show_dashboard",
-              "expected_behavior": "Calls load_claims_example with no document: the journey view opens with three journeys (Policy Purchase, Motor Claim, Policy Renewal) and six customers in each. Then calls show_dashboard with use_claims_example true: the dashboard opens with 18 journeys started, 2 in progress and both stuck, and one row for each of the three journeys and five workflows. The answer names the two customers who are stuck, L. Petit in Reported (owner Claims intake desk) and R. Haddad in Assessed and settled (owner Claims adjusters), says the example is fictional and produced by a scripted simulation, and quotes rates with their counts (13 of 18 journeys reached the end). The embedded views need a client that supports MCP Apps; without it the structured summaries carry the same facts."
+              "prompt": "Load the AWA claims example, then show its measures dashboard. Who is stuck, and who should act? Then make its dossier.",
+              "tools_triggered": "load_claims_example, show_dashboard, make_dossier",
+              "expected_behavior": "Calls load_claims_example with no document: the journey view opens with three journeys (Policy Purchase, Motor Claim, Policy Renewal) and six customers in each. Then calls show_dashboard with use_claims_example true: the dashboard opens with 18 journeys started, 2 in progress and both stuck, and one row for each of the three journeys and five workflows. The answer names the two customers who are stuck, L. Petit in Reported (owner Claims intake desk) and R. Haddad in Assessed and settled (owner Claims adjusters), says the example is fictional and produced by a scripted simulation, and quotes rates with their counts (13 of 18 journeys reached the end). The embedded views need a client that supports MCP Apps; without it the structured summaries carry the same facts. Then calls make_dossier with use_claims_example true: one HTML document with customers' stories in their own voice, each sentence citing journal records, and the recommendations."
             },
             {
               "description": "Validate a broken workflow and report its problems in plain words",

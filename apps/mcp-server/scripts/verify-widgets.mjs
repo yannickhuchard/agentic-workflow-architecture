@@ -39,7 +39,7 @@ await server.connect(a); await client.connect(b);
 
 const tools = (await client.listTools()).tools;
 const resources = (await client.listResources()).resources;
-const EXPECTED_TOOLS = ['validate_document', 'show_workflow', 'simulate_workflow', 'show_journeys', 'simulate_journey', 'load_claims_example', 'show_dashboard'];
+const EXPECTED_TOOLS = ['validate_document', 'show_workflow', 'simulate_workflow', 'show_journeys', 'simulate_journey', 'load_claims_example', 'show_dashboard', 'make_dossier'];
 check(JSON.stringify(tools.map(t => t.name)) === JSON.stringify(EXPECTED_TOOLS), `the server lists ${EXPECTED_TOOLS.length} tools: ${tools.map(t => t.name).join(', ')}`);
 check(tools.every(t => t.annotations?.readOnlyHint === true && t.annotations.destructiveHint === false && t.annotations.openWorldHint === false), 'every tool is annotated read-only, not destructive, closed world');
 check(tools.every(t => t.inputSchema?.additionalProperties === false), 'every tool has a strict input schema');
@@ -92,6 +92,7 @@ const CALLS = {
     journeys_from_documents: ['show_journeys', journey_args],
     journeys_from_portfolio: ['show_journeys', { portfolio: exported }],
     dashboard_example: ['show_dashboard', { use_claims_example: true }],
+    dossier_example: ['make_dossier', { use_claims_example: true }],
     dashboard_branded: ['show_dashboard', { use_claims_example: true, brand: valoria_design }],
     journeys_branded: ['load_claims_example', { brand: JSON.parse(JSON.stringify(valoria_json)) }],
     run_branded: ['simulate_workflow', { workflow: settlement, simulated_outputs: settlement_outputs, let_waits_time_out: true, brand: JSON.parse(JSON.stringify(valoria_json)) }],

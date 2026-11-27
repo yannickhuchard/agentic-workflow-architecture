@@ -544,6 +544,7 @@ a.ge-r { text-decoration: underline; text-underline-offset: 2px; }
 #xdlg .df { display: flex; gap: 10px; align-items: center; justify-content: flex-end; padding: 14px 24px; border-top: 1px solid var(--line); }
 #xdlg .df p { margin: 0 auto 0 0; font-size: 13px; color: var(--mute); }
 #rpanel h3 .gw, .rtt h2 .gw { text-transform: inherit; letter-spacing: inherit; font-weight: inherit; color: inherit; font-size: inherit; }
+#xdlg .px { width: 34px; height: 34px; border-radius: var(--radius); border: 1px solid var(--line-strong); background: none; color: var(--soft); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
 #bar[hidden] { display: none; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
 </style>
@@ -601,6 +602,8 @@ a.ge-r { text-decoration: underline; text-underline-offset: 2px; }
 <script src="awa-glossary.js"></script>
 <script src="awa-kpis.js"></script>
 <script src="awa-recommendations.js"></script>
+<script src="awa-dossier.js"></script>
+<script src="awa-dossier-html.js"></script>
 <script src="journey-story-builder.js"></script>
 <script src="journey-story.js"></script>
 <script src="dashboard-sample.js"></script>
@@ -1431,6 +1434,7 @@ function setBrand(source, { data_only = false, network = true } = {}) {
     const B = window.AWA_brand; if (!B || !source) return null;
     const brand = typeof source === 'object' && source.colors && source.colors.top ? source : B.read_brand(source, { data_only });
     if (brand.invalid) { for (const w of brand.warnings) console.warn(`Brand: ${w}`); return null; }
+    lastBrand = brand;
     return B.apply(brand, { header: $('brandmark'), network });
 }
 window.AWA_set_brand = setBrand; // for a page that embeds the view
@@ -1870,10 +1874,121 @@ function gotoLevel(lv) {
     if (lv === 'story') return openStory(st.j, st.i);
     if (lv === 'run') { if (!I().runs.length) return render(); return st.level === 'story' ? openRun(Math.min(st.r, I().runs.length - 1)) : set({ level: 'run', r: Math.min(st.r, I().runs.length - 1), ic: 0 }); }
 }
-// ---------------------------------------------------------------- the export dialog: placeholder until the dossier modules load
+
+// ---------------------------------------------------------------- the export dialog (design board ExportDialog)
+// In the browser it makes the HTML edition directly, offered as a link; the PDF and the DOCX come from the command line.
+let lastBrand = null, xOpener = null, xUrl = null;
 const xdlgOpen = () => !$('xdlg').hidden;
-function xKey() { return false; }
-function openExport() { }
+const SECTIONS = [['summary', 'Summary', '1 p.'], ['glance', 'The journey at a glance', '1 p.'], ['voices', 'In their own words', '4 p.'], ['work', 'The work behind the journey', '1 p.'], ['analysis', 'Analysis', '2 p.'], ['recs', 'Recommendations', '1 p.'], ['appendix', 'Compliance and evidence', '1 p.'], ['glossary', 'Glossary, method, sources', '1 p.']];
+function openExport(from) {
+    xOpener = from || $('b-export');
+    const x = $('xdlg'), j = J(), inst = j ? j.instances : [];
+    const canBuild = !!(RECORD && window.AWA_DOSSIER && window.AWA_DOSSIER_HTML);
+    x.innerHTML = `<div class="dlg" role="dialog" aria-modal="true" aria-labelledby="xd-h" aria-describedby="xd-d">
+      <div class="dh"><h2 id="xd-h">Export the dossier</h2><span id="xd-d">one document of the journeys, the work and what to change</span><span style="flex:1"></span><button type="button" class="px" id="xd-x" aria-label="Close the dialog"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></button></div>
+      <div class="db"><div>
+        <fieldset><legend>Audience</legend><div class="xseg"><label><input type="radio" name="xaud" value="client">Client</label><label><input type="radio" name="xaud" value="professional" checked>Professional</label></div>
+          <p class="dhint" id="xd-aud">Professional: with internal cost, the agents’ internals (models, contracts, guardrails) and every customer. A client edition leaves those out and keeps one customer’s journey.</p></fieldset>
+        <fieldset><legend>Scope</legend><div class="two">
+          <label><span class="vh" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Journey</span><select id="xd-j">${S.journeys.map((jj, k) => `<option value="${k}"${k === st.j ? ' selected' : ''}>Journey: ${esc(jj.name)}</option>`).join('')}</select></label>
+          <label><span class="vh" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Customers</span><select id="xd-c"><option value="">Customers: all ${inst.length}</option>${inst.map(c => `<option value="${esc(c.id)}">${esc(c.name)} only</option>`).join('')}</select></label>
+          <span class="rsel" style="display:flex;align-items:center;font-size:14px;color:var(--soft)">Period: ${esc(periodText())}</span>
+          <span class="rsel" style="display:flex;align-items:center;font-size:14px;color:var(--soft)">Workflows: all ${S.workflows.length}</span></div></fieldset>
+        <fieldset><legend>Sections</legend><div class="secs">${SECTIONS.map(([id, name, pp]) => `<label><input type="checkbox" data-xsec="${id}" checked>${esc(name)} <span style="margin-left:auto;color:var(--mute)">${pp}</span></label>`).join('')}</div></fieldset>
+        <div class="three">
+          <fieldset><legend>Brand</legend><select id="xd-b"><option value="view">${esc(lastBrand ? lastBrand.name || 'This brand' : 'AWA (default)')}</option>${lastBrand ? '<option value="awa">AWA</option>' : ''}</select></fieldset>
+          <fieldset><legend>Language</legend><select id="xd-l"><option>English</option></select></fieldset>
+          <fieldset><legend>Format</legend><div class="fmt"><label><input type="checkbox" data-xfmt="html" checked>HTML</label><label><input type="checkbox" data-xfmt="pdf" checked>PDF</label><label><input type="checkbox" data-xfmt="docx" checked>DOCX</label></div></fieldset>
+        </div>
+        <fieldset><legend>Personas</legend><p class="dhint" id="xd-p" style="margin:0">The narrator picks the most different journeys: one that went the whole way, and one that is stuck. The journey’s options can name others (dossier.personas).</p></fieldset>
+      </div><div>
+        <span class="xlg" id="xd-prev">Preview</span><div class="pages" id="xd-pages" aria-hidden="true"></div>
+        <span class="xlg" style="margin-top:16px">Accessibility check, before export</span><ul class="a11y" id="xd-a11y"></ul>
+        <div class="res" id="xd-res" hidden role="status"></div>
+      </div></div>
+      <div class="df"><p>A person approves before the dossier is issued (separation of duties: not the one who exported it).</p><button type="button" class="ebtn" id="xd-cancel">Cancel</button><button type="button" class="ebtn pri" id="xd-go"${canBuild ? '' : ' aria-describedby="xd-why"'}>Export and ask for approval</button></div>
+    </div>`;
+    x.hidden = false;
+    xPreview();
+    $('xd-x').focus({ preventScroll: true });
+}
+function xSettings() {
+    const aud = (document.querySelector('#xdlg input[name="xaud"]:checked') || {}).value || 'professional';
+    const pick = $('xd-c').value, jj = S.journeys[+$('xd-j').value] || J();
+    const customer = aud === 'client' ? (pick || (jj.instances[0] || {}).id) : null;
+    return { edition: aud, customer, journey: +$('xd-j').value, sections: [...document.querySelectorAll('#xdlg [data-xsec]:checked')].map(c => c.dataset.xsec), formats: [...document.querySelectorAll('#xdlg [data-xfmt]:checked')].map(c => c.dataset.xfmt), brand: $('xd-b').value };
+}
+/** The dossier as the settings say: its model, or null when the view holds no record */
+function xModel(s) {
+    if (!RECORD || !window.AWA_DOSSIER) return null;
+    const jk = RECORD.journeys.findIndex(x => x.definition.name === S.journeys[s.journey].name);
+    return window.AWA_DOSSIER.build(RECORD, OPTIONS, { edition: s.edition, customer: s.customer, journey: Math.max(0, jk), recommendations: RECS || undefined, source: query.get('data') || $('source').textContent || null });
+}
+function xPreview() {
+    const s = xSettings();
+    $('xd-aud').textContent = s.edition === 'client' ? 'Client: one customer’s own journey, in their words; no internal cost, no agents’ internals, no other customer.' : 'Professional: with internal cost, the agents’ internals (models, contracts, guardrails) and every customer. A client edition leaves those out and keeps one customer’s journey.';
+    let m = null, problem = '';
+    try { m = xModel(s); } catch (error) { problem = error.message; }
+    const pages = s.edition === 'client' ? ['n', 'p', 'n', 'p', 'p', 'p', 'p'] : ['n', 'p', 'p', 'p', 'n', 'p', 'n', 'p', 'p', 'p', 'p', 'p', 'p', 'p'];
+    $('xd-prev').textContent = `Preview · ${pages.length} pages${m ? `, ${m.personas.map(p => p.name).join(' and ')}` : ''}`;
+    $('xd-pages').innerHTML = pages.map(k => `<span class="pg${k === 'n' ? ' n' : ''}"><i></i><u></u><s></s></span>`).join('');
+    if (m) $('xd-p').textContent = `${m.personas.map(p => p.name).join(' and ')}: chosen by the narrator (${m.personas.map(p => p.role).join('; ')}). The journey’s options can name others (dossier.personas).`;
+    const D = window.AWA_DOSSIER, theme = D ? D.theme(s.brand === 'view' ? lastBrand : null) : null;
+    const pair = theme ? Math.min(D.contrast(theme.ink3, theme.paper), D.contrast(theme.wait, theme.paper), D.contrast(theme.accent, theme.paper)).toFixed(2) : '';
+    const checks = m ? [
+        ['Headings in order', `${m.contents.length} chapters, no level skipped`],
+        ['Figures with alternatives', 'every chart has alt text, a summary and its table'],
+        ['Tables with headers', 'header cells with scope; header rows repeat in the PDF and the DOCX'],
+        ['Contrast', `lowest text pair ${pair}:1 on paper`],
+        ['Language and title', `en · “${m.meta.title}”`],
+        ['Reading order', `references follow their sentence (${m.stats.sentences} sentences, ${m.stats.references} references)`],
+    ] : [];
+    $('xd-a11y').innerHTML = checks.map(([a, b]) => `<li><span aria-hidden="true">✓</span><span>${esc(a)}</span><span>${esc(b)}</span></li>`).join('') + (m ? '' : `<li><span aria-hidden="true">!</span><span>No record here</span><span id="xd-why">${esc(problem || 'This view was given a prepared story, not its record. Make the dossier from the record with the command line.')}</span></li>`);
+}
+function xCommands(s) {
+    const data = query.get('data') || '<journeys.json>', opts = query.get('options');
+    const args = `--edition ${s.edition}${s.customer ? ` --customer ${s.customer}` : ''}`;
+    const other = s.formats.filter(f => f !== 'html').join(',') || 'pdf,docx';
+    return [`awa dossier --file ${data}${opts ? ` --options ${opts}` : ''} ${args} --format ${other} --out dossier`, `node tools/dossier/dossier.mjs --record ${data}${opts ? ` --options ${opts}` : ''} ${args} --format ${other} --out dossier`];
+}
+function xExport() {
+    const s = xSettings(), res = $('xd-res');
+    let m = null;
+    try { m = xModel(s); } catch (error) { res.hidden = false; res.textContent = `The dossier could not be made: ${error.message}`; return; }
+    const cmds = xCommands(s);
+    if (xUrl) { try { URL.revokeObjectURL(xUrl); } catch { /* nothing to free */ } xUrl = null; }
+    let link = '';
+    if (m && s.formats.includes('html')) {
+        const html = window.AWA_DOSSIER_HTML.render(m, { theme: window.AWA_DOSSIER.theme(s.brand === 'view' && lastBrand && !/^https?:/.test(lastBrand.logo || '') ? lastBrand : (s.brand === 'view' && lastBrand ? { ...lastBrand, logo: '' } : null)), sections: s.sections });
+        try { xUrl = URL.createObjectURL(new Blob([html], { type: 'text/html' })); } catch { xUrl = null; }
+        const name = `${m.meta.journey.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.${m.edition}.html`;
+        link = xUrl ? `<p style="margin:8px 0 0"><a href="${xUrl}" download="${esc(name)}" target="_blank" rel="noopener" id="xd-link">Open the HTML edition</a> · ${esc(name)}, ${(html.length / 1024).toFixed(0)} kB, one file that works offline</p>` : '<p>This page cannot offer a file here. Use the command below.</p>';
+        window.AWA_last_dossier = html;                                    // for tests and for a page that embeds the view
+    }
+    res.hidden = false;
+    res.innerHTML = `<b>${m ? 'Made, awaiting approval' : 'Make it from the record'}</b>${link}<p style="margin:10px 0 0">PDF and DOCX, from the command line:</p><code>${esc(cmds[0])}</code><code>${esc(cmds[1])}</code><p class="dhint">The dossier workflow (tools/dossier/dossier.awa.json) has a person approve it before it is issued; its run is journalled.</p>`;
+    const l = $('xd-link'); (l || res).focus && (l || $('xd-go')).focus({ preventScroll: true });
+}
+function closeExport() { const x = $('xdlg'); if (x.hidden) return; x.hidden = true; x.innerHTML = ''; if (xOpener && xOpener.isConnected) xOpener.focus({ preventScroll: true }); xOpener = null; }
+/** The dialog's keys: Escape closes it, Tab stays inside it */
+function xKey(e) {
+    if (e.key === 'Escape') { e.preventDefault(); closeExport(); return true; }
+    if (e.key === 'Tab') {
+        const stops = [...$('xdlg').querySelectorAll('button, input, select, a[href]')].filter(n => !n.disabled && n.offsetParent !== null);
+        if (!stops.length) return true;
+        const i = stops.indexOf(document.activeElement);
+        if (e.shiftKey && i <= 0) { e.preventDefault(); stops[stops.length - 1].focus(); }
+        else if (!e.shiftKey && (i === stops.length - 1 || i < 0)) { e.preventDefault(); stops[0].focus(); }
+        return true;
+    }
+    return true;                                                   // nothing behind the dialog moves
+}
+$('xdlg').addEventListener('click', e => {
+    if (e.target === $('xdlg') || e.target.closest('#xd-x') || e.target.closest('#xd-cancel')) return closeExport();
+    if (e.target.closest('#xd-go')) return xExport();
+});
+$('xdlg').addEventListener('change', () => { xPreview(); $('xd-res').hidden = true; });
+window.AWA_export = { open: openExport, close: closeExport, export: () => xExport() };
 })();
 </script>
 </body>

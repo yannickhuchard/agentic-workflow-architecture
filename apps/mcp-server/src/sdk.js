@@ -34,6 +34,13 @@ export function recommendations_module() {
     return recommender;
 }
 
+let dossier;
+/** tools/visualization/awa-dossier.js and its HTML edition: the dossier of a journey record */
+export function dossier_modules() {
+    if (!dossier) { const req = createRequire(import.meta.url); dossier = { model: req(path.join(VIEWS_DIR, 'awa-dossier.js')), html: req(path.join(VIEWS_DIR, 'awa-dossier-html.js')) }; }
+    return dossier;
+}
+
 let brand;
 /** tools/visualization/awa-brand.js: reads a DESIGN.md or a brand.json, and checks its colours */
 export function brand_module() {

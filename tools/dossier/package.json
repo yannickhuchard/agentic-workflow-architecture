@@ -1,0 +1,14 @@
+{
+  "name": "awa-dossier-tools",
+  "private": true,
+  "description": "Writes and checks the dossier of a journey record: HTML, PDF and DOCX. The writers live in tools/visualization (awa-dossier*.js); this folder holds the command line, the checks and the AWA workflow that makes a dossier.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "scripts": {
+    "make": "node make-dossiers.mjs",
+    "check": "node dossier.check.mjs"
+  },
+  "devDependencies": {
+    "axe-core": "4.10.2"
+  }
+}
