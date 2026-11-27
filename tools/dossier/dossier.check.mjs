@@ -2,12 +2,14 @@
 //   HTML: in Chromium at 1440 and 400 px wide: axe-core (WCAG 2.2 A and AA rules, when axe-core can be loaded from a
 //         node_modules folder; nothing is fetched), the contrast of every text against what is behind it, the keyboard
 //         (the skip link first, tables behind their buttons), reduced motion (nothing animates), no sideways scroll at 400
+//   print layout: rendered again in Chromium; no text over other text or over a chart's marks, no text wider or taller
+//         than its box, no chart label outside its chart, nothing off the page or in the bands of the running head and folio
 //   PDF:  page count, tagged, title, language, bookmarks, figures with alternative text, tables with header cells
 //   DOCX: headings, alt text, header rows, language and title, and, when LibreOffice is installed, that it renders
 // and that make-dossiers.mjs writes the same bytes again (with --rebuild).
 //
 //   cd tools/dossier && npm install          (axe-core, for the accessibility rules)
-//   node tools/dossier/dossier.check.mjs [--rebuild]
+//   node tools/dossier/dossier.check.mjs [--rebuild] [--layout]      (--layout: the print layout alone)
 import fs from 'fs';
 import path from 'path';
 import zlib from 'zlib';
@@ -24,9 +26,9 @@ const note = what => console.log(`note  ${what}`);
 const { chromium } = require('playwright');
 
 const DOSSIERS = [
-    { file: 'examples/electricity-onboarding/dossier/new-customer-onboarding.professional', pages: [14, 14], theme: 'dark' },
-    { file: 'examples/life-insurance-savings/dossier/lea-muller.client', pages: [6, 9], theme: 'light', client: true, others: JSON.parse(fs.readFileSync(path.join(root, 'examples/life-insurance-savings/journeys.json'), 'utf8')).journeys[0].instances.map(i => i.instance.data.employee).filter(e => e.first_name !== 'Léa').flatMap(e => [`${e.first_name} ${e.last_name}`, e.first_name]) },
-    { file: 'examples/life-insurance-savings/dossier/workplace-pension-savings.professional', pages: [14, 14], theme: 'light' },
+    { file: 'examples/electricity-onboarding/dossier/new-customer-onboarding.professional', pages: [14, 16], theme: 'dark', example: 'electricity-onboarding', edition: 'professional' },
+    { file: 'examples/life-insurance-savings/dossier/lea-muller.client', pages: [6, 9], theme: 'light', example: 'life-insurance-savings', edition: 'client', customer: 'ENR-26001', client: true, others: JSON.parse(fs.readFileSync(path.join(root, 'examples/life-insurance-savings/journeys.json'), 'utf8')).journeys[0].instances.map(i => i.instance.data.employee).filter(e => e.first_name !== 'Léa').flatMap(e => [`${e.first_name} ${e.last_name}`, e.first_name]) },
+    { file: 'examples/life-insurance-savings/dossier/workplace-pension-savings.professional', pages: [14, 18], theme: 'light', example: 'life-insurance-savings', edition: 'professional' },
 ];
 
 let axe = null;
@@ -39,6 +41,85 @@ if (process.argv.includes('--rebuild')) {
     const changed = Object.keys(before).filter(f => crypto.createHash('sha256').update(fs.readFileSync(path.join(root, f))).digest('hex') !== before[f]);
     check(!changed.length, `make-dossiers.mjs writes the same bytes again ${changed.join(', ')}`);
 }
+
+// ---------------------------------------------------------------- the print layout: no text over text, nothing outside its box or the page
+// Each print layout is made again as make-dossiers.mjs makes it (measured, then placed) and read in Chromium, page by
+// page: every line of text and every chart label is a box. Two boxes of different texts must not intersect (an element
+// marked data-layer is layered on purpose and left out), nor a text and a chart's mark; no element with a fixed size or hidden overflow may hold more
+// than its size (scrollWidth, scrollHeight); a chart label stays inside its chart; text stays on the page, out of the
+// running head's and the folio's bands.
+const { buildModel, printLayout } = require(path.resolve(here, '../visualization/awa-dossier-node.js'));
+const layoutProblems = page => page.evaluate(() => {
+    const out = [], pages = [...document.querySelectorAll('section.pg')];
+    const hiddenText = el => el.closest('.vh, caption, [hidden], [data-layer], title, desc, style, script') || getComputedStyle(el).visibility !== 'visible' || getComputedStyle(el).display === 'none';
+    pages.forEach((pg, pi) => {
+        const P = pg.getBoundingClientRect(), n = pi + 1, boxes = [];
+        const at = r => ({ x0: r.left - P.left, y0: r.top - P.top, x1: r.right - P.left, y1: r.bottom - P.top });
+        const say = el => (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 40);
+        // the boxes: each line of each HTML text node, each SVG text element
+        const walker = document.createTreeWalker(pg, NodeFilter.SHOW_TEXT);
+        let id = 0;
+        for (let t = walker.nextNode(); t; t = walker.nextNode()) {
+            const el = t.parentElement;
+            if (!t.textContent.trim() || el.closest('svg') || hiddenText(el)) continue;
+            const range = document.createRange(); range.selectNodeContents(t); id++;
+            const size = parseFloat(getComputedStyle(el).fontSize), track = Math.max(0, -parseFloat(getComputedStyle(el).letterSpacing) || 0);
+            for (const r of range.getClientRects()) if (r.width > 0.5 && r.height > 0.5) { const b = at(r); b.x1 += track; boxes.push({ id, el, size, text: t.textContent.trim().slice(0, 40), ...b }); }
+        }
+        for (const el of pg.querySelectorAll('svg text')) {
+            if (!el.textContent.trim() || hiddenText(el)) continue;
+            const r = el.getBoundingClientRect(); id++;
+            boxes.push({ id, el, size: parseFloat(getComputedStyle(el).fontSize), text: say(el), svg: el.ownerSVGElement, ...at(r) });
+        }
+        // two texts over each other: a box is the font's ascent to descent, taken from the cap height to just above the
+        // lowest descender, so that lines set tight still pass and a descender on the next line's capitals does not
+        const inset = b => ({ x0: b.x0 + 0.75, x1: b.x1 - 0.75, y0: b.y0 + 0.22 * b.size, y1: b.y1 - 0.08 * b.size });
+        const ins = boxes.map(inset);
+        for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
+            if (boxes[i].id === boxes[j].id) continue;
+            const a = ins[i], b = ins[j];
+            if (a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1) out.push(`page ${n}: "${boxes[i].text}" overlaps "${boxes[j].text}"`);
+        }
+        // a chart's marks (class "mark") under no text
+        for (const mk of pg.querySelectorAll('svg .mark')) {
+            const r = at(mk.getBoundingClientRect());
+            boxes.forEach((b, i) => { const a = ins[i]; if (a.x0 < r.x1 - 1 && r.x0 + 1 < a.x1 && a.y0 < r.y1 - 1 && r.y0 + 1 < a.y1) out.push(`page ${n}: "${b.text}" lies on a chart's mark`); });
+        }
+        // text off the page, in the running head's band or the folio's band
+        const folio = pg.querySelector('.fo'), head = pg.querySelector('.rh');
+        const foTop = folio ? folio.getBoundingClientRect().top - P.top - 8 : 1123, rhBottom = head ? head.getBoundingClientRect().bottom - P.top + 8 : 0;
+        for (const raw of boxes) {
+            const b = { ...raw, ...inset(raw) };
+            if (b.x0 < -0.5 || b.y0 < -0.5 || b.x1 > 794.5 || b.y1 > 1123.5) out.push(`page ${n}: "${b.text}" leaves the page`);
+            else if (!b.el.closest('.fo, .rh') && (b.y1 > foTop + 2 || b.y0 < rhBottom - 2) && b.y1 - b.y0 > 0) out.push(`page ${n}: "${b.text}" enters the ${b.y1 > foTop + 2 ? 'folio' : 'running head'}'s band`);
+            if (b.svg) { const s = at(b.svg.getBoundingClientRect()); if (b.x0 < s.x0 - 1 || b.x1 > s.x1 + 1 || b.y0 < s.y0 - 1 || b.y1 > s.y1 + 1) out.push(`page ${n}: the label "${b.text}" leaves its chart`); }
+        }
+        // a box that holds more than its size
+        for (const el of pg.querySelectorAll('*')) {
+            if (el.closest('svg') || el.matches('.vh, caption') || el.closest('.vh, caption')) continue;
+            const cs = getComputedStyle(el), clips = cs.overflowX !== 'visible' || cs.overflowY !== 'visible', fixedW = !!el.style.width && cs.whiteSpace !== 'normal', fixedH = !!el.style.height || !!el.style.maxHeight;
+            if (!(clips || fixedW || fixedH) || !el.textContent.trim()) continue;
+            if (el.scrollHeight > el.clientHeight + 1 && (clips || fixedH)) out.push(`page ${n}: "${say(el)}" is taller than its box (${el.scrollHeight} > ${el.clientHeight} px)`);
+            if (el.scrollWidth > el.clientWidth + 1) out.push(`page ${n}: "${say(el)}" is wider than its box (${el.scrollWidth} > ${el.clientWidth} px)`);
+        }
+        if (pg.scrollHeight > pg.clientHeight + 1 || pg.scrollWidth > pg.clientWidth + 1) out.push(`page ${n}: content leaves the page (${pg.scrollWidth} × ${pg.scrollHeight} px)`);
+    });
+    return { pages: pages.length, problems: [...new Set(out)] };
+});
+{
+    const browser = await chromium.launch();
+    for (const d of DOSSIERS) {
+        const dir = path.join(root, 'examples', d.example), name = path.basename(d.file) + ' (print)';
+        const { model, theme } = buildModel({ record: path.join(dir, 'journeys.json'), optionsFile: path.join(dir, 'views/story-options.json'), edition: d.edition, customer: d.customer, source: `examples/${d.example}/journeys.json` });
+        const page = await browser.newPage({ viewport: { width: 794, height: 1123 } });
+        await printLayout(page, model, theme);
+        const res = await layoutProblems(page);
+        check(!res.problems.length, `${name}: on ${res.pages} pages no text over text or marks, no text outside its box or the page, the bands of the running head and the folio kept clear (${res.problems.length} found)${res.problems.length ? '\n        ' + res.problems.slice(0, 200).join('\n        ') : ''}`);
+        await page.close();
+    }
+    await browser.close();
+}
+if (process.argv.includes('--layout')) { console.log(failures.length ? `\n${failures.length} check(s) failed` : '\nall checks passed'); process.exit(failures.length ? 1 : 0); }
 
 // ---------------------------------------------------------------- HTML
 const contrastOf = page => page.evaluate(() => {

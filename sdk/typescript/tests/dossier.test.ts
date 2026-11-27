@@ -44,10 +44,21 @@ describe('dossier: the professional edition of the electricity example', () => {
     const model = D.build(record, options, { edition: 'professional', evidence, source: 'examples/electricity-onboarding/journeys.json' });
     const html = HTML.render(model), printed = PRINT.render(model);
 
-    it('has every chapter, in the HTML edition and on the fourteen pages of the print layout', () => {
+    it('has every chapter, in the HTML edition and on the pages of the print layout', () => {
         expect(model.contents.map((c: any) => c.title)).toEqual(['Summary', 'The journey at a glance', 'In their own words', 'The work behind the journey', 'Analysis', 'Recommendations', 'Appendix']);
         for (const id of ['cover', 'summary', 'glance', 'voice-0', 'voice-1', 'work', 'analysis', 'recs', 'appendix']) expect(html).toContain(`id="${id}"`);
-        expect((printed.match(/<section class="pg/g) || []).length).toBe(14);
+        // without Chromium the sizes are estimated, so a page can run on; tools/dossier/dossier.check.mjs reads the measured layout
+        const labels = [...printed.matchAll(/<section class="pg[^"]*" aria-label="([^"]*)"/g)].map(x => x[1]);
+        expect(labels.length).toBeGreaterThanOrEqual(14);
+        for (const l of ['Cover', 'Contents', 'Executive summary', 'The journey at a glance', 'The work behind the journey', 'Recommendations', 'Appendix: compliance and evidence', 'Glossary, method and sources']) expect(labels).toContain(l);
+        expect(labels.filter(l => /^Analysis: /.test(l)).length).toBeGreaterThanOrEqual(2);
+        // the table of contents gives each chapter the page it starts on
+        const toc = [...printed.matchAll(/<span class="vh">page <\/span>(\d+)/g)].map(x => Number(x[1]));
+        const first = (re: RegExp) => labels.findIndex(l => re.test(l)) + 1;
+        expect(toc).toEqual([/^Executive summary$/, /^The journey at a glance$/, /own words$/, /^The work behind/, /^Analysis: /, /^Recommendations$/, /^Appendix: /].map(first));
+        // the first rendering carries a ruler of the texts to measure; the second, given the sizes, carries none
+        expect(PRINT.render(model, { ruler: true })).toContain('data-ruler=');
+        expect(printed).not.toContain('data-ruler=');
         expect(model.personas.map((p: any) => p.name)).toEqual(['Tomás Reyes', 'Sofia Lind']);
     });
 

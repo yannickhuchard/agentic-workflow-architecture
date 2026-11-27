@@ -99,14 +99,39 @@ async function chartImages(browser, html) {
     return out;
 }
 
-/** Build a dossier and write the formats asked for. Returns { model, files } */
-async function makeDossier({ record, optionsFile, edition = 'professional', customer, evidence, source, formats = ['html'], out }) {
+/**
+ * The print layout, measured: a first rendering carries a ruler with every text whose size the layout depends on
+ * (a row of the blueprint, a table row, a label); Chromium measures them, and the second rendering places the pages
+ * with those sizes. The page is left showing the final layout. Returns its HTML.
+ */
+async function printLayout(page, model, theme) {
+    const settle = async html => { await page.setContent(html, { waitUntil: 'load' }); await page.evaluate(() => document.fonts && document.fonts.ready); };
+    // a layout chosen with some sizes can ask for others (a shorter list, a smaller size): measure again until none is new
+    const measured = {};
+    for (let pass = 0; pass < 6; pass++) {
+        await settle(PRINT.render(model, { theme, ruler: true, measured }));
+        const got = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('[data-ruler]')].map(n => { const r = n.getBoundingClientRect(); return [n.dataset.ruler, [Math.ceil(r.width * 10) / 10, Math.ceil(r.height * 10) / 10]]; })));
+        const fresh = Object.keys(got).filter(k => !(k in measured));
+        Object.assign(measured, got);
+        if (!fresh.length) break;
+    }
+    const html = PRINT.render(model, { theme, measured });
+    await settle(html);
+    return html;
+}
+
+/** The model of a dossier and its theme, from a record (a file or an object), the journey's options and the edition */
+function buildModel({ record, optionsFile, edition = 'professional', customer, evidence, source }) {
     const rec = typeof record === 'string' ? JSON.parse(fs.readFileSync(record, 'utf8')) : record;
     const { options, brand } = readOptions(optionsFile);
     const evFile = evidence || (typeof record === 'string' ? path.join(path.dirname(record), 'evidence/evidence-report.json') : null);
     const ev = evFile && fs.existsSync(evFile) ? JSON.parse(fs.readFileSync(evFile, 'utf8')) : null;
-    const model = D.build(rec, options, { edition, customer, evidence: ev, source });
-    const theme = D.theme(brand);
+    return { model: D.build(rec, options, { edition, customer, evidence: ev, source }), theme: D.theme(brand) };
+}
+
+/** Build a dossier and write the formats asked for. Returns { model, files } */
+async function makeDossier({ record, optionsFile, edition = 'professional', customer, evidence, source, formats = ['html'], out }) {
+    const { model, theme } = buildModel({ record, optionsFile, edition, customer, evidence, source });
     const files = {};
     fs.mkdirSync(path.dirname(out), { recursive: true });
     const html = HTML.render(model, { theme });
@@ -118,10 +143,8 @@ async function makeDossier({ record, optionsFile, edition = 'professional', cust
         try {
             if (formats.includes('pdf')) {
                 const page = await browser.newPage();
-                const printed = PRINT.render(model, { theme });
+                const printed = await printLayout(page, model, theme);
                 const headings = [...printed.matchAll(/<h[1-4][^>]*aria-label="([^"]*)"/g)].map(x => x[1].replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>'));
-                await page.setContent(printed, { waitUntil: 'load' });
-                await page.evaluate(() => document.fonts && document.fonts.ready);
                 const pdf = await page.pdf({ format: 'A4', printBackground: true, preferCSSPageSize: true, tagged: true, outline: true, margin: { top: 0, right: 0, bottom: 0, left: 0 } });
                 fs.writeFileSync(out + '.pdf', steadyPdf(fixOutline(Buffer.from(pdf), headings), model.meta.as_of)); files.pdf = out + '.pdf';
                 await page.close();
@@ -133,4 +156,4 @@ async function makeDossier({ record, optionsFile, edition = 'professional', cust
 }
 
 
-module.exports = { makeDossier, readOptions, steadyPdf, fixOutline };
+module.exports = { makeDossier, buildModel, printLayout, readOptions, steadyPdf, fixOutline };

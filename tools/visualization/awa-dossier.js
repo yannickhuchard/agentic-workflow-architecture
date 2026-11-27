@@ -544,7 +544,7 @@ function build(record, options = {}, settings = {}) {
                 ['Outcome contracts', `${wfs.reduce((a, w) => a + (w.activities || []).filter(x => x.outcome_contract).length, 0)} activities`, `${contracts.filter(e => e.data.passed).length} of ${contracts.length} checks met; ${plural(escalations.length, 'handed to a person', 'handed to a person')}`],
                 ['Guardrails', `${new Set(guards.map(g => g.e.data.name)).size} acted`, `${plural(guards.length, 'action')}: ${listOf(Object.entries(guards.reduce((a, g) => { a[g.e.data.action] = (a[g.e.data.action] || 0) + 1; return a; }, {})).map(([k, v]) => `${v} ${k}`)) || 'none'}`],
                 ['Authorization', `${refusals.length} refusals`, refusals.length ? listOf(refusals.map(x => `${cap(x.e.data.principal.id)} (${String(x.e.data.reason).replace(/_/g, ' ')})`)) : 'no refusal'],
-                ['Service levels', `${wfs.filter(w => w.sla).length + wfs.reduce((a, w) => a + (w.activities || []).filter(x => x.sla).length, 0)} defined`, `${slaEvents.filter(x => x.e.type === 'sla.warning').length} warnings, ${slaEvents.filter(x => x.e.type === 'sla.breached').length} breaches`],
+                ['Service levels', `${wfs.filter(w => w.sla).length + wfs.reduce((a, w) => a + (w.activities || []).filter(x => x.sla).length, 0)} defined`, `${plural(slaEvents.filter(x => x.e.type === 'sla.warning').length, 'warning')}, ${plural(slaEvents.filter(x => x.e.type === 'sla.breached').length, 'breach', 'breaches')}`],
                 ['Compensation', `${compensations.length} undo steps used`, compensations.length ? listOf([...new Set(compensations.map(x => x.c.first))]) : 'never needed'],
             ],
         },
@@ -599,18 +599,18 @@ function complianceOf(ev, edition) {
     const line = id => {
         const s = S[id] || {};
         switch (id) {
-            case 'operation': return `${s.runs} runs: ${s.completed} completed, ${s.failed} failed`;
-            case 'models': return `${(s.models || []).length} models, ${s.selections} selections`;
-            case 'oversight': return `${s.human_decisions} human decisions, ${s.escalations} escalations, ${s.four_eyes} under four eyes`;
+            case 'operation': return `${plural(s.runs, 'run')}: ${s.completed} completed, ${s.failed} failed`;
+            case 'models': return `${plural((s.models || []).length, 'model')}, ${plural(s.selections, 'selection')}`;
+            case 'oversight': return `${plural(s.human_decisions, 'human decision')}, ${plural(s.escalations, 'escalation')}, ${s.four_eyes} under four eyes`;
             case 'outcomes': return `${s.contracts_passed} of ${s.contracts} outcome contracts met`;
-            case 'refusals': return `${s.refusals} refusals: ${s.authorization} by the policy, ${s.guardrails} by guardrails`;
-            case 'failures': return `${s.attempts_failed} failed attempts, ${s.runs_failed} run failed, ${s.journeys_stalled} journeys stalled`;
-            case 'compensations': return `${s.compensations} compensations, ${s.failed} failed`;
-            case 'service_levels': return `${s.warnings} warnings, ${s.breaches} breaches`;
-            case 'tools': return `${s.calls} tool calls to ${s.targets} targets`;
-            case 'data': return `${(s.payloads || {}).full} payloads kept in full`;
+            case 'refusals': return `${plural(s.refusals, 'refusal')}: ${s.authorization} by the policy, ${s.guardrails} by ${s.guardrails === 1 ? 'a guardrail' : 'guardrails'}`;
+            case 'failures': return `${plural(s.attempts_failed, 'failed attempt')}, ${s.runs_failed} ${s.runs_failed === 1 ? 'run' : 'runs'} failed, ${s.journeys_stalled} ${s.journeys_stalled === 1 ? 'journey' : 'journeys'} stalled`;
+            case 'compensations': return `${plural(s.compensations, 'compensation')}, ${s.failed} failed`;
+            case 'service_levels': return `${plural(s.warnings, 'warning')}, ${plural(s.breaches, 'breach', 'breaches')}`;
+            case 'tools': return `${plural(s.calls, 'tool call')} to ${plural(s.targets, 'target')}`;
+            case 'data': return `${num((s.payloads || {}).full || 0)} payloads kept in full`;
             case 'retention': return `${num(s.events || 0)} run events and ${s.journey_events} journey events, no gaps`;
-            case 'guardrails': return `${s.triggered} actions: ${Object.entries(s.by_action || {}).filter(([, v]) => v).map(([k, v]) => `${v} ${k.replace(/_/g, ' ')}`).join(', ')}`;
+            case 'guardrails': return `${plural(s.triggered, 'action')}: ${Object.entries(s.by_action || {}).filter(([, v]) => v).map(([k, v]) => `${v} ${k.replace(/_/g, ' ')}`).join(', ')}`;
             default: return '';
         }
     };
