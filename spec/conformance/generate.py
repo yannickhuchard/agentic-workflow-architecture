@@ -3942,6 +3942,16 @@ def guardrail_cases() -> list[Case]:
                                      {"type": "activity.started", "data": {"input": {"notes": "[REDACTED:employee_id] asked for leave"}}}]}
     cases.append(c)
 
+    c = Case("output-fields-are-paths-within-the-outcome", "guardrails", "31.2",
+             "At stage output the paths of fields start from the outcome (11.1): when the agent's result carries its outcome under 'output', 'notes' names output.notes. Only that field is redacted, and the finding's path is within the whole result.")
+    c.act("Verify", "ai_agent", guardrails=[guardrail(c, "Phone numbers in notes", ["output"], {"kind": "personal_data", "categories": ["phone"]}, "redact", fields=["notes"])])
+    c.actors = {"Verify": {"output": {"output": {"notes": "Call +33 6 12 34 56 78 after six", "contact": "+33 6 12 34 56 78"}, "status": "complex_completed"}}}
+    c.expect = {"status": "completed", "data": {"notes": "Call [REDACTED:phone] after six", "contact": "+33 6 12 34 56 78"},
+                "journal_count": {"guardrail.triggered": 1},
+                "journal_contains": [triggered(stage="output", check="personal_data", action="redact", categories=["phone"],
+                                               findings=[{"category": "phone", "path": "/output/notes", "start": 5, "end": 22}])]}
+    cases.append(c)
+
     c = Case("deny-list-blocks-output-before-the-contract", "guardrails", "31.5",
              "A blocked output fails the activity with GUARDRAIL_BLOCKED. It is not retried by the retry policy, it never reaches the outcome contract, and it is not journalled.")
     c.act("Draft", "ai_agent", guardrails=[guardrail(c, "Code names", ["output"], {"kind": "deny_list", "terms": ["project falcon"]}, "block")],

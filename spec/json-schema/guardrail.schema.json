@@ -67,7 +67,7 @@
             "items": {
                 "type": "string"
             },
-            "description": "Paths within the value checked that personal_data, deny_list, prompt_injection and size checks look at. Default: the whole value."
+            "description": "Paths within the value checked that personal_data, deny_list, prompt_injection and size checks look at; at stage output, paths within the outcome. Default: the whole value."
         },
         "replacement": {
             "type": "string",

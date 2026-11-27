@@ -203,13 +203,25 @@ function strings_of(value: unknown, base: string, out: { path: string; text: str
     return out;
 }
 
-/** The strings a pattern or size check looks at: those under `fields`, or all of them */
-function scanned(value: unknown, fields?: string[]): { path: string; text: string }[] {
+/** A path (6.2) as a JSON Pointer */
+const pointer = (path: string) => path.split('.').map(segment).map(s => `/${s}`).join('');
+
+/** What the paths of `fields` start from (31.2): at stage output the outcome (11.1), with its pointer within the whole value; otherwise the value */
+function fields_root(value: unknown, stage: GuardrailStage): { root: unknown; base: string } {
+    if (stage !== 'output') return { root: value, base: '' };
+    const inner = value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>).output : undefined;
+    if (inner && typeof inner === 'object' && !Array.isArray(inner)) return { root: inner, base: '/output' };
+    return { root: outcome_part(value), base: '' };
+}
+
+/** The strings a pattern or size check looks at: those under `fields`, or all of them. Paths stay within the whole value */
+function scanned(value: unknown, stage: GuardrailStage, fields?: string[]): { path: string; text: string }[] {
     if (!fields || fields.length === 0) return strings_of(value, '');
+    const { root, base } = fields_root(value, stage);
     const out: { path: string; text: string }[] = [];
     for (const field of fields) {
-        const found = lookup(value, field);
-        if (found !== undefined) strings_of(found, field.split('.').map(segment).map(s => `/${s}`).join(''), out);
+        const found = lookup(root, field);
+        if (found !== undefined) strings_of(found, base + pointer(field), out);
     }
     return out;
 }
@@ -255,11 +267,11 @@ export async function run_check(guardrail: Guardrail, stage: GuardrailStage, val
         case 'deny_list':
         case 'prompt_injection': {
             const patterns = patterns_of(check);
-            return scanned(value, guardrail.fields).flatMap(({ path, text }) =>
+            return scanned(value, stage, guardrail.fields).flatMap(({ path, text }) =>
                 find_matches(text, patterns).map(m => ({ category: m.category, path, start: m.start, end: m.end })));
         }
         case 'size': {
-            const characters = scanned(value, guardrail.fields).reduce((n, s) => n + Array.from(s.text).length, 0);
+            const characters = scanned(value, stage, guardrail.fields).reduce((n, s) => n + Array.from(s.text).length, 0);
             const findings: GuardrailFinding[] = [];
             if (check.max_characters !== undefined && characters > check.max_characters) findings.push({ category: 'max_characters', limit: check.max_characters, actual: characters });
             const tokens = Math.ceil(characters / 4);
@@ -274,7 +286,7 @@ export async function run_check(guardrail: Guardrail, stage: GuardrailStage, val
         case 'allowed_values': {
             const found = lookup(judged, check.path);
             const allowed = found !== undefined && check.values.some(v => canonical_json(v) === canonical_json(found));
-            return allowed ? [] : [{ category: 'allowed_values', path: check.path.split('.').map(segment).map(s => `/${s}`).join('') }];
+            return allowed ? [] : [{ category: 'allowed_values', path: pointer(check.path) }];
         }
         case 'topic': {
             const data = judged && typeof judged === 'object' && !Array.isArray(judged) ? judged as Record<string, unknown> : undefined;

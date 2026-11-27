@@ -2712,7 +2712,7 @@ A deployment's guardrails are given to the engine with its configuration (the re
 | `action` | `block`, `redact`, `retry_with_feedback`, `escalate` or `warn` (31.5) |
 | `actor_types` | The actor types of the activities it applies to. Default `["ai_agent"]`. Not used on a tool |
 | `tools` | The names of the tools it applies to at `tool_call` and `tool_result`. Default: every tool. Not used on a tool |
-| `fields` | Paths (6.2) within the value checked, through object properties only. When given, the checks `personal_data`, `deny_list`, `prompt_injection` and `size` look only at what those paths hold; findings keep their path within the whole value |
+| `fields` | Paths (6.2) within the value checked, through object properties only. When given, the checks `personal_data`, `deny_list`, `prompt_injection` and `size` look only at what those paths hold; findings keep their path within the whole value. At stage `output` the paths start from the outcome (11.1), so `notes` names the same field whether the actor's result carries its outcome under `output` or not |
 | `replacement` | For `redact`: the text that replaces each match, in which `{category}` is replaced by the match's category. Default `[REDACTED:{category}]` |
 
 ### 31.3 Stages

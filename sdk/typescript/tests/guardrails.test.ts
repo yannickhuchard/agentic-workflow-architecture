@@ -130,6 +130,16 @@ describe('Guardrails: in the engine', () => {
         return { engine, actor, status, events: await engine.getEvents() };
     };
 
+    it('takes the paths of fields within the outcome at stage output, where an agent\'s result carries it under output', async () => {
+        const result = await run([activity('A', { actor_type: 'ai_agent', guardrails: [g({ kind: 'personal_data', categories: ['phone'] }, 'redact', ['output'], { fields: ['notes'] })] })],
+            { A: { output: { notes: 'Call +33 6 12 34 56 78 after six', contact: '+33 6 12 34 56 78' }, status: 'complex_completed' } });
+        expect(result.status).toBe('completed');
+        expect(result.events.find(e => e.type === 'guardrail.triggered')?.data.findings).toEqual([{ category: 'phone', path: '/output/notes', start: 5, end: 22 }]);
+        expect(result.engine.getTokens()[0].contextData).toMatchObject({ notes: 'Call [REDACTED:phone] after six', contact: '+33 6 12 34 56 78' });
+        const flat = await run_check(g({ kind: 'deny_list', terms: ['secret'] }, 'warn', ['output'], { fields: ['notes'] }), 'output', { notes: 'a secret', other: 'secret' }, noop);
+        expect(flat).toEqual([{ category: 'term', path: '/notes', start: 2, end: 8 }]);
+    });
+
     it('records nothing and changes nothing where no guardrail is declared', async () => {
         const plain = await run([activity('A', { actor_type: 'ai_agent' })], { A: { reply: 'a@b.io' } });
         expect(new GuardrailSet(plain.engine.getWorkflow()).empty).toBe(true);
