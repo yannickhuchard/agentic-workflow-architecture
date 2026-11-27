@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1920, initial-scale=1.0">
+<title>AWA Studio</title>
+<!--
+  AWA Studio: one 1920 x 1080 screen that shows a live AWA execution from four
+  sides at once, for recording a demonstration video (tools/video/record.mjs).
+
+    Console   what the operator does and what the engine records, line by line
+    Run       tools/visualization/replay.html following one run live (Server-Sent Events)
+    Journeys  tools/visualization/journey.html following the host (?live=)
+    Measures  tools/visualization/dashboard.html following the host (?live=)
+
+  The recorder drives the page through window.studio. Each view is rendered at a
+  larger size and scaled down, so that it shows its whole layout and stays legible.
+-->
+<style>
+  :root { --bg: #070a12; --panel: #0f1523; --line: rgba(255,255,255,.09); --text: #f3f4f6; --muted: #9ca3af;
+          --action: #fbbf24; --person: #34d399; --agent: #a78bfa; --event: #93c5fd; --fail: #f87171; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: var(--bg); color: var(--text);
+               font: 15px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { height: 96px; display: flex; align-items: center; gap: 24px; padding: 0 28px; border-bottom: 1px solid var(--line);
+           background: linear-gradient(90deg, #111a2e, #0b1020); }
+  .brand { font-weight: 800; font-size: 22px; letter-spacing: .04em; white-space: nowrap; }
+  .brand small { display: block; font-weight: 600; font-size: 12px; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
+  #caption { flex: 1; font-size: 26px; font-weight: 650; line-height: 1.25; min-width: 0; transition: opacity .3s; }
+  #caption .step { color: var(--action); margin-right: 10px; }
+  #clock { font: 600 18px ui-monospace, Menlo, Consolas, monospace; color: var(--muted); white-space: nowrap; }
+  main { position: absolute; top: 96px; left: 0; right: 0; bottom: 0; display: grid; gap: 10px; padding: 10px;
+         grid-template-columns: 470px 1fr 1fr; grid-template-rows: 520px 1fr; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  section h2 { margin: 0; padding: 8px 14px; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted);
+               border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; }
+  section h2 span:last-child { text-transform: none; letter-spacing: 0; }
+  #console { grid-column: 1; grid-row: 1 / span 2; }
+  #run { grid-column: 2 / span 2; grid-row: 1; }
+  #journeys { grid-column: 2; grid-row: 2; }
+  #measures { grid-column: 3; grid-row: 2; }
+  .viewport { position: relative; flex: 1; overflow: hidden; }
+  .viewport iframe { position: absolute; top: 0; left: 0; border: 0; transform-origin: 0 0; background: #0b0f19; }
+  .placeholder { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 16px; }
+  #lines { flex: 1; overflow: hidden; padding: 10px 12px; font: 13px/1.45 ui-monospace, Menlo, Consolas, monospace; display: flex; flex-direction: column; justify-content: flex-end; }
+  .ln { padding: 3px 0 3px 10px; border-left: 3px solid transparent; animation: in .35s ease-out; white-space: pre-wrap; word-break: break-word; }
+  .ln .t { color: #6b7280; margin-right: 8px; }
+  .ln.action { border-left-color: var(--action); color: #fde68a; }
+  .ln.person { border-left-color: var(--person); color: #a7f3d0; }
+  .ln.agent { border-left-color: var(--agent); color: #ddd6fe; }
+  .ln.event { color: #cbd5e1; }
+  .ln.event .ty { color: var(--event); }
+  .ln.fail { border-left-color: var(--fail); color: #fecaca; }
+  @keyframes in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  #card { position: absolute; inset: 0; background: rgba(7,10,18,.96); display: flex; flex-direction: column; justify-content: center;
+          align-items: center; text-align: center; gap: 18px; z-index: 10; transition: opacity .6s; }
+  #card h1 { margin: 0; font-size: 54px; font-weight: 800; max-width: 1500px; line-height: 1.15; }
+  #card p { margin: 0; font-size: 26px; color: var(--muted); max-width: 1400px; }
+  #card .tag { font-size: 16px; letter-spacing: .12em; text-transform: uppercase; color: var(--action); font-weight: 700; }
+  #card.hidden { opacity: 0; pointer-events: none; }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">AWA<small id="subtitle">Agentic Workflow Architecture</small></div>
+  <div id="caption"></div>
+  <div id="clock">00:00</div>
+</header>
+<main>
+  <section id="console"><h2><span id="console-title">Execution</span><span id="console-note"></span></h2><div id="lines"></div></section>
+  <section id="run"><h2><span id="run-title">Run</span><span id="run-note"></span></h2><div class="viewport"><div class="placeholder" id="run-placeholder"></div></div></section>
+  <section id="journeys"><h2><span id="journeys-title">Journeys</span><span id="journeys-note"></span></h2><div class="viewport"><div class="placeholder" id="journeys-placeholder"></div></div></section>
+  <section id="measures"><h2><span id="measures-title">Measures</span><span id="measures-note"></span></h2><div class="viewport"><div class="placeholder" id="measures-placeholder"></div></div></section>
+</main>
+<div id="card"><div class="tag" id="card-tag"></div><h1 id="card-title"></h1><p id="card-text"></p></div>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const started = Date.now();
+  setInterval(() => {
+    const s = Math.floor((Date.now() - started) / 1000);
+    $('clock').textContent = `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+  }, 250);
+  const MAX_LINES = 40;
+  window.studio = {
+    /** Labels of the four panes and of the header */
+    labels(labels) {
+      for (const [key, value] of Object.entries(labels || {})) if ($(key)) $(key).textContent = value;
+    },
+    caption(text, step) {
+      const el = $('caption');
+      el.style.opacity = 0;
+      setTimeout(() => { el.innerHTML = ''; if (step) { const s = document.createElement('span'); s.className = 'step'; s.textContent = step; el.append(s); }
+        el.append(document.createTextNode(text)); el.style.opacity = 1; }, 250);
+    },
+    line(kind, text, time) {
+      const div = document.createElement('div');
+      div.className = 'ln ' + (kind || 'event');
+      if (time) { const t = document.createElement('span'); t.className = 't'; t.textContent = time; div.append(t); }
+      const m = kind === 'event' ? /^(\S+)(.*)$/s.exec(text) : null;
+      if (m) { const ty = document.createElement('span'); ty.className = 'ty'; ty.textContent = m[1]; div.append(ty, document.createTextNode(m[2])); }
+      else div.append(document.createTextNode(text));
+      $('lines').append(div);
+      while ($('lines').children.length > MAX_LINES) $('lines').firstChild.remove();
+    },
+    /** Shows a page in a pane, rendered at `width` CSS pixels wide and scaled to fit */
+    view(pane, url, width, note) {
+      const viewport = document.querySelector(`#${pane} .viewport`);
+      const box = viewport.getBoundingClientRect();
+      const scale = box.width / width, height = box.height / scale;
+      let frame = viewport.querySelector('iframe');
+      if (!frame) { frame = document.createElement('iframe'); viewport.append(frame); }
+      frame.style.width = width + 'px'; frame.style.height = height + 'px'; frame.style.transform = `scale(${scale})`;
+      frame.src = url;
+      $(pane + '-placeholder').hidden = true;
+      if (note !== undefined) $(pane + '-note').textContent = note;
+    },
+    note(pane, text) { $(pane + '-note').textContent = text; },
+    placeholder(pane, text) { $(pane + '-placeholder').textContent = text; },
+    card(tag, title, text) { $('card-tag').textContent = tag || ''; $('card-title').textContent = title || ''; $('card-text').textContent = text || ''; $('card').classList.remove('hidden'); },
+    hideCard() { $('card').classList.add('hidden'); },
+  };
+})();
+</script>
+</body>
+</html>
