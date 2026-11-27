@@ -1199,7 +1199,9 @@ export class WorkflowEngine {
                 } else {
                     next = this.contextManager.write(context.id, value, this.now());
                 }
-                written.push({ context_id: context.id, context_name: context.name, sync_pattern: context.sync_pattern, access_mode: binding.access_mode, value_hash: hash_payload(next) });
+                // What was written is journalled as a payload (22.3, 9.4), so that a replay can write it again (20.1)
+                const payload = this.journal.payload(value);
+                written.push({ context_id: context.id, context_name: context.name, sync_pattern: context.sync_pattern, access_mode: binding.access_mode, value_hash: hash_payload(next), ...(payload !== undefined ? { written: payload } : {}) });
             }
         } catch (error) {
             this.contextManager.replace(before, before_times);              // all of an activity's writes, or none
@@ -1309,13 +1311,15 @@ export class WorkflowEngine {
     /**
      * Time out the event waits whose deadline has passed (spec 18.3). The token
      * takes the event's timeout edge; an event without one fails the token.
-     * Returns how many tokens timed out. Call run() afterwards.
+     * Returns how many tokens timed out. Call run() afterwards. `only.node_id`
+     * limits it to the wait at that node, as when a replay ends one recorded wait (20.1).
      */
-    public async expireEvents(now: number = this.now()): Promise<number> {
+    public async expireEvents(now: number = this.now(), only: { node_id?: string } = {}): Promise<number> {
         let expired = 0;
         for (const token of this.tokens) {
             const awaited = this.awaiting(token);
             if (!awaited?.due_at || new Date(awaited.due_at).getTime() > now) continue;
+            if (only.node_id && awaited.node_id !== only.node_id) continue;
 
             const ref = { token_id: token.id, ...this.nodeRef(awaited.node_id) };
             const { _awaiting_event, ...rest } = token.contextData;

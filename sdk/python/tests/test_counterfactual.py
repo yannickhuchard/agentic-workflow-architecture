@@ -175,6 +175,81 @@ def test_a_recorded_timeout_is_replayed_without_waiting():
     assert verdicts(replay.report)["Chase"] == "same"
 
 
+def test_the_waits_end_as_the_recorded_run_ended_them_in_the_same_order():
+    # The first wait times out, a reminder goes, and the documents arrive at the second wait: the event must not end the first
+    ask, chase, check = activity("Ask"), activity("Chase"), activity("Check")
+    first = {"id": uid(), "name": "Uploaded", "event_type": "message", "event_definition": {"name": "documents.uploaded", "timeout": "P2D"}}
+    again = {"id": uid(), "name": "Uploaded after reminder", "event_type": "message", "event_definition": {"name": "documents.uploaded"}}
+    late = edge(first, chase)
+    first["event_definition"]["timeout_edge_id"] = late["id"]
+    doc = document([ask, chase, check], [edge(ask, first), edge(first, check), late, edge(chase, again), edge(again, check)], events=[first, again])
+    baseline = record(doc, {"Check": [{"output": {"checked": True}}]})
+    assert baseline.status.value == "waiting_event" and baseline.expire_events(float("inf")) == 1
+    assert baseline.run()["status"] == "waiting_event"
+    baseline.deliver_event({"id": "e-1", "type": "documents.uploaded", "source": "/portal", "data": {"files": 3}})
+    assert baseline.run()["status"] == "completed"
+
+    replay = counterfactual_replay(Workflow.model_validate(doc), baseline.get_events(), ai="recorded")
+    assert replay.status == "completed"
+    assert replay.report["same_path"] is True, replay.report.get("divergence")
+    assert set(verdicts(replay.report).values()) == {"same"}, verdicts(replay.report)
+
+
+def test_only_the_wait_the_recorded_run_timed_out_expires_when_parallel_branches_wait_with_different_deadlines():
+    # Branch A times out after one day; branch B receives its event later, before its own ten-day deadline
+    ask, late_a, got_a, late_b, got_b = activity("Ask"), activity("Late A"), activity("Got A"), activity("Late B"), activity("Got B")
+    a = {"id": uid(), "name": "Reply A", "event_type": "message", "event_definition": {"name": "a.replied", "timeout": "P1D"}}
+    b = {"id": uid(), "name": "Reply B", "event_type": "message", "event_definition": {"name": "b.replied", "timeout": "P10D"}}
+    timeout_a, timeout_b = edge(a, late_a), edge(b, late_b)
+    a["event_definition"]["timeout_edge_id"] = timeout_a["id"]
+    b["event_definition"]["timeout_edge_id"] = timeout_b["id"]
+    doc = document([ask, late_a, got_a, late_b, got_b],
+                   [edge(ask, a), edge(ask, b), timeout_a, edge(a, got_a), timeout_b, edge(b, got_b)], events=[a, b])
+    baseline = record(doc, {})
+    assert baseline.status.value == "waiting_event"
+    assert baseline.expire_events(time.time() * 1000 + 2 * 86400000) == 1
+    assert baseline.run()["status"] == "waiting_event"
+    baseline.deliver_event({"id": "e-1", "type": "b.replied", "source": "/portal", "data": {"ok": True}})
+    assert baseline.run()["status"] == "completed"
+    done = sorted(e["node_name"] for e in baseline.get_events() if e["type"] == "activity.completed")
+    assert done == ["Ask", "Got B", "Late A"]
+
+    replay = counterfactual_replay(Workflow.model_validate(doc), baseline.get_events(), ai="recorded")
+    assert replay.status == "completed"
+    assert sum(1 for e in replay.events if e["type"] == "event.timed_out") == 1
+    assert replay.report["same_path"] is True, replay.report.get("divergence")
+    assert set(verdicts(replay.report).values()) == {"same"}, verdicts(replay.report)
+
+
+def test_a_run_withdrawn_while_it_waited_is_withdrawn_again_and_its_compensation_is_compared():
+    refund = activity("Refund", tools=[{"name": "refund", "description": "Refund", "parameters": {"type": "object"},
+                                         "binding": {"kind": "function", "name": "refund"}}])
+    pay, done = activity("Pay", compensation={"activity_id": refund["id"]}), activity("Done")
+    wait = {"id": uid(), "name": "Reply", "event_type": "message", "event_definition": {"name": "customer.replied"}}
+    doc = document([pay, done, refund], [edge(pay, wait), edge(wait, done)], events=[wait])
+
+    class Payer:
+        def execute(self, activity, token, context=None):
+            if activity.name == "Refund":
+                context.tools.call("refund", {"amount": 150})
+                return {"refunded": True}
+            return {"paid": 150}
+
+    engine = WorkflowEngine(Workflow.model_validate(doc), options={
+        "actors": {t: Payer() for t in ActorType}, "sleep": lambda ms: None, "tools": {"handlers": {"refund": lambda arguments: {"ok": True}}}})
+    assert engine.run({})["status"] == "waiting_event"
+    assert engine.cancel("the customer withdrew") is True
+
+    replay = counterfactual_replay(Workflow.model_validate(doc), engine.get_events(), ai="recorded")
+    assert replay.status == "cancelled"
+    assert next(e for e in replay.events if e["type"] == "run.cancelled")["data"]["reason"] == "the customer withdrew"
+    report = replay.report
+    assert report["baseline"]["status"] == "cancelled"
+    assert report["same_status"] and report["same_path"] and report["regressions"] == [] and report["unrecorded"] == []
+    node = next(n for n in report["nodes"] if n["node_name"] == "Refund")
+    assert node["verdict"] == "same" and node["baseline"]["accepted"] and node["candidate"]["accepted"]
+
+
 def test_a_wait_the_recording_cannot_end_is_reported_and_nothing_is_invented():
     doc = waiting_document()
     baseline = record(doc)  # recorded while still waiting: no event was received
@@ -255,6 +330,37 @@ def test_recorded_model_decisions_are_replayed_without_a_model_and_live_ones_dec
 # ---------------------------------------------------------------------------
 # What a replay refuses, and what it leaves alone
 # ---------------------------------------------------------------------------
+
+def test_what_recorded_activities_wrote_to_contexts_is_restored_for_the_activities_that_read_them():
+    profile = {"id": uid(), "name": "customer_profile", "type": "data", "sync_pattern": "shared_state"}
+    register = activity("Register", context_bindings=[{"context_id": profile["id"], "access_mode": "write"}])
+    verify = activity("Verify", "ai_agent", context_bindings=[{"context_id": profile["id"], "access_mode": "read"}])
+    doc = document([register, verify], [edge(register, verify)], contexts=[profile])
+    given = []
+
+    class Writer:
+        def execute(self, activity, token, context=None):
+            if activity.name == "Register":
+                return {"customer_id": "C-1", "_context_writes": {"customer_profile": {"name": "Lena", "segment": "household"}}}
+            given.append(json.loads(json.dumps(token.context_data.get("_contexts"))))
+            return {"output": {"documents_valid": True}, "usage": {"input_tokens": 1, "output_tokens": 1}}
+
+    engine = WorkflowEngine(Workflow.model_validate(doc), options={"actors": {t: Writer() for t in ActorType}, "sleep": lambda ms: None})
+    assert engine.run({})["status"] == "completed"
+    events = engine.get_events()
+    assert next(e for e in events if e["type"] == "context.written")["data"]["written"] == {"name": "Lena", "segment": "household"}
+
+    recorded = counterfactual_replay(Workflow.model_validate(doc), events, ai="recorded")
+    assert recorded.status == "completed", recorded.report["regressions"]
+    assert recorded.report["same_path"] and recorded.report["regressions"] == [] and set(verdicts(recorded.report).values()) == {"same"}
+    read = next(e for e in recorded.events if e["type"] == "context.read")
+    assert read["data"]["contexts"][0]["present"] is True
+
+    # With live AI, the agent that runs again is given the context the recorded application wrote
+    live = counterfactual_replay(Workflow.model_validate(doc), events, engine={"actors": {"ai_agent": Writer()}})
+    assert live.status == "completed"
+    assert given[-1] == {"customer_profile": {"name": "Lena", "segment": "household"}}
+
 
 def test_a_journal_without_outputs_is_refused():
     doc = document([activity("A")], [])

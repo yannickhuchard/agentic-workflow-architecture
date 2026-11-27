@@ -55,5 +55,7 @@ test('every widget is one self-contained document built from its view, with the 
     assert.ok(widget_html('workflow').includes("var MODE = 'workflow'") && widget_html('run').includes("var MODE = 'run'"));
     assert.ok(widget_html('dashboard').includes('window.AWA_dashboard_show = show') && widget_html('dashboard').includes('AWA_MEASURES'), 'the dashboard carries the hook the bridge calls and the code that computes the measures');
     assert.ok(!widget_html('dashboard').includes('window.AWA_PORTFOLIO ='), 'and no sample record');
+    for (const name of Object.keys(WIDGETS)) assert.ok(widget_html(name).includes('window.AWA_set_brand = setBrand') && widget_html(name).includes('root.AWA_brand = api'), `${name} can take a brand`);
+    assert.ok(widget_html('journeys').includes('root.AWA_GLOSSARY = glossary'), 'the journey view carries its glossary');
     assert.throws(() => widget_html('nothing'), /Unknown widget/);
 });

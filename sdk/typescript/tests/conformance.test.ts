@@ -1000,9 +1000,12 @@ describe('Published examples run in simulation', () => {
             // Business events a workflow waits for (spec 18.3), delivered while it waits
             const events_file = path.join(dir, 'simulation-events.json');
             const events: Array<{ type: string; data?: Record<string, unknown> }> = fs.existsSync(events_file) ? read(events_file) : [];
+            // A call activity runs a workflow of the same example (24.1), simulated as well (24.6)
+            const siblings = list(dir).filter(f => f.endsWith('.awa.json')).map(f => parse_document(read(f)));
             const engine = new WorkflowEngine(parse_document(read(file)), {
                 simulate: true,
                 simulated_outputs: fs.existsSync(fixture) ? read(fixture) : undefined,
+                subworkflows: { workflows: siblings },
                 execution_logger: silent_logger,
                 sleep: async () => { },
             });

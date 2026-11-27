@@ -1,0 +1,413 @@
+{
+  "$schema": "https://awa.io/schema/awa.schema.json",
+  "id": "bacf22dc-eb73-5156-8025-c4a318db6e4e",
+  "name": "Self-Service Change",
+  "version": "1.0.0",
+  "awa_version": "1.1",
+  "description": "A change the employee makes in the HR portal: a fund switch, or a top-up collected with the next payroll. Each is checked against the risk profile and the plan's rules before it is made.",
+  "roles": [
+    {
+      "id": "af0e50fc-c896-5f03-90d1-5d39d8c85a70",
+      "name": "Fund platform",
+      "actor_type": "application",
+      "description": "Checks allocations against risk profiles."
+    },
+    {
+      "id": "5b62091c-0227-5dc1-b62b-0a7cc63fdde4",
+      "name": "Custodian bank",
+      "actor_type": "application",
+      "description": "The custodian bank that holds the assets covering the policies."
+    },
+    {
+      "id": "38fbdbe1-19a8-5d6e-a61d-fc2eeb39a182",
+      "name": "Employer payroll",
+      "actor_type": "application",
+      "description": "Kestrel's payroll system."
+    },
+    {
+      "id": "7fa7796e-7f94-5290-9fc0-d27dbe232df0",
+      "name": "HR portal",
+      "actor_type": "application",
+      "description": "The HR portal Valoria Life provides to the employer."
+    }
+  ],
+  "events": [
+    {
+      "id": "c67ed7d1-119f-5648-b39c-1a7e87fadcba",
+      "name": "Change requested",
+      "event_type": "start",
+      "description": "The employee asks for a fund switch or a top-up in the HR portal.",
+      "event_definition": {
+        "name": "self_service.requested"
+      }
+    },
+    {
+      "id": "8f443243-56b6-5805-82b2-72b0cfa9ddf6",
+      "name": "Change made",
+      "event_type": "message",
+      "description": "Tell the journey the change is made.",
+      "event_definition": {
+        "name": "self_service.completed",
+        "mode": "publish",
+        "data": [
+          "enrolment_id",
+          "request_type",
+          "change_status"
+        ]
+      }
+    },
+    {
+      "id": "a5b73f5d-1a0f-585c-a276-f60921e7d723",
+      "name": "Change declined",
+      "event_type": "message",
+      "description": "Tell the journey the change was declined.",
+      "event_definition": {
+        "name": "self_service.declined",
+        "mode": "publish",
+        "data": [
+          "enrolment_id",
+          "request_type",
+          "decline_reason"
+        ]
+      }
+    },
+    {
+      "id": "2b298c52-c8c0-59a1-8164-0016ea0a304a",
+      "name": "Done",
+      "event_type": "end"
+    },
+    {
+      "id": "57efeab0-956e-52d0-9404-e7bd8a533d19",
+      "name": "Not done",
+      "event_type": "end"
+    }
+  ],
+  "activities": [
+    {
+      "id": "2c0b43b4-f326-57db-97e8-1b75e2e2662a",
+      "name": "Check change against profile",
+      "role_id": "af0e50fc-c896-5f03-90d1-5d39d8c85a70",
+      "actor_type": "application",
+      "description": "Check the allocation the change leads to against the risk profile.",
+      "tools": [
+        {
+          "name": "check_allocation",
+          "description": "Check an allocation against a risk profile: the weighted summary risk indicator, its excess over the profile's maximum, and whether every fund's key information document was delivered.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "allocation",
+              "max_sri"
+            ],
+            "properties": {
+              "allocation": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "fund_id",
+                    "percent"
+                  ],
+                  "properties": {
+                    "fund_id": {
+                      "type": "string"
+                    },
+                    "percent": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 100
+                    }
+                  }
+                }
+              },
+              "max_sri": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 7
+              },
+              "enrolment_id": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4560/funds/v1/suitability-checks",
+            "headers": {
+              "x-api-key": "{{secret:FUND_PLATFORM_KEY}}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "61a4ddf5-c3de-520d-be2d-4bb97509645c",
+      "name": "Switch funds",
+      "role_id": "5b62091c-0227-5dc1-b62b-0a7cc63fdde4",
+      "actor_type": "application",
+      "description": "Move the policy's value to the new allocation.",
+      "tools": [
+        {
+          "name": "switch_funds",
+          "description": "Move the value of a policy to a new allocation, through the custodian bank.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "policy_id",
+              "allocation"
+            ],
+            "properties": {
+              "policy_id": {
+                "type": "string"
+              },
+              "allocation": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "fund_id",
+                    "percent"
+                  ],
+                  "properties": {
+                    "fund_id": {
+                      "type": "string"
+                    },
+                    "percent": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 100
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "binding": {
+            "kind": "jsonrpc",
+            "endpoint": "http://localhost:4560/custody/rpc",
+            "method": "custody.switch"
+          }
+        }
+      ]
+    },
+    {
+      "id": "4a7c6f9e-e0f3-50de-b13d-e42fa9fb0efe",
+      "name": "Schedule top-up",
+      "role_id": "38fbdbe1-19a8-5d6e-a61d-fc2eeb39a182",
+      "actor_type": "application",
+      "description": "Add the top-up to the next payroll deduction.",
+      "tools": [
+        {
+          "name": "schedule_one_off_deduction",
+          "description": "Add a one-off amount to the employee's next payroll deduction: a top-up.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "employee_number",
+              "policy_id",
+              "amount_eur"
+            ],
+            "properties": {
+              "employee_number": {
+                "type": "string"
+              },
+              "policy_id": {
+                "type": "string"
+              },
+              "amount_eur": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            }
+          },
+          "binding": {
+            "kind": "jsonrpc",
+            "endpoint": "http://localhost:4560/payroll/rpc",
+            "method": "payroll.schedule_one_off"
+          }
+        }
+      ]
+    },
+    {
+      "id": "6a518d0e-5ae5-5653-b85d-79fef899c7db",
+      "name": "Decline the change",
+      "role_id": "7fa7796e-7f94-5290-9fc0-d27dbe232df0",
+      "actor_type": "application",
+      "description": "Tell the employee why the change cannot be made, and offer a licensed adviser.",
+      "tools": [
+        {
+          "name": "send_notification",
+          "description": "Send the employee a message in the HR portal's inbox, by e-mail, or both.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "enrolment_id",
+              "channel",
+              "template"
+            ],
+            "properties": {
+              "enrolment_id": {
+                "type": "string"
+              },
+              "channel": {
+                "type": "string",
+                "enum": [
+                  "portal",
+                  "email",
+                  "portal_and_email"
+                ]
+              },
+              "template": {
+                "type": "string"
+              },
+              "subject": {
+                "type": "string"
+              },
+              "body": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4560/portal/v1/notifications",
+            "headers": {
+              "authorization": "Bearer {{secret:PORTAL_TOKEN}}"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "decision_nodes": [
+    {
+      "id": "000d06d3-7110-5a01-9040-b730a43f7d4b",
+      "name": "Change within the rules",
+      "description": "A switch must stay within the profile; a top-up is invested in the current allocation, and the plan takes at most 10,000 EUR of top-ups a year (an example of a plan rule).",
+      "decision_table": {
+        "hit_policy": "first",
+        "inputs": [
+          {
+            "name": "request_type",
+            "label": "Request",
+            "type": "string"
+          },
+          {
+            "name": "sri_excess",
+            "label": "Excess over the profile's SRI",
+            "type": "number"
+          },
+          {
+            "name": "top_up_eur",
+            "label": "Top-up (EUR)",
+            "type": "number"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "change_decision",
+            "type": "string"
+          }
+        ],
+        "rules": [
+          {
+            "description": "Above the profile",
+            "input_entries": [
+              "-",
+              "> 0",
+              "-"
+            ],
+            "output_entries": [
+              "above_profile"
+            ],
+            "output_edge_id": "cdc7185e-b624-562b-95a0-01edc85695fc"
+          },
+          {
+            "description": "A switch within the profile",
+            "input_entries": [
+              "\"switch\"",
+              "<= 0",
+              "-"
+            ],
+            "output_entries": [
+              "switch"
+            ],
+            "output_edge_id": "517d4b37-1b66-524c-aed5-abbe9dd66357"
+          },
+          {
+            "description": "A top-up within the plan's yearly limit",
+            "input_entries": [
+              "\"top_up\"",
+              "<= 0",
+              "(0..10000]"
+            ],
+            "output_entries": [
+              "top_up"
+            ],
+            "output_edge_id": "5aeb5464-2975-5553-ae4c-288e8fb29816"
+          }
+        ]
+      },
+      "default_output_edge_id": "cdc7185e-b624-562b-95a0-01edc85695fc"
+    }
+  ],
+  "edges": [
+    {
+      "id": "408fda25-6c7e-55d0-b4a8-7beb53231964",
+      "source_id": "c67ed7d1-119f-5648-b39c-1a7e87fadcba",
+      "target_id": "2c0b43b4-f326-57db-97e8-1b75e2e2662a"
+    },
+    {
+      "id": "0b04f008-8ee0-599b-b499-6d54f7032fb0",
+      "source_id": "2c0b43b4-f326-57db-97e8-1b75e2e2662a",
+      "target_id": "000d06d3-7110-5a01-9040-b730a43f7d4b"
+    },
+    {
+      "id": "517d4b37-1b66-524c-aed5-abbe9dd66357",
+      "source_id": "000d06d3-7110-5a01-9040-b730a43f7d4b",
+      "target_id": "61a4ddf5-c3de-520d-be2d-4bb97509645c",
+      "label": "switch within the profile"
+    },
+    {
+      "id": "5aeb5464-2975-5553-ae4c-288e8fb29816",
+      "source_id": "000d06d3-7110-5a01-9040-b730a43f7d4b",
+      "target_id": "4a7c6f9e-e0f3-50de-b13d-e42fa9fb0efe",
+      "label": "top-up within the plan"
+    },
+    {
+      "id": "cdc7185e-b624-562b-95a0-01edc85695fc",
+      "source_id": "000d06d3-7110-5a01-9040-b730a43f7d4b",
+      "target_id": "6a518d0e-5ae5-5653-b85d-79fef899c7db",
+      "label": "outside the rules"
+    },
+    {
+      "id": "7aff574b-7485-5c61-81c0-2750a69a6703",
+      "source_id": "61a4ddf5-c3de-520d-be2d-4bb97509645c",
+      "target_id": "8f443243-56b6-5805-82b2-72b0cfa9ddf6"
+    },
+    {
+      "id": "147f6b8b-d8e9-51a1-b508-16208a198672",
+      "source_id": "4a7c6f9e-e0f3-50de-b13d-e42fa9fb0efe",
+      "target_id": "8f443243-56b6-5805-82b2-72b0cfa9ddf6"
+    },
+    {
+      "id": "86c0bbe6-0abb-575a-83b5-426dbe4f67db",
+      "source_id": "8f443243-56b6-5805-82b2-72b0cfa9ddf6",
+      "target_id": "2b298c52-c8c0-59a1-8164-0016ea0a304a"
+    },
+    {
+      "id": "42404e75-dd7c-53c5-becb-9be01dc64cf9",
+      "source_id": "6a518d0e-5ae5-5653-b85d-79fef899c7db",
+      "target_id": "a5b73f5d-1a0f-585c-a276-f60921e7d723"
+    },
+    {
+      "id": "0cdf0197-83cb-564a-8c47-e149b94ab421",
+      "source_id": "a5b73f5d-1a0f-585c-a276-f60921e7d723",
+      "target_id": "57efeab0-956e-52d0-9404-e7bd8a533d19"
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "name": "nina-never-answers",
+  "title": "Nina never answers the invitation: two reminders, then the invitation lapses",
+  "summary": "Nina Kremer, 27, is invited and never opens the invitation. After 7 days the AI agent writes her a reminder; after 7 more days Kestrel HR sends a last reminder through the portal; after 14 more days the enrolment is closed and the journey ends: she did not take up the invitation.",
+  "starts": "2026-01-14T08:30:00Z",
+  "invitation": {
+    "enrolment_id": "ENR-26006",
+    "plan_id": "KES-PENSION-111BIS",
+    "contract_type": "pension_savings",
+    "employer": {"name": "Kestrel Engineering S.à r.l.", "employer_id": "KES-0001"},
+    "employee": {"employee_number": "K-0733", "first_name": "Nina", "last_name": "Kremer", "date_of_birth": "1998-06-11", "age": 27, "email": "nina.kremer@kestrel.example", "nationality": "LU", "language": "en"},
+    "tax_residence": "LU",
+    "retirement_age": 65,
+    "household_members": 1
+  },
+  "actors": {
+  },
+  "steps": [
+    {"at": "2026-01-21T09:00:00Z", "say": "Seven days pass without Nina opening the invitation", "tick": true},
+    {"at": "2026-01-28T10:00:00Z", "say": "Seven more days pass", "tick": true},
+    {"at": "2026-02-11T11:00:00Z", "say": "Fourteen more days pass", "tick": true}
+  ],
+  "expect": {
+    "runs": {"Plan Invitation and Advice": ["completed"], "Savings Plan Subscription": []},
+    "journey_status": "abandoned",
+    "journey_stage": "invitation",
+    "goals": [],
+    "records": [
+      {"type": "event.timed_out", "node_name": "Invitation opened"},
+      {"type": "activity.completed", "node_name": "Send invitation reminder"},
+      {"type": "event.timed_out", "node_name": "Invitation opened after reminder"},
+      {"type": "activity.completed", "node_name": "Send last reminder"},
+      {"type": "event.timed_out", "node_name": "Invitation opened after last reminder"},
+      {"type": "activity.completed", "node_name": "Close invitation"}
+    ],
+    "absent": [
+      {"type": "activity.started", "node_name": "Explain the plan"}
+    ],
+    "journey_records": [
+      {"type": "journey.abandoned", "data": {"reason": "Did not take up the invitation"}},
+      {"type": "journey.touchpoint", "data": {"touchpoint_id": "last-reminder"}}
+    ]
+  }
+}

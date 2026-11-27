@@ -24,7 +24,7 @@ const K = sandbox.window.K, sample = sandbox.window.AWA_PORTFOLIO;
 const report = K.compute_measures(sample);
 
 // The page is served, as it would be, with everything else refused: it must need nothing from the network
-const types = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json' };
+const types = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.svg': 'image/svg+xml', '.md': 'text/markdown' };
 const hostile = JSON.parse(JSON.stringify(sample));
 hostile.journeys[1].definition.name = '<img src=x onerror="window.pwned=1">Claim';
 hostile.journeys[1].instances[0].subject_name = '"><script>window.pwned=1</script>';
@@ -36,7 +36,7 @@ const server = http.createServer((req, res) => {
     if (url.pathname === '/hostile.json') { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(hostile)); return; }
     if (url.pathname === '/empty.json') { res.writeHead(200, { 'content-type': 'application/json' }); res.end('{"journeys":[],"workflows":[]}'); return; }
     if (url.pathname === '/not.json') { res.writeHead(200, { 'content-type': 'application/json' }); res.end('{"hello":1}'); return; }
-    const file = path.join(here, path.basename(url.pathname));
+    const file = url.pathname.startsWith('/brands/') ? path.join(here, 'brands', path.basename(url.pathname)) : path.join(here, path.basename(url.pathname));
     if (!fs.existsSync(file)) { res.writeHead(404); res.end(); return; }
     res.writeHead(200, { 'content-type': types[path.extname(file)] || 'text/plain' }); res.end(fs.readFileSync(file));
 }).listen(0, '127.0.0.1');
@@ -50,6 +50,7 @@ const open = async (url, viewport = { width: 1440, height: 900 }, scheme = 'dark
     page.on('pageerror', e => page.errors.push(e.message));
     page.on('console', m => { if (m.type() === 'error') page.errors.push(m.text()); });
     page.on('request', r => { if (!r.url().startsWith(base) && !r.url().startsWith('data:')) page.outside.push(r.url()); });
+    await page.route('https://fonts.googleapis.com/**', route => route.fulfill({ contentType: 'text/css', body: '' }));   // a brand's fonts, answered here
     await page.goto(url); await page.waitForSelector('#main:not([hidden]), #msg:not([hidden])');
     return page;
 };
@@ -175,6 +176,50 @@ const text = async (page, selector) => (await page.innerText(selector)).replace(
     await page.locator('#attention [data-go]').first().click();
     check(/^1\/\d\/cust-/.test(await page.evaluate(() => window.asked)), 'and "Open the journey" asks the embedding page instead');
     await page.close();
+}
+
+// 7. A company's brand: a DESIGN.md or a brand.json gives the page its colours, fonts and logo; the colours of states keep their meaning
+{
+    const B = createRequire(import.meta.url)('./awa-brand.js');
+    const look = page => page.evaluate(() => {
+        const css = getComputedStyle(document.documentElement), v = n => css.getPropertyValue(n).trim(), img = document.querySelector('#brandmark img');
+        return { plane: getComputedStyle(document.body).backgroundColor, done: v('--done'), focus: v('--focus'), ink: v('--ink'), surface: v('--surface'), stuck: v('--stuck'), bad: v('--bad'), good: v('--good'), stuck_ink: v('--stuck-ink'), bad_ink: v('--bad-ink'),
+            h1: getComputedStyle(document.querySelector('h1')).fontFamily, name: (document.querySelector('#brandmark .awa-brand-n') || {}).textContent, powered: (document.querySelector('#brandmark .awa-brand-p') || {}).textContent,
+            logo: img ? img.complete && img.naturalWidth > 0 && /valoria-life\.svg$/.test(img.src) : false, shown: !document.getElementById('brandmark').hidden, link: document.getElementById('tojourney').getAttribute('href') };
+    });
+    // Text against what is behind it, for the words of the page
+    const low = page => page.evaluate(() => {
+        const parse = v => { const m = /\(([^)]+)\)/.exec(v); if (!m) return null; const p = m[1].replace(/^srgb /, '').split(/[\s,/]+/).filter(Boolean).map(Number); const k = /^color\(/.test(v) ? 255 : 1; return { r: p[0] * k, g: p[1] * k, b: p[2] * k, a: p[3] ?? 1 }; };
+        const over = (c, bg) => ({ r: c.r * c.a + bg.r * (1 - c.a), g: c.g * c.a + bg.g * (1 - c.a), b: c.b * c.a + bg.b * (1 - c.a), a: 1 });
+        const lum = c => { const f = x => { x /= 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b); };
+        const behind = el => { const layers = []; for (let e = el; e; e = e.parentElement) { const c = parse(getComputedStyle(e).backgroundColor); if (c && c.a > 0) { layers.push(c); if (c.a >= 1) break; } } let bg = layers.length && layers[layers.length - 1].a >= 1 ? layers.pop() : { r: 255, g: 255, b: 255, a: 1 }; for (const c of layers.reverse()) bg = over(c, bg); return bg; };
+        const all = [...document.querySelectorAll('h1, h2, p.sub, .asof, .tile .lab, .tile .val, .tile .ctx, .legend span, .rows .head, .name, .of, .note, .src, .late, .att .own, .awa-brand-n, .awa-brand-p')].filter(e => e.getClientRects().length && e.textContent.trim());
+        const out = all.map(el => { const bg = behind(el), fg = over(parse(getComputedStyle(el).color), bg), x = lum(fg), y = lum(bg); return { text: el.textContent.trim().slice(0, 24), ratio: (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05) }; });
+        return { n: out.length, low: out.filter(o => o.ratio < 4.5).map(o => `"${o.text}" ${o.ratio.toFixed(2)}:1`) };
+    });
+    for (const [file, scheme] of [['valoria-life.DESIGN.md', 'dark'], ['valoria-life.brand.json', 'dark']]) {
+        const page = await open(`${base}/dashboard.html?brand=brands/${file}`, { width: 1440, height: 900 }, scheme);
+        await page.waitForTimeout(500);
+        const l = await look(page), text = await low(page);
+        check(l.plane === 'rgb(246, 247, 251)' && l.done === '#0e7c66' && l.focus === '#0e7c66' && l.shown && l.name === 'Valoria Life' && l.powered === 'powered by AWA' && l.logo,
+            `${file}: the page takes the brand's surface and accent (the bars, the focus), its name and logo with "powered by AWA", in light mode even where the reader prefers dark`);
+        check(/^"?Space Grotesk/.test(l.h1), `${file}: headings in the brand's heading font (${l.h1.split(',')[0]})`);
+        check(text.n > 20 && !text.low.length, `${file}: light mode reads at 4.5:1 or more (${text.n} words checked) ${text.low.join('; ')}`);
+        check(l.link.includes(`brand=${encodeURIComponent(`brands/${file}`)}`), `${file}: the link to the journey view carries the brand`);
+        const bg = B.parse_color('#F6F7FB');
+        check(B.contrast(B.parse_color(l.stuck), bg) >= 3 && B.contrast(B.parse_color(l.bad), bg) >= 3 && B.contrast(B.parse_color(l.stuck_ink), bg) >= 4.5 && B.contrast(B.parse_color(l.bad_ink), bg) >= 4.5,
+            `${file}: stuck and failed keep their colours, adjusted to read on the light page (${l.stuck}, ${l.bad})`);
+        check(page.errors.length === 0 && page.outside.every(u => u.startsWith('https://fonts.googleapis.com/')), `${file}: no page error, nothing fetched but the brand's fonts ${page.errors.join('; ')}`);
+        await page.close();
+    }
+    {
+        const page = await open(`${base}/dashboard.html`);
+        check(await page.locator('#brandmark').isHidden() && (await look(page)).done !== '#0e7c66' && page.outside.length === 0, 'without a brand, the page is as it was and fetches nothing');
+        await page.evaluate(() => window.AWA_set_brand('---\nname: X\ncolors:\n  primary: "#0E7C66"\n  surface: "not a colour"\n---\n'));
+        const l = await look(page);
+        check(l.done === '#0e7c66' && l.plane !== 'not a colour', 'a brand handed over by an embedding page applies, and a colour that is not one is left out');
+        await page.close();
+    }
 }
 
 await browser.close(); server.close();

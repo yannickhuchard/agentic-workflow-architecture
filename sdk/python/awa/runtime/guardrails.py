@@ -183,15 +183,26 @@ def _strings_of(value: Any, base: str, out: list[tuple[str, str]]) -> list[tuple
     return out
 
 
-def _scanned(value: Any, fields: list[str] | None) -> list[tuple[str, str]]:
-    """The strings a pattern or size check looks at: those under `fields`, or all of them"""
+def _fields_root(value: Any, stage: str) -> tuple[Any, str]:
+    """What the paths of `fields` start from (31.2): at stage output the outcome (11.1), with its pointer within the whole value; otherwise the value"""
+    if stage != "output":
+        return value, ""
+    inner = value.get("output") if isinstance(value, dict) else None
+    if isinstance(inner, dict):
+        return inner, "/output"
+    return _outcome_part(value), ""
+
+
+def _scanned(value: Any, stage: str, fields: list[str] | None) -> list[tuple[str, str]]:
+    """The strings a pattern or size check looks at: those under `fields`, or all of them. Paths stay within the whole value"""
     if not fields:
         return _strings_of(value, "", [])
+    root, base = _fields_root(value, stage)
     out: list[tuple[str, str]] = []
     for path in fields:
-        found = _lookup(value, path)
+        found = _lookup(root, path)
         if found is not _MISSING:
-            _strings_of(found, _pointer(path), out)
+            _strings_of(found, base + _pointer(path), out)
     return out
 
 
@@ -242,9 +253,9 @@ def run_check(guardrail: Guardrail, stage: str, value: Any, context: "GuardrailC
     if kind in _REDACTABLE:
         patterns = _patterns_of(check)
         return [{"category": m["category"], "path": path, "start": m["start"], "end": m["end"]}
-                for path, text in _scanned(value, guardrail.fields) for m in find_matches(text, patterns)]
+                for path, text in _scanned(value, stage, guardrail.fields) for m in find_matches(text, patterns)]
     if kind == "size":
-        characters = sum(len(text) for _, text in _scanned(value, guardrail.fields))
+        characters = sum(len(text) for _, text in _scanned(value, stage, guardrail.fields))
         findings = []
         if check.get("max_characters") is not None and characters > check["max_characters"]:
             findings.append({"category": "max_characters", "limit": check["max_characters"], "actual": characters})

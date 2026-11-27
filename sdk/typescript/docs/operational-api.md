@@ -79,7 +79,7 @@ set_journey_runtime(host);
 createServer({ request_logging: false }).listen(3000);
 ```
 
-`examples/electricity-onboarding/demo/live.mjs` does this, and adds for the runs of its journeys the routes `GET /api/v1/workflows/runs/{run_id}/workflow`, `/events` and `/events/stream`, which the server offers only for runs started through `POST /api/v1/workflows/run`.
+`examples/electricity-onboarding/demo/live.mjs` and `examples/life-insurance-savings/demo/live.mjs` do this, and add for the runs of their journeys the routes `GET /api/v1/workflows/runs/{run_id}/workflow`, `/events` and `/events/stream`, which the server offers only for runs started through `POST /api/v1/workflows/run`.
 
 ## Versions and migration
 

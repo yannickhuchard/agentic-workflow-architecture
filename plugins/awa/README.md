@@ -13,4 +13,6 @@ npm run plugin:package -- https://<your host>/mcp --demo https://<recording>
 
 which checks the package and writes it to `apps/mcp-server/dist/plugins/awa/`.
 
-To use the server today, connect to it directly in developer mode: see [`apps/mcp-server/README.md`](../../apps/mcp-server/README.md).
+To use the server today, connect to it directly in developer mode through a tunnel, or install this package in Codex or the ChatGPT desktop app from the repository's local marketplace (`.agents/plugins/marketplace.json`) with your tunnel address in `mcp.json`: the steps are in **[Connect AWA to your AI assistant](../../docs/guides/connect-ai-assistants.md#chatgpt)**, which also covers Claude, Mistral, Cursor and Gemini CLI.
+
+When the server is hosted, `npm run hosted:set -- https://<host>/mcp` in `apps/mcp-server` writes the address into this package's `mcp.json` and into the other packages.

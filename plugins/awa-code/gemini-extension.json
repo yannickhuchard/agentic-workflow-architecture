@@ -1,0 +1,22 @@
+{
+  "name": "awa",
+  "version": "0.1.0",
+  "description": "Validate, view and simulate Agentic Workflow Architecture (AWA) workflows and customer journeys with the AWA MCP server. Simulation only.",
+  "mcpServers": {
+    "awa": {
+      "command": "node",
+      "args": [
+        "${extensionPath}${/}server${/}start.mjs"
+      ],
+      "cwd": "${workspacePath}"
+    }
+  },
+  "contextFileName": "GEMINI.md",
+  "settings": [
+    {
+      "name": "AWA repository folder",
+      "description": "The absolute path of your clone of agentic-workflow-architecture, with the SDK and the MCP server built. Leave it empty when you linked the extension from that clone.",
+      "envVar": "AWA_REPOSITORY"
+    }
+  ]
+}

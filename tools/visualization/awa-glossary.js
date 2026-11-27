@@ -1,0 +1,141 @@
+// AWA glossary: the words of the journey view, each in one plain sentence, with
+// the section of the specification (docs/specification.md) that defines it.
+// Words of the view itself, which the specification does not define, cite "View".
+// Every section number was checked against docs/specification.md (AWA 1.1).
+//
+// One file, no dependencies. In a browser it defines window.AWA_GLOSSARY; in
+// Node, require() it. A journey adds its own words through the view's options
+// (the "glossary" option, tools/visualization/README.md).
+(function (root) {
+'use strict';
+
+/** The groups, in the order the panel shows them. "This journey" holds the words a journey brings */
+const GROUPS = [
+    { id: 'journey', label: 'This journey' },
+    { id: 'journeys', label: 'Journeys' },
+    { id: 'work', label: 'Work' },
+    { id: 'trust', label: 'Trust' },
+    { id: 'measures', label: 'Measures' },
+];
+
+/** id: stable, used in links (#glossary/<id>); see: the section; aliases: other words a search finds it by */
+const TERMS = [
+    // Journeys
+    { id: 'journey', group: 'journeys', term: 'Journey', see: '§19', aliases: ['journeys'],
+        definition: 'The way one customer, order or other subject travels with the organisation, stage by stage, moved on by business events.' },
+    { id: 'stage', group: 'journeys', term: 'Stage', see: '§19.2', aliases: ['stage begins'],
+        definition: 'One part of a journey, with an owner and the time it is given.' },
+    { id: 'touchpoint', group: 'journeys', term: 'Touchpoint', see: '§19.8', aliases: ['customer', 'customer acts', 'customer is told'],
+        definition: 'A moment where the customer and the organisation meet: a form, a call, a letter, a portal.' },
+    { id: 'technology', group: 'journeys', term: 'Technology', see: '§19.8', aliases: ['partner system', 'a partner system is called'],
+        definition: 'The system that carries a touchpoint, such as the customer portal, or the system of a partner the work calls.' },
+    { id: 'artefact', group: 'journeys', term: 'What changes hands', see: '§19.8', aliases: ['artefact', 'exchanged', 'received', 'sent out', 'document'],
+        definition: 'A kind of thing the customer and the organisation give each other, such as a contract, a form or a notice.' },
+    { id: 'business-event', group: 'journeys', term: 'Business event', see: '§18.1', aliases: ['event', 'caused', 'time passes'],
+        definition: 'A statement that something happened in the business, such as documents uploaded; it starts, wakes and moves journeys and workflows.' },
+    { id: 'goal', group: 'journeys', term: 'Goal', see: '§19.1', aliases: ['goal reached', 'reached', 'not reached'],
+        definition: 'What counts as success on a journey; the journey records it once, the first time its condition holds.' },
+    { id: 'mood', group: 'journeys', term: 'Mood', see: '§19.9', aliases: ['sentiment', 'mood stated', 'mood inferred', 'said', 'inferred'],
+        definition: 'How the customer seems to feel on the journey\'s scale: stated by the customer, or inferred by a rule the journey declares.' },
+    { id: 'stalled', group: 'journeys', term: 'Stalled', see: '§19.2', aliases: ['stuck', 'needs action', 'stalled: needs someone'],
+        definition: 'A journey that stays in a stage longer than the stage allows, or whose workflow failed; the owner of the stage must act.' },
+    { id: 'abandoned', group: 'journeys', term: 'Abandoned', see: '§19.1', aliases: ['exit', 'left'],
+        definition: 'A journey that ends before its goal, because a business event named as an exit arrived, such as a customer who withdraws.' },
+    { id: 'journey-status', group: 'journeys', term: 'Journey status', see: '§19.4', aliases: ['active', 'completed', 'under way'],
+        definition: 'Active, completed or abandoned: where a journey stands. A journey never fails; a failed workflow stalls its stage instead.' },
+    { id: 'owner', group: 'journeys', term: 'Owner', see: '§19.2', aliases: ['whose it is'],
+        definition: 'The team, role or person who must act when a journey stalls in a stage.' },
+    { id: 'blueprint', group: 'journeys', term: 'Blueprint', see: 'View', aliases: ['service blueprint', 'living blueprint'],
+        definition: 'The picture of one customer\'s journey: what the customer does and is told at the top, the journey in the middle, and the work behind it below.' },
+    { id: 'line-of-visibility', group: 'journeys', term: 'Line of visibility', see: 'View', aliases: ['line'],
+        definition: 'The line between what the customer sees, above it, and the work the organisation does out of sight, below it.' },
+
+    // Work
+    { id: 'workflow', group: 'work', term: 'Workflow', see: '§3', aliases: ['workflows', 'process'],
+        definition: 'A plan of how one piece of work is done: its steps and the paths between them.' },
+    { id: 'run', group: 'work', term: 'Run', see: '§5.1', aliases: ['execution'],
+        definition: 'One execution of a workflow, recorded step by step in its journal.' },
+    { id: 'run-status', group: 'work', term: 'Run status', see: '§5.7', aliases: ['completed', 'failed', 'withdrawn', 'cancelled', 'waiting for a person', 'waiting for an event', 'being replayed', 'a workflow fails'],
+        definition: 'Where a run stands: under way, waiting for a person or an event, completed, failed, or withdrawn because the work is no longer wanted.' },
+    { id: 'step-status', group: 'work', term: 'Step status', see: '§5.1', aliases: ['working now', 'waiting', 'done', 'failed', 'undone afterwards'],
+        definition: 'What a step of the run is at the moment being read: working now, waiting, done, failed, or undone afterwards.' },
+    { id: 'child-run', group: 'work', term: 'Child run', see: '§24', aliases: ['sub-workflow', 'subworkflow', 'parent run'],
+        definition: 'A run of another workflow that an activity starts to do its work; the activity waits for its result.' },
+    { id: 'activity', group: 'work', term: 'Activity', see: '§3', aliases: ['step', 'task', 'box'],
+        definition: 'A unit of work done by one actor: a person, an AI agent, a robot or a system.' },
+    { id: 'person', group: 'work', term: 'Person', see: '§5.6', aliases: ['human', 'waits for a person'],
+        definition: 'An activity a person performs; the run waits until they complete their task.' },
+    { id: 'ai-agent', group: 'work', term: 'AI agent', see: '§3', aliases: ['agent', 'ai_agent', 'model'],
+        definition: 'An activity performed by an AI model that may take a different route to its result each time it runs.' },
+    { id: 'robot', group: 'work', term: 'Robot', see: '§3', aliases: ['rpa'],
+        definition: 'An activity performed by a software robot that works through other programs as a person would.' },
+    { id: 'system', group: 'work', term: 'System', see: '§3', aliases: ['application'],
+        definition: 'An activity performed by a program that follows fixed rules, such as a call to a service.' },
+    { id: 'decision', group: 'work', term: 'Decision', see: '§5.5', aliases: ['diamond', 'route'],
+        definition: 'A point where the work takes one path of several; it does no work itself.' },
+    { id: 'decision-table', group: 'work', term: 'Decision table', see: '§5.5', aliases: ['rule', 'rules'],
+        definition: 'Rules written in advance that pick the path from the facts of the case, the same way every time.' },
+    { id: 'model-decision', group: 'work', term: 'Decision by a model', see: '§16', aliases: ['a model decides', 'model decides'],
+        definition: 'Where no rule covers the case, a model picks one of the paths the workflow lists, and states how confident it is.' },
+    { id: 'event', group: 'work', term: 'Event', see: '§13.4', aliases: ['start', 'end', 'circle'],
+        definition: 'A point in a workflow where the work starts, ends, waits, or tells others that something happened.' },
+    { id: 'timer', group: 'work', term: 'Timer', see: '§13.5', aliases: ['delay'],
+        definition: 'An event that holds the work for a set time, then lets it go on.' },
+    { id: 'wait-event', group: 'work', term: 'Waiting for an event', see: '§18.3', aliases: ['waits for event', 'wait'],
+        definition: 'An event where the run stops until a matching business event arrives, or until its deadline passes.' },
+    { id: 'publish-event', group: 'work', term: 'Announcing an event', see: '§18.2', aliases: ['announces event', 'publish', 'announced'],
+        definition: 'An event that tells other systems something happened; the run goes on at once.' },
+    { id: 'missed-deadline', group: 'work', term: 'Missed deadline', see: '§18.3', aliases: ['timeout', 'path taken on a missed deadline', 'nothing arrives in time', 'nothing arrives'],
+        definition: 'When the event a run waits for has not arrived by its deadline, the run takes the path planned for that case.' },
+    { id: 'band', group: 'work', term: 'Band', see: 'View', aliases: ['bands', 'now', 'next'],
+        definition: 'A part of a long workflow that the run view shows on its own, large enough to read.' },
+    { id: 'compensation', group: 'work', term: 'Undo step', see: '§13.6', aliases: ['compensation', 'undo', 'an earlier step is undone', 'undone'],
+        definition: 'An activity that undoes the effect of an earlier one when the run fails, so that nothing is left half done.' },
+    { id: 'service-level', group: 'work', term: 'Service level', see: '§23', aliases: ['sla', 'deadline', 'breach'],
+        definition: 'How long the work should take and the longest it may take; the run records a warning, then a breach.' },
+    { id: 'journal-record', group: 'work', term: 'Journal record', see: '§9', aliases: ['journal', 'record', 'the record as written'],
+        definition: 'One entry of a run\'s journal, the record of everything the run did, which nothing changes once written.' },
+
+    // Trust
+    { id: 'outcome-contract', group: 'trust', term: 'Outcome contract', see: '§11', aliases: ['contract'],
+        definition: 'What must be true of a result, whatever route the agent took to it; a result that breaks it is tried again or refused.' },
+    { id: 'verification', group: 'trust', term: 'Verification', see: '§7', aliases: ['acceptance criteria', 'judge'],
+        definition: 'Acceptance criteria a result must meet before the work goes on; when they cannot be checked, the result does not pass.' },
+    { id: 'escalation', group: 'trust', term: 'Escalation to a person', see: '§11.5', aliases: ['escalate', 'human review'],
+        definition: 'When a result is refused and no attempt remains, a person receives it with the reasons and decides.' },
+    { id: 'guardrail', group: 'trust', term: 'Guardrail', see: '§31', aliases: ['redact', 'block', 'withholds'],
+        definition: 'A check on what goes into or comes out of an AI agent or a tool; when it finds something, it warns, redacts, blocks, asks for another attempt or hands the case to a person.' },
+    { id: 'guardrail-stage', group: 'trust', term: 'Guardrail stage', see: '§31.3', aliases: ['input', 'output', 'tool call', 'tool result'],
+        definition: 'Where a guardrail checks: the input an agent is given, the output it gives, a call to a tool, or what the tool returns.' },
+    { id: 'principal', group: 'trust', term: 'Principal', see: '§30.1', aliases: ['who', 'identity'],
+        definition: 'Whoever acts: a person, an AI agent, a robot, an application or a service.' },
+    { id: 'policy', group: 'trust', term: 'Policy', see: '§30.2', aliases: ['authorization', 'refused', 'forbidden'],
+        definition: 'The rules of the organisation that runs the work on who may do what; the engine refuses anything no rule allows.' },
+    { id: 'separation-of-duties', group: 'trust', term: 'Separation of duties', see: '§30.3', aliases: ['segregation of duties'],
+        definition: 'A rule that stops the same principal from doing two steps that must have different hands, such as submitting a request and approving it.' },
+    { id: 'four-eyes', group: 'trust', term: 'Four eyes', see: '§30.3', aliases: ['approval', 'two engineers', 'approvals'],
+        definition: 'A rule that a step needs the approval of two or more different people before the work goes on.' },
+    { id: 'evidence', group: 'trust', term: 'Evidence report', see: '§32', aliases: ['evidence', 'citation', 'audit'],
+        definition: 'A report computed from the record in which every statement cites the records it rests on; it is evidence, not a certificate of compliance.' },
+
+    // Measures
+    { id: 'measure', group: 'measures', term: 'Measure', see: '§21.1', aliases: ['measures', 'kpi'],
+        definition: 'A number computed from the record, never estimated, with how many things it counts; with nothing to count, it has no value.' },
+    { id: 'journeys-started', group: 'measures', term: 'Journeys started', see: '§21.2', aliases: ['started'],
+        definition: 'How many journeys began in the period.' },
+    { id: 'reached-the-goal', group: 'measures', term: 'Reached the goal', see: '§21.2', aliases: ['goal attainment'],
+        definition: 'The share of the journeys started that reached every goal of their journey.' },
+    { id: 'done-without-a-person', group: 'measures', term: 'Done without a person', see: '§21.4', aliases: ['automation rate', 'automated'],
+        definition: 'The share of completed steps that no person performed.' },
+    { id: 'cost-per-journey', group: 'measures', term: 'Cost per journey', see: '§21.2', aliases: ['cost'],
+        definition: 'What the ended runs of a journey cost, divided by the number of journeys started.' },
+    { id: 'time-to-the-end', group: 'measures', term: 'Time to the end', see: '§21.2', aliases: ['duration', 'median'],
+        definition: 'The median time from the start of a journey to its end, over the journeys that completed.' },
+    { id: 'right-first-time', group: 'measures', term: 'Right first time', see: '§21.4', aliases: ['first pass yield'],
+        definition: 'The share of ended runs that completed with no failed step, no retry and no undo step.' },
+];
+
+const glossary = { groups: GROUPS, terms: TERMS };
+root.AWA_GLOSSARY = glossary;
+if (typeof module !== 'undefined' && module.exports) module.exports = glossary;
+})(typeof window !== 'undefined' ? window : globalThis);

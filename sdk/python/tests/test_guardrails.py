@@ -184,6 +184,20 @@ def test_a_blocked_output_is_not_retried_and_retry_with_feedback_gives_up():
     assert "a@b.io" not in json.dumps(events)
 
 
+def test_fields_at_stage_output_are_paths_within_the_outcome_where_an_agent_carries_it_under_output():
+    g = as_dict(guard({"kind": "personal_data", "categories": ["phone"]}, "redact", ("output",), fields=["notes"]))
+    script = {"output": {"notes": "Call +33 6 12 34 56 78 after six", "contact": "+33 6 12 34 56 78"}, "status": "complex_completed"}
+    engine, _, status, events = run([activity("A", guardrails=[g])], {"A": [script]})
+    assert status == "completed"
+    record = next((e for e in events if e["type"] == "guardrail.triggered"), None)
+    assert record is not None and record["data"]["findings"] == [{"category": "phone", "path": "/output/notes", "start": 5, "end": 22}]
+    data = engine.tokens[0].context_data
+    assert data["notes"] == "Call [REDACTED:phone] after six" and data["contact"] == "+33 6 12 34 56 78"
+    flat = run_check(guard({"kind": "deny_list", "terms": ["secret"]}, fields=["notes"]), "output", {"notes": "a secret", "other": "secret"},
+                     GuardrailContext(record=lambda *a, **k: None))
+    assert flat == [{"category": "term", "path": "/notes", "start": 2, "end": 8}]
+
+
 def test_escalate_is_block_on_an_activity_performed_by_a_person():
     g = as_dict(guard({"kind": "personal_data"}, "escalate", ("output",), actor_types=["human"]))
     _, _, status, events = run([activity("A", actor_type="human", guardrails=[g])], {"A": [{"reply": "a@b.io"}]})

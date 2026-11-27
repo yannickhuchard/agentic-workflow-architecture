@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "agentic-workflow-architecture",
+  "description": "The AWA plugin: validate, view and simulate Agentic Workflow Architecture workflows and customer journeys with the AWA MCP server and skill.",
+  "owner": {
+    "name": "Yannick Huchard",
+    "url": "https://github.com/yannickhuchard"
+  },
+  "plugins": [
+    {
+      "name": "awa",
+      "source": "./plugins/awa-code",
+      "description": "The AWA MCP server (7 tools: validate, show and simulate workflows and journeys, the claims example, the measures dashboard), the AWA skill and the /awa:validate, /awa:show, /awa:simulate and /awa:example commands. Needs a built clone of this repository until the server is hosted.",
+      "category": "development",
+      "tags": ["awa", "workflow", "customer-journey", "simulation", "mcp"]
+    }
+  ]
+}

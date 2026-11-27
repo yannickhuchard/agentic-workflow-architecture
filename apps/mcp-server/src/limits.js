@@ -22,4 +22,6 @@ export const LIMITS = Object.freeze({
     http_body_bytes: 1_000_000,
     /** Problems reported by one validation */
     problems: 60,
+    /** A brand (DESIGN.md text or brand.json), logos inline as data: URLs included */
+    brand_bytes: 300_000,
 });

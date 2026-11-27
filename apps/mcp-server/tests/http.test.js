@@ -138,7 +138,7 @@ test('an MCP client works over Streamable HTTP, statelessly', async t => {
     assert.equal((await client.listTools()).tools.length, 7);
     const result = await client.callTool({ name: 'simulate_workflow', arguments: { workflow: read('examples/order-processing/order-processing.awa.json'), simulated_outputs: read('examples/order-processing/simulation.json') } });
     assert.equal(result.structuredContent.status, 'completed');
-    assert.ok((await client.readResource({ uri: 'ui://awa/run-replay-v1.html' })).contents[0].text.length > 50_000);
+    assert.ok((await client.readResource({ uri: 'ui://awa/run-replay-v2.html' })).contents[0].text.length > 50_000);
     // No session: a second client needs nothing from the first, and a call without initialize is answered
     const bare = await request(server, { method: 'POST', headers: json, body: rpc('tools/list', {}) });
     assert.equal(bare.status, 200); assert.equal(JSON.parse(bare.text).result.tools.length, 7);

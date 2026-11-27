@@ -1,0 +1,82 @@
+{
+  "id": "output-fields-are-paths-within-the-outcome",
+  "level": "guardrails",
+  "spec": "31.2",
+  "description": "At stage output the paths of fields start from the outcome (11.1): when the agent's result carries its outcome under 'output', 'notes' names output.notes. Only that field is redacted, and the finding's path is within the whole result.",
+  "workflow": {
+    "id": "5c05dd33-e657-55f8-98fe-96d7fd30f4e4",
+    "name": "output-fields-are-paths-within-the-outcome",
+    "version": "1.0.0",
+    "awa_version": "1.1",
+    "activities": [
+      {
+        "id": "c29ce8cb-5185-5486-871a-37887d6cf0df",
+        "name": "Verify",
+        "role_id": "ddbe74ac-656e-53b7-83bd-aa20ac83616d",
+        "actor_type": "ai_agent",
+        "guardrails": [
+          {
+            "id": "14042267-35a9-513b-abff-292d71660cf6",
+            "name": "Phone numbers in notes",
+            "stages": [
+              "output"
+            ],
+            "check": {
+              "kind": "personal_data",
+              "categories": [
+                "phone"
+              ]
+            },
+            "action": "redact",
+            "fields": [
+              "notes"
+            ]
+          }
+        ]
+      }
+    ],
+    "edges": []
+  },
+  "actors": {
+    "Verify": {
+      "output": {
+        "output": {
+          "notes": "Call +33 6 12 34 56 78 after six",
+          "contact": "+33 6 12 34 56 78"
+        },
+        "status": "complex_completed"
+      }
+    }
+  },
+  "expect": {
+    "status": "completed",
+    "data": {
+      "notes": "Call [REDACTED:phone] after six",
+      "contact": "+33 6 12 34 56 78"
+    },
+    "journal_count": {
+      "guardrail.triggered": 1
+    },
+    "journal_contains": [
+      {
+        "type": "guardrail.triggered",
+        "data": {
+          "stage": "output",
+          "check": "personal_data",
+          "action": "redact",
+          "categories": [
+            "phone"
+          ],
+          "findings": [
+            {
+              "category": "phone",
+              "path": "/output/notes",
+              "start": 5,
+              "end": 22
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

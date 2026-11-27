@@ -1,0 +1,51 @@
+{
+  "name": "eva-guarantee-blocked",
+  "title": "Eva's annual review: a promise of a guaranteed return is blocked, a phone number redacted",
+  "summary": "Eva Morel, 56, plans to retire at 63 and married in 2026. In her annual review the AI adviser recommends reducing the risk as her retirement approaches and reviewing her beneficiary clause after her marriage. Its first answer says the moderate portfolio guarantees a 3% annual return: the deployment's guardrail blocks it and the agent writes again. The second answer quotes her husband's phone number: the workflow's guardrail redacts it. Hugo, licensed adviser, confirms the recommendations; Eva accepts them, her savings move to the moderate portfolio and her husband becomes her beneficiary.",
+  "starts": "2026-01-15T08:00:00Z",
+  "invitation": {
+    "enrolment_id": "ENR-26008",
+    "plan_id": "KES-PENSION-111BIS",
+    "contract_type": "pension_savings",
+    "employer": {"name": "Kestrel Engineering S.à r.l.", "employer_id": "KES-0001"},
+    "employee": {"employee_number": "K-0221", "first_name": "Eva", "last_name": "Morel", "date_of_birth": "1970-02-18", "age": 56, "email": "eva.morel@kestrel.example", "nationality": "LU", "language": "en"},
+    "tax_residence": "LU",
+    "retirement_age": 63,
+    "household_members": 2
+  },
+  "world": {
+    "position": {"drift_pp": 2.1, "performance_pct": 3.1}
+  },
+  "actors": {
+    "Recommend changes": {"attempts": [{"output": {"recommendations": [{"type": "reduce_risk", "reason": "Retirement is six years away."}, {"type": "review_beneficiary", "reason": "Eva married this year."}], "recommendation_text": "Dear Eva, with retirement six years away, move to the moderate portfolio: it guarantees a 3% annual return until you retire. As you married this year, name your husband as beneficiary.", "requires_adviser": true, "target_allocation": [{"fund_id": "VL-BOND-EUR", "percent": 30}, {"fund_id": "VL-BOND-GREEN", "percent": 40}, {"fund_id": "VL-MIX-BAL", "percent": 30}]}, "agent": {"confidence": 0.86, "rationale": "Retirement is close and a life event occurred."}}, {"output": {"recommendations": [{"type": "reduce_risk", "reason": "Retirement is six years away: a smaller fall in value would have less time to recover."}, {"type": "review_beneficiary", "reason": "Eva married this year; the standard clause already names a spouse, but she asked to name her husband explicitly."}], "recommendation_text": "Dear Eva, with retirement six years away, we recommend moving your savings to the moderate portfolio, whose value moves less; it can still fall. As you married this year, you may name your husband, reachable at +352 621 555 018, as your beneficiary.", "requires_adviser": true, "target_allocation": [{"fund_id": "VL-BOND-EUR", "percent": 30}, {"fund_id": "VL-BOND-GREEN", "percent": 40}, {"fund_id": "VL-MIX-BAL", "percent": 30}]}, "agent": {"confidence": 0.9, "rationale": "Rewritten without any promise on returns: unit-linked funds carry no guarantee."}}]},
+    "Apply accepted changes": {"calls": [{"tool": "switch_funds", "as": "switch", "arguments": {"policy_id": "{{policy_id}}", "allocation": "{{target_allocation}}"}}, {"tool": "update_beneficiary_clause", "as": "clause", "arguments": {"policy_id": "{{policy_id}}", "beneficiary_clause": "{{beneficiary_clause}}"}}], "output": {"changes_applied": ["reduce_risk", "review_beneficiary"], "allocation": "{{target_allocation}}", "risk_profile": "moderate", "max_sri": 3, "switch_id": "{{switch.switch_id}}"}}
+  },
+  "steps": [
+    {"at": "2026-01-15T09:20:00Z", "say": "Eva opens the invitation in the HR portal", "publish": "invitation.opened", "source": "/hr-portal", "data": {"invitation_opened": true}},
+    {"at": "2026-01-15T18:00:00Z", "say": "Eva answers the questionnaire", "publish": "questionnaire.submitted", "source": "/hr-portal/questionnaire", "data": {"knowledge_level": "informed", "capacity_for_loss": "moderate", "risk_tolerance": 3, "sustainability_preference": "esg_preferred", "horizon_years": 7, "monthly_contribution_eur": 375}},
+    {"at": "2026-01-16T08:00:00Z", "say": "Eva chooses the model portfolio and reads its key information documents", "publish": "investments.chosen", "source": "/hr-portal/investments", "data": {"choice": "model_portfolio", "kids_acknowledged": true, "allocation": [{"fund_id": "VL-BOND-GREEN", "percent": 30}, {"fund_id": "VL-MIX-BAL", "percent": 30}, {"fund_id": "VL-EQ-WORLD-ESG", "percent": 40}]}},
+    {"at": "2026-01-16T12:00:00Z", "say": "Eva submits the subscription form", "publish": "subscription.submitted", "source": "/hr-portal/subscription", "data": {"documents": [{"type": "identity_card", "file_id": "F-26008-ID"}, {"type": "proof_of_address", "file_id": "F-26008-ADDR"}], "self_certification": {"tax_residences": [{"country": "LU", "tin": "1970021867890"}], "us_person": false}, "beneficiary_clause": {"type": "standard"}, "monthly_contribution_eur": 375, "payroll_mandate_signed": true}},
+    {"at": "2026-01-19T08:40:00Z", "say": "The e-signature service reports Eva's signed contract", "publish": "contract.signed", "source": "/e-signature", "data": {"contract_signed": true, "envelope_id": "ENV-26008"}},
+    {"at": "2026-01-27T06:00:00Z", "monthly": 12, "say": "Kestrel's payroll pays Eva's contribution for {{period}}", "publish": "payroll.contribution_paid", "source": "/kestrel-payroll", "data": {"period": "{{period}}", "amount_eur": 375}},
+    {"at": "2026-02-27T05:00:00Z", "say": "The policy administration closes the 30 days to cancel", "publish": "cooling_off.ended", "source": "/policy-administration/calendar", "data": {"cooling_off_closed": true}},
+    {"at": "2026-11-02T07:00:00Z", "say": "The insurer's calendar opens the year-end review of tax year 2026", "publish": "tax_year.review_due", "source": "/policy-administration/calendar", "data": {"tax_year": 2026, "months_remaining": 2, "tax_review_due": true}},
+    {"at": "2027-01-15T06:00:00Z", "say": "The January certificate run of the policy administration", "publish": "tax_certificates.due", "source": "/policy-administration/calendar", "data": {"tax_year": 2026}},
+    {"at": "2027-01-26T07:00:00Z", "say": "The anniversary of Eva's policy opens the annual review", "publish": "annual_review.due", "source": "/policy-administration/calendar", "data": {"review_year": 2027}},
+    {"at": "2027-01-28T19:00:00Z", "say": "Eva answers the review: she married in June and claimed the deduction", "publish": "annual_review.answered", "source": "/hr-portal/review", "data": {"deduction_claimed": true, "life_events": ["marriage"], "satisfaction": 4}},
+    {"at": "2027-01-29T11:00:00Z", "say": "Hugo, licensed adviser, confirms the recommendations", "complete": "Confirm recommendations with an adviser", "by": "hugo", "output": {"recommendations_confirmed": true, "note": "Lower risk suits a six-year horizon; the new clause names her husband."}},
+    {"at": "2027-01-30T18:30:00Z", "say": "Eva accepts the recommendations and names her husband as beneficiary", "publish": "recommendations.answered", "source": "/hr-portal/review", "data": {"recommendations_accepted": true, "beneficiary_clause": {"type": "named", "beneficiaries": [{"relation": "spouse", "share": 100}]}}}
+  ],
+  "expect": {
+    "runs": {"Plan Invitation and Advice": ["completed"], "Savings Plan Subscription": ["completed"], "Identity, AML and Tax Residence Checks": ["completed"], "Payroll Contributions": ["completed"], "Self-Service Change": [], "Year-End Tax": ["completed"], "Annual Review": ["completed"]},
+    "journey_status": "completed",
+    "journey_stage": "annual-review",
+    "goals": ["policy-issued", "first-deduction-claimed"],
+    "data": {"premiums_paid_eur": 4500, "risk_profile": "moderate", "allocation": [{"fund_id": "VL-BOND-EUR", "percent": 30}, {"fund_id": "VL-BOND-GREEN", "percent": 40}, {"fund_id": "VL-MIX-BAL", "percent": 30}]},
+    "records": [
+      {"type": "guardrail.triggered", "node_name": "Recommend changes", "data": {"source": "deployment", "stage": "output", "action": "retry_with_feedback", "categories": ["guaranteed_return"]}},
+      {"type": "guardrail.triggered", "node_name": "Recommend changes", "data": {"source": "activity", "stage": "output", "action": "redact", "categories": ["phone"]}},
+      {"type": "activity.completed", "node_name": "Confirm recommendations with an adviser", "data": {"principal": {"id": "hugo"}}},
+      {"type": "tool.completed", "node_name": "Apply accepted changes", "data": {"tool": "update_beneficiary_clause"}}
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "AWA Workflows & Journeys",
+  "description": "Validate, view and simulate Agentic Workflow Architecture (AWA) workflows and customer journeys. Simulation only: no tool, model or production system is called.",
+  "transport": "streamable-http",
+  "authentication": "none",
+  "url_today": "https://<your tunnel host>/mcp",
+  "hosted_url": "https://awa-mcp.placeholder.invalid/mcp",
+  "tools": ["validate_document", "show_workflow", "simulate_workflow", "show_journeys", "simulate_journey", "load_claims_example", "show_dashboard"],
+  "clients": {
+    "ChatGPT": "Plugins, plus button, Add custom MCP server: paste the address, no authentication",
+    "claude.ai and Claude Desktop": "Settings, Connectors, Add custom connector: paste the address",
+    "Le Chat": "Intelligence, Connectors, Add Connector, Custom MCP Connector: paste the address; no authentication is detected"
+  }
+}

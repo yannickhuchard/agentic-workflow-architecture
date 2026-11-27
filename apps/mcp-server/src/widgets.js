@@ -65,22 +65,22 @@ const own = file => path.join(WIDGET_SOURCES, file);
  */
 export const WIDGETS = {
     journeys: {
-        uri: 'ui://awa/journeys-v1.html',
+        uri: 'ui://awa/journeys-v2.html',
         description: 'Customer journeys at four heights: all journeys, one journey on calendar time, one customer\'s journey with mood, touchpoints and what changed hands, and the workflow run behind any moment. Shows simulated or exported records; it executes nothing.',
         bundle: { html: view('journey.html'), drop: ['journey-story.js', 'journey-story-builder.js'], styles: [own('journey.css')], scripts: [own('host-bridge.js'), own('journey-bridge.js')] },
     },
     workflow: {
-        uri: 'ui://awa/workflow-graph-v1.html',
+        uri: 'ui://awa/workflow-graph-v2.html',
         description: 'An AWA workflow as a graph: activities with their actor type and role, decisions, events and edges, with the data each activity takes in and gives out, the contexts it reads and writes, and the access it needs. A definition view; it executes nothing.',
         bundle: { html: view('replay.html'), drop: ['replay-sample.js'], styles: [own('workflow.css')], scripts: [own('host-bridge.js'), own('workflow-bridge.js')], replace: { __AWA_WIDGET_MODE__: 'workflow' } },
     },
     run: {
-        uri: 'ui://awa/run-replay-v1.html',
+        uri: 'ui://awa/run-replay-v2.html',
         description: 'A simulated run of an AWA workflow replayed over its graph from the execution journal: the path taken, decisions, waits, simulated tool calls and failures, step by step. Simulation only; no tool, model or command was executed.',
         bundle: { html: view('replay.html'), drop: ['replay-sample.js'], styles: [own('workflow.css')], scripts: [own('host-bridge.js'), own('workflow-bridge.js')], replace: { __AWA_WIDGET_MODE__: 'run' } },
     },
     dashboard: {
-        uri: 'ui://awa/dashboard-v1.html',
+        uri: 'ui://awa/dashboard-v2.html',
         description: 'The measures of journeys and workflows (AWA specification section 21): who is stuck and who is to act, what became of the journeys that started, how each workflow\'s runs went, where the time goes, and counts over time. Every rate is shown with its count, and any number opens the customers or runs behind it. Shows simulated or exported records; it executes nothing.',
         bundle: { html: view('dashboard.html'), drop: ['dashboard-sample.js'], scripts: [own('host-bridge.js'), own('dashboard-bridge.js')] },
     },

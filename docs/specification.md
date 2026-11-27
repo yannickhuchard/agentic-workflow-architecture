@@ -560,7 +560,7 @@ An engine MUST NOT alter or remove an event once written.
 | `timer.started`, `timer.fired` | execution | A token reaches a timer event; the timer elapses | `duration`, `due_at` |
 | `event.published` | execution | A token passes a publishing event (18.2) | `event_id`, `name`, `source`, `data`, `delivered` |
 | `context.read` | execution | An activity is given the contexts it is bound to read (22.2) | `contexts`: for each, `context_id`, `context_name`, `access_mode`, `present`, `value_hash` |
-| `context.written`, `context.denied` | execution | A write to a context is applied, or refused (22.3) | `context_name`, `sync_pattern`, `access_mode`, `value_hash`; or `reason` |
+| `context.written`, `context.denied` | execution | A write to a context is applied, or refused (22.3) | `context_name`, `sync_pattern`, `access_mode`, `value_hash`, `written`; or `reason` |
 | `sla.warning`, `sla.breached` | execution | Work passed the point of warning, or its longest time (23.2) | `scope`, `elapsed_ms`, `threshold` or `max_time`, `action`, `name`, `notify_roles` |
 | `event.waiting` | execution | A token is held at a waiting event (18.3) | `name`, `correlation_key`, `correlation_value`, `due_at` |
 | `event.received` | execution | A business event released a held token | `event_id`, `name`, `source`, `data` |
@@ -593,7 +593,7 @@ Every attempt of an activity is bracketed: one `activity.started`, then exactly 
 
 ### 9.4 Payloads
 
-Activity inputs and outputs may be sensitive. An engine MUST support three payload modes and MUST apply the chosen one to every `input`, `output`, tool `arguments` and tool `result` it journals:
+Activity inputs and outputs may be sensitive. An engine MUST support three payload modes and MUST apply the chosen one to every `input`, `output`, tool `arguments`, tool `result` and context write (`written`, 22.3) it journals:
 
 | Mode | The journal holds |
 |---|---|
@@ -1402,12 +1402,13 @@ A journal records what a run did. **Counterfactual replay** asks what it would h
 | Taken from the baseline journal | Runs again |
 |---|---|
 | The run's input | AI agents, under the candidate configuration |
-| Results of activities performed by applications, robots and people | Model decisions (section 16) |
+| Results of activities performed by applications, robots and people, with what they wrote to contexts (22.3) | Model decisions (section 16) |
 | Results of tool calls, matched by tool and arguments | Verification and judges (section 7) |
-| Business events received, and timeouts | Contracts, guardrails (31.9), decision tables and routing |
+| Business events received, and timeouts, in the order they ended the recorded run's waits | Contracts, guardrails (31.9), decision tables and routing |
 | The passing of time: timers and backoff do not wait | |
+| A cancellation (5.8): a run cancelled while it waited is cancelled, with the same reason, once the recording has nothing more to end its wait | |
 
-With `ai: "recorded"`, the recorded outputs of AI agents and model decisions are replayed as well. Nothing calls a model, and the comparison isolates the effect of a changed contract, criterion, table or edge.
+With `ai: "recorded"`, the recorded outputs of AI agents, with what they wrote to contexts, and model decisions are replayed as well. Nothing calls a model, and the comparison isolates the effect of a changed contract, criterion, table or edge.
 
 The candidate MAY be a different workflow document. Nodes are matched by `id`.
 
@@ -1433,7 +1434,7 @@ It names the first point at which the paths diverge. A run that was `completed` 
 
 ### 20.4 Conformance
 
-Level `replay` has its own cases, in `spec/conformance/replay/` (Appendix A). Replay of tool results, of business events and of timeouts is fixed by `sdk/typescript/tests/counterfactual.test.ts`.
+Level `replay` has its own cases, in `spec/conformance/replay/` (Appendix A). Replay of tool results, of business events and of timeouts, and of a cancellation, is fixed by `sdk/typescript/tests/counterfactual.test.ts`.
 
 ## 21. Measures
 
@@ -1564,7 +1565,7 @@ A write is refused, and the activity fails without being retried, when:
 - the workflow declares no context of that name, or the activity has no binding to it that allows writing: `CONTEXT_ACCESS_DENIED`;
 - the context has a `schema` and the result does not match it: `CONTEXT_INVALID`. For the appending patterns the schema describes one entry; for the others, the value after the write.
 
-The writes of one activity are applied together or not at all. The engine journals `context.written` for each write applied, with the context, its `sync_pattern`, the `access_mode` and a hash of the value afterwards, and `context.denied` for a write refused, with the reason.
+The writes of one activity are applied together or not at all. The engine journals `context.written` for each write applied, with the context, its `sync_pattern`, the `access_mode`, a hash of the value afterwards and, as a payload (9.4), what the activity wrote (`written`), and `context.denied` for a write refused, with the reason.
 
 Context values are part of the state a run is recovered from (10.3).
 
@@ -2712,7 +2713,7 @@ A deployment's guardrails are given to the engine with its configuration (the re
 | `action` | `block`, `redact`, `retry_with_feedback`, `escalate` or `warn` (31.5) |
 | `actor_types` | The actor types of the activities it applies to. Default `["ai_agent"]`. Not used on a tool |
 | `tools` | The names of the tools it applies to at `tool_call` and `tool_result`. Default: every tool. Not used on a tool |
-| `fields` | Paths (6.2) within the value checked, through object properties only. When given, the checks `personal_data`, `deny_list`, `prompt_injection` and `size` look only at what those paths hold; findings keep their path within the whole value |
+| `fields` | Paths (6.2) within the value checked, through object properties only. When given, the checks `personal_data`, `deny_list`, `prompt_injection` and `size` look only at what those paths hold; findings keep their path within the whole value. At stage `output` the paths start from the outcome (11.1), so `notes` names the same field whether the actor's result carries its outcome under `output` or not |
 | `replacement` | For `redact`: the text that replaces each match, in which `{category}` is replaced by the match's category. Default `[REDACTED:{category}]` |
 
 ### 31.3 Stages

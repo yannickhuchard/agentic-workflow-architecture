@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "awa",
+  "displayName": "AWA Workflows & Journeys",
+  "version": "0.1.0",
+  "description": "Validate, view and simulate Agentic Workflow Architecture (AWA) workflows and customer journeys: the AWA MCP server with its 7 tools, the AWA skill, and the /awa:validate, /awa:show, /awa:simulate and /awa:example commands. Simulation only: no tool, model or production system is called.",
+  "author": {
+    "name": "Yannick Huchard",
+    "url": "https://github.com/yannickhuchard"
+  },
+  "homepage": "https://github.com/yannickhuchard/agentic-workflow-architecture/blob/main/docs/guides/connect-ai-assistants.md",
+  "repository": "https://github.com/yannickhuchard/agentic-workflow-architecture",
+  "license": "Apache-2.0",
+  "keywords": [
+    "awa",
+    "workflow",
+    "customer-journey",
+    "simulation",
+    "process",
+    "mcp"
+  ],
+  "icon": "./assets/icon.png",
+  "network": {
+    "hosts": []
+  },
+  "userConfig": {
+    "repository": {
+      "type": "directory",
+      "title": "AWA repository folder",
+      "description": "The folder of your clone of agentic-workflow-architecture, with the SDK and the MCP server built (docs/guides/connect-ai-assistants.md). Leave it empty when you added the marketplace from that clone: the plugin then finds it by itself.",
+      "required": false,
+      "default": ""
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "agentic-workflow-architecture",
+  "owner": {
+    "name": "Yannick Huchard"
+  },
+  "metadata": {
+    "description": "The AWA plugin: validate, view and simulate Agentic Workflow Architecture workflows and customer journeys with the AWA MCP server, skill and rules."
+  },
+  "plugins": [
+    {
+      "name": "awa",
+      "source": "plugins/awa-code",
+      "description": "The AWA MCP server (7 tools), the AWA skill, rules for .awa.json and .journey.json files, and the validate, show, simulate and example commands."
+    }
+  ]
+}

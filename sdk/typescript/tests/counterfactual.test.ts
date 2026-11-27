@@ -164,6 +164,108 @@ describe('Counterfactual replay', () => {
         expect(report.same_path).toBe(true);
     });
 
+    it('ends the waits as the recorded run ended them, in the order it ended them', async () => {
+        // The first wait times out, a reminder goes, and the documents arrive at the second wait: the event must not end the first
+        const ask = activity('Ask'), chase = activity('Chase'), check = activity('Check');
+        const first = { id: uuidv4(), name: 'Uploaded', event_type: 'message', event_definition: { name: 'documents.uploaded', timeout: 'P2D' } } as Workflow['events'][number];
+        const again = { id: uuidv4(), name: 'Uploaded after reminder', event_type: 'message', event_definition: { name: 'documents.uploaded' } } as Workflow['events'][number];
+        const late = edge(first, chase);
+        (first.event_definition as { timeout_edge_id?: string }).timeout_edge_id = late.id;
+        const wf = workflow([ask, chase, check], [edge(ask, first), edge(first, check), late, edge(chase, again), edge(again, check)], { events: [first, again] });
+        const engine = new WorkflowEngine(wf, { ...scripted({ Check: { checked: true } }), ...quiet });
+        await engine.start();
+        expect(await engine.run()).toBe('waiting_event');
+        expect(await engine.expireEvents(Number.MAX_SAFE_INTEGER)).toBe(1);
+        expect(await engine.run()).toBe('waiting_event');
+        await engine.deliverEvent(business_event('documents.uploaded', { files: 3 }));
+        expect(await engine.run()).toBe('completed');
+
+        const { report, status } = await counterfactual_replay(wf, await engine.getEvents(), { ai: 'recorded' });
+        expect(status).toBe('completed');
+        expect(report.same_path, JSON.stringify(report.divergence)).toBe(true);
+        expect(report.nodes.every(n => n.verdict === 'same'), report.nodes.map(n => `${n.node_name} ${n.verdict}`).join(', ')).toBe(true);
+    });
+
+    it('expires only the wait the recorded run timed out, when parallel branches wait with different deadlines', async () => {
+        // Branch A times out after one day; branch B receives its event later, before its own ten-day deadline
+        const ask = activity('Ask'), lateA = activity('Late A'), gotA = activity('Got A'), lateB = activity('Late B'), gotB = activity('Got B');
+        const a = { id: uuidv4(), name: 'Reply A', event_type: 'message', event_definition: { name: 'a.replied', timeout: 'P1D' } } as Workflow['events'][number];
+        const b = { id: uuidv4(), name: 'Reply B', event_type: 'message', event_definition: { name: 'b.replied', timeout: 'P10D' } } as Workflow['events'][number];
+        const timeoutA = edge(a, lateA), timeoutB = edge(b, lateB);
+        (a.event_definition as { timeout_edge_id?: string }).timeout_edge_id = timeoutA.id;
+        (b.event_definition as { timeout_edge_id?: string }).timeout_edge_id = timeoutB.id;
+        const wf = workflow([ask, lateA, gotA, lateB, gotB], [edge(ask, a), edge(ask, b), timeoutA, edge(a, gotA), timeoutB, edge(b, gotB)], { events: [a, b] });
+        const engine = new WorkflowEngine(wf, { ...scripted({}), ...quiet });
+        await engine.start();
+        expect(await engine.run()).toBe('waiting_event');
+        expect(await engine.expireEvents(Date.now() + 2 * 86400000)).toBe(1);
+        expect(await engine.run()).toBe('waiting_event');
+        await engine.deliverEvent(business_event('b.replied', { ok: true }));
+        expect(await engine.run()).toBe('completed');
+        const recorded = await engine.getEvents();
+        expect(recorded.filter(e => e.type === 'activity.completed').map(e => e.node_name).sort()).toEqual(['Ask', 'Got B', 'Late A']);
+
+        const { report, status, events } = await counterfactual_replay(wf, recorded, { ai: 'recorded' });
+        expect(status).toBe('completed');
+        expect(events.filter(e => e.type === 'event.timed_out').length).toBe(1);
+        expect(report.same_path, JSON.stringify(report.divergence)).toBe(true);
+        expect(report.nodes.every(n => n.verdict === 'same'), report.nodes.map(n => `${n.node_name} ${n.verdict}`).join(', ')).toBe(true);
+    });
+
+    it('withdraws the run where the recorded run was withdrawn, and compares what compensation undid', async () => {
+        const refund = activity('Refund', { tools: [ToolDefinitionSchema.parse({ name: 'refund', binding: { kind: 'function', name: 'refund' } })] });
+        const pay = activity('Pay', { compensation: { activity_id: refund.id } }), done = activity('Done');
+        const wait = { id: uuidv4(), name: 'Reply', event_type: 'message', event_definition: { name: 'customer.replied' } } as Workflow['events'][number];
+        const wf = workflow([pay, done, refund], [edge(pay, wait), edge(wait, done)], { events: [wait] });
+        const actor = {
+            execute: async (a: { name: string }, _i: unknown, context?: { tools?: { call: (n: string, a: Record<string, unknown>) => Promise<unknown> } }) => {
+                if (a.name === 'Refund') { await context!.tools!.call('refund', { amount: 150 }); return { refunded: true }; }
+                return { paid: 150 };
+            },
+        };
+        const engine = new WorkflowEngine(wf, { actors: { application: actor }, tools: { handlers: { refund: () => ({ ok: true }) } }, ...quiet });
+        await engine.start();
+        expect(await engine.run()).toBe('waiting_event');
+        expect(await engine.cancel('the customer withdrew')).toBe(true);
+
+        const { report, status, events } = await counterfactual_replay(wf, await engine.getEvents(), { ai: 'recorded' });
+        expect(status).toBe('cancelled');
+        expect(events.find(e => e.type === 'run.cancelled')?.data.reason).toBe('the customer withdrew');
+        expect(report.baseline.status).toBe('cancelled');
+        expect(report.same_status && report.same_path && report.regressions.length === 0 && report.unrecorded.length === 0, JSON.stringify([report.regressions, report.unrecorded])).toBe(true);
+        expect(report.nodes.find(n => n.node_name === 'Refund')).toMatchObject({ verdict: 'same', baseline: { accepted: true }, candidate: { accepted: true } });
+    });
+
+    it('restores what recorded activities wrote to contexts, so an activity that reads them runs as recorded', async () => {
+        const profile = { id: uuidv4(), name: 'customer_profile', type: 'data' as const, sync_pattern: 'shared_state' as const };
+        const register = activity('Register', { context_bindings: [{ context_id: profile.id, access_mode: 'write' as const }] });
+        const verify = activity('Verify', { actor_type: 'ai_agent', context_bindings: [{ context_id: profile.id, access_mode: 'read' as const }] });
+        const wf = workflow([register, verify], [edge(register, verify)], { contexts: [profile] as Workflow['contexts'] });
+        const given: unknown[] = [];
+        const actor = {
+            execute: async (a: { name: string }, inputs: Record<string, unknown>) => {
+                if (a.name === 'Register') return { customer_id: 'C-1', _context_writes: { customer_profile: { name: 'Lena', segment: 'household' } } };
+                given.push(inputs._contexts);
+                return { output: { documents_valid: true }, usage: { input_tokens: 1, output_tokens: 1 } };
+            },
+        };
+        const engine = new WorkflowEngine(wf, { actors: { application: actor, ai_agent: actor }, ...quiet });
+        await engine.start({});
+        expect(await engine.run()).toBe('completed');
+        const events = await engine.getEvents();
+        expect(events.find(e => e.type === 'context.written')?.data.written).toEqual({ name: 'Lena', segment: 'household' });
+
+        const recorded = await counterfactual_replay(wf, events, { ai: 'recorded' });
+        expect(recorded.status, recorded.report.regressions.join('; ')).toBe('completed');
+        expect(recorded.report.same_path && recorded.report.regressions.length === 0 && recorded.report.nodes.every(n => n.verdict === 'same')).toBe(true);
+        expect(recorded.events.find(e => e.type === 'context.read')?.data.contexts).toMatchObject([{ context_name: 'customer_profile', present: true }]);
+
+        // With live AI, the agent that runs again is given the context the recorded application wrote
+        const live = await counterfactual_replay(wf, events, { ai: 'live', engine: { ...quiet, actors: { ai_agent: actor } } });
+        expect(live.status).toBe('completed');
+        expect(given.at(-1)).toEqual({ customer_profile: { name: 'Lena', segment: 'household' } });
+    });
+
     it('refuses a journal that does not hold the outputs', async () => {
         const a = activity('A');
         const engine = new WorkflowEngine(workflow([a], []), { ...scripted({ A: { secret: 1 } }), ...quiet, journal_payloads: 'hash' });

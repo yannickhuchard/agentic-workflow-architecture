@@ -11,28 +11,39 @@
   examples/claims-journey/make-story.mjs. No build step and no network.
 -->
 <style>
-:root { --bg: #0b0f19; --panel: #111827; --card: #1e293b; --line: rgba(255,255,255,.08); --text: #f8fafc; --mute: #9ca3af; --soft: #cbd5e1; --focus: #818cf8; --run: #a855f7; --wait: #fbbf24; --ok: #10b981; --bad: #ff4d4f; }
+:root {
+  color-scheme: dark;
+  /* The palette, in AWA's own colours (brands/awa.DESIGN.md). A brand (?brand=, awa-brand.js) replaces these */
+  --bg: #0b0f19; --panel: #111827; --card: #1e293b; --raised: #2a3a52; --text: #f8fafc; --soft: #cbd5e1; --mute: #9ca3af; --faint: #64748b; --stroke: #475569; --edge: #334155;
+  --line: rgba(255,255,255,.08); --line-strong: rgba(255,255,255,.16); --hover: rgba(255,255,255,.07); --wash: rgba(255,255,255,.04); --shadow: rgba(0,0,0,.55);
+  --accent: #818cf8; --accent-text: #a5b4fc; --accent-fill: #4f46e5; --on-accent: #ffffff; --focus: #818cf8;
+  /* The colours that carry meaning: a brand keeps their hue */
+  --run: #a855f7; --wait: #fbbf24; --ok: #10b981; --bad: #ff4d4f; --undone: #9ca3af; --sky: #38bdf8;
+  --run-ink: #c084fc; --wait-ink: #fcd34d; --ok-ink: #34d399; --bad-ink: #ff8a8c; --undone-ink: #9ca3af; --sky-ink: #38bdf8;
+  --font-display: 'Space Grotesk', Inter, system-ui, sans-serif; --font-body: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --radius: 8px; --radius-lg: 12px;
+}
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif; overflow: hidden; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-body); overflow: hidden; }
 button { font: inherit; color: inherit; }
-button:focus-visible, input:focus-visible { outline: 2px solid #a5b4fc; outline-offset: 2px; }
-.hd { font-family: 'Space Grotesk', Inter, system-ui, sans-serif; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+.hd { font-family: var(--font-display); }
 .mono { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
 #fit { position: absolute; left: 0; top: 0; width: 1440px; height: 900px; transform-origin: 0 0; overflow: hidden; background: var(--bg); }
 
 #top { position: absolute; left: 0; top: 0; width: 1440px; height: 56px; padding: 0 24px; display: flex; align-items: center; gap: 12px; background: var(--panel); border-bottom: 1px solid var(--line); z-index: 5; }
-.crumb { height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid transparent; background: none; cursor: pointer; font-size: 14px; color: var(--soft); white-space: nowrap; }
-.crumb:hover { background: rgba(255,255,255,.07); }
-.crumb.on { color: #fff; font-weight: 600; background: rgba(129,140,248,.18); border-color: rgba(129,140,248,.45); }
-.sep { color: #64748b; }
-.seg-ctl { display: flex; border: 1px solid rgba(255,255,255,.16); border-radius: 9px; overflow: hidden; }
-.seg-ctl button { height: 32px; padding: 0 12px; border: 0; border-right: 1px solid rgba(255,255,255,.12); background: none; cursor: pointer; font-size: 13px; color: var(--soft); white-space: nowrap; }
+.crumb { height: 32px; padding: 0 12px; border-radius: var(--radius); border: 1px solid transparent; background: none; cursor: pointer; font-size: 14px; color: var(--soft); white-space: nowrap; }
+.crumb:hover { background: color-mix(in srgb, var(--text) 7%, transparent); }
+.crumb.on { color: var(--text); font-weight: 600; background: color-mix(in srgb, var(--accent) 18%, transparent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.sep { color: var(--faint); }
+.seg-ctl { display: flex; border: 1px solid color-mix(in srgb, var(--text) 16%, transparent); border-radius: 9px; overflow: hidden; }
+.seg-ctl button { height: 32px; padding: 0 12px; border: 0; border-right: 1px solid color-mix(in srgb, var(--text) 12%, transparent); background: none; cursor: pointer; font-size: 13px; color: var(--soft); white-space: nowrap; }
 .seg-ctl button:last-child { border-right: 0; }
-.seg-ctl button:hover:not(:disabled) { background: rgba(255,255,255,.07); }
-.seg-ctl button.on { background: #4338ca; color: #fff; font-weight: 600; }
+.seg-ctl button:hover:not(:disabled) { background: color-mix(in srgb, var(--text) 7%, transparent); }
+.seg-ctl button.on { background: var(--accent-fill); color: var(--on-accent); font-weight: 600; }
 .seg-ctl button:disabled { opacity: .4; cursor: default; }
-.nav { width: 32px; height: 32px; border-radius: 8px; border: 1px solid rgba(255,255,255,.16); background: var(--card); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
-.nav:hover { background: #2a3a52; }
+.nav { width: 32px; height: 32px; border-radius: var(--radius); border: 1px solid color-mix(in srgb, var(--text) 16%, transparent); background: var(--card); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+.nav:hover { background: var(--raised); }
 .ic { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
 /* The heights are layers of one stage; moving between them is a zoom into the thing pointed at */
@@ -43,12 +54,12 @@ button:focus-visible, input:focus-visible { outline: 2px solid #a5b4fc; outline-
 
 /* Shapes: every kind of moment has its own, so colour is never the only cue */
 .sh { display: block; width: 100%; height: 100%; }
-.k-event { background: #f8fafc; transform: rotate(45deg) scale(.76); border-radius: 2px; }
+.k-event { background: var(--text); transform: rotate(45deg) scale(.76); border-radius: 2px; }
 .k-told { border: 2px solid var(--soft); background: var(--bg); transform: rotate(45deg) scale(.76); border-radius: 2px; }
 .k-timeout { border: 2px dashed var(--wait); background: var(--bg); transform: rotate(45deg) scale(.76); }
 .k-signal { border: 2px solid var(--soft); background: var(--bg); transform: scale(.6); }
 .k-announced { border: 2px solid var(--soft); background: var(--bg); border-radius: 50%; transform: scale(.55); }
-.k-partner { background: #38bdf8; border-radius: 2px; transform: scale(.55); }
+.k-partner { background: var(--sky); border-radius: 2px; transform: scale(.55); }
 .k-stage_in { border: 3px solid var(--soft); border-radius: 50%; background: var(--bg); transform: scale(.82); }
 .k-stage_out { background: var(--soft); border-radius: 50%; transform: scale(.6); }
 .k-goal { background: var(--ok); border-radius: 50%; transform: scale(.56); box-shadow: 0 0 0 4px var(--bg), 0 0 0 7px var(--ok); }
@@ -64,101 +75,111 @@ button:focus-visible, input:focus-visible { outline: 2px solid #a5b4fc; outline-
 .k-human_done { background: var(--wait); border-radius: 50%; transform: scale(.7); }
 .k-undone { border: 2px dashed var(--bad); border-radius: 50%; background: var(--bg); transform: scale(.8); }
 @keyframes wait { 50% { opacity: .4; } }
-@keyframes glow { 50% { box-shadow: 0 0 0 5px rgba(168,85,247,.12), 0 0 26px rgba(168,85,247,.6); } }
+@keyframes glow { 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--run) 12%, transparent), 0 0 26px color-mix(in srgb, var(--run) 60%, transparent); } }
 @keyframes capin { from { opacity: 0; transform: translateY(8px); } }
 
 /* Mood, said in a word and a number as well as a colour */
-.m-up2, .m-up1 { color: #34d399; } .m-mid { color: var(--soft); } .m-dn1 { color: #fbbf24; } .m-dn2 { color: #ff8a8c; }
+.m-up2, .m-up1 { color: var(--ok-ink); } .m-mid { color: var(--soft); } .m-dn1 { color: var(--wait-ink); } .m-dn2 { color: var(--bad-ink); }
 
 /* Atlas: the journeys and the people who pass through them */
-.jcard { position: absolute; top: 14px; width: 360px; height: 196px; padding: 14px 16px; border-radius: 14px; background: var(--panel); border: 1px solid var(--line); cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 8px; transition: border-color .2s, background-color .2s; }
-.jcard:hover { border-color: rgba(129,140,248,.6); background: #162033; }
+.jcard { position: absolute; top: 14px; width: 360px; height: 196px; padding: 14px 16px; border-radius: var(--radius-lg); background: var(--panel); border: 1px solid var(--line); cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 8px; transition: border-color .2s, background-color .2s; }
+.jcard:hover { border-color: color-mix(in srgb, var(--accent) 60%, transparent); background: color-mix(in srgb, var(--accent) 6%, var(--panel)); }
 .stg { display: flex; gap: 4px; flex-wrap: wrap; }
-.stg span { font-size: 11px; padding: 2px 7px; border-radius: 5px; background: #27364d; color: #e2e8f0; }
+.stg span { font-size: 11px; padding: 2px 7px; border-radius: 5px; background: color-mix(in srgb, var(--accent) 12%, var(--card)); color: var(--text); }
 .kv { display: flex; gap: 14px; }
 .ct { display: flex; flex-direction: column; gap: 1px; min-width: 50px; }
 .jcard .ct span { line-height: 14px; }
-.ct b { font-family: 'Space Grotesk', Inter, sans-serif; font-size: 22px; line-height: 24px; font-weight: 600; }
+.ct b { font-family: var(--font-display); font-size: 22px; line-height: 24px; font-weight: 600; }
 .ct span { font-size: 12px; color: var(--mute); }
 .ct.warn b { color: var(--wait); }
+.ct .gw { font-size: 12px; color: var(--mute); }
 .hand { position: absolute; top: 80px; width: 32px; text-align: center; font-size: 12px; color: var(--soft); pointer-events: none; }
-.prow { position: absolute; left: 16px; width: 1408px; height: 66px; border-radius: 12px; border: 1px solid transparent; transition: background-color .3s, border-color .3s; pointer-events: none; }
-.prow.hot { background: rgba(129,140,248,.09); border-color: rgba(129,140,248,.4); }
+.prow { position: absolute; left: 16px; width: 1408px; height: 66px; border-radius: var(--radius-lg); border: 1px solid transparent; transition: background-color .3s, border-color .3s; pointer-events: none; }
+.prow.hot { background: color-mix(in srgb, var(--accent) 9%, transparent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
 .pname { position: absolute; left: 28px; width: 226px; display: flex; flex-direction: column; gap: 2px; pointer-events: none; }
-.pcell { position: absolute; width: 360px; height: 58px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255,255,255,.02); cursor: pointer; padding: 0 12px; display: flex; align-items: center; gap: 12px; text-align: left; transition: border-color .2s, background-color .2s; }
-.pcell:hover { border-color: rgba(129,140,248,.6); background: rgba(129,140,248,.08); }
+.pcell { position: absolute; width: 360px; height: 58px; border-radius: 10px; border: 1px solid var(--line); background: color-mix(in srgb, var(--text) 2%, transparent); cursor: pointer; padding: 0 12px; display: flex; align-items: center; gap: 12px; text-align: left; transition: border-color .2s, background-color .2s; }
+.pcell:hover { border-color: color-mix(in srgb, var(--accent) 60%, transparent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .spark { flex: none; width: 150px; height: 40px; overflow: visible; }
 
 /* All journeys of one kind, on calendar time */
-.card { position: absolute; top: 20px; height: 104px; padding: 14px 18px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; }
+.card { position: absolute; top: 20px; height: 104px; padding: 14px 18px; border-radius: var(--radius-lg); background: var(--panel); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; }
 /* A journey of many stages has narrow cards: the name, the time given, and the four counts two by two */
 .card.narrow { padding: 9px 8px 8px 10px; gap: 4px; }
 .card.narrow .kv { display: grid; grid-template-columns: 1fr 1fr; gap: 1px 4px; }
 .card.narrow .kv div { white-space: nowrap; font-size: 11px; line-height: 17px; color: var(--mute); }
-.card.narrow .kv b { font-family: 'Space Grotesk', Inter, sans-serif; font-size: 15px; font-weight: 600; color: var(--text); margin-right: 4px; }
+.card.narrow .kv b { font-family: var(--font-display); font-size: 15px; font-weight: 600; color: var(--text); margin-right: 4px; }
 .card.narrow .kv .warn b { color: var(--wait); }
-.tick { position: absolute; top: 142px; height: 548px; border-left: 1px solid rgba(255,255,255,.06); padding-left: 6px; font-size: 12px; color: var(--mute); pointer-events: none; }
-.lane { position: absolute; left: 16px; width: 1408px; height: 76px; border-radius: 12px; border: 1px solid transparent; background: transparent; cursor: pointer; text-align: left; padding: 9px 12px; display: flex; flex-direction: column; gap: 3px; transition: background-color .3s, border-color .3s; }
-.lane:hover { background: rgba(255,255,255,.045); }
-.lane.hot { background: rgba(129,140,248,.09); border-color: rgba(129,140,248,.4); }
+.tick { position: absolute; top: 142px; height: 548px; border-left: 1px solid color-mix(in srgb, var(--text) 6%, transparent); padding-left: 6px; font-size: 12px; color: var(--mute); pointer-events: none; }
+.lane { position: absolute; left: 16px; width: 1408px; height: 76px; border-radius: var(--radius-lg); border: 1px solid transparent; background: transparent; cursor: pointer; text-align: left; padding: 9px 12px; display: flex; flex-direction: column; gap: 3px; transition: background-color .3s, border-color .3s; }
+.lane:hover { background: color-mix(in srgb, var(--text) 4.5%, transparent); }
+.lane.hot { background: color-mix(in srgb, var(--accent) 9%, transparent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
 .ls { font-size: 12px; line-height: 15px; color: var(--mute); width: 222px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.seg { position: absolute; height: 24px; border-radius: 6px; overflow: hidden; white-space: nowrap; font-size: 12px; line-height: 24px; color: #e2e8f0; text-indent: 8px; pointer-events: none; transition: width .6s linear; }
-.seg.st0 { background: #27364d; } .seg.st1 { background: #34486a; } .seg.st2 { background: #445b85; }
+.seg { position: absolute; height: 24px; border-radius: 6px; overflow: hidden; white-space: nowrap; font-size: 12px; line-height: 24px; color: var(--text); text-indent: 8px; pointer-events: none; transition: width .6s linear; }
+.seg.st0 { background: color-mix(in srgb, var(--accent) 14%, var(--card)); } .seg.st1 { background: color-mix(in srgb, var(--accent) 24%, var(--card)); } .seg.st2 { background: color-mix(in srgb, var(--accent) 34%, var(--card)); }
 .seg.stalled { outline: 2px dashed var(--wait); outline-offset: -2px; }
 .mk { position: absolute; width: 16px; height: 16px; margin: -8px 0 0 -8px; pointer-events: none; transition: opacity .3s ease .2s, transform .35s cubic-bezier(.3,1.5,.5,1) .2s; }
 .mk.off { opacity: 0; transform: scale(.2); transition-delay: 0s; }
 .endl { position: absolute; font-size: 12px; font-weight: 600; white-space: nowrap; pointer-events: none; transition: opacity .4s ease .3s; }
 .endl.rt { transform: translateX(-100%); }
 .endl.off { opacity: 0; transition-delay: 0s; }
-.e-completed { color: #34d399; } .e-stalled { color: #fbbf24; } .e-abandoned { color: var(--soft); }
-.ph { position: absolute; top: 132px; width: 2px; height: 558px; margin-left: -1px; background: var(--focus); box-shadow: 0 0 12px rgba(129,140,248,.7); pointer-events: none; transition: left .6s linear; }
-.phl { position: absolute; top: -20px; left: 50%; transform: translateX(-50%); white-space: nowrap; font-size: 12px; font-weight: 600; color: #fff; background: #4338ca; padding: 2px 8px; border-radius: 6px; }
-.ring { position: absolute; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; border: 2px solid var(--focus); box-shadow: 0 0 18px rgba(129,140,248,.6); pointer-events: none; z-index: 2; transition: left .5s cubic-bezier(.4,0,.2,1), top .5s cubic-bezier(.4,0,.2,1); }
+.e-completed { color: var(--ok-ink); } .e-stalled { color: var(--wait-ink); } .e-abandoned { color: var(--soft); }
+.ph { position: absolute; top: 132px; width: 2px; height: 558px; margin-left: -1px; background: var(--focus); box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 70%, transparent); pointer-events: none; transition: left .6s linear; }
+.phl { position: absolute; top: -20px; left: 50%; transform: translateX(-50%); white-space: nowrap; font-size: 12px; font-weight: 600; color: var(--on-accent); background: var(--accent-fill); padding: 2px 8px; border-radius: 6px; }
+.ring { position: absolute; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; border: 2px solid var(--focus); box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 60%, transparent); pointer-events: none; z-index: 2; transition: left .5s cubic-bezier(.4,0,.2,1), top .5s cubic-bezier(.4,0,.2,1); }
 .ring.sm { width: 30px; height: 30px; margin: -15px 0 0 -15px; transition: left .6s linear, top .4s ease; }
 
 /* One journey: the living blueprint */
-.band { position: absolute; top: 58px; height: 596px; border-radius: 14px; padding: 4px 12px; font-size: 13px; font-weight: 600; color: #e2e8f0; white-space: nowrap; overflow: hidden; transition: opacity .4s ease; }
-.band.b0 { background: rgba(255,255,255,.03); } .band.b1 { background: rgba(255,255,255,.06); }
+.band { position: absolute; top: 58px; height: 596px; border-radius: var(--radius-lg); transition: opacity .4s ease; }
+.band.b0 { background: color-mix(in srgb, var(--text) 3%, transparent); } .band.b1 { background: color-mix(in srgb, var(--text) 6%, transparent); }
 .band.off { opacity: .28; }
-.col { position: absolute; top: 58px; width: 34px; height: 596px; margin-left: -17px; border-radius: 10px; background: rgba(129,140,248,.10); pointer-events: none; transition: left .5s cubic-bezier(.4,0,.2,1); }
+/* A stage's name, at the top of its band. A band too narrow for it shows a short form; the full name is its accessible name, and shows on hover and focus */
+.bhd { position: absolute; top: 58px; height: 26px; padding: 4px 12px; font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; transition: opacity .4s ease; }
+.bhd.short { padding: 4px 4px 4px 6px; }
+.bhd.off { opacity: .28; }
+.bhd .bfull { display: none; }
+.bhd.short .bhn { outline: none; cursor: default; }
+.bhd.short:hover, .bhd.short:focus-within { overflow: visible; z-index: 6; opacity: 1; }
+.bhd.short:hover .bfull, .bhd.short:focus-within .bfull { display: block; position: absolute; left: 0; top: 0; padding: 3px 8px; border-radius: 6px; background: var(--raised); border: 1px solid var(--stroke); box-shadow: 0 4px 14px rgba(0,0,0,.25); }
+.bhd.short:focus-within .bfull { outline: 2px solid var(--focus); outline-offset: 1px; }
+.col { position: absolute; top: 58px; width: 34px; height: 596px; margin-left: -17px; border-radius: 10px; background: color-mix(in srgb, var(--accent) 10%, transparent); pointer-events: none; transition: left .5s cubic-bezier(.4,0,.2,1); }
 .ll { position: absolute; left: 28px; width: 150px; }
-.pt { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #e2e8f0; }
+.pt { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text); }
 .sub { font-size: 12px; line-height: 15px; color: var(--mute); }
 .rail { position: absolute; left: 176px; width: 1240px; height: 0; pointer-events: none; }
 .rowl { position: absolute; left: 28px; width: 150px; font-size: 11px; line-height: 16px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .g { position: absolute; width: 34px; height: 34px; margin: -17px 0 0 -17px; padding: 8px; border: 0; background: none; cursor: pointer; border-radius: 50%; z-index: 3; transition: opacity .3s ease .45s, transform .35s cubic-bezier(.3,1.5,.5,1) .45s; }
 .g.off { opacity: 0; transform: scale(.2); pointer-events: none; transition-delay: 0s; }
-.dot { position: absolute; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: #38bdf8; pointer-events: none; transition: opacity .3s ease .55s, transform .3s ease .55s; }
-.dot.out { background: var(--bg); border: 2px solid #38bdf8; }
-.doc { position: absolute; width: 11px; height: 13px; margin: -7px 0 0 -6px; border-radius: 2px 5px 2px 2px; background: #e2e8f0; pointer-events: auto; transition: opacity .3s ease .6s, transform .3s ease .6s; }
-.doc.out { background: var(--bg); border: 2px solid #e2e8f0; }
+.dot { position: absolute; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: var(--sky); pointer-events: none; transition: opacity .3s ease .55s, transform .3s ease .55s; }
+.dot.out { background: var(--bg); border: 2px solid var(--sky); }
+.doc { position: absolute; width: 11px; height: 13px; margin: -7px 0 0 -6px; border-radius: 2px 5px 2px 2px; background: var(--text); pointer-events: auto; transition: opacity .3s ease .6s, transform .3s ease .6s; }
+.doc.out { background: var(--bg); border: 2px solid var(--text); }
 .dot.off, .doc.off { opacity: 0; transform: scale(.2); transition-delay: 0s; }
-.th { position: absolute; background: #94a3b8; pointer-events: none; transition: transform .3s ease, opacity .3s ease; }
+.th { position: absolute; background: var(--mute); pointer-events: none; transition: transform .3s ease, opacity .3s ease; }
 .th.h { height: 2px; margin-top: -1px; transform-origin: left center; }
 .th.v { width: 2px; margin-left: -1px; transition-delay: .25s; }
 .th.v.down { transform-origin: center top; } .th.v.up { transform-origin: center bottom; }
 .th.h.off { transform: scaleX(0); transition-delay: 0s; } .th.v.off { transform: scaleY(0); transition-delay: 0s; }
-.th.h.time { background: none; background-image: repeating-linear-gradient(90deg, #64748b 0 5px, transparent 5px 10px); }
-.th.v.time { background: none; background-image: repeating-linear-gradient(180deg, #64748b 0 5px, transparent 5px 10px); }
-.gap { position: absolute; top: 136px; transform: translateX(-50%); font-size: 11px; color: #e2e8f0; padding: 1px 8px; border: 1px dashed #94a3b8; border-radius: 10px; background: var(--bg); white-space: nowrap; pointer-events: none; z-index: 2; transition: opacity .3s ease .1s; }
+.th.h.time { background: none; background-image: repeating-linear-gradient(90deg, var(--faint) 0 5px, transparent 5px 10px); }
+.th.v.time { background: none; background-image: repeating-linear-gradient(180deg, var(--faint) 0 5px, transparent 5px 10px); }
+.gap { position: absolute; top: 136px; transform: translateX(-50%); font-size: 11px; color: var(--text); padding: 1px 8px; border: 1px dashed var(--mute); border-radius: 10px; background: var(--bg); white-space: nowrap; pointer-events: none; z-index: 2; transition: opacity .3s ease .1s; }
 .gap.off { opacity: 0; transition-delay: 0s; }
-.rb { position: absolute; height: 40px; margin-top: -20px; border-radius: 20px; background: var(--card); border: 1.5px solid #475569; cursor: pointer; padding: 0; z-index: 1; transform-origin: left center; transition: opacity .3s ease .4s, transform .45s ease .4s, border-color .3s, background-color .2s; }
-.rb:hover { background: #2a3a52; }
+.rb { position: absolute; height: 40px; margin-top: -20px; border-radius: 20px; background: var(--card); border: 1.5px solid var(--stroke); cursor: pointer; padding: 0; z-index: 1; transform-origin: left center; transition: opacity .3s ease .4s, transform .45s ease .4s, border-color .3s, background-color .2s; }
+.rb:hover { background: var(--raised); }
 .rb.off { opacity: 0; transform: scaleX(.05); pointer-events: none; transition-delay: 0s; }
 .rb.r-running { border-color: var(--run); border-style: dashed; } .rb.r-completed { border-color: var(--ok); } .rb.r-failed { border-color: var(--bad); } .rb.r-cancelled { border-color: var(--mute); border-style: dotted; }
-.rbl { position: absolute; font-size: 12px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; border: 1px solid rgba(255,255,255,.22); background: var(--card); padding: 3px 9px; border-radius: 8px; cursor: pointer; z-index: 3; transition: opacity .3s ease .5s; }
-.rbl:hover { background: #2a3a52; border-color: var(--focus); }
+.rbl { position: absolute; font-size: 12px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; border: 1px solid color-mix(in srgb, var(--text) 22%, transparent); background: var(--card); padding: 3px 9px; border-radius: var(--radius); cursor: pointer; z-index: 3; transition: opacity .3s ease .5s; }
+.rbl:hover { background: var(--raised); border-color: var(--focus); }
 .rbl.off { opacity: 0; pointer-events: none; transition-delay: 0s; }
-.fl { position: absolute; font-size: 12px; font-weight: 600; color: #fff; background: #312e81; border: 1px solid var(--focus); padding: 3px 9px; border-radius: 8px; white-space: nowrap; pointer-events: none; z-index: 4; transition: left .5s cubic-bezier(.4,0,.2,1), top .5s cubic-bezier(.4,0,.2,1); }
+.fl { position: absolute; font-size: 12px; font-weight: 600; color: var(--text); background: color-mix(in srgb, var(--accent) 30%, var(--panel)); border: 1px solid var(--focus); padding: 3px 9px; border-radius: var(--radius); white-space: nowrap; pointer-events: none; z-index: 4; transition: left .5s cubic-bezier(.4,0,.2,1), top .5s cubic-bezier(.4,0,.2,1); }
 .fl.ct { transform: translateX(-50%); } .fl.rt { transform: translateX(-100%) translateX(14px); } .fl.lt { transform: translateX(-14px); }
-.chip { height: 28px; padding: 0 12px; border-radius: 14px; display: inline-flex; align-items: center; gap: 8px; font-size: 13px; border: 1px solid rgba(255,255,255,.16); color: var(--soft); white-space: nowrap; transition: background-color .4s, border-color .4s, color .4s, opacity .3s; }
-.chip.ok { background: rgba(16,185,129,.16); border-color: var(--ok); color: #6ee7b7; }
-.chip.miss { background: rgba(251,191,36,.12); border-color: var(--wait); color: #fcd34d; border-style: dashed; }
-.chip.e-completed { background: rgba(16,185,129,.16); border-color: var(--ok); color: #6ee7b7; }
-.chip.e-stalled { background: rgba(251,191,36,.14); border-color: var(--wait); color: #fcd34d; }
-.chip.e-abandoned { background: rgba(156,163,175,.16); border-color: var(--mute); color: #e5e7eb; }
+.chip { height: 28px; padding: 0 12px; border-radius: var(--radius-lg); display: inline-flex; align-items: center; gap: 8px; font-size: 13px; border: 1px solid color-mix(in srgb, var(--text) 16%, transparent); color: var(--soft); white-space: nowrap; transition: background-color .4s, border-color .4s, color .4s, opacity .3s; }
+.chip.ok { background: color-mix(in srgb, var(--ok) 16%, transparent); border-color: var(--ok); color: var(--ok-ink); }
+.chip.miss { background: color-mix(in srgb, var(--wait) 12%, transparent); border-color: var(--wait); color: var(--wait-ink); border-style: dashed; }
+.chip.e-completed { background: color-mix(in srgb, var(--ok) 16%, transparent); border-color: var(--ok); color: var(--ok-ink); }
+.chip.e-stalled { background: color-mix(in srgb, var(--wait) 14%, transparent); border-color: var(--wait); color: var(--wait-ink); }
+.chip.e-abandoned { background: color-mix(in srgb, var(--undone) 16%, transparent); border-color: var(--mute); color: var(--text); }
 .chip.hide { opacity: 0; }
-.moodline { fill: none; stroke: #e2e8f0; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; transition: stroke-dashoffset .5s ease; }
+.moodline { fill: none; stroke: var(--text); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; transition: stroke-dashoffset .5s ease; }
 .mdot { transition: opacity .3s ease .4s; } .mdot.off { opacity: 0; transition-delay: 0s; }
 .lg { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--soft); white-space: nowrap; }
 .lgi { width: 14px; height: 14px; flex: none; position: relative; }
@@ -170,39 +191,42 @@ button:focus-visible, input:focus-visible { outline: 2px solid #a5b4fc; outline-
 #L2 .gap.off { opacity: .4; }
 #L2 .rb.off { opacity: .35; transform: none; pointer-events: auto; }
 #L2 .rbl.off { opacity: .45; pointer-events: auto; }
-#L2 .band.off { opacity: .55; }
-.ms { stroke: #e2e8f0; stroke-width: 2; stroke-linecap: round; transition: opacity .3s ease; }
+#L2 .band.off, #L2 .bhd.off { opacity: .55; }
+/* Gap labels that would cover one another: the longest gaps keep theirs, the others are dropped. The gap itself stays drawn */
+.gap.drop { display: none; }
+.ms { stroke: var(--text); stroke-width: 2; stroke-linecap: round; transition: opacity .3s ease; }
 .ms.said { stroke-width: 3.5; } .ms.guess { stroke-dasharray: 5 5; } .ms.off { opacity: .25; }
-.md { position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; border: 2px solid #e2e8f0; background: var(--bg); padding: 0; cursor: pointer; z-index: 3; transition: opacity .3s ease; }
-.md.said { background: #e2e8f0; } .md.off { opacity: .45; }
+.md { position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; border: 2px solid var(--text); background: var(--bg); padding: 0; cursor: pointer; z-index: 3; transition: opacity .3s ease; }
+.md.said { background: var(--text); } .md.off { opacity: .45; }
 .nd[data-n] { cursor: pointer; }
 
-.listp { position: absolute; right: 24px; top: 58px; width: 560px; height: 596px; border-radius: 14px; background: var(--panel); border: 1px solid rgba(129,140,248,.5); box-shadow: 0 20px 60px rgba(0,0,0,.6); z-index: 6; display: flex; flex-direction: column; overflow: hidden; }
+.listp { position: absolute; right: 24px; top: 58px; width: 560px; height: 596px; border-radius: var(--radius-lg); background: var(--panel); border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent); box-shadow: 0 20px 60px var(--shadow); z-index: 6; display: flex; flex-direction: column; overflow: hidden; }
 .listp[hidden] { display: none; }
 .listh { flex: none; display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
 .listb { flex: 1 1 auto; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 2px; }
-.ll2 { display: flex; gap: 12px; align-items: baseline; width: 100%; padding: 7px 8px; border-radius: 8px; border: 1px solid transparent; background: none; cursor: pointer; text-align: left; font-size: 13px; line-height: 18px; color: #e2e8f0; }
-.ll2:hover { background: rgba(255,255,255,.05); }
-.ll2.cur { background: rgba(129,140,248,.14); border-color: rgba(129,140,248,.45); }
+.ll2 { display: flex; gap: 12px; align-items: baseline; width: 100%; padding: 7px 8px; border-radius: var(--radius); border: 1px solid transparent; background: none; cursor: pointer; text-align: left; font-size: 13px; line-height: 18px; color: var(--text); }
+.ll2:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
+.ll2.cur { background: color-mix(in srgb, var(--accent) 14%, transparent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
 .ll2 .w { flex: none; width: 104px; font-size: 12px; color: var(--mute); white-space: nowrap; }
-.ll2 .gapl { color: #a5b4fc; font-size: 12px; }
+.ll2 .gapl { color: var(--accent-text); font-size: 12px; }
 
 /* One run */
 .nd { position: absolute; transition: border-color .25s ease .35s, box-shadow .25s ease .35s, background-color .25s ease .35s, opacity .25s ease .35s; }
-.nd.act { border: 1.5px solid #475569; border-radius: 8px; background: var(--card); padding: 7px 9px; display: flex; flex-direction: column; gap: 3px; }
-.nd.evt { border: 2px solid #64748b; border-radius: 50%; background: var(--bg); }
-.nd.dec { clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); background: #475569; }
+.nd.act { border: 1.5px solid var(--stroke); border-radius: var(--radius); background: var(--card); padding: 8px 10px; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.nd.evt { border: 2px solid var(--faint); border-radius: 50%; background: var(--bg); }
+.nd.dec { clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); background: var(--stroke); }
 .tg { font-size: 10px; line-height: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--mute); }
-.nm { font-size: 12px; line-height: 14px; font-weight: 600; }
+/* Three lines of a name fit in the box (the builder widens the boxes of a workflow until they do); a fourth is cut, and the box's title gives the whole name */
+.nm { align-self: stretch; font-size: 12px; line-height: 13px; font-weight: 600; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .ev-in { position: absolute; display: none; }
 .m-end { border-width: 5px; }
 .m-timer .ev-in { display: block; left: 50%; top: 50%; width: 2px; height: 11px; margin: -11px 0 0 -1px; background: var(--soft); }
 .m-wait .ev-in { display: block; inset: 6px; border: 2px dashed var(--soft); border-radius: 50%; }
 .m-publish .ev-in { display: block; inset: 10px; background: var(--soft); border-radius: 50%; }
-.nd.s1 { border-color: var(--run); box-shadow: 0 0 0 3px rgba(168,85,247,.25), 0 0 16px rgba(168,85,247,.45); animation: glow 1.5s ease-in-out infinite; }
-.nd.s2 { border-color: var(--wait); border-style: dashed; box-shadow: 0 0 14px rgba(251,191,36,.3); }
+.nd.s1 { border-color: var(--run); box-shadow: 0 0 0 3px color-mix(in srgb, var(--run) 25%, transparent), 0 0 16px color-mix(in srgb, var(--run) 45%, transparent); animation: glow 1.5s ease-in-out infinite; }
+.nd.s2 { border-color: var(--wait); border-style: dashed; box-shadow: 0 0 14px color-mix(in srgb, var(--wait) 30%, transparent); }
 .nd.s3 { border-color: var(--ok); }
-.nd.s4 { border-color: var(--bad); background: #3b1d24; box-shadow: 0 0 14px rgba(255,77,79,.35); }
+.nd.s4 { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 16%, var(--card)); box-shadow: 0 0 14px color-mix(in srgb, var(--bad) 35%, transparent); }
 .nd.s5 { border-color: var(--mute); border-style: dotted; opacity: .8; }
 .nd.s6 { border-style: dashed; opacity: .55; }
 .nd.dec.s1 { background: var(--run); } .nd.dec.s3 { background: var(--ok); } .nd.dec.s4 { background: var(--bad); }
@@ -210,44 +234,52 @@ button:focus-visible, input:focus-visible { outline: 2px solid #a5b4fc; outline-
 .nl { position: absolute; width: 104px; margin-left: -52px; text-align: center; font-size: 12px; line-height: 14px; color: var(--soft); pointer-events: none; z-index: 2; }
 .nl span { background: var(--bg); padding: 0 3px; }
 .nl.dl { width: auto; margin-left: 0; text-align: left; white-space: nowrap; }
-.eg { position: absolute; background: #334155; pointer-events: none; }
-.eg.timeout { background: none; background-image: repeating-linear-gradient(90deg, #7c6a2e 0 5px, transparent 5px 9px); }
-.eg.timeout.vv { background-image: repeating-linear-gradient(180deg, #7c6a2e 0 5px, transparent 5px 9px); }
-.eg.undo { background: none; background-image: repeating-linear-gradient(180deg, #64748b 0 2px, transparent 2px 6px); }
+.eg { position: absolute; background: var(--edge); pointer-events: none; }
+.eg.timeout { background: none; background-image: repeating-linear-gradient(90deg, color-mix(in srgb, var(--wait) 45%, var(--bg)) 0 5px, transparent 5px 9px); }
+.eg.timeout.vv { background-image: repeating-linear-gradient(180deg, color-mix(in srgb, var(--wait) 45%, var(--bg)) 0 5px, transparent 5px 9px); }
+.eg.undo { background: none; background-image: repeating-linear-gradient(180deg, var(--faint) 0 2px, transparent 2px 6px); }
 .ef { position: absolute; inset: 0; background: var(--ok); transition: transform .2s linear; }
 .ef.timeout { background: var(--wait); } .ef.undo { background: var(--bad); }
 .ef.r { transform-origin: left center; transform: scaleX(0); } .ef.l { transform-origin: right center; transform: scaleX(0); }
 .ef.d { transform-origin: center top; transform: scaleY(0); } .ef.u { transform-origin: center bottom; transform: scaleY(0); }
 .ef.on { transform: none; }
 .tip { position: absolute; width: 0; height: 0; border: 6px solid transparent; pointer-events: none; transition: border-color .2s linear .4s; }
-.tip.r { border-left-color: #475569; } .tip.l { border-right-color: #475569; } .tip.d { border-top-color: #475569; } .tip.u { border-bottom-color: #475569; }
+.tip.r { border-left-color: var(--stroke); } .tip.l { border-right-color: var(--stroke); } .tip.d { border-top-color: var(--stroke); } .tip.u { border-bottom-color: var(--stroke); }
 .tip.r.on { border-left-color: var(--ok); } .tip.l.on { border-right-color: var(--ok); } .tip.d.on { border-top-color: var(--ok); } .tip.u.on { border-bottom-color: var(--ok); }
 .tip.timeout.r.on { border-left-color: var(--wait); } .tip.timeout.d.on { border-top-color: var(--wait); } .tip.timeout.u.on { border-bottom-color: var(--wait); }
-.pn { height: 258px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; overflow: hidden; }
-.tr { display: flex; gap: 10px; align-items: baseline; width: 100%; min-width: 0; padding: 6px 8px; border-radius: 8px; border: 1px solid transparent; background: none; cursor: pointer; text-align: left; font-size: 13px; line-height: 17px; color: var(--mute); }
-.tr:hover { background: rgba(255,255,255,.05); }
-.tr.cur { color: #fff; background: rgba(129,140,248,.14); border-color: rgba(129,140,248,.45); }
+.pn { height: 250px; border-radius: var(--radius-lg); background: var(--panel); border: 1px solid var(--line); padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; overflow: hidden; }
+.tr { display: flex; gap: 10px; align-items: baseline; width: 100%; min-width: 0; padding: 6px 8px; border-radius: var(--radius); border: 1px solid transparent; background: none; cursor: pointer; text-align: left; font-size: 13px; line-height: 17px; color: var(--mute); }
+.tr:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
+.tr.cur { color: var(--text); background: color-mix(in srgb, var(--accent) 14%, transparent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
 .trw { flex: none; width: 112px; font-size: 12px; color: var(--mute); white-space: nowrap; }
 .one { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .clamp2 { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .ev { display: flex; gap: 12px; font-size: 13px; line-height: 17px; }
 .evl { flex: none; width: 128px; color: var(--mute); }
-.evt2 { color: #e2e8f0; overflow-wrap: anywhere; }
+.evt2 { color: var(--text); overflow-wrap: anywhere; }
 /* A long workflow in bands: one band at a time, the others a click away */
-.bchip { height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--line); background: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--soft); white-space: nowrap; transition: background-color .3s, border-color .3s, color .3s; }
-.bchip:hover { background: rgba(255,255,255,.05); }
-.bchip.on { color: #fff; font-weight: 600; background: rgba(129,140,248,.18); border-color: rgba(129,140,248,.45); }
+.bchip { height: 32px; padding: 0 12px; border-radius: var(--radius); border: 1px solid var(--line); background: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--soft); white-space: nowrap; transition: background-color .3s, border-color .3s, color .3s; }
+.bchip:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
+.bchip.on { color: var(--text); font-weight: 600; background: color-mix(in srgb, var(--accent) 18%, transparent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
 .bchip .bn { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
 .bchip .bs { font-size: 11px; font-weight: 500; }
-.b-done .bn, .b-done .bs { color: var(--ok); } .b-now .bn, .b-now .bs { color: #a5b4fc; } .b-next .bn, .b-next .bs { color: #64748b; }
+.b-done .bn, .b-done .bs { color: var(--ok); } .b-now .bn, .b-now .bs { color: var(--accent-text); } .b-next .bn, .b-next .bs { color: var(--faint); }
 .gclip { position: absolute; left: 0; width: 1440px; overflow: hidden; }
 .gband { position: absolute; left: 0; top: 0; transform-origin: 0 0; transition: transform .8s cubic-bezier(.4,0,.2,1); }
+.gband.panning { transition: transform .12s linear; }
+/* A graph wider than the stage at the smallest legible scale: the part around the step being read is shown, and the rest is a scroll or a click away */
+.gmore { position: absolute; top: 0; width: 56px; height: 100%; display: flex; align-items: center; pointer-events: none; z-index: 2; }
+.gmore.l { left: 0; justify-content: flex-start; padding-left: 8px; background: linear-gradient(90deg, var(--bg) 20%, transparent); }
+.gmore.r { right: 0; justify-content: flex-end; padding-right: 8px; background: linear-gradient(270deg, var(--bg) 20%, transparent); }
+.gmore[hidden] { display: none; }
+.gmore button { pointer-events: auto; width: 30px; height: 30px; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--text) 20%, transparent); background: var(--card); color: var(--soft); cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; }
+.gmore button:hover { background: var(--raised); color: var(--text); }
 .gband [data-band] { transition: filter .5s ease; }
 .gband .dimb { filter: opacity(.14); }
 .bnote { position: absolute; font-size: 11px; line-height: 14px; color: var(--mute); white-space: nowrap; pointer-events: none; }
 /* A record that grows is shown again without replaying what was already on screen */
 .instant, .instant * { transition: none !important; }
-.rawd { font-size: 12px; position: relative; } .rawd summary { cursor: pointer; color: var(--soft); } .rawd pre { margin: 6px 0 0; padding: 8px 10px; border-radius: 8px; background: rgba(255,255,255,.04); border: 1px solid var(--line); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; line-height: 15px; color: #e2e8f0; }
+.rawd { font-size: 12px; position: relative; } .rawd summary { cursor: pointer; color: var(--soft); } .rawd pre { margin: 6px 0 0; padding: 8px 10px; border-radius: var(--radius); background: color-mix(in srgb, var(--text) 4%, transparent); border: 1px solid var(--line); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; line-height: 15px; color: var(--text); }
 .rawc { position: absolute; right: 0; top: -2px; height: 22px; padding: 0 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); color: var(--soft); cursor: pointer; font-size: 11px; } .rawd:not([open]) .rawc { display: none; }
 
 /* Caption and transport: the sentence is the primary account, the diagram illustrates it */
@@ -255,26 +287,61 @@ button:focus-visible, input:focus-visible { outline: 2px solid #a5b4fc; outline-
 #cap { flex: 1 1 auto; min-width: 0; font-size: 19px; line-height: 27px; font-weight: 500; }
 #cap.in { animation: capin .4s ease both; }
 #facts { flex: none; width: 420px; overflow: hidden; display: flex; flex-direction: column; gap: 2px; font-size: 12px; line-height: 16px; }
-#facts div { display: flex; gap: 8px; min-width: 0; } #facts span { flex: none; width: 76px; color: var(--mute); } #facts b { font-weight: 500; color: #e2e8f0; }
-.tb { width: 44px; height: 44px; flex: none; border-radius: 10px; border: 1px solid rgba(255,255,255,.16); background: var(--card); color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; transition: background-color .2s; }
-.tb:hover { background: #2a3a52; }
-.tb.pri { width: 60px; background: #4f46e5; border-color: var(--focus); } .tb.pri:hover { background: #6366f1; }
+#facts div { display: flex; gap: 8px; min-width: 0; } #facts span { flex: none; width: 76px; color: var(--mute); } #facts b { font-weight: 500; color: var(--text); }
+.tb { width: 44px; height: 44px; flex: none; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--text) 16%, transparent); background: var(--card); color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; transition: background-color .2s; }
+.tb:hover { background: var(--raised); }
+.tb.pri { width: 60px; background: var(--accent-fill); color: var(--on-accent); border-color: var(--focus); } .tb.pri:hover { background: color-mix(in srgb, var(--accent-fill) 86%, var(--text)); }
 .tb.txt { width: 56px; font-size: 13px; font-weight: 600; }
 #scrub { flex: 1 1 auto; min-width: 0; height: 44px; accent-color: var(--focus); cursor: pointer; }
 #none[hidden] { display: none; }
 #none { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 40px; text-align: center; font-size: 18px; line-height: 28px; color: var(--soft); }
+/* The glossary: a panel beside the view, and the words of the view that open it */
+.gbtn { display: inline-flex; align-items: center; gap: 8px; border-color: color-mix(in srgb, var(--text) 16%, transparent); }
+.gbtn[aria-expanded="true"] { color: var(--text); font-weight: 600; background: color-mix(in srgb, var(--accent) 18%, transparent); border-color: var(--focus); }
+.kbd { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 11px; line-height: 16px; padding: 0 5px; border-radius: 4px; border: 1px solid color-mix(in srgb, var(--accent-text) 50%, transparent); color: var(--accent-text); }
+.gw { background: none; border: 0; padding: 0; margin: 0; cursor: help; text-decoration: underline dotted; text-decoration-color: var(--mute); text-decoration-thickness: 1px; text-underline-offset: 3px; text-align: inherit; }
+.gw:hover { color: var(--text); text-decoration-color: currentColor; }
+.tg.gw { align-self: flex-start; }
+#gloss { position: absolute; right: 0; top: 0; width: 480px; height: 900px; z-index: 20; display: flex; flex-direction: column; background: var(--panel); border-left: 1px solid color-mix(in srgb, var(--text) 14%, transparent); box-shadow: -24px 0 48px var(--shadow); }
+#gloss[hidden] { display: none; }
+.gloss-h { flex: none; padding: 18px 20px 12px; display: flex; flex-direction: column; gap: 12px; border-bottom: 1px solid var(--line); }
+.gloss-t { display: flex; align-items: center; }
+.gloss-t h2 { margin: 0; font-family: var(--font-display); font-size: 22px; font-weight: 600; }
+.gloss-x { margin-left: auto; width: 32px; height: 32px; border-radius: var(--radius); border: 1px solid var(--line); background: none; color: var(--soft); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+.gloss-x:hover { background: color-mix(in srgb, var(--text) 7%, transparent); color: var(--text); }
+.gloss-s { position: relative; }
+.gloss-s input { width: 100%; height: 38px; border-radius: var(--radius); border: 1px solid color-mix(in srgb, var(--text) 18%, transparent); background: var(--bg); color: var(--text); font: inherit; font-size: 14px; padding: 0 34px 0 12px; }
+.gloss-s input::placeholder { color: var(--mute); }
+.gloss-s .kbd { position: absolute; right: 10px; top: 10px; color: var(--mute); border-color: var(--line); pointer-events: none; }
+.gloss-c { display: flex; gap: 6px; flex-wrap: wrap; }
+.gloss-c button { font: inherit; font-size: 12px; height: 26px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--line); background: none; color: var(--soft); cursor: pointer; }
+.gloss-c button:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
+.gloss-c button[aria-pressed="true"] { border-color: var(--focus); color: var(--text); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+#glist { flex: 1 1 auto; overflow-y: auto; padding: 4px 8px 12px; }
+.gloss-g { padding: 14px 12px 4px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--mute); }
+.ge { padding: 10px 12px; border-radius: var(--radius); border: 1px solid transparent; display: flex; flex-direction: column; gap: 3px; scroll-margin: 8px; }
+.ge.on { background: color-mix(in srgb, var(--accent) 12%, transparent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.ge-h { display: flex; align-items: baseline; gap: 8px; }
+.ge-t { font-size: 14px; font-weight: 600; font-style: normal; }
+.ge-r { margin-left: auto; flex: none; font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 11px; color: var(--accent-text); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+a.ge-r { text-decoration: underline; text-underline-offset: 2px; }
+.ge-d { margin: 0; font-size: 13px; line-height: 1.45; color: var(--soft); }
+.gloss-none { padding: 24px 12px; font-size: 13px; color: var(--mute); }
+.gloss-f { flex: none; padding: 12px 20px; border-top: 1px solid var(--line); font-size: 12px; line-height: 1.5; color: var(--mute); }
+.gloss-f code { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
 </style>
 </head>
 <body>
 <div id="fit">
   <div id="top">
-    <div class="hd" style="font-size:18px;font-weight:700;letter-spacing:.06em">AWA</div>
-    <div style="width:1px;height:22px;background:rgba(255,255,255,.16)"></div>
-    <nav id="crumbs" aria-label="Where you are" style="display:flex;align-items:center;gap:6px"></nav>
+    <div class="hd" id="brandmark" style="flex:none;font-size:18px;font-weight:700;letter-spacing:.06em">AWA</div>
+    <div style="width:1px;height:22px;background:color-mix(in srgb, var(--text) 16%, transparent)"></div>
+    <nav id="crumbs" aria-label="Where you are" style="display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden"></nav>
     <div style="flex:1"></div>
-    <div id="source" style="font-size:12px;color:var(--mute);white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis"></div>
-    <button class="crumb" id="b-open" style="border-color:rgba(255,255,255,.16)" title="Open a record: the file written by awa journey export, or by GET /api/v1/journeys/portfolio">Open a record</button>
+    <button class="crumb gbtn" id="b-gloss" type="button" aria-expanded="false" aria-controls="gloss" title="What the words of this view mean (?)">Glossary <span class="kbd" aria-hidden="true">?</span></button>
+    <div id="source" style="font-size:12px;color:var(--mute);white-space:nowrap;max-width:260px;min-width:0;flex:0 1000 auto;overflow:hidden;text-overflow:ellipsis"></div>
+    <button class="crumb" id="b-open" style="border-color:color-mix(in srgb, var(--text) 16%, transparent)" title="Open a record: the file written by awa journey export, or by GET /api/v1/journeys/portfolio">Open a record</button>
     <input id="file" type="file" accept=".json,application/json" hidden>
     <div id="switch" class="seg-ctl" role="group" aria-label="Journey"></div>
   </div>
@@ -284,7 +351,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid #a5b4fc; outline-
   <div class="layer" id="L3"><div class="scene"></div></div>
   <div id="bar">
     <div style="display:flex;gap:20px;align-items:flex-start;height:58px">
-      <div id="when" class="mono" style="flex:none;width:150px;padding-top:4px;font-size:13px;color:#a5b4fc"></div>
+      <div id="when" class="mono" style="flex:none;width:150px;padding-top:4px;font-size:13px;color:var(--accent-text)"></div>
       <div id="cap" class="clamp2" aria-live="polite"></div>
       <div id="facts"></div>
     </div>
@@ -295,11 +362,22 @@ button:focus-visible, input:focus-visible { outline: 2px solid #a5b4fc; outline-
       <button class="tb" id="b-next" aria-label="One step forward"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
       <button class="tb txt" id="b-pace" aria-label="Change the pace of the telling">1x</button>
       <input id="scrub" type="range" min="0" max="0" step="1" value="0" aria-label="Position in the story">
-      <div id="count" class="mono" style="flex:none;width:76px;text-align:right;font-size:13px;color:#cbd5e1"></div>
+      <div id="count" class="mono" style="flex:none;width:76px;text-align:right;font-size:13px;color:var(--soft)"></div>
     </div>
   </div>
   <div id="none" hidden></div>
+  <aside id="gloss" role="dialog" aria-modal="true" aria-labelledby="gloss-title" hidden>
+    <div class="gloss-h">
+      <div class="gloss-t"><h2 id="gloss-title">Glossary</h2><button class="gloss-x" id="gloss-close" type="button" aria-label="Close the glossary"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></button></div>
+      <div class="gloss-s"><input id="gq" type="search" autocomplete="off" spellcheck="false" aria-label="Search the glossary" aria-controls="glist"><span class="kbd" aria-hidden="true">/</span></div>
+      <div class="gloss-c" id="gchips" role="group" aria-label="Show the terms of"></div>
+    </div>
+    <div id="glist" aria-live="polite"></div>
+    <div class="gloss-f">AWA terms come with the view and cite the specification (docs/specification.md). Terms of this journey come from its options file (<code>glossary</code>).</div>
+  </aside>
 </div>
+<script src="awa-brand.js"></script>
+<script src="awa-glossary.js"></script>
 <script src="journey-story-builder.js"></script>
 <script src="journey-story.js"></script>
 <script>
@@ -337,6 +415,38 @@ const KIND = k => k.charAt(0).toUpperCase() + k.slice(1);
 /** A run's status in words: a host records "waiting_human" where a reader says "waiting for a person" */
 const RUN_WORD = { completed: 'completed', failed: 'failed', cancelled: 'withdrawn', running: 'under way', waiting_human: 'waiting for a person', waiting_event: 'waiting for an event', waiting: 'waiting' };
 const runWord = status => RUN_WORD[status] || String(status || '').replace(/_/g, ' ');
+
+// ---------------------------------------------------------------- glossary
+// AWA's terms come with the view (awa-glossary.js); a journey adds its own through the options ("glossary").
+const GLOSSARY = window.AWA_GLOSSARY || { groups: [], terms: [] };
+const fold = t => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+const slug = t => fold(t).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60);
+/** The journey's own terms, from the options: data, never markup. A term or a definition that is not text is left out */
+function journeyTerms() {
+    const list = Array.isArray(OPTIONS.glossary) ? OPTIONS.glossary : [], seen = new Set(), out = [];
+    for (const g of list.slice(0, 200)) {
+        if (!g || typeof g.term !== 'string' || typeof g.definition !== 'string' || !g.term.trim() || !g.definition.trim()) continue;
+        let id = slug(typeof g.id === 'string' && g.id ? g.id : g.term) || 'term';
+        while (seen.has(id) || GLOSSARY.terms.some(t => t.id === id)) id += '-j';
+        seen.add(id);
+        out.push({ id, group: 'journey', term: g.term.trim().slice(0, 80), definition: g.definition.trim().slice(0, 500), see: typeof g.see === 'string' ? g.see.trim().slice(0, 300) : '',
+            aliases: Array.isArray(g.aliases) ? g.aliases.filter(a => typeof a === 'string').map(a => a.slice(0, 80)).slice(0, 20) : [] });
+    }
+    return out;
+}
+const allTerms = () => [...journeyTerms(), ...GLOSSARY.terms];
+/** The term a word of the view names: by id, by the term itself, or by one of its other names */
+function termOf(word) {
+    const w = fold(word), terms = allTerms();
+    return terms.find(t => t.id === word) || terms.find(t => fold(t.term) === w) || terms.find(t => (t.aliases || []).some(a => fold(a) === w));
+}
+/** A word of the view, dotted when the glossary explains it: selecting it opens its entry. `focusable` false keeps it out of the tab order */
+const word = (text, term, cls = '', focusable = true) => {
+    const t = termOf(term || text);
+    return t ? `<button type="button" class="gw ${cls}" data-term="${esc(t.id)}"${focusable ? '' : ' tabindex="-1"'} title="${esc(t.term)}: ${esc(t.definition)}">${esc(text)}</button>` : `<span class="${cls}">${esc(text)}</span>`;
+};
+/** The tag on an activity box, as a term of the glossary */
+const TAG_TERM = { 'AI agent': 'ai-agent', Person: 'person', System: 'system', Robot: 'robot', 'Undo step': 'compensation', Decision: 'decision' };
 
 // ---------------------------------------------------------------- geometry
 const CX = k => 264 + k * 392;                       // atlas columns
@@ -392,7 +502,7 @@ scenes.atlas = () => {
             const inst = S.journeys[life.j].instances[life.i], sc = S.journeys[life.j].scale || { min: -2, max: 2 }, n = inst.beats.length;
             const pts = inst.beats.map((b, k) => `${r(4 + k / Math.max(n - 1, 1) * 142)},${r(20 - (b.mood ?? 0) / sc.max * 15)}`).join(' ');
             h += `<button class="pcell" style="left:${CX(life.j)}px;top:${PY(i)}px${tight ? `;height:${cellH}px` : ''}" data-open-s="${life.j},${life.i}" aria-label="Follow ${esc(c.name)} through ${esc(S.journeys[life.j].name)}">
-              <svg class="spark" viewBox="0 0 150 40" aria-hidden="true"><line x1="0" y1="20" x2="150" y2="20" stroke="#334155" stroke-dasharray="3 4"/><polyline points="${pts}" fill="none" stroke="#e2e8f0" stroke-width="2" stroke-linejoin="round"/></svg>
+              <svg class="spark" viewBox="0 0 150 40" aria-hidden="true"><line x1="0" y1="20" x2="150" y2="20" style="stroke:var(--edge)" stroke-dasharray="3 4"/><polyline points="${pts}" fill="none" style="stroke:var(--text)" stroke-width="2" stroke-linejoin="round"/></svg>
               <span style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="e-${tok(inst.ending.kind)}" style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(inst.ending.label)}</span><span style="font-size:12px">${mood(inst.mood_end)}${basisOf(inst) ? ` <span style="color:var(--mute)">&middot; ${basisOf(inst)}</span>` : ''}</span></span></button>`;
         }
     });
@@ -405,7 +515,7 @@ scenes.journey = () => {
     let h = `<div style="position:absolute;left:28px;top:22px;width:216px;display:flex;flex-direction:column;gap:8px">
       <div class="hd" style="font-size:22px;line-height:26px;font-weight:600">${esc(j.name)}</div>
       <div class="sub" style="font-size:13px;line-height:18px">Calendar time, ${day(j.t0)} to ${day(j.t1)}. One lane per customer. Select a lane to follow that customer.</div>
-      <div id="asof" style="font-size:13px;font-weight:600;color:#a5b4fc"></div></div>`;
+      <div id="asof" style="font-size:13px;font-weight:600;color:var(--accent-text)"></div></div>`;
     const narrow = w < 200;
     j.stages.forEach((s, k) => {
         h += narrow
@@ -435,9 +545,9 @@ scenes.story = () => {
     const ys = beats.map(b => beatY(j, b));
     let h = `<div style="position:absolute;left:28px;top:12px;width:1384px;display:flex;align-items:center;gap:10px">
       <div class="hd" style="font-size:22px;font-weight:600;white-space:nowrap" title="${esc((person.persona || '') + ' ' + c.summary)}">${esc(c.name)}</div>
-      <button class="crumb" style="border-color:rgba(255,255,255,.16);font-size:12px;height:28px;padding:0 9px" data-person="-1" title="The previous customer in this journey">&lsaquo; previous customer</button>
-      <button class="crumb" style="border-color:rgba(255,255,255,.16);font-size:12px;height:28px;padding:0 9px" data-person="1" title="The next customer in this journey">next customer &rsaquo;</button>
-      <button class="crumb" style="border-color:var(--focus);color:#fff;font-size:12px;height:28px;padding:0 9px" data-list="toggle" title="The whole story as a dated list you can read from top to bottom">Read as a list</button>
+      <button class="crumb" style="border-color:color-mix(in srgb, var(--text) 16%, transparent);font-size:12px;height:28px;padding:0 9px" data-person="-1" title="The previous customer in this journey">&lsaquo; previous customer</button>
+      <button class="crumb" style="border-color:color-mix(in srgb, var(--text) 16%, transparent);font-size:12px;height:28px;padding:0 9px" data-person="1" title="The next customer in this journey">next customer &rsaquo;</button>
+      <button class="crumb" style="border-color:var(--focus);color:var(--text);font-size:12px;height:28px;padding:0 9px" data-list="toggle" title="The whole story as a dated list you can read from top to bottom">Read as a list</button>
 <div style="flex:1 1 auto"></div>
       ${c.mood_from ? `<div class="chip" title="A journey begins at the mood the customer's last one left them in">Arrived ${mood(c.mood_start)} from ${esc(c.mood_from)}</div>` : ''}
       <div class="chip" id="moodchip"></div>
@@ -447,19 +557,20 @@ scenes.story = () => {
         let first = -1, last = -1; beats.forEach((b, i) => { if (b.stage === k) { if (first < 0) first = i; last = i; } });
         if (first < 0) return;
         const x0 = first === 0 ? xs[0] - 30 : (xs[first - 1] + xs[first]) / 2 + 2, x1 = last === n - 1 ? xs[n - 1] + 30 : (xs[last] + xs[last + 1]) / 2 - 2;
-        h += `<div class="band b${k % 2} off" data-b="${first}" style="left:${r(x0)}px;width:${r(x1 - x0)}px">${esc(sg.name)}</div>`;
+        h += `<div class="band b${k % 2} off" data-b="${first}" style="left:${r(x0)}px;width:${r(x1 - x0)}px"></div>`
+            + `<div class="bhd off" data-b="${first}" data-stage="${esc(sg.name)}" style="left:${r(x0)}px;width:${r(x1 - x0)}px"><span class="bhn">${esc(sg.name)}</span></div>`;
     });
     h += `<div class="col"></div>`;
     // Lane labels and rails. The journey itself is the line of visibility: customer above, work below.
     const label = (y, title, sub) => `<div class="ll" style="top:${y - 16}px"><div class="pt">${title}</div><div class="sub">${sub}</div></div>`;
-    h += label(96, 'Mood', 'solid: said &middot; dashed: inferred') + label(LY.world, 'Customer', 'touchpoints') + label(LY.journey, 'Journey', 'line of visibility') + label(LY.work, 'Workflows', 'the work behind it');
-    h += `<div class="rail" style="top:${moodY(0)}px;border-top:1px dashed rgba(255,255,255,.14)"></div><div class="rail" style="top:${LY.world}px;border-top:1px dashed rgba(255,255,255,.10)"></div>
-      <div class="rail" style="top:${LY.journey - 1}px;border-top:2px solid #475569"></div><div class="rail" style="top:${LY.work}px;border-top:1px dashed rgba(255,255,255,.10)"></div>
-      <div class="rowl" style="top:${moodY(2) - 8}px;left:150px;width:auto;color:#34d399">+2</div><div class="rowl" style="top:${moodY(-2) - 8}px;left:150px;width:auto;color:#ff8a8c">&minus;2</div>`;
-    h += `<div class="ll" style="top:${techY(0) - 26}px"><div class="pt">Technology</div></div>`;
-    j.technologies.forEach((t, k) => { h += `<div class="rowl" style="top:${techY(k) - 8}px" title="${esc(t)}">${esc(t)}</div><div class="rail" style="top:${techY(k)}px;border-top:1px solid rgba(255,255,255,.05)"></div>`; });
-    h += `<div class="ll" style="top:${kindY(j, 0) - 26}px"><div class="pt">Exchanged</div></div>`;
-    j.kinds.forEach((t, k) => { h += `<div class="rowl" style="top:${kindY(j, k) - 8}px">${esc(KIND(t))}</div><div class="rail" style="top:${kindY(j, k)}px;border-top:1px solid rgba(255,255,255,.05)"></div>`; });
+    h += label(96, word('Mood', 'mood'), 'solid: said &middot; dashed: inferred') + label(LY.world, 'Customer', word('touchpoints', 'touchpoint')) + label(LY.journey, word('Journey', 'journey'), word('line of visibility', 'line-of-visibility')) + label(LY.work, word('Workflows', 'workflow'), 'the work behind it');
+    h += `<div class="rail" style="top:${moodY(0)}px;border-top:1px dashed color-mix(in srgb, var(--text) 14%, transparent)"></div><div class="rail" style="top:${LY.world}px;border-top:1px dashed color-mix(in srgb, var(--text) 10%, transparent)"></div>
+      <div class="rail" style="top:${LY.journey - 1}px;border-top:2px solid var(--stroke)"></div><div class="rail" style="top:${LY.work}px;border-top:1px dashed color-mix(in srgb, var(--text) 10%, transparent)"></div>
+      <div class="rowl" style="top:${moodY(2) - 8}px;left:150px;width:auto;color:var(--ok-ink)">+2</div><div class="rowl" style="top:${moodY(-2) - 8}px;left:150px;width:auto;color:var(--bad-ink)">&minus;2</div>`;
+    h += `<div class="ll" style="top:${techY(0) - 26}px"><div class="pt">${word('Technology', 'technology')}</div></div>`;
+    j.technologies.forEach((t, k) => { h += `<div class="rowl" style="top:${techY(k) - 8}px" title="${esc(t)}">${esc(t)}</div><div class="rail" style="top:${techY(k)}px;border-top:1px solid color-mix(in srgb, var(--text) 5%, transparent)"></div>`; });
+    h += `<div class="ll" style="top:${kindY(j, 0) - 26}px"><div class="pt">${word('Exchanged', 'artefact')}</div></div>`;
+    j.kinds.forEach((t, k) => { h += `<div class="rowl" style="top:${kindY(j, k) - 8}px">${esc(KIND(t))}</div><div class="rail" style="top:${kindY(j, k)}px;border-top:1px solid color-mix(in srgb, var(--text) 5%, transparent)"></div>`; });
 
     // Mood: one line, revealed as the story is told. A filled dot was said by the customer; a hollow one was inferred.
     if (j.scale) {
@@ -502,24 +613,41 @@ scenes.story = () => {
     h += `<div class="listp" id="listp" hidden><div class="listh"><b style=\"flex:1 1 auto;white-space:nowrap\">What happened, in order</b><div class="seg-ctl"><button data-list="customer">The customer&rsquo;s side</button><button data-list="all">Everything</button></div><button class="crumb" data-list="toggle">Close</button></div><div class="listb" id="listb"></div></div>`;
     h += `<div class="ring"></div><div class="fl ct"></div>
       <div style="position:absolute;left:28px;top:654px;width:1384px;display:flex;align-items:center;gap:16px">
-        ${[['k-event', 'customer acts'], ['k-told', 'customer is told'], ['k-timeout', 'nothing arrives in time'], ['k-stage_in', 'stage begins'], ['k-goal', 'goal reached'], ['k-model_decision', 'a model decides'], ['k-human_wait', 'waits for a person'], ['k-partner', 'a partner system is called']].map(([k, t]) => `<div class="lg"><span class="lgi"><span class="sh ${k}"></span></span>${t}</div>`).join('')}
-        <div class="lg"><span class="lgi"><span class="doc" style="left:7px;top:8px"></span></span>received</div><div class="lg"><span class="lgi"><span class="doc out" style="left:7px;top:8px"></span></span>sent out</div>
-        <div class="lg"><span style="width:20px;border-top:2px solid #94a3b8"></span>caused</div><div class="lg"><span style="width:20px;border-top:2px dashed #64748b"></span>time passes</div></div>
+        ${[['k-event', 'customer acts', 'touchpoint'], ['k-told', 'customer is told', 'touchpoint'], ['k-timeout', 'nothing arrives in time', 'missed-deadline'], ['k-stage_in', 'stage begins', 'stage'], ['k-goal', 'goal reached', 'goal'], ['k-model_decision', 'a model decides', 'model-decision'], ['k-human_wait', 'waits for a person', 'person'], ['k-partner', 'a partner system is called', 'technology']].map(([k, t, term]) => `<div class="lg"><span class="lgi"><span class="sh ${k}"></span></span>${word(t, term)}</div>`).join('')}
+        <div class="lg"><span class="lgi"><span class="doc" style="left:7px;top:8px"></span></span>${word('received', 'artefact')}</div><div class="lg"><span class="lgi"><span class="doc out" style="left:7px;top:8px"></span></span>${word('sent out', 'artefact')}</div>
+        <div class="lg"><span style="width:20px;border-top:2px solid var(--mute)"></span>${word('caused', 'business-event')}</div><div class="lg"><span style="width:20px;border-top:2px dashed var(--faint)"></span>${word('time passes', 'business-event')}</div></div>
       <div style="position:absolute;left:28px;top:678px;width:1384px;display:flex;align-items:center;gap:16px">
-        <div class="lg"><span class="md said" style="position:static;margin:0;cursor:default"></span>mood the customer stated</div><div class="lg"><span class="md" style="position:static;margin:0;cursor:default"></span>mood inferred by a rule</div>
-        <div class="lg"><span class="lgi"><span class="sh k-undone"></span></span>an earlier step is undone</div><div class="lg"><span class="lgi"><span class="sh k-run_failed"></span></span>a workflow fails</div><div class="lg"><span class="lgi"><span class="sh k-stalled"></span></span>stalled: needs someone</div>
+        <div class="lg"><span class="md said" style="position:static;margin:0;cursor:default"></span>${word('mood the customer stated', 'mood')}</div><div class="lg"><span class="md" style="position:static;margin:0;cursor:default"></span>${word('mood inferred by a rule', 'mood')}</div>
+        <div class="lg"><span class="lgi"><span class="sh k-undone"></span></span>${word('an earlier step is undone', 'compensation')}</div><div class="lg"><span class="lgi"><span class="sh k-run_failed"></span></span>${word('a workflow fails', 'run-status')}</div><div class="lg"><span class="lgi"><span class="sh k-stalled"></span></span>${word('stalled: needs someone', 'stalled')}</div>
         <div class="lg" style="color:var(--mute)">Select any mark to read that moment. Nothing is hidden: later moments are dimmed.</div></div>`;
     return h;
 };
 
-/** Where the graph of a banded workflow is moved and scaled to, so that band k fills the graph's area */
-const GRAPH = { top: 104, height: 308 };
-function bandView(W, k) {
-    // Room above a band for the edges that come into it and their notes, and below it for those that leave
-    const b = W.bands[Math.max(0, Math.min(k, W.bands.length - 1))], padX = 28, top = b.y0 - 38, bottom = b.y1 + 24;
-    const s = Math.min(1.3, 1408 / (b.x1 - b.x0 + 2 * padX), GRAPH.height / (bottom - top));
-    const tx = (1440 - (b.x1 - b.x0) * s) / 2 - b.x0 * s, ty = (GRAPH.height - (bottom - top) * s) / 2 - top * s;
-    return `translate(${tx.toFixed(1)}px, ${ty.toFixed(1)}px) scale(${s.toFixed(3)})`;
+/** The graph's area on the run view: below the band chips for a workflow in bands, else from the title down */
+const GRAPH = { top: 104, height: 320 }, GRAPH_FLAT = { top: 64, height: 360 };
+/** A node's name is 12 px: never shown smaller than 11 px. A graph that would need less is shown at this scale, in part */
+const MIN_SCALE = 11 / 12;
+/**
+ * Where the graph is moved and scaled to, so that band k (or the whole of a workflow without bands) fills the graph's area.
+ * Too wide or too tall at the smallest legible scale, it shows the part around the node `focus` (the step being read),
+ * moved further by `pan` ({ dx, dy } in screen pixels) when a reader scrolls. Returns the transform and how much more there is on each side.
+ */
+function graphView(W, k, focus, pan) {
+    const banded = !!(W.bands && W.bands.length), area = banded ? GRAPH : GRAPH_FLAT, band = banded ? Math.max(0, Math.min(k, W.bands.length - 1)) : 0;
+    // Room beside the graph for the names of the events at either end; above a band for the edges that come into it and their notes, and below it for those that leave
+    const b = banded ? W.bands[band] : { x0: 0, x1: W.width, y0: 0, y1: W.height };
+    const left = b.x0 - 28, right = b.x1 + 28, top = banded ? b.y0 - 38 : b.y0, bottom = banded ? b.y1 + 24 : b.y1;
+    const s = Math.max(MIN_SCALE, Math.min(banded ? 1.3 : 1, 1408 / (right - left), area.height / (bottom - top)));
+    const fit = (room, lo, hi, at, d) => {
+        if ((hi - lo) * s <= room + 0.5) return { t: (room - (hi - lo) * s) / 2 - lo * s, before: false, after: false };
+        const most = -lo * s, least = room - hi * s;                  // the translations that put one end or the other at the edge
+        const t = Math.max(least, Math.min(most, room / 2 - at * s + (d || 0)));
+        return { t, before: t < most - 1, after: t > least + 1 };
+    };
+    const at = focus && focus.band === band ? focus : { x: (left + right) / 2, y: (top + bottom) / 2 };
+    const x = fit(1440, left, right, at.x, pan && pan.dx), y = fit(area.height, top, bottom, at.y, pan && pan.dy);
+    return { transform: `translate(${x.t.toFixed(1)}px, ${y.t.toFixed(1)}px) scale(${s.toFixed(4)})`, scale: s, left: x.before, right: x.after, up: y.before, down: y.after,
+        dx: x.t - (1440 / 2 - at.x * s), dy: y.t - (area.height / 2 - at.y * s) };
 }
 /** The band of the step being read: the band of its node, else of the last step that had one; or the band a reader chose */
 function bandOf(run, W, ic) {
@@ -528,51 +656,56 @@ function bandOf(run, W, ic) {
     return 0;
 }
 let runShown = { key: '', band: -1 };                       // the band last shown, so that a rebuilt scene starts from it
+/** The centre of the node of the step being read, or of the last step that had a node, with its band */
+function focusOf(run, W, ic) {
+    for (let k = Math.min(ic, run.steps.length - 1); k >= 0; k--) { const n = W.nodes[run.steps[k].n]; if (n) return { x: n.x + n.w / 2, y: n.y + n.h / 2, band: n.band || 0 }; }
+    return null;
+}
+/** How far a reader has scrolled the graph, kept while the same step of the same band is read */
+const panOf = (run, k, ic) => (st.pan && st.pan.key === `${run.run_id}|${k}|${ic}` ? st.pan : null);
 
 scenes.run = () => {
     const c = I(), run = R(), W = S.workflows[run.wf], banded = !!(W.bands && W.bands.length);
-    const gx = banded ? 0 : r((1440 - W.width) / 2), gy = banded ? 0 : 84 + r((316 - W.height) / 2);
     const stage = J().stages.find(s => s.id === run.stage);
     let h = `<div style="position:absolute;left:28px;top:16px;width:1384px;display:flex;align-items:center;gap:14px">
-      <button class="crumb" style="border-color:rgba(255,255,255,.16)" data-up="1">Back to ${esc(c.name)}</button>
+      <button class="crumb" style="border-color:color-mix(in srgb, var(--text) 16%, transparent)" data-up="1">Back to ${esc(c.name)}</button>
       <div class="hd" style="font-size:22px;font-weight:600;white-space:nowrap">${esc(run.name)}</div>
       <div class="sub" style="font-size:14px;flex:1 1 auto">serving the stage &ldquo;<span id="runstage">${esc(stage ? stage.name : '')}</span>&rdquo; of the ${esc(J().name)} journey</div><div class="chip" id="runchip"></div></div>`;
     const dim = band => (banded ? ` data-band="${band}"` : '');
     if (banded) {
         h += `<div style="position:absolute;left:28px;top:62px;width:1384px;display:flex;align-items:center;gap:8px">
-          <span class="pt" style="color:var(--mute);margin-right:6px">Bands</span>
+          ${word('Bands', 'band', 'pt', true).replace('class="gw pt"', 'class="gw pt" style="color:var(--mute);margin-right:6px"')}
           ${W.bands.map((b, k) => `<button class="bchip" data-bandchip="${k}" title="Show this band of the workflow"><span class="bn">${k + 1}</span>${esc(b.label)}<span class="bs"></span></button>`).join('')}
           <span style="flex:1 1 auto"></span><span class="sub">the band of the step being read is shown; the others are one click away</span></div>`;
-        const from = runShown.key === run.run_id && runShown.band >= 0 ? runShown.band : bandOf(run, W, pos());
-        h += `<div class="gclip" style="top:${GRAPH.top}px;height:${GRAPH.height}px"><div class="gband" style="width:${W.width}px;height:${W.height}px;transform:${bandView(W, from)}">`;
-    } else {
-        // A workflow wider or taller than the stage is shown smaller, never cut off
-        const fit = Math.min(1, 1384 / W.width, 330 / W.height);
-        h += `<div style="position:absolute;left:0;top:0;width:1440px;height:420px;transform:scale(${fit.toFixed(3)});transform-origin:720px 242px">`;
     }
+    // The graph fills its area, at a scale where every name reads; a graph too large for that is shown around the step being read
+    const from = banded && runShown.key === run.run_id && runShown.band >= 0 ? runShown.band : bandOf(run, W, pos()), area = banded ? GRAPH : GRAPH_FLAT;
+    h += `<div class="gclip" style="top:${area.top}px;height:${area.height}px"><div class="gband" style="width:${W.width}px;height:${W.height}px;transform:${graphView(W, from, focusOf(run, W, pos())).transform}">`;
     W.edges.forEach((e, ei) => {
         const ba = W.nodes[e.a].band, bb = W.nodes[e.b].band, band = ba === bb ? ba : 'x';
         e.segs.forEach((sg, si) => {
             const hz = sg.dir === 'r' || sg.dir === 'l';
-            h += `<div class="eg ${tok(e.kind)}${hz ? '' : ' vv'}"${dim(band)} style="left:${gx + sg.x - (hz ? 0 : 1)}px;top:${gy + sg.y - (hz ? 1 : 0)}px;width:${hz ? sg.len : 2}px;height:${hz ? 2 : sg.len}px"><div class="ef ${tok(sg.dir)} ${tok(e.kind)}" data-e="${ei}" data-si="${si}"></div></div>`;
+            h += `<div class="eg ${tok(e.kind)}${hz ? '' : ' vv'}"${dim(band)} style="left:${sg.x - (hz ? 0 : 1)}px;top:${sg.y - (hz ? 1 : 0)}px;width:${hz ? sg.len : 2}px;height:${hz ? 2 : sg.len}px"><div class="ef ${tok(sg.dir)} ${tok(e.kind)}" data-e="${ei}" data-si="${si}"></div></div>`;
         });
-        if (e.tip) h += `<div class="tip ${tok(e.tip.dir)} ${tok(e.kind)}" data-e="${ei}"${dim(bb)} style="left:${gx + e.tip.x - 6}px;top:${gy + e.tip.y - 6}px"></div>`;
+        if (e.tip) h += `<div class="tip ${tok(e.tip.dir)} ${tok(e.kind)}" data-e="${ei}"${dim(bb)} style="left:${e.tip.x - 6}px;top:${e.tip.y - 6}px"></div>`;
     });
     W.nodes.forEach((n, i) => {
-        const box = `left:${gx + n.x}px;top:${gy + n.y}px;width:${n.w}px;height:${n.h}px`;
-        if (n.kind === 'activity') h += `<div class="nd act" data-n="${i}" data-base="nd act"${dim(n.band)} style="${box}"><span class="tg">${esc(n.tag)}</span><span class="nm">${esc(n.name)}</span></div>`;
-        else if (n.kind === 'event') h += `<div class="nd evt m-${tok(n.mode)}" data-n="${i}" data-base="nd evt m-${tok(n.mode)}"${dim(n.band)} style="${box}"><span class="ev-in"></span></div><div class="nl"${dim(n.band)} style="left:${gx + n.x + n.w / 2}px;top:${gy + n.y + n.h + 5}px"><span>${esc(n.name)}</span></div>`;
-        else h += `<div class="nd dec" data-n="${i}" data-base="nd dec"${dim(n.band)} style="${box}"></div><div class="nl dl"${dim(n.band)} style="left:${gx + n.x + n.w - 10}px;top:${gy + n.y - 14}px"><span>${esc(n.name)}</span></div>`;
+        const box = `left:${n.x}px;top:${n.y}px;width:${n.w}px;height:${n.h}px`;
+        if (n.kind === 'activity') h += `<div class="nd act" data-n="${i}" data-base="nd act"${dim(n.band)} style="${box}" title="${esc(n.name)}">${word(n.tag, TAG_TERM[n.tag], 'tg', false)}<span class="nm">${esc(n.name)}</span></div>`;
+        else if (n.kind === 'event') h += `<div class="nd evt m-${tok(n.mode)}" data-n="${i}" data-base="nd evt m-${tok(n.mode)}"${dim(n.band)} style="${box}"><span class="ev-in"></span></div><div class="nl"${dim(n.band)} style="left:${n.x + n.w / 2}px;top:${n.y + n.h + 5}px"><span>${esc(n.name)}</span></div>`;
+        else h += `<div class="nd dec" data-n="${i}" data-base="nd dec"${dim(n.band)} style="${box}"></div><div class="nl dl"${dim(n.band)} style="left:${n.x + n.w - 10}px;top:${n.y - 14}px"><span>${esc(n.name)}</span></div>`;
     });
     if (banded) for (const note of W.notes || []) h += `<div class="bnote"${dim(note.band)} style="left:${note.x}px;top:${note.y}px${note.align === 'right' ? ';transform:translateX(-100%)' : ''}">${esc(note.text)}</div>`;
-    h += banded ? `</div></div>` : `</div>`;
-    const swatch = (css, t) => `<div class="lg" style="font-size:12px"><span style="width:18px;height:12px;border-radius:3px;${css}"></span>${t}</div>`;
-    return h + `<div style="position:absolute;left:28px;top:424px;width:1384px;display:flex;gap:16px">
+    h += `</div><div class="gmore l" hidden><button type="button" data-pan="-1" aria-label="Show more of the graph to the left"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button></div>`
+        + `<div class="gmore r" hidden><button type="button" data-pan="1" aria-label="Show more of the graph to the right"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button></div></div>`;
+    const swatch = (css, t, term) => `<div class="lg" style="font-size:12px"><span style="width:18px;height:12px;border-radius:3px;${css}"></span>${word(t, term)}</div>`;
+    return h + `<div style="position:absolute;left:28px;top:432px;width:1384px;display:flex;gap:16px">
       <div class="pn" style="flex:0 0 560px"><div class="pt" style="color:var(--mute)">The story so far</div><div id="script" style="display:flex;flex-direction:column;gap:2px"></div></div>
       <div class="pn" style="flex:1 1 auto;min-width:0"><div class="pt" style="color:var(--mute)">Evidence for this step</div><div id="evidence" style="display:flex;flex-direction:column;gap:7px;overflow:auto"></div></div>
       <div class="pn" style="flex:0 0 250px"><div class="pt" style="color:var(--mute)">Reading the diagram</div>
-        ${swatch('border:1.5px solid var(--run)', 'working now')}${swatch('border:1.5px dashed var(--wait)', 'waiting')}${swatch('border:1.5px solid var(--ok)', 'done')}${swatch('border:1.5px solid var(--bad);background:#3b1d24', 'failed')}${swatch('border:1.5px dotted var(--mute)', 'undone afterwards')}
-        <div class="lg" style="font-size:12px"><span style="width:18px;border-top:2px dashed var(--wait)"></span>path taken on a missed deadline</div></div></div>`;
+        ${swatch('border:1.5px solid var(--run)', 'working now', 'step-status')}${swatch('border:1.5px dashed var(--wait)', 'waiting', 'step-status')}${swatch('border:1.5px solid var(--ok)', 'done', 'step-status')}${swatch('border:1.5px solid var(--bad);background:color-mix(in srgb, var(--bad) 16%, var(--card))', 'failed', 'step-status')}${swatch('border:1.5px dotted var(--mute)', 'undone afterwards', 'compensation')}
+        <div class="lg" style="font-size:12px"><span style="width:18px;border-top:2px dashed var(--wait)"></span>${word('path taken on a missed deadline', 'missed-deadline')}</div>
+        <div class="sub" style="margin-top:auto">A dotted word opens its entry in the glossary.</div></div></div>`;
 };
 
 // ---------------------------------------------------------------- applying the state to a built scene
@@ -586,7 +719,7 @@ apply.journey = el => {
         const n = m.counts[+card.dataset.card];
         card.innerHTML = card.parentElement.classList.contains('narrow')
             ? `<div><b>${n.here}</b>here</div><div><b>${n.done}</b>moved on</div><div class="${n.stalled ? 'warn' : ''}"><b>${n.stalled}</b>stalled</div><div><b>${n.left}</b>left</div>`
-            : `<div class="ct"><b>${n.here}</b><span>here now</span></div><div class="ct"><b>${n.done}</b><span>moved on</span></div><div class="ct${n.stalled ? ' warn' : ''}"><b>${n.stalled}</b><span>stalled</span></div><div class="ct"><b>${n.left}</b><span>left</span></div>`;
+            : `<div class="ct"><b>${n.here}</b><span>here now</span></div><div class="ct"><b>${n.done}</b><span>moved on</span></div><div class="ct${n.stalled ? ' warn' : ''}"><b>${n.stalled}</b>${word('stalled', 'stalled')}</div><div class="ct"><b>${n.left}</b>${word('left', 'abandoned')}</div>`;
     });
     el.querySelectorAll('.lane').forEach(lane => lane.classList.toggle('hot', +lane.dataset.lane === m.c));
     el.querySelectorAll('.seg').forEach(seg => {
@@ -601,6 +734,46 @@ apply.journey = el => {
     const ring = el.querySelector('.ring'); ring.style.left = r(ax(T)) + 'px'; ring.style.top = laneTop(m.c) + laneMid() + 'px';
 };
 
+// Text is fitted to its room in the fonts on screen: when a font arrives, the blueprint is fitted again
+let fontsLoaded = 0;
+if (document.fonts) document.fonts.addEventListener('loadingdone', () => { fontsLoaded++; if (rendered && st.level === 'story') render(); });
+/** The short forms of a stage's name, longest first: whole words then an ellipsis, then the first word cut, never under three letters */
+function shortNames(name) {
+    const words = name.split(/\s+/), out = [];
+    for (let k = words.length - 1; k >= 1; k--) out.push(words.slice(0, k).join(' ').replace(/[\s,;:–—-]+$/, '') + '\u2026');
+    for (let m = words[0].length - 1; m >= 3; m--) out.push(words[0].slice(0, m) + '\u2026');
+    return out;
+}
+/**
+ * Fits the blueprint's text to its room, once per scene and font: a stage header too narrow for its name takes the longest
+ * short form that fits, keeping the full name as its accessible name, on hover and on focus; gap labels that would cover one
+ * another are dropped, the longest gaps keeping theirs.
+ */
+function fitStory(el) {
+    const mark = el.querySelector('.col'), stamp = `${fontsLoaded}|${getComputedStyle(document.body).fontFamily}`;
+    if (!mark || mark.dataset.fit === stamp) return;
+    mark.dataset.fit = stamp;
+    for (const hd of el.querySelectorAll('.bhd')) {
+        const name = hd.dataset.stage;
+        hd.classList.remove('short'); hd.removeAttribute('title');
+        hd.innerHTML = `<span class="bhn">${esc(name)}</span>`;
+        if (hd.scrollWidth <= hd.clientWidth) continue;
+        hd.classList.add('short');
+        const label = hd.firstElementChild;
+        label.setAttribute('role', 'heading'); label.setAttribute('aria-level', '3'); label.setAttribute('aria-label', name); label.tabIndex = 0;
+        hd.title = name;
+        const fits = shortNames(name).find(t => { label.textContent = t; return hd.scrollWidth <= hd.clientWidth; });
+        label.textContent = fits || '';
+        hd.insertAdjacentHTML('beforeend', `<span class="bfull" aria-hidden="true">${esc(name)}</span>`);
+    }
+    const beats = I().beats, labels = [...el.querySelectorAll('.gap')];
+    labels.forEach(g => g.classList.remove('drop'));
+    const room = labels.map(g => { const b = +g.dataset.b, w = g.offsetWidth, x = parseFloat(g.style.left); return { g, x0: x - w / 2 - 3, x1: x + w / 2 + 3, long: beats[b].t - beats[b - 1].t, b }; });
+    const kept = [];
+    for (const l of [...room].sort((a, c) => c.long - a.long || a.b - c.b)) {
+        if (kept.some(k => l.x0 < k.x1 && k.x0 < l.x1)) l.g.classList.add('drop'); else kept.push(l);
+    }
+}
 apply.story = el => {
     const j = J(), c = I(), beats = c.beats, n = beats.length, ib = pos(), cur = beats[ib], xs = xsOf(c), y = beatY(j, cur);
     el.querySelectorAll('[data-b]').forEach(x => x.classList.toggle('off', +x.dataset.b > ib));
@@ -608,7 +781,7 @@ apply.story = el => {
         const started = ib >= +bar.dataset.b0, ended = ib >= +bar.dataset.b1, status = bar.dataset.status;
         bar.className = 'rb' + (started ? '' : ' off') + (ended ? ' r-' + tok(status) : ' r-running');
         const label = el.querySelector(`[data-runlabel="${bar.dataset.run}"]`);
-        label.innerHTML = `<b style="color:#fff">${esc(c.runs[+bar.dataset.run].name)}</b> &middot; ${ended ? esc(runWord(status)) : 'under way'} &middot; <span style="color:#a5b4fc;font-weight:600">Look inside &rsaquo;</span>`;
+        label.innerHTML = `<b style="color:var(--text)">${esc(c.runs[+bar.dataset.run].name)}</b> &middot; ${ended ? esc(runWord(status)) : 'under way'} &middot; <span style="color:var(--accent-text);font-weight:600">Look inside &rsaquo;</span>`;
     });
     const finished = ib === n - 1, over = finished && c.ending.kind !== 'stalled';
     c.goals.forEach((g, k) => {
@@ -617,6 +790,7 @@ apply.story = el => {
         chip.innerHTML = `<span>${esc(g.name)}</span><b>${reached ? 'reached' : over ? 'not reached' : 'open'}</b>`;
     });
     el.querySelector('#endchip').classList.toggle('hide', !finished);
+    fitStory(el);
     const chip = el.querySelector('#moodchip');
     chip.innerHTML = cur.mood === null ? '' : `<span>Mood</span><b>${mood(cur.mood)}</b>`; chip.style.display = cur.mood === null ? 'none' : '';
     const ring = el.querySelector('.ring'); ring.style.left = xs[ib] + 'px'; ring.style.top = y + 'px';
@@ -653,14 +827,18 @@ apply.run = el => {
     let h = '';
     for (let i = Math.max(0, Math.min(ic - 2, steps.length - 5)), k = 0; i < steps.length && k < 5; i++, k++) h += `<button class="tr${i === ic ? ' cur' : ''}" data-step="${i}"><span class="trw mono">${esc(steps[i].when)}</span><span class="${i === ic ? 'clamp2' : 'one'}">${esc(steps[i].cap)}</span></button>`;
     el.querySelector('#script').innerHTML = h;
-    el.querySelector('#evidence').innerHTML = [...step.det.slice(0, 6), ['Journal record', `event ${step.seq} of run ${run.run_id.slice(0, 8)}`]].map(d => `<div class="ev"><span class="evl">${esc(d[0])}</span><span class="evt2">${esc(d[1])}</span></div>`).join('')
+    el.querySelector('#evidence').innerHTML = [...step.det.slice(0, 6), ['Journal record', `event ${step.seq} of run ${run.run_id.slice(0, 8)}`]].map((d, k, all) => `<div class="ev">${k === all.length - 1 ? word(d[0], 'journal-record', 'evl') : `<span class="evl">${esc(d[0])}</span>`}<span class="evt2">${esc(d[1])}</span></div>`).join('')
         + (step.raw ? `<details class="rawd"><summary>The record as written</summary><button type="button" class="rawc" data-copy>Copy</button><pre class="mono">${esc(JSON.stringify({ run_id: run.run_id, ...step.raw }, null, 2))}</pre></details>` : '');
     const copy = el.querySelector('[data-copy]');
     if (copy) copy.onclick = () => { const text = el.querySelector('.rawd pre').textContent; (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(() => { copy.textContent = 'Copied'; }, () => { const r = document.createRange(); r.selectNodeContents(el.querySelector('.rawd pre')); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); copy.textContent = 'Selected'; }); };
-    if (W.bands && W.bands.length) {
-        const k = bandOf(run, W, ic), now = (() => { for (let x = ic; x >= 0; x--) if (steps[x].n >= 0) return W.nodes[steps[x].n].band || 0; return 0; })();
+    const banded = !!(W.bands && W.bands.length), k = banded ? bandOf(run, W, ic) : 0;
+    const view = graphView(W, k, focusOf(run, W, ic), panOf(run, k, ic)), graph = el.querySelector('.gband');
+    graph.classList.toggle('panning', !!(panOf(run, k, ic) || {}).quick);
+    graph.style.transform = view.transform; graph.dataset.scale = view.scale;
+    el.querySelector('.gmore.l').hidden = !view.left; el.querySelector('.gmore.r').hidden = !view.right;
+    if (banded) {
+        const now = (() => { for (let x = ic; x >= 0; x--) if (steps[x].n >= 0) return W.nodes[steps[x].n].band || 0; return 0; })();
         const all_done = ic === steps.length - 1 && run.status === 'completed';
-        el.querySelector('.gband').style.transform = bandView(W, k);
         el.querySelectorAll('.gband [data-band]').forEach(x => x.classList.toggle('dimb', x.dataset.band !== 'x' && +x.dataset.band !== k));
         el.querySelectorAll('[data-bandchip]').forEach(chip => {
             const b = +chip.dataset.bandchip, state = all_done || b < now ? 'done' : b === now ? 'now' : 'next';
@@ -669,12 +847,9 @@ apply.run = el => {
         });
         runShown = { key: run.run_id, band: k };
     }
-    // The stage the journey was in at the step being read: a run that serves several stages moves through them
-    const seg = [...I().stages].reverse().find(x => x.from <= step.t), stage_now = seg ? J().stages[seg.stage] : J().stages.find(x => x.id === run.stage);
-    if (stage_now) el.querySelector('#runstage').textContent = stage_now.name;
     const over = ic === steps.length - 1, chip = el.querySelector('#runchip');
     chip.className = 'chip' + (over ? (run.status === 'completed' ? ' ok' : run.status === 'failed' ? ' e-stalled' : /^waiting/.test(run.status) ? ' miss' : run.status === 'cancelled' ? ' e-abandoned' : '') : '');
-    chip.textContent = over ? runWord(run.status) : 'being replayed';
+    chip.innerHTML = over ? word(runWord(run.status), 'run-status') : 'being replayed';
 };
 
 // ---------------------------------------------------------------- caption, facts, chrome
@@ -716,7 +891,7 @@ function chrome() {
     $('scrub').max = n - 1; $('scrub').value = p; $('count').textContent = `${p + 1} / ${n}`;
     $('b-play').innerHTML = st.playing ? PAUSE : PLAY; $('b-play').setAttribute('aria-label', st.playing ? 'Pause the telling' : 'Tell the story');
     $('b-pace').textContent = st.fast ? '2x' : '1x';
-    written = '#' + [st.level, st.j, st.i, st.r, p].join('/');
+    written = '#' + [st.level, st.j, st.i, st.r, p].join('/') + (gloss.open ? '/glossary' + (gloss.term ? '/' + gloss.term : '') : '');
     if (location.hash !== written) location.replace(written);
 }
 
@@ -798,6 +973,8 @@ const jump = i => set({ [KEY[st.level]]: Math.max(0, Math.min(i, count() - 1)), 
 document.addEventListener('click', e => {
     const hit = sel => e.target.closest(sel);
     let x;
+    if ((x = hit('[data-term]'))) { e.stopPropagation(); openGlossary(x.dataset.term, { from: x }); return; }
+    if ((x = hit('#gloss'))) return;
     if ((x = hit('[data-level]'))) goLevel(x.dataset.level);
     else if ((x = hit('[data-j]'))) switchJourney(+x.dataset.j);
     else if ((x = hit('[data-open-j]'))) openJourney(+x.dataset.openJ, { ox: CX(+x.dataset.openJ) + 180, oy: 106 });
@@ -811,7 +988,24 @@ document.addEventListener('click', e => {
     else if ((x = hit('#L3 [data-n]'))) { const n = +x.dataset.n, steps = R().steps; let at = steps.findIndex(s => s.n === n); steps.forEach((s, k) => { if (s.n === n && k <= pos()) at = k; }); if (at >= 0) jump(at); }
     else if ((x = hit('[data-up]'))) goLevel('story');
     else if ((x = hit('[data-bandchip]'))) set({ bandPin: { key: R().run_id, ic: pos(), k: +x.dataset.bandchip } });
+    else if ((x = hit('[data-pan]'))) panGraph(+x.dataset.pan * 0.6 * 1440, false);
 });
+/** Scroll the graph of the run view sideways by `px` screen pixels (positive: show more to the right); it stays where it is moved until the step changes */
+function panGraph(px, quick) {
+    if (st.level !== 'run') return;
+    const run = R(), W = S.workflows[run.wf], ic = pos(), k = W.bands && W.bands.length ? bandOf(run, W, ic) : 0;
+    const view = graphView(W, k, focusOf(run, W, ic), panOf(run, k, ic));
+    if (!(px > 0 ? view.right : view.left)) return;
+    st.pan = { key: `${run.run_id}|${k}|${ic}`, dx: view.dx - px, dy: view.dy, quick: !!quick };
+    st.pan.dx = graphView(W, k, focusOf(run, W, ic), st.pan).dx;          // kept within the graph, so that scrolling back starts at once
+    render();
+}
+$('L3').addEventListener('wheel', e => {
+    if (!e.target.closest('.gclip')) return;
+    const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.shiftKey ? e.deltaY : 0;
+    if (!d) return;
+    e.preventDefault(); panGraph(d, true);
+}, { passive: false });
 $('b-start').onclick = () => jump(0);
 $('b-prev').onclick = () => move(-1);
 $('b-next').onclick = () => move(1);
@@ -824,6 +1018,7 @@ $('b-play').onclick = () => {
 };
 $('scrub').oninput = e => jump(+e.target.value);
 document.addEventListener('keydown', e => {
+    if (glossKey(e)) return;
     if (e.target.tagName === 'INPUT') return;
     if (e.key === 'ArrowRight') { move(1); e.preventDefault(); }
     else if (e.key === 'ArrowLeft') { move(-1); e.preventDefault(); }
@@ -831,6 +1026,96 @@ document.addEventListener('keydown', e => {
 });
 let acc = 0;
 setInterval(() => { if (!st.playing) return; acc += 200 * (st.fast ? 2.4 : 1); if (acc >= 2200) { acc = 0; move(1, true); } }, 200);
+
+// ---------------------------------------------------------------- the glossary panel
+const gloss = { open: false, term: '', filter: 'all', query: '', opener: null };
+const panel = $('gloss'), gq = $('gq'), glist = $('glist');
+/** The text that refers to a term's source: a section of the specification, or for a journey's term a short text or an https link */
+function reference(t) {
+    const see = t.see || (t.group === 'journey' ? 'This journey' : '');
+    let url = null;
+    if (/^https:\/\//i.test(see)) { try { url = new URL(see); } catch { url = null; } }
+    if (url && url.protocol === 'https:') {
+        const a = document.createElement('a'); a.className = 'ge-r'; a.href = url.href; a.target = '_blank'; a.rel = 'noopener noreferrer';
+        a.textContent = url.hostname.replace(/^www\./, ''); a.title = url.href; return a;
+    }
+    const span = document.createElement('span'); span.className = 'ge-r'; span.textContent = see; if (/^§/.test(see)) span.title = `AWA specification, section ${see.slice(1)}`; return span;
+}
+function renderGlossary() {
+    const terms = allTerms(), mine = terms.filter(t => t.group === 'journey').length;
+    const groups = [{ id: 'all', label: 'All' }, ...GLOSSARY.groups.filter(g => g.id !== 'journey' || mine)];
+    if (!groups.some(g => g.id === gloss.filter)) gloss.filter = 'all';
+    const chips = $('gchips'); chips.textContent = '';
+    for (const g of groups) {
+        const b = document.createElement('button'); b.type = 'button'; b.dataset.gfilter = g.id; b.textContent = g.label;
+        b.setAttribute('aria-pressed', String(g.id === gloss.filter)); chips.appendChild(b);
+    }
+    gq.placeholder = `Search ${terms.length} terms`;
+    const q = fold(gloss.query);
+    const shown = terms.filter(t => (gloss.filter === 'all' || t.group === gloss.filter)
+        && (!q || [t.term, t.definition, t.see, ...(t.aliases || [])].some(x => fold(x).includes(q))));
+    glist.textContent = '';
+    for (const g of GLOSSARY.groups) {
+        const here = shown.filter(t => t.group === g.id);
+        if (!here.length) continue;
+        const head = document.createElement('div'); head.className = 'gloss-g'; head.textContent = g.label; glist.appendChild(head);
+        for (const t of here) {
+            const entry = document.createElement('div'); entry.className = 'ge' + (t.id === gloss.term ? ' on' : ''); entry.id = 'g-' + t.id; entry.dataset.entry = t.id;
+            const top = document.createElement('div'); top.className = 'ge-h';
+            const name = document.createElement('dfn'); name.className = 'ge-t'; name.textContent = t.term;
+            top.append(name, reference(t));
+            const text = document.createElement('p'); text.className = 'ge-d'; text.textContent = t.definition;
+            entry.append(top, text); glist.appendChild(entry);
+        }
+    }
+    if (!shown.length) { const none = document.createElement('div'); none.className = 'gloss-none'; none.textContent = `No term matches “${gloss.query}”.`; glist.appendChild(none); }
+}
+/** Open the glossary, at a term when one is named. quiet: from the address, which already says so */
+function openGlossary(term, { from, quiet } = {}) {
+    const t = term ? termOf(term) : null;
+    if (!gloss.open) gloss.opener = from || document.activeElement;
+    else if (from) gloss.opener = from;
+    gloss.open = true; gloss.term = t ? t.id : '';
+    if (t) { gloss.query = ''; gq.value = ''; if (gloss.filter !== 'all' && gloss.filter !== t.group) gloss.filter = 'all'; }
+    panel.hidden = false; $('b-gloss').setAttribute('aria-expanded', 'true');
+    renderGlossary();
+    const at = t && document.getElementById('g-' + t.id);
+    if (at) at.scrollIntoView({ block: 'nearest' }); else glist.scrollTop = 0;
+    if (!quiet || document.activeElement === document.body) gq.focus({ preventScroll: true });
+    if (!quiet && S && rendered) chrome();
+}
+function closeGlossary(quiet) {
+    if (!gloss.open) return;
+    gloss.open = false; gloss.term = ''; panel.hidden = true; $('b-gloss').setAttribute('aria-expanded', 'false');
+    const back = gloss.opener && gloss.opener.isConnected && !panel.contains(gloss.opener) ? gloss.opener : $('b-gloss');
+    gloss.opener = null;
+    back.focus({ preventScroll: true });
+    if (!quiet && S && rendered) chrome();
+}
+/** The glossary's keys: ? opens or closes it, / searches, Escape closes it, and Tab stays inside it while it is open */
+function glossKey(e) {
+    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) && e.target !== gq;
+    if (typing) return false;
+    if (e.key === '?' && e.target !== gq) { e.preventDefault(); gloss.open ? closeGlossary() : openGlossary('', { from: $('b-gloss') }); return true; }
+    if (e.key === '/' && e.target !== gq && !e.ctrlKey && !e.metaKey) { e.preventDefault(); if (!gloss.open) openGlossary('', { from: $('b-gloss') }); gq.focus(); gq.select(); return true; }
+    if (!gloss.open) return false;
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeGlossary(); return true; }
+    if (e.key === 'Tab') {
+        const stops = [...panel.querySelectorAll('button, input, a[href], [tabindex]:not([tabindex="-1"])')].filter(x => !x.disabled && x.offsetParent !== null);
+        if (!stops.length) return false;
+        const first = stops[0], last = stops[stops.length - 1];
+        if (!panel.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+        else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+        return true;
+    }
+    return e.target === gq;                                     // the arrows move the caret in the search, not the story
+}
+$('b-gloss').onclick = () => (gloss.open ? closeGlossary() : openGlossary('', { from: $('b-gloss') }));
+$('gloss-close').onclick = () => closeGlossary();
+gq.addEventListener('input', () => { gloss.query = gq.value; gloss.term = ''; renderGlossary(); if (S && rendered) chrome(); });
+$('gchips').addEventListener('click', e => { const b = e.target.closest('[data-gfilter]'); if (!b) return; gloss.filter = b.dataset.gfilter; renderGlossary(); glist.scrollTop = 0; });
+window.AWA_glossary = { open: openGlossary, close: closeGlossary, terms: allTerms };   // for tests and for a page that embeds the view
 
 // ---------------------------------------------------------------- where the record comes from
 const message = text => { $('none').textContent = text; $('none').hidden = !text; };
@@ -876,7 +1161,8 @@ addEventListener('drop', async e => {
 
 // A link carries the place: #level/journey/instance/run/position
 const place = () => {
-    const parts = location.hash.slice(1).split('/');
+    const all = location.hash.slice(1).split('/'), g = all.indexOf('glossary'), parts = g >= 0 ? all.slice(0, g) : all;
+    if (g >= 0) openGlossary(decodeURIComponent(all[g + 1] || ''), { quiet: true }); else if (gloss.open) closeGlossary(true);
     if (!S || !LEVELS.includes(parts[0])) return;
     const [level, j, i, rr, p] = [parts[0], ...parts.slice(1).map(Number)];
     if (S.journeys[j] && S.journeys[j].instances[i || 0]) Object.assign(st, { level, j, i: i || 0, r: rr || 0, [KEY[level]]: p || 0 });
@@ -893,9 +1179,20 @@ addEventListener('hashchange', () => {
 // ?options=<url> gives the builder's options: hand layouts, bands, how a subject is named.
 const query = new URLSearchParams(location.search);
 let OPTIONS = {};
-const options_ready = query.get('options')
+/** Put a brand on the view: a DESIGN.md text, a brand.json object, or a brand already read (awa-brand.js). data_only: logos only as data: URLs */
+function setBrand(source, { data_only = false, network = true } = {}) {
+    const B = window.AWA_brand; if (!B || !source) return null;
+    const brand = typeof source === 'object' && source.colors && source.colors.top ? source : B.read_brand(source, { data_only });
+    if (brand.invalid) { for (const w of brand.warnings) console.warn(`Brand: ${w}`); return null; }
+    return B.apply(brand, { header: $('brandmark'), network });
+}
+window.AWA_set_brand = setBrand; // for a page that embeds the view
+// ?brand=<url> (a DESIGN.md or a brand.json), else the options' "brand", puts a company's colours, fonts and logo on the view
+const options_ready = (query.get('options')
     ? fetch_record(query.get('options')).then(o => { OPTIONS = o || {}; }).catch(error => { console.warn(`Cannot load the options ${query.get('options')}: ${error.message}`); })
-    : Promise.resolve();
+    : Promise.resolve())
+    .then(() => window.AWA_brand && window.AWA_brand.from_page({ options: OPTIONS, options_url: query.get('options') ? new URL(query.get('options'), location.href).href : undefined }))
+    .then(brand => { if (brand) setBrand(brand); }, error => console.warn(`Brand: ${error.message}`));
 options_ready.then(() => {
     if (query.get('live')) {
         const url = query.get('live').replace(/\/$/, '') + '/api/v1/journeys/portfolio';

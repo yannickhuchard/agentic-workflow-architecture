@@ -1,0 +1,28 @@
+{
+  "name": "awa",
+  "displayName": "AWA Workflows & Journeys",
+  "version": "0.1.0",
+  "description": "Validate, view and simulate Agentic Workflow Architecture (AWA) workflows and customer journeys: the AWA MCP server with its 7 tools, the AWA skill, rules for .awa.json and .journey.json files, and the validate, show, simulate and example commands. Simulation only: no tool, model or production system is called.",
+  "author": {
+    "name": "Yannick Huchard"
+  },
+  "homepage": "https://github.com/yannickhuchard/agentic-workflow-architecture/blob/main/docs/guides/connect-ai-assistants.md",
+  "repository": "https://github.com/yannickhuchard/agentic-workflow-architecture",
+  "license": "Apache-2.0",
+  "logo": "assets/awa.svg",
+  "keywords": ["awa", "workflow", "customer-journey", "simulation", "process", "mcp"],
+  "category": "developer-tools",
+  "tags": ["awa", "workflow", "simulation", "mcp"],
+  "variables": {
+    "type": "object",
+    "properties": {
+      "AWA_REPOSITORY": {
+        "type": "string",
+        "title": "AWA repository folder",
+        "description": "The absolute path of your clone of agentic-workflow-architecture, with the SDK and the MCP server built (docs/guides/connect-ai-assistants.md)."
+      }
+    },
+    "required": ["AWA_REPOSITORY"]
+  },
+  "mcpServers": "./mcp.json"
+}

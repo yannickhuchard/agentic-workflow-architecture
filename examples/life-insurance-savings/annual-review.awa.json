@@ -1,0 +1,653 @@
+{
+  "$schema": "https://awa.io/schema/awa.schema.json",
+  "id": "ac38e3b7-996e-5ca8-85b3-6591b9457d3b",
+  "name": "Annual Review",
+  "version": "1.0.0",
+  "awa_version": "1.1",
+  "description": "The yearly review: the employee's changes of situation, the position of the plan, and the AI adviser's recommendations (rebalance, reduce the risk as retirement approaches, review the beneficiary clause after a life event), confirmed by a licensed adviser where they change the plan, then applied as the employee accepts them.",
+  "roles": [
+    {
+      "id": "83e794e8-0760-5f30-8a22-199f962f0f6c",
+      "name": "HR portal",
+      "actor_type": "application",
+      "description": "The HR portal Valoria Life provides to the employer."
+    },
+    {
+      "id": "83612add-f588-58d7-8ccb-f871e62acaf0",
+      "name": "Custodian bank",
+      "actor_type": "application",
+      "description": "The custodian bank that holds the assets covering the policies."
+    },
+    {
+      "id": "572033a9-6503-5923-b692-6b9287dbb431",
+      "name": "AI adviser",
+      "actor_type": "ai_agent",
+      "description": "Recommends changes to the plan from the employee's situation and its position. Never promises a return.",
+      "capabilities": [
+        "life insurance savings",
+        "lifecycle investing"
+      ],
+      "ai_model_config": {
+        "model_id": "tier:reasoning",
+        "temperature": 0.2
+      }
+    },
+    {
+      "id": "9ac92339-da87-55ae-91a8-2c3858eb93a0",
+      "name": "Licensed adviser",
+      "actor_type": "human",
+      "description": "Confirms recommendations that change the plan."
+    },
+    {
+      "id": "24dc90db-16e5-5fad-b805-2c8727428006",
+      "name": "Policy administration",
+      "actor_type": "application",
+      "description": "Valoria Life's policy administration system."
+    }
+  ],
+  "contexts": [
+    {
+      "id": "47876230-d538-5cf9-982e-5016bc62139a",
+      "name": "employee_profile",
+      "type": "data",
+      "sync_pattern": "shared_state",
+      "description": "The employee as the AI adviser needs to know them for the review: first name, language, age, retirement age, tax residence and risk profile.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "first_name",
+          "tax_residence"
+        ],
+        "properties": {
+          "first_name": {
+            "type": "string"
+          },
+          "preferred_language": {
+            "type": "string"
+          },
+          "age": {
+            "type": "integer"
+          },
+          "retirement_age": {
+            "type": "integer"
+          },
+          "tax_residence": {
+            "type": "string"
+          },
+          "risk_profile": {
+            "type": "string"
+          },
+          "max_sri": {
+            "type": "integer"
+          },
+          "horizon_years": {
+            "type": "number"
+          },
+          "sustainability_preference": {
+            "type": "string"
+          },
+          "monthly_contribution_eur": {
+            "type": "number"
+          }
+        }
+      }
+    }
+  ],
+  "events": [
+    {
+      "id": "512307dc-9046-5f4e-b900-22b1c4b24a5a",
+      "name": "Review due",
+      "event_type": "start",
+      "description": "The anniversary of the policy: the insurer's calendar opens the annual review.",
+      "event_definition": {
+        "name": "annual_review.due"
+      }
+    },
+    {
+      "id": "e5b937b8-ee5e-51d6-9377-193b866f2275",
+      "name": "Review answers received",
+      "event_type": "message",
+      "description": "Wait for the employee's answers: changes of situation, life events, whether the deduction was claimed.",
+      "event_definition": {
+        "name": "annual_review.answered",
+        "correlation_key": "enrolment_id",
+        "timeout": "P30D",
+        "timeout_edge_id": "6df12db7-b6cd-5650-8cb0-f1b939bc546c"
+      }
+    },
+    {
+      "id": "4c74bb46-40a8-59e5-9a58-b28a90c55eba",
+      "name": "Recommendations answered",
+      "event_type": "message",
+      "description": "Wait for the employee to accept or decline the recommendations.",
+      "event_definition": {
+        "name": "recommendations.answered",
+        "correlation_key": "enrolment_id",
+        "timeout": "P30D",
+        "timeout_edge_id": "6f2576dc-0f21-56fb-9024-0052e9db6232"
+      }
+    },
+    {
+      "id": "e7d38b0b-c2a5-5f8e-917d-d01aa2f7a74e",
+      "name": "Review completed",
+      "event_type": "message",
+      "description": "Tell the journey the review is done.",
+      "event_definition": {
+        "name": "annual_review.completed",
+        "mode": "publish",
+        "data": [
+          "enrolment_id",
+          "review_completed",
+          "recommendations_accepted"
+        ]
+      }
+    },
+    {
+      "id": "10be8bd4-8ca6-5cc9-ab72-77332ee8ee29",
+      "name": "Reviewed",
+      "event_type": "end"
+    }
+  ],
+  "activities": [
+    {
+      "id": "884f17a5-d958-5821-9aeb-1f52bce61ea5",
+      "name": "Invite to annual review",
+      "role_id": "83e794e8-0760-5f30-8a22-199f962f0f6c",
+      "actor_type": "application",
+      "description": "Invite the employee to the review in the HR portal: a few questions on what changed in the year.",
+      "tools": [
+        {
+          "name": "send_notification",
+          "description": "Send the employee a message in the HR portal's inbox, by e-mail, or both.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "enrolment_id",
+              "channel",
+              "template"
+            ],
+            "properties": {
+              "enrolment_id": {
+                "type": "string"
+              },
+              "channel": {
+                "type": "string",
+                "enum": [
+                  "portal",
+                  "email",
+                  "portal_and_email"
+                ]
+              },
+              "template": {
+                "type": "string"
+              },
+              "subject": {
+                "type": "string"
+              },
+              "body": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4560/portal/v1/notifications",
+            "headers": {
+              "authorization": "Bearer {{secret:PORTAL_TOKEN}}"
+            }
+          }
+        }
+      ],
+      "context_bindings": [
+        {
+          "context_id": "47876230-d538-5cf9-982e-5016bc62139a",
+          "access_mode": "write"
+        }
+      ]
+    },
+    {
+      "id": "62f3743b-1aee-5d42-85a4-5e30b59fa457",
+      "name": "Read the plan's position",
+      "role_id": "83612add-f588-58d7-8ccb-f871e62acaf0",
+      "actor_type": "application",
+      "description": "Read the value, the units by fund and the drift from the target allocation.",
+      "tools": [
+        {
+          "name": "get_position",
+          "description": "Read the value of a policy, its units by fund and how far its allocation has drifted from the target.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "policy_id"
+            ],
+            "properties": {
+              "policy_id": {
+                "type": "string"
+              },
+              "target_allocation": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "fund_id",
+                    "percent"
+                  ],
+                  "properties": {
+                    "fund_id": {
+                      "type": "string"
+                    },
+                    "percent": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 100
+                    }
+                  }
+                }
+              },
+              "premiums_eur": {
+                "type": "number",
+                "minimum": 0
+              }
+            }
+          },
+          "binding": {
+            "kind": "jsonrpc",
+            "endpoint": "http://localhost:4560/custody/rpc",
+            "method": "custody.get_position"
+          }
+        }
+      ]
+    },
+    {
+      "id": "c07f36ef-dd4e-5b5b-90b3-e92a336375f3",
+      "name": "Recommend changes",
+      "role_id": "572033a9-6503-5923-b692-6b9287dbb431",
+      "actor_type": "ai_agent",
+      "description": "Recommend what to change, with a reason for each: rebalance when the allocation has drifted, reduce the risk as retirement approaches, review the beneficiary clause after a life event, or no change.",
+      "procedure": "Read the position, the answers and the profile. Recommend a rebalance when a fund has drifted more than five points from its target. Recommend reducing the risk when retirement is ten years away or less. Recommend reviewing the beneficiary clause after a marriage, a partnership, a birth, a divorce or a death. Say when a licensed adviser must confirm. Never promise or imply a guaranteed return on unit-linked funds; their value can fall.",
+      "context_bindings": [
+        {
+          "context_id": "47876230-d538-5cf9-982e-5016bc62139a",
+          "access_mode": "read"
+        }
+      ],
+      "guardrails": [
+        {
+          "id": "3c29345d-fca0-5418-878a-192e5d32f82f",
+          "name": "E-mail addresses, phone numbers and bank accounts in what the agent writes",
+          "stages": [
+            "output"
+          ],
+          "check": {
+            "kind": "personal_data",
+            "categories": [
+              "email",
+              "phone",
+              "iban"
+            ]
+          },
+          "action": "redact"
+        }
+      ],
+      "outcome_contract": {
+        "output_schema": {
+          "type": "object",
+          "required": [
+            "recommendations",
+            "recommendation_text",
+            "requires_adviser"
+          ],
+          "properties": {
+            "recommendations": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "required": [
+                  "type",
+                  "reason"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "rebalance",
+                      "reduce_risk",
+                      "review_beneficiary",
+                      "increase_contribution",
+                      "no_change"
+                    ]
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 10
+                  }
+                }
+              }
+            },
+            "recommendation_text": {
+              "type": "string",
+              "minLength": 80
+            },
+            "requires_adviser": {
+              "type": "boolean"
+            },
+            "target_allocation": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "required": [
+                  "fund_id",
+                  "percent"
+                ],
+                "properties": {
+                  "fund_id": {
+                    "type": "string"
+                  },
+                  "percent": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 100
+                  }
+                }
+              }
+            }
+          }
+        },
+        "budgets": {
+          "max_attempts": 3,
+          "max_duration": "PT5M",
+          "max_tokens": 40000
+        }
+      }
+    },
+    {
+      "id": "4b0e448f-661b-5cdb-b061-e3febdee1294",
+      "name": "Confirm recommendations with an adviser",
+      "role_id": "9ac92339-da87-55ae-91a8-2c3858eb93a0",
+      "actor_type": "human",
+      "description": "A licensed adviser confirms, or changes, recommendations that change the plan.",
+      "outcome_contract": {
+        "output_schema": {
+          "type": "object",
+          "required": [
+            "recommendations_confirmed"
+          ],
+          "properties": {
+            "recommendations_confirmed": {
+              "type": "boolean"
+            },
+            "note": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "52ca7d33-bd1a-5789-898f-c3a61945929a",
+      "name": "Publish recommendations",
+      "role_id": "83e794e8-0760-5f30-8a22-199f962f0f6c",
+      "actor_type": "application",
+      "description": "Put the recommendations in the HR portal for the employee to accept or decline.",
+      "tools": [
+        {
+          "name": "send_notification",
+          "description": "Send the employee a message in the HR portal's inbox, by e-mail, or both.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "enrolment_id",
+              "channel",
+              "template"
+            ],
+            "properties": {
+              "enrolment_id": {
+                "type": "string"
+              },
+              "channel": {
+                "type": "string",
+                "enum": [
+                  "portal",
+                  "email",
+                  "portal_and_email"
+                ]
+              },
+              "template": {
+                "type": "string"
+              },
+              "subject": {
+                "type": "string"
+              },
+              "body": {
+                "type": "string"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4560/portal/v1/notifications",
+            "headers": {
+              "authorization": "Bearer {{secret:PORTAL_TOKEN}}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "8059093c-2e7a-586f-9668-2a1052f19388",
+      "name": "Apply accepted changes",
+      "role_id": "83612add-f588-58d7-8ccb-f871e62acaf0",
+      "actor_type": "application",
+      "description": "Apply what the employee accepted: a switch to the new allocation, a new beneficiary clause.",
+      "tools": [
+        {
+          "name": "switch_funds",
+          "description": "Move the value of a policy to a new allocation, through the custodian bank.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "policy_id",
+              "allocation"
+            ],
+            "properties": {
+              "policy_id": {
+                "type": "string"
+              },
+              "allocation": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "fund_id",
+                    "percent"
+                  ],
+                  "properties": {
+                    "fund_id": {
+                      "type": "string"
+                    },
+                    "percent": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 100
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "binding": {
+            "kind": "jsonrpc",
+            "endpoint": "http://localhost:4560/custody/rpc",
+            "method": "custody.switch"
+          }
+        },
+        {
+          "name": "update_beneficiary_clause",
+          "description": "Replace the beneficiary clause of a policy.",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "policy_id",
+              "beneficiary_clause"
+            ],
+            "properties": {
+              "policy_id": {
+                "type": "string"
+              },
+              "beneficiary_clause": {
+                "type": "object"
+              }
+            }
+          },
+          "binding": {
+            "kind": "http",
+            "method": "POST",
+            "url": "http://localhost:4560/policy-admin/v1/policies/{policy_id}/beneficiary-clause",
+            "headers": {
+              "authorization": "Bearer {{secret:POLICY_ADMIN_TOKEN}}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "eeda37ab-975d-5e8c-b9d6-ba405c86037f",
+      "name": "Record the review",
+      "role_id": "24dc90db-16e5-5fad-b805-2c8727428006",
+      "actor_type": "application",
+      "description": "Record the review, the recommendations and what the employee decided."
+    }
+  ],
+  "decision_nodes": [
+    {
+      "id": "654065b2-d667-52f1-b372-ac1bbd20ca63",
+      "name": "Adviser needed",
+      "description": "Recommendations that change the plan's risk or its beneficiaries are confirmed by a licensed adviser before the employee sees them.",
+      "decision_table": {
+        "hit_policy": "first",
+        "inputs": [
+          {
+            "name": "requires_adviser",
+            "label": "Changes the plan",
+            "type": "boolean"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "adviser_review",
+            "type": "boolean"
+          }
+        ],
+        "rules": [
+          {
+            "description": "Changes the plan",
+            "input_entries": [
+              "true"
+            ],
+            "output_entries": [
+              true
+            ],
+            "output_edge_id": "3e429930-5a95-5510-aa43-ac5c5ab9cbd9"
+          }
+        ]
+      },
+      "default_output_edge_id": "c8ee224f-36fe-5e06-9152-455797d9b026"
+    }
+  ],
+  "edges": [
+    {
+      "id": "02b5a451-599f-55eb-b54b-b7a3d0c5c9e6",
+      "source_id": "512307dc-9046-5f4e-b900-22b1c4b24a5a",
+      "target_id": "884f17a5-d958-5821-9aeb-1f52bce61ea5"
+    },
+    {
+      "id": "7f5d9fbd-b1a6-5633-9d63-6d7bce8510aa",
+      "source_id": "884f17a5-d958-5821-9aeb-1f52bce61ea5",
+      "target_id": "e5b937b8-ee5e-51d6-9377-193b866f2275"
+    },
+    {
+      "id": "5adc0e73-4d5f-5ced-aabf-81ffeae540b3",
+      "source_id": "e5b937b8-ee5e-51d6-9377-193b866f2275",
+      "target_id": "62f3743b-1aee-5d42-85a4-5e30b59fa457"
+    },
+    {
+      "id": "6df12db7-b6cd-5650-8cb0-f1b939bc546c",
+      "source_id": "e5b937b8-ee5e-51d6-9377-193b866f2275",
+      "target_id": "62f3743b-1aee-5d42-85a4-5e30b59fa457",
+      "label": "no answers in 30 days"
+    },
+    {
+      "id": "e29ffcfb-cca7-5dfe-8148-a2949fddcaf7",
+      "source_id": "62f3743b-1aee-5d42-85a4-5e30b59fa457",
+      "target_id": "c07f36ef-dd4e-5b5b-90b3-e92a336375f3"
+    },
+    {
+      "id": "0ce32cc1-e2ee-5a3a-b6eb-397644bf6de0",
+      "source_id": "c07f36ef-dd4e-5b5b-90b3-e92a336375f3",
+      "target_id": "654065b2-d667-52f1-b372-ac1bbd20ca63"
+    },
+    {
+      "id": "3e429930-5a95-5510-aa43-ac5c5ab9cbd9",
+      "source_id": "654065b2-d667-52f1-b372-ac1bbd20ca63",
+      "target_id": "4b0e448f-661b-5cdb-b061-e3febdee1294",
+      "label": "changes the plan"
+    },
+    {
+      "id": "c8ee224f-36fe-5e06-9152-455797d9b026",
+      "source_id": "654065b2-d667-52f1-b372-ac1bbd20ca63",
+      "target_id": "52ca7d33-bd1a-5789-898f-c3a61945929a",
+      "label": "no change to confirm"
+    },
+    {
+      "id": "78d5eda1-bea3-5442-911f-540c1ad020ab",
+      "source_id": "4b0e448f-661b-5cdb-b061-e3febdee1294",
+      "target_id": "52ca7d33-bd1a-5789-898f-c3a61945929a"
+    },
+    {
+      "id": "076d656e-b001-518f-8853-52e759a73190",
+      "source_id": "52ca7d33-bd1a-5789-898f-c3a61945929a",
+      "target_id": "4c74bb46-40a8-59e5-9a58-b28a90c55eba"
+    },
+    {
+      "id": "0f602cf9-10a4-53d1-8493-0315cb6e1388",
+      "source_id": "4c74bb46-40a8-59e5-9a58-b28a90c55eba",
+      "target_id": "8059093c-2e7a-586f-9668-2a1052f19388",
+      "condition": "recommendations_accepted == true",
+      "label": "accepted"
+    },
+    {
+      "id": "e2154ad8-7a28-5618-872b-6732b3d9d9dd",
+      "source_id": "4c74bb46-40a8-59e5-9a58-b28a90c55eba",
+      "target_id": "eeda37ab-975d-5e8c-b9d6-ba405c86037f",
+      "is_default": true,
+      "label": "declined"
+    },
+    {
+      "id": "6f2576dc-0f21-56fb-9024-0052e9db6232",
+      "source_id": "4c74bb46-40a8-59e5-9a58-b28a90c55eba",
+      "target_id": "eeda37ab-975d-5e8c-b9d6-ba405c86037f",
+      "label": "no answer in 30 days"
+    },
+    {
+      "id": "523d2e99-eea6-5139-be77-61b6cf73f2c1",
+      "source_id": "8059093c-2e7a-586f-9668-2a1052f19388",
+      "target_id": "eeda37ab-975d-5e8c-b9d6-ba405c86037f"
+    },
+    {
+      "id": "f056d2a0-f691-579e-8b87-52a895e3a7d5",
+      "source_id": "eeda37ab-975d-5e8c-b9d6-ba405c86037f",
+      "target_id": "e7d38b0b-c2a5-5f8e-917d-d01aa2f7a74e"
+    },
+    {
+      "id": "35dcd404-1d38-5378-9206-cbad8b282c93",
+      "source_id": "e7d38b0b-c2a5-5f8e-917d-d01aa2f7a74e",
+      "target_id": "10be8bd4-8ca6-5cc9-ab72-77332ee8ee29"
+    }
+  ]
+}
