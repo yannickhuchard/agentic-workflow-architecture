@@ -742,16 +742,20 @@ setInterval(() => { if (!st.playing) return; acc += 200 * (st.fast ? 2.4 : 1); i
 // ---------------------------------------------------------------- where the record comes from
 const message = text => { $('none').textContent = text; $('none').hidden = !text; };
 /** Show a record: a story as the builder makes it, or the portfolio a host exports, which is built into one here */
+let shown = false;
 function show(data, source, keep, trusted) {
     const prebuilt = data && data.journeys && data.journeys[0] && data.journeys[0].instances[0] && data.journeys[0].instances[0].beats;
     if (prebuilt && !trusted) { message('This file is a prepared story, not a record. Open the record itself: the file written by awa journey export.'); return; }
     const story = prebuilt ? data : window.AWA_build_story(data);
     if (!story.journeys.length) { message('This record holds no journey yet.'); return; }
     // Following a live record: a reader at the latest moment stays at the latest moment
-    const following = keep && S && st.level !== 'atlas' && pos() === count() - 1;
+    const following = keep && S && shown && st.level !== 'atlas' && pos() === count() - 1;
     S = story;
     for (const level of LEVELS) delete built[level];
-    if (!keep) { Object.assign(st, { level: 'atlas', j: 0, i: 0, r: 0, ip: 0, ia: 0, ib: 0, ic: 0, playing: false }); place(); }   // a link may name the place, e.g. from the measures page
+    // A link may name the place, e.g. from the measures page. Following a live host, the place applies to the first
+    // record that holds a journey, which may come after records that held none
+    if (!keep || !shown) { Object.assign(st, { level: 'atlas', j: 0, i: 0, r: 0, ip: 0, ia: 0, ib: 0, ic: 0, playing: false }); place(); }
+    shown = true;
     st.j = Math.min(st.j, S.journeys.length - 1); st.i = Math.min(st.i, J().instances.length - 1);
     if (st.level === 'run' && !I().runs.length) st.level = 'story';
     if (following) st[KEY[st.level]] = count() - 1;
