@@ -1,0 +1,90 @@
+{
+  "Collect the record": {
+    "output": {
+      "journeys": 1,
+      "runs": 11,
+      "journal_records": 1378
+    },
+    "contexts": {
+      "dossier": {
+        "record": "examples/electricity-onboarding/journeys.json",
+        "edition": "professional"
+      }
+    }
+  },
+  "Compute the measures": {
+    "output": {
+      "figures": 6
+    }
+  },
+  "Tell each persona's story": {
+    "attempts": [
+      {
+        "output": {
+          "stories": [
+            "Tomás Reyes",
+            "Sofia Lind"
+          ],
+          "sentences": 25,
+          "uncited_sentences": 1,
+          "unsupported_feelings": 1,
+          "other_customers_named": 0
+        }
+      },
+      {
+        "output": {
+          "stories": [
+            "Tomás Reyes",
+            "Sofia Lind"
+          ],
+          "sentences": 24,
+          "uncited_sentences": 0,
+          "unsupported_feelings": 0,
+          "other_customers_named": 0
+        }
+      }
+    ]
+  },
+  "Apply the rules R1 to R12": {
+    "output": {
+      "recommendations": 8
+    }
+  },
+  "Replay the candidates": {
+    "output": {
+      "replays": 2,
+      "regressions": 0
+    }
+  },
+  "Compose with the brand": {
+    "output": {
+      "pages": 14,
+      "accessibility": {
+        "failures": 0,
+        "checked": [
+          "headings",
+          "alternatives",
+          "tables",
+          "contrast",
+          "language",
+          "reading order"
+        ]
+      }
+    }
+  },
+  "Review and approve": {
+    "output": {
+      "approved": true,
+      "note": "Read and approved."
+    }
+  },
+  "Export HTML, PDF and DOCX": {
+    "output": {
+      "files": [
+        "dossier.html",
+        "dossier.pdf",
+        "dossier.docx"
+      ]
+    }
+  }
+}

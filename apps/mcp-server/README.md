@@ -19,6 +19,7 @@ The plugin package for the ChatGPT plugin directory is in [`plugins/awa`](../../
 | `simulate_journey` | Plays business events through an in-memory `AwaRuntime` in simulation and shows the result | journey view |
 | `load_claims_example` | Opens the bundled fictional claims example (3 journeys, 5 workflows, 6 customers) and hands out its documents | journey view |
 | `show_dashboard` | The measures of journeys and workflows (specification section 21) from a portfolio, from a simulation, or from the example: who is stuck and who is to act, outcomes per journey and stage, how each workflow's runs went. The widget receives only what the measures read: no input, output, reasoning or tool result | dashboard |
+| `make_dossier` | The dossier of a journey record as one self-contained HTML document: customers' stories in their own voice, each sentence citing journal records, the analysis and the recommendations ranked by impact over effort; a professional or a client edition. Returned as an HTML resource; PDF and DOCX come from `awa dossier` | none |
 
 The dashboard widget is built from `tools/visualization/dashboard.html`; [Adding a widget](#adding-a-widget) describes how, as the pattern for the next one.
 

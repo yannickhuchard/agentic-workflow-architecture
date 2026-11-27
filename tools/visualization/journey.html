@@ -329,6 +329,223 @@ a.ge-r { text-decoration: underline; text-underline-offset: 2px; }
 .gloss-none { padding: 24px 12px; font-size: 13px; color: var(--mute); }
 .gloss-f { flex: none; padding: 12px 20px; border-top: 1px solid var(--line); font-size: 12px; line-height: 1.5; color: var(--mute); }
 .gloss-f code { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
+/* ---------------------------------------------------------------- the Recommendations tab (design boards 12 to 12d) */
+:root { --k-speed: #38bdf8; --k-quality: #a78bfa; --k-cost: #fbbf24; --k-trust: #34d399; --k-experience: #f472b6;
+  --ease-out: cubic-bezier(.2,.7,.2,1); --ease-std: cubic-bezier(.4,0,.2,1); --t-instant: 150ms; --t-quick: 240ms; --t-move: 400ms; }
+:root[data-theme="light"] { --k-speed: #0369a1; --k-quality: #6d28d9; --k-cost: #a15c07; --k-trust: #047857; --k-experience: #be185d; }
+#levels button .cnt { display: inline-grid; place-items: center; min-width: 20px; height: 18px; margin-left: 6px; padding: 0 5px; border-radius: 9px; background: color-mix(in srgb, var(--text) 18%, transparent); font-size: 11px; font-weight: 700; }
+#levels button.on .cnt { background: color-mix(in srgb, var(--on-accent) 25%, transparent); }
+.xbtn { height: 32px; padding: 0 14px; border-radius: var(--radius); border: 1px solid var(--accent-fill); background: var(--accent-fill); color: var(--on-accent); font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.xbtn:hover { background: color-mix(in srgb, var(--accent-fill) 86%, var(--text)); }
+#LR { height: 844px; }
+#LR .scene { padding: 18px 24px 0; overflow: hidden; }
+.rh { display: flex; align-items: baseline; gap: 14px; }
+.rh h1 { margin: 0; font-family: var(--font-display); font-size: 28px; font-weight: 600; letter-spacing: -.01em; }
+.rh p { margin: 0; font-size: 15px; color: var(--soft); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rh select, .rsel { height: 32px; border-radius: var(--radius); border: 1px solid var(--focus); background: var(--panel); color: var(--text); padding: 0 10px; font: inherit; font-size: 14px; }
+.rf { display: flex; align-items: center; gap: 8px; margin-top: 12px; flex-wrap: nowrap; overflow: hidden; }
+.rf .lab { font-size: 13px; color: var(--mute); margin: 0 2px 0 4px; }
+.rf .div { width: 1px; height: 22px; background: var(--line-strong); margin: 0 6px; }
+.rchip { height: 30px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--line-strong); background: transparent; cursor: pointer; font-size: 13.5px; color: var(--soft); display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; transition: background-color var(--t-instant) var(--ease-std), border-color var(--t-instant) var(--ease-std); }
+.rchip:hover { border-color: var(--accent); }
+.rchip[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 16%, transparent); border-color: var(--accent); color: var(--text); font-weight: 600; }
+.rchip small { font-size: 11.5px; color: var(--mute); font-weight: 500; }
+.rchip svg { width: 12px; height: 12px; }
+.rg { display: grid; grid-template-columns: 720px 1fr; gap: 32px; margin-top: 16px; height: 690px; position: relative; }
+.rtt { display: flex; justify-content: space-between; align-items: baseline; margin: 0 0 8px; }
+.rtt h2 { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--mute); }
+.rtt span { font-size: 12.5px; color: var(--mute); }
+.map { position: relative; width: 720px; height: 600px; }
+.map .plot { position: absolute; left: 56px; top: 30px; width: 644px; height: 520px; border-radius: var(--radius-lg); background: color-mix(in srgb, var(--panel) 70%, var(--bg)); border: 1px solid var(--line); }
+.map .dofirst { position: absolute; left: 0; top: 0; background: color-mix(in srgb, var(--accent) 12%, transparent); border-right: 1px dashed var(--line-strong); border-bottom: 1px dashed var(--line-strong); border-top-left-radius: var(--radius-lg); }
+.map .q { position: absolute; font-size: 12px; font-weight: 700; letter-spacing: .12em; color: var(--mute); }
+.map .q.do { color: var(--accent-text); }
+.map .ax { position: absolute; font-size: 12.5px; color: var(--mute); white-space: nowrap; }
+.map .ax.y { left: 0; width: 46px; text-align: right; }
+.map .ytitle { position: absolute; left: -26px; top: 270px; transform: rotate(-90deg); font-size: 12px; font-weight: 700; letter-spacing: .12em; color: var(--mute); }
+.map .grid { position: absolute; left: 56px; width: 644px; border-top: 1px dashed var(--line); }
+.mark { position: absolute; left: 0; top: 0; width: var(--s); height: var(--s); margin: calc(var(--s) / -2) 0 0 calc(var(--s) / -2); border: 0; padding: 0; background: none; cursor: pointer; border-radius: 50%; will-change: transform; z-index: 2; }
+.mark svg { width: 100%; height: 100%; overflow: visible; display: block; transition: transform var(--t-instant) var(--ease-out); }
+.mark .no { position: absolute; left: calc(100% + 3px); top: -8px; font: 700 14px/1 var(--font-display); color: var(--text); pointer-events: none; }
+.mark:hover svg, .mark.hl svg { transform: scale(1.14); }
+.mark:focus-visible { outline: none; }
+.mark:focus-visible::after, .mark.sel::after { content: ""; position: absolute; inset: -8px; border-radius: 50%; border: 2.5px solid var(--focus); }
+.mark.dim { opacity: .3; }
+.rtipb { position: absolute; z-index: 4; pointer-events: none; width: 320px; padding: 10px 12px; border-radius: 10px; background: var(--panel); border: 1px solid var(--accent); box-shadow: 0 12px 30px var(--shadow); font-size: 13px; line-height: 1.4; color: var(--soft); opacity: 0; transform: translateY(4px); transition: opacity var(--t-instant) var(--ease-std), transform var(--t-instant) var(--ease-std); }
+.rtipb.on { opacity: 1; transform: none; }
+.rtipb b { display: block; font-size: 14px; color: var(--text); margin-bottom: 2px; }
+.rtipb i { display: block; font-style: normal; color: var(--mute); margin-top: 4px; }
+.legend { display: flex; gap: 18px; margin-top: 14px; font-size: 13.5px; color: var(--soft); }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.legend svg { width: 12px; height: 12px; }
+.rnote { margin: 12px 0 0; font-size: 13px; line-height: 1.5; color: var(--mute); max-width: 700px; }
+.cards { list-style: none; margin: 0; padding: 0 4px 24px 0; display: flex; flex-direction: column; gap: 8px; height: 662px; overflow-y: auto; }
+.rcard { width: 100%; text-align: left; display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 6px 10px; padding: 12px 14px; border-radius: var(--radius-lg); border: 1px solid var(--line); background: var(--panel); cursor: pointer; transition: border-color var(--t-instant) var(--ease-std), background-color var(--t-instant) var(--ease-std), box-shadow var(--t-quick) var(--ease-out); }
+.rcard:hover, .rcard.hl { border-color: var(--accent); background: var(--card); }
+.rcard.sel { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+.rcard .no { grid-row: span 2; font: 600 26px/1 var(--font-display); color: var(--accent-text); }
+.rcard .t { font-weight: 600; font-size: 15px; line-height: 1.35; color: var(--text); }
+.rcard .m { grid-column: 2; font-size: 13px; color: var(--soft); display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; min-width: 0; }
+.rcard .m .mono { font-size: 12px; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 290px; }
+.rcard .m svg { width: 10px; height: 10px; }
+.rcard .side { grid-row: span 2; grid-column: 3; display: flex; flex-direction: column; align-items: flex-end; justify-content: space-between; gap: 8px; }
+.badge { font-size: 12px; font-weight: 600; padding: 1px 9px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+.b-replay, .b-measured { color: var(--ok-ink); } .b-estimate { color: var(--wait-ink); } .b-pilot { color: var(--soft); } .b-replay-live { color: var(--mute); }
+.rstat { font-size: 12px; font-weight: 600; color: var(--ok-ink); }
+.rstat.dis { color: var(--mute); }
+.avs { display: inline-flex; }
+.av { width: 24px; height: 24px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 9.5px; font-weight: 700; color: #fff; background: #475569; border: 2px solid var(--panel); margin-left: -6px; flex: none; }
+.av:first-child { margin-left: 0; }
+.av.more { background: var(--card); color: var(--soft); }
+/* the empty state */
+.empty-map { position: absolute; left: 56px; top: 30px; width: 644px; height: 520px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 12px; padding: 0 60px; }
+.empty-map .okline { display: flex; align-items: center; gap: 18px; position: relative; padding: 0 12px; margin-bottom: 30px; }
+.empty-map .okline::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px solid var(--line-strong); }
+.empty-map .okline i { position: relative; width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--ok-ink); background: var(--bg); display: grid; place-items: center; color: var(--ok-ink); font-style: normal; font-size: 12px; font-weight: 700; }
+.empty-map h3 { margin: 0; font-family: var(--font-display); font-size: 24px; font-weight: 600; color: var(--text); }
+.empty-map p { margin: 0; font-size: 15px; line-height: 1.5; color: var(--soft); }
+.checks { border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--panel); padding: 6px 16px 12px; }
+.checks table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.checks td, .checks th { padding: 8px 6px; border-bottom: 1px solid var(--line); text-align: left; color: var(--soft); font-weight: 400; }
+.checks td:first-child { color: var(--ok-ink); width: 22px; }
+.checks td.ck-r { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 12.5px; color: var(--accent-text); width: 50px; }
+.checks td.ck-t { text-align: right; color: var(--mute); white-space: nowrap; }
+.checks p { margin: 10px 0 0; font-size: 12.5px; color: var(--mute); }
+.eacts { display: flex; gap: 10px; margin-top: 28px; }
+.ebtn { white-space: nowrap; height: 38px; padding: 0 16px; border-radius: var(--radius); border: 1px solid var(--line-strong); background: transparent; color: var(--text); font-size: 14px; cursor: pointer; }
+.ebtn.pri { background: var(--accent-fill); border-color: var(--accent-fill); color: var(--on-accent); font-weight: 600; }
+.ebtn:hover { border-color: var(--accent); }
+.dashed { margin-top: 30px; border: 1px dashed var(--line-strong); border-radius: var(--radius-lg); padding: 16px 18px; }
+.dashed small { display: block; font-size: 11.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--mute); margin-bottom: 6px; }
+.dashed b { display: block; font-family: var(--font-display); font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+.dashed span { font-size: 13.5px; color: var(--soft); }
+.dashed pre { margin: 10px 0 0; font-size: 12.5px; color: var(--soft); white-space: pre-wrap; }
+/* the detail panel */
+#rpanel { position: absolute; top: 56px; right: 0; width: 620px; height: 844px; z-index: 8; background: var(--panel); border-left: 1px solid var(--line-strong); box-shadow: -24px 0 48px var(--shadow); display: flex; flex-direction: column; transform: translateX(100%); visibility: hidden; transition: transform var(--t-move) var(--ease-out), visibility 0s linear var(--t-move); }
+#rpanel.open { transform: none; visibility: visible; transition: transform var(--t-move) var(--ease-out), visibility 0s; }
+#rpanel .pin { flex: 1 1 auto; overflow-y: auto; padding: 22px 24px 20px; display: flex; flex-direction: column; gap: 16px; }
+#rpanel .rph { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 12px; align-items: start; }
+#rpanel .rph .big { font: 500 40px/0.9 var(--font-display); color: var(--accent-text); grid-row: span 2; }
+#rpanel h2 { margin: 0; font-family: var(--font-display); font-size: 22px; line-height: 1.25; font-weight: 600; }
+#rpanel .px { width: 34px; height: 34px; border-radius: var(--radius); border: 1px solid var(--line-strong); background: none; color: var(--soft); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+#rpanel .tags { display: flex; gap: 8px; flex-wrap: wrap; grid-column: 2; }
+#rpanel .tag { height: 26px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--line-strong); font-size: 13px; color: var(--soft); display: inline-flex; align-items: center; gap: 6px; }
+#rpanel .tag svg { width: 10px; height: 10px; }
+#rpanel p.find { margin: 0; font-size: 14.5px; line-height: 1.5; color: var(--soft); }
+#rpanel h3 { margin: 0 0 8px; font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--mute); }
+.why { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.why div { border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: 9px 11px; font-size: 13px; line-height: 1.4; color: var(--soft); }
+.why b { display: block; font: 500 12px ui-monospace, 'SF Mono', Menlo, Consolas, monospace; color: var(--accent-text); margin-bottom: 3px; }
+.why strong { display: block; color: var(--text); font-weight: 600; margin-bottom: 2px; }
+.why small { display: block; font-size: 12px; color: var(--mute); margin-top: 3px; }
+.who { list-style: none; margin: 0; padding: 0; }
+.who li { display: grid; grid-template-columns: 28px 84px minmax(0, 1fr) 210px; gap: 10px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.who li.nobar { grid-template-columns: 28px minmax(0, 1fr) auto; }
+.who .bar { position: relative; height: 12px; border-radius: 3px; background: var(--card); }
+.who .bar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; background: var(--accent); }
+.who .bar i.long { background: var(--wait); }
+.who .bar u { position: absolute; top: -4px; bottom: -4px; border-left: 1.5px dashed var(--text); }
+.who .links { display: flex; gap: 8px; align-items: center; justify-content: flex-end; white-space: nowrap; font-size: 13px; }
+.who .links b { font-weight: 600; min-width: 34px; text-align: right; }
+.lnk { background: none; border: 0; padding: 2px 3px; color: var(--accent-text); cursor: pointer; font-size: 13px; border-radius: 4px; }
+.lnk:hover { text-decoration: underline; }
+.lnk.mono { font-size: 12.5px; }
+.hint { margin: 6px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--mute); }
+.effect { border: 1px solid var(--line-strong); border-radius: 12px; padding: 12px 14px; }
+.effect.m-estimate { border-color: color-mix(in srgb, var(--wait-ink) 70%, transparent); background: color-mix(in srgb, var(--wait) 6%, transparent); }
+.effect.m-replay, .effect.m-measured { border-color: color-mix(in srgb, var(--ok-ink) 70%, transparent); background: color-mix(in srgb, var(--ok) 6%, transparent); }
+.effect .eh { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.effect h3 { margin: 0; }
+.effect.m-estimate h3 { color: var(--wait-ink); } .effect.m-replay h3, .effect.m-measured h3 { color: var(--ok-ink); }
+.effect p { margin: 8px 0 0; font-size: 14px; line-height: 1.5; color: var(--text); }
+.tog { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 9px; overflow: hidden; }
+.tog button { white-space: nowrap; height: 30px; padding: 0 12px; border: 0; background: none; cursor: pointer; color: var(--soft); font-size: 13px; }
+.tog button[aria-pressed="true"] { background: var(--accent-fill); color: var(--on-accent); font-weight: 600; }
+.nums { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 14px; margin-top: 10px; }
+.nums div { border-top: 1px solid var(--line); padding-top: 6px; font-size: 12.5px; color: var(--soft); }
+.nums b { display: block; font: 600 20px var(--font-display); color: var(--text); transition: color var(--t-move) var(--ease-std), transform var(--t-move) var(--ease-out); }
+.nums b.chg { color: var(--ok-ink); }
+.nums b.pulse { transform: translateY(-3px); }
+.ract p { margin: 0; font-size: 14px; line-height: 1.5; color: var(--soft); }
+.ract b { color: var(--text); font-weight: 600; }
+.ractions { flex: none; display: flex; gap: 10px; align-items: center; padding: 12px 24px; border-top: 1px solid var(--line); background: var(--panel); }
+.ractions select { height: 36px; border-radius: var(--radius); border: 1px solid var(--line-strong); background: var(--bg); color: var(--text); padding: 0 10px; font: inherit; font-size: 14px; }
+.ractions .esc { margin-left: auto; font-size: 12.5px; color: var(--mute); white-space: nowrap; }
+.ractions select { max-width: 190px; }
+.ebtn.ok[aria-pressed="true"] { border-color: var(--ok-ink); color: var(--ok-ink); }
+/* before and after, on the run */
+.cf { position: relative; }
+.cf .cfh { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
+.cf .cfh h2 { white-space: nowrap; margin: 0; font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--mute); }
+.cf .cfh span { font-size: 12.5px; color: var(--mute); }
+.cf .rlane { margin: 10px 0 2px; font-size: 13.5px; color: var(--soft); }
+.cf .rlane b { color: var(--text); font-weight: 600; }
+.cf .sect { margin-top: 14px; font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--mute); }
+.cf .sect.go { color: var(--ok-ink); }
+.cf .row { position: relative; height: 74px; }
+.cf .box { position: absolute; top: 0; width: 190px; height: 70px; border-radius: 6px; padding: 7px 10px; border: 1.5px solid var(--line-strong); background: var(--card); font-size: 12px; line-height: 1.3; color: var(--soft); transition: transform var(--t-move) var(--ease-out), opacity var(--t-move) var(--ease-std), border-color var(--t-move) var(--ease-std); }
+.cf .box small { display: block; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--mute); }
+.cf .box b { display: block; color: var(--text); font-weight: 600; font-size: 12.5px; }
+.cf .box.bad { border-color: var(--bad-ink); }
+.cf .box.ok { border-color: var(--ok-ink); }
+.cf .box.ghost { border-style: dashed; border-color: var(--line-strong); background: transparent; color: var(--mute); }
+.cf .arrow { position: absolute; top: 34px; height: 0; border-top: 1.5px solid var(--mute); transition: transform var(--t-move) var(--ease-out), opacity var(--t-move) var(--ease-std); }
+.cf .arrow.bad { border-color: var(--bad-ink); } .cf .arrow.ok { border-color: var(--ok-ink); }
+.cf .note { margin-top: 16px; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; font-size: 13.5px; line-height: 1.5; color: var(--soft); }
+.cf .note b { color: var(--text); }
+.rep { width: 100%; border-collapse: collapse; font-size: 13px; }
+.rep th { text-align: left; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--mute); padding: 4px 6px 4px 0; border-bottom: 1px solid var(--line-strong); }
+.rep tbody th { text-align: left; font-size: 13px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--soft); padding: 6px 6px 6px 0; border-bottom: 1px solid var(--line); }
+.rep td { padding: 6px 6px 6px 0; border-bottom: 1px solid var(--line); color: var(--soft); vertical-align: top; }
+.rep td.v-improved { color: var(--ok-ink); font-weight: 600; }
+.rep td.big { font: 600 18px var(--font-display); color: var(--text); }
+.rep td.big.chg { color: var(--ok-ink); }
+/* the export dialog */
+#xdlg { position: absolute; inset: 0; z-index: 30; background: color-mix(in srgb, #05080f 66%, transparent); display: flex; align-items: center; justify-content: center; }
+#xdlg[hidden] { display: none; }
+#xdlg .dlg { width: 1080px; max-height: 800px; display: flex; flex-direction: column; border-radius: 16px; border: 1px solid var(--line-strong); background: var(--panel); box-shadow: 0 30px 80px rgba(0,0,0,.55); animation: dlgin var(--t-move) var(--ease-out); }
+@keyframes dlgin { from { opacity: .4; transform: translateY(14px) scale(.985); } }
+#xdlg .dh { display: flex; align-items: center; gap: 12px; padding: 18px 24px; border-bottom: 1px solid var(--line); }
+#xdlg .dh h2 { margin: 0; font-family: var(--font-display); font-size: 22px; font-weight: 600; }
+#xdlg .dh span { font-size: 13.5px; color: var(--mute); }
+#xdlg .db { display: grid; grid-template-columns: 1.15fr 1fr; gap: 28px; padding: 18px 24px; overflow-y: auto; }
+#xdlg fieldset { border: 0; margin: 0 0 14px; padding: 0; }
+#xdlg legend, #xdlg .xlg { font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--mute); margin-bottom: 8px; padding: 0; display: block; }
+#xdlg .xseg { display: flex; border: 1px solid var(--line-strong); border-radius: 9px; overflow: hidden; }
+#xdlg .xseg label { flex: 1; display: grid; place-items: center; height: 36px; cursor: pointer; font-size: 14px; color: var(--soft); position: relative; }
+#xdlg .xseg input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+#xdlg .xseg label:has(input:checked) { background: var(--accent-fill); color: var(--on-accent); font-weight: 600; }
+#xdlg .xseg label:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: -3px; }
+#xdlg .dhint { font-size: 12.5px; line-height: 1.45; color: var(--mute); margin: 6px 0 0; }
+#xdlg select { width: 100%; height: 36px; border-radius: 9px; border: 1px solid var(--line-strong); background: var(--bg); color: var(--text); padding: 0 10px; font: inherit; font-size: 14px; }
+#xdlg .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+#xdlg .three { display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 10px; }
+#xdlg .secs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; font-size: 14px; color: var(--soft); }
+#xdlg .secs label, #xdlg .fmt label { display: flex; gap: 8px; align-items: center; }
+#xdlg .fmt { display: flex; gap: 16px; font-size: 14px; color: var(--soft); height: 36px; align-items: center; }
+#xdlg input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent-fill); }
+#xdlg .pages { display: flex; gap: 8px; flex-wrap: wrap; }
+#xdlg .pg { width: 54px; height: 76px; border-radius: 3px; border: 1px solid var(--line-strong); background: #fff; position: relative; overflow: hidden; }
+#xdlg .pg.n { background: #0b0f19; }
+#xdlg .pg i { position: absolute; left: 7px; right: 14px; top: 9px; height: 3px; border-radius: 2px; background: #4338ca; }
+#xdlg .pg.n i { background: #a5b4fc; }
+#xdlg .pg u { position: absolute; left: 7px; right: 7px; top: 18px; height: 2px; background: #cbd5e1; }
+#xdlg .pg s { position: absolute; left: 7px; right: 7px; bottom: 9px; height: 20px; border-radius: 2px; background: #e7e9fd; }
+#xdlg .pg.n s { background: #1e293b; }
+#xdlg .a11y { list-style: none; margin: 0; padding: 0; font-size: 13.5px; }
+#xdlg .a11y li { display: grid; grid-template-columns: 18px 150px minmax(0, 1fr); gap: 8px; padding: 6px 0; border-top: 1px solid var(--line); color: var(--soft); }
+#xdlg .a11y li > span:first-child { color: var(--ok-ink); font-weight: 700; }
+#xdlg .a11y li > span:nth-child(2) { color: var(--text); font-weight: 600; }
+#xdlg .res { margin-top: 14px; border: 1px solid var(--ok-ink); border-radius: 10px; padding: 12px 14px; font-size: 13.5px; background: color-mix(in srgb, var(--ok) 6%, transparent); }
+#xdlg .res[hidden] { display: none; }
+#xdlg .res b { color: var(--ok-ink); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; }
+#xdlg .res a { color: var(--accent-text); font-weight: 600; }
+#xdlg .res code, #xdlg .cmd { display: block; margin-top: 8px; padding: 8px 10px; border-radius: 6px; background: var(--bg); font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 12px; line-height: 1.5; color: var(--soft); white-space: pre-wrap; word-break: break-all; user-select: all; }
+#xdlg .df { display: flex; gap: 10px; align-items: center; justify-content: flex-end; padding: 14px 24px; border-top: 1px solid var(--line); }
+#xdlg .df p { margin: 0 auto 0 0; font-size: 13px; color: var(--mute); }
+#rpanel h3 .gw, .rtt h2 .gw { text-transform: inherit; letter-spacing: inherit; font-weight: inherit; color: inherit; font-size: inherit; }
+#xdlg .px { width: 34px; height: 34px; border-radius: var(--radius); border: 1px solid var(--line-strong); background: none; color: var(--soft); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+#bar[hidden] { display: none; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
 </style>
 </head>
@@ -338,17 +555,20 @@ a.ge-r { text-decoration: underline; text-underline-offset: 2px; }
     <div class="hd" id="brandmark" style="flex:none;font-size:18px;font-weight:700;letter-spacing:.06em">AWA</div>
     <div style="width:1px;height:22px;background:color-mix(in srgb, var(--text) 16%, transparent)"></div>
     <nav id="crumbs" aria-label="Where you are" style="display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden"></nav>
+    <nav id="levels" class="seg-ctl" aria-label="Heights and recommendations" style="flex:none"></nav>
     <div style="flex:1"></div>
     <button class="crumb gbtn" id="b-gloss" type="button" aria-expanded="false" aria-controls="gloss" title="What the words of this view mean (?)">Glossary <span class="kbd" aria-hidden="true">?</span></button>
     <div id="source" style="font-size:12px;color:var(--mute);white-space:nowrap;max-width:260px;min-width:0;flex:0 1000 auto;overflow:hidden;text-overflow:ellipsis"></div>
     <button class="crumb" id="b-open" style="border-color:color-mix(in srgb, var(--text) 16%, transparent)" title="Open a record: the file written by awa journey export, or by GET /api/v1/journeys/portfolio">Open a record</button>
     <input id="file" type="file" accept=".json,application/json" hidden>
     <div id="switch" class="seg-ctl" role="group" aria-label="Journey"></div>
+    <button class="xbtn" id="b-export" type="button" aria-haspopup="dialog" aria-controls="xdlg" title="One document of the journeys, the work and what to change: HTML here, PDF and DOCX from the command line">Export dossier</button>
   </div>
   <div class="layer" id="L0"><div class="scene"></div></div>
   <div class="layer" id="L1"><div class="scene"></div></div>
   <div class="layer" id="L2"><div class="scene"></div></div>
   <div class="layer" id="L3"><div class="scene"></div></div>
+  <div class="layer" id="LR" role="region" aria-label="Recommendations"><div class="scene"></div></div>
   <div id="bar">
     <div style="display:flex;gap:20px;align-items:flex-start;height:58px">
       <div id="when" class="mono" style="flex:none;width:150px;padding-top:4px;font-size:13px;color:var(--accent-text)"></div>
@@ -375,11 +595,18 @@ a.ge-r { text-decoration: underline; text-underline-offset: 2px; }
     <div id="glist" aria-live="polite"></div>
     <div class="gloss-f">AWA terms come with the view and cite the specification (docs/specification.md). Terms of this journey come from its options file (<code>glossary</code>).</div>
   </aside>
+  <aside id="rpanel" aria-hidden="true"></aside>
+  <div id="xdlg" hidden></div>
 </div>
 <script src="awa-brand.js"></script>
 <script src="awa-glossary.js"></script>
+<script src="awa-kpis.js"></script>
+<script src="awa-recommendations.js"></script>
+<script src="awa-dossier.js"></script>
+<script src="awa-dossier-html.js"></script>
 <script src="journey-story-builder.js"></script>
 <script src="journey-story.js"></script>
+<script src="dashboard-sample.js"></script>
 <script>
 (() => {
 'use strict';
@@ -874,6 +1101,17 @@ function told() {
 const PLAY = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4l13 8-13 8z"/></svg>', PAUSE = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14"/><path d="M16 5v14"/></svg>';
 let lastCap = '', written = '';
 function chrome() {
+    const nr = recList().length, here = lv => !st.recs && st.level === lv;
+    $('levels').innerHTML = [['atlas', 'Journeys'], ['journey', 'One journey'], ['story', 'One customer'], ['run', 'One run']].map(([lv, name]) => `<button type="button" data-goto="${lv}" class="${here(lv) ? 'on' : ''}"${here(lv) ? ' aria-current="page"' : ''}${lv === 'run' && !I().runs.length ? ' disabled' : ''}>${name}</button>`).join('')
+        + `<button type="button" data-goto="recs" id="b-recs" class="${st.recs ? 'on' : ''}"${st.recs ? ' aria-current="page"' : ''}>Recommendations<span class="cnt"><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">, </span>${nr}</span></button>`;
+    $('bar').hidden = !!st.recs;
+    if (st.recs) {
+        $('crumbs').innerHTML = `<button class="crumb" data-goto="atlas">Journeys</button><span class="sep">/</span><button class="crumb on" data-goto="journey">${esc(J().name)}</button>`;
+        $('switch').style.visibility = 'hidden';
+        written = '#recommendations' + (RS.open ? '/' + encodeURIComponent(RS.open) : '') + (gloss.open ? '/glossary' + (gloss.term ? '/' + gloss.term : '') : '');
+        if (location.hash !== written) location.replace(written);
+        return;
+    }
     const L = LEVELS.indexOf(st.level), t = told(), n = count(), p = pos();
     const crumbs = [`<button class="crumb${L === 0 ? ' on' : ''}" data-level="atlas">Journeys</button>`];
     if (L >= 1) crumbs.push(`<span class="sep">/</span><button class="crumb${L === 1 ? ' on' : ''}" data-level="journey">${esc(J().name)}</button>`);
@@ -901,6 +1139,9 @@ let rendered = false;                                          // whether a reco
 function render(swap) {
     rendered = true;
     const L = LEVELS.indexOf(st.level);
+    $('LR').classList.toggle('on', !!st.recs);
+    if (st.recs) { LEVELS.forEach((level, k) => $('L' + k).classList.remove('on')); renderRecs(true); chrome(); return; }
+    renderPanel();
     LEVELS.forEach((level, k) => {
         const layer = $('L' + k), scene = layer.firstElementChild;
         layer.classList.toggle('on', k === L);
@@ -975,6 +1216,9 @@ document.addEventListener('click', e => {
     let x;
     if ((x = hit('[data-term]'))) { e.stopPropagation(); openGlossary(x.dataset.term, { from: x }); return; }
     if ((x = hit('#gloss'))) return;
+    if ((x = hit('[data-goto]'))) { gotoLevel(x.dataset.goto); return; }
+    if ((x = hit('#b-export'))) { openExport(x); return; }
+    if ((x = hit('#LR, #rpanel, #xdlg'))) return;
     if ((x = hit('[data-level]'))) goLevel(x.dataset.level);
     else if ((x = hit('[data-j]'))) switchJourney(+x.dataset.j);
     else if ((x = hit('[data-open-j]'))) openJourney(+x.dataset.openJ, { ox: CX(+x.dataset.openJ) + 180, oy: 106 });
@@ -1019,6 +1263,7 @@ $('b-play').onclick = () => {
 $('scrub').oninput = e => jump(+e.target.value);
 document.addEventListener('keydown', e => {
     if (glossKey(e)) return;
+    if (recKey(e)) return;
     if (e.target.tagName === 'INPUT') return;
     if (e.key === 'ArrowRight') { move(1); e.preventDefault(); }
     else if (e.key === 'ArrowLeft') { move(-1); e.preventDefault(); }
@@ -1121,7 +1366,7 @@ window.AWA_glossary = { open: openGlossary, close: closeGlossary, terms: allTerm
 const message = text => { $('none').textContent = text; $('none').hidden = !text; };
 /** Show a record: a story as the builder makes it, or the portfolio a host exports, which is built into one here */
 let shown = false;
-function show(data, source, keep, trusted) {
+function show(data, source, keep, trusted, extra) {
     const prebuilt = data && data.journeys && data.journeys[0] && data.journeys[0].instances[0] && data.journeys[0].instances[0].beats;
     if (prebuilt && !trusted) { message('This file is a prepared story, not a record. Open the record itself: the file written by awa journey export.'); return; }
     const story = prebuilt ? data : window.AWA_build_story(data, OPTIONS);
@@ -1129,6 +1374,9 @@ function show(data, source, keep, trusted) {
     // Following a live record: a reader at the latest moment stays at the latest moment
     const following = keep && S && shown && st.level !== 'atlas' && pos() === count() - 1;
     S = story;
+    RECORD = prebuilt ? (trusted && extra && extra.record) || null : data;
+    RECS_GIVEN = (trusted && extra && extra.recommendations) || null;
+    computeRecs();
     for (const level of LEVELS) delete built[level];
     // A link may name the place, e.g. from the measures page. Following a live host, the place applies to the first
     // record that holds a journey, which may come after records that held none
@@ -1163,7 +1411,9 @@ addEventListener('drop', async e => {
 const place = () => {
     const all = location.hash.slice(1).split('/'), g = all.indexOf('glossary'), parts = g >= 0 ? all.slice(0, g) : all;
     if (g >= 0) openGlossary(decodeURIComponent(all[g + 1] || ''), { quiet: true }); else if (gloss.open) closeGlossary(true);
+    if (parts[0] === 'recommendations') { st.recs = true; RS.open = parts[1] ? decodeURIComponent(parts[1]) : null; RS.cf = false; RS.after = false; return; }
     if (!S || !LEVELS.includes(parts[0])) return;
+    st.recs = false; RS.open = null;
     const [level, j, i, rr, p] = [parts[0], ...parts.slice(1).map(Number)];
     if (S.journeys[j] && S.journeys[j].instances[i || 0]) Object.assign(st, { level, j, i: i || 0, r: rr || 0, [KEY[level]]: p || 0 });
 };
@@ -1184,6 +1434,7 @@ function setBrand(source, { data_only = false, network = true } = {}) {
     const B = window.AWA_brand; if (!B || !source) return null;
     const brand = typeof source === 'object' && source.colors && source.colors.top ? source : B.read_brand(source, { data_only });
     if (brand.invalid) { for (const w of brand.warnings) console.warn(`Brand: ${w}`); return null; }
+    lastBrand = brand;
     return B.apply(brand, { header: $('brandmark'), network });
 }
 window.AWA_set_brand = setBrand; // for a page that embeds the view
@@ -1191,6 +1442,13 @@ window.AWA_set_brand = setBrand; // for a page that embeds the view
 const options_ready = (query.get('options')
     ? fetch_record(query.get('options')).then(o => { OPTIONS = o || {}; }).catch(error => { console.warn(`Cannot load the options ${query.get('options')}: ${error.message}`); })
     : Promise.resolve())
+    .then(async () => {
+        const rec = OPTIONS.recommendations;
+        if (rec && typeof rec.replays === 'string') {
+            try { rec.replays = await fetch_record(new URL(rec.replays, new URL(query.get('options'), location.href)).href); }
+            catch (error) { console.warn(`Cannot load the replay reports ${rec.replays}: ${error.message}`); rec.replays = {}; }
+        }
+    })
     .then(() => window.AWA_brand && window.AWA_brand.from_page({ options: OPTIONS, options_url: query.get('options') ? new URL(query.get('options'), location.href).href : undefined }))
     .then(brand => { if (brand) setBrand(brand); }, error => console.warn(`Brand: ${error.message}`));
 options_ready.then(() => {
@@ -1206,9 +1464,531 @@ options_ready.then(() => {
         poll(); setInterval(poll, Math.max(500, Number(query.get('poll')) || 3000));
     } else if (query.get('data')) {
         fetch_record(query.get('data')).then(data => { show(data, query.get('data')); }).catch(error => message(`Cannot load ${query.get('data')}: ${error.message}`));
-    } else if (S) { place(); $('source').textContent = 'sample: six customers, three journeys'; render(); }
+    } else if (S) { RECORD = window.AWA_PORTFOLIO || null; computeRecs(); place(); $('source').textContent = 'sample: six customers, three journeys'; render(); }
     else message('No record loaded. Use "Open a record", drop a file here, or run node examples/claims-journey/make-story.mjs for the sample.');
 });
+
+// ---------------------------------------------------------------- the Recommendations tab (design boards 12 to 12d)
+// The recommendations come from awa-recommendations.js, computed here from the record the view shows, or handed
+// over by a host with the story (AWA_show's fifth argument). Accepting, dismissing and adding to the dossier are
+// kept per viewer, in this browser only.
+let RECORD = null, RECS_GIVEN = null, RECS = null;
+const RS = { open: null, stage: 'all', kinds: new Set(), cf: false, after: false, opener: null, marks: [], lastKey: '' };
+const reduced = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
+const still = () => reduced.matches;
+const RKINDS = ['speed', 'quality', 'cost', 'trust', 'experience'];
+const SHAPE = {
+    speed: '<circle cx="50" cy="50" r="46"/>', quality: '<rect x="8" y="8" width="84" height="84" rx="12"/>', cost: '<path d="M50 2 L98 50 L50 98 L2 50Z"/>',
+    trust: '<polygon points="50,2 92,26 92,74 50,98 8,74 8,26"/>', experience: '<circle cx="50" cy="50" r="46"/><circle cx="50" cy="50" r="20" fill="none" stroke="var(--bg)" stroke-width="12"/>',
+};
+const shapeSvg = (k, stroke) => `<svg viewBox="0 0 100 100" aria-hidden="true" focusable="false"><g fill="var(--k-${tok(k)})"${stroke ? ' stroke="var(--bg)" stroke-width="5"' : ''}>${SHAPE[k] || SHAPE.speed}</g></svg>`;
+const METH = { replay: ['Replay', 'b-replay'], measured: ['Measured', 'b-measured'], estimate: ['Estimate', 'b-estimate'], pilot: ['Pilot', 'b-pilot'], 'replay-live': ['Replay, not run', 'b-replay-live'] };
+const EFFORT_LABEL = { 1: 'Low: options or policy', 2: 'Medium: a workflow change', 3: 'High: new work for people' };
+const fullDay = t => new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+const hhmm = t => new Date(t).toISOString().slice(11, 16);
+
+function computeRecs() {
+    RECS = null;
+    try {
+        if (RECS_GIVEN && Array.isArray(RECS_GIVEN.journeys)) RECS = RECS_GIVEN;
+        else if (RECORD && window.AWA_RECOMMENDATIONS) RECS = window.AWA_RECOMMENDATIONS.compute(RECORD, OPTIONS);
+    } catch (error) { console.warn(`Recommendations: ${error.message}`); RECS = null; }
+}
+const recJourney = () => (RECS && S && J() ? RECS.journeys.find(j => j.name === J().name) || null : null);
+const recList = () => (recJourney() || {}).recommendations || [];
+const recById = id => recList().find(r => r.id === id);
+// what this viewer decided, per journey; the page works the same when the browser keeps nothing
+const vkey = () => `awa.recommendations.${J() ? J().name : ''}`;
+function viewer() { try { const v = JSON.parse(localStorage.getItem(vkey()) || '{}'); return { status: v.status || {}, dossier: Array.isArray(v.dossier) ? v.dossier : [] }; } catch { return { status: {}, dossier: [] }; } }
+function keep(v) { try { localStorage.setItem(vkey(), JSON.stringify(v)); } catch { /* nothing kept: a private window, or storage refused */ } }
+window.AWA_recommendations = { result: () => RECS, list: recList, viewer, open: id => openRec(id), close: () => closeRec() };   // for tests and for a page that embeds the view
+
+/** The initials of a customer, and a colour that stays the same for the same customer */
+const AV_COL = ['#4f46e5', '#0e7490', '#b45309', '#7c3aed', '#047857', '#be185d', '#1d4ed8', '#9a3412'];
+const av = c => `<span class="av" style="background:${AV_COL[c.index % AV_COL.length]}" title="${esc(c.name)}" aria-hidden="true">${esc(String(c.name).split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase())}</span>`;
+const stageList = () => { const rj = recJourney(); return rj ? rj.stages.filter(s => s.owner || s.max) : []; };
+const visibleRecs = () => recList().filter(r => (RS.stage === 'all' || r.stage === RS.stage) && (!RS.kinds.size || RS.kinds.has(r.kind)));
+
+function periodText() {
+    const j = J(); if (!j) return '';
+    const t0 = Math.min(...j.instances.map(x => x.start)), t1 = Date.parse((RECS && RECS.as_of) || S.as_of) || Math.max(...j.instances.map(x => x.end));
+    return `${fullDay(t0)} to ${fullDay(t1)}`;
+}
+
+/** The whole tab, drawn again when a filter, the journey or the open recommendation changes */
+function renderRecs(play) {
+    const scene = $('LR').firstElementChild, rj = recJourney(), all = recList(), vis = visibleRecs(), v = viewer();
+    const key = `${st.j}|${RS.stage}|${[...RS.kinds].sort()}|${RS.cf}|${all.length}`;
+    play = play && !still() && key !== RS.lastKey; RS.lastKey = key;
+    const head = `<div class="rh"><h1>Recommendations</h1><p>${rj ? `${J().instances.length} customers · ${esc(periodText())} · from ${rj.rules_checked} rules and the journey’s options` : 'No record to compute them from'}</p>${S.journeys.length > 1
+        ? `<label><span class="vh" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Journey</span><select class="rsel" id="rjourney">${S.journeys.map((j, k) => `<option value="${k}"${k === st.j ? ' selected' : ''}>Journey: ${esc(j.name)}</option>`).join('')}</select></label>`
+        : `<span class="rsel" style="display:inline-flex;align-items:center">Journey: ${esc(J().name)}</span>`}</div>`;
+    const sc = {}, kc = {};
+    for (const r of all) { sc[r.stage] = (sc[r.stage] || 0) + 1; kc[r.kind] = (kc[r.kind] || 0) + 1; }
+    const filters = `<div class="rf" role="group" aria-label="Filters"><span class="lab" id="lab-stage">Stage</span>${[['all', 'All stages', all.length], ...stageList().map(s => [s.id, s.name, sc[s.id] || 0])].map(([id, name, n]) => `<button class="rchip" type="button" data-rstage="${esc(id)}" aria-pressed="${RS.stage === id}">${esc(name)} <small>${n}</small></button>`).join('')}<span class="div" aria-hidden="true"></span><span class="lab">Kind</span>${RKINDS.map(k => `<button class="rchip" type="button" data-rkind="${k}" aria-pressed="${RS.kinds.has(k)}">${shapeSvg(k)}${k} <small>${kc[k] || 0}</small></button>`).join('')}</div>`;
+    const open = RS.open && recById(RS.open);
+    let left, right;
+    if (!rj) {
+        left = `<div class="empty-map" style="position:static;height:520px"><h3>No recommendation to show</h3><p>Recommendations are computed from a journey record. Open the record itself (awa journey export), or ask the host for its recommendations.</p></div>`;
+        right = '';
+    } else if (RS.cf && open && open.detail) {
+        left = counterfactual(open);
+        right = cardsHtml(vis, v);
+    } else if (!vis.length) {
+        left = `<div class="rtt"><h2>Impact and effort</h2></div><div class="map" id="rmap" aria-hidden="true">${axes(2, 520)}<div class="empty-map"><div class="okline" aria-hidden="true">${'<i>✓</i>'.repeat(5)}</div><h3>${RS.stage !== 'all' ? `No recommendation for ${esc((stageList().find(s => s.id === RS.stage) || {}).name || RS.stage)}` : all.length ? 'No recommendation of this kind' : 'No recommendation: every stage within its time'}</h3><p>${esc(emptyText())}</p></div></div>`;
+        right = checksHtml(all.length);
+    } else {
+        left = `<div class="rtt"><h2 id="map-h">Impact and effort</h2><span>mark size = customers concerned · shape = kind</span></div>
+            <div class="map" id="rmap"><div role="listbox" id="rlistbox" aria-labelledby="map-h" aria-describedby="map-d" style="position:absolute;inset:0">${''}</div>${axes(Math.max(2, Math.ceil(Math.max(...all.map(r => r.impact)) * 2) / 2), 520)}<div class="rtipb" id="rtip" aria-hidden="true"></div></div>
+            <div class="legend" aria-hidden="true">${RKINDS.map(k => `<span>${shapeSvg(k)}${k}</span>`).join('')}</div>
+            <p class="rnote" id="map-d"><button type="button" class="gw" data-term="impact">Impact</button> = customers concerned ÷ ${J().instances.length} × severity. <button type="button" class="gw" data-term="effort">Effort</button> from the kind of change. Arrow keys move between the marks, Enter opens one, Escape closes it.${open ? ' The map dims the others while one is open; the list keeps its place behind the panel.' : ''}</p>`;
+        right = cardsHtml(vis, v);
+    }
+    scene.innerHTML = `${head}${filters}<div class="rg"><div class="rleft">${left}</div><div class="rright">${right}</div></div>`;
+    if ($('rlistbox')) drawMarks(all, vis, play);
+    if (RS.cf) lastBoxes = boxPlaces();
+    // the level tab shows the count; the panel follows the open recommendation
+    renderPanel();
+}
+
+/** The axes, quadrants and labels of the map, for impact up to ymax */
+function axes(ymax, H) {
+    const P = { l: 56, t: 30, w: 644, h: H }, X = e => P.w * (2 * e - 1) / 6, Y = val => 24 + (1 - val / ymax) * (P.h - 24 - 40);
+    let s = `<div class="plot" aria-hidden="true"><div class="dofirst" style="width:${X(2.5)}px;height:${Y(1)}px"></div><span class="q do" style="left:14px;top:12px">DO FIRST</span><span class="q" style="right:14px;top:12px">PLAN</span><span class="q" style="left:14px;bottom:12px">QUICK FIXES</span><span class="q" style="right:14px;bottom:12px">LATER</span></div>`;
+    for (let val = 0.5; val <= ymax + 1e-9; val += 0.5) s += `<span class="ax y" aria-hidden="true" style="top:${P.t + Y(val) - 8}px">${val.toFixed(1)}</span>`;
+    s += `<span class="ytitle" aria-hidden="true">IMPACT</span>`;
+    for (const e of [1, 2, 3]) s += `<span class="ax" aria-hidden="true" style="left:${P.l + X(e)}px;top:${P.t + P.h + 10}px;transform:translateX(-50%)">${EFFORT_LABEL[e]}</span>`;
+    s += `<span class="ax" aria-hidden="true" style="left:${P.l + P.w / 2}px;top:${P.t + P.h + 30}px;transform:translateX(-50%);font-weight:700;letter-spacing:.12em">EFFORT</span>`;
+    return s;
+}
+
+function drawMarks(all, vis, play) {
+    const box = $('rlistbox'), ids = new Set(vis.map(r => r.id)), N = J().instances.length;
+    const ymax = Math.max(2, Math.ceil(Math.max(...all.map(r => r.impact)) * 2) / 2);
+    const P = { l: 56, t: 30, w: 644, h: 520 }, X = e => P.l + P.w * (2 * e - 1) / 6, Y = val => P.t + 24 + (1 - val / ymax) * (P.h - 24 - 40);
+    const byE = {};
+    all.forEach(r => (byE[r.effort] = byE[r.effort] || []).push(r));
+    RS.marks = [];
+    for (const [e, list] of Object.entries(byE)) {
+        list.sort((a, b) => a.rank - b.rank);
+        list.forEach((r, k) => {
+            const tx = X(+e) + (k - (list.length - 1) / 2) * Math.min(46, 200 / list.length), ty = Y(r.impact), size = Math.round(Math.min(64, 24 + Math.sqrt(r.customers.length / N * 8) * 9));
+            const b = document.createElement('button');
+            b.type = 'button'; b.className = 'mark' + (RS.open && RS.open !== r.id ? ' dim' : '') + (RS.open === r.id ? ' sel' : '');
+            b.dataset.rid = r.id; b.style.setProperty('--s', size + 'px'); b.setAttribute('role', 'option'); b.setAttribute('aria-selected', String(RS.open === r.id)); b.tabIndex = -1;
+            b.setAttribute('aria-label', `${r.rank}. ${r.title}. ${r.kind}, ${r.customers.length} customer${r.customers.length === 1 ? '' : 's'}, impact ${r.impact}, effort ${r.effort}, ${(METH[r.effect.method] || METH.estimate)[0].toLowerCase()}`);
+            b.innerHTML = shapeSvg(r.kind, true) + `<span class="no" aria-hidden="true">${r.rank}</span>`;
+            b.hidden = !ids.has(r.id);
+            box.appendChild(b);
+            RS.marks.push({ el: b, r, tx, ty, y: P.t + P.h - 20, vy: 0 });
+        });
+    }
+    const shown = RS.marks.filter(m => !m.el.hidden);
+    const current = shown.find(m => m.r.id === RS.open) || shown.slice().sort((a, b) => a.r.rank - b.r.rank)[0];
+    if (current) current.el.tabIndex = 0;
+    spring(shown, play);
+}
+/** The marks settle into place on a spring (stiffness 170, damping 22), 40 ms apart; at rest at once when motion is reduced */
+function spring(marks, play) {
+    const place = m => { m.el.style.transform = `translate(${m.tx}px,${m.y}px)`; };
+    if (!play) { marks.forEach(m => { m.y = m.ty; place(m); }); return; }
+    const k = 170, c = 22, t0 = performance.now(); let last = t0;
+    marks.forEach((m, i) => { m.delay = i * 40; place(m); });
+    const step = now => {
+        const dt = Math.min(0.032, (now - last) / 1000); last = now; let moving = false;
+        for (const m of marks) {
+            if (now - t0 < m.delay) { moving = true; continue; }
+            const a = -k * (m.y - m.ty) - c * m.vy; m.vy += a * dt; m.y += m.vy * dt;
+            if (Math.abs(m.y - m.ty) > 0.3 || Math.abs(m.vy) > 0.3) moving = true; else { m.y = m.ty; m.vy = 0; }
+            place(m);
+        }
+        if (moving && now - t0 < 1600 && m0alive(marks)) requestAnimationFrame(step); else marks.forEach(m => { m.y = m.ty; place(m); });
+    };
+    requestAnimationFrame(step);
+}
+const m0alive = marks => marks.length && marks[0].el.isConnected;
+
+function cardsHtml(vis, v) {
+    const counts = { new: 0, accepted: 0, dismissed: 0 };
+    for (const r of recList()) { const s = v.status[r.id] || ''; counts[s.startsWith('dismissed') ? 'dismissed' : s === 'accepted' ? 'accepted' : 'new']++; }
+    return `<div class="rtt"><h2 id="list-h">Ranked by impact over effort</h2><span>${counts.new} new · ${counts.accepted} accepted · ${counts.dismissed} dismissed</span></div>
+        <ol class="cards" id="rcards" aria-labelledby="list-h">${vis.map(r => {
+            const [m, cls] = METH[r.effect.method] || METH.estimate, s = v.status[r.id], inDossier = v.dossier.includes(r.id);
+            const shown = r.customers.slice(0, 7);
+            return `<li><button type="button" class="rcard${RS.open === r.id ? ' sel' : ''}" data-rid="${esc(r.id)}" aria-expanded="${RS.open === r.id}" aria-controls="rpanel">
+                <span class="no" aria-hidden="true">${r.rank}</span><span class="t"><span class="vh" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">${r.rank}. </span>${esc(r.title)}</span>
+                <span class="side"><span class="avs" aria-label="${r.customers.length} customer${r.customers.length === 1 ? '' : 's'}">${shown.map(av).join('')}${r.customers.length > shown.length ? `<span class="av more" aria-hidden="true">+${r.customers.length - shown.length}</span>` : ''}</span><span class="badge ${cls}">${m}</span></span>
+                <span class="m">${shapeSvg(r.kind)}<span>${r.kind}</span><span aria-hidden="true">·</span><span>${esc(r.stage_name)}</span><span aria-hidden="true">·</span><span class="mono">${esc(r.trigger || r.rules.join(', '))}</span>${s ? `<span class="rstat${String(s).startsWith('dismissed') ? ' dis' : ''}">${esc(s)}</span>` : ''}${inDossier ? '<span class="rstat">in the dossier</span>' : ''}</span>
+            </button></li>`;
+        }).join('')}</ol>`;
+}
+
+function emptyText() {
+    const rj = recJourney(); if (!rj) return '';
+    const c = RS.stage !== 'all' && rj.checks[RS.stage];
+    if (!c) return `${rj.rules_checked} rules checked on ${rj.stages.length} stages and ${rj.workflows} workflow${rj.workflows === 1 ? '' : 's'}. The checks stay one click away.`;
+    const longest = c.longest_stay_ms ? (c.longest_stay_ms < 2 * DAY ? `${Math.round(c.longest_stay_ms / 3600000)} hours` : `${(c.longest_stay_ms / DAY).toFixed(1)} days`) : 'no time';
+    return `Every check passed: ${c.entered} ${c.entered === 1 ? 'customer' : 'customers'} entered ${c.name}${c.max ? `, which is given ${c.max.replace(/^P(\d+)D$/, '$1 days')}` : ''}; the longest stay was ${longest}. Nobody stuck, no fall of mood, nobody left.`;
+}
+function checksHtml(any) {
+    const rj = recJourney(), c = RS.stage !== 'all' && rj.checks[RS.stage];
+    const table = c ? `<div class="rtt"><h2>What was checked, for ${esc(c.name)}</h2></div><div class="checks"><table><caption class="vh" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">The rules checked on ${esc(c.name)}, what each found and its threshold</caption><tbody>${c.checks.map(x => `<tr><td aria-label="${x.fired ? 'fired' : 'passed'}">${x.fired ? '!' : '✓'}</td><td class="ck-r">${x.rule}</td><td>${esc(x.name)}</td><td>${esc(x.value)}</td><td class="ck-t">${esc(x.threshold)}</td></tr>`).join('')}</tbody></table><p>The other rules (R3, R4, R7, R9, R12) look at steps and workflows, not at one stage.</p></div>` : '';
+    return `${table}<div class="eacts">${RS.stage !== 'all' || RS.kinds.size ? '<button type="button" class="ebtn pri" data-rall>Show all stages</button>' : ''}<button type="button" class="ebtn" data-rthreshold aria-expanded="false" aria-controls="rthr">Lower a threshold…</button></div>
+        <div class="dashed" id="rthr" hidden><small>A journey’s options</small><span>Thresholds are set per journey, in the options the view is given (recommendations.thresholds):</span><pre>"recommendations": { "thresholds": { "R1": 0.05, "R10": "P5D" } }</pre></div>
+        <p class="rnote">An empty state is a finding too: it goes into the dossier as one line, “${esc(c ? c.name : J().name)}: no recommendation; every check passed”, with the checks above as its evidence.</p>
+        ${any ? '' : `<div class="dashed"><small>With no filter, on a record where nothing fires</small><b>No recommendation: every stage within its time</b><span>${rj.rules_checked} rules checked on ${rj.stages.length} stages and ${rj.workflows} workflows.</span></div>`}`;
+}
+
+/** The run as recorded and with the change, for a recommendation measured by replay: the boxes move to their place */
+function counterfactual(r) {
+    const rep = (r.effect && r.effect.replay) || {};
+    const lanes = r.detail.map((d, k) => {
+        const n = d.attempts.length, kept = Math.min(1, n), after = RS.after;
+        const slot = i => i * 216;
+        const boxes = [];
+        d.attempts.forEach((a, i) => {
+            const gone = after && i >= kept;
+            boxes.push(`<div class="box ${gone ? 'ghost' : 'bad'}" data-k="${k}-a${i}" style="transform:translateX(${slot(gone ? kept + 1 + (i - kept) : i)}px)"><small>${gone ? '' : `AI agent · attempt ${a.n}`}</small><b>${gone ? `Attempt ${a.n} not made` : esc(d.step)}</b>${gone ? `${Math.round(a.ms / 60000)} min of agent time saved` : `${hhmm(a.time)} · ${esc(a.note)}`}</div>`);
+            if (!gone && (i < n - 1 || d.person)) boxes.push(`<div class="arrow bad" style="width:26px;transform:translateX(${slot(i) + 190}px)"></div>`);
+        });
+        if (d.person) boxes.push(`<div class="box ok" data-k="${k}-p" style="transform:translateX(${slot(after ? kept : n)}px)"><small>Person · ${esc(d.person.who)}</small><b>${esc(d.step)}</b>${after ? `handed over at ${hhmm(d.attempts[kept - 1] ? new Date(Date.parse(d.attempts[kept - 1].time) + d.attempts[kept - 1].ms).toISOString() : d.escalated_at)}` : `${hhmm(d.person.time)} · decided by hand`}</div>`);
+        const runRep = (rep.runs || []).find(x => x.run_id && x.run === d.run_short) || {};
+        return `<div class="rlane"><b>${esc(d.name)}</b> run ${esc(d.run_short)} · events ${d.from_seq} to ${d.to_seq}${after && runRep.steps ? ` · attempts at the step ${runRep.attempts_at_step.join(' → ')}` : ''}</div><div class="row">${boxes.join('')}</div>`;
+    }).join('');
+    const failedFewer = (rep.runs || []).reduce((a, x) => a + x.failed_at_step[0] - x.failed_at_step[1], 0);
+    return `<div class="cf"><div class="cfh"><h2>Before and after, on the run</h2><div class="tog" role="group" aria-label="Before and after"><button type="button" data-rafter="0" aria-pressed="${!RS.after}">As recorded</button><button type="button" data-rafter="1" aria-pressed="${RS.after}">With the change</button></div><span>T toggles; the boxes move to their place in 400 ms</span></div>
+        <div class="sect${RS.after ? ' go' : ''}" aria-live="polite">${RS.after ? 'With the change · replayed, AI recorded' : 'As recorded'}</div>${lanes}
+        <div class="note"><b>The path does not move:</b> ${rep.same_path === false ? 'the replay found another path; see the report.' : `no customer took another path. The change is in the work: ${failedFewer} failed attempt${failedFewer === 1 ? '' : 's'} fewer, the same ${(rep.runs || []).length === 1 ? 'person' : 'people'} deciding, sooner.`} A recommendation that changes the path shows its before and after on the measures instead.</div></div>`;
+}
+
+/** The panel: why it fired, the customers behind it, the expected effect and how it is known, the action, and what this viewer decides */
+function renderPanel() {
+    const p = $('rpanel'), r = RS.open && recById(RS.open);
+    if (!r || !st.recs) { p.classList.remove('open'); p.setAttribute('aria-hidden', 'true'); p.inert = true; return; }
+    p.inert = false; p.removeAttribute('aria-hidden');
+    const v = viewer(), [mname] = METH[r.effect.method] || METH.estimate;
+    const cust = r.customers;
+    const sil = r.type === 'silence' ? cust.slice().sort((a, b) => (b.silent_days || 0) - (a.silent_days || 0)) : null;
+    const T = RECS.thresholds && RECS.thresholds.R10 ? RECS.thresholds.R10.days : 7, maxD = sil ? Math.max(T * 1.5, ...sil.map(c => c.silent_days || 0)) : 0;
+    const linkRow = c => `<button type="button" class="lnk" data-rgo="story" data-key="${esc(c.key)}" title="Opens ${esc(c.first)}’s journey in the journey view">Blueprint ›</button>${c.run_short && c.seq !== null && c.seq !== undefined ? `<button type="button" class="lnk mono" data-rgo="run" data-key="${esc(c.key)}" data-rrun="${c.run}" data-rseq="${c.seq}" title="Opens the run at the step">run ${esc(c.run_short)} #${c.seq} ›</button>` : c.journey_seq !== null && c.journey_seq !== undefined ? `<button type="button" class="lnk mono" data-rgo="beat" data-key="${esc(c.key)}" data-jseq="${c.journey_seq}" title="Opens the journey at this record">J·${c.journey_seq} ›</button>` : c.run_short ? `<button type="button" class="lnk mono" data-rgo="run" data-key="${esc(c.key)}" data-rrun="${c.run}" title="Opens the run">run ${esc(c.run_short)} ›</button>` : ''}`;
+    const people = sil
+        ? sil.map(c => `<li>${av(c)}<span>${esc(c.first)}</span><span class="bar" aria-hidden="true"><i class="${c === sil[0] ? 'long' : ''}" style="width:${((c.silent_days || 0) / maxD * 100).toFixed(1)}%"></i><u style="left:${(T / maxD * 100).toFixed(1)}%"></u></span><span class="links"><b>${Math.round(c.silent_days || 0)} d</b>${linkRow(c)}</span></li>`).join('')
+        : cust.map(c => `<li class="nobar">${av(c)}<span>${esc(c.name)} <span style="color:var(--mute);font-size:13px">· ${esc(c.status === 'active' ? 'under way' : c.status)}</span></span><span class="links">${linkRow(c)}</span></li>`).join('');
+    const nums = (r.effect.before && r.effect.after) ? Object.keys(r.effect.before) : [];
+    if (RS.cf && r.detail) { p.innerHTML = replayPanel(r); }
+    else p.innerHTML = `<div class="pin">
+        <div class="rph"><span class="big" aria-hidden="true">${r.rank}</span><h2 id="rp-title">${esc(r.title)}</h2><button type="button" class="px" id="rp-close" aria-label="Close the recommendation"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></button>
+            <div class="tags"><span class="tag">${shapeSvg(r.kind)}${r.kind}</span><span class="tag">${esc(r.stage_name)}</span>${r.owner ? `<span class="tag">Owner: ${esc(r.owner)}</span>` : ''}</div></div>
+        <p class="find">${esc(r.finding)}</p>
+        <div><h3><button type="button" class="gw" data-term="recommendation">Why it fired</button></h3><div class="why">${r.findings.slice(0, 6).map(f => `<div><b>${esc(f.rule === 'domain' ? 'Options' : f.rule)}</b><strong>${esc(f.name)}</strong>${esc(f.text)}<small>threshold ${esc(f.threshold)}</small></div>`).join('')}</div></div>
+        <div><h3>${sil ? `The customers behind it: days without a word in ${esc(r.stage_name)}` : 'The customers behind it'}</h3><ul class="who">${people}</ul>
+            <p class="hint">${sil ? `Dashed: the ${Math.round(T)}-day threshold. ` : ''}Blueprint opens the customer’s journey; ${sil ? 'J·n opens the record where the silence starts' : 'run #n opens the run at the step, J·n the journey at that record'}.</p></div>
+        <div class="effect m-${tok(r.effect.method)}"><div class="eh"><h3><button type="button" class="gw" data-term="expected-effect">Expected effect</button> · ${mname}</h3>${nums.length ? `<div class="tog" role="group" aria-label="Before and after"><button type="button" data-rafter="0" aria-pressed="${!RS.after}">As recorded</button><button type="button" data-rafter="1" aria-pressed="${RS.after}">With the change</button></div>` : ''}</div>
+            <p>${esc(r.effect.text)}</p>
+            ${nums.length ? `<div class="nums" aria-live="polite">${nums.map(k => `<div>${esc(k)}<b class="${RS.after && r.effect.before[k] !== r.effect.after[k] ? 'chg' : ''}">${esc(RS.after ? r.effect.after[k] : r.effect.before[k])}</b></div>`).join('')}</div>` : ''}
+            ${r.detail && r.effect.method === 'replay' ? `<p style="margin-top:10px"><button type="button" class="ebtn" data-rcf>Before and after, on the run ›</button> <span class="hint">or press T</span></p>` : ''}</div>
+        <div class="ract"><h3>Action</h3><p>${esc(r.action)}</p><p style="margin-top:6px"><b>Effort ${r.effort}</b>: ${esc(r.effort_text || '')}.</p></div>
+    </div>`;
+    p.insertAdjacentHTML('beforeend', `<div class="ractions"><button type="button" class="ebtn pri ok" data-ract="accepted" aria-pressed="${v.status[r.id] === 'accepted'}">${v.status[r.id] === 'accepted' ? '✓ Accepted' : 'Accept'}</button>
+        <label><span class="vh" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Dismiss with a reason</span><select id="rp-reason"><option value="">Dismiss with a reason…</option>${['Not material', 'Already planned', 'The rule does not fit this journey'].map(x => `<option${v.status[r.id] === 'dismissed: ' + x.toLowerCase() ? ' selected' : ''}>${x}</option>`).join('')}</select></label>
+        <button type="button" class="ebtn ok" data-ract="dossier" aria-pressed="${v.dossier.includes(r.id)}">${v.dossier.includes(r.id) ? '✓ In the dossier' : 'Add to the dossier'}</button><span class="esc">Esc closes</span></div>`);
+    p.setAttribute('role', 'dialog'); p.setAttribute('aria-labelledby', 'rp-title'); p.setAttribute('aria-modal', 'false');
+    if (!p.classList.contains('open')) { void p.offsetWidth; p.classList.add('open'); }
+}
+function replayPanel(r) {
+    const rep = r.effect.replay || {}, runs = rep.runs || [];
+    const both = f => runs.map(f).join(' and ');
+    const rows = [
+        ['Status', both(x => x.status[0]), both(x => x.status[1]), rep.same_status ? 'same' : 'changed'],
+        ['Path', 'as recorded', rep.same_path ? 'the same steps' : 'another path', rep.same_path ? 'same' : 'changed'],
+        ['Attempts in the run', both(x => x.attempts_run[0]), both(x => x.attempts_run[1]), 'improved'],
+        ['Attempts at the step', both(x => x.attempts_at_step[0]), both(x => x.attempts_at_step[1]), 'improved'],
+        ['Outcome contracts checked', both(x => x.contracts_checked[0]), both(x => x.contracts_checked[1]), 'improved'],
+        ['Agent time at the step', both(x => Math.round(x.agent_ms_at_step[0] / 60000)) + ' min', both(x => Math.round(x.agent_ms_at_step[1] / 60000)) + ' min', 'improved'],
+        ['Who decided', both(x => x.who_decided.join(', ') || 'nobody'), both(x => x.who_decided.join(', ') || 'nobody'), 'same'],
+        ['Times of people', 'as recorded', 'held as recorded', '—'],
+    ];
+    const keys = Object.keys(r.effect.before || {});
+    return `<div class="pin">
+        <div class="rph"><span class="big" aria-hidden="true">${r.rank}</span><h2 id="rp-title">${esc(r.title)}</h2><button type="button" class="px" id="rp-close" aria-label="Close the recommendation"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></button></div>
+        <p class="find">Candidate: ${esc(rep.candidate || '')}. Replayed on the ${runs.length === 1 ? 'run' : runs.length + ' runs'} concerned with ai: "recorded": nothing calls a model, the people’s decisions are held.</p>
+        <div><h3><button type="button" class="gw" data-term="counterfactual-replay">The replay report</button> (section 20.3)</h3><table class="rep"><thead><tr><th scope="col">Compared</th><th scope="col">Recorded</th><th scope="col">Candidate</th><th scope="col">Verdict</th></tr></thead><tbody>${rows.map(x => `<tr><th scope="row">${esc(x[0])}</th><td>${esc(x[1])}</td><td>${esc(x[2])}</td><td class="v-${tok(x[3])}">${esc(x[3])}</td></tr>`).join('')}</tbody></table></div>
+        <div><h3>On the measures</h3><table class="rep"><thead><tr><th scope="col"></th><th scope="col">Recorded</th><th scope="col">With the change</th></tr></thead><tbody>${keys.map(k => `<tr><th scope="row">${esc(k)}</th><td class="big">${esc(r.effect.before[k])}</td><td class="big${r.effect.before[k] !== r.effect.after[k] ? ' chg' : ''}">${esc(r.effect.after[k])}</td></tr>`).join('')}</tbody></table>
+        <p class="hint">${rep.regressions && rep.regressions.length ? `${rep.regressions.length} regression(s): the replay would exit 2.` : 'No regression: the replay would exit 0.'} The replay supplies the step’s recorded result; the attempts and the agent time come from the recorded attempts. Reports: examples/…/recommendations/${esc((runs[0] || {}).report || 'replay')}.</p></div>
+        <p><button type="button" class="ebtn" data-rcf>‹ Back to the recommendation</button></p>
+    </div>`;
+}
+
+function openRec(id, from) {
+    const r = recById(id); if (!r) return;
+    if (!st.recs) { st.recs = true; }
+    RS.open = id; RS.after = false; RS.cf = false; if (from) { RS.opener = from; RS.openerKind = from.classList.contains('mark') ? 'mark' : 'card'; }
+    render();
+    setTimeout(() => { const x = $('rp-close'); if (x) x.focus({ preventScroll: true }); }, still() ? 0 : 60);
+}
+function closeRec() {
+    if (!RS.open) return;
+    const id = RS.open; RS.open = null; RS.cf = false; RS.after = false;
+    render();
+    const mark = document.querySelector(`#rlistbox .mark[data-rid="${CSS.escape(id)}"]`), card = document.querySelector(`#rcards .rcard[data-rid="${CSS.escape(id)}"]`);
+    const back = (RS.opener && RS.opener.isConnected && RS.opener) || (RS.openerKind === 'mark' ? mark || card : card || mark);
+    if (back === mark && mark) { RS.marks.forEach(m => { m.el.tabIndex = m.el === mark ? 0 : -1; }); }
+    RS.opener = null;
+    if (back) back.focus({ preventScroll: true });
+}
+function toggleAfter(to) {
+    RS.after = to === undefined ? !RS.after : to;
+    if (RS.cf) { const scene = $('LR').firstElementChild.querySelector('.rleft'); lastBoxes = boxPlaces(); scene.innerHTML = counterfactual(recById(RS.open)); return morphBoxes(); }
+    const r = recById(RS.open); if (!r) return;
+    document.querySelectorAll('#rpanel [data-rafter]').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.rafter === '1') === RS.after)));
+    const keys = Object.keys(r.effect.before || {});
+    document.querySelectorAll('#rpanel .nums b').forEach((b, i) => {
+        const k = keys[i]; b.textContent = RS.after ? r.effect.after[k] : r.effect.before[k];
+        b.classList.toggle('chg', RS.after && r.effect.before[k] !== r.effect.after[k]);
+        if (!still()) { b.classList.add('pulse'); setTimeout(() => b.classList.remove('pulse'), 200); }
+    });
+}
+/** Boxes of the before-and-after view start where they were and move to their new place in 400 ms */
+let lastBoxes = {};
+const boxPlaces = () => Object.fromEntries([...document.querySelectorAll('.cf [data-k]')].map(b => [b.dataset.k, b.style.transform]));
+function morphBoxes() {
+    if (!still()) document.querySelectorAll('.cf [data-k]').forEach(b => {
+        const from = lastBoxes[b.dataset.k]; if (from === undefined || from === b.style.transform) return;
+        const to = b.style.transform; b.style.transition = 'none'; b.style.transform = from; void b.offsetWidth; b.style.transition = ''; b.style.transform = to;
+    });
+    lastBoxes = boxPlaces();
+}
+
+// where a link of a recommendation goes: the customer's blueprint, a run at its step, or the journey at a record
+function goTo(kind, d) {
+    const i = J().instances.findIndex(x => x.id === d.key);
+    if (i < 0) return;
+    st.recs = false; RS.open = null; RS.cf = false;
+    const inst = J().instances[i];
+    if (kind === 'story') return openStory(st.j, i);
+    if (kind === 'beat') {
+        let ib = inst.beats.length - 1;
+        const rj = RECORD && RECORD.journeys.find(x => x.definition.name === J().name), row = rj && rj.instances.find(x => x.instance.subject_key === d.key);
+        if (row) { const k = row.instance.events.findIndex(e => e.seq === Number(d.jseq)); const at = inst.beats.findIndex(b => b.src === k); if (at >= 0) ib = at; }
+        return openStory(st.j, i, ib);
+    }
+    const ri = Math.max(0, Math.min(Number(d.rrun) || 0, inst.runs.length - 1));
+    if (!inst.runs.length) return openStory(st.j, i);
+    const steps = inst.runs[ri].steps; let ic = steps.length - 1;
+    if (d.rseq !== undefined) { const at = steps.findIndex(s => s.seq >= Number(d.rseq)); if (at >= 0) ic = at; }
+    set({ level: 'run', j: st.j, i, r: ri, ib: inst.beats.length - 1, ic, playing: false });
+}
+
+$('LR').addEventListener('click', e => {
+    const hit = sel => e.target.closest(sel);
+    let x;
+    if ((x = hit('[data-rstage]'))) { RS.stage = x.dataset.rstage; RS.open = null; RS.cf = false; render(); focusSame(`[data-rstage="${CSS.escape(RS.stage)}"]`); }
+    else if ((x = hit('[data-rkind]'))) { const k = x.dataset.rkind; RS.kinds.has(k) ? RS.kinds.delete(k) : RS.kinds.add(k); RS.open = null; RS.cf = false; render(); focusSame(`[data-rkind="${k}"]`); }
+    else if ((x = hit('[data-rall]'))) { RS.stage = 'all'; RS.kinds.clear(); render(); }
+    else if ((x = hit('[data-rthreshold]'))) { const box = $('rthr'); box.hidden = !box.hidden; x.setAttribute('aria-expanded', String(!box.hidden)); }
+    else if ((x = hit('[data-rafter]'))) toggleAfter(x.dataset.rafter === '1');
+    else if ((x = hit('.rcard, .mark'))) openRec(x.dataset.rid, x);
+});
+$('LR').addEventListener('change', e => { if (e.target.id === 'rjourney') { st.j = Number(e.target.value); st.i = 0; RS.open = null; RS.stage = 'all'; RS.kinds.clear(); render(); } });
+const focusSame = sel => { const n = $('LR').querySelector(sel); if (n) n.focus({ preventScroll: true }); };
+['mouseover', 'focusin'].forEach(t => $('LR').addEventListener(t, e => { const n = e.target.closest('.mark,.rcard'); if (n) highlight(n.dataset.rid, true); }));
+['mouseout', 'focusout'].forEach(t => $('LR').addEventListener(t, e => { const n = e.target.closest('.mark,.rcard'); if (n) highlight(n.dataset.rid, false); }));
+function highlight(id, on) {
+    document.querySelectorAll(`#LR [data-rid="${CSS.escape(id)}"]`).forEach(n => n.classList.toggle('hl', on));
+    const tip = $('rtip'); if (!tip) return;
+    if (!on) { tip.classList.remove('on'); return; }
+    const m = RS.marks.find(x => x.r.id === id); if (!m || m.el.hidden) return;
+    const r = m.r;
+    tip.innerHTML = `<b>${r.rank} · ${esc(r.title)}</b>Impact ${r.impact} · effort ${r.effort} · ${r.customers.length} customer${r.customers.length === 1 ? '' : 's'}${r.owner ? ' · ' + esc(r.owner) : ''}<i>Enter opens it. Arrow keys move to the next mark.</i>`;
+    tip.style.left = Math.max(60, Math.min(m.tx + 24, 720 - 330)) + 'px'; tip.style.top = Math.max(34, m.ty - 100) + 'px'; tip.classList.add('on');
+}
+$('LR').addEventListener('keydown', e => {
+    if (!e.target.closest('#rlistbox')) {
+        if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && e.target.closest('#rcards')) {
+            const cs = [...document.querySelectorAll('#rcards .rcard')], i = cs.indexOf(document.activeElement); if (i < 0) return;
+            e.preventDefault(); cs[(i + (e.key === 'ArrowDown' ? 1 : cs.length - 1)) % cs.length].focus();
+        }
+        return;
+    }
+    const shown = RS.marks.filter(m => !m.el.hidden); if (!shown.length) return;
+    const cur = shown.find(m => m.el === document.activeElement) || shown[0], order = shown.slice().sort((a, b) => a.r.rank - b.r.rank);
+    let next = null;
+    const dir = { ArrowRight: [1, 0], ArrowLeft: [-1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+    if (dir) {
+        let best = 1e9;
+        for (const m of shown) {
+            if (m === cur) continue;
+            const dx = m.tx - cur.tx, dy = m.ty - cur.ty, along = dx * dir[0] + dy * dir[1];
+            if (along <= 2) continue;
+            const d = along + Math.abs(dx * dir[1] + dy * dir[0]) * 2;
+            if (d < best) { best = d; next = m; }
+        }
+        if (!next) { const i = order.indexOf(cur); next = order[(i + (dir[0] + dir[1] > 0 ? 1 : order.length - 1)) % order.length]; }
+    } else if (e.key === 'Home') next = order[0];
+    else if (e.key === 'End') next = order[order.length - 1];
+    else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openRec(cur.r.id, cur.el); return; }
+    if (next) { e.preventDefault(); e.stopPropagation(); shown.forEach(m => { m.el.tabIndex = -1; }); next.el.tabIndex = 0; next.el.focus(); }
+});
+$('rpanel').addEventListener('click', e => {
+    const hit = sel => e.target.closest(sel);
+    let x;
+    if (hit('#rp-close')) return closeRec();
+    if ((x = hit('[data-rafter]'))) return toggleAfter(x.dataset.rafter === '1');
+    if (hit('[data-rcf]')) { RS.cf = !RS.cf; RS.after = false; render(); if (RS.cf) setTimeout(() => toggleAfter(true), still() ? 0 : 120); const c = $('rp-close'); if (c) c.focus({ preventScroll: true }); return; }
+    if ((x = hit('[data-rgo]'))) return goTo(x.dataset.rgo, x.dataset);
+    if ((x = hit('[data-ract]'))) {
+        const v = viewer(), id = RS.open;
+        if (x.dataset.ract === 'dossier') v.dossier = v.dossier.includes(id) ? v.dossier.filter(y => y !== id) : [...v.dossier, id];
+        else v.status[id] = v.status[id] === 'accepted' ? undefined : 'accepted';
+        keep(v); render(); const again = document.querySelector(`#rpanel [data-ract="${x.dataset.ract}"]`); if (again) again.focus({ preventScroll: true });
+    }
+});
+$('rpanel').addEventListener('change', e => {
+    if (e.target.id !== 'rp-reason') return;
+    const v = viewer(); v.status[RS.open] = e.target.value ? 'dismissed: ' + e.target.value.toLowerCase() : undefined; keep(v); render();
+    const s = $('rp-reason'); if (s) s.focus({ preventScroll: true });
+});
+/** Keys of the tab: Escape closes the panel (or the before and after) and gives the focus back; T toggles before and after */
+function recKey(e) {
+    if (xdlgOpen()) return xKey(e);
+    if (!st.recs) return false;
+    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
+    if (e.key === 'Escape') { e.preventDefault(); if (RS.cf) { RS.cf = false; RS.after = false; render(); const c = $('rp-close'); if (c) c.focus(); } else closeRec(); return true; }
+    if ((e.key === 't' || e.key === 'T') && RS.open && !typing && !e.ctrlKey && !e.metaKey) {
+        const r = recById(RS.open);
+        if (r && r.detail && r.effect.method === 'replay' && !RS.cf) { RS.cf = true; RS.after = false; render(); setTimeout(() => toggleAfter(true), still() ? 0 : 60); }
+        else toggleAfter();
+        e.preventDefault(); return true;
+    }
+    return true;                                                   // the arrows of the story do not move behind the tab
+}
+
+/** The heights and the tab, from the bar: down into the thing in view, up as Escape goes */
+function gotoLevel(lv) {
+    if (lv === 'recs') { if (!st.recs) { st.recs = true; RS.open = null; RS.cf = false; render(); } return; }
+    const was = st.recs; st.recs = false; RS.open = null; RS.cf = false;
+    const from = LEVELS.indexOf(st.level), to = LEVELS.indexOf(lv);
+    if (to === from) return render();
+    if (to < from) return was ? set({ level: lv }) : goLevel(lv);
+    if (lv === 'journey') return openJourney(st.j);
+    if (lv === 'story') return openStory(st.j, st.i);
+    if (lv === 'run') { if (!I().runs.length) return render(); return st.level === 'story' ? openRun(Math.min(st.r, I().runs.length - 1)) : set({ level: 'run', r: Math.min(st.r, I().runs.length - 1), ic: 0 }); }
+}
+
+// ---------------------------------------------------------------- the export dialog (design board ExportDialog)
+// In the browser it makes the HTML edition directly, offered as a link; the PDF and the DOCX come from the command line.
+let lastBrand = null, xOpener = null, xUrl = null;
+const xdlgOpen = () => !$('xdlg').hidden;
+const SECTIONS = [['summary', 'Summary', '1 p.'], ['glance', 'The journey at a glance', '1 p.'], ['voices', 'In their own words', '4 p.'], ['work', 'The work behind the journey', '1 p.'], ['analysis', 'Analysis', '2 p.'], ['recs', 'Recommendations', '1 p.'], ['appendix', 'Compliance and evidence', '1 p.'], ['glossary', 'Glossary, method, sources', '1 p.']];
+function openExport(from) {
+    xOpener = from || $('b-export');
+    const x = $('xdlg'), j = J(), inst = j ? j.instances : [];
+    const canBuild = !!(RECORD && window.AWA_DOSSIER && window.AWA_DOSSIER_HTML);
+    x.innerHTML = `<div class="dlg" role="dialog" aria-modal="true" aria-labelledby="xd-h" aria-describedby="xd-d">
+      <div class="dh"><h2 id="xd-h">Export the dossier</h2><span id="xd-d">one document of the journeys, the work and what to change</span><span style="flex:1"></span><button type="button" class="px" id="xd-x" aria-label="Close the dialog"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></button></div>
+      <div class="db"><div>
+        <fieldset><legend>Audience</legend><div class="xseg"><label><input type="radio" name="xaud" value="client">Client</label><label><input type="radio" name="xaud" value="professional" checked>Professional</label></div>
+          <p class="dhint" id="xd-aud">Professional: with internal cost, the agents’ internals (models, contracts, guardrails) and every customer. A client edition leaves those out and keeps one customer’s journey.</p></fieldset>
+        <fieldset><legend>Scope</legend><div class="two">
+          <label><span class="vh" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Journey</span><select id="xd-j">${S.journeys.map((jj, k) => `<option value="${k}"${k === st.j ? ' selected' : ''}>Journey: ${esc(jj.name)}</option>`).join('')}</select></label>
+          <label><span class="vh" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Customers</span><select id="xd-c"><option value="">Customers: all ${inst.length}</option>${inst.map(c => `<option value="${esc(c.id)}">${esc(c.name)} only</option>`).join('')}</select></label>
+          <span class="rsel" style="display:flex;align-items:center;font-size:14px;color:var(--soft)">Period: ${esc(periodText())}</span>
+          <span class="rsel" style="display:flex;align-items:center;font-size:14px;color:var(--soft)">Workflows: all ${S.workflows.length}</span></div></fieldset>
+        <fieldset><legend>Sections</legend><div class="secs">${SECTIONS.map(([id, name, pp]) => `<label><input type="checkbox" data-xsec="${id}" checked>${esc(name)} <span style="margin-left:auto;color:var(--mute)">${pp}</span></label>`).join('')}</div></fieldset>
+        <div class="three">
+          <fieldset><legend>Brand</legend><select id="xd-b"><option value="view">${esc(lastBrand ? lastBrand.name || 'This brand' : 'AWA (default)')}</option>${lastBrand ? '<option value="awa">AWA</option>' : ''}</select></fieldset>
+          <fieldset><legend>Language</legend><select id="xd-l"><option>English</option></select></fieldset>
+          <fieldset><legend>Format</legend><div class="fmt"><label><input type="checkbox" data-xfmt="html" checked>HTML</label><label><input type="checkbox" data-xfmt="pdf" checked>PDF</label><label><input type="checkbox" data-xfmt="docx" checked>DOCX</label></div></fieldset>
+        </div>
+        <fieldset><legend>Personas</legend><p class="dhint" id="xd-p" style="margin:0">The narrator picks the most different journeys: one that went the whole way, and one that is stuck. The journey’s options can name others (dossier.personas).</p></fieldset>
+      </div><div>
+        <span class="xlg" id="xd-prev">Preview</span><div class="pages" id="xd-pages" aria-hidden="true"></div>
+        <span class="xlg" style="margin-top:16px">Accessibility check, before export</span><ul class="a11y" id="xd-a11y"></ul>
+        <div class="res" id="xd-res" hidden role="status"></div>
+      </div></div>
+      <div class="df"><p>A person approves before the dossier is issued (separation of duties: not the one who exported it).</p><button type="button" class="ebtn" id="xd-cancel">Cancel</button><button type="button" class="ebtn pri" id="xd-go"${canBuild ? '' : ' aria-describedby="xd-why"'}>Export and ask for approval</button></div>
+    </div>`;
+    x.hidden = false;
+    xPreview();
+    $('xd-x').focus({ preventScroll: true });
+}
+function xSettings() {
+    const aud = (document.querySelector('#xdlg input[name="xaud"]:checked') || {}).value || 'professional';
+    const pick = $('xd-c').value, jj = S.journeys[+$('xd-j').value] || J();
+    const customer = aud === 'client' ? (pick || (jj.instances[0] || {}).id) : null;
+    return { edition: aud, customer, journey: +$('xd-j').value, sections: [...document.querySelectorAll('#xdlg [data-xsec]:checked')].map(c => c.dataset.xsec), formats: [...document.querySelectorAll('#xdlg [data-xfmt]:checked')].map(c => c.dataset.xfmt), brand: $('xd-b').value };
+}
+/** The dossier as the settings say: its model, or null when the view holds no record */
+function xModel(s) {
+    if (!RECORD || !window.AWA_DOSSIER) return null;
+    const jk = RECORD.journeys.findIndex(x => x.definition.name === S.journeys[s.journey].name);
+    return window.AWA_DOSSIER.build(RECORD, OPTIONS, { edition: s.edition, customer: s.customer, journey: Math.max(0, jk), recommendations: RECS || undefined, source: query.get('data') || $('source').textContent || null });
+}
+function xPreview() {
+    const s = xSettings();
+    $('xd-aud').textContent = s.edition === 'client' ? 'Client: one customer’s own journey, in their words; no internal cost, no agents’ internals, no other customer.' : 'Professional: with internal cost, the agents’ internals (models, contracts, guardrails) and every customer. A client edition leaves those out and keeps one customer’s journey.';
+    let m = null, problem = '';
+    try { m = xModel(s); } catch (error) { problem = error.message; }
+    const pages = s.edition === 'client' ? ['n', 'p', 'n', 'p', 'p', 'p', 'p'] : ['n', 'p', 'p', 'p', 'n', 'p', 'n', 'p', 'p', 'p', 'p', 'p', 'p', 'p'];
+    $('xd-prev').textContent = `Preview · ${pages.length} pages${m ? `, ${m.personas.map(p => p.name).join(' and ')}` : ''}`;
+    $('xd-pages').innerHTML = pages.map(k => `<span class="pg${k === 'n' ? ' n' : ''}"><i></i><u></u><s></s></span>`).join('');
+    if (m) $('xd-p').textContent = `${m.personas.map(p => p.name).join(' and ')}: chosen by the narrator (${m.personas.map(p => p.role).join('; ')}). The journey’s options can name others (dossier.personas).`;
+    const D = window.AWA_DOSSIER, theme = D ? D.theme(s.brand === 'view' ? lastBrand : null) : null;
+    const pair = theme ? Math.min(D.contrast(theme.ink3, theme.paper), D.contrast(theme.wait, theme.paper), D.contrast(theme.accent, theme.paper)).toFixed(2) : '';
+    const checks = m ? [
+        ['Headings in order', `${m.contents.length} chapters, no level skipped`],
+        ['Figures with alternatives', 'every chart has alt text, a summary and its table'],
+        ['Tables with headers', 'header cells with scope; header rows repeat in the PDF and the DOCX'],
+        ['Contrast', `lowest text pair ${pair}:1 on paper`],
+        ['Language and title', `en · “${m.meta.title}”`],
+        ['Reading order', `references follow their sentence (${m.stats.sentences} sentences, ${m.stats.references} references)`],
+    ] : [];
+    $('xd-a11y').innerHTML = checks.map(([a, b]) => `<li><span aria-hidden="true">✓</span><span>${esc(a)}</span><span>${esc(b)}</span></li>`).join('') + (m ? '' : `<li><span aria-hidden="true">!</span><span>No record here</span><span id="xd-why">${esc(problem || 'This view was given a prepared story, not its record. Make the dossier from the record with the command line.')}</span></li>`);
+}
+function xCommands(s) {
+    const data = query.get('data') || '<journeys.json>', opts = query.get('options');
+    const args = `--edition ${s.edition}${s.customer ? ` --customer ${s.customer}` : ''}`;
+    const other = s.formats.filter(f => f !== 'html').join(',') || 'pdf,docx';
+    return [`awa dossier --file ${data}${opts ? ` --options ${opts}` : ''} ${args} --format ${other} --out dossier`, `node tools/dossier/dossier.mjs --record ${data}${opts ? ` --options ${opts}` : ''} ${args} --format ${other} --out dossier`];
+}
+function xExport() {
+    const s = xSettings(), res = $('xd-res');
+    let m = null;
+    try { m = xModel(s); } catch (error) { res.hidden = false; res.textContent = `The dossier could not be made: ${error.message}`; return; }
+    const cmds = xCommands(s);
+    if (xUrl) { try { URL.revokeObjectURL(xUrl); } catch { /* nothing to free */ } xUrl = null; }
+    let link = '';
+    if (m && s.formats.includes('html')) {
+        const html = window.AWA_DOSSIER_HTML.render(m, { theme: window.AWA_DOSSIER.theme(s.brand === 'view' && lastBrand && !/^https?:/.test(lastBrand.logo || '') ? lastBrand : (s.brand === 'view' && lastBrand ? { ...lastBrand, logo: '' } : null)), sections: s.sections });
+        try { xUrl = URL.createObjectURL(new Blob([html], { type: 'text/html' })); } catch { xUrl = null; }
+        const name = `${m.meta.journey.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.${m.edition}.html`;
+        link = xUrl ? `<p style="margin:8px 0 0"><a href="${xUrl}" download="${esc(name)}" target="_blank" rel="noopener" id="xd-link">Open the HTML edition</a> · ${esc(name)}, ${(html.length / 1024).toFixed(0)} kB, one file that works offline</p>` : '<p>This page cannot offer a file here. Use the command below.</p>';
+        window.AWA_last_dossier = html;                                    // for tests and for a page that embeds the view
+    }
+    res.hidden = false;
+    res.innerHTML = `<b>${m ? 'Made, awaiting approval' : 'Make it from the record'}</b>${link}<p style="margin:10px 0 0">PDF and DOCX, from the command line:</p><code>${esc(cmds[0])}</code><code>${esc(cmds[1])}</code><p class="dhint">The dossier workflow (tools/dossier/dossier.awa.json) has a person approve it before it is issued; its run is journalled.</p>`;
+    const l = $('xd-link'); (l || res).focus && (l || $('xd-go')).focus({ preventScroll: true });
+}
+function closeExport() { const x = $('xdlg'); if (x.hidden) return; x.hidden = true; x.innerHTML = ''; if (xOpener && xOpener.isConnected) xOpener.focus({ preventScroll: true }); xOpener = null; }
+/** The dialog's keys: Escape closes it, Tab stays inside it */
+function xKey(e) {
+    if (e.key === 'Escape') { e.preventDefault(); closeExport(); return true; }
+    if (e.key === 'Tab') {
+        const stops = [...$('xdlg').querySelectorAll('button, input, select, a[href]')].filter(n => !n.disabled && n.offsetParent !== null);
+        if (!stops.length) return true;
+        const i = stops.indexOf(document.activeElement);
+        if (e.shiftKey && i <= 0) { e.preventDefault(); stops[stops.length - 1].focus(); }
+        else if (!e.shiftKey && (i === stops.length - 1 || i < 0)) { e.preventDefault(); stops[0].focus(); }
+        return true;
+    }
+    return true;                                                   // nothing behind the dialog moves
+}
+$('xdlg').addEventListener('click', e => {
+    if (e.target === $('xdlg') || e.target.closest('#xd-x') || e.target.closest('#xd-cancel')) return closeExport();
+    if (e.target.closest('#xd-go')) return xExport();
+});
+$('xdlg').addEventListener('change', () => { xPreview(); $('xd-res').hidden = true; });
+window.AWA_export = { open: openExport, close: closeExport, export: () => xExport() };
 })();
 </script>
 </body>

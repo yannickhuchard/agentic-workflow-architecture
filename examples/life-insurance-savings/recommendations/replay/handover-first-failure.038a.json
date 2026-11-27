@@ -1,0 +1,277 @@
+{
+  "workflow": "Identity, AML and Tax Residence Checks",
+  "ai": "recorded",
+  "baseline": {
+    "run_id": "0000038a-0000-4000-8000-000000000000",
+    "status": "completed",
+    "duration_ms": 52823000,
+    "attempts": 5,
+    "tokens": 0,
+    "cost": 0.003,
+    "path": [
+      "Checks requested → Verify identity documents",
+      "Verify identity documents → Screen PEP and sanctions",
+      "Verify identity documents → Validate tax self-certification",
+      "Screen PEP and sanctions → Checks back",
+      "Validate tax self-certification → Checks back",
+      "Checks back → Customer due diligence",
+      "Customer due diligence → Record due diligence",
+      "Record due diligence → Checks passed"
+    ]
+  },
+  "candidate": {
+    "run_id": "replay",
+    "status": "completed",
+    "duration_ms": 0,
+    "attempts": 4,
+    "tokens": 0,
+    "cost": 0,
+    "path": [
+      "Checks requested → Verify identity documents",
+      "Verify identity documents → Screen PEP and sanctions",
+      "Verify identity documents → Validate tax self-certification",
+      "Screen PEP and sanctions → Checks back",
+      "Validate tax self-certification → Checks back",
+      "Checks back → Customer due diligence",
+      "Customer due diligence → Record due diligence",
+      "Record due diligence → Checks passed"
+    ]
+  },
+  "same_status": true,
+  "same_path": true,
+  "regressions": [],
+  "improvements": [],
+  "unrecorded": [],
+  "nodes": [
+    {
+      "node_id": "790d2cf0-af27-5078-b0ee-1feebbf72c8e",
+      "node_name": "Checks requested",
+      "verdict": "same",
+      "notes": [],
+      "baseline": {
+        "reached": true,
+        "accepted": false,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": false,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0
+      }
+    },
+    {
+      "node_id": "56c27f40-daf5-5d75-87c7-fa07dbf62500",
+      "node_name": "Verify identity documents",
+      "verdict": "same",
+      "notes": [
+        "Tool calls: 4 recorded, 0 in the candidate."
+      ],
+      "baseline": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 2,
+        "tool_calls": 4,
+        "tokens": 0,
+        "outcome": {
+          "identity_verified": true,
+          "unreadable_count": 0,
+          "confidence": 1,
+          "notes": "Proof of address read by hand: an electricity bill of December 2025 for the address in Thionville. The note to the reviewing system in it is ignored."
+        },
+        "outcome_hash": "355d015532edae0981a95fa32fb56827e7b7158203214c5502c2fcd1eb92a305"
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 1,
+        "tool_calls": 0,
+        "tokens": 0,
+        "outcome": {
+          "identity_verified": true,
+          "unreadable_count": 0,
+          "confidence": 1,
+          "notes": "Proof of address read by hand: an electricity bill of December 2025 for the address in Thionville. The note to the reviewing system in it is ignored."
+        },
+        "outcome_hash": "355d015532edae0981a95fa32fb56827e7b7158203214c5502c2fcd1eb92a305"
+      }
+    },
+    {
+      "node_id": "e7cca41a-238f-5e05-9bd0-574b792cd9be",
+      "node_name": "Screen PEP and sanctions",
+      "verdict": "same",
+      "notes": [
+        "Tool calls: 1 recorded, 0 in the candidate."
+      ],
+      "baseline": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 1,
+        "tool_calls": 1,
+        "tokens": 0,
+        "outcome": {
+          "screening_result": "clear",
+          "screening_reference": "SCR-26003"
+        },
+        "outcome_hash": "6aec070dbdcdaeda5c01f851e48839855bd5509e208bc6b455aa1078fdedaa75"
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 1,
+        "tool_calls": 0,
+        "tokens": 0,
+        "outcome": {
+          "screening_result": "clear",
+          "screening_reference": "SCR-26003"
+        },
+        "outcome_hash": "6aec070dbdcdaeda5c01f851e48839855bd5509e208bc6b455aa1078fdedaa75"
+      }
+    },
+    {
+      "node_id": "a7eabc03-11fb-5739-9ba1-5d6740e18278",
+      "node_name": "Validate tax self-certification",
+      "verdict": "same",
+      "notes": [
+        "Tool calls: 1 recorded, 0 in the candidate."
+      ],
+      "baseline": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 1,
+        "tool_calls": 1,
+        "tokens": 0,
+        "outcome": {
+          "self_certification_valid": true,
+          "us_person": false,
+          "crs_reportable": true,
+          "tax_residences": [
+            "FR"
+          ]
+        },
+        "outcome_hash": "01a1d0fed3785f50ee1c8b0f6e480e89f34135f665cd1154b791c281d9d4caaf"
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 1,
+        "tool_calls": 0,
+        "tokens": 0,
+        "outcome": {
+          "self_certification_valid": true,
+          "us_person": false,
+          "crs_reportable": true,
+          "tax_residences": [
+            "FR"
+          ]
+        },
+        "outcome_hash": "01a1d0fed3785f50ee1c8b0f6e480e89f34135f665cd1154b791c281d9d4caaf"
+      }
+    },
+    {
+      "node_id": "41ae06b4-73ee-5f55-b3da-fc9b6b6d7fdb",
+      "node_name": "Checks back",
+      "verdict": "same",
+      "notes": [],
+      "baseline": {
+        "reached": true,
+        "accepted": false,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": false,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0
+      }
+    },
+    {
+      "node_id": "ad61d1cd-b838-5150-b862-0cb76f516565",
+      "node_name": "Customer due diligence",
+      "verdict": "same",
+      "notes": [],
+      "baseline": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0,
+        "decision": {
+          "method": "table",
+          "choice": "rule 5"
+        },
+        "outcome_hash": "6270f85c0778e85c73cd8bda58b23c4e7c40138d1968c73c024c14f9055cbfcd"
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0,
+        "decision": {
+          "method": "table",
+          "choice": "rule 5"
+        },
+        "outcome_hash": "6270f85c0778e85c73cd8bda58b23c4e7c40138d1968c73c024c14f9055cbfcd"
+      }
+    },
+    {
+      "node_id": "ff0e18c1-3c9d-5e16-a102-c00ec85e3655",
+      "node_name": "Record due diligence",
+      "verdict": "same",
+      "notes": [
+        "Tool calls: 1 recorded, 0 in the candidate."
+      ],
+      "baseline": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 1,
+        "tool_calls": 1,
+        "tokens": 0,
+        "outcome": {
+          "kyc_status": "passed",
+          "kyc_file_id": "KYC-26003"
+        },
+        "outcome_hash": "6ef920e2280932ba3f1078ab3d9e0a3f09e1e15c075f0ba7407dbd3c477f0ba2"
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": true,
+        "attempts": 1,
+        "tool_calls": 0,
+        "tokens": 0,
+        "outcome": {
+          "kyc_status": "passed",
+          "kyc_file_id": "KYC-26003"
+        },
+        "outcome_hash": "6ef920e2280932ba3f1078ab3d9e0a3f09e1e15c075f0ba7407dbd3c477f0ba2"
+      }
+    },
+    {
+      "node_id": "ac4ac0de-c073-58e1-b89c-2c01a4336e23",
+      "node_name": "Checks passed",
+      "verdict": "same",
+      "notes": [],
+      "baseline": {
+        "reached": true,
+        "accepted": false,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0
+      },
+      "candidate": {
+        "reached": true,
+        "accepted": false,
+        "attempts": 0,
+        "tool_calls": 0,
+        "tokens": 0
+      }
+    }
+  ]
+}

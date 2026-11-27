@@ -148,6 +148,10 @@ jobs:
         working-directory: sdk/typescript
       - run: node tools/visualization/dashboard.check.mjs
       - run: node examples/claims-journey/persona-walkthrough.mjs
+      - name: Recommendation replays are up to date
+        run: node tools/visualization/recommendation-replay.mjs && git diff --exit-code examples/electricity-onboarding/recommendations examples/life-insurance-savings/recommendations
+      - name: Dossiers of the examples (HTML, PDF, DOCX) are accessible and well formed
+        run: npm ci --no-audit --no-fund --prefix tools/dossier && node tools/dossier/dossier.check.mjs
 
   mcp-server:
     name: MCP server, widgets and plugin package

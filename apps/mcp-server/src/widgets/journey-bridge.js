@@ -20,7 +20,7 @@
         story = awa.story;
         // The view reads its place from the address when it is shown a record. A new result starts at the top, not where the last one was left.
         try { if (location.hash) location.replace('#'); } catch (ignored) { /* an address that cannot be changed carries no place */ }
-        try { window.AWA_show(story, typeof awa.source === 'string' ? awa.source : 'simulated', false, true); }
+        try { window.AWA_show(story, typeof awa.source === 'string' ? awa.source : 'simulated', false, true, { recommendations: awa.recommendations && typeof awa.recommendations === 'object' ? awa.recommendations : null }); }
         catch (error) { story = null; say('These journeys could not be shown: ' + error.message); }
     }
 
