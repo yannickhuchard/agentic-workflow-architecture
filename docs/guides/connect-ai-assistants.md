@@ -322,7 +322,7 @@ ChatGPT, claude.ai and Le Chat need a public HTTPS address. A tunnel lends one t
    On Windows PowerShell: `$env:AWA_MCP_PUBLIC_URL="https://<your tunnel host>/mcp"; npm start`.
 
    It prints `AWA MCP server serving https://<your tunnel host>/mcp`. The server still listens on your computer only; it now also answers requests addressed to the tunnel's host name.
-3. Check from a browser: `https://<your tunnel host>/healthz` answers `{"status":"ok","server":"awa-mcp-server","version":"0.1.0","mode":"public"}`.
+3. Check from a browser: `https://<your tunnel host>/health` answers `{"status":"ok","server":"awa-mcp-server","version":"0.1.0","mode":"public"}`.
 4. Give the assistant `https://<your tunnel host>/mcp`.
 
 Anyone who knows the address can call the tools while the tunnel runs. They only simulate and store nothing, but stop the tunnel when you are done.

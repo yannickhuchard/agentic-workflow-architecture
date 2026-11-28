@@ -97,7 +97,7 @@ The HTTP entry point ([`src/http.js`](src/http.js)):
 - answers only requests whose `Host` header is a loopback name (in public mode: the configured host names). This stops DNS rebinding;
 - refuses any request with an `Origin` that was not allowed by name. This stops a web page from calling the server;
 - reads at most 1 MB of body, declared or streamed, and answers 413 beyond;
-- answers `POST /mcp`, `GET /healthz` and, if configured, the domain-verification token; everything else is 404 or 405;
+- answers `POST /mcp`, `GET /health` (also `/healthz`, which Cloud Run keeps for itself) and, if configured, the domain-verification token; everything else is 404 or 405;
 - sends `Cache-Control: no-store` and `X-Content-Type-Options: nosniff`;
 - creates a new server object for each request and keeps no session.
 

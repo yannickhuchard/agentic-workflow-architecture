@@ -4,7 +4,7 @@
     "cleanUrls": true,
     "rewrites": [
       { "source": "/mcp", "run": { "serviceId": "awa-mcp", "region": "europe-west1" } },
-      { "source": "/healthz", "run": { "serviceId": "awa-mcp", "region": "europe-west1" } }
+      { "source": "/health", "run": { "serviceId": "awa-mcp", "region": "europe-west1" } }
     ],
     "headers": [
       { "source": "/mcp", "headers": [{ "key": "Cache-Control", "value": "no-store" }] }

@@ -81,3 +81,6 @@ sdk/python/awa.db
 # Written by the test suites
 sdk/python/test_awa_server.db
 sdk/python/pytest_output.txt
+
+# Firebase CLI cache
+.firebase/

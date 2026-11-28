@@ -51,7 +51,7 @@ The views appear only in clients that support MCP Apps. Elsewhere the tools answ
 ## 4. What only the publisher can do
 
 1. **Host the server** at a stable public HTTPS address ending in `/mcp`. Set `AWA_MCP_HOST=0.0.0.0`, `AWA_MCP_PUBLIC_URL=https://<host>/mcp` and, if the platform reaches the container under its own domain, `AWA_MCP_ALLOWED_HOSTS`. The address cannot be changed after publication without contacting support. Put a rate limit in front of it: the server has no authentication because it holds no data.
-2. **Check the deployment**: `GET /healthz` answers `{"status":"ok",…,"mode":"public"}`; then connect an MCP client and call `load_claims_example`.
+2. **Check the deployment**: `GET /health` answers `{"status":"ok",…,"mode":"public"}`; then connect an MCP client and call `load_claims_example`.
 3. **Developer account and identity**: complete individual or business verification in the OpenAI organisation settings.
 4. **Domain verification**: the portal shows a challenge token and the address where it must be served as plain text. Set `AWA_MCP_OPENAI_CHALLENGE=<token>`: the server then serves it at `/.well-known/openai-apps-challenge`. If the portal names another path, serve it from the hosting layer.
 5. **Record the walkthrough** of the five positive cases and host the recording.
