@@ -1,9 +1,8 @@
 {
   "mcpServers": {
     "awa": {
-      "command": "node",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/server/start.mjs"],
-      "env": { "AWA_REPOSITORY": "${user_config.repository}" }
+      "type": "http",
+      "url": "https://agentic-workflow-architecture.web.app/mcp"
     }
   }
 }

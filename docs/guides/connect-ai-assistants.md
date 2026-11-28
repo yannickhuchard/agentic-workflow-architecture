@@ -2,7 +2,7 @@
 
 The AWA plugin lets an AI assistant validate, show and simulate [Agentic Workflow Architecture](../../README.md) workflows and customer journeys. It works with Claude (Claude Code, Claude Desktop, claude.ai), ChatGPT (and Codex), Mistral (Le Chat and Mistral Vibe), Cursor and Gemini CLI, and with any other MCP client.
 
-Every package connects the same AWA MCP server ([`apps/mcp-server`](../../apps/mcp-server)). Today the server runs on your own computer: the assistant starts it from your clone of this repository, or reaches it through a tunnel. When the server is hosted, one command points every package at its public address (see [Switch to the hosted address](#switch-to-the-hosted-address)).
+Every package connects the same AWA MCP server ([`apps/mcp-server`](../../apps/mcp-server)). It is hosted at **`https://agentic-workflow-architecture.web.app/mcp`**, with no account or key: the plugins connect to it, and cloud assistants add it as a connector. You can still run it on your own computer from a clone of this repository (see [Before you start](#before-you-start)).
 
 ## What you get
 
@@ -29,16 +29,16 @@ The plugin for coding assistants, [`plugins/awa-code`](../../plugins/awa-code), 
 
 ## Which assistant, which way
 
-| Assistant | Package | Works today | What it needs today | After hosting |
-|---|---|---|---|---|
-| Claude Code | Plugin from this repository's marketplace | Yes | A built clone | No clone needed |
-| Claude Desktop | MCP Bundle (`.mcpb`), or the configuration file | Yes | A built clone (the bundle is built from it) | Add the hosted address as a connector, or keep the bundle |
-| claude.ai (web, mobile) | Custom connector | Yes, with a tunnel | A built clone, a tunnel | Paste the hosted address |
-| ChatGPT | Custom MCP server in developer mode | Yes, with a tunnel | A built clone, a tunnel | Paste the hosted address; later, the plugin directory |
-| Codex, ChatGPT desktop app | Local marketplace, or `codex mcp add` | Yes | A built clone (and a tunnel for the marketplace plugin) | The marketplace plugin points at the hosted address |
-| Le Chat (Mistral) | Custom MCP connector | Yes, with a tunnel | A built clone, a tunnel, admin rights in Le Chat | Paste the hosted address |
-| Mistral Vibe | `vibe mcp add`, or the plugin folder | Yes | A built clone | No clone needed |
-| Cursor | Project configuration, Add to Cursor link, or the plugin | Yes | A built clone | No clone needed; the plugin can go to the Cursor Marketplace |
+| Assistant | Package | With the hosted server | To run it on your computer instead |
+|---|---|---|---|
+| Claude Code | Plugin from this repository's marketplace | Nothing to set up | `claude mcp add` with a built clone |
+| Claude Desktop | A connector, the MCP Bundle (`.mcpb`), or the configuration file | Add the hosted address as a connector | The bundle or the configuration file, from a built clone |
+| claude.ai (web, mobile) | Custom connector | Paste the hosted address | A built clone and a tunnel |
+| ChatGPT | Custom MCP server in developer mode | Paste the hosted address; later, the plugin directory | A built clone and a tunnel |
+| Codex, ChatGPT desktop app | Local marketplace, or `codex mcp add` | The marketplace plugin points at the hosted address | `codex mcp add` with a built clone |
+| Le Chat (Mistral) | Custom MCP connector | Paste the hosted address (admin rights in Le Chat) | A built clone and a tunnel |
+| Mistral Vibe | `vibe mcp add`, or the plugin folder | The plugin folder points at the hosted address | `vibe mcp add` with a built clone |
+| Cursor | The plugin, Add to Cursor link, or project configuration | The plugin points at the hosted address; it can go to the Cursor Marketplace | The link or the project configuration, with a built clone |
 | Gemini CLI | Extension | Yes | A built clone | No clone needed |
 
 A tunnel gives the server on your computer a temporary public HTTPS address. Assistants that run in the cloud (ChatGPT, claude.ai, Le Chat) need one, because they cannot reach your computer directly.
@@ -73,13 +73,13 @@ After `git pull`, run step 2 again, then restart the assistant or reconnect the 
 
 ## Claude Code
 
-The repository is a Claude Code plugin marketplace ([`.claude-plugin/marketplace.json`](../../.claude-plugin/marketplace.json)) named `agentic-workflow-architecture`, with one plugin, `awa`.
+The repository is a Claude Code plugin marketplace ([`.claude-plugin/marketplace.json`](../../.claude-plugin/marketplace.json)) named `agentic-workflow-architecture`, with one plugin, `awa`. The plugin connects to the hosted server: no clone is needed.
 
 1. Start Claude Code anywhere.
-2. Add the marketplace from your clone:
+2. Add the marketplace from GitHub:
 
    ```text
-   /plugin marketplace add ~/agentic-workflow-architecture
+   /plugin marketplace add yannickhuchard/agentic-workflow-architecture
    ```
 
 3. Install the plugin:
@@ -88,19 +88,17 @@ The repository is a Claude Code plugin marketplace ([`.claude-plugin/marketplace
    /plugin install awa@agentic-workflow-architecture
    ```
 
-   Claude Code may show a dialog for the option **AWA repository folder**. Leave it empty: a marketplace added from a folder loads the plugin where it lies, and the plugin finds the repository around it.
 4. Run `/reload-plugins`, or start a new session.
 5. Run `/mcp`. You should see `plugin:awa:awa` connected, with 8 tools.
 6. Try it: `/awa:example` opens the claims example and its dashboard; `/awa:validate path/to/workflow.awa.json` checks a file of yours; `/awa:show` and `/awa:simulate` show and simulate a workflow. You can also simply ask, for example "Validate examples/claims-settlement/claims-settlement.awa.json".
 
-**From GitHub instead of your clone.** `/plugin marketplace add yannickhuchard/agentic-workflow-architecture` works too, once this plugin is on the repository's main branch. Claude Code then copies the plugin into its cache, away from your clone, so give the clone's folder when the dialog asks for **AWA repository folder** (or later with `/plugin`, the AWA plugin, **Configure**). In one step, on recent versions of Claude Code: `/plugin install awa --marketplace yannickhuchard/agentic-workflow-architecture`. From the shell: `claude plugin install awa@agentic-workflow-architecture --config repository=$HOME/agentic-workflow-architecture`.
+**From your clone.** `/plugin marketplace add ~/agentic-workflow-architecture` adds the same marketplace from a folder; the plugin still connects to the hosted server.
 
-**Only the server, without the plugin.** `claude mcp add awa -- node ~/agentic-workflow-architecture/plugins/awa-code/server/start.mjs`
+**Only the server, without the plugin.** The hosted one: `claude mcp add --transport http awa https://agentic-workflow-architecture.web.app/mcp`. On your own computer, from a built clone: `claude mcp add awa -- node ~/agentic-workflow-architecture/plugins/awa-code/server/start.mjs`.
 
 **Troubleshooting**
 
-- `/mcp` shows the server failed: run the check in step 3 of [Before you start](#before-you-start); its message says what is missing.
-- "the AWA repository was not found": set **AWA repository folder** with `/plugin`, the AWA plugin, **Configure**, then `/reload-plugins`.
+- `/mcp` shows the server failed: check that `https://agentic-workflow-architecture.web.app/health` answers `{"status":"ok",…}` in a browser, and that your network lets Claude Code reach that host.
 - The commands do not appear: run `/plugin`, open the **Errors** tab.
 
 ## Claude Desktop
@@ -153,15 +151,14 @@ Claude Desktop also shows the custom connectors of your claude.ai account: follo
 
 ## claude.ai (web and mobile)
 
-claude.ai reaches servers from Anthropic's cloud, so today it needs a tunnel to the server on your computer. Custom connectors are available on every plan (one on the Free plan); on Team and Enterprise plans an owner adds them.
+claude.ai reaches servers from Anthropic's cloud, so it uses the hosted server. Custom connectors are available on every plan (one on the Free plan); on Team and Enterprise plans an owner adds them.
 
-1. [Open a tunnel and start the server in public mode](#open-a-tunnel). Keep both running.
-2. On claude.ai open **Settings**, **Connectors**, then **Add custom connector**.
-3. Name it `AWA`, paste `https://<your tunnel host>/mcp`, and select **Add**. The server needs no authentication.
-4. In a conversation, select **+**, **Connectors**, and turn **AWA** on.
-5. Ask: "Load the AWA claims example and show its dashboard." The journey view and the dashboard open in the conversation.
+1. On claude.ai open **Settings**, **Connectors**, then **Add custom connector**.
+2. Name it `AWA`, paste `https://agentic-workflow-architecture.web.app/mcp`, and select **Add**. The server needs no authentication.
+3. In a conversation, select **+**, **Connectors**, and turn **AWA** on.
+4. Ask: "Load the AWA claims example and show its dashboard." The journey view and the dashboard open in the conversation.
 
-The tunnel address changes each time you restart a free tunnel: remove the connector and add it again with the new address. After hosting, add the hosted address once.
+To use a server on your own computer instead, [open a tunnel and start the server in public mode](#open-a-tunnel), and paste `https://<your tunnel host>/mcp`. A free tunnel's address changes each time you restart it: remove the connector and add it again with the new address.
 
 ## ChatGPT
 
@@ -267,10 +264,10 @@ If your clone is elsewhere, make links for your path: `node ~/agentic-workflow-a
    ln -s ~/agentic-workflow-architecture/plugins/awa-code ~/.cursor/plugins/local/awa
    ```
 
-2. Reload Cursor. When it asks for **AWA repository folder**, give the absolute path of your clone.
+2. Reload Cursor. The plugin's server is the hosted one: there is nothing to configure.
 3. Check in **Cursor Settings** that the plugin and its `awa` server are on.
 
-**Cursor Marketplace (later).** Cursor reviews every plugin by hand before listing it. Once the server is hosted (so that the plugin needs no clone), submit the repository at [cursor.com/marketplace/publish](https://cursor.com/marketplace/publish): it reads `.cursor-plugin/marketplace.json` and the plugin's manifest.
+**Cursor Marketplace.** Cursor reviews every plugin by hand before listing it. Now that the server is hosted and the plugin needs no clone, submit the repository at [cursor.com/marketplace/publish](https://cursor.com/marketplace/publish): it reads `.cursor-plugin/marketplace.json` and the plugin's manifest.
 
 ## Gemini CLI
 
@@ -282,7 +279,7 @@ If your clone is elsewhere, make links for your path: `node ~/agentic-workflow-a
    gemini extensions link ~/agentic-workflow-architecture/plugins/awa-code
    ```
 
-   With `gemini extensions install ~/agentic-workflow-architecture/plugins/awa-code` instead, Gemini CLI keeps a copy: give your clone's folder when it asks for **AWA repository folder** (or later with `gemini extensions config awa`).
+   `gemini extensions install ~/agentic-workflow-architecture/plugins/awa-code` works too: Gemini CLI then keeps a copy. Either way the extension connects to the hosted server.
 2. Start `gemini` and run `/mcp`: the `awa` server is listed with 8 tools.
 3. Ask: "Validate examples/claims-settlement/claims-settlement.awa.json with the AWA tools."
 

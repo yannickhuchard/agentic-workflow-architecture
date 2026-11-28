@@ -1,10 +1,7 @@
 {
   "mcpServers": {
     "awa": {
-      "type": "stdio",
-      "command": "node",
-      "args": ["${AWA_REPOSITORY}/plugins/awa-code/server/start.mjs"],
-      "env": { "AWA_REPOSITORY": "${AWA_REPOSITORY}" }
+      "url": "https://agentic-workflow-architecture.web.app/mcp"
     }
   }
 }
