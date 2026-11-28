@@ -1,0 +1,95 @@
+name: Deploy the MCP server
+
+# Builds the AWA MCP server image, runs it on Cloud Run and serves it at
+# https://agentic-workflow-architecture.web.app/mcp through Firebase Hosting.
+# Google Cloud is reached through Workload Identity Federation: no key is stored.
+# deploy/README.md describes the one-time setup and the two repository variables.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - apps/mcp-server/**
+      - sdk/typescript/src/**
+      - sdk/typescript/package*.json
+      - tools/visualization/**
+      - examples/claims-journey/**
+      - examples/claims-settlement/**
+      - website/**
+      - firebase.json
+      - .github/workflows/deploy-mcp.yml
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-mcp
+  cancel-in-progress: false
+
+env:
+  PROJECT_ID: agentic-workflow-architecture
+  REGION: europe-west1
+  SERVICE: awa-mcp
+  REPOSITORY: awa
+  PUBLIC_URL: https://agentic-workflow-architecture.web.app/mcp
+  # Cloud Run sends an instance no more requests at once than the server accepts (AWA_MCP_MAX_CONCURRENT)
+  MAX_CONCURRENT: 8
+
+jobs:
+  deploy:
+    name: Build, run on Cloud Run, serve through Firebase Hosting
+    # Skipped until the one-time setup has given the repository its two variables
+    if: vars.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && vars.GCP_SERVICE_ACCOUNT != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sign in to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build and push the image
+        run: |
+          IMAGE="$REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE:$GITHUB_SHA"
+          gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
+          docker build -f apps/mcp-server/Dockerfile -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      - name: Run it on Cloud Run
+        run: |
+          NUMBER=$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')
+          HOSTS="$SERVICE-$NUMBER.$REGION.run.app"
+          gcloud run deploy "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --image "$IMAGE" \
+            --allow-unauthenticated --port 8080 --cpu 1 --memory 1Gi --timeout 60 \
+            --concurrency "$MAX_CONCURRENT" --min-instances 0 --max-instances 10 \
+            --set-env-vars "^@^AWA_MCP_PUBLIC_URL=$PUBLIC_URL@AWA_MCP_ALLOWED_HOSTS=$HOSTS@AWA_MCP_MAX_CONCURRENT=$MAX_CONCURRENT" --quiet
+          # The service also answers on its older address form: accept every address Cloud Run gives it
+          URLS=$(gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" \
+            --format='value(status.url,metadata.annotations["run.googleapis.com/urls"])')
+          ALL=$(echo "$URLS" | grep -oE 'https://[a-z0-9.-]+' | sed 's#https://##' | sort -u | paste -sd, -)
+          if [ -n "$ALL" ] && [ "$ALL" != "$HOSTS" ]; then
+            gcloud run services update "$SERVICE" --project "$PROJECT_ID" --region "$REGION" \
+              --update-env-vars "^@^AWA_MCP_ALLOWED_HOSTS=$ALL" --quiet
+          fi
+          echo "RUN_HOST=$HOSTS" >> "$GITHUB_ENV"
+
+      - name: Serve it through Firebase Hosting
+        run: npx --yes firebase-tools@15.35.0 deploy --only hosting --project "$PROJECT_ID" --non-interactive
+
+      - name: Check the server answers
+        run: |
+          check() {
+            curl -sS --fail -X POST "$1" -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
+              -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' > tools.json
+            node -e 'const d = JSON.parse(require("fs").readFileSync("tools.json", "utf8")); const n = d.result.tools.length; console.log(process.argv[1] + ": " + n + " tools"); if (n < 8) process.exit(1)' "$1"
+          }
+          check "https://$RUN_HOST/mcp"
+          check "$PUBLIC_URL"
+          curl -sS --fail "https://agentic-workflow-architecture.web.app/healthz"

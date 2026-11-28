@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agentic Workflow Architecture</title>
+<meta name="description" content="AWA is an open standard for business workflows in which AI agents, people, robots and applications work side by side, with customer journeys on top.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@600&display=swap">
+<style>
+:root { --bg: #0b0f19; --panel: #111827; --line: rgba(255,255,255,.1); --text: #f8fafc; --soft: #cbd5e1; --accent: #a5b4fc; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 Inter, system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 760px; margin: 0 auto; padding: 72px max(20px, env(safe-area-inset-left)) 64px; display: grid; gap: 28px; }
+.mark { font: 600 15px/1 "Space Grotesk", Inter, sans-serif; letter-spacing: .12em; color: var(--accent); }
+h1 { font: 600 clamp(32px, 6vw, 48px)/1.1 "Space Grotesk", Inter, sans-serif; margin: 0; text-wrap: balance; }
+p { margin: 0; color: var(--soft); max-width: 62ch; }
+section { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; display: grid; gap: 10px; }
+h2 { font-size: 15px; margin: 0; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
+code { font: 14px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace; color: var(--text); background: rgba(255,255,255,.06); padding: 2px 6px; border-radius: 6px; overflow-wrap: anywhere; }
+a { color: var(--accent); }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+ul { margin: 0; padding-left: 20px; color: var(--soft); }
+</style>
+</head>
+<body>
+<main>
+  <span class="mark">AWA</span>
+  <h1>Agentic Workflow Architecture</h1>
+  <p>An open standard for business workflows in which AI agents, people, robots and applications work side by side, with customer journeys on top. Fixed outcome, free strategy: AWA fixes what must be true of a result, records how it was reached, and refuses what it cannot verify.</p>
+  <section aria-labelledby="mcp">
+    <h2 id="mcp">MCP server</h2>
+    <p>Validate, show and simulate AWA workflows and journeys from your AI assistant. Add this address as a custom connector, with no authentication:</p>
+    <p><code>https://agentic-workflow-architecture.web.app/mcp</code></p>
+    <p>Everything it runs is a simulation, and it keeps nothing between calls. The <a href="https://github.com/yannickhuchard/agentic-workflow-architecture/blob/main/docs/guides/connect-ai-assistants.md">guide</a> gives the steps for Claude, ChatGPT, Mistral, Cursor and Gemini CLI.</p>
+  </section>
+  <section aria-labelledby="more">
+    <h2 id="more">Learn more</h2>
+    <ul>
+      <li><a href="https://github.com/yannickhuchard/agentic-workflow-architecture">The repository</a>: the specification, the TypeScript and Python SDKs, the views and the examples</li>
+      <li><a href="https://github.com/yannickhuchard/agentic-workflow-architecture/blob/main/docs/specification.md">The specification</a></li>
+    </ul>
+  </section>
+</main>
+</body>
+</html>
