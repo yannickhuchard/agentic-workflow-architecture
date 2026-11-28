@@ -34,6 +34,8 @@ env:
   SERVICE: awa-mcp
   REPOSITORY: awa
   PUBLIC_URL: https://agentic-workflow-architecture.web.app/mcp
+  # Cloud Run sends an instance no more requests at once than the server accepts (AWA_MCP_MAX_CONCURRENT)
+  MAX_CONCURRENT: 8
 
 jobs:
   deploy:
@@ -65,9 +67,9 @@ jobs:
           NUMBER=$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')
           HOSTS="$SERVICE-$NUMBER.$REGION.run.app"
           gcloud run deploy "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --image "$IMAGE" \
-            --allow-unauthenticated --port 8080 --cpu 1 --memory 1Gi --concurrency 40 \
-            --min-instances 0 --max-instances 5 --timeout 60 \
-            --set-env-vars "^@^AWA_MCP_PUBLIC_URL=$PUBLIC_URL@AWA_MCP_ALLOWED_HOSTS=$HOSTS" --quiet
+            --allow-unauthenticated --port 8080 --cpu 1 --memory 1Gi --timeout 60 \
+            --concurrency "$MAX_CONCURRENT" --min-instances 0 --max-instances 10 \
+            --set-env-vars "^@^AWA_MCP_PUBLIC_URL=$PUBLIC_URL@AWA_MCP_ALLOWED_HOSTS=$HOSTS@AWA_MCP_MAX_CONCURRENT=$MAX_CONCURRENT" --quiet
           # The service also answers on its older address form: accept every address Cloud Run gives it
           URLS=$(gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" \
             --format='value(status.url,metadata.annotations["run.googleapis.com/urls"])')

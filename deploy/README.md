@@ -52,7 +52,7 @@ Assistants that run in the cloud (claude.ai, ChatGPT, Le Chat) can then add the 
 | Image | `apps/mcp-server/Dockerfile`, built from the repository root | The server reads the SDK, the views and the claims example |
 | `AWA_MCP_PUBLIC_URL` | `https://agentic-workflow-architecture.web.app/mcp` | Public mode: the server answers only its own host names |
 | `AWA_MCP_ALLOWED_HOSTS` | The Cloud Run addresses of the service | Firebase Hosting and direct calls reach the service by those names |
-| Instances | 0 to 5, 40 requests each, 1 CPU, 1 GiB | The server is stateless and answers in JSON, without streaming |
+| Instances | 0 to 10, 8 requests at once each, 1 CPU, 1 GiB | The server is stateless and answers in JSON, without streaming. Cloud Run's concurrency equals the server's own limit (`AWA_MCP_MAX_CONCURRENT`), so a request Cloud Run accepts is never refused by the server |
 | Access | Public, no authentication | Every tool is read-only and runs in simulation |
 
 ## Checking the image locally
