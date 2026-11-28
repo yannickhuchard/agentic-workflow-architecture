@@ -92,4 +92,4 @@ jobs:
           }
           check "https://$RUN_HOST/mcp"
           check "$PUBLIC_URL"
-          curl -sS --fail "https://agentic-workflow-architecture.web.app/healthz"
+          curl -sS --fail "https://agentic-workflow-architecture.web.app/health"
