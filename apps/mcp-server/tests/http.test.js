@@ -79,12 +79,13 @@ test('body limit: more than 1 MB is refused, declared or streamed', async t => {
     assert.ok(streamed.status === 413 || streamed.reset, `streamed: ${streamed.status}`);
     const under = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping', params: { pad: 'x'.repeat(LIMITS.http_body_bytes - 2000) } });
     assert.equal((await request(server, { method: 'POST', headers: json, body: under })).status, 200, 'a body just under the limit is read');
-    assert.equal((await request(server, { path: '/healthz' })).status, 200, 'the server still answers afterwards');
+    assert.equal((await request(server, { path: '/health' })).status, 200, 'the server still answers afterwards');
 });
 
 test('routes, methods and headers', async t => {
     const server = await start(t, { AWA_MCP_OPENAI_CHALLENGE: 'token-1234567890' });
-    const health = await request(server, { path: '/healthz' });
+    const health = await request(server, { path: '/health' });
+    assert.equal((await request(server, { path: '/healthz' })).status, 200, '/healthz is kept for hosts other than Cloud Run');
     assert.equal(health.status, 200); assert.deepEqual(Object.keys(JSON.parse(health.text)).sort(), ['mode', 'server', 'status', 'version']);
     for (const answer of [health, await request(server, { path: '/nowhere' }), await request(server, { method: 'POST', headers: json, body: initialize })]) {
         assert.equal(answer.headers['cache-control'], 'no-store'); assert.equal(answer.headers['x-content-type-options'], 'nosniff');

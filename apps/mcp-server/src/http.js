@@ -70,7 +70,7 @@ export function createHttpServer(config = config_from_env()) {
         let url;
         try { url = new URL(req.url, 'http://localhost'); } catch { return plain(res, 400, 'Invalid request'); }
         if (req.method === 'OPTIONS') { res.writeHead(204).end(); return; }
-        if (req.method === 'GET' && url.pathname === '/healthz') {
+        if (req.method === 'GET' && (url.pathname === '/health' || url.pathname === '/healthz')) {
             res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ status: 'ok', server: 'awa-mcp-server', version: RELEASE, mode: config.mode }));
             return;
         }
