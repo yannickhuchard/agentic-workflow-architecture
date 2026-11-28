@@ -72,7 +72,7 @@ The recording takes about four minutes (3 min 54 s):
 | 2:31 | Recommendations | The impact and effort map settling; "Propose a top-up before 31 December" opened; the replay-measured hand-over, before and after (T) |
 | 2:53 | Export dossier | The export dialog, then Export: the HTML edition made in the browser |
 | 3:03 | Dossier, HTML | That edition: the cover's lines drawing, the counts, the summary |
-| 3:11 | Dossier, PDF | The committed professional edition, pages turning: cover, summary, the journey at a glance and Tom's own words (moving in to read), analysis, recommendations |
+| 3:11 | Dossier, PDF | The committed professional edition, seventeen pages turning: cover and contents, the summary, Tom's own words beside his record (moving in to read), the analysis, mood and trust beside the recommendations |
 | 3:34 | Léa's client edition | Her client edition under the Valoria brand, her own words |
 | 3:45 | Closing card | What to replace to take the example into production |
 

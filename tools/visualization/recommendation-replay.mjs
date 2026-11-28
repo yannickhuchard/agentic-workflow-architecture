@@ -34,6 +34,13 @@ async function replayExample(dir) {
     const { recommendations: conf = {} } = options;
     const result = compute(record, { ...options, recommendations: { ...conf, replays: {} } });
     const candidates = result.recommendations.filter(r => r.replay && r.replay.kind === 'contract_budget');
+    // the people by the names the deployment gives them ("Jonas Becker, compliance officer" is Jonas Becker)
+    const deploymentFile = path.join(dir, 'deployment.json'), people = new Map();
+    if (fs.existsSync(deploymentFile)) {
+        const walk = o => { if (Array.isArray(o)) o.forEach(walk); else if (o && typeof o === 'object') { if (o.kind === 'person' && o.id && o.name) people.set(o.id, String(o.name).split(',')[0].trim()); Object.values(o).forEach(walk); } };
+        walk(JSON.parse(fs.readFileSync(deploymentFile, 'utf8')));
+    }
+    const personName = id => people.get(id) || String(id).replace(/^\w/, c => c.toUpperCase());
     // every journal of the example, by run
     const journals = new Map();
     for (const f of fs.readdirSync(path.join(dir, 'runs')).filter(f => f.endsWith('.jsonl')).sort()) {
@@ -103,7 +110,7 @@ async function replayExample(dir) {
                 contracts_checked: [checksBase, checksBase - (failedBase.length - kept)],
                 agent_ms_at_step: [agentBase, agentCand],
                 replayed: { attempts_at_step: attemptsCand, failed_at_step: inCand('activity.failed', ids).length, contracts_checked: events.filter(e => e.type === 'contract.checked').length },
-                who_decided: inBase('activity.completed', ids).filter(e => e.data && e.data.principal && e.data.principal.kind === 'person').map(e => e.data.principal.id),
+                who_decided: inBase('activity.completed', ids).filter(e => e.data && e.data.principal && e.data.principal.kind === 'person').map(e => personName(e.data.principal.id)),
             });
         }
         if (!runs.length) continue;

@@ -529,13 +529,13 @@ a.ge-r { text-decoration: underline; text-underline-offset: 2px; }
 #xdlg .fmt { display: flex; gap: 16px; font-size: 14px; color: var(--soft); height: 36px; align-items: center; }
 #xdlg input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent-fill); }
 #xdlg .pages { display: flex; gap: 8px; flex-wrap: wrap; }
-#xdlg .pg { width: 54px; height: 76px; border-radius: 3px; border: 1px solid var(--line-strong); background: #fff; position: relative; overflow: hidden; }
-#xdlg .pg.n { background: #0b0f19; }
-#xdlg .pg i { position: absolute; left: 7px; right: 14px; top: 9px; height: 3px; border-radius: 2px; background: #4338ca; }
-#xdlg .pg.n i { background: #a5b4fc; }
-#xdlg .pg u { position: absolute; left: 7px; right: 7px; top: 18px; height: 2px; background: #cbd5e1; }
-#xdlg .pg s { position: absolute; left: 7px; right: 7px; bottom: 9px; height: 20px; border-radius: 2px; background: #e7e9fd; }
-#xdlg .pg.n s { background: #1e293b; }
+#xdlg .pg { width: 54px; height: 76px; border-radius: 3px; border: 1px solid var(--line-strong); background: var(--pg-paper, #fff); position: relative; overflow: hidden; }
+#xdlg .pg.n { background: var(--pg-night, #0b0f19); }
+#xdlg .pg i { position: absolute; left: 7px; right: 14px; top: 9px; height: 3px; border-radius: 2px; background: var(--pg-accent, #4338ca); }
+#xdlg .pg.n i { background: var(--pg-accent-night, #a5b4fc); }
+#xdlg .pg u { position: absolute; left: 7px; right: 7px; top: 18px; height: 2px; background: var(--pg-rule, #cbd5e1); }
+#xdlg .pg s { position: absolute; left: 7px; right: 7px; bottom: 9px; height: 20px; border-radius: 2px; background: var(--pg-tint, #e7e9fd); }
+#xdlg .pg.n s { background: var(--pg-night3, #1e293b); }
 #xdlg .a11y { list-style: none; margin: 0; padding: 0; font-size: 13.5px; }
 #xdlg .a11y li { display: grid; grid-template-columns: 18px 150px minmax(0, 1fr); gap: 8px; padding: 6px 0; border-top: 1px solid var(--line); color: var(--soft); }
 #xdlg .a11y li > span:first-child { color: var(--ok-ink); font-weight: 700; }
@@ -1911,7 +1911,7 @@ function gotoLevel(lv) {
 // In the browser it makes the HTML edition directly, offered as a link; the PDF and the DOCX come from the command line.
 let lastBrand = null, xOpener = null, xUrl = null;
 const xdlgOpen = () => !$('xdlg').hidden;
-const SECTIONS = [['summary', 'Summary', '1 p.'], ['glance', 'The journey at a glance', '1 p.'], ['voices', 'In their own words', '4 p.'], ['work', 'The work behind the journey', '1 p.'], ['analysis', 'Analysis', '2 p.'], ['recs', 'Recommendations', '1 p.'], ['appendix', 'Compliance and evidence', '1 p.'], ['glossary', 'Glossary, method, sources', '1 p.']];
+const SECTIONS = [['summary', 'Summary', '1 p.'], ['glance', 'The journey at a glance', '1 p.'], ['voices', 'In their own words', '4 p.'], ['work', 'The work behind the journey', '1 p.'], ['analysis', 'Analysis', '2–3 p.'], ['recs', 'Recommendations', '1–2 p.'], ['appendix', 'Compliance and evidence', '1–2 p.'], ['glossary', 'Glossary, method, sources', '1 p.']];
 function openExport(from) {
     xOpener = from || $('b-export');
     const x = $('xdlg'), j = J(), inst = j ? j.instances : [];
@@ -1962,10 +1962,12 @@ function xPreview() {
     let m = null, problem = '';
     try { m = xModel(s); } catch (error) { problem = error.message; }
     const pages = s.edition === 'client' ? ['n', 'p', 'n', 'p', 'p', 'p', 'p'] : ['n', 'p', 'p', 'p', 'n', 'p', 'n', 'p', 'p', 'p', 'p', 'p', 'p', 'p'];
-    $('xd-prev').textContent = `Preview · ${pages.length} pages${m ? `, ${m.personas.map(p => p.name).join(' and ')}` : ''}`;
+    $('xd-prev').textContent = `Preview${m ? ` · ${m.personas.map(p => p.name).join(' and ')}` : ''}`;
     $('xd-pages').innerHTML = pages.map(k => `<span class="pg${k === 'n' ? ' n' : ''}"><i></i><u></u><s></s></span>`).join('');
     if (m) $('xd-p').textContent = `${m.personas.map(p => p.name).join(' and ')}: chosen by the narrator (${m.personas.map(p => p.role).join('; ')}). The journey’s options can name others (dossier.personas).`;
     const D = window.AWA_DOSSIER, theme = D ? D.theme(s.brand === 'view' ? lastBrand : null) : null;
+    // the pages in the colours of the brand the dossier takes
+    if (theme) for (const [k, v] of [['paper', theme.paper], ['night', theme.night], ['accent', theme.accent], ['accent-night', theme.acc_n], ['rule', theme.rule], ['tint', theme.tint], ['night3', theme.night3]]) $('xd-pages').style.setProperty(`--pg-${k}`, v);
     const pair = theme ? Math.min(D.contrast(theme.ink3, theme.paper), D.contrast(theme.wait, theme.paper), D.contrast(theme.accent, theme.paper)).toFixed(2) : '';
     const checks = m ? [
         ['Headings in order', `${m.contents.length} chapters, no level skipped`],
