@@ -14,7 +14,7 @@ export const dossierCommand = new Command('dossier')
     .requiredOption('--file <file>', 'A portfolio exported with "awa journey export"')
     .option('--options <file>', 'The journey view\'s options for this record (names, glossary, brand, recommendations, dossier)')
     .option('--edition <edition>', 'professional (every customer, internal cost, the agents\' internals) or client (one customer\'s own story)', 'professional')
-    .option('--customer <key>', 'With --edition client: the customer, by subject key or name')
+    .option('--customer <key>', 'With --edition client (required): the customer, by subject key or name')
     .option('--evidence <file>', 'The evidence report (awa evidence --format json) for the appendix')
     .option('--format <list>', 'html, pdf, docx, separated by commas', 'html')
     .option('--out <path>', 'Where to write, without the extension', 'dossier')
@@ -24,7 +24,8 @@ export const dossierCommand = new Command('dossier')
             const bad = formats.filter((f: string) => !['html', 'pdf', 'docx'].includes(f));
             if (bad.length) throw new Error(`Unknown format ${bad.join(', ')}: use html, pdf or docx`);
             if (!['professional', 'client'].includes(options.edition)) throw new Error('--edition is professional or client');
-            if (options.edition === 'client' && !options.customer) throw new Error('A client edition is for one customer: give --customer <subject key or name>');
+            // A client edition is for the customer named, never for one chosen in its place: the dossier module refuses a
+            // missing customer or one that matches none, and lists the record's subject keys to choose from.
             // eslint-disable-next-line @typescript-eslint/no-require-imports
             const writer = require(path.join(view_directory(), 'awa-dossier-node.js'));
             const { files, model } = await writer.makeDossier({

@@ -506,7 +506,8 @@ function actions(X, M, T, found, options) {
     // R7 → a lighter model for the clear cases
     const cost = fs.find(f => f.rule === 'R7');
     if (cost) {
-        const total = ((M.totals || {})['workflow.cost'] || {}).value || 0, perJourney = N ? total / N : 0;
+        // the journey's own cost, never the portfolio's: a record of several journeys costs each alone
+        const own = (X.mj.measures || {})['journey.cost_per_journey'] || {}, perJourney = own.value || 0, total = perJourney * (own.n || N);
         const material = ((options.recommendations || {}).materiality || {}).cost_per_journey ?? 1.0;
         const cur = M.currency ? M.currency + ' ' : '';
         const same = recs.find(r => r.type === 'handover' && r.activities.includes(cost.activity));

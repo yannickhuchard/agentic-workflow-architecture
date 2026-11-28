@@ -1,8 +1,9 @@
 // The dossier (tools/visualization/awa-dossier*.js, tools/dossier): every chapter is there, every figure is the one
 // awa-kpis.js computes, every sentence of a customer's story carries a journal reference that exists, a client edition
 // leaves out what it should, the DOCX is well formed, and the dossier's own AWA workflow runs in simulation.
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import zlib from 'zlib';
 import vm from 'vm';
@@ -134,6 +135,119 @@ describe('dossier: a client edition, for Léa Muller under her company\'s brand'
     });
     it('keeps the references of her story', () => {
         for (const s of D.sentences(model)) expect(s.refs.length, s.text).toBeGreaterThan(0);
+    });
+});
+
+describe('dossier: a client edition is for one customer, named', () => {
+    const { record, options } = load('life-insurance-savings');
+    const keys = record.journeys[0].instances.map((i: any) => i.instance.subject_key);
+    const names = record.journeys[0].instances.map((i: any) => `${i.instance.data.employee.first_name} ${i.instance.data.employee.last_name}`);
+
+    it('refuses a client edition without a customer, or with one that matches none, and says how to choose', () => {
+        for (const customer of [undefined, '', '  ', 'DOES-NOT-EXIST']) {
+            let message = '';
+            try { D.build(record, options, { edition: 'client', customer }); } catch (error) { message = (error as Error).message; }
+            expect(message, String(customer)).toMatch(/client edition/i);
+            expect(message).toMatch(/subject key or name/);
+            for (const key of keys) expect(message).toContain(key);
+            for (const name of names) expect(message).not.toContain(name);
+            if (customer === 'DOES-NOT-EXIST') expect(message).toContain('“DOES-NOT-EXIST” matches no customer');
+        }
+    });
+    it('finds the customer by subject key or by name', () => {
+        expect(D.build(record, options, { edition: 'client', customer: 'ENR-26003' }).meta.client.name).toBe('Ana Duarte');
+        expect(D.build(record, options, { edition: 'client', customer: 'Sara Nilsen' }).meta.client.key).toBe('ENR-26005');
+    });
+    it('is refused by awa dossier, with the reason, when the customer matches none', async () => {
+        const { dossierCommand } = await import('../src/cli/commands/dossier');
+        const errors: string[] = [];
+        const error = vi.spyOn(console, 'error').mockImplementation((...a: unknown[]) => { errors.push(a.join(' ')); });
+        const exit = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => { throw new Error(`exit ${code}`); }) as any);
+        const out = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'awa-dossier-')), 'nobody');
+        try {
+            for (const customer of ['DOES-NOT-EXIST', ' ']) {
+                errors.length = 0;
+                await expect(dossierCommand.parseAsync(['--file', path.join(root, 'examples/life-insurance-savings/journeys.json'), '--edition', 'client', '--customer', customer, '--out', out], { from: 'user' })).rejects.toThrow('exit 1');
+                expect(errors.join('\n')).toMatch(/subject key or name/);
+                expect(errors.join('\n')).toContain('ENR-26001');
+            }
+            expect(fs.existsSync(out + '.html')).toBe(false);
+        } finally { error.mockRestore(); exit.mockRestore(); }
+    });
+});
+
+describe('dossier: every client edition of both examples tells the customer\'s journey without the internals', () => {
+    // the internal mechanism, never in a client edition. What a customer saw (the names of their own touchpoints, the
+    // reasons of their mood: "a change was refused") and the journey's own glossary (a fund's costs) are the customer's words, and are taken out before the check; "policy" is
+    // the authorization policy ("the policy allows"), not the insurance policy the life insurance customers buy ("Issue policy")
+    const INTERNAL = /guardrail|prompt injection|\bthe polic(y|ies)\b(?! documents)|refused|refusal|separation of duties|four eyes|\btokens?\b|\bmodels?\b|\bcosts?\b|outcome contract/i;
+    const INTERNAL_RECORD = /^(guardrail\.|authorization\.|contract\.)/;
+    const text = (html: string) => html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/g, ' ').replace(/<[^>]+>/g, ' ')
+        .replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, '\'').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\s+/g, ' ');
+    for (const example of ['electricity-onboarding', 'life-insurance-savings']) {
+        const { record, options, evidence } = load(example);
+        const glossary = (options.glossary || []).flatMap((t: any) => [t.definition, t.term, t.see]).filter(Boolean).sort((a: string, b: string) => b.length - a.length);
+        for (const row of record.journeys[0].instances) {
+            const key = row.instance.subject_key;
+            it(`${example}, ${key}`, () => {
+                const model = D.build(record, options, { edition: 'client', customer: key, evidence });
+                const own = [...row.instance.events.filter((e: any) => e.type === 'journey.touchpoint' && e.data.party === 'subject').map((e: any) => String(e.data.name).split(/\s+/).slice(1).join(' ')),
+                    ...row.instance.events.filter((e: any) => e.type === 'journey.sentiment_changed').map((e: any) => String(e.data.reason))];
+                const clean = (s: string) => [...glossary, ...own].reduce((t: string, x: string) => t.split(x).join(' '), s);
+                const sentences = D.sentences(model);
+                expect(sentences.length).toBeGreaterThan(0);
+                for (const s of sentences) {
+                    expect(s.refs.length, s.text).toBeGreaterThan(0);
+                    expect(clean(s.text), s.text).not.toMatch(INTERNAL);
+                    for (const r of s.refs) {
+                        const events = r.run === 'J' ? row.instance.events : row.runs.find((x: any) => x.run_id.slice(4, 8) === r.run).events;
+                        const e = events.find((x: any) => x.seq === r.seq);
+                        expect(e, `${s.text} ${r.run}·${r.seq}`).toBeTruthy();
+                        expect(e.type, `${s.text} cites ${r.run}·${r.seq}`).not.toMatch(INTERNAL_RECORD);
+                    }
+                }
+                const p = model.personas[0];
+                for (const r of p.story.record) expect(clean(r.text), r.text).not.toMatch(INTERNAL);
+                for (const r of p.blueprint.rows) expect(clean(`${r.sees || ''} ${r.behind || ''}`), r.behind).not.toMatch(INTERNAL);
+                for (const r of model.recommendations.list) expect(clean(`${r.title} ${r.finding} ${r.action || ''} ${r.kind} ${r.effect}`), r.title).not.toMatch(INTERNAL);
+                for (const [name, written] of [['HTML', text(HTML.render(model))], ['print layout', text(PRINT.render(model))], ['DOCX', text(unzip(DOCX.render(model))['word/document.xml'])]]) {
+                    const found = clean(written).match(INTERNAL);
+                    expect(found ? clean(written).slice(Math.max(0, found.index! - 80), found.index! + 40) : null, `${name} of ${key}`).toBeNull();
+                }
+            });
+        }
+    }
+});
+
+describe('dossier: a portfolio of several journeys (examples/claims-journey)', () => {
+    const record = JSON.parse(fs.readFileSync(path.join(root, 'examples/claims-journey/journeys.json'), 'utf8'));
+    it('computes the figures of each journey from that journey\'s own runs and instances', () => {
+        expect(record.journeys.length).toBe(3);
+        record.journeys.forEach((J: any, jk: number) => {
+            const model = D.build(record, {}, { edition: 'professional', journey: jk });
+            const M = KPI.compute_measures({ ...record, journeys: [J], runs: [] }), JM = M.journeys[0].measures, T = M.totals;
+            const by = (id: string) => model.summary.figures.find((f: any) => f.measure === id);
+            const name = J.definition.name;
+            expect(model.meta.journey).toBe(name);
+            expect(by('journey.completion_rate').value, name).toBe(JM['journey.completion_rate'].value);
+            expect(by('journey.duration_median_ms').value, name).toBe(JM['journey.duration_median_ms'].value);
+            expect(by('workflow.first_pass_yield').value, name).toBe(T['workflow.first_pass_yield'].value);
+            expect(by('workflow.first_pass_yield').n, name).toBe(T['workflow.first_pass_yield'].n);
+            expect(by('workflow.first_pass_yield').show, name).toBe(`${Math.round(T['workflow.first_pass_yield'].value * T['workflow.first_pass_yield'].n)} of ${T['workflow.first_pass_yield'].n}`);
+            expect(by('journey.cost_per_journey').value, name).toBe(JM['journey.cost_per_journey'].value);
+            expect(by('journey.mood_end').value, name).toBe(JM['journey.mood_end'].value);
+            expect(model.analysis.first_pass_yield.n, name).toBe(T['workflow.first_pass_yield'].n);
+            expect(model.analysis.cost.total, name).toBe(T['workflow.cost'].value);
+            expect(model.analysis.cost.tokens_total, name).toBe(M.workflows.reduce((a: number, w: any) => a + (w.measures['workflow.input_tokens'].value || 0) + (w.measures['workflow.output_tokens'].value || 0), 0));
+            expect(T['workflow.first_pass_yield'].n, name).toBeLessThanOrEqual(model.meta.runs);
+            for (const s of model.glance.stages) {
+                const m = M.journeys[0].stages.find((x: any) => x.id === s.id || x.name === s.name).measures;
+                expect(s.entered, `${name}, ${s.name}`).toBe(m['stage.entered'].value);
+                expect(s.median_ms, `${name}, ${s.name}`).toBe(m['stage.duration_median_ms'].value);
+            }
+            // a recommendation's figures are the journey's own too
+            for (const r of model.recommendations.list.filter((x: any) => x.kind === 'cost')) expect(r.finding, name).toContain(`${(T['workflow.cost'].value).toFixed(2)} in models and tools`);
+        });
     });
 });
 

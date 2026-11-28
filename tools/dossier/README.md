@@ -8,7 +8,7 @@ One document of a journey and the work behind it, for a professional or for a cl
 | PDF | The A4 pages of the design (night and paper pages, running heads, folios), fourteen for a record like the electricity example's and more for a longer one, printed by Chromium as a tagged PDF with bookmarks | `awa-dossier-print.js`, then Chromium |
 | DOCX | A Word document with real Heading 1 to 3 styles, the customers' voices in a style of their own, charts as images with alt text beside their data tables, repeated table header rows, page headers and numbers | `awa-dossier-docx.js` |
 
-The content itself is computed by `tools/visualization/awa-dossier.js` from a portfolio export (`awa journey export`) and the journey view's options. It reads the measures from `awa-kpis.js` and the recommendations from `awa-recommendations.js`, so the dossier, the journey view and `awa measures` cannot disagree. The writers live beside the views in `tools/visualization`, so the SDK package carries them in `dist/views`.
+The content itself is computed by `tools/visualization/awa-dossier.js` from a portfolio export (`awa journey export`) and the journey view's options. It reads the measures from `awa-kpis.js` and the recommendations from `awa-recommendations.js`, so the dossier, the journey view and `awa measures` cannot disagree. Every figure of a journey's dossier is computed on that journey alone, from its instances and the runs they started: in a portfolio of several journeys, such as the claims example, the dossier of Policy Purchase counts the six runs of Policy Purchase. The writers live beside the views in `tools/visualization`, so the SDK package carries them in `dist/views`.
 
 ## Make one
 
@@ -29,9 +29,11 @@ awa dossier --file examples/life-insurance-savings/journeys.json \
 node tools/dossier/dossier.mjs --record <journeys.json> --options <story-options.json> --format html,pdf,docx --out <path>
 ```
 
+A client edition is for one customer, named by `--customer` with their subject key or their name. Without it, or with a key or name that matches no customer (or a name two customers share), the dossier is not made: the error says what is wrong and lists the record's subject keys to choose from. The customers' names stay out of the error.
+
 The HTML edition needs nothing else. The PDF needs Playwright with Chromium (`npm install playwright && npx playwright install chromium`); the DOCX draws its charts with Chromium when Playwright is there, and holds the data tables alone when it is not. The evidence report beside the record (`evidence/evidence-report.json`) is read for the appendix when it is there; `--evidence <file>` names another.
 
-In the journey view, **Export dossier** opens the export dialog: it makes the HTML edition in the browser, offered as a link, and gives the command for the PDF and the DOCX. The MCP server's `make_dossier` tool returns the HTML edition of a portfolio given inline.
+In the journey view, **Export dossier** opens the export dialog: it makes the HTML edition in the browser, offered as a link, and gives the command for the PDF and the DOCX. The Client choice asks for a customer in the Customers list before it exports. The MCP server's `make_dossier` tool returns the HTML edition of a portfolio given inline; its input schema requires `customer` with `edition: "client"`, and a customer that matches none gives an error result with the subject keys to choose from.
 
 `node tools/dossier/make-dossiers.mjs` writes the dossiers committed with the examples:
 
@@ -61,10 +63,10 @@ The committed dossiers have 15 pages (electricity, professional), 7 (Léa's clie
 | | Professional | Client |
 |---|---|---|
 | Customers | every customer, two told in their own voice | one customer, the one the edition is for; the others are lines without names |
-| Figures | every measure, with its count | the customer's own times and stages only |
+| Figures | every measure of the journey, with its count | the customer's own times and stages only |
 | Internal cost, model tokens | yes | no |
-| The agents' internals: contracts, guardrails, refusals | yes | no |
-| Recommendations | all, ranked | those that concern the customer, said without other customers' numbers |
+| The agents' internals: contracts, guardrails, refusals | yes, with the records they rest on | what the customer lived, in plain words: "a person checked my documents by hand", "a second approval was needed", each resting on the record of the person's decision; the guardrail, the contract and the refusal and their records stay out |
+| Recommendations | all, ranked | those that concern the customer, said without other customers' numbers; none on internal cost, and each action said without the internal mechanism behind it, with the rules behind them |
 | Compliance appendix | the EU AI Act provisions and what the evidence report holds | a short notice: the record exists and the customer may ask to see it |
 
 ## The customers' own words
@@ -102,7 +104,7 @@ node tools/dossier/dossier.check.mjs              # add --rebuild to write the d
 node tools/dossier/dossier.check.mjs --layout     # the print layout alone, in a few seconds
 ```
 
-The check lays out each print edition again as `make-dossiers.mjs` does and reads every page in Chromium: each line of text and each chart label is a box, and it fails when two texts intersect (an element marked `data-layer` is layered on purpose), when a text lies on a chart's mark, when an element with a fixed size or hidden overflow holds more than its size, when a chart label leaves its chart, and when text leaves the page or enters the bands of the running head and the folio. It also opens each HTML edition in Chromium at 1440 and 400 px and runs axe-core (WCAG 2.2 A and AA rules) from `node_modules`, never from a network; it measures the contrast of every text against what is behind it, follows the keyboard from the skip link, opens a chart's table from the keyboard, checks that nothing animates under `prefers-reduced-motion` or with the Motion switch off, and that nothing scrolls sideways at 400 px. It reads each PDF (page count, tags, language, title shown, bookmarks, figures with alternative text, table header cells) and each DOCX (heading styles, the voice style, alt text on every chart, header rows, language, title, page numbers), and has LibreOffice render the DOCX when it is installed. `sdk/typescript/tests/dossier.test.ts` checks the content: every chapter is there, every figure equals what `awa-kpis.js` computes, every sentence of a story has a reference that exists in the record, and a client edition leaves out what it should.
+The check lays out each print edition again as `make-dossiers.mjs` does and reads every page in Chromium: each line of text and each chart label is a box, and it fails when two texts intersect (an element marked `data-layer` is layered on purpose), when a text lies on a chart's mark, when an element with a fixed size or hidden overflow holds more than its size, when a chart label leaves its chart, and when text leaves the page or enters the bands of the running head and the folio. It also opens each HTML edition in Chromium at 1440 and 400 px and runs axe-core (WCAG 2.2 A and AA rules) from `node_modules`, never from a network; it measures the contrast of every text against what is behind it, follows the keyboard from the skip link, opens a chart's table from the keyboard, checks that nothing animates under `prefers-reduced-motion` or with the Motion switch off, and that nothing scrolls sideways at 400 px. It reads each PDF (page count, tags, language, title shown, bookmarks, figures with alternative text, table header cells) and each DOCX (heading styles, the voice style, alt text on every chart, header rows, language, title, page numbers), and has LibreOffice render the DOCX when it is installed. `sdk/typescript/tests/dossier.test.ts` checks the content: every chapter is there, every figure equals what `awa-kpis.js` computes, every sentence of a story has a reference that exists in the record, and a client edition leaves out what it should: for every customer of the electricity and life insurance examples, every sentence of a client edition rests on journal records of the customer's own journey, none of them a guardrail's, a contract's or an authorization's, and no internal word (guardrail, prompt injection, the policy, refused, separation of duties, four eyes, tokens, model, cost) appears in its HTML, print layout or DOCX, beyond the customer's own words (the names of their touchpoints, the reasons of their mood) and the journey's glossary. A test on the claims example checks that each of its three journeys has the figures `awa-kpis.js` computes on that journey alone.
 
 ## Accessibility statement
 
