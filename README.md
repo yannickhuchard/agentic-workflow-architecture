@@ -245,7 +245,7 @@ npx skills add yannickhuchard/agentic-workflow-architecture --skill agentic-work
 
 Add `-g` to make it available in every project. To validate and run documents, the skill uses a clone with its SDK built (`cd sdk/typescript && npm ci && npm run build`); set `AWA_REPOSITORY` to the clone's folder when you work elsewhere.
 
-The server is not hosted yet: assistants that run in the cloud reach it through a tunnel to your computer, and one command switches every package to the hosted address when there is one. [`apps/mcp-server/SUBMISSION.md`](apps/mcp-server/SUBMISSION.md) lists the state of each package and the steps for publication: hosting, domain verification, the demo recording and the submissions.
+[`deploy/`](deploy/README.md) deploys the server to Cloud Run behind Firebase Hosting, at `https://agentic-workflow-architecture.web.app/mcp`. Until the first deployment, assistants that run in the cloud reach it through a tunnel to your computer, and one command switches every package to the hosted address when there is one. [`apps/mcp-server/SUBMISSION.md`](apps/mcp-server/SUBMISSION.md) lists the state of each package and the steps for publication: hosting, domain verification, the demo recording and the submissions.
 
 ---
 

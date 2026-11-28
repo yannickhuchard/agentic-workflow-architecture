@@ -1,0 +1,10 @@
+# The MCP server image is built from the repository root (apps/mcp-server/Dockerfile)
+**/node_modules
+**/.git
+**/dist
+**/*.db
+**/*.mp4
+apps/kanban-web
+apps/mcp-server/artifacts
+examples/*/dossier
+examples/*/runs
