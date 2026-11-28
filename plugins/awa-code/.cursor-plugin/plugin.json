@@ -10,19 +10,20 @@
   "repository": "https://github.com/yannickhuchard/agentic-workflow-architecture",
   "license": "Apache-2.0",
   "logo": "assets/awa.svg",
-  "keywords": ["awa", "workflow", "customer-journey", "simulation", "process", "mcp"],
+  "keywords": [
+    "awa",
+    "workflow",
+    "customer-journey",
+    "simulation",
+    "process",
+    "mcp"
+  ],
   "category": "developer-tools",
-  "tags": ["awa", "workflow", "simulation", "mcp"],
-  "variables": {
-    "type": "object",
-    "properties": {
-      "AWA_REPOSITORY": {
-        "type": "string",
-        "title": "AWA repository folder",
-        "description": "The absolute path of your clone of agentic-workflow-architecture, with the SDK and the MCP server built (docs/guides/connect-ai-assistants.md)."
-      }
-    },
-    "required": ["AWA_REPOSITORY"]
-  },
+  "tags": [
+    "awa",
+    "workflow",
+    "simulation",
+    "mcp"
+  ],
   "mcpServers": "./mcp.json"
 }

@@ -18,6 +18,8 @@ const PLUGIN = path.join(ROOT, 'plugins/awa-code');
 const at = (...parts) => path.join(ROOT, ...parts);
 const json = file => JSON.parse(fs.readFileSync(at(file), 'utf8'));
 const text = file => fs.readFileSync(at(file), 'utf8');
+/** The public address every package points at (npm run hosted:set) */
+const HOSTED_URL = json('apps/mcp-server/clients/remote-connector.json').hosted_url;
 
 function frontmatter(file) {
     const match = /^---\n([\s\S]*?)\n---\n/.exec(fs.readFileSync(file, 'utf8'));
@@ -61,7 +63,10 @@ test('the Claude Code plugin and marketplace name files that exist', () => {
     assert.equal(manifest.name, 'awa');
     assert.equal(manifest.version, RELEASE);
     assert.ok(fs.existsSync(path.join(PLUGIN, manifest.icon)));
-    assert.equal(manifest.userConfig.repository.type, 'directory');
+    // The server is hosted: the plugin asks for no folder and names the one host it reaches
+    assert.equal(manifest.userConfig, undefined);
+    assert.deepEqual(manifest.network.hosts, [new URL(HOSTED_URL).host]);
+    assert.deepEqual(json('plugins/awa-code/.mcp.json').mcpServers.awa, { type: 'http', url: HOSTED_URL });
     const marketplace = json('.claude-plugin/marketplace.json');
     assert.ok(!['claude-code-marketplace', 'claude-plugins-official', 'anthropic-marketplace', 'agent-skills'].includes(marketplace.name) && !/^claude|anthropic|official/i.test(marketplace.name));
     assert.equal(marketplace.plugins.length, 1);
@@ -157,15 +162,23 @@ test('the Gemini CLI extension and the MCP Bundle manifest describe this server'
     assert.ok(fs.existsSync(at('plugins/awa-code/assets/icon.png')), 'the bundle takes its icon from the plugin');
 });
 
+test('every plugin package points at the hosted address', () => {
+    check_address(HOSTED_URL);
+    assert.deepEqual(json('plugins/awa-code/.mcp.json').mcpServers.awa, { type: 'http', url: HOSTED_URL }, 'Claude Code and Mistral Vibe');
+    assert.deepEqual(json('plugins/awa-code/mcp.json').mcpServers.awa, { url: HOSTED_URL }, 'Cursor plugin');
+    assert.equal(json('plugins/awa-code/.cursor-plugin/plugin.json').variables, undefined, 'Cursor plugin: no folder to ask for');
+    assert.deepEqual(json('plugins/awa-code/gemini-extension.json').mcpServers.awa, { httpUrl: HOSTED_URL }, 'Gemini CLI');
+    assert.equal(json('plugins/awa/mcp.json').mcpServers.awa.url, HOSTED_URL, 'ChatGPT and Codex');
+    assert.doesNotMatch(json('.claude-plugin/marketplace.json').plugins[0].description, /clone/);
+    assert.deepEqual(set_hosted_address(HOSTED_URL), [], 'npm run hosted:set has nothing left to write');
+});
+
 test('each stdio configuration starts the server and lists every tool', async () => {
     const tools = await server_tools();
     assert.equal(tools.length, 8);
-    const plugin = { CLAUDE_PLUGIN_ROOT: PLUGIN, 'user_config.repository': '' };
+    // The plugin packages reach the hosted server; these configurations still start it from a clone
     const entries = [
-        ['Claude Code plugin (.mcp.json), loaded in place', json('plugins/awa-code/.mcp.json').mcpServers.awa, plugin],
         ['Cursor project (.cursor/mcp.json)', json('.cursor/mcp.json').mcpServers.awa, { workspaceFolder: ROOT }],
-        ['Cursor plugin (mcp.json)', json('plugins/awa-code/mcp.json').mcpServers.awa, { AWA_REPOSITORY: ROOT }],
-        ['Gemini CLI extension', json('plugins/awa-code/gemini-extension.json').mcpServers.awa, { extensionPath: PLUGIN, '/': path.sep, workspacePath: os.tmpdir() }],
         ['Claude Desktop and other clients (clients/stdio.json)', JSON.parse(text('apps/mcp-server/clients/stdio.json').replaceAll('/absolute/path/to/agentic-workflow-architecture', ROOT.split(path.sep).join('/'))).mcpServers.awa, {}],
     ];
     const toml = text('apps/mcp-server/clients/mistral-vibe.toml');
@@ -179,12 +192,13 @@ test('each stdio configuration starts the server and lists every tool', async ()
     }
 });
 
-test('the plugin finds a configured clone when it is installed away from the repository', async t => {
+test('the plugin\'s local starter finds a configured clone when it is installed away from the repository', async t => {
     const copy = fs.mkdtempSync(path.join(os.tmpdir(), 'awa-plugin-'));
     t.after(() => fs.rmSync(copy, { recursive: true, force: true }));
     fs.cpSync(PLUGIN, copy, { recursive: true });
-    const entry = JSON.parse(fs.readFileSync(path.join(copy, '.mcp.json'), 'utf8')).mcpServers.awa;
-    assert.deepEqual(await start(entry, { CLAUDE_PLUGIN_ROOT: copy, 'user_config.repository': ROOT }), await server_tools());
+    // server/start.mjs stays for anyone who runs the server on their own computer
+    const entry = { command: 'node', args: [path.join(copy, 'server/start.mjs')], env: { AWA_REPOSITORY: ROOT } };
+    assert.deepEqual(await start(entry, {}), await server_tools());
 
     const lost = spawnSync(process.execPath, [path.join(copy, 'server/start.mjs')], { cwd: os.tmpdir(), env: { ...process.env, AWA_REPOSITORY: '', CLAUDE_PROJECT_DIR: '' }, encoding: 'utf8', timeout: 20_000 });
     assert.equal(lost.status, 1);
@@ -214,7 +228,9 @@ test('one command points every package at the hosted address', t => {
         'plugins/awa-code/gemini-extension.json', 'plugins/awa/mcp.json', 'apps/mcp-server/clients/remote-connector.json', '.claude-plugin/marketplace.json'];
     for (const file of files) { fs.mkdirSync(path.dirname(path.join(copy, file)), { recursive: true }); fs.copyFileSync(at(file), path.join(copy, file)); }
     const url = 'https://awa.host.test/mcp';
-    assert.deepEqual(set_hosted_address(url, copy).sort(), [...files].sort());
+    // The packages already point at the hosted address: a new address rewrites every file that holds one
+    assert.deepEqual(set_hosted_address(url, copy).sort(), ['apps/mcp-server/clients/remote-connector.json', 'plugins/awa-code/.claude-plugin/plugin.json',
+        'plugins/awa-code/.mcp.json', 'plugins/awa-code/gemini-extension.json', 'plugins/awa-code/mcp.json', 'plugins/awa/mcp.json']);
     const read = file => JSON.parse(fs.readFileSync(path.join(copy, file), 'utf8'));
     assert.deepEqual(read('plugins/awa-code/.mcp.json').mcpServers.awa, { type: 'http', url });
     assert.equal(read('plugins/awa-code/.claude-plugin/plugin.json').userConfig, undefined);

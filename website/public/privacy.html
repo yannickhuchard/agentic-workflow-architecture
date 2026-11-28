@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy notice · AWA MCP server</title>
+<meta name="description" content="What the hosted AWA MCP server receives, what it keeps, and what it does not.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@600&display=swap">
+<style>
+:root { --bg: #0b0f19; --panel: #111827; --line: rgba(255,255,255,.1); --text: #f8fafc; --soft: #cbd5e1; --accent: #a5b4fc; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 Inter, system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 760px; margin: 0 auto; padding: 72px max(20px, env(safe-area-inset-left)) 64px; display: grid; gap: 28px; }
+.mark { font: 600 15px/1 "Space Grotesk", Inter, sans-serif; letter-spacing: .12em; color: var(--accent); text-decoration: none; }
+h1 { font: 600 clamp(32px, 6vw, 44px)/1.1 "Space Grotesk", Inter, sans-serif; margin: 0; text-wrap: balance; }
+p { margin: 0; color: var(--soft); max-width: 62ch; }
+section { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; display: grid; gap: 10px; }
+h2 { font-size: 15px; margin: 0; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
+code { font: 14px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace; color: var(--text); background: rgba(255,255,255,.06); padding: 2px 6px; border-radius: 6px; overflow-wrap: anywhere; }
+a { color: var(--accent); }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+ul { margin: 0; padding-left: 20px; color: var(--soft); display: grid; gap: 6px; }
+.small { font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <a class="mark" href="/">AWA</a>
+  <h1>Privacy notice for the AWA MCP server</h1>
+  <p>This notice covers the hosted AWA MCP server at <code>https://agentic-workflow-architecture.web.app/mcp</code> and the AWA plugins and connectors that reach it. It is run by Yannick Huchard, the maintainer of the open-source Agentic Workflow Architecture project.</p>
+
+  <section aria-labelledby="receives">
+    <h2 id="receives">What the server receives</h2>
+    <p>Only the arguments of the tool your AI assistant calls: the AWA documents it passes (workflows, customer journeys, simulated outputs, business events, an optional brand). The server asks for no account, no key and no personal details. Do not put personal or confidential data in the documents you send; the bundled example is fictional.</p>
+  </section>
+
+  <section aria-labelledby="does">
+    <h2 id="does">What it does with them</h2>
+    <ul>
+      <li>It validates, shows or simulates the documents in memory and sends back the result.</li>
+      <li>Every tool is read-only. Nothing a document names is executed: no command, HTTP call, model or production system.</li>
+      <li>It stores nothing: no database, no files, no session between calls. It does not write the content of requests to its logs.</li>
+      <li>It does not read your conversation, memory or files beyond the tool arguments, and it shares nothing with anyone.</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="platform">
+    <h2 id="platform">What the hosting platform records</h2>
+    <p>The server runs on Google Cloud Run in the European Union (region europe-west1), behind Firebase Hosting. Like any web service there, Google Cloud keeps standard request logs: time, address and path, status, response time, IP address and user agent. They do not contain the request body. These logs are used only to keep the service running and to stop abuse, and Google Cloud deletes them after its default retention period of 30 days. Google acts as a processor under the <a href="https://cloud.google.com/terms/data-processing-addendum">Cloud Data Processing Addendum</a>.</p>
+  </section>
+
+  <section aria-labelledby="assistant">
+    <h2 id="assistant">Your AI assistant</h2>
+    <p>The assistant you use (Claude, ChatGPT, Le Chat, Cursor, Gemini CLI or another) decides what it sends to the server and keeps your conversation under its own privacy policy. This notice does not cover it.</p>
+  </section>
+
+  <section aria-labelledby="contact">
+    <h2 id="contact">Questions and requests</h2>
+    <p>Open an issue in the <a href="https://github.com/yannickhuchard/agentic-workflow-architecture/issues">project's repository</a>. Under the GDPR you may ask what data concerns you and ask for it to be erased; as the server stores nothing itself, only the platform's request logs above can hold an IP address.</p>
+  </section>
+
+  <p class="small">Last updated: 28 November 2026.</p>
+</main>
+</body>
+</html>

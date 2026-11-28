@@ -21,15 +21,8 @@
   ],
   "icon": "./assets/icon.png",
   "network": {
-    "hosts": []
-  },
-  "userConfig": {
-    "repository": {
-      "type": "directory",
-      "title": "AWA repository folder",
-      "description": "The folder of your clone of agentic-workflow-architecture, with the SDK and the MCP server built (docs/guides/connect-ai-assistants.md). Leave it empty when you added the marketplace from that clone: the plugin then finds it by itself.",
-      "required": false,
-      "default": ""
-    }
+    "hosts": [
+      "agentic-workflow-architecture.web.app"
+    ]
   }
 }

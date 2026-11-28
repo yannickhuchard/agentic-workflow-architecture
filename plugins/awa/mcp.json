@@ -3,10 +3,12 @@
   "mcpServers": {
     "awa": {
       "type": "streamable-http",
-      "url": "https://awa-mcp.placeholder.invalid/mcp",
+      "url": "https://agentic-workflow-architecture.web.app/mcp",
       "extensions": {
         "com.openai": {
-          "auth": { "type": "none" }
+          "auth": {
+            "type": "none"
+          }
         }
       }
     }
