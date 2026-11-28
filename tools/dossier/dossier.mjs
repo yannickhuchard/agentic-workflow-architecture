@@ -24,7 +24,10 @@ export { makeDossier, readOptions, steadyPdf, fixOutline };
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
     const args = process.argv.slice(2), opt = k => { const i = args.indexOf('--' + k); return i < 0 ? undefined : args[i + 1]; };
     if (!opt('record') || !opt('out')) { console.error('Usage: node tools/dossier/dossier.mjs --record <journeys.json> [--options <story-options.json>] [--edition professional|client] [--customer <key>] [--format html,pdf,docx] --out <path without extension>'); process.exit(1); }
-    const { files, model } = await makeDossier({ record: opt('record'), optionsFile: opt('options'), edition: opt('edition') || 'professional', customer: opt('customer'), evidence: opt('evidence'), source: opt('source') || path.relative(process.cwd(), opt('record')), formats: (opt('format') || 'html').split(','), out: opt('out') });
+    let made;
+    try { made = await makeDossier({ record: opt('record'), optionsFile: opt('options'), edition: opt('edition') || 'professional', customer: opt('customer'), evidence: opt('evidence'), source: opt('source') || path.relative(process.cwd(), opt('record')), formats: (opt('format') || 'html').split(','), out: opt('out') }); }
+    catch (error) { console.error(`Error: ${error.message}`); process.exit(1); }
+    const { files, model } = made;
     for (const [k, f] of Object.entries(files)) console.log(`${k.padEnd(4)} ${f} (${(fs.statSync(f).size / 1024).toFixed(0)} kB)`);
     console.log(`${model.meta.title}: ${model.personas.length} stories, ${model.stats.sentences} sentences, ${model.stats.references} references, ${model.recommendations.list.length} recommendations`);
 }

@@ -116,10 +116,11 @@ export async function createMcpServer({ widget_domain = process.env.AWA_MCP_WIDG
      * @param options.widget   name of the widget in WIDGETS that shows the result, if any
      * @param options.invoking, options.invoked   status lines a host shows while the tool runs and after
      */
-    function tool(name, title, description, shape, handler, { widget, invoking, invoked } = {}) {
+    function tool(name, title, description, shape, handler, { widget, invoking, invoked, refine, schema } = {}) {
         const securitySchemes = [{ type: 'noauth' }];
         if (shape.brand) description += ' Pass brand (a DESIGN.md text or a brand.json, with any logo as a data: URL) to show the view in a company\'s colours, fonts and logo; the colours of states keep their meaning.';
-        const input = z.strictObject(shape);
+        // refine checks what one property asks of another; schema says the same in the published JSON Schema
+        const input = refine ? z.strictObject(shape).superRefine(refine) : z.strictObject(shape);
         const resourceUri = widget ? WIDGETS[widget].uri : undefined;
         const config = {
             title, description, inputSchema: input,
@@ -130,7 +131,7 @@ export async function createMcpServer({ widget_domain = process.env.AWA_MCP_WIDG
                 ...(widget ? { ui: { resourceUri }, 'openai/outputTemplate': resourceUri, 'openai/widgetAccessible': true, 'openai/toolInvocation/invoking': invoking, 'openai/toolInvocation/invoked': invoked } : {}),
             },
         };
-        definitions.push({ name, title, description, inputSchema: z.toJSONSchema(input, { io: 'input' }), annotations: config.annotations, securitySchemes, _meta: config._meta });
+        definitions.push({ name, title, description, inputSchema: { ...z.toJSONSchema(input, { io: 'input' }), ...(schema || {}) }, annotations: config.annotations, securitySchemes, _meta: config._meta });
         registerAppTool(server, name, config, async args => {
             try { return await handler(args); }
             catch (error) {
@@ -301,13 +302,13 @@ export async function createMcpServer({ widget_domain = process.env.AWA_MCP_WIDG
         }, { widget: 'dashboard', invoking: 'Computing the measures…', invoked: 'Measures shown' });
 
     tool('make_dossier', 'Make the dossier of a journey',
-        'Make the dossier of a journey record as one self-contained HTML document: the customers\' stories in their own voice (every sentence citing the journal records it rests on), the journey at a glance, the work behind it, the analysis and the recommendations ranked by impact over effort, with the evidence report\'s mapping when one is given. A professional edition has every customer, the internal cost and the agents\' internals; a client edition keeps one customer\'s own story and leaves out the rest. Give a portfolio export, or use_claims_example. The document is returned as an HTML resource; nothing is stored or fetched. PDF and DOCX come from the command line: awa dossier --format pdf,docx.',
+        'Make the dossier of a journey record as one self-contained HTML document: the customers\' stories in their own voice (every sentence citing the journal records it rests on), the journey at a glance, the work behind it, the analysis and the recommendations ranked by impact over effort, with the evidence report\'s mapping when one is given. A professional edition has every customer, the internal cost and the agents\' internals; a client edition is for the one customer given by customer, which it requires, and keeps that customer\'s own story without the internals or anyone else. Give a portfolio export, or use_claims_example. The document is returned as an HTML resource; nothing is stored or fetched. PDF and DOCX come from the command line: awa dossier --format pdf,docx.',
         {
             portfolio: S.portfolio.optional().describe('A portfolio export (the JSON written by "awa journey export").'),
             use_claims_example: z.boolean().optional().describe('Make the dossier of the bundled fictional claims example.'),
             options: z.record(z.string(), z.unknown()).optional().describe('The journey view\'s options: subject_name, glossary, recommendations (thresholds, wording, rules), dossier (subject, lead, say, facts, personas). Paths to other files are not read.'),
             edition: z.enum(['professional', 'client']).optional().describe('professional (default) or client.'),
-            customer: z.string().max(200).optional().describe('With edition client: the customer, by subject key or name.'),
+            customer: z.string().max(200).optional().describe('Required with edition client: the customer the edition is for, by subject key or name. A client edition is made only for a customer that matches.'),
             evidence: z.record(z.string(), z.unknown()).optional().describe('An evidence report (awa evidence --format json), for the appendix.'),
             brand: S.brand.optional(),
         },
@@ -331,7 +332,11 @@ export async function createMcpServer({ widget_domain = process.env.AWA_MCP_WIDG
                 structuredContent: { title: model.meta.title, edition: model.edition, personas: model.personas.map(p => p.name), sentences: model.stats.sentences, references: model.stats.references,
                     recommendations: model.recommendations.list.map(r => ({ rank: r.rank, title: r.title, method: r.method })), bytes: Buffer.byteLength(html), ...(branded ? { brand: { name: branded.name, warnings: branded.warnings } } : {}) },
             };
-        }, { invoking: 'Making the dossier…', invoked: 'Dossier made' });
+        }, {
+            invoking: 'Making the dossier…', invoked: 'Dossier made',
+            refine: (args, context) => { if (args.edition === 'client' && !(args.customer || '').trim()) context.addIssue({ code: 'custom', path: ['customer'], message: 'A client edition is for one customer: give customer, by subject key or name.' }); },
+            schema: { if: { properties: { edition: { const: 'client' } }, required: ['edition'] }, then: { required: ['customer'], properties: { customer: { minLength: 1 } } } },
+        });
 
     // The SDK serialises only the standard fields of a tool. ChatGPT also reads a
     // top-level securitySchemes, so the list is published from our own definitions.

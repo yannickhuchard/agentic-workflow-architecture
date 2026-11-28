@@ -157,7 +157,7 @@ function render(m, opts = {}) {
     for (const r of m.recommendations.list) {
         b.push(h(2, `${r.rank}. ${r.title}`));
         b.push(p(`${r.kind} · ${r.stage} · ${r.owner || 'no owner named'} · rules ${r.rules.join(', ')} · impact ${r.impact}, effort ${r.effort}`, 'Caption'));
-        b.push(p(r.finding)); b.push(para(bold('Action. ') + run(r.action))); b.push(para(bold(`Expected effect · ${METHOD[r.method] || r.method}. `) + run(r.effect)));
+        b.push(p(r.finding)); if (r.action) b.push(para(bold('Action. ') + run(r.action))); b.push(para(bold(`Expected effect · ${METHOD[r.method] || r.method}. `) + run(r.effect)));
     }
     if (!m.recommendations.list.length) b.push(p('No recommendation: every rule was checked and none fired.'));
     b.push(h(1, client ? '04 Your record and these words' : '07 Appendix'));
@@ -166,7 +166,7 @@ function render(m, opts = {}) {
         if (!client) b.push(table(['Provision', 'What it asks for', 'Report part', 'In this record'], m.compliance.rows.map(r => [r.provision, r.asks, r.parts.join(', '), r.holds]), [1300, 3400, 1700, 2960]));
     }
     b.push(h(2, 'Glossary')); b.push(table(['Term', 'Meaning', 'Source'], m.glossary.map(t => [t.term, t.definition, /^https?:/.test(t.see || '') ? t.see.replace(/^https?:\/\/(www\.)?/, '').split('/')[0] : t.see || '']), [2000, 5760, 1600]));
-    b.push(h(2, 'The rules behind the recommendations')); b.push(table(['Rule', 'Fires when', 'Threshold'], m.recommendations.rules.map(r => [r.id, r.name, r.threshold]), [900, 5260, 3200]));
+    if (m.recommendations.rules.length) { b.push(h(2, client ? 'The rules behind these recommendations' : 'The rules behind the recommendations')); b.push(table(['Rule', 'Fires when', 'Threshold'], m.recommendations.rules.map(r => [r.id, r.name, r.threshold]), [900, 5260, 3200])); }
     b.push(h(2, 'Method')); for (const t of m.method) b.push(p(t));
     b.push(h(2, 'Sources')); b.push(p(`${m.sources.join('; ')}. As of ${m.meta.as_of_text} UTC.`));
 

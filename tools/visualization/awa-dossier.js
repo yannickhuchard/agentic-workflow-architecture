@@ -104,10 +104,13 @@ const fillData = (text, data) => String(text || '').replace(/\{([a-zA-Z0-9_.]+)\
 });
 
 // ---------------------------------------------------------------- the record of one journey, read once
-function read(record, options, jk) {
+function read(record, options, jk, edition) {
     const MEASURES = lib('awa-kpis.js', 'AWA_MEASURES');
-    const M = options.measures || MEASURES.compute_measures(record);
-    const J = record.journeys[jk], D = J.definition, asOf = iso(record.as_of || M.as_of);
+    const J = record.journeys[jk], D = J.definition;
+    // every figure of a journey's dossier is that journey's own: its instances and the runs they started, never the
+    // rest of the portfolio (a record of several journeys measures each alone)
+    const M = MEASURES.compute_measures({ ...record, journeys: [J], runs: [] });
+    const asOf = iso(record.as_of || M.as_of);
     const node = new Map(), actorOf = new Map(), roleName = new Map(), wfName = new Map();
     for (const w of record.workflows) {
         wfName.set(w.id, w.name);
@@ -119,7 +122,7 @@ function read(record, options, jk) {
     const named = data => { const paths = options.subject_name || []; if (!Array.isArray(paths) || !data) return undefined; const parts = paths.map(p => at(data, p)).filter(v => v !== undefined && v !== null && v !== ''); return parts.length ? parts.join(' ') : undefined; };
     const stages = (D.stages || []).map((s, i) => ({ id: s.id, name: s.name, owner: s.owner || null, max: s.max_duration || null, max_ms: duration(s.max_duration), index: i, description: s.description || '' }));
     const sById = Object.fromEntries(stages.map(s => [s.id, s]));
-    const mj = (M.journeys || []).find(m => m.name === D.name) || (M.journeys || [])[jk];
+    const mj = (M.journeys || [])[0];
     const tpDef = new Map((D.touchpoints || []).map(t => [t.id, t]));
     const customers = J.instances.map((row, i) => {
         const x = row.instance, name = row.subject_name || named(x.data) || (x.data && x.data.name) || x.subject_key;
@@ -150,13 +153,13 @@ function read(record, options, jk) {
             cost: runs.reduce((a, r) => a + r.cost, 0), tokens: runs.reduce((a, r) => a + r.tokens, 0),
         };
     });
-    return { record, J, D, jk, M, mj, asOf, node, actorOf, roleName, wfName, stages, sById, customers, tpDef, options };
+    return { record, J, D, jk, M, mj, asOf, node, actorOf, roleName, wfName, stages, sById, customers, tpDef, options, client: edition === 'client' };
 }
 
 // ---------------------------------------------------------------- what the journal says, event by event
 function eventText(X, c, run, e) {
     const dd = e.data || {}, n = X.node.get(e.node_id) || dd.node_name || '';
-    const who = p => cap(String((p && p.id) || 'someone'));
+    const who = p => (X.client ? 'A person' : cap(String((p && p.id) || 'someone')));
     switch (e.type) {
         case 'activity.failed': return `${n}: attempt fails (${String((dd.error || {}).code || 'error').toLowerCase().replace(/_/g, ' ')})`;
         case 'activity.completed': return dd.principal && dd.principal.kind === 'person' ? `${who(dd.principal)} decides ${n} by hand` : `${n} done`;
@@ -213,6 +216,7 @@ function narrate(X, c, options) {
     const items = [];
     for (const t of c.subj) items.push({ kind: 'tp', t: t.t, tp: t, refs: [J(t.seq)] });
     const unseen = [];
+    let told;
     for (const run of c.runs) {
         const ev = run.events;
         // a guardrail that withheld what the customer sent, once or more, at one step
@@ -238,7 +242,8 @@ function narrate(X, c, options) {
             }
         }
     }
-    unseen.sort((a, b) => a.t - b.t);
+    if (X.client) { told = toldToClient(X, unseen); told.sort((a, b) => a.t - b.t || a.refs[0].seq - b.refs[0].seq); }
+    else { told = unseen; told.sort((a, b) => a.t - b.t); }
     items.sort((a, b) => a.t - b.t || (a.refs[0].seq - b.refs[0].seq));
     const sent = [];
     let last = null;
@@ -262,7 +267,7 @@ function narrate(X, c, options) {
     };
     const paragraphs = [[], [], []];
     // 1. what I did and what came back to me, until the first thing done out of my sight
-    const firstUnseen = unseen.length ? unseen[0].t : Infinity;
+    const firstUnseen = told.length ? told[0].t : Infinity;
     const waitTp = name => (X.D.touchpoints || []).find(t => t.on && t.on.event === name && t.party === 'subject' && t.direction === 'inbound');
     let k = 0;
     for (; k < items.length; k++) {
@@ -273,10 +278,12 @@ function narrate(X, c, options) {
     }
     // 2. what I did not see, the record shows
     const whoOf = p => cap(String((p && p.id) || 'someone'));
-    for (const u of unseen) {
+    for (const u of told) {
         const step = X.node.get((u.e || u.list[0]).node_id) || '';
         let text;
-        if (u.kind === 'block') {
+        if (u.kind === 'checked by hand') text = /document/i.test(step) ? 'A person checked my documents by hand.' : `A person took “${step}” over and did it by hand.`;
+        else if (u.kind === 'second person') text = u.approval ? `A second approval was needed for “${step}”.` : `A second person had to decide “${step}”.`;
+        else if (u.kind === 'block') {
             const g = u.list[0].data, times = u.list.length;
             text = g.check === 'prompt_injection'
                 ? `the agent reading what I had sent found an instruction hidden inside it, and a guardrail withheld it${times > 1 ? `, ${times === 2 ? 'twice' : word(times) + ' times'}` : ''}.`
@@ -287,7 +294,7 @@ function narrate(X, c, options) {
         else if (u.kind === 'breach') text = `A promise of the work, “${u.e.data.name}”, was broken while I waited.`;
         paragraphs[1].push({ text, refs: u.refs });
     }
-    if (paragraphs[1].length) paragraphs[1][0].text = 'What I did not see, the record shows: ' + paragraphs[1][0].text.replace(/^So /, 'so ').replace(/^A promise/, 'a promise').replace(/^([A-Z][a-z]+ was not allowed)/, '$1');
+    if (paragraphs[1].length) paragraphs[1][0].text = 'What I did not see, the record shows: ' + paragraphs[1][0].text.replace(/^So /, 'so ').replace(/^A (promise|person|second)/, 'a $1').replace(/^([A-Z][a-z]+ was not allowed)/, '$1');
     // 3. the rest, the silence and the end
     const sil = c.silence;
     let silenceSaid = false;
@@ -338,6 +345,34 @@ function narrate(X, c, options) {
     const quoteS = flat.find(s => s.quote) || flat.find(s => s.silence) || flat[flat.length - 1];
     const quote = quoteS ? { text: quoteS.quote || quoteS.text, refs: quoteS.refs } : null;
     return { paragraphs: paras, record, quote, sentences: flat.length, references: flat.reduce((a, s) => a + s.refs.length, 0) };
+}
+
+/**
+ * What a client edition tells of the work done out of the customer's sight: what they lived through, in plain words, and
+ * never the mechanism behind it. A guardrail's action and an outcome contract's hand-over are internal; what the customer
+ * lived is that a person did a step by hand. An authorization refusal is internal; what the customer lived is that a second
+ * person, or a second approval, was needed. Each is told from the record of the person's decision, never from the record of
+ * the guardrail, the contract or the refusal; what has no such record is left out.
+ */
+function toldToClient(X, unseen) {
+    const out = [], seen = new Set();
+    const personAt = (run, node, after) => run.events.find(x => x.type === 'activity.completed' && x.node_id === node && x.seq > after && x.data && x.data.principal && x.data.principal.kind === 'person');
+    for (const u of unseen) {
+        if (u.kind === 'breach') { out.push(u); continue; }
+        if (u.kind === 'escalated' && u.person) {
+            const k = `${u.run.short}|${u.person.seq}`;
+            if (!seen.has(k)) { seen.add(k); out.push({ kind: 'checked by hand', t: iso(u.person.time), e: u.e, run: u.run, refs: [{ run: u.run.short, seq: u.person.seq }] }); }
+        } else if (u.kind === 'refused') {
+            const done = personAt(u.run, u.e.node_id, u.e.seq);
+            if (!done) continue;
+            const k = `${u.run.short}|${done.seq}`, approval = u.e.data.reason === 'four_eyes' || ((done.data || {}).approvals || []).length > 1;
+            const same = out.find(x => x.kind === 'second person' && x.key === k);
+            if (same) { same.approval = same.approval || approval; continue; }
+            out.push({ kind: 'second person', key: k, approval, t: iso(done.time), e: u.e, run: u.run, refs: [{ run: u.run.short, seq: done.seq }] });
+        }
+        // a guardrail that blocked or redacted, and an escalation no person took: nothing the customer lived, nothing told
+    }
+    return out;
 }
 
 /** The facts beside a persona's name: from the options, else from the journey */
@@ -391,10 +426,27 @@ function summarizeWork(work, actorWord) {
 
 // ---------------------------------------------------------------- the whole dossier
 /**
+ * The customer a client edition is for: the one whose subject key or name is given. A client edition is never made for
+ * a customer chosen in its place: without a match the build stops, and the error, written for the operator who makes the
+ * dossier, lists the subject keys to choose from (never the customers' names).
+ */
+function clientOf(customers, wanted, journey) {
+    const given = typeof wanted === 'string' ? wanted.trim() : '';
+    const keys = `The subject keys of ${journey}: ${customers.map(c => c.key).join(', ')}.`;
+    if (!given) throw new Error(`A client edition is for one customer: give the customer by subject key or name. ${keys}`);
+    const byKey = customers.filter(c => c.key === given);
+    if (byKey.length === 1) return byKey[0];
+    const byName = customers.filter(c => c.name === given);
+    if (byName.length === 1) return byName[0];
+    if (byKey.length + byName.length > 1) throw new Error(`A client edition is for one customer: “${given}” matches ${word(byKey.length + byName.length)} customers of ${journey}; give the subject key. ${keys}`);
+    throw new Error(`A client edition is for one customer: “${given}” matches no customer of ${journey}. Give the customer by subject key or name. ${keys}`);
+}
+
+/**
  * Build the dossier's content.
  * @param record   a portfolio export
  * @param options  the journey view's options (subject_name, glossary, brand, recommendations, dossier)
- * @param settings { edition: 'professional' | 'client', customer?: key or name (client edition), journey?: index,
+ * @param settings { edition: 'professional' | 'client', customer: subject key or name (a client edition needs one that matches), journey?: index,
  *                   evidence?: an evidence report (section 32), recommendations?: a result of awa-recommendations.js,
  *                   source?: where the record comes from, as text, sections?: [chapter ids] }
  */
@@ -402,17 +454,18 @@ function build(record, options = {}, settings = {}) {
     options = options || {};
     const edition = settings.edition === 'client' ? 'client' : 'professional';
     const jk = settings.journey || 0;
-    const X = read(record, options, jk);
+    const X = read(record, options, jk, edition);
     const { D, M, mj, stages, customers } = X;
     const conf = options.dossier || {};
     const subj = Array.isArray(conf.subject) && conf.subject.length === 2 ? conf.subject : ['customer', 'customers'];
     const N = customers.length;
     const recEngine = lib('awa-recommendations.js', 'AWA_RECOMMENDATIONS');
-    const recResult = settings.recommendations || (recEngine ? recEngine.compute(record, { ...options, measures: M }) : null);
+    // the recommendations are those of the journey view, computed from the whole record, each for its journey
+    const recResult = settings.recommendations || (recEngine ? recEngine.compute(record, options) : null);
     const recsAll = recResult ? ((recResult.journeys.find(j => j.name === D.name) || recResult.journeys[jk] || {}).recommendations || []) : [];
     const cur = M.currency ? M.currency + ' ' : '';
     const JM = mj.measures, T = M.totals;
-    const client = edition === 'client' ? customers.find(c => c.key === settings.customer || c.name === settings.customer || c.id === settings.customer) || customers[0] : null;
+    const client = edition === 'client' ? clientOf(customers, settings.customer, D.name) : null;
     const glossaryLib = lib('awa-glossary.js', 'AWA_GLOSSARY');
 
     // the stages, with their measures
@@ -478,7 +531,7 @@ function build(record, options = {}, settings = {}) {
     const chosen = client ? [client] : pickPersonas(X, options);
     const personas = chosen.map((c, i) => {
         const story = narrate(X, c, options);
-        const recsFor = recsAll.filter(r => r.customers.some(x => x.key === c.key));
+        const recsFor = recsAll.filter(r => r.customers.some(x => x.key === c.key) && (!client || r.kind !== 'cost'));
         const hasLeft = c.status === 'abandoned';
         return {
             key: c.key, name: c.name, first: c.first, initials: c.initials, index: c.index, status: c.status, stuck: c.status === 'active' || c.stalled || c.runs.some(r => r.status === 'failed'),
@@ -488,7 +541,7 @@ function build(record, options = {}, settings = {}) {
             hist: c.hist.map(h => ({ stage: h.stage, name: (X.sById[h.stage] || {}).name, from: h.from, to: h.to, ms: h.ms })),
             tps: c.subj.map(t => ({ t: t.t, name: t.name, direction: t.direction, seq: t.seq })), moods: c.moods.map(m => ({ t: m.t, value: m.value, change: m.change, reason: m.reason, basis: m.basis, seq: m.seq })),
             started: c.started, ended: c.ended, runs: c.runs.map(r => ({ short: r.short, workflow: r.workflow, status: r.status })),
-            decisions: people.filter(p => p.customer === c.index).length, refused: refusals.filter(x => x.c === c).length, cost: edition === 'professional' ? c.cost : null,
+            decisions: people.filter(p => p.customer === c.index).length, refused: client ? null : refusals.filter(x => x.c === c).length, cost: edition === 'professional' ? c.cost : null,
             recommendations: recsFor.map(r => ({ rank: r.rank, id: r.id, title: r.title })),
             undo: c.runs.flatMap(r => r.events.filter(e => e.type === 'activity.compensated').map(e => X.node.get(e.node_id) || '')),
         };
@@ -553,9 +606,9 @@ function build(record, options = {}, settings = {}) {
             time: timed.map(s => ({ name: s.name, max: s.max, max_ms: s.max_ms, median_ms: s.median_ms, share: s.median_ms !== null && s.median_ms !== undefined ? s.median_ms / s.max_ms : null, longest_ms: s.longest_ms, longest_share: s.longest_ms !== null ? s.longest_ms / s.max_ms : null, longest_who: client ? null : s.longest_who, longest_open: s.longest_open })),
             mood: allStages.map(s => ({ name: s.name, mean: s.mood_mean, n: s.mood_n, min: s.mood_min, values: customers.flatMap(c => c.moodEnd.filter(h => h.stage === s.id).map(h => h.mood)) })),
             mood_said: measured.value ? Math.round(measured.value * measured.n) : 0, mood_changes: customers.reduce((a, c) => a + c.moods.length, 0),
-            people: client ? people.filter(p => p.customer === client.index) : people,
+            people: client ? people.filter(p => p.customer === client.index).map(p => ({ ...p, who: null, refused: null })) : people,
             cost: edition === 'professional' ? { total: (T['workflow.cost'] || {}).value || 0, per_journey: JM['journey.cost_per_journey'].value, by_customer: customers.map(c => ({ first: c.first, initials: c.initials, cost: c.cost, completed: c.status === 'completed' })), tokens: tokensBy.slice(0, 4), tokens_total: tokensTotal } : null,
-            right_first_time: wfs.map(w => { const rs = runsAll.filter(x => x.r.workflow_id === w.id); return { workflow: w.name, runs: rs.map(({ c, r }) => ({ initials: c.initials, first: c.first, ok: r.status === 'completed' && !r.events.some(e => e.type === 'activity.failed' || e.type === 'activity.compensated') })) }; }),
+            right_first_time: wfs.map(w => { const rs = runsAll.filter(x => x.r.workflow_id === w.id && (!client || x.c === client)); return { workflow: w.name, runs: rs.map(({ c, r }) => ({ initials: c.initials, first: c.first, ok: r.status === 'completed' && !r.events.some(e => e.type === 'activity.failed' || e.type === 'activity.compensated') })) }; }),
             trust: edition === 'professional' ? [
                 ...guards.map(g => ({ by: 'Guardrail', what: g.e.data.action === 'block' ? 'blocked' : g.e.data.action === 'redact' ? 'redacted' : g.e.data.action, rule: g.e.data.name, for: g.c.first, refs: [`${g.r.short}·${g.e.seq}`] })),
                 ...escalations.map(x => ({ by: 'Contract', what: 'handed to a person', rule: X.node.get(x.e.node_id), for: x.c.first, refs: [`${x.r.short}·${x.e.seq}`] })),
@@ -565,9 +618,11 @@ function build(record, options = {}, settings = {}) {
             first_pass_yield: { value: fpy.value, n: fpy.n, ok: Math.round(fpy.value * fpy.n) },
         },
         recommendations: {
-            list: (client ? recsAll.filter(r => r.customers.some(x => x.key === client.key)) : recsAll).map(r => ({
-                rank: r.rank, id: r.id, title: r.title, kind: r.kind, stage: r.stage_name, owner: r.owner, rules: r.rules, trigger: r.trigger, impact: r.impact, effort: r.effort, priority: r.priority,
-                customers: client ? 1 : r.customers.length, who: client ? [client.first] : r.customers.map(x => x.first), finding: client ? clientText(r, client) : r.finding, action: r.action,
+            // a client edition: the recommendations of the customer's own journey, without internal cost, each action said
+            // without the internal mechanism behind it
+            list: (client ? recsAll.filter(r => r.customers.some(x => x.key === client.key) && r.kind !== 'cost') : recsAll).map(r => ({
+                rank: r.rank, id: r.id, title: r.title, kind: r.kind, stage: r.stage_name, owner: r.owner, rules: r.rules, trigger: client ? null : r.trigger, impact: r.impact, effort: r.effort, priority: r.priority,
+                customers: client ? 1 : r.customers.length, who: client ? [client.first] : r.customers.map(x => x.first), finding: client ? clientText(r, client) : r.finding, action: client ? clientAction(r.action) : r.action,
                 method: r.effect.method, effect: client ? 'We will measure its effect after the change, and tell you what we learn.' : r.effect.text, before: client ? null : r.effect.before || null, after: client ? null : r.effect.after || null, origin: r.origin,
             })),
             total: recsAll.length, rules: recResult ? recResult.rules.map(x => ({ id: x.id, name: x.name, threshold: x.threshold })) : [],
@@ -587,12 +642,22 @@ function build(record, options = {}, settings = {}) {
     if (edition === 'client') {
         // a client edition: one customer's own story, no internal cost, no agents' internals, no other customer
         model.analysis.trust = null; model.analysis.cost = null;
-        model.analysis.right_first_time = model.analysis.right_first_time.map(w => ({ workflow: w.workflow, runs: w.runs.filter(x => x.first === client.first) })).filter(w => w.runs.length);
-        model.work.controls = model.work.controls.filter(c => c[0] !== 'Guardrails' && c[0] !== 'Authorization');
+        model.analysis.right_first_time = model.analysis.right_first_time.filter(w => w.runs.length);
+        // the controls, the findings over every customer and the first recommendations of the portfolio are the professional's
+        model.work.controls = [];
+        model.summary.findings = [];
+        // the rules behind the customer's own recommendations, those that name no internal mechanism
+        const fired = new Set(model.recommendations.list.flatMap(r => r.rules));
+        model.recommendations.rules = model.recommendations.rules.filter(r => fired.has(r.id) && !INTERNAL.test(r.name));
+        model.summary.first = model.recommendations.list.slice(0, 3).map(r => ({ rank: r.rank, title: r.title, owner: r.owner, customers: 1, rules: r.rules, method: r.method }));
     }
     model.contents = contentsOf(model);
     return model;
 }
+/** The internal mechanism a client edition does not name: guardrails, contracts, the authorization policy, models and tokens */
+const INTERNAL = /guardrail|prompt injection|outcome contract|\bbudgets?\.|\bthe polic(y|ies) (allows|permits|refuses|refused)\b|separation of duties|four eyes|\btokens?\b|\bmodel tiers?\b|\blighter model\b/i;
+/** A recommendation's action for a client: its sentences that name no internal mechanism, or nothing */
+const clientAction = text => String(text || '').split(/(?<=\.)\s+(?=[A-Z“])/).filter(x => !INTERNAL.test(x)).join(' ');
 const clientText = (r, client) => { const me = r.customers.find(x => x.key === client.key) || {}; return `This recommendation rests partly on your own journey${me.silent_days ? `: ${Math.round(me.silent_days)} days without a word from us in ${r.stage_name}` : ''}.`; };
 function complianceOf(ev, edition) {
     const S = Object.fromEntries((ev.parts || []).map(p => [p.id, p.summary || {}]));

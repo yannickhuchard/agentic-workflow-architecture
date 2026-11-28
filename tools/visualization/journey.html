@@ -416,6 +416,7 @@ a.ge-r { text-decoration: underline; text-underline-offset: 2px; }
 .eacts { display: flex; gap: 10px; margin-top: 28px; }
 .ebtn { white-space: nowrap; height: 38px; padding: 0 16px; border-radius: var(--radius); border: 1px solid var(--line-strong); background: transparent; color: var(--text); font-size: 14px; cursor: pointer; }
 .ebtn.pri { background: var(--accent-fill); border-color: var(--accent-fill); color: var(--on-accent); font-weight: 600; }
+.ebtn.pri[aria-disabled="true"] { opacity: .6; cursor: not-allowed; }
 .ebtn:hover { border-color: var(--accent); }
 .dashed { margin-top: 30px; border: 1px dashed var(--line-strong); border-radius: var(--radius-lg); padding: 16px 18px; }
 .dashed small { display: block; font-size: 11.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--mute); margin-bottom: 6px; }
@@ -1923,7 +1924,7 @@ function openExport(from) {
           <p class="dhint" id="xd-aud">Professional: with internal cost, the agents’ internals (models, contracts, guardrails) and every customer. A client edition leaves those out and keeps one customer’s journey.</p></fieldset>
         <fieldset><legend>Scope</legend><div class="two">
           <label><span class="vh" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Journey</span><select id="xd-j">${S.journeys.map((jj, k) => `<option value="${k}"${k === st.j ? ' selected' : ''}>Journey: ${esc(jj.name)}</option>`).join('')}</select></label>
-          <label><span class="vh" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Customers</span><select id="xd-c"><option value="">Customers: all ${inst.length}</option>${inst.map(c => `<option value="${esc(c.id)}">${esc(c.name)} only</option>`).join('')}</select></label>
+          <label><span class="vh" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Customers</span><select id="xd-c">${xCustomers(inst, '', false)}</select></label>
           <span class="rsel" style="display:flex;align-items:center;font-size:14px;color:var(--soft)">Period: ${esc(periodText())}</span>
           <span class="rsel" style="display:flex;align-items:center;font-size:14px;color:var(--soft)">Workflows: all ${S.workflows.length}</span></div></fieldset>
         <fieldset><legend>Sections</legend><div class="secs">${SECTIONS.map(([id, name, pp]) => `<label><input type="checkbox" data-xsec="${id}" checked>${esc(name)} <span style="margin-left:auto;color:var(--mute)">${pp}</span></label>`).join('')}</div></fieldset>
@@ -1944,21 +1945,34 @@ function openExport(from) {
     xPreview();
     $('xd-x').focus({ preventScroll: true });
 }
+/** The choices of the Customers list, by subject key: a client edition is for one customer, chosen here, never one picked in its place */
+function xCustomers(inst, pick, client) {
+    const first = client ? `<option value="">Customers: choose the one this edition is for</option>` : `<option value="">Customers: all ${inst.length}</option>`;
+    return first + inst.map(c => `<option value="${esc(c.id)}"${c.id === pick ? ' selected' : ''}>${esc(c.name)} only</option>`).join('');
+}
 function xSettings() {
     const aud = (document.querySelector('#xdlg input[name="xaud"]:checked') || {}).value || 'professional';
-    const pick = $('xd-c').value, jj = S.journeys[+$('xd-j').value] || J();
-    const customer = aud === 'client' ? (pick || (jj.instances[0] || {}).id) : null;
+    const pick = $('xd-c').value;
+    const customer = aud === 'client' ? (pick || null) : null;
     return { edition: aud, customer, journey: +$('xd-j').value, sections: [...document.querySelectorAll('#xdlg [data-xsec]:checked')].map(c => c.dataset.xsec), formats: [...document.querySelectorAll('#xdlg [data-xfmt]:checked')].map(c => c.dataset.xfmt), brand: $('xd-b').value };
 }
 /** The dossier as the settings say: its model, or null when the view holds no record */
 function xModel(s) {
     if (!RECORD || !window.AWA_DOSSIER) return null;
+    if (s.edition === 'client' && !s.customer) return null;
     const jk = RECORD.journeys.findIndex(x => x.definition.name === S.journeys[s.journey].name);
     return window.AWA_DOSSIER.build(RECORD, OPTIONS, { edition: s.edition, customer: s.customer, journey: Math.max(0, jk), recommendations: RECS || undefined, source: query.get('data') || $('source').textContent || null });
 }
 function xPreview() {
+    // the Customers list follows the journey chosen, and says what a client edition needs
+    const aud = (document.querySelector('#xdlg input[name="xaud"]:checked') || {}).value || 'professional';
+    const jj = S.journeys[+$('xd-j').value] || J(), inst = jj ? jj.instances : [], keep = $('xd-c').value, mode = `${$('xd-j').value}|${aud}`;
+    if ($('xd-c').dataset.for !== mode) { $('xd-c').innerHTML = xCustomers(inst, keep, aud === 'client'); $('xd-c').value = inst.some(c => c.id === keep) ? keep : ''; $('xd-c').dataset.for = mode; }
     const s = xSettings();
-    $('xd-aud').textContent = s.edition === 'client' ? 'Client: one customer’s own journey, in their words; no internal cost, no agents’ internals, no other customer.' : 'Professional: with internal cost, the agents’ internals (models, contracts, guardrails) and every customer. A client edition leaves those out and keeps one customer’s journey.';
+    const choose = s.edition === 'client' && !s.customer;
+    $('xd-aud').textContent = s.edition === 'client' ? `Client: one customer’s own journey, in their words; no internal cost, no agents’ internals, no other customer.${choose ? ' Choose the customer in Customers.' : ''}` : 'Professional: with internal cost, the agents’ internals (models, contracts, guardrails) and every customer. A client edition leaves those out and keeps one customer’s journey.';
+    $('xd-go').setAttribute('aria-disabled', String(choose));
+    if (choose) $('xd-go').setAttribute('aria-describedby', 'xd-aud'); else if ($('xd-go').getAttribute('aria-describedby') === 'xd-aud') $('xd-go').removeAttribute('aria-describedby');
     let m = null, problem = '';
     try { m = xModel(s); } catch (error) { problem = error.message; }
     const pages = s.edition === 'client' ? ['n', 'p', 'n', 'p', 'p', 'p', 'p'] : ['n', 'p', 'p', 'p', 'n', 'p', 'n', 'p', 'p', 'p', 'p', 'p', 'p', 'p'];
@@ -1977,7 +1991,7 @@ function xPreview() {
         ['Language and title', `en · “${m.meta.title}”`],
         ['Reading order', `references follow their sentence (${m.stats.sentences} sentences, ${m.stats.references} references)`],
     ] : [];
-    $('xd-a11y').innerHTML = checks.map(([a, b]) => `<li><span aria-hidden="true">✓</span><span>${esc(a)}</span><span>${esc(b)}</span></li>`).join('') + (m ? '' : `<li><span aria-hidden="true">!</span><span>No record here</span><span id="xd-why">${esc(problem || 'This view was given a prepared story, not its record. Make the dossier from the record with the command line.')}</span></li>`);
+    $('xd-a11y').innerHTML = checks.map(([a, b]) => `<li><span aria-hidden="true">✓</span><span>${esc(a)}</span><span>${esc(b)}</span></li>`).join('') + (m ? '' : choose && RECORD ? `<li><span aria-hidden="true">!</span><span>A customer to choose</span><span id="xd-why">A client edition is for one customer: choose them in Customers.</span></li>` : `<li><span aria-hidden="true">!</span><span>No record here</span><span id="xd-why">${esc(problem || 'This view was given a prepared story, not its record. Make the dossier from the record with the command line.')}</span></li>`);
 }
 function xCommands(s) {
     const data = query.get('data') || '<journeys.json>', opts = query.get('options');
@@ -1987,6 +2001,7 @@ function xCommands(s) {
 }
 function xExport() {
     const s = xSettings(), res = $('xd-res');
+    if (s.edition === 'client' && !s.customer) { res.hidden = false; res.textContent = 'A client edition is for one customer: choose them in Customers, then export.'; $('xd-c').focus({ preventScroll: true }); return; }
     let m = null;
     try { m = xModel(s); } catch (error) { res.hidden = false; res.textContent = `The dossier could not be made: ${error.message}`; return; }
     const cmds = xCommands(s);

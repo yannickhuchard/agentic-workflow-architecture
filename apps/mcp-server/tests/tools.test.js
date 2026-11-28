@@ -369,6 +369,24 @@ test('simulate_workflow: context bindings are enforced; a script may write conte
     assert.equal(denied.structuredContent.failures[0].code, 'CONTEXT_ACCESS_DENIED');
 });
 
+test('make_dossier: a client edition is made only for the customer named, and says how to choose', async t => {
+    const client = await connect(t);
+    const { tools } = await client.listTools();
+    const schema = tools.find(x => x.name === 'make_dossier').inputSchema;
+    assert.deepEqual(schema.if, { properties: { edition: { const: 'client' } }, required: ['edition'] }, 'the input schema says when customer is required');
+    assert.deepEqual(schema.then.required, ['customer']);
+    const portfolio = read('examples/claims-journey/journeys.json');
+    const keys = portfolio.journeys[0].instances.map(i => i.instance.subject_key);
+    for (const args of [{ use_claims_example: true, edition: 'client' }, { use_claims_example: true, edition: 'client', customer: ' ' }]) await refuses(call(client, 'make_dossier', args), /client edition is for one customer: give customer, by subject key or name/);
+    const unknown = await call(client, 'make_dossier', { portfolio, edition: 'client', customer: 'DOES-NOT-EXIST' });
+    assert.equal(unknown.isError, true, 'a customer that matches none is refused, not replaced by another');
+    assert.match(text_of(unknown), /“DOES-NOT-EXIST” matches no customer of Policy Purchase/);
+    for (const key of keys) assert.ok(text_of(unknown).includes(key), `the error lists the subject key ${key}`);
+    assert.equal(unknown.content.some(c => c.type === 'resource'), false);
+    const named = await call(client, 'make_dossier', { portfolio, edition: 'client', customer: keys[2] });
+    assert.deepEqual(named.structuredContent.personas, [portfolio.journeys[0].instances[2].subject_name]);
+});
+
 test('make_dossier: the HTML dossier of the example, a client edition that names no one else, and refusals', async t => {
     const client = await connect(t);
     const made = await call(client, 'make_dossier', { use_claims_example: true });

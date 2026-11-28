@@ -594,6 +594,16 @@ awa('export', '-o', record);
         await page.click('#xd-go'); await page.waitForTimeout(600);
         const made = await page.evaluate(() => ({ html: (window.AWA_last_dossier || '').slice(0, 15), link: !!document.querySelector('#xd-link[href^="blob:"]'), cmd: document.querySelector('#xd-res code').textContent }));
         check(made.html === '<!doctype html>' && made.link && /awa dossier --file .* --format pdf,docx/.test(made.cmd), 'the dialog makes the HTML edition as a link, and shows the command for the PDF and the DOCX');
+        // a client edition is for one customer, chosen in the dialog: never the first one in its place
+        await page.click('#xdlg input[name="xaud"][value="client"]'); await page.waitForTimeout(300);
+        const before = await page.evaluate(() => { window.AWA_last_dossier = ''; return { disabled: document.getElementById('xd-go').getAttribute('aria-disabled'), first: document.querySelector('#xd-c option').textContent, chosen: document.getElementById('xd-c').value }; });
+        await page.click('#xd-go', { force: true }); await page.waitForTimeout(300);              // aria-disabled: a click still says why
+        const refused = await page.evaluate(() => ({ made: window.AWA_last_dossier, res: document.getElementById('xd-res').textContent, focus: document.activeElement.id }));
+        check(before.disabled === 'true' && before.chosen === '' && /choose/.test(before.first) && refused.made === '' && /choose them in Customers/.test(refused.res) && refused.focus === 'xd-c', `the Client choice asks for a customer before it exports (${JSON.stringify({ ...before, ...refused })})`);
+        await page.selectOption('#xd-c', 'APP-24003'); await page.waitForTimeout(300);
+        await page.click('#xd-go'); await page.waitForTimeout(600);
+        const mine = await page.evaluate(() => ({ disabled: document.getElementById('xd-go').getAttribute('aria-disabled'), html: window.AWA_last_dossier || '', cmd: document.querySelector('#xd-res code') ? document.querySelector('#xd-res code').textContent : '' }));
+        check(mine.disabled === 'false' && mine.html.includes('Ines Kowal’s dossier') && !mine.html.includes('Tomás Reyes') && /--edition client --customer APP-24003/.test(mine.cmd), 'with a customer chosen, the client edition is that customer\'s, and the command names them');
         await page.keyboard.press('Escape'); await page.waitForTimeout(200);
         check(await page.locator('#xdlg').isHidden() && await page.evaluate(() => document.activeElement.id) === 'b-export', 'Escape closes the dialog and gives the focus back to its button');
         check(page.errors.length === 0, `no page errors in the tab ${page.errors.join('; ')}`);
