@@ -18,7 +18,7 @@ async function refuses(promise, pattern, message) {
     assert.match(text, /Invalid arguments|Input validation/, message);
     assert.match(text, pattern, message);
 }
-const TOOLS = ['validate_document', 'show_workflow', 'simulate_workflow', 'show_journeys', 'simulate_journey', 'load_claims_example', 'show_dashboard'];
+const TOOLS = ['validate_document', 'show_workflow', 'simulate_workflow', 'show_journeys', 'simulate_journey', 'load_claims_example', 'show_dashboard', 'make_dossier'];
 
 test('discovery: tools, annotations, security schemes, widget metadata and resources', async t => {
     const client = await connect(t);
@@ -36,7 +36,7 @@ test('discovery: tools, annotations, security schemes, widget metadata and resou
     const raw = await client.request({ method: 'tools/list' }, z.object({ tools: z.array(z.looseObject({})) }));
     for (const tool of raw.tools) assert.deepEqual(tool.securitySchemes, [{ type: 'noauth' }], `${tool.name} declares no top-level security scheme`);
     const uris = Object.values(WIDGETS).map(w => w.uri);
-    for (const name of TOOLS.filter(n => n !== 'validate_document')) {
+    for (const name of TOOLS.filter(n => n !== 'validate_document' && n !== 'make_dossier')) {
         const meta = tools.find(x => x.name === name)._meta;
         assert.ok(uris.includes(meta.ui.resourceUri));
         assert.equal(meta['openai/outputTemplate'], meta.ui.resourceUri);
@@ -44,6 +44,7 @@ test('discovery: tools, annotations, security schemes, widget metadata and resou
         assert.ok(meta['openai/toolInvocation/invoking'] && meta['openai/toolInvocation/invoked']);
     }
     assert.equal(tools.find(x => x.name === 'validate_document')._meta.ui, undefined);
+    assert.equal(tools.find(x => x.name === 'make_dossier')._meta.ui, undefined);
 
 
     const { resources } = await client.listResources();
@@ -69,12 +70,12 @@ test('a widget domain is declared only when configured, and only as an https ori
     const client = new Client({ name: 't', version: '1' });
     await server.connect(a); await client.connect(b);
     t.after(() => client.close());
-    const meta = (await client.readResource({ uri: 'ui://awa/journeys-v2.html' })).contents[0]._meta;
+    const meta = (await client.readResource({ uri: 'ui://awa/journeys-v3.html' })).contents[0]._meta;
     assert.equal(meta.ui.domain, 'https://widgets.example.org'); assert.equal(meta['openai/widgetDomain'], 'https://widgets.example.org');
     assert.deepEqual(meta.ui.csp, { connectDomains: [], resourceDomains: [] });
     await assert.rejects(createMcpServer({ widget_domain: 'http://widgets.example.org' }), /https origin/);
     await assert.rejects(createMcpServer({ widget_domain: 'https://widgets.example.org/path' }), /https origin/);
-    const plain = (await (await connect(t)).readResource({ uri: 'ui://awa/journeys-v2.html' })).contents[0]._meta;
+    const plain = (await (await connect(t)).readResource({ uri: 'ui://awa/journeys-v3.html' })).contents[0]._meta;
     assert.equal('domain' in plain.ui, false); assert.equal('openai/widgetDomain' in plain, false);
 });
 
@@ -342,7 +343,7 @@ test('a brand: a DESIGN.md text or a brand.json goes to the view as given, check
     assert.equal(broken.isError, true); assert.match(text_of(broken), /could not be read/);
     await refuses(call(client, 'show_dashboard', { use_claims_example: true, brand: { __proto__: null, constructor: 1 } }), /constructor/);
     const { tools } = await client.listTools();
-    for (const name of TOOLS.filter(n => n !== 'validate_document')) {
+    for (const name of TOOLS.filter(n => n !== 'validate_document' && n !== 'make_dossier')) {
         const tool = tools.find(x => x.name === name);
         assert.ok(tool.inputSchema.properties.brand && /DESIGN\.md/.test(tool.description), `${name} takes a brand and says so`);
         assert.deepEqual(tool.annotations, { readOnlyHint: true, destructiveHint: false, openWorldHint: false });
@@ -366,4 +367,40 @@ test('simulate_workflow: context bindings are enforced; a script may write conte
     // A write the bindings do not allow is refused by the engine, in a simulation as anywhere
     const denied = await call(client, 'simulate_workflow', { workflow: orders, simulated_outputs: { ...read('examples/order-processing/simulation.json'), 'Notify Customer': { contexts: { 'Order Data': { status: 'tampered' } } } } });
     assert.equal(denied.structuredContent.failures[0].code, 'CONTEXT_ACCESS_DENIED');
+});
+
+test('make_dossier: a client edition is made only for the customer named, and says how to choose', async t => {
+    const client = await connect(t);
+    const { tools } = await client.listTools();
+    const schema = tools.find(x => x.name === 'make_dossier').inputSchema;
+    assert.deepEqual(schema.if, { properties: { edition: { const: 'client' } }, required: ['edition'] }, 'the input schema says when customer is required');
+    assert.deepEqual(schema.then.required, ['customer']);
+    const portfolio = read('examples/claims-journey/journeys.json');
+    const keys = portfolio.journeys[0].instances.map(i => i.instance.subject_key);
+    for (const args of [{ use_claims_example: true, edition: 'client' }, { use_claims_example: true, edition: 'client', customer: ' ' }]) await refuses(call(client, 'make_dossier', args), /client edition is for one customer: give customer, by subject key or name/);
+    const unknown = await call(client, 'make_dossier', { portfolio, edition: 'client', customer: 'DOES-NOT-EXIST' });
+    assert.equal(unknown.isError, true, 'a customer that matches none is refused, not replaced by another');
+    assert.match(text_of(unknown), /“DOES-NOT-EXIST” matches no customer of Policy Purchase/);
+    for (const key of keys) assert.ok(text_of(unknown).includes(key), `the error lists the subject key ${key}`);
+    assert.equal(unknown.content.some(c => c.type === 'resource'), false);
+    const named = await call(client, 'make_dossier', { portfolio, edition: 'client', customer: keys[2] });
+    assert.deepEqual(named.structuredContent.personas, [portfolio.journeys[0].instances[2].subject_name]);
+});
+
+test('make_dossier: the HTML dossier of the example, a client edition that names no one else, and refusals', async t => {
+    const client = await connect(t);
+    const made = await call(client, 'make_dossier', { use_claims_example: true });
+    const html = made.content.find(c => c.type === 'resource').resource;
+    assert.equal(html.mimeType, 'text/html');
+    assert.match(html.text, /^<!doctype html>/);
+    assert.ok(!/<script[^>]*\ssrc=/i.test(html.text), 'the dossier loads no script from anywhere');
+    assert.ok(made.structuredContent.sentences > 3 && made.structuredContent.references >= made.structuredContent.sentences);
+    const portfolio = read('examples/claims-journey/journeys.json');
+    const key = portfolio.journeys[0].instances[0].instance.subject_key;
+    const mine = await call(client, 'make_dossier', { portfolio, edition: 'client', customer: key });
+    assert.equal(mine.structuredContent.edition, 'client');
+    assert.equal(mine.structuredContent.personas.length, 1);
+    const none = await call(client, 'make_dossier', {});
+    assert.equal(none.isError, true);
+    assert.match(text_of(none), /portfolio, or use_claims_example/);
 });

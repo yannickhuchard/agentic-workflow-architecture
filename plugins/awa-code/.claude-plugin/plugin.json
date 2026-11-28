@@ -3,7 +3,7 @@
   "name": "awa",
   "displayName": "AWA Workflows & Journeys",
   "version": "0.1.0",
-  "description": "Validate, view and simulate Agentic Workflow Architecture (AWA) workflows and customer journeys: the AWA MCP server with its 7 tools, the AWA skill, and the /awa:validate, /awa:show, /awa:simulate and /awa:example commands. Simulation only: no tool, model or production system is called.",
+  "description": "Validate, view and simulate Agentic Workflow Architecture (AWA) workflows and customer journeys: the AWA MCP server with its 8 tools, the AWA skill, and the /awa:validate, /awa:show, /awa:simulate and /awa:example commands. Simulation only: no tool, model or production system is called.",
   "author": {
     "name": "Yannick Huchard",
     "url": "https://github.com/yannickhuchard"

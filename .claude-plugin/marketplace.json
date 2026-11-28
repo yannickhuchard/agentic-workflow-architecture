@@ -10,7 +10,7 @@
     {
       "name": "awa",
       "source": "./plugins/awa-code",
-      "description": "The AWA MCP server (7 tools: validate, show and simulate workflows and journeys, the claims example, the measures dashboard), the AWA skill and the /awa:validate, /awa:show, /awa:simulate and /awa:example commands. Needs a built clone of this repository until the server is hosted.",
+      "description": "The AWA MCP server (8 tools: validate, show and simulate workflows and journeys, the claims example, the measures dashboard, the dossier), the AWA skill and the /awa:validate, /awa:show, /awa:simulate and /awa:example commands. Needs a built clone of this repository until the server is hosted.",
       "category": "development",
       "tags": ["awa", "workflow", "customer-journey", "simulation", "mcp"]
     }

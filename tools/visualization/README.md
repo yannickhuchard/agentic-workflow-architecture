@@ -9,6 +9,9 @@
 | `live.html` | A running workflow, by polling a local demo server |
 | `awa-brand.js` | Reads a company's brand (a DESIGN.md or a brand.json) and puts it on the journey view, the replay and the measures page ([Branding](#branding)) |
 | `awa-glossary.js` | The terms the journey view's glossary explains ([Glossary](#glossary)) |
+| `awa-recommendations.js` | The recommendations of a record: twelve rules over the measures and the journal, and the journey's own ([Recommendations](#recommendations)) |
+| `recommendation-replay.mjs` | Measures the effect of a recommendation by counterfactual replay, where a replay can, and stores the reports with the example |
+| `awa-dossier.js`, `awa-dossier-html.js`, `awa-dossier-print.js`, `awa-dossier-docx.js`, `awa-dossier-node.js` | The dossier of a journey: its content, and its HTML, PDF (print layout) and DOCX writers ([tools/dossier](../dossier/README.md)) |
 | `brands/` | AWA's own design tokens (`awa.DESIGN.md`) and a fictional company's brand to start from (Valoria Life, light and dark) |
 
 ## Replay
@@ -119,17 +122,75 @@ The switch at the top right moves sideways to another journey; on one customer's
 
 ### Glossary
 
-The Glossary button in the top bar (or the ? key) opens a panel beside the view. It lists the words of the view and of AWA, each in one plain sentence with where it comes from: the section of the specification for AWA's terms (§19.2 for a stage), "View" for a word of the view itself, and for a journey's own terms the short text or the https link its options give. A search ("Search 53 terms") filters as you type, by the term, its other names and its sentence; chips show one group: This journey, Journeys, Work, Trust, Measures. While the panel is open, Tab stays inside it; Esc or the close button closes it.
+The Glossary button in the top bar (or the ? key) opens a panel beside the view. It lists the words of the view and of AWA, each in one plain sentence with where it comes from: the section of the specification for AWA's terms (§19.2 for a stage), "View" for a word of the view itself, and for a journey's own terms the short text or the https link its options give. A search ("Search 60 terms") filters as you type, by the term, its other names and its sentence; chips show one group: This journey, Journeys, Work, Trust, Measures. While the panel is open, Tab stays inside it; Esc or the close button closes it.
 
 Words of the view are dotted, and selecting one opens its entry: the legend of the run view ("working now", "waiting", "done", "failed", "undone afterwards", "path taken on a missed deadline"), the legend and the row names of the blueprint, the actor tags on activity boxes (AI agent, Person, System, Robot, Undo step), the run's status, "stalled" and "left" on the stage cards, "Bands", and "Journal record" in the evidence.
 
 The address opens it too: `#glossary` or `#glossary/<term id>`, alone or after the place, as in `#run/1/1/1/3/glossary/four-eyes`. The view writes the panel into the address while it is open, so a copied address opens the same entry.
 
-AWA's terms are in `awa-glossary.js` (`window.AWA_GLOSSARY` in a page, `require()` in Node): 53 terms, each citing a section checked against `docs/specification.md`. A journey adds its own through the `glossary` option; `examples/electricity-onboarding/views/story-options.json` adds eight (metering point, EAN code, prosumer, export tariff, grid export registration, supplier switch, direct debit mandate, commissioning report). Option text is shown as text, never as markup, and `see` becomes a link only when it is an https address.
+AWA's terms are in `awa-glossary.js` (`window.AWA_GLOSSARY` in a page, `require()` in Node): 60 terms, each citing a section or, for a word of the view, "View" checked against `docs/specification.md`. A journey adds its own through the `glossary` option; `examples/electricity-onboarding/views/story-options.json` adds eight (metering point, EAN code, prosumer, export tariff, grid export registration, supplier switch, direct debit mandate, commissioning report). Option text is shown as text, never as markup, and `see` becomes a link only when it is an https address.
 
 On one customer's journey nothing is hidden: selecting a mark reads that moment and dims what comes after. "Read as a list" gives the same story as a dated list, by default only the customer's side.
 
 A filled dot and a solid stretch of the mood line are something the customer said. A hollow dot and a dashed stretch are an inference by a rule of the journey; the caption gives the rule's reason.
+
+## Recommendations
+
+**Recommendations**, beside the heights in the bar, with its count, opens the tab of what to change (design boards 12 to 12d). `#recommendations` opens it, `#recommendations/<id>` opens one recommendation; every other address works as before.
+
+| Part | What it shows |
+|---|---|
+| The map | Impact against effort, one mark per recommendation: its size is the customers concerned, its shape and colour the kind (speed circle, quality square, cost diamond, trust hexagon, experience ring), a number beside it, so colour is never the only cue. The marks settle on a spring when the tab opens. "Do first" is high impact for low or medium effort |
+| The cards | The same recommendations ranked by impact over effort: the rule and numbers that fired it, the customers, how the effect is known (Replay, Estimate, Pilot, Replay not run), and what this viewer decided |
+| Filters | Journey, stage and kind. A stage with none shows the empty state: the seven checks it passed, with what each found and its threshold |
+| The panel | Why it fired (each rule with its numbers and threshold), the customers behind it with **Blueprint ›**, which opens their journey, and a link to the run at the step or the journey record the rule points at, the expected effect and how it is known, the action, and Accept, Dismiss with a reason, Add to the dossier, kept in this browser for this viewer |
+| Before and after | For a recommendation measured by replay: the run as recorded and with the change, the boxes moving to their place, and the replay report (specification section 20.3) with its effect on the measures. **T** toggles |
+
+| Control | Action |
+|---|---|
+| ← → ↑ ↓ on the map | Move to the nearest mark that way |
+| Home, End | The first and the last by rank |
+| Enter or Space | Open the recommendation |
+| Escape | Close the panel (or the before and after) and give the focus back to the mark or card that opened it |
+| T | Before and after |
+
+Under `prefers-reduced-motion` nothing moves: the marks are in place at once and the panel does not slide.
+
+`awa-recommendations.js` computes them, in the page and in Node (`require`), from the record the view shows; the MCP server computes them beside the story it sends the journeys widget. No DOM, no clock: the same record and options give the same recommendations. The twelve rules:
+
+| Rule | Fires when | Default threshold |
+|---|---|---|
+| R1 | A stage outlasts its time: its share of entries that stalled (`stage.breach_rate`) | > 10%, at least 5 entries |
+| R2 | The outcome contract hands a run over to a person at an activity | ≥ 10% of runs |
+| R3 | The same guardrail blocks the same input again in one run | ≥ 2 |
+| R4 | The policy refuses a person at a task (`authorization.decided` deny) | ≥ 1 |
+| R5 | Customers need a reminder (a touchpoint whose id or name says remind) | ≥ 10% of journeys |
+| R6 | Mood falls at a stage | a change of −0.5 or lower |
+| R7 | One activity holds most model tokens | > 50% |
+| R8 | Customers leave at a stage | ≥ 10% |
+| R9 | Right first time is low (`workflow.first_pass_yield`) | < 80% |
+| R10 | The customer hears nothing: the longest time between touchpoints with them | ≥ 7 days |
+| R11 | An awaited event never comes (`event.timed_out`) | ≥ 1 |
+| R12 | A service level slips: runs with a warning or a breach | ≥ 25% of runs |
+
+What the rules find is joined into actions: a silence into a touchpoint, handovers into a smaller attempt budget, refusals into routing, a wait that runs out into a shorter wait or a follow-up, reminders into an earlier reminder, a costly activity into a lighter model for the clear cases. Each recommendation has its owner (the stage's `owner`), the customers concerned with their run and journal record, impact = customers concerned ÷ journeys started × severity (3 a journey lost or a run failed, 2 a stage or a promise outlasted or a fall of mood, 1 friction, 0.25 a cost below materiality), effort (1 options, policy or a contract budget; 2 a workflow change; 3 new work for people), priority = impact ÷ effort, and how its effect is known: measured, replay, replay not run, estimate or pilot.
+
+The options' `recommendations` (all optional):
+
+| Option | Meaning |
+|---|---|
+| `thresholds` | `{ "R1": 0.05, "R10": "P5D" }`: a number sets a rule's main threshold, an object (`{ "R1": { "share": 0.05, "min_entries": 3 } }`) any of them |
+| `materiality` | `{ "cost_per_journey": 1.0 }`: below it, cost weighs 0.25 |
+| `reminders` | The touchpoint ids that are reminders |
+| `wording` | `{ "<id>": { "title", "action", "finding", "effect" } }`: the journey's own words for a recommendation the rules make |
+| `rules` | Domain recommendations: `{ "id", "title", "kind", "stage", "owner", "effort", "for": "customer" or "journey", "when": <condition>, "finding", "action", "effect": { "method", "text" }, "rules": ["R8"] }`. A rule that names R8 at its stage takes the place of the generic one |
+| `replays` | The replay reports, or the path of `replays.json` relative to the options file (the page reads it) |
+
+A condition is data, never code: `{ "all": [...] }`, `{ "any": [...] }`, `{ "not": ... }`, or a test `{ "field": "data.outstanding_debt_eur", "gt": 1000 }` on a customer (`status`, `stage`, `stalled`, `days`, `mood`, `reached.<stage>`, `touchpoints.<id>`, `data.<path>`) or `{ "measure": "stage.abandoned", "stage": "invitation", "gte": 1 }` on the journey's measures, with `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `in` or `exists`. A text may hold `{names}`, `{count}`, `{of}`, `{stage}`. `examples/electricity-onboarding/views/story-options.json` offers a payment plan before declining; `examples/life-insurance-savings/views/story-options.json` proposes a top-up before 31 December to a member below the Art. 111bis ceiling.
+
+`node tools/visualization/recommendation-replay.mjs` replays, with `ai: "recorded"`, the runs behind each recommendation a replay can measure (today an outcome contract's attempt budget), and writes `examples/<name>/recommendations/replays.json` with each report in `replay/`. The replay supplies the step's recorded result, so it shows what the rest of the run does under the change (status, path, who decided, regressions); the attempts and the agent time at the step come from the recorded attempts. On the electricity example: attempts at the step 4 → 2, agent time 14 → 7 minutes, outcome contracts met 33 of 37 → 33 of 35, no regression.
+
+**Export dossier**, in the bar, opens the export dialog: audience (client or professional), scope, sections, brand, formats, the persona the narrator picked, a preview and the accessibility check. It makes the HTML edition of the dossier in the browser, offered as a link, and gives the command for the PDF and the DOCX ([tools/dossier](../dossier/README.md)).
 
 ## Branding
 

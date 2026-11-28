@@ -1,0 +1,605 @@
+{
+  "$schema": "../../datamodel/awa.schema.json",
+  "id": "47f38e62-5501-53da-bcbc-a369284ba4ee",
+  "name": "Journey Dossier",
+  "version": "1.0.0",
+  "awa_version": "1.1",
+  "description": "Makes the dossier of a journey: collects the record, computes the measures, has the narrator tell each persona's story under an outcome contract, applies the recommendation rules and replays what a replay can measure, composes with the brand under an accessibility check, has a person approve it, and exports HTML, PDF and DOCX. The dossier's own run is journalled, so the evidence report can say who made each dossier, from which record, and who approved it.",
+  "sla": {
+    "id": "3eb25604-b5ca-5113-b8b1-f82f72f00d5e",
+    "name": "Draft within ten minutes, approval within two working days",
+    "target_time": "PT10M",
+    "max_time": "P2D",
+    "escalation_policy": {
+      "breach_action": "record",
+      "notify_roles": [
+        "1c60a93f-e627-5465-972c-d7c8ceece43c"
+      ]
+    }
+  },
+  "roles": [
+    {
+      "id": "f989a2af-251d-5dd8-a82e-72a73a5bcd02",
+      "name": "Dossier service",
+      "actor_type": "application",
+      "description": "Reads the record, computes the measures and the recommendations, composes and exports the dossier: deterministic code (tools/visualization/awa-dossier*.js)."
+    },
+    {
+      "id": "479d7d23-b83d-5b56-bfcc-bd1439c0773a",
+      "name": "Narrator",
+      "actor_type": "ai_agent",
+      "description": "Writes each persona's story in their own voice from the record, and the plain-language summaries of each chart. It never computes a number; it only cites them.",
+      "capabilities": [
+        "writing in a customer's voice",
+        "citing journal records"
+      ],
+      "ai_model_config": {
+        "model_id": "tier:narrator",
+        "temperature": 0.3
+      }
+    },
+    {
+      "id": "1c60a93f-e627-5465-972c-d7c8ceece43c",
+      "name": "Reviewer",
+      "actor_type": "human",
+      "description": "Reads the dossier and approves it before it is issued. Not the person who asked for it (separation of duties in the deployment's policy)."
+    }
+  ],
+  "contexts": [
+    {
+      "id": "b74234e0-7ae8-57b5-b2a3-da9b68feefe3",
+      "name": "dossier",
+      "description": "The record, the measures, the stories and the dossier as it is composed.",
+      "type": "data",
+      "sync_pattern": "shared_state",
+      "visibility": "workflow",
+      "lifecycle": "transient"
+    }
+  ],
+  "events": [
+    {
+      "id": "07d82ec3-9c77-57d4-aadf-369a19244213",
+      "name": "Dossier requested",
+      "event_type": "start",
+      "description": "Someone asks for the dossier of a journey: an edition, a period, the customers."
+    },
+    {
+      "id": "6e07b847-dc5b-54b0-a5d4-709c2e338c73",
+      "name": "Stories, rules and replays ready",
+      "event_type": "intermediate",
+      "join": "all",
+      "description": "The narrator, the rules and the replays are all back."
+    },
+    {
+      "id": "f3180388-bdc0-5340-9950-c16d8833c46f",
+      "name": "Dossier issued",
+      "event_type": "end"
+    }
+  ],
+  "activities": [
+    {
+      "id": "ca15fa48-67fa-5815-8798-a0ce7eda8ae4",
+      "name": "Collect the record",
+      "description": "Read the portfolio export, the journey's options and the evidence report: journeys, runs and their journals, the brand.",
+      "role_id": "f989a2af-251d-5dd8-a82e-72a73a5bcd02",
+      "actor_type": "application",
+      "inputs": [],
+      "outputs": [],
+      "context_bindings": [
+        {
+          "context_id": "b74234e0-7ae8-57b5-b2a3-da9b68feefe3",
+          "access_mode": "write"
+        }
+      ],
+      "access_rights": [],
+      "programs": [],
+      "controls": [],
+      "is_expandable": false,
+      "skills": [],
+      "tool_requirements": [],
+      "outcome_contract": {
+        "output_schema": {
+          "type": "object",
+          "required": [
+            "journeys",
+            "runs",
+            "journal_records"
+          ],
+          "properties": {
+            "journeys": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "runs": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "journal_records": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "postconditions": [],
+        "on_violation": "fail"
+      }
+    },
+    {
+      "id": "aafa5ee0-9000-5427-bc70-8f2c58fb4bf8",
+      "name": "Compute the measures",
+      "description": "Compute every figure with awa-kpis.js, the code of awa measures and section 21, each with its count.",
+      "role_id": "f989a2af-251d-5dd8-a82e-72a73a5bcd02",
+      "actor_type": "application",
+      "inputs": [],
+      "outputs": [],
+      "context_bindings": [],
+      "access_rights": [],
+      "programs": [],
+      "controls": [],
+      "is_expandable": false,
+      "skills": [],
+      "tool_requirements": [],
+      "outcome_contract": {
+        "output_schema": {
+          "type": "object",
+          "required": [
+            "figures"
+          ],
+          "properties": {
+            "figures": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "postconditions": [],
+        "on_violation": "fail"
+      }
+    },
+    {
+      "id": "a4611fe2-e19c-5639-a6c6-1e7ab0f76b48",
+      "name": "Tell each persona's story",
+      "description": "Write the story of each persona in their own voice, from the record only. Each sentence cites the journal records it rests on (J·28, 0093·74).",
+      "role_id": "479d7d23-b83d-5b56-bfcc-bd1439c0773a",
+      "actor_type": "ai_agent",
+      "inputs": [],
+      "outputs": [],
+      "context_bindings": [],
+      "access_rights": [],
+      "programs": [],
+      "controls": [],
+      "is_expandable": false,
+      "skills": [],
+      "tool_requirements": [],
+      "procedure": "For each persona, tell what they did and saw, in the first person, in order of time. Then what they did not see, as the record shows it. Cite at least one journal record after every sentence. State no feeling the record does not state: a mood inferred by a rule is not a feeling the customer said. In a client edition, name no other customer.",
+      "guardrails": [
+        {
+          "id": "bee73447-efc7-5d1b-8626-1408b7c0cd09",
+          "name": "Personal data in a story",
+          "stages": [
+            "output"
+          ],
+          "check": {
+            "kind": "personal_data",
+            "categories": [
+              "email",
+              "phone",
+              "iban"
+            ]
+          },
+          "action": "redact",
+          "fields": [
+            "stories"
+          ]
+        }
+      ],
+      "outcome_contract": {
+        "output_schema": {
+          "type": "object",
+          "required": [
+            "stories",
+            "sentences",
+            "uncited_sentences",
+            "unsupported_feelings",
+            "other_customers_named"
+          ],
+          "properties": {
+            "stories": {
+              "type": "array",
+              "minItems": 1
+            },
+            "sentences": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "uncited_sentences": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "unsupported_feelings": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "other_customers_named": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "postconditions": [
+          {
+            "name": "Every sentence cites a journal record",
+            "expression": "uncited_sentences == 0"
+          },
+          {
+            "name": "No feeling the record does not state",
+            "expression": "unsupported_feelings == 0"
+          },
+          {
+            "name": "No other customer named in a client edition",
+            "expression": "other_customers_named == 0"
+          }
+        ],
+        "budgets": {
+          "max_attempts": 2
+        },
+        "on_violation": "escalate_human"
+      }
+    },
+    {
+      "id": "189a9358-2e22-5c51-911f-1679b2da2e68",
+      "name": "Apply the rules R1 to R12",
+      "description": "Compute the recommendations with awa-recommendations.js: the twelve rules and the journey's own, with their numbers and the customers behind them.",
+      "role_id": "f989a2af-251d-5dd8-a82e-72a73a5bcd02",
+      "actor_type": "application",
+      "inputs": [],
+      "outputs": [],
+      "context_bindings": [],
+      "access_rights": [],
+      "programs": [],
+      "controls": [],
+      "is_expandable": false,
+      "skills": [],
+      "tool_requirements": [],
+      "outcome_contract": {
+        "output_schema": {
+          "type": "object",
+          "required": [
+            "recommendations"
+          ],
+          "properties": {
+            "recommendations": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "postconditions": [],
+        "on_violation": "fail"
+      }
+    },
+    {
+      "id": "6b094827-6f23-5fd2-ac9a-d2d4cde6a19b",
+      "name": "Replay the candidates",
+      "description": "Replay the runs behind each recommendation a replay can measure, with ai: recorded (section 20), and keep the reports.",
+      "role_id": "f989a2af-251d-5dd8-a82e-72a73a5bcd02",
+      "actor_type": "application",
+      "inputs": [],
+      "outputs": [],
+      "context_bindings": [],
+      "access_rights": [],
+      "programs": [],
+      "controls": [],
+      "is_expandable": false,
+      "skills": [],
+      "tool_requirements": [],
+      "outcome_contract": {
+        "output_schema": {
+          "type": "object",
+          "required": [
+            "replays",
+            "regressions"
+          ],
+          "properties": {
+            "replays": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "regressions": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "postconditions": [
+          {
+            "name": "No regression",
+            "expression": "regressions == 0"
+          }
+        ],
+        "on_violation": "fail"
+      }
+    },
+    {
+      "id": "09edbc93-1082-5c3d-8372-134a30bc1d92",
+      "name": "Compose with the brand",
+      "description": "Compose the HTML edition, the print layout and the DOCX with the brand of the options (DESIGN.md).",
+      "role_id": "f989a2af-251d-5dd8-a82e-72a73a5bcd02",
+      "actor_type": "application",
+      "inputs": [],
+      "outputs": [],
+      "context_bindings": [
+        {
+          "context_id": "b74234e0-7ae8-57b5-b2a3-da9b68feefe3",
+          "access_mode": "read",
+          "required": false
+        }
+      ],
+      "access_rights": [],
+      "programs": [],
+      "controls": [],
+      "is_expandable": false,
+      "skills": [],
+      "tool_requirements": [],
+      "guardrails": [
+        {
+          "id": "33e51269-f960-5ab8-bce2-3503e4cc1850",
+          "name": "Accessibility check",
+          "stages": [
+            "output"
+          ],
+          "check": {
+            "kind": "json_schema",
+            "schema": {
+              "type": "object",
+              "required": [
+                "accessibility"
+              ],
+              "properties": {
+                "accessibility": {
+                  "type": "object",
+                  "required": [
+                    "failures"
+                  ],
+                  "properties": {
+                    "failures": {
+                      "const": 0
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "action": "retry_with_feedback"
+        }
+      ],
+      "outcome_contract": {
+        "output_schema": {
+          "type": "object",
+          "required": [
+            "pages",
+            "accessibility"
+          ],
+          "properties": {
+            "pages": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "accessibility": {
+              "type": "object"
+            }
+          }
+        },
+        "postconditions": [],
+        "on_violation": "fail"
+      }
+    },
+    {
+      "id": "1207b35e-6ca2-57ec-ad99-280960285ba3",
+      "name": "Review and approve",
+      "description": "Read the dossier and approve it, or send it back with what to change. The person who asked for the dossier does not approve it.",
+      "role_id": "1c60a93f-e627-5465-972c-d7c8ceece43c",
+      "actor_type": "human",
+      "inputs": [],
+      "outputs": [],
+      "context_bindings": [],
+      "access_rights": [],
+      "programs": [],
+      "controls": [],
+      "is_expandable": false,
+      "skills": [],
+      "tool_requirements": [],
+      "outcome_contract": {
+        "output_schema": {
+          "type": "object",
+          "required": [
+            "approved"
+          ],
+          "properties": {
+            "approved": {
+              "type": "boolean"
+            },
+            "note": {
+              "type": "string"
+            }
+          }
+        },
+        "postconditions": [],
+        "on_violation": "fail"
+      }
+    },
+    {
+      "id": "360515df-1132-5528-815b-a6c97545cad7",
+      "name": "Export HTML, PDF and DOCX",
+      "description": "Write the three files, with fixed dates and identifiers so that they are the same bytes every time.",
+      "role_id": "f989a2af-251d-5dd8-a82e-72a73a5bcd02",
+      "actor_type": "application",
+      "inputs": [],
+      "outputs": [],
+      "context_bindings": [],
+      "access_rights": [],
+      "programs": [],
+      "controls": [],
+      "is_expandable": false,
+      "skills": [],
+      "tool_requirements": [],
+      "outcome_contract": {
+        "output_schema": {
+          "type": "object",
+          "required": [
+            "files"
+          ],
+          "properties": {
+            "files": {
+              "type": "array",
+              "minItems": 1
+            }
+          }
+        },
+        "postconditions": [],
+        "on_violation": "fail"
+      }
+    },
+    {
+      "id": "d29a2625-600e-5e05-844f-bbb5f042e6f7",
+      "name": "Send it back to composition",
+      "description": "Record the reviewer's note and compose again.",
+      "role_id": "f989a2af-251d-5dd8-a82e-72a73a5bcd02",
+      "actor_type": "application",
+      "inputs": [],
+      "outputs": [],
+      "context_bindings": [],
+      "access_rights": [],
+      "programs": [],
+      "controls": [],
+      "is_expandable": false,
+      "skills": [],
+      "tool_requirements": [],
+      "outcome_contract": {
+        "output_schema": {
+          "type": "object"
+        },
+        "postconditions": [],
+        "on_violation": "fail"
+      }
+    }
+  ],
+  "decision_nodes": [],
+  "edges": [
+    {
+      "id": "35e5d63b-2106-5127-ba4e-9dcd59af54fc",
+      "source_id": "07d82ec3-9c77-57d4-aadf-369a19244213",
+      "target_id": "ca15fa48-67fa-5815-8798-a0ce7eda8ae4",
+      "is_default": false,
+      "skills": [],
+      "tool_requirements": []
+    },
+    {
+      "id": "f3ece10b-a3e3-5295-99a9-578a3ed64686",
+      "source_id": "ca15fa48-67fa-5815-8798-a0ce7eda8ae4",
+      "target_id": "aafa5ee0-9000-5427-bc70-8f2c58fb4bf8",
+      "is_default": false,
+      "skills": [],
+      "tool_requirements": []
+    },
+    {
+      "id": "60aee4d8-ed8e-5bfb-bc3d-d7b45360d20e",
+      "source_id": "aafa5ee0-9000-5427-bc70-8f2c58fb4bf8",
+      "target_id": "a4611fe2-e19c-5639-a6c6-1e7ab0f76b48",
+      "is_default": false,
+      "skills": [],
+      "tool_requirements": []
+    },
+    {
+      "id": "a4b54d65-44ec-570a-8d00-ccefc0e9fbe5",
+      "source_id": "aafa5ee0-9000-5427-bc70-8f2c58fb4bf8",
+      "target_id": "189a9358-2e22-5c51-911f-1679b2da2e68",
+      "is_default": false,
+      "skills": [],
+      "tool_requirements": []
+    },
+    {
+      "id": "c9669859-4d1c-5a39-b4cc-6d5332a7acf8",
+      "source_id": "aafa5ee0-9000-5427-bc70-8f2c58fb4bf8",
+      "target_id": "6b094827-6f23-5fd2-ac9a-d2d4cde6a19b",
+      "is_default": false,
+      "skills": [],
+      "tool_requirements": []
+    },
+    {
+      "id": "8e6aa7f0-7922-539c-a199-7765c24c0666",
+      "source_id": "a4611fe2-e19c-5639-a6c6-1e7ab0f76b48",
+      "target_id": "6e07b847-dc5b-54b0-a5d4-709c2e338c73",
+      "is_default": false,
+      "skills": [],
+      "tool_requirements": []
+    },
+    {
+      "id": "c8c32f7d-89e4-5446-93c0-1e204cdc6e65",
+      "source_id": "189a9358-2e22-5c51-911f-1679b2da2e68",
+      "target_id": "6e07b847-dc5b-54b0-a5d4-709c2e338c73",
+      "is_default": false,
+      "skills": [],
+      "tool_requirements": []
+    },
+    {
+      "id": "89e82ac8-0378-5b0a-b659-63691b3ece87",
+      "source_id": "6b094827-6f23-5fd2-ac9a-d2d4cde6a19b",
+      "target_id": "6e07b847-dc5b-54b0-a5d4-709c2e338c73",
+      "is_default": false,
+      "skills": [],
+      "tool_requirements": []
+    },
+    {
+      "id": "99f3caea-b5b0-5b93-8c8f-cf5bee0f80fe",
+      "source_id": "6e07b847-dc5b-54b0-a5d4-709c2e338c73",
+      "target_id": "09edbc93-1082-5c3d-8372-134a30bc1d92",
+      "is_default": false,
+      "skills": [],
+      "tool_requirements": []
+    },
+    {
+      "id": "da31b760-ff09-5840-b00c-dcdac82eb7fc",
+      "source_id": "09edbc93-1082-5c3d-8372-134a30bc1d92",
+      "target_id": "1207b35e-6ca2-57ec-ad99-280960285ba3",
+      "is_default": false,
+      "skills": [],
+      "tool_requirements": []
+    },
+    {
+      "id": "3f74cddb-0654-57ad-a5b8-3929749dc3cf",
+      "source_id": "1207b35e-6ca2-57ec-ad99-280960285ba3",
+      "target_id": "360515df-1132-5528-815b-a6c97545cad7",
+      "is_default": false,
+      "skills": [],
+      "tool_requirements": [],
+      "condition": "approved == true",
+      "label": "approved"
+    },
+    {
+      "id": "a16d4d17-58e5-58df-8640-f53b67a535fc",
+      "source_id": "1207b35e-6ca2-57ec-ad99-280960285ba3",
+      "target_id": "d29a2625-600e-5e05-844f-bbb5f042e6f7",
+      "is_default": true,
+      "skills": [],
+      "tool_requirements": [],
+      "label": "sent back"
+    },
+    {
+      "id": "05f223c4-65ff-5f8d-86c2-be95e35f59d2",
+      "source_id": "d29a2625-600e-5e05-844f-bbb5f042e6f7",
+      "target_id": "09edbc93-1082-5c3d-8372-134a30bc1d92",
+      "is_default": false,
+      "skills": [],
+      "tool_requirements": []
+    },
+    {
+      "id": "d5330f3e-7e62-5954-a058-8954d83e5970",
+      "source_id": "360515df-1132-5528-815b-a6c97545cad7",
+      "target_id": "f3180388-bdc0-5340-9950-c16d8833c46f",
+      "is_default": false,
+      "skills": [],
+      "tool_requirements": []
+    }
+  ]
+}

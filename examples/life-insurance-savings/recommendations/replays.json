@@ -1,0 +1,80 @@
+{
+  "about": "Counterfactual replay (specification section 20) of the recommendations a replay can measure, written by node tools/visualization/recommendation-replay.mjs. Read by the journey view and the dossier through options.recommendations.replays.",
+  "handover-first-failure": {
+    "method": "replay",
+    "ai": "recorded",
+    "candidate": "budgets.max_attempts: 1 on Verify identity documents",
+    "runs": [
+      {
+        "customer": "Ana Duarte",
+        "instance": "0000002e-0000-4000-8000-000000000000",
+        "run_id": "0000038a-0000-4000-8000-000000000000",
+        "run": "038a",
+        "workflow": "Identity, AML and Tax Residence Checks",
+        "journal": "runs/ana-cross-border.identity-aml-and-tax-residence-checks.journal.jsonl",
+        "report": "replay/handover-first-failure.038a.json",
+        "report_md": "replay/handover-first-failure.038a.md",
+        "status": [
+          "completed",
+          "completed"
+        ],
+        "same_path": true,
+        "regressions": [],
+        "steps": [
+          {
+            "name": "Verify identity documents",
+            "verdict": "same",
+            "attempts": [
+              2,
+              1
+            ]
+          }
+        ],
+        "attempts_at_step": [
+          2,
+          1
+        ],
+        "attempts_run": [
+          5,
+          4
+        ],
+        "failed_at_step": [
+          2,
+          1
+        ],
+        "contracts_checked": [
+          3,
+          2
+        ],
+        "agent_ms_at_step": [
+          360000,
+          180000
+        ],
+        "replayed": {
+          "attempts_at_step": 1,
+          "failed_at_step": 0,
+          "contracts_checked": 1
+        },
+        "who_decided": [
+          "Jonas Becker"
+        ]
+      }
+    ],
+    "same_status": true,
+    "same_path": true,
+    "regressions": [],
+    "before": {
+      "Attempts at the step": "2",
+      "Failed attempts, all runs": "3",
+      "Outcome contracts met": "57 of 59",
+      "Agent time on the failed attempts": "6 min"
+    },
+    "after": {
+      "Attempts at the step": "1",
+      "Failed attempts, all runs": "2",
+      "Outcome contracts met": "57 of 58",
+      "Agent time on the failed attempts": "3 min"
+    },
+    "text": "Counterfactual replay with ai: recorded on the run concerned: attempts at the step 2 → 1, 1 failed attempt fewer, about 3 minutes of agent time fewer (the recorded durations of the attempts not made; the replay supplies the step's recorded result, so these figures come from the recorded attempts). The same path and the same people deciding; no regression. Right first time is unchanged: an escalation still counts."
+  }
+}

@@ -65,9 +65,9 @@ const own = file => path.join(WIDGET_SOURCES, file);
  */
 export const WIDGETS = {
     journeys: {
-        uri: 'ui://awa/journeys-v2.html',
+        uri: 'ui://awa/journeys-v3.html',
         description: 'Customer journeys at four heights: all journeys, one journey on calendar time, one customer\'s journey with mood, touchpoints and what changed hands, and the workflow run behind any moment. Shows simulated or exported records; it executes nothing.',
-        bundle: { html: view('journey.html'), drop: ['journey-story.js', 'journey-story-builder.js'], styles: [own('journey.css')], scripts: [own('host-bridge.js'), own('journey-bridge.js')] },
+        bundle: { html: view('journey.html'), drop: ['journey-story.js', 'journey-story-builder.js', 'dashboard-sample.js', 'awa-kpis.js', 'awa-recommendations.js', 'awa-dossier.js', 'awa-dossier-html.js'], styles: [own('journey.css')], scripts: [own('host-bridge.js'), own('journey-bridge.js')] },
     },
     workflow: {
         uri: 'ui://awa/workflow-graph-v2.html',

@@ -272,6 +272,30 @@ describe('The live demonstration (demo/live.mjs)', () => {
         }
     }, 60000);
 
+    it('plays the other employees on the calendar of the plan, after Léa, as make-runs.mjs does (--then-calendar one)', async () => {
+        const { start_demo } = await import(file('demo/live.mjs')) as any;
+        const { play } = await load();
+        const lines: any[] = [];
+        const demo = await start_demo({ sdk, port: 0, adapters_port: 0, speed: 4000, then: 'all', then_speed: 4000, then_calendar: 'one', out: (line: any) => lines.push(line) });
+        try {
+            await demo.done;
+            const example = play.load_example();
+            for (const scenario of example.scenarios) {
+                const instance = demo.runtime.list_journey_instances().find((i: any) => i.subject_key === scenario.invitation.enrolment_id);
+                const bundle = await demo.runtime.export_journey(instance.id);
+                expect(play.check_expectations(scenario, instance, bundle.runs), scenario.name).toEqual([]);
+            }
+            // Everyone joins the same year: the record ends with the last annual review, on 31 January 2027
+            const portfolio = await (await fetch(`${demo.base}/api/v1/journeys/portfolio`)).json() as any;
+            expect(portfolio.as_of.slice(0, 7)).toBe('2027-01');
+            const after = lines.slice(lines.findIndex(l => l.kind === 'phase'));
+            expect(after.filter(l => l.kind === 'action').every(l => l.main === false)).toBe(true);
+            expect(after.map(l => l.actor)).toEqual(expect.arrayContaining(['refused', 'guardrail']));
+        } finally {
+            await demo.stop();
+        }
+    }, 120000);
+
     it.skipIf(!fs.existsSync(path.resolve(__dirname, '../dist/index.mjs')))('as a command, ends cleanly on SIGINT', async () => {
         const child = spawn(process.execPath, [file('demo/live.mjs'), '--port', '0', '--adapters-port', '0', '--speed', '50'], { stdio: ['ignore', 'pipe', 'inherit'] });
         let text = '';

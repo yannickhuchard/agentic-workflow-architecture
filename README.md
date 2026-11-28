@@ -98,6 +98,8 @@ To write a new implementation, start from [`spec/conformance/README.md`](spec/co
 npm install agentic-workflow-architecture
 ```
 
+Version 2 of the packages, which this README describes, is published with the next release. Until then, build the SDK from a clone: `cd sdk/typescript && npm ci && npm run build && npm link` gives the `awa` command, and `pip install -e sdk/python` gives the Python package.
+
 The following command runs a workflow in simulation. Each activity returns what the simulation file states, and the journal records the run.
 
 ```bash
@@ -185,6 +187,8 @@ awa journey export -o portfolio.json
 
 **Measures.** The exported file opens in the journey view and in the measures page [`tools/visualization/dashboard.html`](tools/visualization/dashboard.html). The page shows who is waiting and who owns the next step, what became of each journey and how each workflow's runs went, and every number opens the list of customers behind it. `awa measures` prints the same measures, and `GET /api/v1/measures?format=openmetrics` gives them to a metrics system. `awa serve` with `AWA_DATA_DIR` offers everything over HTTP, and `journey.html?live=http://localhost:3000` follows the journeys as they progress.
 
+**What to change, and a dossier to hand over.** The journey view's Recommendations tab ranks what to change, found in the record by twelve rules and the journey's own, each with its numbers, the customers behind it and how its effect is known; `awa dossier` writes the whole journey as one document, in HTML, PDF and DOCX, with customers' stories in their own voice ([`tools/dossier`](tools/dossier/README.md)).
+
 **What-if questions.** This command shows what a recorded run would have done under a different model or rule:
 
 ```bash
@@ -233,13 +237,13 @@ In Cursor, with the clone in your home folder: [![Add the AWA MCP server to Curs
 
 [![AWA on skills.sh](https://skills.sh/b/yannickhuchard/agentic-workflow-architecture)](https://skills.sh/yannickhuchard/agentic-workflow-architecture)
 
-The [AWA skill](skills/agentic-workflow-architecture/SKILL.md) teaches a coding agent to write, validate, run and show AWA workflows and journeys. It installs with the [skills](https://skills.sh) command in Claude Code, Codex, Cursor, OpenCode and the other agents that command supports, without the MCP server:
+The [AWA skill](skills/agentic-workflow-architecture/SKILL.md) teaches a coding agent to write, validate, simulate and run AWA workflows and journeys, and to use their record: journals, replays, measures, views, recommendations, dossiers and evidence reports. It holds a decision guide, a validated workflow and journey to start from, reference files the agent reads when a task needs them (document model, runtime, command line, journeys and measures, trust and compliance, examples) and a script that finds the `awa` command of a built clone. It installs with the [skills](https://skills.sh) command in Claude Code, Codex, Cursor, OpenCode and the other agents that command supports, without the MCP server:
 
 ```bash
 npx skills add yannickhuchard/agentic-workflow-architecture --skill agentic-workflow-architecture
 ```
 
-Add `-g` to make it available in every project.
+Add `-g` to make it available in every project. To validate and run documents, the skill uses a clone with its SDK built (`cd sdk/typescript && npm ci && npm run build`); set `AWA_REPOSITORY` to the clone's folder when you work elsewhere.
 
 The server is not hosted yet: assistants that run in the cloud reach it through a tunnel to your computer, and one command switches every package to the hosted address when there is one. [`apps/mcp-server/SUBMISSION.md`](apps/mcp-server/SUBMISSION.md) lists the state of each package and the steps for publication: hosting, domain verification, the demo recording and the submissions.
 

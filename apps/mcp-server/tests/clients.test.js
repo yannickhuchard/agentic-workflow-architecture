@@ -8,7 +8,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { REPOSITORY_ROOT, RELEASE } from '../src/sdk.js';
+import { REPOSITORY_ROOT, RELEASE, load_sdk } from '../src/sdk.js';
 import { connect } from './helpers.js';
 import { cursor_config, cursor_links } from '../scripts/cursor-link.mjs';
 import { set_hosted_address, check_address } from '../scripts/set-hosted-address.mjs';
@@ -78,9 +78,44 @@ test('every skill of the plugin has a name and a description; the AWA skill is t
         assert.equal(meta.name, skill);
         assert.ok(meta.description && meta.description.length > 40, `${skill}: description`);
     }
-    const skill = text('skills/agentic-workflow-architecture/SKILL.md');
-    assert.equal(text('plugins/awa-code/skills/agentic-workflow-architecture/SKILL.md'), skill, 'copy skills/agentic-workflow-architecture/SKILL.md into the plugin');
-    assert.equal(text('.agent/skills/agentic-workflow-architecture/SKILL.md'), skill, 'copy skills/agentic-workflow-architecture/SKILL.md into .agent/skills');
+    // The whole folder, reference files, assets and scripts included: an installed plugin holds only its own folder
+    const files = folder => fs.readdirSync(at(folder), { recursive: true }).filter(f => fs.statSync(at(folder, f)).isFile()).sort();
+    const canonical = 'skills/agentic-workflow-architecture';
+    for (const copy of ['plugins/awa-code/skills/agentic-workflow-architecture', '.agent/skills/agentic-workflow-architecture']) {
+        assert.deepEqual(files(copy), files(canonical), `copy the whole folder ${canonical} to ${copy}`);
+        for (const file of files(canonical)) assert.equal(text(path.join(copy, file)), text(path.join(canonical, file)), `${copy}/${file} differs from ${canonical}/${file}: copy the folder again`);
+    }
+});
+
+test('the AWA skill: its front matter, the files it names, and examples that validate and run', async () => {
+    const dir = 'skills/agentic-workflow-architecture';
+    const body = text(`${dir}/SKILL.md`);
+    const meta = frontmatter(at(dir, 'SKILL.md'));
+    assert.equal(meta.name, 'agentic-workflow-architecture');
+    assert.ok(meta.description.length <= 1024, `the description has ${meta.description.length} characters; skills allow 1024`);
+    assert.ok(!/: /.test(meta.description), 'the description is a plain YAML scalar: no colon followed by a space');
+    assert.ok(!/^\s+internal:/m.test(/^---\n([\s\S]*?)\n---\n/.exec(body)[1]), 'the AWA skill is public: no metadata.internal');
+    assert.ok(body.split('\n').length < 500, 'SKILL.md stays under 500 lines');
+    for (const named of new Set([...body.matchAll(/`((?:references|assets|scripts)\/[A-Za-z0-9._-]+)`/g)].map(m => m[1]))) {
+        assert.ok(fs.existsSync(at(dir, named)), `SKILL.md names ${named}, which is not in the skill's folder`);
+    }
+    // The two documents shown in SKILL.md are the assets, and both validate and run to their end
+    const [workflow, journey] = [...body.matchAll(/```json\n([\s\S]*?)\n```/g)].map(m => JSON.parse(m[1]));
+    assert.deepEqual(workflow, json(`${dir}/assets/refund-request.awa.json`));
+    assert.deepEqual(journey, json(`${dir}/assets/refund-request.journey.json`));
+    const sdk = await load_sdk();
+    assert.ok(sdk.validate_workflow(workflow).valid);
+    assert.deepEqual(sdk.validate_workflow_integrity(sdk.parse_document(workflow)).errors, []);
+    assert.deepEqual(sdk.validate_journey(sdk.JourneyDefinitionSchema.parse(journey), new Set([workflow.id]), true), []);
+    const engine = new sdk.WorkflowEngine(sdk.parse_document(workflow), { simulate: true, simulated_outputs: json(`${dir}/assets/refund-request.simulation.json`), execution_logger: { log_execution: async () => { } } });
+    await engine.start({ customer_id: 'C-1' });
+    assert.equal(await engine.run(), 'waiting_event');
+    await engine.deliverEvent(sdk.business_event('receipt.uploaded', { customer_id: 'C-1', receipt_id: 'R-1' }));
+    assert.equal(await engine.run(), 'completed');
+    // The script finds this repository's command
+    const where = spawnSync(process.execPath, [at(dir, 'scripts/awa.mjs'), '--where'], { cwd: os.tmpdir(), env: { ...process.env, AWA_REPOSITORY: ROOT }, encoding: 'utf8' });
+    assert.equal(where.status, 0, where.stderr);
+    assert.ok(where.stdout.startsWith(path.join(ROOT, 'sdk/typescript/dist/cli/index.js')));
 });
 
 test('the command skills call tools the server has', async () => {
@@ -124,7 +159,7 @@ test('the Gemini CLI extension and the MCP Bundle manifest describe this server'
 
 test('each stdio configuration starts the server and lists every tool', async () => {
     const tools = await server_tools();
-    assert.equal(tools.length, 7);
+    assert.equal(tools.length, 8);
     const plugin = { CLAUDE_PLUGIN_ROOT: PLUGIN, 'user_config.repository': '' };
     const entries = [
         ['Claude Code plugin (.mcp.json), loaded in place', json('plugins/awa-code/.mcp.json').mcpServers.awa, plugin],

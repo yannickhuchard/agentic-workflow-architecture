@@ -39,7 +39,7 @@ await server.connect(a); await client.connect(b);
 
 const tools = (await client.listTools()).tools;
 const resources = (await client.listResources()).resources;
-const EXPECTED_TOOLS = ['validate_document', 'show_workflow', 'simulate_workflow', 'show_journeys', 'simulate_journey', 'load_claims_example', 'show_dashboard'];
+const EXPECTED_TOOLS = ['validate_document', 'show_workflow', 'simulate_workflow', 'show_journeys', 'simulate_journey', 'load_claims_example', 'show_dashboard', 'make_dossier'];
 check(JSON.stringify(tools.map(t => t.name)) === JSON.stringify(EXPECTED_TOOLS), `the server lists ${EXPECTED_TOOLS.length} tools: ${tools.map(t => t.name).join(', ')}`);
 check(tools.every(t => t.annotations?.readOnlyHint === true && t.annotations.destructiveHint === false && t.annotations.openWorldHint === false), 'every tool is annotated read-only, not destructive, closed world');
 check(tools.every(t => t.inputSchema?.additionalProperties === false), 'every tool has a strict input schema');
@@ -92,6 +92,7 @@ const CALLS = {
     journeys_from_documents: ['show_journeys', journey_args],
     journeys_from_portfolio: ['show_journeys', { portfolio: exported }],
     dashboard_example: ['show_dashboard', { use_claims_example: true }],
+    dossier_example: ['make_dossier', { use_claims_example: true }],
     dashboard_branded: ['show_dashboard', { use_claims_example: true, brand: valoria_design }],
     journeys_branded: ['load_claims_example', { brand: JSON.parse(JSON.stringify(valoria_json)) }],
     run_branded: ['simulate_workflow', { workflow: settlement, simulated_outputs: settlement_outputs, let_waits_time_out: true, brand: JSON.parse(JSON.stringify(valoria_json)) }],
@@ -216,6 +217,20 @@ if (args.includes('--serve-only')) {
             const box = await app.evaluate(() => { const r = document.getElementById('fit').getBoundingClientRect(); return { w: r.width, h: r.height, iw: innerWidth, ih: innerHeight }; });
             check(box.w <= box.iw + 1 && box.h <= box.ih + 1, `journeys: in fullscreen the stage fits its frame (${Math.round(box.w)}x${Math.round(box.h)} in ${box.iw}x${box.ih})`);
             await shot(page, 'journeys-example-fullscreen');
+            // the Recommendations tab, from the recommendations the tool computed beside the story
+            const expected = createRequire(import.meta.url)(path.join(REPOSITORY_ROOT, 'tools/visualization/awa-recommendations.js')).compute(JSON.parse(fs.readFileSync(path.join(REPOSITORY_ROOT, 'examples/claims-journey/journeys.json'), 'utf8')), {});
+            await frame.locator('#b-recs').click(); await settle(page);
+            const shown_name = await app.evaluate(() => document.querySelector('#crumbs .crumb.on').textContent);
+            const first = expected.journeys.find(j => j.name === shown_name) || expected.journeys[0];
+            check(await frame.locator('.rcard').count() === first.recommendations.length && (await frame.locator('#b-recs').innerText()).includes(String(first.recommendations.length)),
+                `journeys: the Recommendations tab shows the ${first.recommendations.length} recommendations the tool computed for ${first.name}`);
+            if (first.recommendations.length) {
+                await frame.locator('.rcard').first().click(); await settle(page);
+                check(await frame.locator('#rpanel.open h2').innerText() === first.recommendations[0].title, 'journeys: a recommendation opens its panel');
+                await shot(page, 'journeys-example-recommendations');
+                await page.keyboard.press('Escape'); await settle(page);
+                check(!(await frame.locator('#rpanel.open').count()), 'journeys: Escape closes the panel');
+            }
             await conformance(page); await page.close();
         }
         // --- journeys: simulated, from documents, from a portfolio, empty, hostile, light theme, narrow

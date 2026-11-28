@@ -1,0 +1,134 @@
+{
+  "about": "Counterfactual replay (specification section 20) of the recommendations a replay can measure, written by node tools/visualization/recommendation-replay.mjs. Read by the journey view and the dossier through options.recommendations.replays.",
+  "handover-first-failure": {
+    "method": "replay",
+    "ai": "recorded",
+    "candidate": "budgets.max_attempts: 1 on Verify documents and Verify installation documents",
+    "runs": [
+      {
+        "customer": "Joaquim Ferreira",
+        "instance": "00000307-0000-4000-8000-000000000000",
+        "run_id": "00000308-0000-4000-8000-000000000000",
+        "run": "0308",
+        "workflow": "Electricity Customer Onboarding",
+        "journal": "runs/documents-late.journal.jsonl",
+        "report": "replay/handover-first-failure.0308.json",
+        "report_md": "replay/handover-first-failure.0308.md",
+        "status": [
+          "completed",
+          "completed"
+        ],
+        "same_path": true,
+        "regressions": [],
+        "steps": [
+          {
+            "name": "Verify documents",
+            "verdict": "same",
+            "attempts": [
+              2,
+              1
+            ]
+          }
+        ],
+        "attempts_at_step": [
+          2,
+          1
+        ],
+        "attempts_run": [
+          13,
+          12
+        ],
+        "failed_at_step": [
+          2,
+          1
+        ],
+        "contracts_checked": [
+          6,
+          5
+        ],
+        "agent_ms_at_step": [
+          360000,
+          180000
+        ],
+        "replayed": {
+          "attempts_at_step": 1,
+          "failed_at_step": 0,
+          "contracts_checked": 4
+        },
+        "who_decided": [
+          "Marco Silva"
+        ]
+      },
+      {
+        "customer": "Tomás Reyes",
+        "instance": "00000092-0000-4000-8000-000000000000",
+        "run_id": "000000f7-0000-4000-8000-000000000000",
+        "run": "00f7",
+        "workflow": "Grid Export Registration",
+        "journal": "runs/solar-prosumer.grid-export.journal.jsonl",
+        "report": "replay/handover-first-failure.00f7.json",
+        "report_md": "replay/handover-first-failure.00f7.md",
+        "status": [
+          "completed",
+          "completed"
+        ],
+        "same_path": true,
+        "regressions": [],
+        "steps": [
+          {
+            "name": "Verify installation documents",
+            "verdict": "same",
+            "attempts": [
+              2,
+              1
+            ]
+          }
+        ],
+        "attempts_at_step": [
+          2,
+          1
+        ],
+        "attempts_run": [
+          4,
+          3
+        ],
+        "failed_at_step": [
+          2,
+          1
+        ],
+        "contracts_checked": [
+          4,
+          3
+        ],
+        "agent_ms_at_step": [
+          480000,
+          240000
+        ],
+        "replayed": {
+          "attempts_at_step": 1,
+          "failed_at_step": 0,
+          "contracts_checked": 2
+        },
+        "who_decided": [
+          "Hana Novak"
+        ]
+      }
+    ],
+    "same_status": true,
+    "same_path": true,
+    "regressions": [],
+    "before": {
+      "Attempts at the step": "4",
+      "Failed attempts, all runs": "4",
+      "Outcome contracts met": "33 of 37",
+      "Agent time on the failed attempts": "14 min"
+    },
+    "after": {
+      "Attempts at the step": "2",
+      "Failed attempts, all runs": "2",
+      "Outcome contracts met": "33 of 35",
+      "Agent time on the failed attempts": "7 min"
+    },
+    "text": "Counterfactual replay with ai: recorded on the 2 runs concerned: attempts at the step 4 → 2, 2 failed attempts fewer, about 7 minutes of agent time fewer (the recorded durations of the attempts not made; the replay supplies the step's recorded result, so these figures come from the recorded attempts). The same path and the same people deciding; no regression. Right first time is unchanged: an escalation still counts."
+  }
+}

@@ -6,7 +6,7 @@ Every package connects the same AWA MCP server ([`apps/mcp-server`](../../apps/m
 
 ## What you get
 
-Seven tools, the same in every assistant:
+Eight tools, the same in every assistant:
 
 | Tool | What it does | View |
 |---|---|---|
@@ -17,12 +17,13 @@ Seven tools, the same in every assistant:
 | `simulate_journey` | Plays business events through journeys in simulation and shows where each customer stands | journey view |
 | `load_claims_example` | Opens the bundled fictional claims example (3 journeys, 5 workflows, 6 customers) and hands out its documents | journey view |
 | `show_dashboard` | The measures of journeys and workflows: who is stuck, who is to act, outcomes, rework, waiting, cost | dashboard |
+| `make_dossier` | The dossier of a journey record as one HTML document, in a professional or a client edition; PDF and DOCX come from `awa dossier` | none |
 
 Everything is a simulation: no tool binding, command, HTTP call, model or production system is ever called. Documents are passed inline in the conversation and nothing is stored between calls. The views appear in assistants that display MCP Apps (ChatGPT, Claude Desktop and claude.ai); everywhere else the tools answer in text with the same facts.
 
 The plugin for coding assistants, [`plugins/awa-code`](../../plugins/awa-code), adds:
 
-- the **AWA skill**, the guide to writing AWA documents with the SDK, the command line and the JSON format;
+- the **AWA skill**, the guide to writing, validating and running AWA documents with the SDKs, the command line and the JSON format, with reference files and example documents (it also installs on its own in any coding agent: [skills.sh](#the-awa-skill-in-any-coding-agent-skillssh));
 - four **commands**: `validate`, `show`, `simulate` and `example` (in Claude Code, `/awa:validate` and so on);
 - **rules** for `.awa.json` and `.journey.json` files (Cursor).
 
@@ -89,7 +90,7 @@ The repository is a Claude Code plugin marketplace ([`.claude-plugin/marketplace
 
    Claude Code may show a dialog for the option **AWA repository folder**. Leave it empty: a marketplace added from a folder loads the plugin where it lies, and the plugin finds the repository around it.
 4. Run `/reload-plugins`, or start a new session.
-5. Run `/mcp`. You should see `plugin:awa:awa` connected, with 7 tools.
+5. Run `/mcp`. You should see `plugin:awa:awa` connected, with 8 tools.
 6. Try it: `/awa:example` opens the claims example and its dashboard; `/awa:validate path/to/workflow.awa.json` checks a file of yours; `/awa:show` and `/awa:simulate` show and simulate a workflow. You can also simply ask, for example "Validate examples/claims-settlement/claims-settlement.awa.json".
 
 **From GitHub instead of your clone.** `/plugin marketplace add yannickhuchard/agentic-workflow-architecture` works too, once this plugin is on the repository's main branch. Claude Code then copies the plugin into its cache, away from your clone, so give the clone's folder when the dialog asks for **AWA repository folder** (or later with `/plugin`, the AWA plugin, **Configure**). In one step, on recent versions of Claude Code: `/plugin install awa --marketplace yannickhuchard/agentic-workflow-architecture`. From the shell: `claude plugin install awa@agentic-workflow-architecture --config repository=$HOME/agentic-workflow-architecture`.
@@ -117,10 +118,10 @@ An MCP Bundle is a single `.mcpb` file holding the server and everything it need
    npm run bundle:mcpb
    ```
 
-   It writes `apps/mcp-server/dist/awa-workflows-0.1.0.mcpb` (about 30 MB) and prints `the server starts over stdio and lists 7 tools`.
+   It writes `apps/mcp-server/dist/awa-workflows-0.1.0.mcpb` (about 30 MB) and prints `the server starts over stdio, lists 8 tools`.
 2. Double-click the file, or drag it into the Claude Desktop window, or open **Settings**, **Extensions**, **Advanced settings**, **Install Extension** and choose it. (In newer versions, Extensions is under **Settings**, **Desktop app**, **Manage**.)
 3. Review the details and select **Install**.
-4. In a conversation, select the **+** button below the message box, then **Connectors**: **AWA Workflows & Journeys** is listed with its 7 tools.
+4. In a conversation, select the **+** button below the message box, then **Connectors**: **AWA Workflows & Journeys** is listed with its 8 tools.
 5. Ask: "Load the AWA claims example and show its dashboard."
 
 The bundle does not need the clone once it is installed. Rebuild and reinstall it after an update.
@@ -216,7 +217,7 @@ Mistral Vibe, Mistral's coding agent for the terminal, starts MCP servers from i
    ```
 
    This writes the table in [`apps/mcp-server/clients/mistral-vibe.toml`](../../apps/mcp-server/clients/mistral-vibe.toml) into `~/.vibe/config.toml`. You can also paste that table yourself, or into `.vibe/config.toml` of a project you trust.
-2. Start `vibe` and ask: "Which AWA tools do you have?" It lists the seven tools, named after the `awa` server.
+2. Start `vibe` and ask: "Which AWA tools do you have?" It lists the eight tools, named after the `awa` server.
 
 **With the skill and the commands.** Vibe also loads plugins written in Claude Code's format from `~/.vibe/plugins`. Link the plugin folder there instead of step 1:
 
@@ -236,7 +237,7 @@ Choose one of three ways.
 The repository carries [`.cursor/mcp.json`](../../.cursor/mcp.json) and the rule [`.cursor/rules/awa-documents.mdc`](../../.cursor/rules/awa-documents.mdc).
 
 1. Open `~/agentic-workflow-architecture` in Cursor.
-2. Open **Cursor Settings**, then the MCP section, and turn on the `awa` server. It shows 7 tools.
+2. Open **Cursor Settings**, then the MCP section, and turn on the `awa` server. It shows 8 tools.
 3. Open an `.awa.json` file and ask the agent: "Validate this workflow." The rule for AWA documents applies to these files.
 
 ### B. Add to Cursor, for every project
@@ -251,7 +252,7 @@ The repository carries [`.cursor/mcp.json`](../../.cursor/mcp.json) and the rule
 
    It installs `{"command":"node","args":["${userHome}/agentic-workflow-architecture/plugins/awa-code/server/start.mjs"]}` into your Cursor configuration. Cursor fills in `${userHome}`.
 2. Cursor shows the server and asks you to confirm. Install it.
-3. Check in **Cursor Settings**, MCP section: `awa` is on, with 7 tools.
+3. Check in **Cursor Settings**, MCP section: `awa` is on, with 8 tools.
 
 If your clone is elsewhere, make links for your path: `node ~/agentic-workflow-architecture/apps/mcp-server/scripts/cursor-link.mjs /path/to/your/clone`. You can also paste the same entry into `~/.cursor/mcp.json` yourself.
 
@@ -282,7 +283,7 @@ If your clone is elsewhere, make links for your path: `node ~/agentic-workflow-a
    ```
 
    With `gemini extensions install ~/agentic-workflow-architecture/plugins/awa-code` instead, Gemini CLI keeps a copy: give your clone's folder when it asks for **AWA repository folder** (or later with `gemini extensions config awa`).
-2. Start `gemini` and run `/mcp`: the `awa` server is listed with 7 tools.
+2. Start `gemini` and run `/mcp`: the `awa` server is listed with 8 tools.
 3. Ask: "Validate examples/claims-settlement/claims-settlement.awa.json with the AWA tools."
 
 ## Any other MCP client
@@ -290,6 +291,16 @@ If your clone is elsewhere, make links for your path: `node ~/agentic-workflow-a
 - **Clients that start a local server:** command `node`, arguments `~/agentic-workflow-architecture/plugins/awa-code/server/start.mjs` (or `apps/mcp-server/src/start.js --stdio`). Snippet: [`clients/stdio.json`](../../apps/mcp-server/clients/stdio.json).
 - **Clients that connect to an address on your computer:** run `npm start` in `apps/mcp-server` and connect to `http://127.0.0.1:8787/mcp` (Streamable HTTP). Snippet: [`clients/local-development.json`](../../apps/mcp-server/clients/local-development.json).
 - **To try the tools without an assistant:** `npx @modelcontextprotocol/inspector@latest`, Streamable HTTP, `http://127.0.0.1:8787/mcp`.
+
+## The AWA skill in any coding agent (skills.sh)
+
+[skills.sh](https://skills.sh/yannickhuchard/agentic-workflow-architecture), the open directory of agent skills, lists the skills that the `skills` command installs. The AWA skill installs with it in Claude Code, Codex, Cursor, OpenCode and the other agents that command supports (Node.js 22.20 or later). It brings the guide to AWA documents, its reference files, two example documents (a workflow and a journey) and a script that finds the `awa` command of your clone. It does not bring the MCP server: for the eight tools, install the plugin or the server as above.
+
+```bash
+npx skills add yannickhuchard/agentic-workflow-architecture --skill agentic-workflow-architecture
+```
+
+Add `-g` to install it for every project, and `-a <agent>` to choose the agent, for example `-a claude-code`. `npx skills update` takes a newer version. `npx skills add ~/agentic-workflow-architecture --list` shows what a clone offers: the AWA skill alone, since the four command skills of the plugin call the server and carry `metadata.internal`. To validate and run documents, the skill needs a built clone (see [Before you start](#before-you-start)): work inside it, or set `AWA_REPOSITORY` to its folder. The `skills` command sends anonymous usage data unless `DISABLE_TELEMETRY=1` is set.
 
 ## Open a tunnel
 

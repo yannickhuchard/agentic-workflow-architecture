@@ -2,7 +2,7 @@
 // data-oriented picture of a workflow, the summary of a simulated run, and the
 // story of journeys. Pure functions of their arguments; nothing is kept.
 import { LIMITS } from './limits.js';
-import { load_sdk, story_builder } from './sdk.js';
+import { load_sdk, story_builder, recommendations_module } from './sdk.js';
 
 export class DocumentError extends Error {
     constructor(message, problems = []) { super(message); this.name = 'DocumentError'; this.problems = problems; }
@@ -271,6 +271,12 @@ export function build_story(portfolio) {
     try { story = story_builder()(portfolio); }
     catch (error) { throw new DocumentError(`The journey records could not be read: ${error.message}`); }
     return story;
+}
+
+/** The recommendations the journey view's tab shows, computed from the records; null when they cannot be computed */
+export function recommend(portfolio) {
+    try { return recommendations_module().compute(portfolio, {}); }
+    catch (error) { return null; }
 }
 
 export function story_summary(story) {
